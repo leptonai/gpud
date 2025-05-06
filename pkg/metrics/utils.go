@@ -18,17 +18,9 @@ func ConvertToLeptonMetrics(ms Metrics) apiv1.GPUdComponentMetrics {
 
 		mt := apiv1.Metric{
 			UnixSeconds: m.UnixMilliseconds,
-
-			Name:  m.Name,
-			Value: m.Value,
-
-			DeprecatedMetricName:          m.Name,
-			DeprecatedMetricSecondaryName: m.LabelValue,
-		}
-		if m.LabelName != "" {
-			mt.Labels = map[string]string{
-				m.LabelName: m.LabelValue,
-			}
+			Name:        m.Name,
+			Labels:      m.Labels,
+			Value:       m.Value,
 		}
 
 		aggregated[m.Component] = append(aggregated[m.Component], mt)

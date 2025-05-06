@@ -20,7 +20,7 @@ var (
 			Name:      "connections_congested_percent_against_threshold",
 			Help:      "tracks the percentage of FUSE connections that are congested",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "device_name"}, // label is device name
+		[]string{pkgmetrics.MetricComponentLabelKey, "device_name"}, // label is device name
 	).MustCurryWith(componentLabel)
 
 	metricConnsMaxBackgroundPct = prometheus.NewGaugeVec(
@@ -30,7 +30,7 @@ var (
 			Name:      "connections_max_background_percent_against_threshold",
 			Help:      "tracks the percentage of FUSE connections that are congested",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "device_name"}, // label is device name
+		[]string{pkgmetrics.MetricComponentLabelKey, "device_name"}, // label is device name
 	).MustCurryWith(componentLabel)
 )
 

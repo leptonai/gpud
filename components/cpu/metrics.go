@@ -21,7 +21,7 @@ var (
 			Name:      "load_average",
 			Help:      "tracks the load average for the last period",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "load_duration"}, // label is last period
+		[]string{pkgmetrics.MetricComponentLabelKey, "load_duration"}, // label is last period
 	).MustCurryWith(componentLabel)
 
 	metricUsedPercent = prometheus.NewGaugeVec(

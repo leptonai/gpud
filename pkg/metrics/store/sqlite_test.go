@@ -54,7 +54,7 @@ func TestSQLiteStore_Record(t *testing.T) {
 			UnixMilliseconds: now,
 			Component:        "test-component",
 			Name:             "metric2",
-			LabelValue:       "gpu0",
+			Labels:           map[string]string{"gpu": "gpu0"},
 			Value:            123.45,
 		},
 	}
@@ -146,16 +146,14 @@ func TestSQLiteStore_Read(t *testing.T) {
 			Component:        "component1",
 			Name:             "metric2",
 			Value:            100.0,
-			LabelName:        "label",
-			LabelValue:       "label1",
+			Labels:           map[string]string{"label": "label1"},
 		},
 		{
 			UnixMilliseconds: timestamp3,
 			Component:        "component1",
 			Name:             "metric2",
 			Value:            200.0,
-			LabelName:        "label",
-			LabelValue:       "label1",
+			Labels:           map[string]string{"label": "label1"},
 		},
 		{
 			UnixMilliseconds: timestamp3,
@@ -402,8 +400,7 @@ func TestSQLiteInsert(t *testing.T) {
 		Component:        "test-component",
 		Name:             "test-metric",
 		Value:            42.0,
-		LabelName:        "label",
-		LabelValue:       "test-label",
+		Labels:           map[string]string{"label": "test-label"},
 	}
 
 	// Test successful insert
@@ -470,8 +467,7 @@ func TestSQLiteRead(t *testing.T) {
 			Component:        "component2",
 			Name:             "metric2",
 			Value:            30.0,
-			LabelName:        "label",
-			LabelValue:       "label1",
+			Labels:           map[string]string{"label": "label1"},
 		},
 	}
 
@@ -597,15 +593,14 @@ func TestSQLiteReadNullLabel(t *testing.T) {
 			Component:        "component1",
 			Name:             "metric1",
 			Value:            10.0,
-			LabelValue:       "", // Empty label
+			// Empty labels
 		},
 		{
 			UnixMilliseconds: now.UnixMilli(),
 			Component:        "component2",
 			Name:             "metric2",
 			Value:            20.0,
-			LabelName:        "label",
-			LabelValue:       "label2",
+			Labels:           map[string]string{"label": "label2"},
 		},
 	}
 
@@ -623,9 +618,9 @@ func TestSQLiteReadNullLabel(t *testing.T) {
 	// Verify labels are preserved correctly
 	for _, result := range results {
 		if result.Component == "component1" {
-			assert.Equal(t, "", result.LabelValue)
+			assert.Empty(t, result.Labels)
 		} else if result.Component == "component2" {
-			assert.Equal(t, "label2", result.LabelValue)
+			assert.Equal(t, "label2", result.Labels["label"])
 		}
 	}
 }
@@ -683,32 +678,28 @@ func TestSQLiteBatchInsert(t *testing.T) {
 			Component:        "component1",
 			Name:             "metric1",
 			Value:            10.5,
-			LabelName:        "label",
-			LabelValue:       "GPU-0",
+			Labels:           map[string]string{"label": "GPU-0"},
 		},
 		{
 			UnixMilliseconds: baseTime,
 			Component:        "component1",
 			Name:             "metric2",
 			Value:            20.7,
-			LabelName:        "label",
-			LabelValue:       "GPU-0",
+			Labels:           map[string]string{"label": "GPU-0"},
 		},
 		{
 			UnixMilliseconds: baseTime,
 			Component:        "component2",
 			Name:             "metric1",
 			Value:            30.2,
-			LabelName:        "label",
-			LabelValue:       "GPU-1",
+			Labels:           map[string]string{"label": "GPU-1"},
 		},
 		{
 			UnixMilliseconds: baseTime + 100,
 			Component:        "component2",
 			Name:             "metric2",
 			Value:            40.9,
-			LabelName:        "label",
-			LabelValue:       "GPU-1",
+			Labels:           map[string]string{"label": "GPU-1"},
 		},
 		{
 			UnixMilliseconds: baseTime + 200,
@@ -777,16 +768,14 @@ func TestSQLiteBatchInsert(t *testing.T) {
 			Component:        "component1",
 			Name:             "metric1",
 			Value:            100.5, // Updated value
-			LabelName:        "label",
-			LabelValue:       "GPU-0",
+			Labels:           map[string]string{"label": "GPU-0"},
 		},
 		{
 			UnixMilliseconds: baseTime,
 			Component:        "component1",
 			Name:             "metric2",
 			Value:            200.7, // Updated value
-			LabelName:        "label",
-			LabelValue:       "GPU-0",
+			Labels:           map[string]string{"label": "GPU-0"},
 		},
 	}
 
@@ -800,9 +789,9 @@ func TestSQLiteBatchInsert(t *testing.T) {
 
 	// Check updated values
 	for _, m := range results {
-		if m.Component == "component1" && m.Name == "metric1" && m.LabelValue == "GPU-0" {
+		if m.Component == "component1" && m.Name == "metric1" && m.Labels["label"] == "GPU-0" {
 			assert.Equal(t, 100.5, m.Value, "value should be updated")
-		} else if m.Component == "component1" && m.Name == "metric2" && m.LabelValue == "GPU-0" {
+		} else if m.Component == "component1" && m.Name == "metric2" && m.Labels["label"] == "GPU-0" {
 			assert.Equal(t, 200.7, m.Value, "value should be updated")
 		}
 	}
@@ -810,7 +799,20 @@ func TestSQLiteBatchInsert(t *testing.T) {
 
 // Helper function to create a unique key from a metric for testing
 func keyFromMetric(m pkgmetrics.Metric) string {
-	return fmt.Sprintf("%d:%s:%s:%s:%s", m.UnixMilliseconds, m.Component, m.Name, m.LabelName, m.LabelValue)
+	labelKey := ""
+	labelValue := ""
+
+	// If there are labels, get the first one for the key
+	if len(m.Labels) > 0 {
+		// Since we're usually using a single label in tests
+		for k, v := range m.Labels {
+			labelKey = k
+			labelValue = v
+			break
+		}
+	}
+
+	return fmt.Sprintf("%d:%s:%s:%s:%s", m.UnixMilliseconds, m.Component, m.Name, labelKey, labelValue)
 }
 
 // TestSQLiteStore_PurgeMethod tests the Purge method of the sqliteStore struct
@@ -1012,8 +1014,7 @@ func TestSQLiteReadScanHandling(t *testing.T) {
 		Component:        "extreme-component",
 		Name:             "extreme-metric",
 		Value:            1e308, // Very large value, close to max float64
-		LabelName:        "label",
-		LabelValue:       "extreme-value",
+		Labels:           map[string]string{"label": "extreme-value"},
 	}
 
 	// Insert the metric
@@ -1029,8 +1030,7 @@ func TestSQLiteReadScanHandling(t *testing.T) {
 	assert.Equal(t, extremeMetric.Value, results[0].Value)
 	assert.Equal(t, extremeMetric.Component, results[0].Component)
 	assert.Equal(t, extremeMetric.Name, results[0].Name)
-	assert.Equal(t, extremeMetric.LabelName, results[0].LabelName)
-	assert.Equal(t, extremeMetric.LabelValue, results[0].LabelValue)
+	assert.Equal(t, extremeMetric.Labels["label"], results[0].Labels["label"])
 
 	// Test handling of NULL values
 	// Create a special query that'll result in NULL for some fields to test null handling
@@ -1040,7 +1040,7 @@ func TestSQLiteReadScanHandling(t *testing.T) {
 		Component:        "null-component",
 		Name:             "null-metric",
 		Value:            42.0,
-		// Deliberately not setting LabelName and LabelValue
+		// Deliberately not setting Labels
 	}
 
 	err = insert(ctx, dbRW, tableName, nullMetric)
@@ -1054,6 +1054,5 @@ func TestSQLiteReadScanHandling(t *testing.T) {
 	assert.Equal(t, nullMetric.Value, results[0].Value)
 	assert.Equal(t, nullMetric.Component, results[0].Component)
 	assert.Equal(t, nullMetric.Name, results[0].Name)
-	assert.Equal(t, "", results[0].LabelName)
-	assert.Equal(t, "", results[0].LabelValue)
+	assert.Empty(t, results[0].Labels)
 }

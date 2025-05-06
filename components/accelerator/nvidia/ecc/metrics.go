@@ -21,7 +21,7 @@ var (
 			Name:      "aggregate_total_corrected",
 			Help:      "tracks the current aggregate total corrected",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricAggregateTotalUncorrected = prometheus.NewGaugeVec(
@@ -31,7 +31,7 @@ var (
 			Name:      "aggregate_total_uncorrected",
 			Help:      "tracks the current aggregate total uncorrected",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricVolatileTotalCorrected = prometheus.NewGaugeVec(
@@ -41,7 +41,7 @@ var (
 			Name:      "volatile_total_corrected",
 			Help:      "tracks the current volatile total corrected",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricVolatileTotalUncorrected = prometheus.NewGaugeVec(
@@ -51,7 +51,7 @@ var (
 			Name:      "volatile_total_uncorrected",
 			Help:      "tracks the current volatile total uncorrected",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 )
 

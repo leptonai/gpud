@@ -4,6 +4,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -29,16 +30,16 @@ const (
 	// ColumnMetricName represents the name of the metric.
 	ColumnMetricName = "metric_name"
 
+	// ColumnMetricLabels represents the labels of the metric
+	// such as GPU ID, mount points, etc. (as a secondary metric name).
+	// The value is a set of key-value pairs in JSON format.
+	//
+	// Go JSON encoder sorts the keys alphabetically.
+	// ref. https://pkg.go.dev/encoding/json#Marshal
+	ColumnMetricLabels = "metric_labels"
+
 	// ColumnMetricValue represents the numeric value of the metric.
 	ColumnMetricValue = "metric_value"
-
-	// ColumnMetricLabelName represents the label name of the metric
-	// such as "gpu_uuid", etc.
-	ColumnMetricLabelName = "metric_label_name"
-
-	// ColumnMetricLabelValue represents the label name of the metric
-	// such as "GPU-abc", etc.
-	ColumnMetricLabelValue = "metric_label_value"
 )
 
 // TODO: drop the old table "gpud_metrics"
@@ -93,14 +94,13 @@ CREATE TABLE IF NOT EXISTS %s (
 	%s INTEGER NOT NULL,
 	%s TEXT NOT NULL,
 	%s TEXT NOT NULL,
+	%s TEXT,
 	%s REAL NOT NULL,
-	%s TEXT,
-	%s TEXT,
 	PRIMARY KEY (%s, %s, %s, %s)
 ) WITHOUT ROWID;`,
 		table,
-		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricValue, ColumnMetricLabelName, ColumnMetricLabelValue, // columns
-		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricLabelValue, // primary keys
+		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricLabels, ColumnMetricValue, // columns
+		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricLabels, // primary keys
 	))
 	return err
 }
@@ -126,26 +126,33 @@ func insert(ctx context.Context, dbRW *sql.DB, table string, ms ...pkgmetrics.Me
 
 	// Build the query with placeholders for all metrics
 	query := fmt.Sprintf(
-		"INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s, %s) VALUES ",
+		"INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES ",
 		table,
 		ColumnUnixMilliseconds,
 		ColumnComponentName,
 		ColumnMetricName,
+		ColumnMetricLabels,
 		ColumnMetricValue,
-		ColumnMetricLabelName,
-		ColumnMetricLabelValue,
 	)
 
 	// Create proper placeholders with commas between value sets
 	placeholders := make([]string, len(ms))
 	for i := range placeholders {
-		placeholders[i] = "(?, ?, ?, ?, ?, ?)"
+		placeholders[i] = "(?, ?, ?, ?, ?)"
 	}
 	query += strings.Join(placeholders, ", ")
 
 	args := make([]interface{}, 0, len(ms)*5)
 	for _, m := range ms {
-		args = append(args, m.UnixMilliseconds, m.Component, m.Name, m.Value, m.LabelName, m.LabelValue)
+		labels := ""
+		if len(m.Labels) > 0 {
+			b, err := json.Marshal(m.Labels)
+			if err != nil {
+				return err
+			}
+			labels = string(b)
+		}
+		args = append(args, m.UnixMilliseconds, m.Component, m.Name, labels, m.Value)
 	}
 
 	log.Logger.Infow("inserting metrics", "metrics", len(ms))
@@ -195,15 +202,14 @@ func read(ctx context.Context, dbRO *sql.DB, table string, opts ...pkgmetrics.Op
 		whereStatement = fmt.Sprintf("WHERE %s", whereStatement)
 	}
 
-	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s
+	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
 FROM %s
 `,
 		ColumnUnixMilliseconds,
 		ColumnComponentName,
 		ColumnMetricName,
+		ColumnMetricLabels,
 		ColumnMetricValue,
-		ColumnMetricLabelName,
-		ColumnMetricLabelValue,
 		table,
 	)
 	if whereStatement != "" {
@@ -228,16 +234,16 @@ FROM %s
 	rows := make(pkgmetrics.Metrics, 0)
 	for queryRows.Next() {
 		m := pkgmetrics.Metric{}
-		var labelName sql.NullString
-		var labelValue sql.NullString
-		if err := queryRows.Scan(&m.UnixMilliseconds, &m.Component, &m.Name, &m.Value, &labelName, &labelValue); err != nil {
+		var labels sql.NullString
+		if err := queryRows.Scan(&m.UnixMilliseconds, &m.Component, &m.Name, &labels, &m.Value); err != nil {
 			return nil, err
 		}
-		if labelName.Valid && labelName.String != "" {
-			m.LabelName = labelName.String
-		}
-		if labelValue.Valid && labelValue.String != "" {
-			m.LabelValue = labelValue.String
+		if labels.Valid && labels.String != "" {
+			lm := make(map[string]string, 0)
+			if err := json.Unmarshal([]byte(labels.String), &lm); err != nil {
+				return nil, err
+			}
+			m.Labels = lm
 		}
 		rows = append(rows, m)
 	}

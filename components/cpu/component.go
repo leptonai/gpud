@@ -23,7 +23,6 @@ import (
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 // Name is the ID of the CPU component.
@@ -214,9 +213,9 @@ func (c *component) Check() components.CheckResult {
 	cr.Usage.LoadAvg5Min = fmt.Sprintf("%.2f", loadAvg.Load5)
 	cr.Usage.LoadAvg15Min = fmt.Sprintf("%.2f", loadAvg.Load15)
 
-	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "load_duration": oneMinute}).Set(loadAvg.Load1)
-	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "load_duration": fiveMinute}).Set(loadAvg.Load5)
-	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "load_duration": fifteenMin}).Set(loadAvg.Load15)
+	metricLoadAverage.With(prometheus.Labels{"load_duration": oneMinute}).Set(loadAvg.Load1)
+	metricLoadAverage.With(prometheus.Labels{"load_duration": fiveMinute}).Set(loadAvg.Load5)
+	metricLoadAverage.With(prometheus.Labels{"load_duration": fifteenMin}).Set(loadAvg.Load15)
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "ok"

@@ -181,8 +181,7 @@ func TestSync(t *testing.T) {
 			Component:        "test-component",
 			Name:             "metric2",
 			Value:            123.45,
-			LabelName:        "label",
-			LabelValue:       "gpu0",
+			Labels:           map[string]string{"label": "gpu0"},
 		},
 	}
 

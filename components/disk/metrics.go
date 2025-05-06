@@ -20,7 +20,7 @@ var (
 			Name:      "total_bytes",
 			Help:      "tracks the total bytes of the disk",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "mount_point"}, // label is the mount point
+		[]string{pkgmetrics.MetricComponentLabelKey, "mount_point"}, // label is the mount point
 	).MustCurryWith(componentLabel)
 
 	metricFreeBytes = prometheus.NewGaugeVec(
@@ -30,7 +30,7 @@ var (
 			Name:      "free_bytes",
 			Help:      "tracks the current free bytes of the disk",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "mount_point"}, // label is the mount point
+		[]string{pkgmetrics.MetricComponentLabelKey, "mount_point"}, // label is the mount point
 	).MustCurryWith(componentLabel)
 
 	metricUsedBytes = prometheus.NewGaugeVec(
@@ -40,7 +40,7 @@ var (
 			Name:      "used_bytes",
 			Help:      "tracks the current free bytes of the disk",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "mount_point"}, // label is the mount point
+		[]string{pkgmetrics.MetricComponentLabelKey, "mount_point"}, // label is the mount point
 	).MustCurryWith(componentLabel)
 )
 

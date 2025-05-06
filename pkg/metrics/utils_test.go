@@ -37,7 +37,6 @@ func TestConvertToLeptonMetrics_EmptyComponent(t *testing.T) {
 	require.Len(t, result, 1, "should have only one component metrics")
 	assert.Equal(t, "component1", result[0].Component)
 	require.Len(t, result[0].Metrics, 1, "should have one metric")
-	assert.Equal(t, "metric2", result[0].Metrics[0].DeprecatedMetricName)
 	assert.Equal(t, int64(2000), result[0].Metrics[0].UnixSeconds)
 	assert.Equal(t, 20.5, result[0].Metrics[0].Value)
 }
@@ -57,8 +56,7 @@ func TestConvertToLeptonMetrics_SingleComponent(t *testing.T) {
 			Component:        "component1",
 			Name:             "metric2",
 			Value:            20.5,
-			LabelName:        "label",
-			LabelValue:       "gpu0",
+			Labels:           map[string]string{"label": "gpu0"},
 		},
 	}
 
@@ -68,14 +66,14 @@ func TestConvertToLeptonMetrics_SingleComponent(t *testing.T) {
 	require.Len(t, result[0].Metrics, 2, "should have two metrics")
 
 	// Check first metric
-	assert.Equal(t, "metric1", result[0].Metrics[0].DeprecatedMetricName)
-	assert.Equal(t, "", result[0].Metrics[0].DeprecatedMetricSecondaryName)
+	assert.Equal(t, "metric1", result[0].Metrics[0].Name)
+	assert.Nil(t, result[0].Metrics[0].Labels)
 	assert.Equal(t, now, result[0].Metrics[0].UnixSeconds)
 	assert.Equal(t, 10.5, result[0].Metrics[0].Value)
 
 	// Check second metric
-	assert.Equal(t, "metric2", result[0].Metrics[1].DeprecatedMetricName)
-	assert.Equal(t, "gpu0", result[0].Metrics[1].DeprecatedMetricSecondaryName)
+	assert.Equal(t, "metric2", result[0].Metrics[1].Name)
+	assert.Equal(t, "gpu0", result[0].Metrics[1].Labels["label"])
 	assert.Equal(t, now+1000, result[0].Metrics[1].UnixSeconds)
 	assert.Equal(t, 20.5, result[0].Metrics[1].Value)
 }
@@ -95,16 +93,14 @@ func TestConvertToLeptonMetrics_MultipleComponents(t *testing.T) {
 			Component:        "component2",
 			Name:             "metric2",
 			Value:            20.5,
-			LabelName:        "label",
-			LabelValue:       "gpu0",
+			Labels:           map[string]string{"label": "gpu0"},
 		},
 		{
 			UnixMilliseconds: now + 2000,
 			Component:        "component1",
 			Name:             "metric3",
 			Value:            30.5,
-			LabelName:        "label",
-			LabelValue:       "gpu1",
+			Labels:           map[string]string{"label": "gpu1"},
 		},
 	}
 
@@ -127,19 +123,19 @@ func TestConvertToLeptonMetrics_MultipleComponents(t *testing.T) {
 
 	// Check metrics are sorted by timestamp
 	assert.Equal(t, now, comp1.Metrics[0].UnixSeconds)
-	assert.Equal(t, "metric1", comp1.Metrics[0].DeprecatedMetricName)
+	assert.Equal(t, "metric1", comp1.Metrics[0].Name)
 	assert.Equal(t, 10.5, comp1.Metrics[0].Value)
 
 	assert.Equal(t, now+2000, comp1.Metrics[1].UnixSeconds)
-	assert.Equal(t, "metric3", comp1.Metrics[1].DeprecatedMetricName)
-	assert.Equal(t, "gpu1", comp1.Metrics[1].DeprecatedMetricSecondaryName)
+	assert.Equal(t, "metric3", comp1.Metrics[1].Name)
+	assert.Equal(t, "gpu1", comp1.Metrics[1].Labels["label"])
 	assert.Equal(t, 30.5, comp1.Metrics[1].Value)
 
 	// Check component2
 	assert.Equal(t, "component2", comp2.Component)
 	require.Len(t, comp2.Metrics, 1, "component2 should have one metric")
-	assert.Equal(t, "metric2", comp2.Metrics[0].DeprecatedMetricName)
-	assert.Equal(t, "gpu0", comp2.Metrics[0].DeprecatedMetricSecondaryName)
+	assert.Equal(t, "metric2", comp2.Metrics[0].Name)
+	assert.Equal(t, "gpu0", comp2.Metrics[0].Labels["label"])
 	assert.Equal(t, now+1000, comp2.Metrics[0].UnixSeconds)
 	assert.Equal(t, 20.5, comp2.Metrics[0].Value)
 }

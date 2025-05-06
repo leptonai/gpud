@@ -17,7 +17,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -135,13 +134,13 @@ func (c *component) Check() components.CheckResult {
 		cr.NVLinks = append(cr.NVLinks, nvLink)
 
 		if nvLink.States.AllFeatureEnabled() {
-			metricFeatureEnabled.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(1.0))
+			metricFeatureEnabled.With(prometheus.Labels{"uuid": uuid}).Set(float64(1.0))
 		} else {
-			metricFeatureEnabled.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(0.0))
+			metricFeatureEnabled.With(prometheus.Labels{"uuid": uuid}).Set(float64(0.0))
 		}
-		metricReplayErrors.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(nvLink.States.TotalRelayErrors()))
-		metricRecoveryErrors.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(nvLink.States.TotalRecoveryErrors()))
-		metricCRCErrors.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(nvLink.States.TotalCRCErrors()))
+		metricReplayErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalRelayErrors()))
+		metricRecoveryErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalRecoveryErrors()))
+		metricCRCErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalCRCErrors()))
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy

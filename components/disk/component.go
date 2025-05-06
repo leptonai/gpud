@@ -20,7 +20,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 // Name is the ID of the disk component.
@@ -229,9 +228,9 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 
-		metricTotalBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "mount_point": p.MountPoint}).Set(float64(usage.TotalBytes))
-		metricFreeBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "mount_point": p.MountPoint}).Set(float64(usage.FreeBytes))
-		metricUsedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "mount_point": p.MountPoint}).Set(float64(usage.UsedBytes))
+		metricTotalBytes.With(prometheus.Labels{"mount_point": p.MountPoint}).Set(float64(usage.TotalBytes))
+		metricFreeBytes.With(prometheus.Labels{"mount_point": p.MountPoint}).Set(float64(usage.FreeBytes))
+		metricUsedBytes.With(prometheus.Labels{"mount_point": p.MountPoint}).Set(float64(usage.UsedBytes))
 	}
 
 	for target := range c.mountPointsToTrackUsage {

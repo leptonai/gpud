@@ -20,7 +20,7 @@ var (
 			Name:      "current_celsius",
 			Help:      "tracks the current temperature in celsius",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricThresholdSlowdownCelsius = prometheus.NewGaugeVec(
@@ -30,7 +30,7 @@ var (
 			Name:      "slowdown_threshold_celsius",
 			Help:      "tracks the threshold temperature in celsius for slowdown",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricSlowdownUsedPercent = prometheus.NewGaugeVec(
@@ -40,7 +40,7 @@ var (
 			Name:      "slowdown_used_percent",
 			Help:      "tracks the percentage of slowdown used",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 )
 

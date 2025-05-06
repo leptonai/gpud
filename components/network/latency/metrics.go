@@ -20,7 +20,7 @@ var (
 			Name:      "edge_in_milliseconds",
 			Help:      "tracks the edge latency in milliseconds",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "region"}, // label is provider region
+		[]string{pkgmetrics.MetricComponentLabelKey, "region"}, // label is provider region
 	).MustCurryWith(componentLabel)
 )
 

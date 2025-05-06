@@ -20,7 +20,7 @@ var (
 			Name:      "current_usage_milli_watts",
 			Help:      "tracks the current power in milliwatts",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricEnforcedLimitMilliWatts = prometheus.NewGaugeVec(
@@ -30,7 +30,7 @@ var (
 			Name:      "enforced_limit_milli_watts",
 			Help:      "tracks the enforced power limit in milliwatts",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricUsedPercent = prometheus.NewGaugeVec(
@@ -40,7 +40,7 @@ var (
 			Name:      "used_percent",
 			Help:      "tracks the percentage of power used",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 )
 

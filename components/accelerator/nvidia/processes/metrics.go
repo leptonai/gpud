@@ -20,7 +20,7 @@ var (
 			Name:      "running_total",
 			Help:      "tracks the current per-GPU process counter",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 )
 
