@@ -171,7 +171,7 @@ func (c *PackageController) installRunner(ctx context.Context) {
 					skipCheck = true
 					break
 				}
-				if c.packageStatus[dep[0]].CurrentVersion == "" || c.packageStatus[dep[0]].CurrentVersion < dep[1] {
+				if dep[1] != "*" && (c.packageStatus[dep[0]].CurrentVersion == "" || c.packageStatus[dep[0]].CurrentVersion < dep[1]) {
 					log.Logger.Infof("[package controller]: %v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], c.packageStatus[dep[0]].CurrentVersion, dep[1])
 					skipCheck = true
 					break
