@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
