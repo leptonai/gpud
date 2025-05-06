@@ -10,10 +10,11 @@ import (
 func TestParseFlatten(t *testing.T) {
 	t.Parallel()
 
-	for _, f := range []string{
-		// "lsblk.1.json",
-		// "lsblk.2.json",
-		"lsblk.3.json",
+	for f, expectedDevs := range map[string]int{
+		"lsblk.1.json": 23,
+		"lsblk.2.json": 10,
+		"lsblk.3.json": 20,
+		"lsblk.4.json": 39,
 	} {
 		dat, err := os.ReadFile("testdata/" + f)
 		require.NoError(t, err)
@@ -21,6 +22,9 @@ func TestParseFlatten(t *testing.T) {
 		blks, err := parseLsblkJSON(dat)
 		require.NoError(t, err)
 
-		blks.Flatten().RenderTable(os.Stdout)
+		flattened := blks.Flatten()
+		require.Equal(t, expectedDevs, len(flattened))
+
+		flattened.RenderTable(os.Stdout)
 	}
 }
