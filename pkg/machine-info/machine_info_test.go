@@ -62,6 +62,10 @@ func TestGetMachineCPUInfo(t *testing.T) {
 }
 
 func TestGetMachineLocation(t *testing.T) {
+	if os.Getenv("TEST_MACHINE_LOCATION") != "true" {
+		t.Skip("TEST_MACHINE_LOCATION is not set")
+	}
+
 	// Always run a basic test, but don't assert on the results
 	// as it may return nil depending on network conditions
 	location := GetMachineLocation()
