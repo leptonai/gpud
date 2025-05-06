@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	componentsdisk "github.com/leptonai/gpud/components/disk"
 	"github.com/leptonai/gpud/pkg/asn"
 	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
 	"github.com/leptonai/gpud/pkg/disk"
@@ -235,9 +236,7 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	blks, err := disk.GetBlockDevicesWithLsblk(
 		ctx,
-		disk.WithFstype(func(fs string) bool {
-			return fs == "" || fs == "ext4" || fs == "LVM2_member"
-		}),
+		disk.WithFstype(componentsdisk.DefaultFsTypeFunc),
 		disk.WithDeviceType(func(dt string) bool {
 			return dt == "disk" || dt == "lvm" || dt == "part"
 		},
