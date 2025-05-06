@@ -42,6 +42,14 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+func DefaultFsTypeFunc(fsType string) bool {
+	return fsType == "" ||
+		fsType == "ext4" ||
+		fsType == "LVM2_member" ||
+		fsType == "linux_raid_member" ||
+		fsType == "raid0"
+}
+
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -60,12 +68,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.GetBlockDevicesWithLsblk(
 				ctx,
-				disk.WithFstype(func(fs string) bool {
-					return fs == "" ||
-						fs == "ext4" ||
-						fs == "LVM2_member" ||
-						fs == "linux_raid_member"
-				}),
+				disk.WithFstype(DefaultFsTypeFunc),
 				disk.WithDeviceType(func(dt string) bool {
 					return dt == "disk" || dt == "lvm" || dt == "part"
 				},
