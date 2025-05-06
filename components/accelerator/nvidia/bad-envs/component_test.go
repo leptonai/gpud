@@ -60,8 +60,8 @@ func TestCheck(t *testing.T) {
 	assert.NoError(t, err)
 	comp := c.(*component)
 
-	// Create a mock NVML instance that returns true for NVMLExists
-	mockNVMLInstance := &mockNVMLInstance{exists: true}
+	// Create a mock NVML instance that returns true for NVMLExists and has a product name
+	mockNVMLInstance := &mockNVMLInstance{exists: true, pname: "Tesla V100"}
 	comp.nvmlInstance = mockNVMLInstance
 
 	// Test with no bad env vars set
@@ -90,6 +90,15 @@ func TestCheck(t *testing.T) {
 // mockNVMLInstance is a mock implementation of nvidianvml.Instance
 type mockNVMLInstance struct {
 	exists bool
+	pname  string
+}
+
+// NewMockNVMLInstance creates a new mockNVMLInstance with default settings
+func NewMockNVMLInstance(exists bool, pname string) *mockNVMLInstance {
+	return &mockNVMLInstance{
+		exists: exists,
+		pname:  pname,
+	}
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -105,7 +114,7 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 }
 
 func (m *mockNVMLInstance) ProductName() string {
-	return "test"
+	return m.pname
 }
 
 func (m *mockNVMLInstance) Architecture() string {
@@ -147,8 +156,8 @@ func TestCustomCheckEnvFunc(t *testing.T) {
 	assert.NoError(t, err)
 	comp := c.(*component)
 
-	// Create a mock NVML instance that returns true for NVMLExists
-	mockNVMLInstance := &mockNVMLInstance{exists: true}
+	// Create a mock NVML instance that returns true for NVMLExists and has a product name
+	mockNVMLInstance := &mockNVMLInstance{exists: true, pname: "Tesla V100"}
 	comp.nvmlInstance = mockNVMLInstance
 
 	// Set custom environment check function that always returns true
@@ -284,8 +293,8 @@ func TestPeriodicCheck(t *testing.T) {
 	assert.NoError(t, err)
 	comp := c.(*component)
 
-	// Create a mock NVML instance that returns true for NVMLExists
-	mockNVMLInstance := &mockNVMLInstance{exists: true}
+	// Create a mock NVML instance that returns true for NVMLExists and has a product name
+	mockNVMLInstance := &mockNVMLInstance{exists: true, pname: "Tesla V100"}
 	comp.nvmlInstance = mockNVMLInstance
 
 	// Create a flag to track if the check function was called
@@ -397,7 +406,7 @@ func TestCheckWithNVMLNotExisting(t *testing.T) {
 	comp := c.(*component)
 
 	// Set NVML instance that returns false for NVMLExists
-	mockNVMLInstance := &mockNVMLInstance{exists: false}
+	mockNVMLInstance := &mockNVMLInstance{exists: false, pname: "Tesla V100"}
 	comp.nvmlInstance = mockNVMLInstance
 
 	// Test check with NVML not existing
@@ -430,7 +439,7 @@ func TestCheckAllEnvVarsForCoverage(t *testing.T) {
 	assert.NoError(t, err)
 	comp := c.(*component)
 
-	mockNVMLInstance := &mockNVMLInstance{exists: true}
+	mockNVMLInstance := &mockNVMLInstance{exists: true, pname: "Tesla V100"}
 	comp.nvmlInstance = mockNVMLInstance
 
 	// Set all env vars to "1" one by one to test each case
@@ -482,4 +491,31 @@ func TestDefaultCheckEnvFunc(t *testing.T) {
 	// Test with env var set to something else
 	os.Setenv("TEST_ENV_VAR", "true")
 	assert.False(t, comp.checkEnvFunc("TEST_ENV_VAR"))
+}
+
+func TestIsSupported(t *testing.T) {
+	ctx := context.Background()
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
+	c, err := New(gpudInstance)
+	assert.NoError(t, err)
+	comp := c.(*component)
+
+	// Test with nil NVML instance
+	comp.nvmlInstance = nil
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML instance that doesn't exist
+	mockInst := &mockNVMLInstance{exists: false}
+	comp.nvmlInstance = mockInst
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML instance that exists but has empty product name
+	mockInst = &mockNVMLInstance{exists: true, pname: ""}
+	comp.nvmlInstance = mockInst
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML instance that exists and has a product name
+	mockInst = &mockNVMLInstance{exists: true, pname: "Tesla V100"}
+	comp.nvmlInstance = mockInst
+	assert.True(t, comp.IsSupported())
 }

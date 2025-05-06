@@ -22,8 +22,9 @@ import (
 
 // mockNVMLInstance implements the nvml.InstanceV2 interface for testing
 type mockNVMLInstance struct {
-	devicesFunc func() map[string]device.Device
-	nvmlExists  bool
+	devicesFunc      func() map[string]device.Device
+	nvmlExists       bool
+	emptyProductName bool
 }
 
 func (m *mockNVMLInstance) Devices() map[string]device.Device {
@@ -42,6 +43,9 @@ func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.Mem
 }
 
 func (m *mockNVMLInstance) ProductName() string {
+	if m.emptyProductName {
+		return ""
+	}
 	return "NVIDIA Test GPU"
 }
 
@@ -627,4 +631,41 @@ func TestData_HealthState(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestIsSupported(t *testing.T) {
+	ctx := context.Background()
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Test with nil NVML instance
+	comp := &component{
+		ctx:          cctx,
+		cancel:       cancel,
+		nvmlInstance: nil, // Explicitly nil
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML instance that doesn't exist
+	mockNVML := &mockNVMLInstance{
+		nvmlExists: false,
+	}
+	comp.nvmlInstance = mockNVML
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML that exists but has empty product name
+	mockNVML = &mockNVMLInstance{
+		nvmlExists:       true,
+		emptyProductName: true,
+	}
+	comp.nvmlInstance = mockNVML
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML that exists and has a product name
+	mockNVML = &mockNVMLInstance{
+		nvmlExists:       true,
+		emptyProductName: false,
+	}
+	comp.nvmlInstance = mockNVML
+	assert.True(t, comp.IsSupported())
 }
