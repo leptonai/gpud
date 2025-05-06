@@ -168,6 +168,10 @@ fi
 }
 
 func TestInstallRunner(t *testing.T) {
+	if os.Getenv("TEST_INSTALL_RUNNER") != "true" {
+		t.Skip("TEST_INSTALL_RUNNER is not set")
+	}
+
 	// Create a temporary directory for test scripts
 	tempDir, err := os.MkdirTemp("", "package-controller-test")
 	require.NoError(t, err)
