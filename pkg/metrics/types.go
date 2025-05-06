@@ -5,13 +5,8 @@ import (
 	"time"
 )
 
-const (
-	// MetricComponentLabelKey is the key for the component of the metric.
-	MetricComponentLabelKey = "gpud_component"
-
-	// MetricLabelKey is the key for the label of the metric.
-	MetricLabelKey = "gpud_metric_label"
-)
+// MetricComponentLabelKey is the key for the component of the metric.
+const MetricComponentLabelKey = "gpud_component"
 
 // Metric represents a metric row in the database table.
 type Metric struct {
@@ -21,10 +16,11 @@ type Metric struct {
 	Component string `json:"component"`
 	// Name represents the name of the metric.
 	Name string `json:"name"`
-	// Label represents the label of the metric such as GPU ID, etc..
-	Label string `json:"label,omitempty"`
 	// Value represents the numeric value of the metric.
 	Value float64 `json:"value"`
+
+	// Labels represents all the labels of the metric.
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // Metrics is a slice of Metric.

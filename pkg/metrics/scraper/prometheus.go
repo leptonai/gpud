@@ -43,14 +43,21 @@ func (s *promScraper) Scrape(_ context.Context) (pkgmetrics.Metrics, error) {
 				Name:             metricFamily.GetName(),
 			}
 
+			labels := make(map[string]string, 0)
 			for _, label := range mtRaw.GetLabel() {
-				switch label.GetName() {
-				case pkgmetrics.MetricComponentLabelKey:
-					m.Component = label.GetValue()
-				case pkgmetrics.MetricLabelKey:
-					m.Label = label.GetValue()
+				labelName := label.GetName()
+				labelValue := label.GetValue()
+
+				if labelName == pkgmetrics.MetricComponentLabelKey {
+					m.Component = labelValue
+					continue
 				}
+				labels[labelName] = labelValue
 			}
+			if len(labels) > 0 {
+				m.Labels = labels
+			}
+
 			if m.Component == "" {
 				continue
 			}

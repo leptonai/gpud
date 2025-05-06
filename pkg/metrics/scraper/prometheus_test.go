@@ -31,7 +31,7 @@ func TestPrometheusScraper(t *testing.T) {
 			Name:      "current_celsius",
 			Help:      "tracks the current temperature in celsius",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey},
+		[]string{pkgmetrics.MetricComponentLabelKey, "label_uuid"},
 	)
 	slowdownUsedPercent := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -40,9 +40,9 @@ func TestPrometheusScraper(t *testing.T) {
 			Name:      "slowdown_used_percent",
 			Help:      "tracks the percentage of slowdown used",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey},
+		[]string{pkgmetrics.MetricComponentLabelKey, "label_uuid"},
 	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "gpud-clock-events-0",
+		pkgmetrics.MetricComponentLabelKey: "component-1",
 	})
 	insertUpdateTotal := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -53,7 +53,7 @@ func TestPrometheusScraper(t *testing.T) {
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
 	).MustCurryWith(prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "gpud-db-0",
+		pkgmetrics.MetricComponentLabelKey: "component-1",
 	})
 
 	reg := prometheus.NewRegistry()
@@ -68,8 +68,8 @@ func TestPrometheusScraper(t *testing.T) {
 
 	// should not be included since the component label does not exist
 	lastUpdateUnixSeconds.Set(123)
-	currentCelsius.WithLabelValues("gpud-temp-0", "GPU-0").Set(100)
-	slowdownUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: "GPU-0"}).Set(98)
+	currentCelsius.WithLabelValues("component-1", "GPU-0").Set(100)
+	slowdownUsedPercent.With(prometheus.Labels{"label_uuid": "GPU-0"}).Set(98)
 	insertUpdateTotal.With(prometheus.Labels{}).Inc()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -84,19 +84,19 @@ func TestPrometheusScraper(t *testing.T) {
 		return ms[i].Name < ms[j].Name
 	})
 
-	require.Equal(t, "gpud-db-0", ms[0].Component)
+	require.Equal(t, "component-1", ms[0].Component)
 	require.Equal(t, "sqlite_insert_update_total", ms[0].Name)
-	require.Equal(t, "", ms[0].Label)
+	require.Nil(t, ms[0].Labels, "Expected no labels for the first metric")
 	require.Equal(t, float64(1), ms[0].Value)
 
-	require.Equal(t, "gpud-temp-0", ms[1].Component)
+	require.Equal(t, "component-1", ms[1].Component)
 	require.Equal(t, "test_current_celsius", ms[1].Name)
-	require.Equal(t, "GPU-0", ms[1].Label)
+	require.Equal(t, "GPU-0", ms[1].Labels["label_uuid"])
 	require.Equal(t, float64(100), ms[1].Value)
 
-	require.Equal(t, "gpud-clock-events-0", ms[2].Component)
+	require.Equal(t, "component-1", ms[2].Component)
 	require.Equal(t, "test_slowdown_used_percent", ms[2].Name)
-	require.Equal(t, "GPU-0", ms[2].Label)
+	require.Equal(t, "GPU-0", ms[2].Labels["label_uuid"])
 	require.Equal(t, float64(98), ms[2].Value)
 }
 
@@ -208,7 +208,7 @@ func TestPrometheusScraper_MultipleMetricTypes(t *testing.T) {
 			Name:      "utilization",
 			Help:      "Resource utilization",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey},
+		[]string{pkgmetrics.MetricComponentLabelKey, "label_uuid"},
 	)
 	require.NoError(t, reg.Register(gauge))
 	gauge.WithLabelValues("component1", "resource1").Set(75.5)
@@ -262,8 +262,11 @@ func TestPrometheusScraper_MultipleMetricTypes(t *testing.T) {
 			foundCounter = true
 			require.Equal(t, float64(1), m.Value)
 		}
-		if m.Name == "test_resources_utilization" && m.Component == "component1" && m.Label == "resource1" {
+		if m.Name == "test_resources_utilization" && m.Component == "component1" {
 			foundGauge = true
+			if labels := m.Labels; labels != nil {
+				require.Equal(t, "resource1", labels["label_uuid"])
+			}
 			require.Equal(t, 75.5, m.Value)
 		}
 	}

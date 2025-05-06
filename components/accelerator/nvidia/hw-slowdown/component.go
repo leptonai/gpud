@@ -20,7 +20,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -225,21 +224,21 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		if clockEvents.HWSlowdown {
-			metricHWSlowdown.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1))
+			metricHWSlowdown.With(prometheus.Labels{"uuid": uuid}).Set(float64(1))
 		} else {
-			metricHWSlowdown.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
+			metricHWSlowdown.With(prometheus.Labels{"uuid": uuid}).Set(float64(0))
 		}
 
 		if clockEvents.HWSlowdownThermal {
-			metricHWSlowdownThermal.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1))
+			metricHWSlowdownThermal.With(prometheus.Labels{"uuid": uuid}).Set(float64(1))
 		} else {
-			metricHWSlowdownThermal.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
+			metricHWSlowdownThermal.With(prometheus.Labels{"uuid": uuid}).Set(float64(0))
 		}
 
 		if clockEvents.HWSlowdownPowerBrake {
-			metricHWSlowdownPowerBrake.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1))
+			metricHWSlowdownPowerBrake.With(prometheus.Labels{"uuid": uuid}).Set(float64(1))
 		} else {
-			metricHWSlowdownPowerBrake.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
+			metricHWSlowdownPowerBrake.With(prometheus.Labels{"uuid": uuid}).Set(float64(0))
 		}
 
 		cr.ClockEvents = append(cr.ClockEvents, clockEvents)

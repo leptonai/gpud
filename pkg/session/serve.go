@@ -602,10 +602,10 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 
 	for _, data := range metricsData {
 		currMetrics.Metrics = append(currMetrics.Metrics, apiv1.Metric{
-			UnixSeconds:                   data.UnixMilliseconds,
-			DeprecatedMetricName:          data.Name,
-			DeprecatedMetricSecondaryName: data.Label,
-			Value:                         data.Value,
+			UnixSeconds: data.UnixMilliseconds,
+			Name:        data.Name,
+			Labels:      data.Labels,
+			Value:       data.Value,
 		})
 	}
 	return currMetrics

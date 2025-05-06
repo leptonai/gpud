@@ -492,10 +492,10 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 			componentsToMetrics[data.Component] = make([]apiv1.Metric, 0)
 		}
 		d := apiv1.Metric{
-			UnixSeconds:                   data.UnixMilliseconds,
-			DeprecatedMetricName:          data.Name,
-			DeprecatedMetricSecondaryName: data.Label,
-			Value:                         data.Value,
+			UnixSeconds: data.UnixMilliseconds,
+			Name:        data.Name,
+			Labels:      data.Labels,
+			Value:       data.Value,
 		}
 		componentsToMetrics[data.Component] = append(componentsToMetrics[data.Component], d)
 	}

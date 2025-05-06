@@ -400,7 +400,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 						GinkgoLogr.Info("event", "name", event.Name, "message", event.Message)
 					}
 					for _, metric := range i.Info.Metrics {
-						GinkgoLogr.Info("metric", "name", metric.DeprecatedMetricName, "value", metric.Value)
+						GinkgoLogr.Info("metric", "name", metric.Name, "value", metric.Value)
 					}
 					for _, state := range i.Info.States {
 						GinkgoLogr.Info("state", "name", state.Name, "health", state.Health)

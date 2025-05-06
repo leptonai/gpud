@@ -126,15 +126,10 @@ type ComponentEvents struct {
 type GPUdComponentEvents []ComponentEvents
 
 type Metric struct {
-	UnixSeconds int64 `json:"unix_seconds"`
-
-	Name   string            `json:"name"`
-	Value  float64           `json:"value"`
-	Labels map[string]string `json:"labels,omitempty"`
-
-	// TO BE DEPRECATED
-	DeprecatedMetricName          string `json:"metric_name"`
-	DeprecatedMetricSecondaryName string `json:"metric_secondary_name,omitempty"`
+	UnixSeconds int64             `json:"unix_seconds"`
+	Name        string            `json:"name"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Value       float64           `json:"value"`
 }
 
 type Metrics []Metric

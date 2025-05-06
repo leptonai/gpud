@@ -17,7 +17,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -145,10 +144,10 @@ func (c *component) Check() components.CheckResult {
 		}
 		cr.ECCErrors = append(cr.ECCErrors, eccErrors)
 
-		metricAggregateTotalCorrected.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(eccErrors.Aggregate.Total.Corrected))
-		metricAggregateTotalUncorrected.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(eccErrors.Aggregate.Total.Uncorrected))
-		metricVolatileTotalCorrected.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(eccErrors.Volatile.Total.Corrected))
-		metricVolatileTotalUncorrected.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(eccErrors.Volatile.Total.Uncorrected))
+		metricAggregateTotalCorrected.With(prometheus.Labels{"uuid": uuid}).Set(float64(eccErrors.Aggregate.Total.Corrected))
+		metricAggregateTotalUncorrected.With(prometheus.Labels{"uuid": uuid}).Set(float64(eccErrors.Aggregate.Total.Uncorrected))
+		metricVolatileTotalCorrected.With(prometheus.Labels{"uuid": uuid}).Set(float64(eccErrors.Volatile.Total.Corrected))
+		metricVolatileTotalUncorrected.With(prometheus.Labels{"uuid": uuid}).Set(float64(eccErrors.Volatile.Total.Uncorrected))
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
