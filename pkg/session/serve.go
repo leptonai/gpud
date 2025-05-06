@@ -114,7 +114,7 @@ func (s *Session) serve() {
 			response.Metrics = metrics
 
 		case "states":
-			states, err := s.getHealthStates(ctx, payload)
+			states, err := s.getHealthStates(payload)
 			if err != nil {
 				response.Error = err.Error()
 			}
@@ -129,6 +129,7 @@ func (s *Session) serve() {
 
 		case "delete":
 			go s.delete()
+
 		case "logout":
 			stateFile, err := config.DefaultStateFile()
 			if err != nil {
@@ -513,7 +514,7 @@ func (s *Session) getMetrics(ctx context.Context, payload Request) (apiv1.GPUdCo
 	return retMetrics, nil
 }
 
-func (s *Session) getHealthStates(ctx context.Context, payload Request) (apiv1.GPUdComponentHealthStates, error) {
+func (s *Session) getHealthStates(payload Request) (apiv1.GPUdComponentHealthStates, error) {
 	if payload.Method != "states" {
 		return nil, errors.New("mismatch method")
 	}
@@ -523,11 +524,9 @@ func (s *Session) getHealthStates(ctx context.Context, payload Request) (apiv1.G
 	}
 	var statesBuf = make(chan apiv1.ComponentHealthStates, len(allComponents))
 	var lastRebootTime *time.Time
-	localCtx, done := context.WithTimeout(ctx, time.Minute)
-	defer done()
 	for _, componentName := range allComponents {
 		go func(name string) {
-			statesBuf <- s.getStatesFromComponent(localCtx, name, lastRebootTime)
+			statesBuf <- s.getStatesFromComponent(name, lastRebootTime)
 		}(componentName)
 	}
 	var states apiv1.GPUdComponentHealthStates
@@ -611,7 +610,7 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 	return currMetrics
 }
 
-func (s *Session) getStatesFromComponent(ctx context.Context, componentName string, lastRebootTime *time.Time) apiv1.ComponentHealthStates {
+func (s *Session) getStatesFromComponent(componentName string, lastRebootTime *time.Time) apiv1.ComponentHealthStates {
 	component := s.componentsRegistry.Get(componentName)
 	if component == nil {
 		log.Logger.Errorw("failed to get component",
