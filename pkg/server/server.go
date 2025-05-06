@@ -157,8 +157,8 @@ type UserToken struct {
 
 func createURL(endpoint string) string {
 	host := endpoint
-	url, _ := url.Parse(endpoint)
-	if url.Host != "" {
+	url, err := url.Parse(endpoint)
+	if err == nil && url != nil && url.Host != "" {
 		host = url.Host
 	}
 	return fmt.Sprintf("https://%s", host)
