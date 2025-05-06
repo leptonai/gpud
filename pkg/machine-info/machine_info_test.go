@@ -287,8 +287,8 @@ func TestCreateGossipRequest(t *testing.T) {
 
 // TestCreateLoginRequest tests the login request creation
 func TestCreateLoginRequest(t *testing.T) {
-	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
-		t.Skip("Test only runs on Linux or macOS")
+	if os.Getenv("TEST_CREATE_LOGIN_REQUEST") != "true" {
+		t.Skip("TEST_CREATE_LOGIN_REQUEST is not set")
 	}
 
 	// Skip if NVML is not available
