@@ -99,6 +99,10 @@ func (c *component) Start() error {
 	return nil
 }
 
+func (c *component) IsSupported() bool {
+	return true
+}
+
 func (c *component) LastHealthStates() apiv1.HealthStates {
 	c.lastMu.RLock()
 	lastCheckResult := c.lastCheckResult

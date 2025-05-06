@@ -157,6 +157,9 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		if err != nil {
 			return err
 		}
+		if !c.IsSupported() {
+			continue
+		}
 		printSummary(c.Check())
 	}
 

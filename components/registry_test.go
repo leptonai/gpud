@@ -30,6 +30,10 @@ func (m *mockComponent) Start() error {
 	return nil
 }
 
+func (m *mockComponent) IsSupported() bool {
+	return true
+}
+
 func (m *mockComponent) Check() CheckResult {
 	return &mockCheckResult{}
 }

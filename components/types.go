@@ -27,6 +27,11 @@ type Component interface {
 	// Implements component-specific poller start logic.
 	Start() error
 
+	// IsSupported returns true if the component is supported on the current machine.
+	// For example, this returns "false" if a component requires NVIDIA GPUs,
+	// but the machine does not have NVIDIA GPUs.
+	IsSupported() bool
+
 	// Check triggers the component check once, and returns the latest health check result.
 	// This is used for one-time checks, such as "gpud scan".
 	// It is up to the component to decide the check timeouts.
