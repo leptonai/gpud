@@ -236,7 +236,10 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	blks, err := disk.GetBlockDevicesWithLsblk(
 		ctx,
 		disk.WithFstype(func(fs string) bool {
-			return fs == "" || fs == "ext4" || fs == "LVM2_member"
+			return fs == "" ||
+				fs == "ext4" ||
+				fs == "LVM2_member" ||
+				fs == "linux_raid_member"
 		}),
 		disk.WithDeviceType(func(dt string) bool {
 			return dt == "disk" || dt == "lvm" || dt == "part"
