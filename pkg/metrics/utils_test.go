@@ -56,8 +56,9 @@ func TestConvertToLeptonMetrics_SingleComponent(t *testing.T) {
 			UnixMilliseconds: now + 1000,
 			Component:        "component1",
 			Name:             "metric2",
-			Label:            "gpu0",
 			Value:            20.5,
+			LabelName:        "label",
+			LabelValue:       "gpu0",
 		},
 	}
 
@@ -93,15 +94,17 @@ func TestConvertToLeptonMetrics_MultipleComponents(t *testing.T) {
 			UnixMilliseconds: now + 1000,
 			Component:        "component2",
 			Name:             "metric2",
-			Label:            "gpu0",
 			Value:            20.5,
+			LabelName:        "label",
+			LabelValue:       "gpu0",
 		},
 		{
 			UnixMilliseconds: now + 2000,
 			Component:        "component1",
 			Name:             "metric3",
-			Label:            "gpu1",
 			Value:            30.5,
+			LabelName:        "label",
+			LabelValue:       "gpu1",
 		},
 	}
 

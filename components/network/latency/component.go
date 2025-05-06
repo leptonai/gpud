@@ -129,7 +129,7 @@ func (c *component) Check() components.CheckResult {
 	for _, lat := range cr.EgressLatencies {
 		region := fmt.Sprintf("%s (%s)", lat.RegionName, lat.Provider)
 		metricEdgeInMilliseconds.With(prometheus.Labels{
-			pkgmetrics.MetricLabelKey: region,
+			pkgmetrics.MetricLabelNamePrefix + "region": region,
 		}).Set(float64(lat.LatencyMilliseconds))
 
 		if c.globalMillisecondThreshold > 0 && lat.LatencyMilliseconds > c.globalMillisecondThreshold {

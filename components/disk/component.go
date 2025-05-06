@@ -229,9 +229,9 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 
-		metricTotalBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(float64(usage.TotalBytes))
-		metricFreeBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(float64(usage.FreeBytes))
-		metricUsedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: p.MountPoint}).Set(float64(usage.UsedBytes))
+		metricTotalBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "mount_point": p.MountPoint}).Set(float64(usage.TotalBytes))
+		metricFreeBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "mount_point": p.MountPoint}).Set(float64(usage.FreeBytes))
+		metricUsedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "mount_point": p.MountPoint}).Set(float64(usage.UsedBytes))
 	}
 
 	for target := range c.mountPointsToTrackUsage {

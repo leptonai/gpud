@@ -16,12 +16,22 @@ func ConvertToLeptonMetrics(ms Metrics) apiv1.GPUdComponentMetrics {
 			aggregated[m.Component] = make([]apiv1.Metric, 0)
 		}
 
-		aggregated[m.Component] = append(aggregated[m.Component], apiv1.Metric{
-			UnixSeconds:                   m.UnixMilliseconds,
+		mt := apiv1.Metric{
+			UnixSeconds: m.UnixMilliseconds,
+
+			Name:  m.Name,
+			Value: m.Value,
+
 			DeprecatedMetricName:          m.Name,
-			DeprecatedMetricSecondaryName: m.Label,
-			Value:                         m.Value,
-		})
+			DeprecatedMetricSecondaryName: m.LabelValue,
+		}
+		if m.LabelName != "" {
+			mt.Labels = map[string]string{
+				m.LabelName: m.LabelValue,
+			}
+		}
+
+		aggregated[m.Component] = append(aggregated[m.Component], mt)
 	}
 
 	converted := make(apiv1.GPUdComponentMetrics, 0, len(ms))

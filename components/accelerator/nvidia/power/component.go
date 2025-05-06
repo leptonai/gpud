@@ -133,8 +133,8 @@ func (c *component) Check() components.CheckResult {
 		}
 		cr.Powers = append(cr.Powers, power)
 
-		metricCurrentUsageMilliWatts.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(power.UsageMilliWatts))
-		metricEnforcedLimitMilliWatts.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(power.EnforcedLimitMilliWatts))
+		metricCurrentUsageMilliWatts.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(power.UsageMilliWatts))
+		metricEnforcedLimitMilliWatts.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(power.EnforcedLimitMilliWatts))
 
 		usedPct, err := power.GetUsedPercent()
 		if err != nil {
@@ -144,7 +144,7 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Errorw(cr.reason, "error", err)
 			return cr
 		}
-		metricUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(usedPct)
+		metricUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(usedPct)
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy

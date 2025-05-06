@@ -38,7 +38,6 @@ import (
 	"github.com/leptonai/gpud/pkg/gossip"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
-	metricstate "github.com/leptonai/gpud/pkg/gpud-metrics/state"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -247,28 +246,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	if ver != "v1" {
 		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
 	}
-
-	if err := metricstate.CreateTableMetrics(ctx, dbRW, metricstate.DefaultTableName); err != nil {
-		return nil, fmt.Errorf("failed to create metrics table: %w", err)
-	}
-	go func() {
-		dur := config.RetentionPeriod.Duration
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(dur):
-				now := time.Now().UTC()
-				before := now.Add(-dur)
-				purged, err := metricstate.PurgeMetrics(ctx, dbRW, metricstate.DefaultTableName, before)
-				if err != nil {
-					log.Logger.Warnw("failed to purge metrics", "error", err)
-				} else {
-					log.Logger.Debugw("purged metrics", "purged", purged)
-				}
-			}
-		}
-	}()
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,

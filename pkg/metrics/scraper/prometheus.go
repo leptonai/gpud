@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -44,11 +45,14 @@ func (s *promScraper) Scrape(_ context.Context) (pkgmetrics.Metrics, error) {
 			}
 
 			for _, label := range mtRaw.GetLabel() {
-				switch label.GetName() {
-				case pkgmetrics.MetricComponentLabelKey:
+				labelName := label.GetName()
+				if labelName == pkgmetrics.MetricComponentLabelKey {
 					m.Component = label.GetValue()
-				case pkgmetrics.MetricLabelKey:
-					m.Label = label.GetValue()
+					continue
+				}
+				if strings.HasPrefix(labelName, pkgmetrics.MetricLabelNamePrefix) {
+					m.LabelName = strings.TrimPrefix(labelName, pkgmetrics.MetricLabelNamePrefix)
+					m.LabelValue = label.GetValue()
 				}
 			}
 			if m.Component == "" {

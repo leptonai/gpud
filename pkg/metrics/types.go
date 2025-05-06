@@ -9,8 +9,9 @@ const (
 	// MetricComponentLabelKey is the key for the component of the metric.
 	MetricComponentLabelKey = "gpud_component"
 
-	// MetricLabelKey is the key for the label of the metric.
-	MetricLabelKey = "gpud_metric_label"
+	// MetricLabelNamePrefix is the key prefix for the label of the metric.
+	// The label key must be prefixed with this key.
+	MetricLabelNamePrefix = "label_"
 )
 
 // Metric represents a metric row in the database table.
@@ -21,10 +22,13 @@ type Metric struct {
 	Component string `json:"component"`
 	// Name represents the name of the metric.
 	Name string `json:"name"`
-	// Label represents the label of the metric such as GPU ID, etc..
-	Label string `json:"label,omitempty"`
 	// Value represents the numeric value of the metric.
 	Value float64 `json:"value"`
+
+	// LabelName represents the label key of the metric such as "gpu_uuid", etc..
+	LabelName string `json:"label_name,omitempty"`
+	// LabelValue represents the label value of the metric such as "GPU-abc", etc..
+	LabelValue string `json:"label_value,omitempty"`
 }
 
 // Metrics is a slice of Metric.

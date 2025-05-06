@@ -20,7 +20,7 @@ var (
 			Name:      "due_to_uncorrectable_errors",
 			Help:      "tracks the number of rows remapped due to uncorrectable errors",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricRemappingPending = prometheus.NewGaugeVec(
@@ -30,7 +30,7 @@ var (
 			Name:      "remapping_pending",
 			Help:      "set to 1 if this GPU requires a reset to actually remap the row",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricRemappingFailed = prometheus.NewGaugeVec(
@@ -40,7 +40,7 @@ var (
 			Name:      "remapping_failed",
 			Help:      "set to 1 if a remapping has failed in the past",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 )
 

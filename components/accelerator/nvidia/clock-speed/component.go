@@ -133,8 +133,8 @@ func (c *component) Check() components.CheckResult {
 		}
 		cr.ClockSpeeds = append(cr.ClockSpeeds, clockSpeed)
 
-		metricGraphicsMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.GraphicsMHz))
-		metricMemoryMHz.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(clockSpeed.MemoryMHz))
+		metricGraphicsMHz.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(clockSpeed.GraphicsMHz))
+		metricMemoryMHz.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(clockSpeed.MemoryMHz))
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy

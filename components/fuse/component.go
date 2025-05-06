@@ -165,8 +165,8 @@ func (c *component) Check() components.CheckResult {
 		}
 		foundDev[info.DeviceName] = info
 
-		metricConnsCongestedPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: info.DeviceName}).Set(info.CongestedPercent)
-		metricConnsMaxBackgroundPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: info.DeviceName}).Set(info.MaxBackgroundPercent)
+		metricConnsCongestedPct.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "device_name": info.DeviceName}).Set(info.CongestedPercent)
+		metricConnsMaxBackgroundPct.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "device_name": info.DeviceName}).Set(info.MaxBackgroundPercent)
 
 		msgs := []string{}
 		if info.CongestedPercent > c.congestedPercentAgainstThreshold {

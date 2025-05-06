@@ -133,8 +133,8 @@ func (c *component) Check() components.CheckResult {
 		}
 		cr.Utilizations = append(cr.Utilizations, util)
 
-		metricGPUUtilPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(util.GPUUsedPercent))
-		metricMemoryUtilPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(util.MemoryUsedPercent))
+		metricGPUUtilPercent.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(util.GPUUsedPercent))
+		metricMemoryUtilPercent.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(util.MemoryUsedPercent))
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy

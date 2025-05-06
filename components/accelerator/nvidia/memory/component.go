@@ -133,10 +133,10 @@ func (c *component) Check() components.CheckResult {
 		}
 		cr.Memories = append(cr.Memories, mem)
 
-		metricTotalBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(mem.TotalBytes))
-		metricReservedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(mem.ReservedBytes))
-		metricUsedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(mem.UsedBytes))
-		metricFreeBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(mem.FreeBytes))
+		metricTotalBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(mem.TotalBytes))
+		metricReservedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(mem.ReservedBytes))
+		metricUsedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(mem.UsedBytes))
+		metricFreeBytes.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(mem.FreeBytes))
 
 		usedPct, err := mem.GetUsedPercent()
 		if err != nil {
@@ -146,7 +146,7 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
-		metricUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(usedPct)
+		metricUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(usedPct)
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy

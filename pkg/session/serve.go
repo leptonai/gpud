@@ -604,7 +604,7 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 		currMetrics.Metrics = append(currMetrics.Metrics, apiv1.Metric{
 			UnixSeconds:                   data.UnixMilliseconds,
 			DeprecatedMetricName:          data.Name,
-			DeprecatedMetricSecondaryName: data.Label,
+			DeprecatedMetricSecondaryName: data.LabelValue,
 			Value:                         data.Value,
 		})
 	}

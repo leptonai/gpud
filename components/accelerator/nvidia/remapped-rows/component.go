@@ -172,18 +172,18 @@ func (c *component) Check() components.CheckResult {
 		}
 		cr.RemappedRows = append(cr.RemappedRows, remappedRows)
 
-		metricUncorrectableErrors.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(remappedRows.RemappedDueToCorrectableErrors))
+		metricUncorrectableErrors.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(remappedRows.RemappedDueToCorrectableErrors))
 
 		if remappedRows.RemappingPending {
-			metricRemappingPending.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1.0))
+			metricRemappingPending.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(1.0))
 		} else {
-			metricRemappingPending.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0.0))
+			metricRemappingPending.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(0.0))
 		}
 
 		if remappedRows.RemappingFailed {
-			metricRemappingFailed.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1.0))
+			metricRemappingFailed.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(1.0))
 		} else {
-			metricRemappingFailed.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0.0))
+			metricRemappingFailed.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(0.0))
 		}
 
 		if c.eventBucket != nil && remappedRows.RemappingPending {

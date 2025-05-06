@@ -180,8 +180,9 @@ func TestSync(t *testing.T) {
 			UnixMilliseconds: now,
 			Component:        "test-component",
 			Name:             "metric2",
-			Label:            "gpu0",
 			Value:            123.45,
+			LabelName:        "label",
+			LabelValue:       "gpu0",
 		},
 	}
 

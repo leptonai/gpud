@@ -20,7 +20,7 @@ var (
 			Name:      "feature_enabled",
 			Help:      "tracks the NVLink feature enabled (aggregated for all links per GPU)",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricReplayErrors = prometheus.NewGaugeVec(
@@ -30,7 +30,7 @@ var (
 			Name:      "replay_errors",
 			Help:      "tracks the relay errors in NVLink (aggregated for all links per GPU)",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricRecoveryErrors = prometheus.NewGaugeVec(
@@ -40,7 +40,7 @@ var (
 			Name:      "recovery_errors",
 			Help:      "tracks the recovery errors in NVLink (aggregated for all links per GPU)",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricCRCErrors = prometheus.NewGaugeVec(
@@ -50,7 +50,7 @@ var (
 			Name:      "crc_errors",
 			Help:      "tracks the CRC errors in NVLink (aggregated for all links per GPU)",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 )
 

@@ -20,7 +20,7 @@ var (
 			Name:      "gpu_util_percent",
 			Help:      "tracks the current GPU utilization/used percent",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricMemoryUtilPercent = prometheus.NewGaugeVec(
@@ -30,7 +30,7 @@ var (
 			Name:      "memory_util_percent",
 			Help:      "tracks the current GPU memory utilization percent",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 )
 

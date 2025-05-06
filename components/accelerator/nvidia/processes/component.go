@@ -133,7 +133,7 @@ func (c *component) Check() components.CheckResult {
 
 		cr.Processes = append(cr.Processes, procs)
 
-		metricRunningProcesses.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(len(procs.RunningProcesses)))
+		metricRunningProcesses.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(len(procs.RunningProcesses)))
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy

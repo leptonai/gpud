@@ -135,13 +135,13 @@ func (c *component) Check() components.CheckResult {
 		cr.NVLinks = append(cr.NVLinks, nvLink)
 
 		if nvLink.States.AllFeatureEnabled() {
-			metricFeatureEnabled.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1.0))
+			metricFeatureEnabled.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(1.0))
 		} else {
-			metricFeatureEnabled.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0.0))
+			metricFeatureEnabled.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(0.0))
 		}
-		metricReplayErrors.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(nvLink.States.TotalRelayErrors()))
-		metricRecoveryErrors.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(nvLink.States.TotalRecoveryErrors()))
-		metricCRCErrors.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(nvLink.States.TotalCRCErrors()))
+		metricReplayErrors.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(nvLink.States.TotalRelayErrors()))
+		metricRecoveryErrors.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(nvLink.States.TotalRecoveryErrors()))
+		metricCRCErrors.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(nvLink.States.TotalCRCErrors()))
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy

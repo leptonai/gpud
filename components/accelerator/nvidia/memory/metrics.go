@@ -20,7 +20,7 @@ var (
 			Name:      "total_bytes",
 			Help:      "tracks the total memory in bytes",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricReservedBytes = prometheus.NewGaugeVec(
@@ -30,7 +30,7 @@ var (
 			Name:      "reserved_bytes",
 			Help:      "tracks the reserved memory in bytes",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricUsedBytes = prometheus.NewGaugeVec(
@@ -40,7 +40,7 @@ var (
 			Name:      "used_bytes",
 			Help:      "tracks the used memory in bytes",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricFreeBytes = prometheus.NewGaugeVec(
@@ -50,7 +50,7 @@ var (
 			Name:      "free_bytes",
 			Help:      "tracks the free memory in bytes",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricUsedPercent = prometheus.NewGaugeVec(
@@ -60,7 +60,7 @@ var (
 			Name:      "used_percent",
 			Help:      "tracks the percentage of memory used",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 )
 

@@ -147,8 +147,8 @@ func (c *component) Check() components.CheckResult {
 			)
 		}
 
-		metricCurrentCelsius.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(temp.CurrentCelsiusGPUCore))
-		metricThresholdSlowdownCelsius.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(temp.ThresholdCelsiusSlowdown))
+		metricCurrentCelsius.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(temp.CurrentCelsiusGPUCore))
+		metricThresholdSlowdownCelsius.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(float64(temp.ThresholdCelsiusSlowdown))
 
 		slowdownPct, err := temp.GetUsedPercentSlowdown()
 		if err != nil {
@@ -158,7 +158,7 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
-		metricSlowdownUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(slowdownPct)
+		metricSlowdownUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "uuid": uuid}).Set(slowdownPct)
 	}
 
 	if len(tempThresholdExceeded) == 0 {

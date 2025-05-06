@@ -214,9 +214,9 @@ func (c *component) Check() components.CheckResult {
 	cr.Usage.LoadAvg5Min = fmt.Sprintf("%.2f", loadAvg.Load5)
 	cr.Usage.LoadAvg15Min = fmt.Sprintf("%.2f", loadAvg.Load15)
 
-	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: oneMinute}).Set(loadAvg.Load1)
-	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fiveMinute}).Set(loadAvg.Load5)
-	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
+	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "load_duration": oneMinute}).Set(loadAvg.Load1)
+	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "load_duration": fiveMinute}).Set(loadAvg.Load5)
+	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelNamePrefix + "load_duration": fifteenMin}).Set(loadAvg.Load15)
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "ok"

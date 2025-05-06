@@ -20,7 +20,7 @@ var (
 			Name:      "graphics_mhz",
 			Help:      "tracks the current GPU clock speeds in MHz",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 
 	metricMemoryMHz = prometheus.NewGaugeVec(
@@ -30,7 +30,7 @@ var (
 			Name:      "memory_mhz",
 			Help:      "tracks the current GPU memory utilization percent",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is GPU ID
+		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelNamePrefix + "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
 )
 
