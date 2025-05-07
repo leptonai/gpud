@@ -619,30 +619,20 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 		return
 	}
 
-	// TODO: Consider implementing a tag-based index structure to avoid linear scan
-	// This could be a map[tag][]Component or similar structure that's maintained
-	// when components are registered/deregistered
 	components := g.componentsRegistry.All()
 	success := true
 	triggeredComponents := make([]string, 0)
 
 	for _, comp := range components {
-		// Check if component has the specified tag
-		// For now, we'll do a linear scan through all components
-		// This could be optimized with a tag-based index structure
-		if spec, ok := comp.(pkgcustomplugins.CustomPluginRegisteree); ok {
-			hasTag := false
-			for _, tag := range spec.Spec().Tags {
-				if tag == tagName {
-					hasTag = true
-					break
-				}
-			}
-			if hasTag {
+		// Check if component has the specified tag using the Tags() method
+		tags := comp.Tags()
+		for _, tag := range tags {
+			if tag == tagName {
 				triggeredComponents = append(triggeredComponents, comp.Name())
 				if err := comp.Check(); err != nil {
 					success = false
 				}
+				break
 			}
 		}
 	}
