@@ -23,18 +23,18 @@ type Component interface {
 	// Must be globally unique.
 	Name() string
 
-	// Labels returns a list of labels/tags that describe the component.
+	// Tags returns a list of tags that describe the component.
 	//
-	// The component labels are static, and will not change over time.
-	// It is important to keep in mind that, the labels only represent
+	// The component tags are static, and will not change over time.
+	// It is important to keep in mind that, the tags only represent
 	// the component's functionality, but not the component's health state.
 	//
-	// This is useful to trigger on-demand component checks based on specific labels.
+	// This is useful to trigger on-demand component checks based on specific tags.
 	//
 	// e.g.,
 	// GPU enabled components may return its accelerator manufacturer,
-	// but does not report its health state via the labels.
-	Labels() []string
+	// but does not report its health state via the tags.
+	Tags() []string
 
 	// IsSupported returns true if the component is supported on the current machine.
 	// For example, this returns "false" if a component requires NVIDIA GPUs,

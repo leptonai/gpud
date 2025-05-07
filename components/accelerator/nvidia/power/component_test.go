@@ -131,7 +131,7 @@ func TestTags(t *testing.T) {
 		Name,
 	}
 
-	tags := c.Labels()
+	tags := c.Tags()
 	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
 	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }

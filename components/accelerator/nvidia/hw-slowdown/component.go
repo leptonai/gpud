@@ -93,7 +93,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
-func (c *component) Labels() []string {
+func (c *component) Tags() []string {
 	return []string{
 		"accelerator",
 		"gpu",

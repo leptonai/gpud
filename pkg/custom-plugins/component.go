@@ -63,7 +63,7 @@ func (c *component) CanDeregister() bool {
 
 func (c *component) Name() string { return c.spec.ComponentName() }
 
-func (c *component) Labels() []string {
+func (c *component) Tags() []string {
 	return []string{
 		"custom-plugin",
 		c.spec.ComponentName(),
