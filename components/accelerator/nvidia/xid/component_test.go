@@ -34,6 +34,35 @@ func TestComponentNameSimple(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
+func TestTags(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx: ctx,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
+func TestIsSupported(t *testing.T) {
+	// Test with nil NVML instance
+	comp := &component{}
+	assert.False(t, comp.IsSupported())
+}
+
 func createTestEvent(timestamp time.Time) eventstore.Event {
 	return eventstore.Event{
 		Time:    timestamp,

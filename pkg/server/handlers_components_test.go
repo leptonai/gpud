@@ -26,6 +26,7 @@ import (
 // mockComponent is a simplified component implementation for testing
 type mockComponent struct {
 	name            string
+	tags            []string
 	isSupported     bool
 	checkResult     components.CheckResult
 	events          apiv1.Events
@@ -41,16 +42,20 @@ func (m *mockComponent) Name() string {
 	return m.name
 }
 
+func (m *mockComponent) Tags() []string {
+	return m.tags
+}
+
+func (m *mockComponent) IsSupported() bool {
+	return m.isSupported
+}
+
 func (m *mockComponent) Start() error {
 	return nil
 }
 
 func (m *mockComponent) Check() components.CheckResult {
 	return m.checkResult
-}
-
-func (m *mockComponent) IsSupported() bool {
-	return m.isSupported
 }
 
 func (m *mockComponent) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {

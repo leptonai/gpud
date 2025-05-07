@@ -25,6 +25,48 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, Name, c.Name())
 }
 
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
+	c, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
+func TestIsSupported(t *testing.T) {
+	ctx := context.Background()
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
+	c, err := New(gpudInstance)
+	assert.NoError(t, err)
+	comp := c.(*component)
+
+	// Test when nvmlInstance is nil
+	comp.nvmlInstance = nil
+	assert.False(t, comp.IsSupported())
+
+	// Test when NVMLExists returns false
+	comp.nvmlInstance = &mockNVMLInstance{exists: false, pname: ""}
+	assert.False(t, comp.IsSupported())
+
+	// Test when ProductName returns empty string
+	comp.nvmlInstance = &mockNVMLInstance{exists: true, pname: ""}
+	assert.False(t, comp.IsSupported())
+
+	// Test when all conditions are met
+	comp.nvmlInstance = &mockNVMLInstance{exists: true, pname: "Tesla V100"}
+	assert.True(t, comp.IsSupported())
+}
+
 func TestStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -491,31 +533,4 @@ func TestDefaultCheckEnvFunc(t *testing.T) {
 	// Test with env var set to something else
 	os.Setenv("TEST_ENV_VAR", "true")
 	assert.False(t, comp.checkEnvFunc("TEST_ENV_VAR"))
-}
-
-func TestIsSupported(t *testing.T) {
-	ctx := context.Background()
-	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
-	c, err := New(gpudInstance)
-	assert.NoError(t, err)
-	comp := c.(*component)
-
-	// Test with nil NVML instance
-	comp.nvmlInstance = nil
-	assert.False(t, comp.IsSupported())
-
-	// Test with NVML instance that doesn't exist
-	mockInst := &mockNVMLInstance{exists: false}
-	comp.nvmlInstance = mockInst
-	assert.False(t, comp.IsSupported())
-
-	// Test with NVML instance that exists but has empty product name
-	mockInst = &mockNVMLInstance{exists: true, pname: ""}
-	comp.nvmlInstance = mockInst
-	assert.False(t, comp.IsSupported())
-
-	// Test with NVML instance that exists and has a product name
-	mockInst = &mockNVMLInstance{exists: true, pname: "Tesla V100"}
-	comp.nvmlInstance = mockInst
-	assert.True(t, comp.IsSupported())
 }

@@ -30,6 +30,16 @@ func (m *mockComponent) Name() string {
 	return args.String(0)
 }
 
+func (m *mockComponent) Tags() []string {
+	args := m.Called()
+	return args.Get(0).([]string)
+}
+
+func (m *mockComponent) IsSupported() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
 func (m *mockComponent) Check() components.CheckResult {
 	args := m.Called()
 	return args.Get(0).(components.CheckResult)
@@ -53,11 +63,6 @@ func (m *mockComponent) Close() error {
 func (m *mockComponent) Start() error {
 	args := m.Called()
 	return args.Error(0)
-}
-
-func (m *mockComponent) IsSupported() bool {
-	args := m.Called()
-	return args.Bool(0)
 }
 
 type mockComponentRegistry struct {

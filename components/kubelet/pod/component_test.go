@@ -166,6 +166,19 @@ func Test_componentName(t *testing.T) {
 	assert.Equal(t, "kubelet", c.Name())
 }
 
+func TestTags(t *testing.T) {
+	c := &component{}
+
+	expectedTags := []string{
+		"container",
+		"kubelet",
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 2, "Component should return exactly 2 tags")
+}
+
 func Test_PodStatusJSON(t *testing.T) {
 	now := metav1.Now()
 

@@ -212,6 +212,104 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
+// Test the Tags method
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc: func() map[string]device.Device {
+			return make(map[string]device.Device)
+		},
+		getProductNameFunc: func() string {
+			return "NVIDIA Test GPU"
+		},
+		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+			return nvml.MemoryErrorManagementCapabilities{}
+		},
+	}
+
+	// Create a GPUdInstance
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: nvmlInstance,
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
+// Test the IsSupported method
+func TestIsSupported(t *testing.T) {
+	// Test with nil NVML instance
+	c := &component{
+		nvmlInstance: nil,
+	}
+	assert.False(t, c.IsSupported())
+
+	// Test with NVML instance that doesn't exist
+	c = &component{
+		nvmlInstance: &mockNVMLInstance{
+			getDevicesFunc: func() map[string]device.Device {
+				return make(map[string]device.Device)
+			},
+			getProductNameFunc: func() string {
+				return "NVIDIA Test GPU"
+			},
+			getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+				return nvml.MemoryErrorManagementCapabilities{}
+			},
+		},
+	}
+	// Override the NVMLExists method
+	c.nvmlInstance = &mockNVMLInstance{
+		getDevicesFunc: func() map[string]device.Device {
+			return nil
+		},
+		getProductNameFunc: func() string {
+			return ""
+		},
+	}
+	assert.False(t, c.IsSupported())
+
+	// Test with NVML instance that exists but has no product name
+	c = &component{
+		nvmlInstance: &mockNVMLInstance{
+			getDevicesFunc: func() map[string]device.Device {
+				return make(map[string]device.Device)
+			},
+			getProductNameFunc: func() string {
+				return ""
+			},
+		},
+	}
+	assert.False(t, c.IsSupported())
+
+	// Test with NVML instance that exists and has a product name
+	c = &component{
+		nvmlInstance: &mockNVMLInstance{
+			getDevicesFunc: func() map[string]device.Device {
+				return make(map[string]device.Device)
+			},
+			getProductNameFunc: func() string {
+				return "NVIDIA Test GPU"
+			},
+		},
+	}
+	assert.True(t, c.IsSupported())
+}
+
 // Test the Events method
 func TestEvents(t *testing.T) {
 	ctx := context.Background()

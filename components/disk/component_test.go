@@ -35,6 +35,20 @@ func TestComponentName(t *testing.T) {
 	assert.Equal(t, Name, c.Name())
 }
 
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	c := createTestComponent(ctx, []string{}, []string{})
+	defer c.Close()
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
+}
+
 func TestNewComponent(t *testing.T) {
 	ctx := context.Background()
 	mountPoints := []string{"/mnt/test1"}

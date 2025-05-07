@@ -224,6 +224,22 @@ func TestComponent_Name(t *testing.T) {
 	assert.Equal(t, Name, c.Name())
 }
 
+// TestTags tests the Tags method
+func TestTags(t *testing.T) {
+	c := &component{}
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
 // TestNew tests the New function
 func TestNew(t *testing.T) {
 	ctx := context.Background()

@@ -126,6 +126,27 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	mockInstance := new(mockNVMLInstance)
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
 func TestComponent_Start(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := new(mockNVMLInstance)

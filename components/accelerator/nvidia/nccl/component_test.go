@@ -688,3 +688,61 @@ func TestCheckResult_GetError(t *testing.T) {
 		assert.Equal(t, "test error", errStr)
 	})
 }
+
+// TestTags tests the component's Tags() method
+func TestTags(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{}
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
+// TestIsSupported tests the component's IsSupported() method
+func TestIsSupported(t *testing.T) {
+	t.Parallel()
+
+	// Test when nvmlInstance is nil
+	comp := &component{
+		nvmlInstance: nil,
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when NVMLExists returns false
+	mockNvml := new(mockNVMLInstance)
+	mockNvml.On("NVMLExists").Return(false)
+
+	comp = &component{
+		nvmlInstance: mockNvml,
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when ProductName returns empty string
+	mockNvml = new(mockNVMLInstance)
+	mockNvml.On("NVMLExists").Return(true)
+	mockNvml.On("ProductName").Return("")
+
+	comp = &component{
+		nvmlInstance: mockNvml,
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when all conditions are met
+	mockNvml = new(mockNVMLInstance)
+	mockNvml.On("NVMLExists").Return(true)
+	mockNvml.On("ProductName").Return("Tesla V100")
+
+	comp = &component{
+		nvmlInstance: mockNvml,
+	}
+	assert.True(t, comp.IsSupported())
+}

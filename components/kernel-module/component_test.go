@@ -20,6 +20,19 @@ func TestComponentName(t *testing.T) {
 	assert.Equal(t, Name, c.Name())
 }
 
+func TestTags(t *testing.T) {
+	c, err := New(&components.GPUdInstance{})
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
+}
+
 func TestCheckOnce(t *testing.T) {
 	tests := []struct {
 		name          string

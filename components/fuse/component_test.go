@@ -47,6 +47,29 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
+func TestTags(t *testing.T) {
+	// Create a test event store
+	store, cleanup := openTestEventStore(t)
+	defer cleanup()
+
+	// Create the component
+	ctx := context.Background()
+	instance := &components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+	comp, err := New(instance)
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
+}
+
 func TestComponentLifecycle(t *testing.T) {
 	// Create a test event store
 	store, cleanup := openTestEventStore(t)

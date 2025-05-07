@@ -73,9 +73,13 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
-func (c *component) Start() error {
-	// do not need periodic kmsg checks since it already has a watcher
-	return nil
+func (c *component) Tags() []string {
+	return []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
 }
 
 func (c *component) IsSupported() bool {
@@ -83,6 +87,11 @@ func (c *component) IsSupported() bool {
 		return false
 	}
 	return c.nvmlInstance.NVMLExists() && c.nvmlInstance.ProductName() != ""
+}
+
+func (c *component) Start() error {
+	// do not need periodic kmsg checks since it already has a watcher
+	return nil
 }
 
 func (c *component) LastHealthStates() apiv1.HealthStates {

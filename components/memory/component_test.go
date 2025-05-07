@@ -114,6 +114,18 @@ func TestComponentName(t *testing.T) {
 	assert.Equal(t, Name, c.Name())
 }
 
+func TestTags(t *testing.T) {
+	c := &component{}
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
+}
+
 func TestComponentStates(t *testing.T) {
 	// Setup
 	mockEventBucket := new(MockEventBucket)

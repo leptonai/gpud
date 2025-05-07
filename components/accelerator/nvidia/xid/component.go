@@ -101,6 +101,22 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
+func (c *component) Tags() []string {
+	return []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	if c.nvmlInstance == nil {
+		return false
+	}
+	return c.nvmlInstance.NVMLExists() && c.nvmlInstance.ProductName() != ""
+}
+
 func (c *component) Start() error {
 	for {
 		err := c.updateCurrentState()
@@ -130,13 +146,6 @@ func (c *component) Start() error {
 	}
 
 	return nil
-}
-
-func (c *component) IsSupported() bool {
-	if c.nvmlInstance == nil {
-		return false
-	}
-	return c.nvmlInstance.NVMLExists() && c.nvmlInstance.ProductName() != ""
 }
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
