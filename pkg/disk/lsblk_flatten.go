@@ -36,54 +36,7 @@ func (blks BlockDevices) Flatten() FlattenedBlockDevices {
 	all := make(map[string]FlattenedBlockDevice)
 
 	for _, blk1 := range blks {
-		blkParent := FlattenedBlockDevice{
-			Name:       blk1.Name,
-			Type:       blk1.Type,
-			Size:       blk1.Size.Uint64,
-			Rota:       blk1.Rota.Bool,
-			Serial:     blk1.Serial,
-			WWN:        blk1.WWN,
-			Vendor:     blk1.Vendor,
-			Model:      blk1.Model,
-			Rev:        blk1.Rev,
-			MountPoint: blk1.MountPoint,
-			FSType:     blk1.FSType,
-			PartUUID:   blk1.PartUUID,
-		}
-		if blk1.ParentDeviceName != "" {
-			blkParent.Parents = []string{blk1.ParentDeviceName}
-		}
-		all[blkParent.Name] = blkParent
-
-		for _, blk2 := range blk1.Children {
-			parent := all[blkParent.Name]
-			parent.Children = append(parent.Children, blk2.Name)
-			all[blkParent.Name] = parent
-
-			// now flatten the child as its own entry
-			// but multiple children may share the same parent
-			blkChild := FlattenedBlockDevice{
-				Name:       blk2.Name,
-				Type:       blk2.Type,
-				Size:       blk2.Size.Uint64,
-				Rota:       blk2.Rota.Bool,
-				Serial:     blk2.Serial,
-				WWN:        blk2.WWN,
-				Vendor:     blk2.Vendor,
-				Model:      blk2.Model,
-				Rev:        blk2.Rev,
-				MountPoint: blk2.MountPoint,
-				FSType:     blk2.FSType,
-				PartUUID:   blk2.PartUUID,
-				Parents:    []string{blkParent.Name},
-			}
-			if prev, ok := all[blkChild.Name]; ok {
-				prev.Parents = append(prev.Parents, blkChild.Parents...)
-				all[blkChild.Name] = prev
-			} else {
-				all[blkChild.Name] = blkChild
-			}
-		}
+		flattenBlockDevice(blk1, "", 0, all)
 	}
 
 	flattened := make(FlattenedBlockDevices, 0, len(all))
@@ -94,6 +47,58 @@ func (blks BlockDevices) Flatten() FlattenedBlockDevices {
 		return flattened[i].Name < flattened[j].Name
 	})
 	return flattened
+}
+
+// flattenBlockDevice recursively processes a block device and its children
+// up to maxDepth (2 levels deep), adding them to the all map.
+func flattenBlockDevice(blk BlockDevice, parentName string, depth int, all map[string]FlattenedBlockDevice) {
+	// Flatten the current device
+	flattened := FlattenedBlockDevice{
+		Name:       blk.Name,
+		Type:       blk.Type,
+		Size:       blk.Size.Uint64,
+		Rota:       blk.Rota.Bool,
+		Serial:     blk.Serial,
+		WWN:        blk.WWN,
+		Vendor:     blk.Vendor,
+		Model:      blk.Model,
+		Rev:        blk.Rev,
+		MountPoint: blk.MountPoint,
+		FSType:     blk.FSType,
+		PartUUID:   blk.PartUUID,
+	}
+
+	// Add parent from function parameter
+	if parentName != "" {
+		flattened.Parents = []string{parentName}
+	} else if blk.ParentDeviceName != "" {
+		// For top-level devices that might have a parent
+		flattened.Parents = []string{blk.ParentDeviceName}
+	}
+
+	// Update or add the device to the map
+	if prev, ok := all[flattened.Name]; ok {
+		// If device already exists, merge parents
+		if len(flattened.Parents) > 0 {
+			prev.Parents = append(prev.Parents, flattened.Parents...)
+		}
+		all[flattened.Name] = prev
+	} else {
+		all[flattened.Name] = flattened
+	}
+
+	// Process children if we haven't reached max depth (2)
+	if depth < 2 {
+		for _, child := range blk.Children {
+			// Update parent's children list
+			parentDev := all[flattened.Name]
+			parentDev.Children = append(parentDev.Children, child.Name)
+			all[flattened.Name] = parentDev
+
+			// Recursively process the child
+			flattenBlockDevice(child, flattened.Name, depth+1, all)
+		}
+	}
 }
 
 func (blks FlattenedBlockDevices) RenderTable(wr io.Writer) {

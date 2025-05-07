@@ -235,13 +235,9 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	blks, err := disk.GetBlockDevicesWithLsblk(
 		ctx,
-		disk.WithFstype(func(fs string) bool {
-			return fs == "" || fs == "ext4" || fs == "LVM2_member"
-		}),
-		disk.WithDeviceType(func(dt string) bool {
-			return dt == "disk" || dt == "lvm" || dt == "part"
-		},
-		))
+		disk.WithFstype(disk.DefaultFsTypeFunc),
+		disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -265,6 +261,33 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 			Parents:    bd.Parents,
 			Children:   bd.Children,
 		})
+	}
+
+	// track nfs partitions only with available fields
+	if runtime.GOOS == "linux" {
+		nfsParts, err := disk.GetPartitions(
+			ctx,
+			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
+
+			// statfs on nfs can incur network I/O or impact disk I/O performance
+			// do not track usage for nfs partitions
+			disk.WithSkipUsage(),
+		)
+		if err != nil {
+			return nil, err
+		}
+		for _, part := range nfsParts {
+			dev := apiv1.MachineDiskDevice{
+				Name:       part.Device,
+				Type:       "nfs",
+				MountPoint: part.MountPoint,
+				FSType:     part.Fstype,
+			}
+			if part.Usage != nil {
+				dev.Size = int64(part.Usage.TotalBytes)
+			}
+			rs = append(rs, dev)
+		}
 	}
 
 	info := &apiv1.MachineDiskInfo{

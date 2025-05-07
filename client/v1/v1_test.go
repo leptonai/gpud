@@ -919,10 +919,9 @@ func TestGetEvents(t *testing.T) {
 			EndTime:   now.Add(time.Hour),
 			Events: []apiv1.Event{
 				{
-					Name:                "test-event",
-					Time:                metav1.Time{Time: now},
-					DeprecatedExtraInfo: map[string]string{"key": "value"},
-					Type:                apiv1.EventTypeInfo,
+					Name: "test-event",
+					Time: metav1.Time{Time: now},
+					Type: apiv1.EventTypeInfo,
 				},
 			},
 		},
@@ -1036,7 +1035,6 @@ func TestGetEvents(t *testing.T) {
 				for j := range tt.expectedResult[i].Events {
 					assert.Equal(t, tt.expectedResult[i].Events[j].Name, result[i].Events[j].Name)
 					assert.Equal(t, tt.expectedResult[i].Events[j].Type, result[i].Events[j].Type)
-					assert.Equal(t, tt.expectedResult[i].Events[j].DeprecatedExtraInfo, result[i].Events[j].DeprecatedExtraInfo)
 					assert.WithinDuration(t, tt.expectedResult[i].Events[j].Time.Time, result[i].Events[j].Time.Time, time.Second)
 				}
 			}
@@ -1076,10 +1074,9 @@ func TestReadEvents(t *testing.T) {
 			EndTime:   now.Add(time.Hour),
 			Events: []apiv1.Event{
 				{
-					Name:                "test-event",
-					Time:                metav1.Time{Time: now},
-					DeprecatedExtraInfo: map[string]string{"key": "value"},
-					Type:                apiv1.EventTypeInfo,
+					Name: "test-event",
+					Time: metav1.Time{Time: now},
+					Type: apiv1.EventTypeInfo,
 				},
 			},
 		},
@@ -1158,7 +1155,6 @@ func TestReadEvents(t *testing.T) {
 				for j := range tt.expectedResult[i].Events {
 					assert.Equal(t, tt.expectedResult[i].Events[j].Name, result[i].Events[j].Name)
 					assert.Equal(t, tt.expectedResult[i].Events[j].Type, result[i].Events[j].Type)
-					assert.Equal(t, tt.expectedResult[i].Events[j].DeprecatedExtraInfo, result[i].Events[j].DeprecatedExtraInfo)
 					assert.WithinDuration(t, tt.expectedResult[i].Events[j].Time.Time, result[i].Events[j].Time.Time, time.Second)
 				}
 			}

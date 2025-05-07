@@ -305,8 +305,9 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 		currState := apiv1.ComponentHealthStates{
 			Component: componentName,
 		}
-		component := g.componentsRegistry.Get(componentName)
-		if component == nil {
+
+		comp := g.componentsRegistry.Get(componentName)
+		if comp == nil {
 			log.Logger.Errorw("failed to get component",
 				"operation", "GetStates",
 				"component", componentName,
@@ -315,9 +316,13 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 			states = append(states, currState)
 			continue
 		}
+		if !comp.IsSupported() {
+			log.Logger.Debugw("component not supported", "component", componentName)
+			continue
+		}
 
 		log.Logger.Debugw("getting states", "component", componentName)
-		state := component.LastHealthStates()
+		state := comp.LastHealthStates()
 
 		log.Logger.Debugw("successfully got states", "component", componentName)
 		currState.States = state
@@ -380,8 +385,9 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 			StartTime: startTime,
 			EndTime:   endTime,
 		}
-		component := g.componentsRegistry.Get(componentName)
-		if component == nil {
+
+		comp := g.componentsRegistry.Get(componentName)
+		if comp == nil {
 			log.Logger.Errorw("failed to get component",
 				"operation", "GetEvents",
 				"component", componentName,
@@ -390,7 +396,12 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 			events = append(events, currEvent)
 			continue
 		}
-		event, err := component.Events(c, startTime)
+		if !comp.IsSupported() {
+			log.Logger.Debugw("component not supported", "component", componentName)
+			continue
+		}
+
+		event, err := comp.Events(c, startTime)
 		if err != nil {
 			log.Logger.Errorw("failed to invoke component events",
 				"operation", "GetEvents",
@@ -481,10 +492,10 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 			componentsToMetrics[data.Component] = make([]apiv1.Metric, 0)
 		}
 		d := apiv1.Metric{
-			UnixSeconds:                   data.UnixMilliseconds,
-			DeprecatedMetricName:          data.Name,
-			DeprecatedMetricSecondaryName: data.Label,
-			Value:                         data.Value,
+			UnixSeconds: data.UnixMilliseconds,
+			Name:        data.Name,
+			Labels:      data.Labels,
+			Value:       data.Value,
 		}
 		componentsToMetrics[data.Component] = append(componentsToMetrics[data.Component], d)
 	}
@@ -496,8 +507,9 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 			EndTime:   endTime,
 			Info:      apiv1.Info{},
 		}
-		component := g.componentsRegistry.Get(componentName)
-		if component == nil {
+
+		comp := g.componentsRegistry.Get(componentName)
+		if comp == nil {
 			log.Logger.Errorw("failed to get component",
 				"operation", "GetInfo",
 				"component", componentName,
@@ -506,7 +518,12 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 			infos = append(infos, currInfo)
 			continue
 		}
-		events, err := component.Events(c, startTime)
+		if !comp.IsSupported() {
+			log.Logger.Debugw("component not supported", "component", componentName)
+			continue
+		}
+
+		events, err := comp.Events(c, startTime)
 		if err != nil {
 			log.Logger.Errorw("failed to invoke component events",
 				"operation", "GetInfo",
@@ -517,7 +534,7 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 			currInfo.Info.Events = events
 		}
 
-		state := component.LastHealthStates()
+		state := comp.LastHealthStates()
 		currInfo.Info.States = state
 
 		currInfo.Info.Metrics = componentsToMetrics[componentName]

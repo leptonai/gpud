@@ -4,6 +4,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,8 +18,7 @@ import (
 )
 
 const (
-	// DefaultTableName is the default table name for the metrics.
-	DefaultTableName = "gpud_metrics"
+	schemaVersion = "v0_5"
 
 	// ColumnUnixMilliseconds represents the Unix timestamp of the metric.
 	ColumnUnixMilliseconds = "unix_milliseconds"
@@ -30,13 +30,22 @@ const (
 	// ColumnMetricName represents the name of the metric.
 	ColumnMetricName = "metric_name"
 
-	// ColumnMetricLabel represents the label of the metric
-	// such as GPU ID, etc. (as a secondary metric name).
-	ColumnMetricLabel = "metric_label"
+	// ColumnMetricLabels represents the labels of the metric
+	// such as GPU ID, mount points, etc. (as a secondary metric name).
+	// The value is a set of key-value pairs in JSON format.
+	//
+	// Go JSON encoder sorts the keys alphabetically.
+	// ref. https://pkg.go.dev/encoding/json#Marshal
+	ColumnMetricLabels = "metric_labels"
 
 	// ColumnMetricValue represents the numeric value of the metric.
 	ColumnMetricValue = "metric_value"
 )
+
+// TODO: drop the old table "gpud_metrics"
+
+// DefaultTableName is the default table name for the metrics.
+var DefaultTableName = fmt.Sprintf("gpud_metrics_%s", schemaVersion)
 
 var (
 	ErrEmptyTableName     = errors.New("table name is empty")
@@ -90,8 +99,8 @@ CREATE TABLE IF NOT EXISTS %s (
 	PRIMARY KEY (%s, %s, %s, %s)
 ) WITHOUT ROWID;`,
 		table,
-		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricLabel, ColumnMetricValue, // columns
-		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricLabel, // primary keys
+		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricLabels, ColumnMetricValue, // columns
+		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricLabels, // primary keys
 	))
 	return err
 }
@@ -122,7 +131,7 @@ func insert(ctx context.Context, dbRW *sql.DB, table string, ms ...pkgmetrics.Me
 		ColumnUnixMilliseconds,
 		ColumnComponentName,
 		ColumnMetricName,
-		ColumnMetricLabel,
+		ColumnMetricLabels,
 		ColumnMetricValue,
 	)
 
@@ -135,7 +144,15 @@ func insert(ctx context.Context, dbRW *sql.DB, table string, ms ...pkgmetrics.Me
 
 	args := make([]interface{}, 0, len(ms)*5)
 	for _, m := range ms {
-		args = append(args, m.UnixMilliseconds, m.Component, m.Name, m.Label, m.Value)
+		labels := ""
+		if len(m.Labels) > 0 {
+			b, err := json.Marshal(m.Labels)
+			if err != nil {
+				return err
+			}
+			labels = string(b)
+		}
+		args = append(args, m.UnixMilliseconds, m.Component, m.Name, labels, m.Value)
 	}
 
 	log.Logger.Infow("inserting metrics", "metrics", len(ms))
@@ -191,7 +208,7 @@ FROM %s
 		ColumnUnixMilliseconds,
 		ColumnComponentName,
 		ColumnMetricName,
-		ColumnMetricLabel,
+		ColumnMetricLabels,
 		ColumnMetricValue,
 		table,
 	)
@@ -217,12 +234,16 @@ FROM %s
 	rows := make(pkgmetrics.Metrics, 0)
 	for queryRows.Next() {
 		m := pkgmetrics.Metric{}
-		var label sql.NullString
-		if err := queryRows.Scan(&m.UnixMilliseconds, &m.Component, &m.Name, &label, &m.Value); err != nil {
+		var labels sql.NullString
+		if err := queryRows.Scan(&m.UnixMilliseconds, &m.Component, &m.Name, &labels, &m.Value); err != nil {
 			return nil, err
 		}
-		if label.Valid && label.String != "" {
-			m.Label = label.String
+		if labels.Valid && labels.String != "" {
+			lm := make(map[string]string, 0)
+			if err := json.Unmarshal([]byte(labels.String), &lm); err != nil {
+				return nil, err
+			}
+			m.Labels = lm
 		}
 		rows = append(rows, m)
 	}

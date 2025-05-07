@@ -4,15 +4,9 @@ import (
 	"context"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
-)
-
-const (
-	eventKeyLogLine = "log_line"
 )
 
 // Syncer syncs kernel message matched by MatchFunc to eventstore bucket
@@ -66,11 +60,11 @@ func (w *Syncer) sync(ch <-chan Message) {
 			if name == "" {
 				continue
 			}
-			event := apiv1.Event{
-				Time:    metav1.Time{Time: kmsg.Timestamp.UTC()},
+			event := eventstore.Event{
+				Time:    kmsg.Timestamp.UTC(),
 				Name:    name,
 				Message: message,
-				Type:    apiv1.EventTypeWarning,
+				Type:    string(apiv1.EventTypeWarning),
 			}
 
 			// lookup to prevent duplicate event insertions
@@ -82,10 +76,6 @@ func (w *Syncer) sync(ch <-chan Message) {
 			}
 			if sameEvent != nil {
 				continue
-			}
-
-			event.DeprecatedExtraInfo = map[string]string{
-				eventKeyLogLine: kmsg.Message,
 			}
 
 			// insert event

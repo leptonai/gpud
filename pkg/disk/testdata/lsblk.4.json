@@ -1,0 +1,546 @@
+{
+    "blockdevices": [
+        {
+            "name": "loop1",
+            "maj:min": "7:1",
+            "rm": false,
+            "size": "63.8M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/core20/2501"
+            ]
+        },
+        {
+            "name": "loop2",
+            "maj:min": "7:2",
+            "rm": false,
+            "size": "87M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/lxd/27037"
+            ]
+        },
+        {
+            "name": "loop3",
+            "maj:min": "7:3",
+            "rm": false,
+            "size": "89.4M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/lxd/31333"
+            ]
+        },
+        {
+            "name": "loop4",
+            "maj:min": "7:4",
+            "rm": false,
+            "size": "40.4M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/snapd/20671"
+            ]
+        },
+        {
+            "name": "loop5",
+            "maj:min": "7:5",
+            "rm": false,
+            "size": "50.9M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/snapd/24505"
+            ]
+        },
+        {
+            "name": "loop6",
+            "maj:min": "7:6",
+            "rm": false,
+            "size": "2G",
+            "ro": false,
+            "type": "loop",
+            "mountpoints": [
+                "/opt/weka/logs"
+            ]
+        },
+        {
+            "name": "loop7",
+            "maj:min": "7:7",
+            "rm": false,
+            "size": "825.9M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop8",
+            "maj:min": "7:8",
+            "rm": false,
+            "size": "232.8M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop9",
+            "maj:min": "7:9",
+            "rm": false,
+            "size": "5.7M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop10",
+            "maj:min": "7:10",
+            "rm": false,
+            "size": "1M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop11",
+            "maj:min": "7:11",
+            "rm": false,
+            "size": "5.8M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop12",
+            "maj:min": "7:12",
+            "rm": false,
+            "size": "15.8M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop13",
+            "maj:min": "7:13",
+            "rm": false,
+            "size": "18.4M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop14",
+            "maj:min": "7:14",
+            "rm": false,
+            "size": "110M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop15",
+            "maj:min": "7:15",
+            "rm": false,
+            "size": "1000M",
+            "ro": false,
+            "type": "loop",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "loop16",
+            "maj:min": "7:16",
+            "rm": false,
+            "size": "63.8M",
+            "ro": true,
+            "type": "loop",
+            "mountpoints": [
+                "/snap/core20/2571"
+            ]
+        },
+        {
+            "name": "sda",
+            "maj:min": "8:0",
+            "rm": false,
+            "size": "1.7T",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "sda1",
+                    "maj:min": "8:1",
+                    "rm": false,
+                    "size": "1G",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        "/boot/efi"
+                    ]
+                },
+                {
+                    "name": "sda2",
+                    "maj:min": "8:2",
+                    "rm": false,
+                    "size": "2G",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        "/boot"
+                    ]
+                },
+                {
+                    "name": "sda3",
+                    "maj:min": "8:3",
+                    "rm": false,
+                    "size": "1.7T",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ],
+                    "children": [
+                        {
+                            "name": "ubuntu--vg-ubuntu--lv",
+                            "maj:min": "253:0",
+                            "rm": false,
+                            "size": "100G",
+                            "ro": false,
+                            "type": "lvm",
+                            "mountpoints": [
+                                "/"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "sdb",
+            "maj:min": "8:16",
+            "rm": true,
+            "size": "0B",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ]
+        },
+        {
+            "name": "nvme0n1",
+            "maj:min": "259:1",
+            "rm": false,
+            "size": "7T",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "nvme0n1p1",
+                    "maj:min": "259:2",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ],
+                    "children": [
+                        {
+                            "name": "md0",
+                            "maj:min": "9:0",
+                            "rm": false,
+                            "size": "55.9T",
+                            "ro": false,
+                            "type": "raid0",
+                            "mountpoints": [
+                                "/raid"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme1n1",
+            "maj:min": "259:4",
+            "rm": false,
+            "size": "7T",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "nvme1n1p1",
+                    "maj:min": "259:5",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ],
+                    "children": [
+                        {
+                            "name": "md0",
+                            "maj:min": "9:0",
+                            "rm": false,
+                            "size": "55.9T",
+                            "ro": false,
+                            "type": "raid0",
+                            "mountpoints": [
+                                "/raid"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme2n1",
+            "maj:min": "259:8",
+            "rm": false,
+            "size": "7T",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "nvme2n1p1",
+                    "maj:min": "259:11",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ],
+                    "children": [
+                        {
+                            "name": "md0",
+                            "maj:min": "9:0",
+                            "rm": false,
+                            "size": "55.9T",
+                            "ro": false,
+                            "type": "raid0",
+                            "mountpoints": [
+                                "/raid"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme3n1",
+            "maj:min": "259:9",
+            "rm": false,
+            "size": "7T",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "nvme3n1p1",
+                    "maj:min": "259:10",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ],
+                    "children": [
+                        {
+                            "name": "md0",
+                            "maj:min": "9:0",
+                            "rm": false,
+                            "size": "55.9T",
+                            "ro": false,
+                            "type": "raid0",
+                            "mountpoints": [
+                                "/raid"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme4n1",
+            "maj:min": "259:13",
+            "rm": false,
+            "size": "7T",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "nvme4n1p1",
+                    "maj:min": "259:14",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ],
+                    "children": [
+                        {
+                            "name": "md0",
+                            "maj:min": "9:0",
+                            "rm": false,
+                            "size": "55.9T",
+                            "ro": false,
+                            "type": "raid0",
+                            "mountpoints": [
+                                "/raid"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme5n1",
+            "maj:min": "259:16",
+            "rm": false,
+            "size": "7T",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "nvme5n1p1",
+                    "maj:min": "259:17",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ],
+                    "children": [
+                        {
+                            "name": "md0",
+                            "maj:min": "9:0",
+                            "rm": false,
+                            "size": "55.9T",
+                            "ro": false,
+                            "type": "raid0",
+                            "mountpoints": [
+                                "/raid"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme6n1",
+            "maj:min": "259:19",
+            "rm": false,
+            "size": "7T",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "nvme6n1p1",
+                    "maj:min": "259:20",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ],
+                    "children": [
+                        {
+                            "name": "md0",
+                            "maj:min": "9:0",
+                            "rm": false,
+                            "size": "55.9T",
+                            "ro": false,
+                            "type": "raid0",
+                            "mountpoints": [
+                                "/raid"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "nvme7n1",
+            "maj:min": "259:22",
+            "rm": false,
+            "size": "7T",
+            "ro": false,
+            "type": "disk",
+            "mountpoints": [
+                null
+            ],
+            "children": [
+                {
+                    "name": "nvme7n1p1",
+                    "maj:min": "259:23",
+                    "rm": false,
+                    "size": "7T",
+                    "ro": false,
+                    "type": "part",
+                    "mountpoints": [
+                        null
+                    ],
+                    "children": [
+                        {
+                            "name": "md0",
+                            "maj:min": "9:0",
+                            "rm": false,
+                            "size": "55.9T",
+                            "ro": false,
+                            "type": "raid0",
+                            "mountpoints": [
+                                "/raid"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

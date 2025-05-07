@@ -23,7 +23,6 @@ import (
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 // Name is the ID of the CPU component.
@@ -85,6 +84,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
+func (c *component) Tags() []string {
+	return []string{
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	return true
+}
+
 func (c *component) Start() error {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
@@ -114,7 +123,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -206,9 +219,9 @@ func (c *component) Check() components.CheckResult {
 	cr.Usage.LoadAvg5Min = fmt.Sprintf("%.2f", loadAvg.Load5)
 	cr.Usage.LoadAvg15Min = fmt.Sprintf("%.2f", loadAvg.Load15)
 
-	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: oneMinute}).Set(loadAvg.Load1)
-	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fiveMinute}).Set(loadAvg.Load5)
-	metricLoadAverage.With(prometheus.Labels{pkgmetrics.MetricLabelKey: fifteenMin}).Set(loadAvg.Load15)
+	metricLoadAverage.With(prometheus.Labels{"load_duration": oneMinute}).Set(loadAvg.Load1)
+	metricLoadAverage.With(prometheus.Labels{"load_duration": fiveMinute}).Set(loadAvg.Load5)
+	metricLoadAverage.With(prometheus.Labels{"load_duration": fifteenMin}).Set(loadAvg.Load15)
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "ok"

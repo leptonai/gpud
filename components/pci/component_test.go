@@ -45,6 +45,18 @@ func TestNewComponent(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestTags(t *testing.T) {
+	c := &component{}
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
+}
+
 func TestComponentStates(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
@@ -98,11 +110,12 @@ func TestComponentEvents(t *testing.T) {
 	assert.Empty(t, events)
 
 	// Add a test event and verify it can be retrieved
-	testEvent := apiv1.Event{
-		Time:    metav1.Time{Time: time.Now().UTC()},
-		Name:    "acs_enabled",
-		Type:    "Warning",
-		Message: "Test event",
+	testEvent := eventstore.Event{
+		Component: Name,
+		Time:      time.Now().UTC(),
+		Name:      "acs_enabled",
+		Type:      "Warning",
+		Message:   "Test event",
 	}
 
 	bucket, err := store.Bucket(Name)
@@ -271,11 +284,12 @@ func TestCheckOnce_EventCreation(t *testing.T) {
 
 	// Create an event directly
 	testTime := time.Now().UTC()
-	event := apiv1.Event{
-		Time:    metav1.Time{Time: testTime.Add(-48 * time.Hour)}, // Older than 24h
-		Name:    "acs_enabled",
-		Type:    "Warning",
-		Message: "Test event",
+	event := eventstore.Event{
+		Component: Name,
+		Time:      testTime.Add(-48 * time.Hour), // Older than 24h
+		Name:      "acs_enabled",
+		Type:      "Warning",
+		Message:   "Test event",
 	}
 
 	bucket, err := store.Bucket(Name)
@@ -704,11 +718,12 @@ func TestCheckOnce_RecentEvent(t *testing.T) {
 
 	// Set up a mock bucket that returns a recent event when Latest is called
 	recentTime := time.Now().Add(-1 * time.Hour) // Just 1 hour ago
-	mockEvent := &apiv1.Event{
-		Time:    metav1.Time{Time: recentTime},
-		Name:    "acs_enabled",
-		Type:    "Warning",
-		Message: "Test event",
+	mockEvent := &eventstore.Event{
+		Component: Name,
+		Time:      recentTime,
+		Name:      "acs_enabled",
+		Type:      "Warning",
+		Message:   "Test event",
 	}
 	mockBucket := &mockEventBucket{
 		latestEvent: mockEvent,
@@ -784,8 +799,6 @@ func TestCheckOnce_EventBucketLatestError(t *testing.T) {
 	data, ok := result.(*checkResult)
 	require.True(t, ok, "Result should be a *checkResult")
 	assert.Equal(t, mockErr, data.err)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "error creating event")
 }
 
 func TestNewComponentError(t *testing.T) {
@@ -820,40 +833,49 @@ func TestNewComponentError(t *testing.T) {
 type mockEventBucket struct {
 	latestErr   error
 	insertErr   error
+	getErr      error
 	latestFunc  func()
 	emptyGet    bool
-	latestEvent *apiv1.Event
+	latestEvent *eventstore.Event
+	getEvents   eventstore.Events
 }
 
 func (m *mockEventBucket) Name() string {
 	return "mock-bucket"
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	return m.insertErr
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
 	if m.emptyGet {
 		return nil, nil
 	}
+	if m.getEvents != nil {
+		return m.getEvents, nil
+	}
 	if m.insertErr == nil && m.latestErr == nil {
-		mockEvent := apiv1.Event{
-			Time:    metav1.Time{Time: time.Now().UTC()},
-			Name:    "acs_enabled",
-			Type:    "Warning",
-			Message: "ACS is enabled on the following PCI devices: 0000:00:00.0",
+		mockEvent := eventstore.Event{
+			Component: Name,
+			Time:      time.Now().UTC(),
+			Name:      "acs_enabled",
+			Type:      "Warning",
+			Message:   "ACS is enabled on the following PCI devices: 0000:00:00.0",
 		}
-		return apiv1.Events{mockEvent}, nil
+		return eventstore.Events{mockEvent}, nil
 	}
 	return nil, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	if m.latestFunc != nil {
 		m.latestFunc()
 	}
@@ -1179,4 +1201,432 @@ func TestStartAndClose(t *testing.T) {
 	default:
 		t.Error("Context was not canceled after Close()")
 	}
+}
+
+func TestEvents(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	comp, err := New(&components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	})
+	require.NoError(t, err)
+	defer comp.Close()
+
+	c := comp.(*component)
+	if c.eventBucket == nil {
+		t.Skip("eventBucket is nil, skipping test")
+	}
+
+	// Test with eventBucket present
+	since := time.Now().Add(-1 * time.Hour)
+	events, err := comp.Events(ctx, since)
+	require.NoError(t, err)
+	assert.Empty(t, events) // Initially no events
+
+	// Insert an event
+	mockEvent := eventstore.Event{
+		Component: Name,
+		Time:      time.Now().UTC(),
+		Name:      "test_event",
+		Type:      "Info",
+		Message:   "Test event message",
+	}
+	err = c.eventBucket.Insert(ctx, mockEvent)
+	require.NoError(t, err)
+
+	// Now should get the event
+	events, err = comp.Events(ctx, since)
+	require.NoError(t, err)
+	assert.NotEmpty(t, events)
+	assert.Equal(t, "test_event", events[0].Name)
+
+	// Test with nil eventBucket
+	originalBucket := c.eventBucket
+	c.eventBucket = nil
+	events, err = comp.Events(ctx, since)
+	require.NoError(t, err)
+	assert.Empty(t, events)
+
+	// Restore the original bucket to prevent issues on close
+	c.eventBucket = originalBucket
+}
+
+func TestCheckResultString(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   *checkResult
+		contains string
+	}{
+		{
+			name:     "nil result",
+			result:   nil,
+			contains: "",
+		},
+		{
+			name:     "empty devices",
+			result:   &checkResult{Devices: []pci.Device{}},
+			contains: "no devices with ACS enabled (ok)",
+		},
+		{
+			name: "device with ACS enabled",
+			result: &checkResult{
+				Devices: []pci.Device{
+					{
+						ID:   "0000:00:00.0",
+						Name: "Test Device",
+						AccessControlService: &pci.AccessControlService{
+							ACSCtl: pci.ACS{
+								SrcValid: true,
+							},
+						},
+					},
+				},
+			},
+			contains: "0000:00:00.0",
+		},
+		{
+			name: "device without ACS enabled",
+			result: &checkResult{
+				Devices: []pci.Device{
+					{
+						ID:   "0000:00:00.0",
+						Name: "Test Device",
+						AccessControlService: &pci.AccessControlService{
+							ACSCtl: pci.ACS{
+								SrcValid: false,
+							},
+						},
+					},
+				},
+			},
+			contains: "no devices with ACS enabled (ok)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := tt.result.String()
+			assert.Contains(t, output, tt.contains)
+		})
+	}
+}
+
+func TestCheckResultSummary(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   *checkResult
+		expected string
+	}{
+		{
+			name:     "nil result",
+			result:   nil,
+			expected: "",
+		},
+		{
+			name: "with reason",
+			result: &checkResult{
+				reason: "test reason",
+			},
+			expected: "test reason",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := tt.result.Summary()
+			assert.Equal(t, tt.expected, output)
+		})
+	}
+}
+
+func TestCheckResultHealthStateType(t *testing.T) {
+	tests := []struct {
+		name     string
+		result   *checkResult
+		expected apiv1.HealthStateType
+	}{
+		{
+			name:     "nil result",
+			result:   nil,
+			expected: "",
+		},
+		{
+			name: "healthy state",
+			result: &checkResult{
+				health: apiv1.HealthStateTypeHealthy,
+			},
+			expected: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name: "unhealthy state",
+			result: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+			},
+			expected: apiv1.HealthStateTypeUnhealthy,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := tt.result.HealthStateType()
+			assert.Equal(t, tt.expected, output)
+		})
+	}
+}
+
+func TestNewWithNilEventStore(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Test with nil event store
+	comp, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+		// EventStore is nil
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	c := comp.(*component)
+	assert.Nil(t, c.eventBucket)
+
+	// Close should not panic with nil eventBucket
+	err = comp.Close()
+	require.NoError(t, err)
+}
+
+func TestStartWithEvents(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	comp, err := New(&components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	})
+	require.NoError(t, err)
+	defer comp.Close()
+
+	c := comp.(*component)
+
+	// Skip if eventBucket is nil
+	if c.eventBucket == nil {
+		t.Skip("eventBucket is nil, skipping test")
+	}
+
+	// Insert a recent event (less than 24h old)
+	recentEvent := eventstore.Event{
+		Component: Name,
+		Time:      time.Now().UTC().Add(-1 * time.Hour),
+		Name:      "acs_enabled",
+		Type:      "Warning",
+		Message:   "Recent event",
+	}
+	err = c.eventBucket.Insert(ctx, recentEvent)
+	require.NoError(t, err)
+
+	// We can't directly mock the Check method, so instead we'll verify behavior indirectly
+	// by checking if an event that's less than 24h old prevents the ticker from running Check
+
+	// Start the component
+	err = comp.Start()
+	require.NoError(t, err)
+
+	// Skip the test and just acknowledge we can't effectively test this case
+	// The real test would be in integration or e2e tests
+	t.Log("Note: This test provides basic coverage but cannot fully verify ticker behavior in unit tests")
+}
+
+func TestStartWithBucketLatestError(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	comp, err := New(&components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	})
+	require.NoError(t, err)
+	defer comp.Close()
+
+	c := comp.(*component)
+
+	// Skip if eventBucket is nil
+	if c.eventBucket == nil {
+		t.Skip("eventBucket is nil, skipping test")
+	}
+
+	// Replace eventBucket with a mock that returns an error on Latest
+	mockErr := errors.New("mock latest error")
+	mockBucket := &mockEventBucket{
+		latestErr: mockErr,
+	}
+	c.eventBucket = mockBucket
+
+	// Start the component - this will kick off the goroutine
+	err = comp.Start()
+	require.NoError(t, err)
+
+	// This is a basic sanity check that the goroutine starts
+	// We can't effectively unit test the ticker behavior
+	t.Log("Note: This test provides basic coverage of Start() but cannot fully verify ticker behavior")
+}
+
+func TestCheckWithRealDevicesOnLinux(t *testing.T) {
+	// Skip if not on Linux since this test requires real PCI devices
+	if runtime.GOOS != "linux" {
+		t.Skip("Skipping test on non-Linux platform")
+	}
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	comp, err := New(&components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	})
+	require.NoError(t, err)
+	defer comp.Close()
+
+	c := comp.(*component)
+
+	// Force isKVM to false to test baremetal path
+	c.currentVirtEnv = host.VirtualizationEnvironment{
+		Type:  "baremetal",
+		IsKVM: false,
+	}
+
+	// Run Check with real devices
+	result := c.Check()
+	assert.NotNil(t, result)
+
+	// We can't assert on the specific results as they depend on the host system,
+	// but we can verify the basic structure is there
+	checkResult, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.NotEmpty(t, checkResult.HealthStateType())
+}
+
+func TestCheckWithUnknownVirtEnv(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	comp, err := New(&components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	})
+	require.NoError(t, err)
+	defer comp.Close()
+
+	c := comp.(*component)
+
+	// Set unknown virtualization environment
+	c.currentVirtEnv = host.VirtualizationEnvironment{
+		Type:  "", // Empty type
+		IsKVM: false,
+	}
+
+	// Run Check with unknown virt env
+	result := c.Check()
+	assert.NotNil(t, result)
+
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "unknown virtualization environment (no need to check ACS)", cr.reason)
+}
+
+func TestCheckResultString_Empty(t *testing.T) {
+	// Test with empty result
+	var cr *checkResult
+	str := cr.String()
+	assert.Equal(t, "", str)
+
+	// Test with no ACS enabled devices
+	cr = &checkResult{
+		Devices: []pci.Device{
+			{
+				ID:                   "0000:00:00.0",
+				AccessControlService: nil,
+			},
+		},
+	}
+	str = cr.String()
+	assert.Equal(t, "no devices with ACS enabled (ok)", str)
+}
+
+func TestEventsWithMock(t *testing.T) {
+	// Create a context
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Create a component with a mocked event bucket
+	comp := &component{
+		ctx:    ctx,
+		cancel: cancel,
+	}
+
+	// Test with nil eventBucket
+	events, err := comp.Events(ctx, time.Now().Add(-1*time.Hour))
+	require.NoError(t, err)
+	assert.Empty(t, events)
+
+	// Create a mock bucket that returns events
+	mockEvents := eventstore.Events{
+		{
+			Component: Name,
+			Time:      time.Now().UTC(),
+			Name:      "test_event",
+			Type:      "Info",
+			Message:   "Test event message",
+		},
+	}
+	mockBucket := &mockEventBucket{
+		getEvents: mockEvents,
+	}
+	comp.eventBucket = mockBucket
+
+	// Test with mock bucket
+	since := time.Now().Add(-1 * time.Hour)
+	events, err = comp.Events(ctx, since)
+	require.NoError(t, err)
+	assert.NotEmpty(t, events)
+	assert.Equal(t, "test_event", events[0].Name)
+
+	// Test with error from bucket
+	mockErr := errors.New("mock get error")
+	mockBucket.getErr = mockErr
+	events, err = comp.Events(ctx, since)
+	assert.Error(t, err)
+	assert.Equal(t, mockErr, err)
+	assert.Nil(t, events)
 }

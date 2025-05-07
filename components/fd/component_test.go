@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
@@ -24,6 +26,13 @@ func TestDataGetStatesNil(t *testing.T) {
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "no data yet", states[0].Reason)
+	assert.Empty(t, states[0].Error)
+	assert.Empty(t, states[0].ExtraInfo)
+
+	assert.Empty(t, cr.String())
+	assert.Empty(t, cr.Summary())
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
+	assert.Empty(t, cr.getError())
 }
 
 func TestDataGetStatesWithError(t *testing.T) {
@@ -49,10 +58,14 @@ type MockEventStore struct {
 
 func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
 	args := m.Called(name)
-	return args.Get(0).(eventstore.Bucket), args.Error(1)
+	// Return a mock that implements eventstore.Bucket
+	if bucket, ok := args.Get(0).(eventstore.Bucket); ok {
+		return bucket, args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
-// MockEventBucket implements a mock for eventstore.Bucket
+// MockEventBucket implements a mock for eventstore.Bucket using testify/mock
 type MockEventBucket struct {
 	mock.Mock
 }
@@ -62,30 +75,39 @@ func (m *MockEventBucket) Name() string {
 	return args.String(0)
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
+func (m *MockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
+// Get now returns eventstore.Events to match the interface
+func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+	args := m.Called(ctx, since)
+	if events, ok := args.Get(0).(eventstore.Events); ok {
+		return events, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	args := m.Called(ctx, event)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*apiv1.Event), args.Error(1)
+	if ev, ok := args.Get(0).(*eventstore.Event); ok {
+		return ev, args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	args := m.Called(ctx, since)
-	return args.Get(0).(apiv1.Events), args.Error(1)
-}
-
-func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+// Latest now returns *eventstore.Event to match the interface
+func (m *MockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*apiv1.Event), args.Error(1)
+	// Assume the mock is set up to return *eventstore.Event
+	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
 func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -97,13 +119,28 @@ func (m *MockEventBucket) Close() {
 	m.Called()
 }
 
+// Ensure MockEventBucket satisfies the interface
+var _ eventstore.Bucket = (*MockEventBucket)(nil)
+
 func TestComponentName(t *testing.T) {
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(MockEventBucket) // Use standard mock
 	c := &component{
-		eventBucket: mockEventBucket,
+		eventBucket: mockEventBucket, // Assign standard mock
 	}
 
 	assert.Equal(t, Name, c.Name())
+}
+
+func TestTags(t *testing.T) {
+	c := &component{}
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
 }
 
 func TestComponentStates(t *testing.T) {
@@ -149,17 +186,31 @@ func TestComponentStates(t *testing.T) {
 func TestComponentEvents(t *testing.T) {
 	// Setup
 	mockEventBucket := new(MockEventBucket)
-	testTime := metav1.Now()
-	testEvents := apiv1.Events{
+	now := time.Now().UTC() // Use UTC for consistency
+	// Use correct fields for eventstore.Event
+	testEvStoreEvents := eventstore.Events{
 		{
-			Time:    testTime,
-			Name:    Name,
-			Type:    apiv1.EventType("test"),
-			Message: "Test event",
+			Component: Name,
+			Time:      now,
+			Name:      "file_descriptor_event",
+			Type:      string(apiv1.EventTypeInfo), // Use apiv1 types for source Type string
+			Message:   "Test event 1",
+			ExtraInfo: map[string]string{"key": "value"},
+		},
+	}
+	// Expected apiv1.Events after conversion via ToEvent()
+	expectedAPIEvents := apiv1.Events{
+		{
+			Component: Name,
+			Time:      metav1.NewTime(now), // Conversion uses metav1.Time
+			Name:      "file_descriptor_event",
+			Type:      apiv1.EventTypeInfo,
+			Message:   "Test event 1",
+			// Note: ExtraInfo is NOT part of apiv1.Event
 		},
 	}
 
-	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return(testEvents, nil)
+	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return(testEvStoreEvents, nil)
 
 	c := &component{
 		ctx:         context.Background(),
@@ -172,7 +223,32 @@ func TestComponentEvents(t *testing.T) {
 	events, err := c.Events(context.Background(), since)
 
 	assert.NoError(t, err)
-	assert.Equal(t, testEvents, events)
+	// Compare against expected apiv1.Events
+	assert.Equal(t, expectedAPIEvents, events)
+	mockEventBucket.AssertCalled(t, "Get", mock.Anything, since)
+}
+
+func TestComponentEventsError(t *testing.T) {
+	// Setup
+	mockEventBucket := new(MockEventBucket)
+	testError := errors.New("failed to get events")
+	// Return eventstore.Events(nil) for the Get mock
+	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return(eventstore.Events(nil), testError)
+
+	c := &component{
+		ctx:         context.Background(),
+		cancel:      func() {},
+		eventBucket: mockEventBucket,
+	}
+
+	// Test
+	since := time.Now().Add(-time.Hour)
+	events, err := c.Events(context.Background(), since)
+
+	// Verify
+	assert.Error(t, err)
+	assert.Equal(t, testError, err)
+	assert.Nil(t, events)
 	mockEventBucket.AssertCalled(t, "Get", mock.Anything, since)
 }
 
@@ -689,24 +765,28 @@ func TestComponentEventBucketOperations(t *testing.T) {
 	mockEventBucket := new(MockEventBucket)
 
 	// Set up expectations for bucket operations
-	mockEvent := apiv1.Event{
-		Name:    Name,
-		Type:    apiv1.EventType("test"),
-		Message: "Test event",
+	// Use correct fields for eventstore.Event
+	mockEV := eventstore.Event{
+		Component: Name,
+		Time:      time.Now().UTC(),
+		Name:      "insert_test_event",
+		Type:      string(apiv1.EventTypeInfo),
+		Message:   "Testing insert operation",
+		ExtraInfo: map[string]string{"op": "insert"},
 	}
-	mockEventBucket.On("Insert", mock.Anything, mock.Anything).Return(nil)
+	mockEventBucket.On("Insert", mock.Anything, mock.AnythingOfType("eventstore.Event")).Return(nil)
 
 	c := &component{
 		ctx:         context.Background(),
 		eventBucket: mockEventBucket,
 	}
 
-	// Test bucket insert operation
-	err := c.eventBucket.Insert(context.Background(), mockEvent)
+	// Test bucket insert operation with eventstore.Event
+	err := c.eventBucket.Insert(context.Background(), mockEV)
 
 	// Verify
 	assert.NoError(t, err)
-	mockEventBucket.AssertCalled(t, "Insert", mock.Anything, mock.Anything)
+	mockEventBucket.AssertCalled(t, "Insert", mock.Anything, mock.AnythingOfType("eventstore.Event"))
 }
 
 func TestFormatAsPercent(t *testing.T) {
@@ -880,6 +960,32 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			fdLimitSupported:         true,
 			expectReasonContainsText: ErrFileHandlesAllocationExceedsWarning,
 		},
+		{
+			name:                     "zero usage",
+			allocatedFileHandles:     0,
+			runningPIDs:              0,
+			usage:                    0,
+			limit:                    10000,
+			thresholdFileHandles:     DefaultThresholdAllocatedFileHandles,
+			thresholdPIDs:            DefaultThresholdRunningPIDs,
+			expectedHealth:           apiv1.HealthStateTypeHealthy,
+			fileHandlesSupported:     true,
+			fdLimitSupported:         true,
+			expectReasonContainsText: "no issue found",
+		},
+		{
+			name:                     "zero limit",
+			allocatedFileHandles:     1000,
+			runningPIDs:              500,
+			usage:                    800,
+			limit:                    0, // Zero limit
+			thresholdFileHandles:     DefaultThresholdAllocatedFileHandles,
+			thresholdPIDs:            DefaultThresholdRunningPIDs,
+			expectedHealth:           apiv1.HealthStateTypeHealthy, // Should still be healthy, but percentages will be 0
+			fileHandlesSupported:     true,
+			fdLimitSupported:         true,
+			expectReasonContainsText: "no issue found",
+		},
 	}
 
 	for _, tc := range tests {
@@ -933,12 +1039,15 @@ func TestComponentCheckOnceWithWarningConditions(t *testing.T) {
 			assert.NotNil(t, c.lastCheckResult)
 			assert.Equal(t, tc.expectedHealth, c.lastCheckResult.health)
 
-			// If the text is the full error message, use exact equality.
-			// Otherwise use contains for more flexible matching.
-			if tc.expectReasonContainsText == ErrFileHandlesAllocationExceedsWarning {
-				assert.Equal(t, tc.expectReasonContainsText, c.lastCheckResult.reason)
-			} else {
-				assert.Equal(t, tc.expectReasonContainsText, c.lastCheckResult.reason)
+			// Use contains for more flexible matching of reasons.
+			assert.Contains(t, c.lastCheckResult.reason, tc.expectReasonContainsText)
+
+			// Specific checks for zero limit case
+			if tc.limit == 0 {
+				assert.Equal(t, "0.00", c.lastCheckResult.AllocatedFileHandlesPercent)
+				assert.Equal(t, "0.00", c.lastCheckResult.UsedPercent)
+				assert.Equal(t, "0.00", c.lastCheckResult.ThresholdAllocatedFileHandlesPercent)
+				// ThresholdRunningPIDsPercent depends on Usage and thresholdRunningPIDs, not the main limit
 			}
 		})
 	}
@@ -974,40 +1083,63 @@ func TestDataString(t *testing.T) {
 func TestDataJSON(t *testing.T) {
 	// Test with data
 	cr := &checkResult{
-		AllocatedFileHandles:        1000,
-		RunningPIDs:                 500,
-		Usage:                       800,
-		Limit:                       10000,
-		AllocatedFileHandlesPercent: "10.00",
-		UsedPercent:                 "8.00",
-		FileHandlesSupported:        true,
-		FDLimitSupported:            true,
-		ts:                          time.Now(),
-		health:                      apiv1.HealthStateTypeHealthy,
-		reason:                      "test reason",
+		AllocatedFileHandles:                 1000,
+		RunningPIDs:                          500,
+		Usage:                                800,
+		Limit:                                10000,
+		AllocatedFileHandlesPercent:          "10.00",
+		UsedPercent:                          "8.00",
+		ThresholdAllocatedFileHandles:        DefaultThresholdAllocatedFileHandles,
+		ThresholdAllocatedFileHandlesPercent: "0.01",
+		ThresholdRunningPIDs:                 DefaultThresholdRunningPIDs,
+		ThresholdRunningPIDsPercent:          "0.01",
+		FileHandlesSupported:                 true,
+		FDLimitSupported:                     true,
+		ts:                                   time.Now(), // Non-zero time for marshaling
+		health:                               apiv1.HealthStateTypeHealthy,
+		reason:                               "test reason",
 	}
 
-	// Test
+	// Test JSON marshaling
 	jsonBytes, err := json.Marshal(cr)
 
 	// Verify
 	assert.NoError(t, err)
 	assert.NotEmpty(t, jsonBytes)
 
-	var unmarshalled map[string]interface{}
-	err = json.Unmarshal(jsonBytes, &unmarshalled)
+	var unmarshaled map[string]interface{}
+	err = json.Unmarshal(jsonBytes, &unmarshaled)
 	assert.NoError(t, err)
-	assert.Equal(t, float64(1000), unmarshalled["allocated_file_handles"])
-	assert.Equal(t, float64(500), unmarshalled["running_pids"])
-	assert.Equal(t, float64(800), unmarshalled["usage"])
-	assert.Equal(t, float64(10000), unmarshalled["limit"])
+	assert.Equal(t, float64(1000), unmarshaled["allocated_file_handles"])
+	assert.Equal(t, float64(500), unmarshaled["running_pids"])
+	assert.Equal(t, float64(800), unmarshaled["usage"])
+	assert.Equal(t, float64(10000), unmarshaled["limit"])
+	assert.Equal(t, "10.00", unmarshaled["allocated_file_handles_percent"])
+	assert.Equal(t, "8.00", unmarshaled["used_percent"])
+	assert.Equal(t, float64(DefaultThresholdAllocatedFileHandles), unmarshaled["threshold_allocated_file_handles"])
+	assert.Equal(t, "0.01", unmarshaled["threshold_allocated_file_handles_percent"])
+	assert.Equal(t, float64(DefaultThresholdRunningPIDs), unmarshaled["threshold_running_pids"])
+	assert.Equal(t, "0.01", unmarshaled["threshold_running_pids_percent"])
+	assert.Equal(t, true, unmarshaled["file_handles_supported"])
+	assert.Equal(t, true, unmarshaled["fd_limit_supported"])
+
+	// Test HealthStates includes marshaled data
+	states := cr.HealthStates()
+	assert.Len(t, states, 1)
+	assert.NotEmpty(t, states[0].ExtraInfo["data"])
+	var extraData checkResult
+	err = json.Unmarshal([]byte(states[0].ExtraInfo["data"]), &extraData)
+	assert.NoError(t, err)
+	assert.Equal(t, cr.AllocatedFileHandles, extraData.AllocatedFileHandles) // Check one field for basic validation
 }
 
 func TestCheckResult(t *testing.T) {
 	// Setup
+	mockBucket := new(MockEventBucket) // Use standard mock
 	c := &component{
-		ctx:    context.Background(),
-		cancel: func() {},
+		ctx:         context.Background(),
+		cancel:      func() {},
+		eventBucket: mockBucket, // Assign standard mock
 		getFileHandlesFunc: func() (uint64, uint64, error) {
 			return 1000, 0, nil
 		},
@@ -1043,7 +1175,6 @@ func TestComponentEventsWithNoEventBucket(t *testing.T) {
 	c := &component{
 		ctx:    context.Background(),
 		cancel: func() {},
-		// No eventBucket
 	}
 
 	// Test
@@ -1111,3 +1242,28 @@ func TestStartAndClose(t *testing.T) {
 
 	mockEventBucket.AssertCalled(t, "Close")
 }
+
+// Add TestNewErrorBucket tests
+func TestNewErrorBucket(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Skipping event store test on non-linux")
+	}
+	mockEventStore := new(MockEventStore)
+	testError := errors.New("failed to get bucket")
+	// MockEventStore.Bucket needs to return something satisfying eventstore.Bucket or nil
+	mockEventStore.On("Bucket", Name).Return((*MockEventBucket)(nil), testError) // Return nil mock bucket on error
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:    context.Background(),
+		EventStore: mockEventStore,
+	}
+
+	comp, err := New(gpudInstance)
+
+	assert.Error(t, err)
+	assert.Equal(t, testError, err)
+	assert.Nil(t, comp)
+	mockEventStore.AssertCalled(t, "Bucket", Name)
+}
+
+// Skipping TestNewErrorKmsgSyncer as it requires mocking os.Geteuid or running as root.

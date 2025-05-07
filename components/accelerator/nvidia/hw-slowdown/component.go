@@ -20,7 +20,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -94,6 +93,22 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
+func (c *component) Tags() []string {
+	return []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	if c.nvmlInstance == nil {
+		return false
+	}
+	return c.nvmlInstance.NVMLExists() && c.nvmlInstance.ProductName() != ""
+}
+
 func (c *component) Start() error {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
@@ -123,7 +138,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -214,21 +233,21 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		if clockEvents.HWSlowdown {
-			metricHWSlowdown.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1))
+			metricHWSlowdown.With(prometheus.Labels{"uuid": uuid}).Set(float64(1))
 		} else {
-			metricHWSlowdown.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
+			metricHWSlowdown.With(prometheus.Labels{"uuid": uuid}).Set(float64(0))
 		}
 
 		if clockEvents.HWSlowdownThermal {
-			metricHWSlowdownThermal.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1))
+			metricHWSlowdownThermal.With(prometheus.Labels{"uuid": uuid}).Set(float64(1))
 		} else {
-			metricHWSlowdownThermal.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
+			metricHWSlowdownThermal.With(prometheus.Labels{"uuid": uuid}).Set(float64(0))
 		}
 
 		if clockEvents.HWSlowdownPowerBrake {
-			metricHWSlowdownPowerBrake.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(1))
+			metricHWSlowdownPowerBrake.With(prometheus.Labels{"uuid": uuid}).Set(float64(1))
 		} else {
-			metricHWSlowdownPowerBrake.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(0))
+			metricHWSlowdownPowerBrake.With(prometheus.Labels{"uuid": uuid}).Set(float64(0))
 		}
 
 		cr.ClockEvents = append(cr.ClockEvents, clockEvents)

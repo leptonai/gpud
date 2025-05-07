@@ -17,7 +17,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -50,7 +49,19 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 func (c *component) Name() string { return Name }
 
 func (c *component) Tags() []string {
-	return []string{}
+	return []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	if c.nvmlInstance == nil {
+		return false
+	}
+	return c.nvmlInstance.NVMLExists() && c.nvmlInstance.ProductName() != ""
 }
 
 func (c *component) Start() error {
@@ -130,10 +141,10 @@ func (c *component) Check() components.CheckResult {
 		}
 		cr.Memories = append(cr.Memories, mem)
 
-		metricTotalBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(mem.TotalBytes))
-		metricReservedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(mem.ReservedBytes))
-		metricUsedBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(mem.UsedBytes))
-		metricFreeBytes.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(mem.FreeBytes))
+		metricTotalBytes.With(prometheus.Labels{"uuid": uuid}).Set(float64(mem.TotalBytes))
+		metricReservedBytes.With(prometheus.Labels{"uuid": uuid}).Set(float64(mem.ReservedBytes))
+		metricUsedBytes.With(prometheus.Labels{"uuid": uuid}).Set(float64(mem.UsedBytes))
+		metricFreeBytes.With(prometheus.Labels{"uuid": uuid}).Set(float64(mem.FreeBytes))
 
 		usedPct, err := mem.GetUsedPercent()
 		if err != nil {
@@ -143,7 +154,7 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Errorw(cr.reason, "error", cr.err)
 			return cr
 		}
-		metricUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(usedPct)
+		metricUsedPercent.With(prometheus.Labels{"uuid": uuid}).Set(usedPct)
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy

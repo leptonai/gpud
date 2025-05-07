@@ -82,6 +82,22 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
+func (c *component) Tags() []string {
+	return []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	if c.nvmlInstance == nil {
+		return false
+	}
+	return c.nvmlInstance.NVMLExists() && c.nvmlInstance.ProductName() != ""
+}
+
 func (c *component) Start() error {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
@@ -111,7 +127,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -227,6 +247,13 @@ func (c *component) Check() components.CheckResult {
 		// which means we may overwrite the error above
 		// (e.g., "ibstat" command exited 255 but still meets the thresholds)
 		cr.reason, cr.health = evaluateIbstatOutputAgainstThresholds(cr.IbstatOutput, thresholds)
+
+		// partial output from "ibstat" command worked
+		if cr.err != nil && cr.health == apiv1.HealthStateTypeHealthy {
+			log.Logger.Debugw("ibstat command returned partial output -- discarding error", "error", cr.err, "reason", cr.reason)
+			cr.err = nil
+			cr.errIbstatus = nil
+		}
 	} else if cr.IbstatusOutput != nil {
 		// ibstat command failed and no output
 		// then we need fallback to the second data source "ibstatus"
@@ -241,20 +268,13 @@ func (c *component) Check() components.CheckResult {
 	// now that event store/bucket is set
 	// now that ibstat output has some issues with its thresholds (unhealthy state)
 	// we persist such unhealthy state event
-	ev := apiv1.Event{
-		Time:    metav1.Time{Time: cr.ts},
+	//
+	// potential infiniband switch/hardware issue needs immediate attention
+	ev := eventstore.Event{
+		Time:    cr.ts,
 		Name:    "ibstat",
-		Type:    apiv1.EventTypeWarning,
+		Type:    string(apiv1.EventTypeWarning),
 		Message: cr.reason,
-
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{
-				apiv1.RepairActionTypeHardwareInspection,
-			},
-			DeprecatedDescriptions: []string{
-				"potential infiniband switch/hardware issue needs immediate attention",
-			},
-		},
 	}
 
 	// lookup to prevent duplicate event insertions

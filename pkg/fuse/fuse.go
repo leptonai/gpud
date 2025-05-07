@@ -9,9 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/olekukonko/tablewriter"
+
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/olekukonko/tablewriter"
 )
 
 const DefaultConnectionsDir = "/sys/fs/fuse/connections"
@@ -78,13 +79,34 @@ func (infos ConnectionInfos) RenderTable(wr io.Writer) {
 
 // ListConnections retrieves the connection information for all FUSE connections.
 func ListConnections() (ConnectionInfos, error) {
-	infos, err := listConnections(DefaultConnectionsDir)
+	return defaultListConnections()
+}
+
+// findFsTypeAndDeviceByMinorNumberFunc is a function type that matches disk.FindFsTypeAndDeviceByMinorNumber
+// It's used to allow mocking in tests
+type findFsTypeAndDeviceByMinorNumberFunc func(minor int) (string, string, error)
+
+// defaultFindFsTypeAndDeviceByMinorNumber is the default implementation that calls the disk package
+var defaultFindFsTypeAndDeviceByMinorNumber findFsTypeAndDeviceByMinorNumberFunc = disk.FindFsTypeAndDeviceByMinorNumber
+
+// listConnectionsFunc is a function type for the ListConnections function
+type listConnectionsFunc func() (ConnectionInfos, error)
+
+// defaultListConnections is the default implementation of ListConnections
+var defaultListConnections listConnectionsFunc = func() (ConnectionInfos, error) {
+	return listConnectionsWithFinder(defaultFindFsTypeAndDeviceByMinorNumber, DefaultConnectionsDir)
+}
+
+// listConnectionsWithFinder is like ListConnections but allows specifying a custom finder function and connections directory
+// This is primarily useful for testing.
+func listConnectionsWithFinder(finder findFsTypeAndDeviceByMinorNumberFunc, connectionsDir string) (ConnectionInfos, error) {
+	infos, err := listConnections(connectionsDir)
 	if err != nil {
 		return nil, err
 	}
 
 	for i, info := range infos {
-		fsType, dev, err := disk.FindFsTypeAndDeviceByMinorNumber(info.Device)
+		fsType, dev, err := finder(info.Device)
 		if err != nil {
 			log.Logger.Warnw("failed to find fs type and device by minor number", "error", err)
 			continue

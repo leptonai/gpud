@@ -136,6 +136,22 @@ func TestName(t *testing.T) {
 	assert.Equal(t, Name, c.Name(), "Component name should match")
 }
 
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	c := MockUtilizationComponent(ctx, nil, nil)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
 func TestCheck_Success(t *testing.T) {
 	ctx := context.Background()
 

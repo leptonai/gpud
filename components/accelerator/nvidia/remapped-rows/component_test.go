@@ -26,7 +26,7 @@ import (
 
 // Mock implementation of eventstore.Bucket
 type mockEventBucket struct {
-	events apiv1.Events
+	events eventstore.Events
 	err    error
 }
 
@@ -34,12 +34,12 @@ func (m *mockEventBucket) Name() string {
 	return "mock-event-bucket"
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	m.events = append(m.events, event)
 	return nil
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -52,14 +52,14 @@ func (m *mockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.E
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return m.events, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -160,6 +160,18 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+// Helper function to convert apiv1.Event to eventstore.Event
+func apiToStoreEvent(event apiv1.Event) eventstore.Event {
+	return eventstore.Event{
+		Component: event.Component,
+		Time:      event.Time.Time,
+		Name:      event.Name,
+		Type:      string(event.Type),
+		Message:   event.Message,
+		ExtraInfo: make(map[string]string),
+	}
+}
+
 // Test the New constructor
 func TestNew(t *testing.T) {
 	ctx := context.Background()
@@ -200,27 +212,133 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
+// Test the Tags method
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc: func() map[string]device.Device {
+			return make(map[string]device.Device)
+		},
+		getProductNameFunc: func() string {
+			return "NVIDIA Test GPU"
+		},
+		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+			return nvml.MemoryErrorManagementCapabilities{}
+		},
+	}
+
+	// Create a GPUdInstance
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: nvmlInstance,
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
+// Test the IsSupported method
+func TestIsSupported(t *testing.T) {
+	// Test with nil NVML instance
+	c := &component{
+		nvmlInstance: nil,
+	}
+	assert.False(t, c.IsSupported())
+
+	// Test with NVML instance that doesn't exist
+	c = &component{
+		nvmlInstance: &mockNVMLInstance{
+			getDevicesFunc: func() map[string]device.Device {
+				return make(map[string]device.Device)
+			},
+			getProductNameFunc: func() string {
+				return "NVIDIA Test GPU"
+			},
+			getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+				return nvml.MemoryErrorManagementCapabilities{}
+			},
+		},
+	}
+	// Override the NVMLExists method
+	c.nvmlInstance = &mockNVMLInstance{
+		getDevicesFunc: func() map[string]device.Device {
+			return nil
+		},
+		getProductNameFunc: func() string {
+			return ""
+		},
+	}
+	assert.False(t, c.IsSupported())
+
+	// Test with NVML instance that exists but has no product name
+	c = &component{
+		nvmlInstance: &mockNVMLInstance{
+			getDevicesFunc: func() map[string]device.Device {
+				return make(map[string]device.Device)
+			},
+			getProductNameFunc: func() string {
+				return ""
+			},
+		},
+	}
+	assert.False(t, c.IsSupported())
+
+	// Test with NVML instance that exists and has a product name
+	c = &component{
+		nvmlInstance: &mockNVMLInstance{
+			getDevicesFunc: func() map[string]device.Device {
+				return make(map[string]device.Device)
+			},
+			getProductNameFunc: func() string {
+				return "NVIDIA Test GPU"
+			},
+		},
+	}
+	assert.True(t, c.IsSupported())
+}
+
 // Test the Events method
 func TestEvents(t *testing.T) {
 	ctx := context.Background()
 	since := time.Now().Add(-1 * time.Hour)
 
 	// Create mock event bucket with test events
-	eventBucket := &mockEventBucket{
-		events: apiv1.Events{
-			{
-				Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
-				Name:    "test_event",
-				Type:    apiv1.EventTypeWarning,
-				Message: "Test event 1",
-			},
-			{
-				Time:    metav1.Time{Time: time.Now().Add(-15 * time.Minute)},
-				Name:    "another_test_event",
-				Type:    apiv1.EventTypeInfo,
-				Message: "Test event 2",
-			},
+	apiEvents := apiv1.Events{
+		{
+			Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
+			Name:    "test_event",
+			Type:    apiv1.EventTypeWarning,
+			Message: "Test event 1",
 		},
+		{
+			Time:    metav1.Time{Time: time.Now().Add(-15 * time.Minute)},
+			Name:    "another_test_event",
+			Type:    apiv1.EventTypeInfo,
+			Message: "Test event 2",
+		},
+	}
+
+	// Convert to store events
+	storeEvents := make(eventstore.Events, len(apiEvents))
+	for i, apiEvent := range apiEvents {
+		storeEvents[i] = apiToStoreEvent(apiEvent)
+	}
+
+	eventBucket := &mockEventBucket{
+		events: storeEvents,
 	}
 
 	getDevicesFunc := func() map[string]device.Device {
@@ -266,7 +384,7 @@ func TestEvents(t *testing.T) {
 
 // Test that CheckOnce properly generates and persists events
 func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
-	t.Parallel() // Make test run in parallel to isolate from other tests
+	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -374,16 +492,16 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 	if len(events) < 2 {
 		t.Logf("Expected at least 2 events, but got %d: %#v", len(events), events)
 		// Insert test events directly to ensure bucket works
-		testEvent1 := apiv1.Event{
-			Time:    metav1.Time{Time: time.Now()},
+		testEvent1 := eventstore.Event{
+			Time:    time.Now(),
 			Name:    "row_remapping_pending",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "GPU2 detected pending row remapping",
 		}
-		testEvent2 := apiv1.Event{
-			Time:    metav1.Time{Time: time.Now()},
+		testEvent2 := eventstore.Event{
+			Time:    time.Now(),
 			Name:    "row_remapping_failed",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "GPU3 detected failed row remapping",
 		}
 
@@ -400,7 +518,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 	require.GreaterOrEqual(t, len(events), 2, "Expected at least 2 events to be generated")
 
 	// Find events by name
-	var pendingEvent, failedEvent *apiv1.Event
+	var pendingEvent, failedEvent *eventstore.Event
 	for i := range events {
 		if events[i].Name == "row_remapping_pending" {
 			pendingEvent = &events[i]
@@ -411,18 +529,18 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 
 	// Verify the pending event
 	require.NotNil(t, pendingEvent, "Expected 'row_remapping_pending' event to be generated")
-	assert.Equal(t, apiv1.EventTypeWarning, pendingEvent.Type)
+	assert.Equal(t, string(apiv1.EventTypeWarning), pendingEvent.Type)
 	assert.Contains(t, pendingEvent.Message, "detected pending row remapping")
 
 	// Verify the failed event
 	require.NotNil(t, failedEvent, "Expected 'row_remapping_failed' event to be generated")
-	assert.Equal(t, apiv1.EventTypeWarning, failedEvent.Type)
+	assert.Equal(t, string(apiv1.EventTypeWarning), failedEvent.Type)
 	assert.Contains(t, failedEvent.Message, "detected failed row remapping")
 }
 
 // Test error handling during event persistence
 func TestCheckOnceWithNVMLError(t *testing.T) {
-	t.Parallel() // Make test run in parallel to isolate from other tests
+	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -508,7 +626,7 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 
 // Test the Events method with real database
 func TestEventsWithDB(t *testing.T) {
-	t.Parallel() // Make test run in parallel to isolate from other tests
+	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -530,16 +648,16 @@ func TestEventsWithDB(t *testing.T) {
 	defer eventBucket.Close()
 
 	// Insert test events directly into the database
-	testEvent1 := apiv1.Event{
-		Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
+	testEvent1 := eventstore.Event{
+		Time:    time.Now().Add(-30 * time.Minute),
 		Name:    "test_event",
-		Type:    apiv1.EventTypeWarning,
+		Type:    string(apiv1.EventTypeWarning),
 		Message: "Test event 1",
 	}
-	testEvent2 := apiv1.Event{
-		Time:    metav1.Time{Time: time.Now().Add(-15 * time.Minute)},
+	testEvent2 := eventstore.Event{
+		Time:    time.Now().Add(-15 * time.Minute),
 		Name:    "another_test_event",
-		Type:    apiv1.EventTypeInfo,
+		Type:    string(apiv1.EventTypeInfo),
 		Message: "Test event 2",
 	}
 
@@ -1403,32 +1521,7 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 func TestComponentWithNoNVML(t *testing.T) {
 	ctx := context.Background()
 
-	// Create a mock NVML instance that reports NVML is not available
-	nvmlInstance := &mockNVMLInstance{
-		getDevicesFunc: func() map[string]device.Device {
-			return nil
-		},
-		getProductNameFunc: func() string {
-			return ""
-		},
-		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
-			return nvml.MemoryErrorManagementCapabilities{}
-		},
-	}
-
-	// Override NVMLExists method for mockNVMLInstance
-	nvmlNotAvailable := &struct {
-		mockNVMLInstance
-	}{
-		mockNVMLInstance: *nvmlInstance,
-	}
-
-	// Create a custom NVMLExists implementation
-	nvmlNotAvailable.getDevicesFunc = func() map[string]device.Device {
-		return nil
-	}
-
-	// Create a GPUdInstance
+	// Create a GPUdInstance with nil NVML
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:      ctx,
 		NVMLInstance: nil, // No NVML

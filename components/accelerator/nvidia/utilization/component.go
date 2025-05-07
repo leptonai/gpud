@@ -17,7 +17,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -48,6 +47,22 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 }
 
 func (c *component) Name() string { return Name }
+
+func (c *component) Tags() []string {
+	return []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	if c.nvmlInstance == nil {
+		return false
+	}
+	return c.nvmlInstance.NVMLExists() && c.nvmlInstance.ProductName() != ""
+}
 
 func (c *component) Start() error {
 	go func() {
@@ -126,8 +141,8 @@ func (c *component) Check() components.CheckResult {
 		}
 		cr.Utilizations = append(cr.Utilizations, util)
 
-		metricGPUUtilPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(util.GPUUsedPercent))
-		metricMemoryUtilPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(util.MemoryUsedPercent))
+		metricGPUUtilPercent.With(prometheus.Labels{"uuid": uuid}).Set(float64(util.GPUUsedPercent))
+		metricMemoryUtilPercent.With(prometheus.Labels{"uuid": uuid}).Set(float64(util.MemoryUsedPercent))
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy

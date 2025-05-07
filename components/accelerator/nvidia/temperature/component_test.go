@@ -23,11 +23,22 @@ import (
 
 // mockNVMLInstance is a simple mock implementation of nvidianvml.Instance
 type mockNVMLInstance struct {
-	devices map[string]device.Device
+	devices  map[string]device.Device
+	exists   bool
+	prodName string
+}
+
+// NewMockNVMLInstance creates a new mockNVMLInstance with default settings
+func NewMockNVMLInstance(devices map[string]device.Device) *mockNVMLInstance {
+	return &mockNVMLInstance{
+		devices:  devices,
+		exists:   true,       // default to true
+		prodName: "Test GPU", // default to non-empty
+	}
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
-	return true
+	return m.exists
 }
 
 func (m *mockNVMLInstance) Library() nvml_lib.Library {
@@ -40,7 +51,7 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 }
 
 func (m *mockNVMLInstance) ProductName() string {
-	return "Test GPU"
+	return m.prodName
 }
 
 func (m *mockNVMLInstance) Architecture() string {
@@ -97,7 +108,11 @@ func MockTemperatureComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockNVML := &mockNVMLInstance{devices: map[string]device.Device{}}
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "Test GPU",
+	}
 
 	// Create a GPUdInstance with the mock NVML
 	gpudInstance := &components.GPUdInstance{
@@ -123,9 +138,35 @@ func TestNew(t *testing.T) {
 
 func TestName(t *testing.T) {
 	ctx := context.Background()
-	mockNVML := &mockNVMLInstance{devices: map[string]device.Device{}}
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "Test GPU",
+	}
 	c := MockTemperatureComponent(ctx, mockNVML, nil)
 	assert.Equal(t, Name, c.Name(), "Component name should match")
+}
+
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "Test GPU",
+	}
+	c := MockTemperatureComponent(ctx, mockNVML, nil)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	// Verify the tags returned by the component
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }
 
 func TestCheck_Success(t *testing.T) {
@@ -143,7 +184,11 @@ func TestCheck_Success(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNVML := &mockNVMLInstance{devices: devs}
+	mockNVML := &mockNVMLInstance{
+		devices:  devs,
+		exists:   true,
+		prodName: "Test GPU",
+	}
 
 	temperature := nvidianvml.Temperature{
 		UUID:                     uuid,
@@ -191,7 +236,11 @@ func TestCheck_TemperatureError(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNVML := &mockNVMLInstance{devices: devs}
+	mockNVML := &mockNVMLInstance{
+		devices:  devs,
+		exists:   true,
+		prodName: "Test GPU",
+	}
 
 	errExpected := errors.New("temperature error")
 	getTemperatureFunc := func(uuid string, dev device.Device) (nvidianvml.Temperature, error) {
@@ -214,7 +263,11 @@ func TestCheck_TemperatureError(t *testing.T) {
 func TestCheck_NoDevices(t *testing.T) {
 	ctx := context.Background()
 
-	mockNVML := &mockNVMLInstance{devices: map[string]device.Device{}}
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "Test GPU",
+	}
 
 	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
 	result := component.Check()
@@ -244,7 +297,11 @@ func TestCheck_GetUsedPercentSlowdownError(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNVML := &mockNVMLInstance{devices: devs}
+	mockNVML := &mockNVMLInstance{
+		devices:  devs,
+		exists:   true,
+		prodName: "Test GPU",
+	}
 
 	// Create temperature data with invalid UsedPercentSlowdown format
 	invalidTemperature := nvidianvml.Temperature{
@@ -279,7 +336,11 @@ func TestCheck_GetUsedPercentSlowdownError(t *testing.T) {
 
 func TestLastHealthStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	mockNVML := &mockNVMLInstance{devices: map[string]device.Device{}}
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "Test GPU",
+	}
 	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
 
 	// Set test data
@@ -317,7 +378,11 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 func TestLastHealthStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	mockNVML := &mockNVMLInstance{devices: map[string]device.Device{}}
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "Test GPU",
+	}
 	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
 
 	// Set test data with error
@@ -342,7 +407,11 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 func TestLastHealthStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	mockNVML := &mockNVMLInstance{devices: map[string]device.Device{}}
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "Test GPU",
+	}
 	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
 
 	// Don't set any data
@@ -359,7 +428,11 @@ func TestLastHealthStates_NoData(t *testing.T) {
 
 func TestEvents(t *testing.T) {
 	ctx := context.Background()
-	mockNVML := &mockNVMLInstance{devices: map[string]device.Device{}}
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "Test GPU",
+	}
 	component := MockTemperatureComponent(ctx, mockNVML, nil)
 
 	events, err := component.Events(ctx, time.Now())
@@ -384,7 +457,11 @@ func TestStart(t *testing.T) {
 	}
 
 	callCount := &atomic.Int32{}
-	mockNVML := &mockNVMLInstance{devices: devs}
+	mockNVML := &mockNVMLInstance{
+		devices:  devs,
+		exists:   true,
+		prodName: "Test GPU",
+	}
 
 	getTemperatureFunc := func(uuid string, dev device.Device) (nvidianvml.Temperature, error) {
 		callCount.Add(1)
@@ -407,7 +484,11 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	mockNVML := &mockNVMLInstance{devices: map[string]device.Device{}}
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "Test GPU",
+	}
 	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
 
 	err := component.Close()
@@ -512,7 +593,11 @@ func TestCheck_MemoryTemperatureThreshold(t *testing.T) {
 				uuid: mockDev,
 			}
 
-			mockNVML := &mockNVMLInstance{devices: devs}
+			mockNVML := &mockNVMLInstance{
+				devices:  devs,
+				exists:   true,
+				prodName: "Test GPU",
+			}
 
 			temperature := nvidianvml.Temperature{
 				UUID:                     uuid,
@@ -544,4 +629,42 @@ func TestCheck_MemoryTemperatureThreshold(t *testing.T) {
 			assert.Len(t, data.Temperatures, 1)
 		})
 	}
+}
+
+func TestIsSupported(t *testing.T) {
+	ctx := context.Background()
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Test with nil NVML instance
+	comp := &component{
+		ctx:          cctx,
+		cancel:       cancel,
+		nvmlInstance: nil, // Explicitly nil
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML instance that doesn't exist
+	mockNVML := &mockNVMLInstance{
+		exists:   false,
+		prodName: "Tesla V100",
+	}
+	comp.nvmlInstance = mockNVML
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML that exists but has empty product name
+	mockNVML = &mockNVMLInstance{
+		exists:   true,
+		prodName: "",
+	}
+	comp.nvmlInstance = mockNVML
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML that exists and has a product name
+	mockNVML = &mockNVMLInstance{
+		exists:   true,
+		prodName: "Tesla V100",
+	}
+	comp.nvmlInstance = mockNVML
+	assert.True(t, comp.IsSupported())
 }

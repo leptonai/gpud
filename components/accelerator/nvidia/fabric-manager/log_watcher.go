@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -53,14 +52,10 @@ func (llp *logLineProcessor) watch() {
 				return
 			}
 
-			ev := apiv1.Event{
-				Time: metav1.Time{Time: line.ts.UTC()},
-				Type: apiv1.EventTypeWarning,
-				DeprecatedExtraInfo: map[string]string{
-					"log_line": line.content,
-				},
+			ev := eventstore.Event{
+				Time: line.ts.UTC(),
+				Type: string(apiv1.EventTypeWarning),
 			}
-
 			ev.Name, ev.Message = llp.matchFunc(line.content)
 			if ev.Name == "" {
 				continue
@@ -68,15 +63,7 @@ func (llp *logLineProcessor) watch() {
 
 			// lookup to prevent duplicate event insertions
 			cctx, ccancel := context.WithTimeout(llp.ctx, 15*time.Second)
-			found, err := llp.eventBucket.Find(
-				cctx,
-				apiv1.Event{
-					Time:    ev.Time,
-					Name:    ev.Name,
-					Message: ev.Message,
-					Type:    ev.Type,
-				},
-			)
+			found, err := llp.eventBucket.Find(cctx, ev)
 			ccancel()
 			if err != nil {
 				log.Logger.Errorw("failed to find event", "eventName", ev.Name, "eventType", ev.Type, "error", err)
@@ -99,7 +86,11 @@ func (llp *logLineProcessor) watch() {
 }
 
 func (llp *logLineProcessor) getEvents(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	return llp.eventBucket.Get(ctx, since)
+	evs, err := llp.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (llp *logLineProcessor) close() {
@@ -290,7 +281,7 @@ func read(ctx context.Context, p process.Process, cacheExpiration time.Duration,
 
 			parsed := parseLogLine(line)
 			if occurrences := deduper.addCache(parsed); occurrences > 1 {
-				log.Logger.Warnw("skipping duplicate log line", "occurrences", occurrences, "timestamp", parsed.ts, "line", parsed.content)
+				log.Logger.Debugw("skipping duplicate log line", "occurrences", occurrences, "timestamp", parsed.ts, "line", parsed.content)
 				return
 			}
 

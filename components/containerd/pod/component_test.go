@@ -51,6 +51,20 @@ func TestComponentBasics(t *testing.T) {
 	assert.Empty(t, events)
 }
 
+func TestTags(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &component{ctx: ctx, cancel: cancel}
+
+	expectedTags := []string{
+		"container",
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 2, "Component should return exactly 2 tags")
+}
+
 func TestDataFunctions(t *testing.T) {
 	t.Run("empty data", func(t *testing.T) {
 		cr := checkResult{

@@ -73,6 +73,22 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
+func (c *component) Tags() []string {
+	return []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	if c.nvmlInstance == nil {
+		return false
+	}
+	return c.nvmlInstance.NVMLExists() && c.nvmlInstance.ProductName() != ""
+}
+
 func (c *component) Start() error {
 	// do not need periodic kmsg checks since it already has a watcher
 	return nil
@@ -92,7 +108,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {

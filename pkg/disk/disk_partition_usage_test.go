@@ -304,3 +304,45 @@ func TestDefaultMatchFuncDeviceType(t *testing.T) {
 		})
 	}
 }
+
+func TestGetPartitionsWithSkipUsage(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Get partitions with skipUsage set to true
+	partitions, err := GetPartitions(ctx, WithSkipUsage(), WithFstype(DefaultMatchFuncFstype))
+	if err != nil {
+		t.Fatalf("failed to get partitions with skipUsage: %v", err)
+	}
+
+	// Verify that no partition has Usage information when skipUsage is true
+	for i, p := range partitions {
+		if p.Mounted && p.Usage != nil {
+			t.Errorf("mounted partition %d (%s at %s) has Usage info when skipUsage is true",
+				i, p.Device, p.MountPoint)
+		}
+	}
+
+	// Now get partitions without skipUsage for comparison
+	partitionsWithUsage, err := GetPartitions(ctx, WithFstype(DefaultMatchFuncFstype))
+	if err != nil {
+		t.Fatalf("failed to get partitions without skipUsage: %v", err)
+	}
+
+	// Verify that mounted partitions have Usage information when skipUsage is false
+	var mountedWithUsageCount int
+	for _, p := range partitionsWithUsage {
+		if p.Mounted && p.Usage != nil {
+			mountedWithUsageCount++
+		}
+	}
+
+	// Log results
+	t.Logf("found %d partitions with skipUsage=true", len(partitions))
+	t.Logf("found %d partitions with Usage info when skipUsage=false", mountedWithUsageCount)
+
+	// Test isn't meaningful if we don't have mounted partitions with usage info
+	if mountedWithUsageCount == 0 {
+		t.Log("no mounted partitions with usage info detected, test may not be reliable")
+	}
+}

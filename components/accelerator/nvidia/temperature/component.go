@@ -18,7 +18,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -49,6 +48,22 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 }
 
 func (c *component) Name() string { return Name }
+
+func (c *component) Tags() []string {
+	return []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	if c.nvmlInstance == nil {
+		return false
+	}
+	return c.nvmlInstance.NVMLExists() && c.nvmlInstance.ProductName() != ""
+}
 
 func (c *component) Start() error {
 	go func() {
@@ -140,8 +155,8 @@ func (c *component) Check() components.CheckResult {
 			)
 		}
 
-		metricCurrentCelsius.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(temp.CurrentCelsiusGPUCore))
-		metricThresholdSlowdownCelsius.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(float64(temp.ThresholdCelsiusSlowdown))
+		metricCurrentCelsius.With(prometheus.Labels{"uuid": uuid}).Set(float64(temp.CurrentCelsiusGPUCore))
+		metricThresholdSlowdownCelsius.With(prometheus.Labels{"uuid": uuid}).Set(float64(temp.ThresholdCelsiusSlowdown))
 
 		slowdownPct, err := temp.GetUsedPercentSlowdown()
 		if err != nil {
@@ -151,7 +166,7 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
-		metricSlowdownUsedPercent.With(prometheus.Labels{pkgmetrics.MetricLabelKey: uuid}).Set(slowdownPct)
+		metricSlowdownUsedPercent.With(prometheus.Labels{"uuid": uuid}).Set(slowdownPct)
 	}
 
 	if len(tempThresholdExceeded) == 0 {

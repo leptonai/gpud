@@ -37,6 +37,7 @@ func TestNewInitFunc(t *testing.T) {
 	comp, err := initFunc(gpudInstance)
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
+	assert.True(t, comp.IsSupported())
 
 	customPluginRegisteree, ok := comp.(CustomPluginRegisteree)
 	assert.True(t, ok)

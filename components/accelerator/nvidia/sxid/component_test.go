@@ -24,17 +24,14 @@ import (
 )
 
 // createTestEvent creates a test event with the specified timestamp
-func createTestEvent(timestamp time.Time) apiv1.Event {
-	return apiv1.Event{
-		Time:    metav1.Time{Time: timestamp},
+func createTestEvent(timestamp time.Time) eventstore.Event {
+	return eventstore.Event{
+		Time:    timestamp,
 		Name:    "test_event",
 		Type:    "test_type",
 		Message: "test message",
-		DeprecatedExtraInfo: map[string]string{
+		ExtraInfo: map[string]string{
 			"key": "value",
-		},
-		DeprecatedSuggestedActions: &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 		},
 	}
 }
@@ -80,8 +77,8 @@ func TestMergeEvents(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name     string
-		a        apiv1.Events
-		b        apiv1.Events
+		a        eventstore.Events
+		b        eventstore.Events
 		expected int
 	}{
 		{
@@ -93,14 +90,14 @@ func TestMergeEvents(t *testing.T) {
 		{
 			name: "a empty",
 			a:    nil,
-			b: apiv1.Events{
+			b: eventstore.Events{
 				createTestEvent(now),
 			},
 			expected: 1,
 		},
 		{
 			name: "b empty",
-			a: apiv1.Events{
+			a: eventstore.Events{
 				createTestEvent(now),
 			},
 			b:        nil,
@@ -108,11 +105,11 @@ func TestMergeEvents(t *testing.T) {
 		},
 		{
 			name: "both non-empty",
-			a: apiv1.Events{
+			a: eventstore.Events{
 				createTestEvent(now.Add(-1 * time.Hour)),
 				createTestEvent(now),
 			},
-			b: apiv1.Events{
+			b: eventstore.Events{
 				createTestEvent(now.Add(-2 * time.Hour)),
 				createTestEvent(now.Add(-30 * time.Minute)),
 			},
@@ -125,8 +122,8 @@ func TestMergeEvents(t *testing.T) {
 			assert.Equal(t, tt.expected, len(result))
 			if len(result) > 1 {
 				for i := 1; i < len(result); i++ {
-					assert.True(t, result[i-1].Time.Time.After(result[i].Time.Time) ||
-						result[i-1].Time.Time.Equal(result[i].Time.Time),
+					assert.True(t, result[i-1].Time.After(result[i].Time) ||
+						result[i-1].Time.Equal(result[i].Time),
 						"events should be sorted by timestamp")
 				}
 			}
@@ -134,11 +131,11 @@ func TestMergeEvents(t *testing.T) {
 	}
 
 	t.Run("verify sorting", func(t *testing.T) {
-		a := apiv1.Events{
+		a := eventstore.Events{
 			createTestEvent(now.Add(2 * time.Hour)),
 			createTestEvent(now.Add(-1 * time.Hour)),
 		}
-		b := apiv1.Events{
+		b := eventstore.Events{
 			createTestEvent(now),
 			createTestEvent(now.Add(-2 * time.Hour)),
 		}
@@ -185,11 +182,11 @@ func TestSXIDComponent_SetHealthy_ChannelFull(t *testing.T) {
 	defer cleanup()
 
 	// Create a channel with a small buffer capacity
-	component.extraEventCh = make(chan *apiv1.Event, 1)
+	component.extraEventCh = make(chan *eventstore.Event, 1)
 
 	// Fill the channel
-	component.extraEventCh <- &apiv1.Event{
-		Time: metav1.Time{Time: time.Now()},
+	component.extraEventCh <- &eventstore.Event{
+		Time: time.Now(),
 		Name: "dummy",
 	}
 
@@ -211,7 +208,7 @@ func TestSXIDComponent_Events(t *testing.T) {
 	go component.start(msgCh, 500*time.Millisecond)
 	defer component.Close()
 
-	testEvents := apiv1.Events{
+	testEvents := eventstore.Events{
 		createTestEvent(time.Now()),
 	}
 
@@ -235,7 +232,7 @@ func TestSXIDComponent_Events(t *testing.T) {
 		for _, event := range events {
 			if event.Name == testEvents[0].Name {
 				found = true
-				assert.Equal(t, testEvents[0].Type, event.Type)
+				assert.Equal(t, testEvents[0].Type, string(event.Type))
 				assert.Equal(t, testEvents[0].Message, event.Message)
 				break
 			}
@@ -271,18 +268,18 @@ func TestSXIDComponent_States(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		events    apiv1.Events
+		events    eventstore.Events
 		wantState []apiv1.HealthState
 	}{
 		{
 			name: "critical sxid happened and reboot recovered",
-			events: apiv1.Events{
+			events: eventstore.Events{
 				createSXidEvent(time.Now().Add(-5*24*time.Hour), 31, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 				createSXidEvent(startTime, 31, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 				createSXidEvent(startTime.Add(5*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
-				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(10 * time.Minute)}},
+				{Name: "reboot", Time: startTime.Add(10 * time.Minute)},
 				createSXidEvent(startTime.Add(15*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
-				{Name: "reboot", Time: metav1.Time{Time: startTime.Add(20 * time.Minute)}},
+				{Name: "reboot", Time: startTime.Add(20 * time.Minute)},
 				createSXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			},
 			wantState: []apiv1.HealthState{
@@ -439,6 +436,72 @@ func TestSXIDComponent_Name(t *testing.T) {
 
 	// Verify the component name
 	assert.Equal(t, Name, component.Name())
+}
+
+func TestTags(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := component.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
+// MockNVMLInstanceNoProduct is a mock implementation that has exists=true but empty product name
+type MockNVMLInstanceNoProduct struct {
+	MockNVMLInstance
+}
+
+func (m *MockNVMLInstanceNoProduct) ProductName() string {
+	return ""
+}
+
+// MockNVMLInstanceWithProduct is a mock implementation that has exists=true and a valid product name
+type MockNVMLInstanceWithProduct struct {
+	MockNVMLInstance
+}
+
+func (m *MockNVMLInstanceWithProduct) ProductName() string {
+	return "Tesla V100"
+}
+
+func TestIsSupported(t *testing.T) {
+	// Test when nvmlInstance is nil
+	comp := &component{}
+	assert.False(t, comp.IsSupported())
+
+	// Test when NVMLExists returns false
+	comp = &component{
+		nvmlInstance: &MockNVMLInstance{exists: false},
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when ProductName returns empty string
+	comp = &component{
+		nvmlInstance: &MockNVMLInstanceNoProduct{
+			MockNVMLInstance: MockNVMLInstance{exists: true},
+		},
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when all conditions are met
+	comp = &component{
+		nvmlInstance: &MockNVMLInstanceWithProduct{
+			MockNVMLInstance: MockNVMLInstance{exists: true},
+		},
+	}
+	assert.True(t, comp.IsSupported())
 }
 
 func TestDataString(t *testing.T) {
@@ -623,7 +686,7 @@ func TestSXIDComponent_UpdateCurrentState_NilStores(t *testing.T) {
 
 func TestSXIDComponent_UpdateCurrentState_ErrorOnGet(t *testing.T) {
 	// Create a mock event bucket that returns an error on Get
-	mockBucket := &MockEventBucket{
+	mockBucket := &mockEventBucket{
 		getError: errors.New("test error"),
 	}
 
@@ -642,28 +705,28 @@ func TestSXIDComponent_UpdateCurrentState_ErrorOnGet(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to get all events")
 }
 
-// MockEventBucket implements eventstore.Bucket for testing
-type MockEventBucket struct {
+// mockEventBucket implements eventstore.Bucket for testing
+type mockEventBucket struct {
 	getError error
-	events   apiv1.Events
+	events   eventstore.Events
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	return nil
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if m.getError != nil {
 		return nil, m.getError
 	}
 	return m.events, nil
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	return nil, nil
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	if m.getError != nil {
 		return nil, m.getError
 	}
@@ -673,13 +736,13 @@ func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
 	return &m.events[0], nil
 }
 
-func (m *MockEventBucket) Close() {}
+func (m *mockEventBucket) Close() {}
 
-func (m *MockEventBucket) Name() string {
+func (m *mockEventBucket) Name() string {
 	return "mock-bucket"
 }
 
-func (m *MockEventBucket) Purge(ctx context.Context, beforeUnixTime int64) (int, error) {
+func (m *mockEventBucket) Purge(ctx context.Context, beforeUnixTime int64) (int, error) {
 	return 0, nil
 }
 
@@ -808,8 +871,8 @@ func TestSXIDComponent_UpdateCurrentState_RebootError(t *testing.T) {
 	component.rebootEventStore = mockRebootStore
 
 	// Create a mock event bucket with events
-	mockBucket := &MockEventBucket{
-		events: apiv1.Events{
+	mockBucket := &mockEventBucket{
+		events: eventstore.Events{
 			createTestEvent(time.Now()),
 		},
 	}
@@ -826,11 +889,11 @@ func TestSXIDComponent_UpdateCurrentState_RebootError(t *testing.T) {
 
 // MockRebootEventStore implements pkghost.RebootEventStore for testing
 type MockRebootEventStore struct {
-	rebootEvents         apiv1.Events
+	rebootEvents         eventstore.Events
 	getRebootEventsError error
 }
 
-func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if m.getRebootEventsError != nil {
 		return nil, m.getRebootEventsError
 	}
@@ -883,8 +946,8 @@ func TestSXIDComponent_Start_ChannelHandling(t *testing.T) {
 	}()
 
 	// Send a message to extraEventCh to verify processing
-	event := &apiv1.Event{
-		Time:    metav1.Time{Time: time.Now()},
+	event := &eventstore.Event{
+		Time:    time.Now().UTC(),
 		Name:    "test_event",
 		Message: "test message",
 	}

@@ -66,15 +66,11 @@ func TestComponentEvents(t *testing.T) {
 		Name:    "fabricmanager_nvswitch_non_fatal_error",
 		Type:    "Warning",
 		Message: "NVSwitch non-fatal error detected",
-		DeprecatedExtraInfo: map[string]string{
-			"log_line": "[ERROR] [tid 12727] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 61",
-		},
 	}
 
 	assert.Equal(t, expectedEvent.Name, events[0].Name)
 	assert.Equal(t, expectedEvent.Type, events[0].Type)
 	assert.Equal(t, expectedEvent.Message, events[0].Message)
-	assert.Equal(t, expectedEvent.DeprecatedExtraInfo["log_line"], events[0].DeprecatedExtraInfo["log_line"])
 
 	comp.checkFMExistsFunc = func() bool { return false }
 	states := comp.LastHealthStates()
@@ -166,14 +162,11 @@ func TestEventsWithProcessor(t *testing.T) {
 	}
 
 	// Insert a test event directly into the store
-	testEvent := apiv1.Event{
-		Time:    metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
+	testEvent := eventstore.Event{
+		Time:    time.Now().Add(-30 * time.Minute),
 		Name:    "test-error",
 		Message: "This is a test error",
 		Type:    "Warning",
-		DeprecatedExtraInfo: map[string]string{
-			"log_line": "test-error-line",
-		},
 	}
 	err = bucket.Insert(ctx, testEvent)
 	require.NoError(t, err)
@@ -220,6 +213,51 @@ func TestComponentName(t *testing.T) {
 
 	comp := &component{}
 	assert.Equal(t, Name, comp.Name())
+}
+
+func TestTags(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{}
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
+func TestIsSupported(t *testing.T) {
+	t.Parallel()
+
+	// Test when nvmlInstance is nil
+	comp := &component{
+		nvmlInstance: nil,
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when NVMLExists returns false
+	comp = &component{
+		nvmlInstance: &mockNVMLInstance{exists: false, productName: ""},
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when ProductName returns empty string
+	comp = &component{
+		nvmlInstance: &mockNVMLInstance{exists: true, productName: ""},
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when all conditions are met
+	comp = &component{
+		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+	}
+	assert.True(t, comp.IsSupported())
 }
 
 func TestComponentStart(t *testing.T) {

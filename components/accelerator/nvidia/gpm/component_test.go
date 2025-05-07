@@ -22,118 +22,118 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// MockNvmlInstance implements the nvml.InstanceV2 interface for testing
-type MockNvmlInstance struct {
+// mockNVMLInstance implements the nvml.InstanceV2 interface for testing
+type mockNVMLInstance struct {
 	devicesFunc func() map[string]device.Device
 }
 
-func (m *MockNvmlInstance) Devices() map[string]device.Device {
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	if m.devicesFunc != nil {
 		return m.devicesFunc()
 	}
 	return nil
 }
 
-func (m *MockNvmlInstance) FabricManagerSupported() bool {
+func (m *mockNVMLInstance) FabricManagerSupported() bool {
 	return true
 }
 
-func (m *MockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
 
-func (m *MockNvmlInstance) ProductName() string {
+func (m *mockNVMLInstance) ProductName() string {
 	return "NVIDIA Test GPU"
 }
 
-func (m *MockNvmlInstance) Architecture() string {
+func (m *mockNVMLInstance) Architecture() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) Brand() string {
+func (m *mockNVMLInstance) Brand() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) DriverVersion() string {
+func (m *mockNVMLInstance) DriverVersion() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) DriverMajor() int {
+func (m *mockNVMLInstance) DriverMajor() int {
 	return 0
 }
 
-func (m *MockNvmlInstance) CUDAVersion() string {
+func (m *mockNVMLInstance) CUDAVersion() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) NVMLExists() bool {
+func (m *mockNVMLInstance) NVMLExists() bool {
 	return true
 }
 
-func (m *MockNvmlInstance) Library() lib.Library {
+func (m *mockNVMLInstance) Library() lib.Library {
 	return nil
 }
 
-func (m *MockNvmlInstance) Shutdown() error {
+func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
-// CustomMockNvmlInstance implements the nvml.InstanceV2 interface with customizable NVMLExists behavior
-type CustomMockNvmlInstance struct {
+// customMockNVMLInstance implements the nvml.InstanceV2 interface with customizable NVMLExists behavior
+type customMockNVMLInstance struct {
 	devs       map[string]device.Device
 	nvmlExists bool
 }
 
-func (m *CustomMockNvmlInstance) Devices() map[string]device.Device {
+func (m *customMockNVMLInstance) Devices() map[string]device.Device {
 	return m.devs
 }
 
-func (m *CustomMockNvmlInstance) FabricManagerSupported() bool {
+func (m *customMockNVMLInstance) FabricManagerSupported() bool {
 	return true
 }
 
-func (m *CustomMockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *customMockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
 
-func (m *CustomMockNvmlInstance) ProductName() string {
+func (m *customMockNVMLInstance) ProductName() string {
 	return "NVIDIA Test GPU"
 }
 
-func (m *CustomMockNvmlInstance) Architecture() string {
+func (m *customMockNVMLInstance) Architecture() string {
 	return ""
 }
 
-func (m *CustomMockNvmlInstance) Brand() string {
+func (m *customMockNVMLInstance) Brand() string {
 	return ""
 }
 
-func (m *CustomMockNvmlInstance) DriverVersion() string {
+func (m *customMockNVMLInstance) DriverVersion() string {
 	return ""
 }
 
-func (m *CustomMockNvmlInstance) DriverMajor() int {
+func (m *customMockNVMLInstance) DriverMajor() int {
 	return 0
 }
 
-func (m *CustomMockNvmlInstance) CUDAVersion() string {
+func (m *customMockNVMLInstance) CUDAVersion() string {
 	return ""
 }
 
-func (m *CustomMockNvmlInstance) NVMLExists() bool {
+func (m *customMockNVMLInstance) NVMLExists() bool {
 	return m.nvmlExists
 }
 
-func (m *CustomMockNvmlInstance) Library() lib.Library {
+func (m *customMockNVMLInstance) Library() lib.Library {
 	return nil
 }
 
-func (m *CustomMockNvmlInstance) Shutdown() error {
+func (m *customMockNVMLInstance) Shutdown() error {
 	return nil
 }
 
-// MockGPMComponent creates a component with mocked functions for testing
-func MockGPMComponent(
+// createMockGPMComponent creates a component with mocked functions for testing
+func createMockGPMComponent(
 	ctx context.Context,
 	devicesFunc func() map[string]device.Device,
 	getGPMSupportedFunc func(dev device.Device) (bool, error),
@@ -141,7 +141,7 @@ func MockGPMComponent(
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
-	mockInstance := &MockNvmlInstance{
+	mockInstance := &mockNVMLInstance{
 		devicesFunc: devicesFunc,
 	}
 
@@ -158,7 +158,7 @@ func TestNew(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a mock GPUdInstance
-	mockInstance := &MockNvmlInstance{
+	mockInstance := &mockNVMLInstance{
 		devicesFunc: func() map[string]device.Device { return nil },
 	}
 
@@ -185,8 +185,24 @@ func TestNew(t *testing.T) {
 
 func TestName(t *testing.T) {
 	ctx := context.Background()
-	c := MockGPMComponent(ctx, nil, nil, nil)
+	c := createMockGPMComponent(ctx, nil, nil, nil)
 	assert.Equal(t, Name, c.Name(), "Component name should match")
+}
+
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	c := createMockGPMComponent(ctx, nil, nil, nil)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }
 
 func TestCheck_GPMNotSupported(t *testing.T) {
@@ -216,7 +232,7 @@ func TestCheck_GPMNotSupported(t *testing.T) {
 		return nil, nil
 	}
 
-	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
 	component.Check()
 
 	// Verify data
@@ -264,7 +280,7 @@ func TestCheck_GPMSupported(t *testing.T) {
 		return expectedMetrics, nil
 	}
 
-	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
 	component.Check()
 
 	// Verify data
@@ -309,7 +325,7 @@ func TestCheck_GPMSupportError(t *testing.T) {
 		return nil, nil
 	}
 
-	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
 	component.Check()
 
 	// Verify error handling
@@ -351,7 +367,7 @@ func TestCheck_GPMMetricsError(t *testing.T) {
 		return nil, errExpected
 	}
 
-	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
 	component.Check()
 
 	// Verify error handling
@@ -372,7 +388,7 @@ func TestCheck_NoDevices(t *testing.T) {
 		return map[string]device.Device{} // Empty map
 	}
 
-	component := MockGPMComponent(ctx, getDevicesFunc, nil, nil).(*component)
+	component := createMockGPMComponent(ctx, getDevicesFunc, nil, nil).(*component)
 	component.Check()
 
 	// Verify handling of no devices
@@ -388,7 +404,7 @@ func TestCheck_NoDevices(t *testing.T) {
 
 func TestStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
+	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
 
 	// Set test data
 	component.lastMu.Lock()
@@ -422,7 +438,7 @@ func TestStates_WithData(t *testing.T) {
 
 func TestStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
+	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -446,7 +462,7 @@ func TestStates_WithError(t *testing.T) {
 
 func TestStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
+	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
 
 	// Don't set any data
 
@@ -462,7 +478,7 @@ func TestStates_NoData(t *testing.T) {
 
 func TestEvents(t *testing.T) {
 	ctx := context.Background()
-	component := MockGPMComponent(ctx, nil, nil, nil)
+	component := createMockGPMComponent(ctx, nil, nil, nil)
 
 	events, err := component.Events(ctx, time.Now())
 	assert.NoError(t, err)
@@ -486,7 +502,7 @@ func TestStart(t *testing.T) {
 		return map[string]device.Device{}
 	}
 
-	component := MockGPMComponent(ctx, getDevicesFunc, nil, nil)
+	component := createMockGPMComponent(ctx, getDevicesFunc, nil, nil)
 
 	// Start should be non-blocking
 	err := component.Start()
@@ -503,7 +519,7 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
+	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -604,7 +620,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		return metrics2, nil
 	}
 
-	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
 	component.Check()
 
 	// Verify data
@@ -670,7 +686,7 @@ func TestCheck_MixedGPMSupport(t *testing.T) {
 		return metrics, nil
 	}
 
-	component := MockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
 	component.Check()
 
 	// Verify data
@@ -690,7 +706,7 @@ func TestCheck_MixedGPMSupport(t *testing.T) {
 func TestCheck_NVMLInstanceNil(t *testing.T) {
 	ctx := context.Background()
 
-	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
+	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
 	component.nvmlInstance = nil
 
 	result := component.Check()
@@ -703,12 +719,12 @@ func TestCheck_NVMLNotLoaded(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a custom mock instance with NVMLExists returning false
-	mockInstance := &CustomMockNvmlInstance{
+	mockInstance := &customMockNVMLInstance{
 		devs:       map[string]device.Device{},
 		nvmlExists: false,
 	}
 
-	component := MockGPMComponent(ctx, nil, nil, nil).(*component)
+	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
 	component.nvmlInstance = mockInstance
 
 	result := component.Check()
@@ -864,7 +880,7 @@ func TestCheck_UpdateFrequency(t *testing.T) {
 		return nil
 	}
 
-	component := MockGPMComponent(ctx, getDevicesFunc, nil, nil).(*component)
+	component := createMockGPMComponent(ctx, getDevicesFunc, nil, nil).(*component)
 
 	// Start the component with our custom start function
 	err := originalStart(component)

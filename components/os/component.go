@@ -55,6 +55,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
+func (c *component) Tags() []string {
+	return []string{
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	return true
+}
+
 func (c *component) Start() error {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
@@ -82,7 +92,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.rebootEventStore == nil {
 		return nil, nil
 	}
-	return c.rebootEventStore.GetRebootEvents(ctx, since)
+	evs, err := c.rebootEventStore.GetRebootEvents(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {

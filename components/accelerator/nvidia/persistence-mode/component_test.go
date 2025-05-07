@@ -22,8 +22,9 @@ import (
 
 // mockNVMLInstance implements the nvml.InstanceV2 interface for testing
 type mockNVMLInstance struct {
-	devicesFunc func() map[string]device.Device
-	nvmlExists  bool
+	devicesFunc      func() map[string]device.Device
+	nvmlExists       bool
+	emptyProductName bool
 }
 
 func (m *mockNVMLInstance) Devices() map[string]device.Device {
@@ -42,6 +43,9 @@ func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.Mem
 }
 
 func (m *mockNVMLInstance) ProductName() string {
+	if m.emptyProductName {
+		return ""
+	}
 	return "NVIDIA Test GPU"
 }
 
@@ -81,8 +85,8 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
-// MockPersistenceModeComponent creates a component with mocked functions for testing
-func MockPersistenceModeComponent(
+// mockComponent creates a component with mocked functions for testing
+func mockComponent(
 	ctx context.Context,
 	devicesFunc func() map[string]device.Device,
 	getPersistenceModeFunc func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error),
@@ -153,8 +157,24 @@ func TestNew(t *testing.T) {
 
 func TestName(t *testing.T) {
 	ctx := context.Background()
-	c := MockPersistenceModeComponent(ctx, nil, nil)
+	c := mockComponent(ctx, nil, nil)
 	assert.Equal(t, Name, c.Name(), "Component name should match")
+}
+
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	c := mockComponent(ctx, nil, nil)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }
 
 func TestCheck_Success(t *testing.T) {
@@ -185,7 +205,7 @@ func TestCheck_Success(t *testing.T) {
 		return persistenceMode, nil
 	}
 
-	component := MockPersistenceModeComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
 	result := component.Check()
 
 	// Verify the data was collected
@@ -223,7 +243,7 @@ func TestCheck_PersistenceModeError(t *testing.T) {
 		return nvidianvml.PersistenceMode{}, errExpected
 	}
 
-	component := MockPersistenceModeComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
 	result := component.Check()
 
 	// Verify error handling
@@ -243,7 +263,7 @@ func TestCheck_NoDevices(t *testing.T) {
 		return map[string]device.Device{} // Empty map
 	}
 
-	component := MockPersistenceModeComponent(ctx, getDevicesFunc, nil).(*component)
+	component := mockComponent(ctx, getDevicesFunc, nil).(*component)
 	result := component.Check()
 
 	// Verify handling of no devices
@@ -293,7 +313,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		}, nil
 	}
 
-	component := MockPersistenceModeComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
 	result := component.Check()
 
 	// Verify the data was collected for both devices
@@ -364,7 +384,7 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 
 func TestLastHealthStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := MockPersistenceModeComponent(ctx, nil, nil).(*component)
+	component := mockComponent(ctx, nil, nil).(*component)
 
 	// Set test data
 	component.lastMu.Lock()
@@ -393,7 +413,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 func TestLastHealthStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := MockPersistenceModeComponent(ctx, nil, nil).(*component)
+	component := mockComponent(ctx, nil, nil).(*component)
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -417,7 +437,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 func TestLastHealthStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := MockPersistenceModeComponent(ctx, nil, nil).(*component)
+	component := mockComponent(ctx, nil, nil).(*component)
 
 	// Don't set any data
 
@@ -433,7 +453,7 @@ func TestLastHealthStates_NoData(t *testing.T) {
 
 func TestEvents(t *testing.T) {
 	ctx := context.Background()
-	component := MockPersistenceModeComponent(ctx, nil, nil)
+	component := mockComponent(ctx, nil, nil)
 
 	events, err := component.Events(ctx, time.Now())
 	assert.NoError(t, err)
@@ -451,7 +471,7 @@ func TestStart(t *testing.T) {
 		return map[string]device.Device{}
 	}
 
-	component := MockPersistenceModeComponent(ctx, getDevicesFunc, nil)
+	component := mockComponent(ctx, getDevicesFunc, nil)
 
 	// Start should be non-blocking
 	err := component.Start()
@@ -466,7 +486,7 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := MockPersistenceModeComponent(ctx, nil, nil).(*component)
+	component := mockComponent(ctx, nil, nil).(*component)
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -627,4 +647,41 @@ func TestData_HealthState(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestIsSupported(t *testing.T) {
+	ctx := context.Background()
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Test with nil NVML instance
+	comp := &component{
+		ctx:          cctx,
+		cancel:       cancel,
+		nvmlInstance: nil, // Explicitly nil
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML instance that doesn't exist
+	mockNVML := &mockNVMLInstance{
+		nvmlExists: false,
+	}
+	comp.nvmlInstance = mockNVML
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML that exists but has empty product name
+	mockNVML = &mockNVMLInstance{
+		nvmlExists:       true,
+		emptyProductName: true,
+	}
+	comp.nvmlInstance = mockNVML
+	assert.False(t, comp.IsSupported())
+
+	// Test with NVML that exists and has a product name
+	mockNVML = &mockNVMLInstance{
+		nvmlExists:       true,
+		emptyProductName: false,
+	}
+	comp.nvmlInstance = mockNVML
+	assert.True(t, comp.IsSupported())
 }

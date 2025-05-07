@@ -338,6 +338,23 @@ func TestComponentName(t *testing.T) {
 	assert.Equal(t, Name, c.Name())
 }
 
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
+	c, err := New(gpudInstance)
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		"container",
+		"docker",
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 3, "Component should return exactly 3 tags")
+}
+
 func TestComponentStart(t *testing.T) {
 	ctx := context.Background()
 	gpudInstance := &components.GPUdInstance{RootCtx: ctx}

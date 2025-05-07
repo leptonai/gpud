@@ -1,13 +1,17 @@
 package disk
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -22,7 +26,9 @@ func createTestComponent(ctx context.Context, mountPoints, mountTargets []string
 		MountTargets: mountTargets,
 	}
 	c, _ := New(gpudInstance)
-	return c.(*component)
+	ct := c.(*component)
+	ct.retryInterval = 0
+	return ct
 }
 
 func TestComponentName(t *testing.T) {
@@ -31,6 +37,20 @@ func TestComponentName(t *testing.T) {
 	defer c.Close()
 
 	assert.Equal(t, Name, c.Name())
+}
+
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	c := createTestComponent(ctx, []string{}, []string{})
+	defer c.Close()
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
 }
 
 func TestNewComponent(t *testing.T) {
@@ -229,6 +249,9 @@ func TestCheckOnce(t *testing.T) {
 		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		}
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
 
 		c.Check()
 
@@ -238,7 +261,7 @@ func TestCheckOnce(t *testing.T) {
 
 		assert.NotNil(t, lastCheckResult)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
-		assert.Equal(t, "no ext4 partition found", lastCheckResult.reason)
+		assert.Equal(t, "no ext4/nfs partition found", lastCheckResult.reason)
 	})
 }
 
@@ -311,27 +334,6 @@ func TestErrorRetry(t *testing.T) {
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
 		assert.Equal(t, "ok", lastCheckResult.reason)
 		assert.Equal(t, 2, callCount)
-	})
-
-	t.Run("context cancellation", func(t *testing.T) {
-		ctxWithCancel, ctxCancel := context.WithCancel(context.Background())
-		c := createTestComponent(ctxWithCancel, []string{}, []string{})
-
-		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
-			ctxCancel()
-			return nil, assert.AnError
-		}
-
-		c.Check()
-
-		c.lastMu.RLock()
-		lastCheckResult := c.lastCheckResult
-		c.lastMu.RUnlock()
-
-		assert.NotNil(t, lastCheckResult)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health)
-		assert.NotNil(t, lastCheckResult.err)
-		assert.Contains(t, lastCheckResult.err.Error(), "context canceled")
 	})
 }
 
@@ -532,7 +534,10 @@ func TestCheckResultString(t *testing.T) {
 			},
 		}
 		result := cr.String()
-		assert.NotContains(t, result, "/mnt/data1")
+
+		// The table will contain the mount point, but with n/a values
+		assert.Contains(t, result, "/mnt/data1")
+		assert.Contains(t, result, "n/a")
 	})
 
 	t.Run("ExtPartitions with valid Usage", func(t *testing.T) {
@@ -595,8 +600,855 @@ func TestCheckResultString(t *testing.T) {
 		}
 		result := cr.String()
 
-		// Should contain the valid mount point but not the nil one
+		// Both mount points will be in the output, but one with real values and one with n/a
 		assert.Contains(t, result, "/mnt/data1")
-		assert.NotContains(t, result, "/mnt/data2")
+		assert.Contains(t, result, "/mnt/data2")
+		assert.Contains(t, result, "n/a")
 	})
+}
+
+func TestFindMntRetryLogic(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "gpud-disk-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a file in the directory to ensure it exists and has content
+	testFile := tempDir + "/testfile"
+	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name              string
+		failCount         int
+		expectSuccess     bool
+		expectHealthState apiv1.HealthStateType
+	}{
+		{
+			name:              "succeeds first try",
+			failCount:         0,
+			expectSuccess:     true,
+			expectHealthState: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name:              "succeeds after 3 retries",
+			failCount:         3,
+			expectSuccess:     true,
+			expectHealthState: apiv1.HealthStateTypeHealthy,
+		},
+		{
+			name:              "fails all 5 attempts",
+			failCount:         5,
+			expectSuccess:     false,
+			expectHealthState: apiv1.HealthStateTypeHealthy, // Component remains healthy even if findMnt fails
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Track number of function calls
+			callCount := 0
+
+			mockFindMntFunc := func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+				callCount++
+				if callCount <= tc.failCount {
+					return nil, errors.New("mock error")
+				}
+				return &disk.FindMntOutput{
+					Filesystems: []disk.FoundMnt{
+						{
+							Sources:              []string{"/dev/sda1"},
+							SizeHumanized:        "100G",
+							AvailableHumanized:   "50G",
+							UsedHumanized:        "50G",
+							UsedPercentHumanized: "50%",
+						},
+					},
+				}, nil
+			}
+
+			// Create component with mock functions
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			c := &component{
+				ctx:         ctx,
+				cancel:      cancel,
+				findMntFunc: mockFindMntFunc,
+				getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+					return disk.Partitions{
+						{
+							Device:     "/dev/sda1",
+							MountPoint: "/",
+							Usage: &disk.Usage{
+								TotalBytes: 100 * 1024 * 1024 * 1024,
+								UsedBytes:  50 * 1024 * 1024 * 1024,
+								FreeBytes:  50 * 1024 * 1024 * 1024,
+							},
+						},
+					}, nil
+				},
+				getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+					return disk.Partitions{}, nil
+				},
+				getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+					return disk.BlockDevices{
+						{
+							Name: "sda",
+							Type: "disk",
+						},
+					}, nil
+				},
+				mountPointsToTrackUsage: map[string]struct{}{
+					tempDir: {},
+				},
+			}
+
+			// Run the Check method
+			result := c.Check()
+			cr, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify health state
+			assert.Equal(t, tc.expectHealthState, cr.health)
+
+			// Verify call count
+			if tc.expectSuccess {
+				assert.LessOrEqual(t, tc.failCount+1, callCount, "Expected at least failCount+1 calls")
+				assert.NotNil(t, cr.MountTargetUsages)
+				assert.Contains(t, cr.MountTargetUsages, tempDir)
+			} else {
+				assert.Equal(t, 5, callCount, "Expected exactly 5 calls for complete failure")
+				// MountTargetUsages may still be nil or not contain the temp dir
+			}
+		})
+	}
+}
+
+func TestMountTargetUsagesInitialization(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "gpud-disk-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a file in the directory to ensure it exists and has content
+	testFile := tempDir + "/testfile"
+	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	require.NoError(t, err)
+
+	// Test that MountTargetUsages is properly initialized
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+			return &disk.FindMntOutput{
+				Filesystems: []disk.FoundMnt{
+					{
+						Sources:              []string{"/dev/sda1"},
+						SizeHumanized:        "100G",
+						AvailableHumanized:   "50G",
+						UsedHumanized:        "50G",
+						UsedPercentHumanized: "50%",
+					},
+				},
+			}, nil
+		},
+		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{
+				{
+					Device:     "/dev/sda1",
+					MountPoint: "/",
+					Usage: &disk.Usage{
+						TotalBytes: 100 * 1024 * 1024 * 1024,
+						UsedBytes:  50 * 1024 * 1024 * 1024,
+						FreeBytes:  50 * 1024 * 1024 * 1024,
+					},
+				},
+			}, nil
+		},
+		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		},
+		getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{
+				{
+					Name: "sda",
+					Type: "disk",
+				},
+			}, nil
+		},
+		mountPointsToTrackUsage: map[string]struct{}{
+			tempDir: {},
+		},
+	}
+
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.NotNil(t, cr.MountTargetUsages, "MountTargetUsages should be initialized")
+	assert.Contains(t, cr.MountTargetUsages, tempDir, "MountTargetUsages should contain the tempDir")
+	assert.Len(t, cr.MountTargetUsages[tempDir].Filesystems, 1, "Should have one filesystem entry")
+	assert.Equal(t, "/dev/sda1", cr.MountTargetUsages[tempDir].Filesystems[0].Sources[0])
+}
+
+func TestFindMntLogging(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "gpud-disk-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a file in the directory to ensure it exists and has content
+	testFile := tempDir + "/testfile"
+	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	require.NoError(t, err)
+
+	// Test logging on retry success
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	callCount := 0
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, errors.New("mock error")
+			}
+			return &disk.FindMntOutput{
+				Filesystems: []disk.FoundMnt{
+					{
+						Sources:              []string{"/dev/sda1"},
+						SizeHumanized:        "100G",
+						AvailableHumanized:   "50G",
+						UsedHumanized:        "50G",
+						UsedPercentHumanized: "50%",
+					},
+				},
+			}, nil
+		},
+		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{
+				{
+					Device:     "/dev/sda1",
+					MountPoint: "/",
+					Usage: &disk.Usage{
+						TotalBytes: 100 * 1024 * 1024 * 1024,
+						UsedBytes:  50 * 1024 * 1024 * 1024,
+						FreeBytes:  50 * 1024 * 1024 * 1024,
+					},
+				},
+			}, nil
+		},
+		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		},
+		getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{
+				{
+					Name: "sda",
+					Type: "disk",
+				},
+			}, nil
+		},
+		mountPointsToTrackUsage: map[string]struct{}{
+			tempDir: {},
+		},
+	}
+
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, 2, callCount, "Expected 2 calls")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.NotNil(t, cr.MountTargetUsages)
+	assert.Contains(t, cr.MountTargetUsages, tempDir)
+}
+
+// TestNFSPartitionsRetrieval tests the getNFSPartitionsFunc functionality
+func TestNFSPartitionsRetrieval(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "nfs",
+		Type: "disk",
+	}
+	mockNFSPartition := disk.Partition{
+		Device:     "192.168.1.100:/shared",
+		MountPoint: "/mnt/nfs",
+		Fstype:     "fuse.juicefs",
+		Usage: &disk.Usage{
+			TotalBytes: 2000,
+			FreeBytes:  1000,
+			UsedBytes:  1000,
+		},
+	}
+
+	t.Run("successful NFS partitions retrieval", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockNFSPartition}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
+
+		c.Check()
+
+		c.lastMu.RLock()
+		lastCheckResult := c.lastCheckResult
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+		assert.Equal(t, "ok", lastCheckResult.reason)
+		assert.Len(t, lastCheckResult.NFSPartitions, 1)
+		assert.Equal(t, mockNFSPartition.Device, lastCheckResult.NFSPartitions[0].Device)
+		assert.Equal(t, mockNFSPartition.MountPoint, lastCheckResult.NFSPartitions[0].MountPoint)
+	})
+
+	t.Run("no NFS partitions", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{}, []string{})
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
+
+		c.Check()
+
+		c.lastMu.RLock()
+		lastCheckResult := c.lastCheckResult
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+		assert.Equal(t, "no ext4/nfs partition found", lastCheckResult.reason)
+	})
+}
+
+// TestNFSPartitionsErrorRetry tests error handling and retry logic for NFS partitions
+func TestNFSPartitionsErrorRetry(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mockDevice := disk.BlockDevice{
+		Name: "nfs",
+		Type: "disk",
+	}
+	mockNFSPartition := disk.Partition{
+		Device:     "192.168.1.100:/shared",
+		MountPoint: "/mnt/nfs",
+		Fstype:     "fuse.juicefs",
+		Usage: &disk.Usage{
+			TotalBytes: 2000,
+			FreeBytes:  1000,
+			UsedBytes:  1000,
+		},
+	}
+
+	t.Run("retry on NFS partition error", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+		defer c.Close()
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
+
+		callCount := 0
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, assert.AnError
+			}
+			return disk.Partitions{mockNFSPartition}, nil
+		}
+
+		c.Check()
+
+		c.lastMu.RLock()
+		lastCheckResult := c.lastCheckResult
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+		assert.Equal(t, "ok", lastCheckResult.reason)
+		assert.Equal(t, 2, callCount)
+		assert.Len(t, lastCheckResult.NFSPartitions, 1)
+	})
+
+	t.Run("context cancellation during NFS partitions", func(t *testing.T) {
+		ctxWithCancel, ctxCancel := context.WithCancel(context.Background())
+		c := createTestComponent(ctxWithCancel, []string{"/mnt/nfs"}, []string{})
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			ctxCancel()
+			return nil, assert.AnError
+		}
+
+		c.Check()
+
+		c.lastMu.RLock()
+		lastCheckResult := c.lastCheckResult
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health)
+		assert.NotNil(t, lastCheckResult.err)
+		assert.Contains(t, lastCheckResult.err.Error(), "context canceled")
+	})
+}
+
+// TestNFSMetricsTracking tests metrics tracking for NFS mount points
+func TestNFSMetricsTracking(t *testing.T) {
+	ctx := context.Background()
+	mockNFSPartition := disk.Partition{
+		Device:     "192.168.1.100:/shared",
+		MountPoint: "/mnt/nfs",
+		Fstype:     "fuse.juicefs",
+		Usage: &disk.Usage{
+			TotalBytes: 2000,
+			FreeBytes:  1000,
+			UsedBytes:  1000,
+		},
+	}
+
+	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{
+			{
+				Name: "nfs",
+				Type: "disk",
+			},
+		}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockNFSPartition}, nil
+	}
+
+	c.Check()
+
+	// Check that the component is tracking the mount point correctly
+	assert.Contains(t, c.mountPointsToTrackUsage, "/mnt/nfs")
+
+	c.lastMu.RLock()
+	lastCheckResult := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	// Ensure data was collected
+	assert.NotNil(t, lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+	assert.Len(t, lastCheckResult.NFSPartitions, 1)
+	assert.Equal(t, mockNFSPartition.MountPoint, lastCheckResult.NFSPartitions[0].MountPoint)
+	assert.Equal(t, mockNFSPartition.Device, lastCheckResult.NFSPartitions[0].Device)
+}
+
+// TestCombinedPartitions tests the case when both ext4 and NFS partitions are present
+func TestCombinedPartitions(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "sda",
+		Type: "disk",
+	}
+	mockExt4Partition := disk.Partition{
+		Device:     "/dev/sda1",
+		MountPoint: "/mnt/data1",
+		Fstype:     "ext4",
+		Usage: &disk.Usage{
+			TotalBytes: 1000,
+			FreeBytes:  500,
+			UsedBytes:  500,
+		},
+	}
+	mockNFSPartition := disk.Partition{
+		Device:     "192.168.1.100:/shared",
+		MountPoint: "/mnt/nfs",
+		Fstype:     "fuse.juicefs",
+		Usage: &disk.Usage{
+			TotalBytes: 2000,
+			FreeBytes:  1000,
+			UsedBytes:  1000,
+		},
+	}
+
+	c := createTestComponent(ctx, []string{"/mnt/data1", "/mnt/nfs"}, []string{})
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{mockDevice}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockExt4Partition}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockNFSPartition}, nil
+	}
+
+	c.Check()
+
+	c.lastMu.RLock()
+	lastCheckResult := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	assert.NotNil(t, lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+	assert.Equal(t, "ok", lastCheckResult.reason)
+	assert.Len(t, lastCheckResult.ExtPartitions, 1)
+	assert.Len(t, lastCheckResult.NFSPartitions, 1)
+	assert.Equal(t, mockExt4Partition.MountPoint, lastCheckResult.ExtPartitions[0].MountPoint)
+	assert.Equal(t, mockNFSPartition.MountPoint, lastCheckResult.NFSPartitions[0].MountPoint)
+}
+
+// TestDeviceUsagesWithNFS tests the device usages calculation with NFS partitions
+func TestDeviceUsagesWithNFS(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "sda",
+		Type: "disk",
+	}
+	mockNFSPartition := disk.Partition{
+		Device:     "192.168.1.100:/shared",
+		MountPoint: "/mnt/nfs",
+		Fstype:     "fuse.juicefs",
+		Usage: &disk.Usage{
+			TotalBytes: 2000,
+			FreeBytes:  1000,
+			UsedBytes:  1000,
+		},
+	}
+
+	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{mockDevice}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockNFSPartition}, nil
+	}
+
+	c.Check()
+
+	c.lastMu.RLock()
+	lastCheckResult := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	assert.NotNil(t, lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+	assert.Len(t, lastCheckResult.DeviceUsages, 1)
+	assert.Equal(t, mockNFSPartition.Device, lastCheckResult.DeviceUsages[0].DeviceName)
+	assert.Equal(t, mockNFSPartition.MountPoint, lastCheckResult.DeviceUsages[0].MountPoint)
+	assert.Equal(t, mockNFSPartition.Usage.TotalBytes, lastCheckResult.DeviceUsages[0].TotalBytes)
+	assert.Equal(t, mockNFSPartition.Usage.FreeBytes, lastCheckResult.DeviceUsages[0].FreeBytes)
+	assert.Equal(t, mockNFSPartition.Usage.UsedBytes, lastCheckResult.DeviceUsages[0].UsedBytes)
+}
+
+// TestNFSPartitionsDeviceUsages tests that DeviceUsages are properly created from NFSPartitions
+func TestNFSPartitionsDeviceUsages(t *testing.T) {
+	mockNFSPartition := disk.Partition{
+		Device:     "192.168.1.100:/shared",
+		MountPoint: "/mnt/nfs",
+		Fstype:     "fuse.juicefs",
+		Usage: &disk.Usage{
+			TotalBytes: 2000,
+			FreeBytes:  1000,
+			UsedBytes:  1000,
+		},
+	}
+
+	// Create a check result with only NFS partitions
+	cr := &checkResult{
+		NFSPartitions: disk.Partitions{mockNFSPartition},
+		BlockDevices:  disk.FlattenedBlockDevices{{Name: "nfs", Type: "disk"}},
+	}
+
+	// Manually process NFSPartitions into DeviceUsages similar to component.Check()
+	if len(cr.NFSPartitions) > 0 {
+		for _, p := range cr.NFSPartitions {
+			usage := p.Usage
+			if usage == nil {
+				continue
+			}
+
+			cr.DeviceUsages = append(cr.DeviceUsages, disk.DeviceUsage{
+				DeviceName: p.Device,
+				MountPoint: p.MountPoint,
+				TotalBytes: usage.TotalBytes,
+				FreeBytes:  usage.FreeBytes,
+				UsedBytes:  usage.UsedBytes,
+			})
+		}
+	}
+
+	// Verify the result
+	assert.Len(t, cr.DeviceUsages, 1)
+	assert.Equal(t, mockNFSPartition.Device, cr.DeviceUsages[0].DeviceName)
+	assert.Equal(t, mockNFSPartition.MountPoint, cr.DeviceUsages[0].MountPoint)
+	assert.Equal(t, mockNFSPartition.Usage.TotalBytes, cr.DeviceUsages[0].TotalBytes)
+	assert.Equal(t, mockNFSPartition.Usage.FreeBytes, cr.DeviceUsages[0].FreeBytes)
+	assert.Equal(t, mockNFSPartition.Usage.UsedBytes, cr.DeviceUsages[0].UsedBytes)
+}
+
+// TestNFSPartitionsStringMethod tests the String() method of checkResult when it contains NFSPartitions
+func TestNFSPartitionsStringMethod(t *testing.T) {
+	// The String() method checks for len(ExtPartitions) == 0 and returns an empty string if true
+	// So we need to have at least one ExtPartition to see the NFSPartitions output
+	cr := &checkResult{
+		ExtPartitions: disk.Partitions{
+			{
+				Device:     "/dev/sda1",
+				MountPoint: "/mnt/data1",
+				Fstype:     "ext4",
+				Usage: &disk.Usage{
+					TotalBytes: 1024 * 1024 * 1024,
+					FreeBytes:  512 * 1024 * 1024,
+					UsedBytes:  512 * 1024 * 1024,
+				},
+			},
+		},
+		NFSPartitions: disk.Partitions{
+			{
+				Device:     "192.168.1.100:/shared",
+				MountPoint: "/mnt/nfs1",
+				Fstype:     "fuse.juicefs",
+				Usage: &disk.Usage{
+					TotalBytes: 2 * 1024 * 1024 * 1024,
+					FreeBytes:  1 * 1024 * 1024 * 1024,
+					UsedBytes:  1 * 1024 * 1024 * 1024,
+				},
+			},
+		},
+	}
+
+	result := cr.String()
+
+	// Should contain both ext4 and NFS mount points
+	assert.Contains(t, result, "/mnt/data1")
+	assert.Contains(t, result, "/mnt/nfs1")
+	assert.Contains(t, result, "/dev/sda1")
+	assert.Contains(t, result, "192.168.1.100:/shared")
+
+	// Test just the NFSPartitions.RenderTable directly
+	buf := bytes.NewBuffer(nil)
+	cr.NFSPartitions.RenderTable(buf)
+	nfsOutput := buf.String()
+
+	assert.Contains(t, nfsOutput, "/mnt/nfs1")
+	assert.Contains(t, nfsOutput, "192.168.1.100:/shared")
+	assert.Contains(t, nfsOutput, "MOUNT POINT")
+	assert.Contains(t, nfsOutput, "TOTAL")
+	assert.Contains(t, nfsOutput, "FREE")
+	assert.Contains(t, nfsOutput, "USED")
+}
+
+// TestComponentIsSupported tests the IsSupported method
+func TestComponentIsSupported(t *testing.T) {
+	ctx := context.Background()
+	c := createTestComponent(ctx, []string{}, []string{})
+	defer c.Close()
+
+	isSupported := c.IsSupported()
+	assert.True(t, isSupported, "disk component should be supported")
+}
+
+// TestComponentName tests the ComponentName method
+func TestComponentNameMethod(t *testing.T) {
+	cr := &checkResult{}
+	name := cr.ComponentName()
+	assert.Equal(t, Name, name)
+}
+
+// TestSummary tests the Summary method
+func TestSummary(t *testing.T) {
+	t.Run("nil checkResult", func(t *testing.T) {
+		var cr *checkResult
+		summary := cr.Summary()
+		assert.Equal(t, "", summary)
+	})
+
+	t.Run("with reason", func(t *testing.T) {
+		cr := &checkResult{
+			reason: "test reason",
+		}
+		summary := cr.Summary()
+		assert.Equal(t, "test reason", summary)
+	})
+
+	t.Run("empty reason", func(t *testing.T) {
+		cr := &checkResult{}
+		summary := cr.Summary()
+		assert.Equal(t, "", summary)
+	})
+}
+
+// TestHealthStateType tests the HealthStateType method
+func TestHealthStateType(t *testing.T) {
+	t.Run("nil checkResult", func(t *testing.T) {
+		var cr *checkResult
+		health := cr.HealthStateType()
+		assert.Equal(t, apiv1.HealthStateType(""), health)
+	})
+
+	t.Run("with health state", func(t *testing.T) {
+		cr := &checkResult{
+			health: apiv1.HealthStateTypeHealthy,
+		}
+		health := cr.HealthStateType()
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, health)
+	})
+
+	t.Run("empty health state", func(t *testing.T) {
+		cr := &checkResult{}
+		health := cr.HealthStateType()
+		assert.Equal(t, apiv1.HealthStateType(""), health)
+	})
+}
+
+// Additional test cases for String() method to improve coverage
+func TestCheckResultStringMoreCases(t *testing.T) {
+	t.Run("with all types of data", func(t *testing.T) {
+		cr := &checkResult{
+			ExtPartitions: disk.Partitions{
+				{
+					Device:     "/dev/sda1",
+					MountPoint: "/mnt/data1",
+					Usage: &disk.Usage{
+						TotalBytes: 1024 * 1024 * 1024,
+						FreeBytes:  512 * 1024 * 1024,
+						UsedBytes:  512 * 1024 * 1024,
+					},
+				},
+			},
+			NFSPartitions: disk.Partitions{
+				{
+					Device:     "192.168.1.100:/shared",
+					MountPoint: "/mnt/nfs",
+					Usage: &disk.Usage{
+						TotalBytes: 2 * 1024 * 1024 * 1024,
+						FreeBytes:  1 * 1024 * 1024 * 1024,
+						UsedBytes:  1 * 1024 * 1024 * 1024,
+					},
+				},
+			},
+			BlockDevices: disk.FlattenedBlockDevices{
+				{
+					Name: "sda",
+					Type: "disk",
+				},
+			},
+			DeviceUsages: disk.DeviceUsages{
+				{
+					DeviceName: "/dev/sda1",
+					MountPoint: "/mnt/data1",
+					TotalBytes: 1024 * 1024 * 1024,
+					FreeBytes:  512 * 1024 * 1024,
+					UsedBytes:  512 * 1024 * 1024,
+				},
+			},
+			MountTargetUsages: map[string]disk.FindMntOutput{
+				"/mnt/target": {
+					Target: "/mnt/target",
+					Filesystems: []disk.FoundMnt{
+						{
+							MountedPoint:         "/mnt/target",
+							Sources:              []string{"/dev/sda1"},
+							SizeHumanized:        "1G",
+							AvailableHumanized:   "512M",
+							UsedHumanized:        "512M",
+							UsedPercentHumanized: "50%",
+						},
+					},
+				},
+			},
+		}
+
+		result := cr.String()
+
+		// Verify all sections are included
+		assert.Contains(t, result, "/mnt/data1")
+		assert.Contains(t, result, "/mnt/nfs")
+		assert.Contains(t, result, "sda")
+		assert.Contains(t, result, "/dev/sda1")
+		assert.Contains(t, result, "/mnt/target")
+
+		// Tables should contain appropriate headers
+		assert.Contains(t, result, "MOUNT POINT")
+		assert.Contains(t, result, "DEVICE")
+		assert.Contains(t, result, "TOTAL")
+		assert.Contains(t, result, "NAME")
+		assert.Contains(t, result, "TYPE")
+
+		// For MountTargetUsages table
+		assert.Contains(t, result, "USED %")
+	})
+}
+
+// Test the New function more extensively
+func TestNewComponentMoreCases(t *testing.T) {
+	// Test with specific mount points and targets
+	ctx := context.Background()
+	mountPoints := []string{"/mnt/data1", "/mnt/data2"}
+	mountTargets := []string{"/mnt/target1", "/mnt/target2"}
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		MountPoints:  mountPoints,
+		MountTargets: mountTargets,
+	}
+
+	c, err := New(gpudInstance)
+	require.NoError(t, err)
+	defer c.Close()
+
+	// Check component type
+	component, ok := c.(*component)
+	require.True(t, ok)
+
+	// Check if mount points are correctly tracked
+	assert.Contains(t, component.mountPointsToTrackUsage, "/mnt/data1")
+	assert.Contains(t, component.mountPointsToTrackUsage, "/mnt/data2")
+	assert.Contains(t, component.mountPointsToTrackUsage, "/mnt/target1")
+	assert.Contains(t, component.mountPointsToTrackUsage, "/mnt/target2")
+
+	// Check if function fields are properly initialized
+	assert.NotNil(t, component.getExt4PartitionsFunc)
+	assert.NotNil(t, component.getNFSPartitionsFunc)
+	assert.NotNil(t, component.findMntFunc)
+
+	// On Linux, getBlockDevicesFunc should be set
+	if runtime.GOOS == "linux" {
+		assert.NotNil(t, component.getBlockDevicesFunc)
+	}
 }

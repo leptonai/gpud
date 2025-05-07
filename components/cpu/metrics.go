@@ -21,7 +21,7 @@ var (
 			Name:      "load_average",
 			Help:      "tracks the load average for the last period",
 		},
-		[]string{pkgmetrics.MetricComponentLabelKey, pkgmetrics.MetricLabelKey}, // label is last period
+		[]string{pkgmetrics.MetricComponentLabelKey, "load_duration"}, // label is last period
 	).MustCurryWith(componentLabel)
 
 	metricUsedPercent = prometheus.NewGaugeVec(
@@ -29,7 +29,7 @@ var (
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "used_percent",
-			Help:      "tracks the current file descriptor usage percentage",
+			Help:      "tracks the current CPU usage percentage",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
 	).MustCurryWith(componentLabel)

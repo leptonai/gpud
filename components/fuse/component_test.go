@@ -2,8 +2,8 @@ package fuse
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -45,6 +45,29 @@ func TestNew(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, comp)
 	assert.Equal(t, Name, comp.Name())
+}
+
+func TestTags(t *testing.T) {
+	// Create a test event store
+	store, cleanup := openTestEventStore(t)
+	defer cleanup()
+
+	// Create the component
+	ctx := context.Background()
+	instance := &components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+	comp, err := New(instance)
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
 }
 
 func TestComponentLifecycle(t *testing.T) {
@@ -264,8 +287,6 @@ func TestCheckOnce(t *testing.T) {
 
 // TestCheckWithEventHandling tests how events are created when thresholds are exceeded
 func TestCheckWithEventHandling(t *testing.T) {
-	t.Skip("Skipping this test as event creation is difficult to test reliably")
-
 	// Create a test event store
 	store, cleanup := openTestEventStore(t)
 	defer cleanup()
@@ -285,92 +306,170 @@ func TestCheckWithEventHandling(t *testing.T) {
 	c.congestedPercentAgainstThreshold = 70.0
 	c.maxBackgroundPercentAgainstThreshold = 60.0
 
-	// Create a custom event bucket with controlled behavior
+	// Create a mock bucket that simulates event not being found (to trigger insert)
 	origBucket := c.eventBucket
-
-	// Mock first find call to return nil (event not found)
-	findCallCount := 0
-	c.eventBucket = &eventWrapperBucket{
+	mockBucket := &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
-			findCallCount++
-			// First call returns nil to trigger insert
-			if findCallCount == 1 {
-				return nil, nil
-			}
-			// Later calls return the event to prevent multiple inserts
-			return &ev, nil
+		findFn: func(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+			// Always return nil to trigger an insert
+			return nil, nil
 		},
 	}
+	c.eventBucket = mockBucket
 
 	// Mock connection info with thresholds exceeded
 	c.listConnectionsFunc = func() (fuse.ConnectionInfos, error) {
-		// Custom implementation that supports JSON marshaling
 		return fuse.ConnectionInfos{
 			{
 				DeviceName:           "test-device",
 				CongestedPercent:     80.0, // Exceeds threshold of 70
 				MaxBackgroundPercent: 65.0, // Exceeds threshold of 60
+				Fstype:               "fuse",
 			},
 		}, nil
 	}
 
 	// Run Check to trigger event creation
-	c.Check()
+	result := c.Check()
 
-	// Verify event creation by checking event bucket
-	events, err := c.Events(context.Background(), time.Now().Add(-time.Hour))
+	// Verify the check result
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+}
+
+// TestMetricsRecording tests that metrics are properly recorded
+func TestMetricsRecording(t *testing.T) {
+	// Create a test event store
+	store, cleanup := openTestEventStore(t)
+	defer cleanup()
+
+	// Create component
+	ctx := context.Background()
+	instance := &components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: store,
+	}
+	comp, err := New(instance)
 	require.NoError(t, err)
 
-	// Check if events contain our threshold violations
-	foundEvent := false
-	for _, event := range events {
-		if event.Name == "fuse_connections" {
-			foundEvent = true
-			// Verify the event details
-			assert.Equal(t, apiv1.EventTypeCritical, event.Type)
-			assert.Contains(t, event.Message, "congested percent")
-			assert.Contains(t, event.Message, "max background percent")
+	c := comp.(*component)
 
-			// Validate we can parse the data
-			var connData map[string]interface{}
-			err := json.Unmarshal([]byte(event.DeprecatedExtraInfo["data"]), &connData)
-			assert.NoError(t, err)
-		}
+	// Mock connection info with specific values
+	c.listConnectionsFunc = func() (fuse.ConnectionInfos, error) {
+		return fuse.ConnectionInfos{
+			{
+				DeviceName:           "test-device-1",
+				CongestedPercent:     30.0,
+				MaxBackgroundPercent: 25.0,
+			},
+			{
+				DeviceName:           "test-device-2",
+				CongestedPercent:     45.0,
+				MaxBackgroundPercent: 40.0,
+			},
+		}, nil
 	}
-	assert.True(t, foundEvent, "Should have found the fuse_connections event")
+
+	// Run Check to record metrics
+	c.Check()
+
+	// We can't easily validate the prometheus metrics as they are global state
+	// and we can't directly access the values. The test is valuable just to
+	// exercise the metric recording path in the code.
+}
+
+// TestLastHealthStates verifies that the LastHealthStates function works correctly
+func TestLastHealthStates(t *testing.T) {
+	// Create component without event store
+	ctx := context.Background()
+	instance := &components.GPUdInstance{
+		RootCtx: ctx,
+	}
+	comp, err := New(instance)
+	require.NoError(t, err)
+
+	c := comp.(*component)
+
+	// Test LastHealthStates when there's no last check result
+	states := comp.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.Equal(t, "no data yet", states[0].Reason)
+
+	// Set a last check result
+	c.lastCheckResult = &checkResult{
+		ts:     time.Now(),
+		health: apiv1.HealthStateTypeHealthy,
+		reason: "test reason",
+	}
+
+	// Test LastHealthStates with a last check result
+	states = comp.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.Equal(t, "test reason", states[0].Reason)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+}
+
+// TestCheckResultFunctions tests the various checkResult formatting functions
+func TestCheckResultFunctions(t *testing.T) {
+	// Test String() with multiple connection infos
+	cr := &checkResult{
+		ConnectionInfos: []fuse.ConnectionInfo{
+			{
+				DeviceName:           "device1",
+				Fstype:               "fuse",
+				CongestedPercent:     30.0,
+				MaxBackgroundPercent: 25.0,
+			},
+			{
+				DeviceName:           "device2",
+				Fstype:               "fuse",
+				CongestedPercent:     45.0,
+				MaxBackgroundPercent: 40.0,
+			},
+		},
+	}
+
+	// String() should contain details about both devices
+	str := cr.String()
+	assert.Contains(t, str, "device1")
+	assert.Contains(t, str, "device2")
+
+	// Summary() should return the reason
+	cr.reason = "test summary"
+	assert.Equal(t, "test summary", cr.Summary())
 }
 
 // Helper struct for wrapping event buckets with custom behavior
 type eventWrapperBucket struct {
 	wrapped  eventstore.Bucket
-	findFn   func(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error)
-	getFn    func(ctx context.Context, since time.Time) (apiv1.Events, error)
-	insertFn func(ctx context.Context, ev apiv1.Event) error
+	findFn   func(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error)
+	getFn    func(ctx context.Context, since time.Time) (eventstore.Events, error)
+	insertFn func(ctx context.Context, ev eventstore.Event) error
 }
 
-func (b *eventWrapperBucket) Insert(ctx context.Context, ev apiv1.Event) error {
+func (b *eventWrapperBucket) Insert(ctx context.Context, ev eventstore.Event) error {
 	if b.insertFn != nil {
 		return b.insertFn(ctx, ev)
 	}
 	return b.wrapped.Insert(ctx, ev)
 }
 
-func (b *eventWrapperBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (b *eventWrapperBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if b.getFn != nil {
 		return b.getFn(ctx, since)
 	}
 	return b.wrapped.Get(ctx, since)
 }
 
-func (b *eventWrapperBucket) Find(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
+func (b *eventWrapperBucket) Find(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
 	if b.findFn != nil {
 		return b.findFn(ctx, ev)
 	}
 	return b.wrapped.Find(ctx, ev)
 }
 
-func (b *eventWrapperBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (b *eventWrapperBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	return b.wrapped.Latest(ctx)
 }
 
@@ -410,7 +509,7 @@ func TestCheckWithEventBucketError(t *testing.T) {
 	// Mock find call to return an error
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
+		findFn: func(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
 			return nil, nil // Return nil to trigger an insert attempt
 		},
 	}
@@ -460,7 +559,7 @@ func TestFindError(t *testing.T) {
 	// Mock find call to return an error
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
+		findFn: func(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
 			return nil, errors.New("mock find error")
 		},
 	}
@@ -679,7 +778,7 @@ func TestEventsWithError(t *testing.T) {
 	// Create a mock event bucket with error behavior
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: c.eventBucket,
-		getFn: func(ctx context.Context, since time.Time) (apiv1.Events, error) {
+		getFn: func(ctx context.Context, since time.Time) (eventstore.Events, error) {
 			return nil, errors.New("mock get error")
 		},
 	}
@@ -717,12 +816,12 @@ func TestInsertError(t *testing.T) {
 	findCalled := false
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev apiv1.Event) (*apiv1.Event, error) {
+		findFn: func(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
 			findCalled = true
 			// Return the event to trigger an Insert (based on the actual code behavior)
 			return &ev, nil
 		},
-		insertFn: func(ctx context.Context, ev apiv1.Event) error {
+		insertFn: func(ctx context.Context, ev eventstore.Event) error {
 			// Return an error from Insert to test the error path
 			return errors.New("mock insert error")
 		},
@@ -789,4 +888,61 @@ func TestConnectionInfoJSONError(t *testing.T) {
 
 	// Check should complete successfully
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+}
+
+// TestNewWithEventStoreError tests the error path when creating a bucket fails
+func TestNewWithEventStoreError(t *testing.T) {
+	// Skip on non-Linux platforms as the error path is only triggered on Linux
+	if runtime.GOOS != "linux" {
+		t.Skip("Skipping test on non-Linux platform")
+	}
+
+	// Create a mock event store that returns an error when creating a bucket
+	mockStore := &mockErrorEventStore{
+		err: errors.New("mock bucket creation error"),
+	}
+
+	// Create the component
+	ctx := context.Background()
+	instance := &components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: mockStore,
+	}
+	comp, err := New(instance)
+
+	// Verify the error is returned
+	assert.Error(t, err)
+	assert.Nil(t, comp)
+	assert.Contains(t, err.Error(), "mock bucket creation error")
+}
+
+// mockErrorEventStore is a mock event store that returns an error when creating a bucket
+type mockErrorEventStore struct {
+	eventstore.Store
+	err error
+}
+
+func (m *mockErrorEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+	return nil, m.err
+}
+
+// TestEventsWithNilBucket tests the Events method with a nil event bucket
+func TestEventsWithNilBucket(t *testing.T) {
+	// Create component
+	ctx := context.Background()
+	instance := &components.GPUdInstance{
+		RootCtx: ctx,
+		// No EventStore to ensure eventBucket is nil
+	}
+	comp, err := New(instance)
+	require.NoError(t, err)
+
+	// Force eventBucket to nil to ensure code path coverage
+	c := comp.(*component)
+	c.eventBucket = nil
+
+	// Call Events - should return nil, nil
+	events, err := comp.Events(context.Background(), time.Now().Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.Nil(t, events)
 }

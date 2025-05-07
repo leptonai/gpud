@@ -344,13 +344,13 @@ func TestComponentStates(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	// Create test events
-	testEvents := apiv1.Events{
+	testEvents := eventstore.Events{
 		{
-			Time:    metav1.Time{Time: time.Now().Add(-5 * time.Minute)},
+			Time:    time.Now().Add(-5 * time.Minute),
 			Name:    "hw_slowdown",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "HW Slowdown detected",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
 			},
 		},
@@ -440,12 +440,12 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			window:             10 * time.Minute,
 			thresholdPerMinute: 0,
 			setupStore: func(bucket eventstore.Bucket, ctx context.Context) error {
-				event := apiv1.Event{
-					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
+				event := eventstore.Event{
+					Time:    time.Now().UTC().Add(-5 * time.Minute),
 					Name:    "hw_slowdown",
-					Type:    apiv1.EventTypeWarning,
+					Type:    string(apiv1.EventTypeWarning),
 					Message: "HW Slowdown detected",
-					DeprecatedExtraInfo: map[string]string{
+					ExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
 					},
 				}
@@ -460,12 +460,12 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			window:             10 * time.Minute,
 			thresholdPerMinute: -0.6,
 			setupStore: func(bucket eventstore.Bucket, ctx context.Context) error {
-				event := apiv1.Event{
-					Time:    metav1.Time{Time: time.Now().UTC().Add(-5 * time.Minute)},
+				event := eventstore.Event{
+					Time:    time.Now().UTC().Add(-5 * time.Minute),
 					Name:    "hw_slowdown",
-					Type:    apiv1.EventTypeWarning,
+					Type:    string(apiv1.EventTypeWarning),
 					Message: "HW Slowdown detected",
-					DeprecatedExtraInfo: map[string]string{
+					ExtraInfo: map[string]string{
 						"gpu_uuid": "gpu-0",
 					},
 				}
@@ -564,60 +564,40 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 func TestComponentName(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Set up test database
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
-	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events")
-	assert.NoError(t, err)
-	defer bucket.Close()
-
-	// Create mock NVML instance
-	mockNVML := createMockNVMLInstance(map[string]device.Device{})
-
-	c := &component{
-		ctx:              ctx,
-		cancel:           cancel,
-		nvmlInstance:     mockNVML,
-		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-		eventBucket:      bucket,
-		lastCheckResult: &checkResult{
-			ts:     time.Now().UTC(),
-			health: apiv1.HealthStateTypeHealthy,
-			reason: "Initial state",
-		},
-		// Initialize required functions to avoid nil pointer dereference
-		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-			return nvidianvml.ClockEvents{
-				UUID:                 uuid,
-				Time:                 metav1.Time{Time: time.Now()},
-				HWSlowdown:           false,
-				HWSlowdownThermal:    false,
-				HWSlowdownPowerBrake: false,
-				Supported:            true,
-			}, nil
-		},
-		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
-			return true, nil
-		},
-		getSystemDriverVersionFunc: func() (string, error) {
-			return "535.104.05", nil
-		},
-		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
-			return 535, 104, 5, nil
-		},
-		checkClockEventsSupportedFunc: func(major int) bool {
-			return major >= 535
+	ctx := context.Background()
+	c := component{
+		ctx: ctx,
+		nvmlInstance: &mockNVMLInstance{
+			devices:    map[string]device.Device{},
+			nvmlExists: true,
 		},
 	}
 
 	assert.Equal(t, Name, c.Name())
+}
+
+func TestTags(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	c := component{
+		ctx: ctx,
+		nvmlInstance: &mockNVMLInstance{
+			devices:    map[string]device.Device{},
+			nvmlExists: true,
+		},
+	}
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }
 
 // TestComponentStart tests the Start method
@@ -716,22 +696,22 @@ func TestComponentEvents(t *testing.T) {
 	defer bucket.Close()
 
 	// Insert test events
-	testEvents := apiv1.Events{
+	testEvents := eventstore.Events{
 		{
-			Time:    metav1.Time{Time: time.Now().Add(-2 * time.Hour)},
+			Time:    time.Now().Add(-2 * time.Hour),
 			Name:    "hw_slowdown",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "HW Slowdown detected",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
 			},
 		},
 		{
-			Time:    metav1.Time{Time: time.Now().Add(-1 * time.Hour)},
+			Time:    time.Now().Add(-1 * time.Hour),
 			Name:    "hw_slowdown",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "HW Slowdown detected",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-1",
 			},
 		},
@@ -894,12 +874,12 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		// Distribute events evenly within the window
 		eventTime := now.Add(-time.Duration(i*(windowMinutes/totalEventsToInsert)) * time.Minute)
 
-		event := apiv1.Event{
-			Time:    metav1.Time{Time: eventTime},
+		event := eventstore.Event{
+			Time:    eventTime,
 			Name:    "hw_slowdown",
-			Type:    apiv1.EventTypeWarning,
+			Type:    string(apiv1.EventTypeWarning),
 			Message: "HW Slowdown detected",
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"gpu_uuid": "gpu-0",
 			},
 		}

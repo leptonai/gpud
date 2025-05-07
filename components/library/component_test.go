@@ -30,6 +30,25 @@ func TestName(t *testing.T) {
 	}
 }
 
+func TestTags(t *testing.T) {
+	c := createTestComponent()
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := c.Tags()
+	if len(tags) != len(expectedTags) {
+		t.Errorf("expected %d tags, got %d", len(expectedTags), len(tags))
+	}
+
+	for i, tag := range expectedTags {
+		if tags[i] != tag {
+			t.Errorf("expected tag[%d] to be %q, got %q", i, tag, tags[i])
+		}
+	}
+}
+
 func TestCheck(t *testing.T) {
 	// Mock component with custom findLibrary function
 	comp := createTestComponent()

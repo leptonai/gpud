@@ -20,7 +20,6 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/fuse"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 // Name is the name of the component.
@@ -82,6 +81,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
+func (c *component) Tags() []string {
+	return []string{
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	return true
+}
+
 func (c *component) Start() error {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
@@ -111,7 +120,11 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
-	return c.eventBucket.Get(ctx, since)
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -157,8 +170,8 @@ func (c *component) Check() components.CheckResult {
 		}
 		foundDev[info.DeviceName] = info
 
-		metricConnsCongestedPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: info.DeviceName}).Set(info.CongestedPercent)
-		metricConnsMaxBackgroundPct.With(prometheus.Labels{pkgmetrics.MetricLabelKey: info.DeviceName}).Set(info.MaxBackgroundPercent)
+		metricConnsCongestedPct.With(prometheus.Labels{"device_name": info.DeviceName}).Set(info.CongestedPercent)
+		metricConnsMaxBackgroundPct.With(prometheus.Labels{"device_name": info.DeviceName}).Set(info.MaxBackgroundPercent)
 
 		msgs := []string{}
 		if info.CongestedPercent > c.congestedPercentAgainstThreshold {
@@ -183,12 +196,12 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 
-		ev := apiv1.Event{
-			Time:    metav1.Time{Time: now.UTC()},
+		ev := eventstore.Event{
+			Time:    now.UTC(),
 			Name:    "fuse_connections",
-			Type:    apiv1.EventTypeCritical,
+			Type:    string(apiv1.EventTypeCritical),
 			Message: info.DeviceName + ": " + strings.Join(msgs, ", "),
-			DeprecatedExtraInfo: map[string]string{
+			ExtraInfo: map[string]string{
 				"data": string(ib),
 			},
 		}

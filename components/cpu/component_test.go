@@ -18,58 +18,48 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
-// MockEventStore implements a mock for eventstore.Store
-type MockEventStore struct {
+// mockEventBucket implements a mock for eventstore.Bucket
+type mockEventBucket struct {
 	mock.Mock
 }
 
-func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
-	args := m.Called(name)
-	return args.Get(0).(eventstore.Bucket), args.Error(1)
-}
-
-// MockEventBucket implements a mock for eventstore.Bucket
-type MockEventBucket struct {
-	mock.Mock
-}
-
-func (m *MockEventBucket) Name() string {
+func (m *mockEventBucket) Name() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event apiv1.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event apiv1.Event) (*apiv1.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	args := m.Called(ctx, event)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*apiv1.Event), args.Error(1)
+	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).(apiv1.Events), args.Error(1)
+	return args.Get(0).(eventstore.Events), args.Error(1)
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*apiv1.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*apiv1.Event), args.Error(1)
+	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
 	args := m.Called(ctx, beforeTimestamp)
 	return args.Int(0), args.Error(1)
 }
 
-func (m *MockEventBucket) Close() {
+func (m *mockEventBucket) Close() {
 	m.Called()
 }
 
@@ -81,6 +71,12 @@ type MockKmsgSyncer struct {
 func (m *MockKmsgSyncer) Close() error {
 	args := m.Called()
 	return args.Error(0)
+}
+
+// MockGPUdInstance implements a mock for components.GPUdInstance
+type MockGPUdInstance struct {
+	RootCtx    context.Context
+	EventStore eventstore.Store
 }
 
 func TestDataGetStatesNil(t *testing.T) {
@@ -110,7 +106,7 @@ func TestDataGetStatesWithError(t *testing.T) {
 }
 
 func TestComponentName(t *testing.T) {
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	c := &component{
 		eventBucket: mockEventBucket,
 	}
@@ -118,9 +114,21 @@ func TestComponentName(t *testing.T) {
 	assert.Equal(t, Name, c.Name())
 }
 
+func TestTags(t *testing.T) {
+	c := &component{}
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
+}
+
 func TestComponentStates(t *testing.T) {
 	// Setup
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 
 	c := &component{
 		ctx:         context.Background(),
@@ -171,18 +179,20 @@ func TestComponentStates(t *testing.T) {
 
 func TestComponentEvents(t *testing.T) {
 	// Setup
-	mockEventBucket := new(MockEventBucket)
-	testTime := metav1.Now()
-	testEvents := apiv1.Events{
-		{
-			Time:    testTime,
-			Name:    Name,
-			Type:    apiv1.EventType("test"),
-			Message: "Test event",
-		},
+	mockEventBucket := new(mockEventBucket)
+	testTime := time.Now().UTC()
+	// Use eventstore.Event for mock data
+	testStoreEvent := eventstore.Event{
+		Component: Name,
+		Time:      testTime,
+		Name:      Name,                        // Event name, often same as component
+		Type:      string(apiv1.EventTypeInfo), // Store type as string
+		Message:   "Test event",
+		ExtraInfo: nil,
 	}
+	testStoreEvents := eventstore.Events{testStoreEvent}
 
-	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return(testEvents, nil)
+	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return(testStoreEvents, nil)
 
 	c := &component{
 		ctx:         context.Background(),
@@ -192,16 +202,23 @@ func TestComponentEvents(t *testing.T) {
 
 	// Test
 	since := time.Now().Add(-time.Hour)
-	events, err := c.Events(context.Background(), since)
+	// Call Events, which gets eventstore.Events and converts them
+	apiEvents, err := c.Events(context.Background(), since)
 
 	assert.NoError(t, err)
-	assert.Equal(t, testEvents, events)
+	// Assert based on the converted apiv1.Events
+	assert.Len(t, apiEvents, 1)
+	assert.Equal(t, Name, apiEvents[0].Component)
+	assert.Equal(t, "Test event", apiEvents[0].Message)
+	assert.Equal(t, metav1.Time{Time: testTime}, apiEvents[0].Time)
+	assert.Equal(t, apiv1.EventTypeInfo, apiEvents[0].Type)
+	assert.Equal(t, Name, apiEvents[0].Name)
 	mockEventBucket.AssertCalled(t, "Get", mock.Anything, since)
 }
 
 func TestComponentCheckOnceSuccess(t *testing.T) {
 	// Setup mocks
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	mockKmsgSyncer := new(MockKmsgSyncer)
 	mockKmsgSyncer.On("Close").Return(nil)
 
@@ -283,7 +300,7 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 
 func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
 	// Setup mocks
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	mockKmsgSyncer := new(MockKmsgSyncer)
 	mockKmsgSyncer.On("Close").Return(nil)
 
@@ -317,7 +334,7 @@ func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
 
 func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
 	// Setup mocks
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	mockKmsgSyncer := new(MockKmsgSyncer)
 	mockKmsgSyncer.On("Close").Return(nil)
 
@@ -391,7 +408,7 @@ func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
 
 func TestComponentClose(t *testing.T) {
 	// Setup mocks
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 
 	mockEventBucket.On("Close").Return()
 
@@ -422,7 +439,7 @@ func TestComponentClose(t *testing.T) {
 
 func TestComponentCheckOnceWithGetUsedPctError(t *testing.T) {
 	// Setup mocks
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 
 	testError := errors.New("CPU percent calculation error")
 
@@ -550,9 +567,9 @@ func TestComponentDataExtraInfo(t *testing.T) {
 
 func TestComponentEventsError(t *testing.T) {
 	// Setup mock
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	testError := errors.New("events retrieval error")
-	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return(apiv1.Events{}, testError)
+	mockEventBucket.On("Get", mock.Anything, mock.Anything).Return(eventstore.Events(nil), testError)
 
 	c := &component{
 		ctx:         context.Background(),
@@ -707,4 +724,78 @@ func TestCheckHealthState(t *testing.T) {
 	b, err := json.Marshal(rs)
 	assert.NoError(t, err)
 	fmt.Println(string(b))
+}
+
+func TestComponentEventsNilBucket(t *testing.T) {
+	c := &component{
+		ctx:         context.Background(),
+		cancel:      func() {},
+		eventBucket: nil, // Explicitly nil
+	}
+
+	events, err := c.Events(context.Background(), time.Now())
+	assert.NoError(t, err)
+	assert.Nil(t, events)
+}
+
+func TestComponentCloseNilSyncer(t *testing.T) {
+	// Setup mocks
+	mockEventBucket := new(mockEventBucket)
+	mockEventBucket.On("Close").Return()
+
+	// Create component with mocks, kmsgSyncer is nil
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &component{
+		ctx:         ctx,
+		cancel:      cancel,
+		eventBucket: mockEventBucket,
+		kmsgSyncer:  nil, // Explicitly nil
+	}
+
+	// Test Close method
+	err := c.Close()
+	assert.NoError(t, err)
+
+	// Verify mocks were called
+	mockEventBucket.AssertCalled(t, "Close")
+
+	// Verify context was canceled
+	select {
+	case <-ctx.Done():
+		// Good, context was canceled
+	default:
+		t.Error("Context was not canceled during Close()")
+	}
+}
+
+func TestCheckResultMethodsWithNilReceiver(t *testing.T) {
+	var cr *checkResult
+
+	assert.NotPanics(t, func() {
+		str := cr.String()
+		assert.Equal(t, "", str, "String() on nil receiver")
+	})
+
+	assert.NotPanics(t, func() {
+		summary := cr.Summary()
+		assert.Equal(t, "", summary, "Summary() on nil receiver")
+	})
+
+	assert.NotPanics(t, func() {
+		health := cr.HealthStateType()
+		assert.Equal(t, apiv1.HealthStateType(""), health, "HealthStateType() on nil receiver")
+	})
+
+	assert.NotPanics(t, func() {
+		errStr := cr.getError()
+		assert.Equal(t, "", errStr, "getError() on nil receiver")
+	})
+}
+
+func TestCheckResultSummaryNotNil(t *testing.T) {
+	cr := &checkResult{
+		reason: "test reason",
+	}
+	summary := cr.Summary()
+	assert.Equal(t, "test reason", summary)
 }

@@ -83,6 +83,19 @@ func TestName(t *testing.T) {
 	assert.Equal(t, Name, c.Name(), "Component name should be 'tailscale'")
 }
 
+func TestTags(t *testing.T) {
+	ctx := context.Background()
+	c := mockComponent(ctx, true, true, nil)
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
+}
+
 func TestStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
