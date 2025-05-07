@@ -281,7 +281,7 @@ func read(ctx context.Context, p process.Process, cacheExpiration time.Duration,
 
 			parsed := parseLogLine(line)
 			if occurrences := deduper.addCache(parsed); occurrences > 1 {
-				log.Logger.Warnw("skipping duplicate log line", "occurrences", occurrences, "timestamp", parsed.ts, "line", parsed.content)
+				log.Logger.Debugw("skipping duplicate log line", "occurrences", occurrences, "timestamp", parsed.ts, "line", parsed.content)
 				return
 			}
 
