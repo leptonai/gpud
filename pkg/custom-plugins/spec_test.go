@@ -2525,7 +2525,7 @@ func TestComponentListWithRunMode(t *testing.T) {
 	}
 }
 
-func TestExpandComponentListWithTags(t *testing.T) {
+func TestExpandComponentListWithLabels(t *testing.T) {
 	tests := []struct {
 		name          string
 		spec          Spec
@@ -2533,15 +2533,15 @@ func TestExpandComponentListWithTags(t *testing.T) {
 		expectError   bool
 	}{
 		{
-			name: "component list with tags in run mode",
+			name: "component list with labels in run mode",
 			spec: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponentList,
 				RunMode:    "auto",
-				Tags:       []string{"parent-tag"},
+				Labels:     []string{"parent-label"},
 				ComponentList: []string{
-					"comp1#auto[tag1,tag2]",
-					"comp2#manual[tag3]:param",
+					"comp1#auto[label1,label2]",
+					"comp2#manual[label3]:param",
 					"comp3#auto",
 				},
 				HealthStatePlugin: &Plugin{
@@ -2561,7 +2561,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 					PluginName: "comp1",
 					Type:       SpecTypeComponent,
 					RunMode:    "auto",
-					Tags:       []string{"tag1", "tag2"},
+					Labels:     []string{"label1", "label2"},
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -2578,7 +2578,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 					PluginName: "comp2",
 					Type:       SpecTypeComponent,
 					RunMode:    "manual",
-					Tags:       []string{"tag3"},
+					Labels:     []string{"label3"},
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -2595,7 +2595,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 					PluginName: "comp3",
 					Type:       SpecTypeComponent,
 					RunMode:    "auto",
-					Tags:       []string{"parent-tag"},
+					Labels:     []string{"parent-label"},
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -2612,7 +2612,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "component list with empty tags",
+			name: "component list with empty labels",
 			spec: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponentList,
@@ -2637,7 +2637,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 					PluginName: "comp1",
 					Type:       SpecTypeComponent,
 					RunMode:    "auto",
-					Tags:       []string{},
+					Labels:     []string{},
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -2654,13 +2654,13 @@ func TestExpandComponentListWithTags(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "component list with invalid tag format",
+			name: "component list with invalid label format",
 			spec: Spec{
 				PluginName: "test-plugin",
 				Type:       SpecTypeComponentList,
 				RunMode:    "auto",
 				ComponentList: []string{
-					"comp1#auto[tag1,tag2", // Missing closing bracket
+					"comp1#auto[label1,label2", // Missing closing bracket
 				},
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
@@ -2696,7 +2696,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 				assert.Equal(t, expected.PluginName, actual.PluginName)
 				assert.Equal(t, expected.Type, actual.Type)
 				assert.Equal(t, expected.RunMode, actual.RunMode)
-				assert.Equal(t, expected.Tags, actual.Tags)
+				assert.Equal(t, expected.Labels, actual.Labels)
 				assert.Equal(t, expected.HealthStatePlugin.Steps[0].RunBashScript.Script, actual.HealthStatePlugin.Steps[0].RunBashScript.Script)
 			}
 		})
@@ -2710,7 +2710,7 @@ func TestParseComponentListEntry(t *testing.T) {
 		wantName       string
 		wantParam      string
 		wantRunMode    string
-		wantTags       []string
+		wantLabels     []string
 		wantErr        bool
 		wantErrMessage string
 	}{
@@ -2720,7 +2720,7 @@ func TestParseComponentListEntry(t *testing.T) {
 			wantName:    "comp1",
 			wantParam:   "",
 			wantRunMode: "",
-			wantTags:    nil,
+			wantLabels:  nil,
 		},
 		{
 			name:        "name with param",
@@ -2728,7 +2728,7 @@ func TestParseComponentListEntry(t *testing.T) {
 			wantName:    "comp1",
 			wantParam:   "param1",
 			wantRunMode: "",
-			wantTags:    nil,
+			wantLabels:  nil,
 		},
 		{
 			name:        "name with run mode",
@@ -2736,7 +2736,7 @@ func TestParseComponentListEntry(t *testing.T) {
 			wantName:    "comp1",
 			wantParam:   "",
 			wantRunMode: "auto",
-			wantTags:    nil,
+			wantLabels:  nil,
 		},
 		{
 			name:        "name with run mode and param",
@@ -2744,39 +2744,39 @@ func TestParseComponentListEntry(t *testing.T) {
 			wantName:    "comp1",
 			wantParam:   "param1",
 			wantRunMode: "auto",
-			wantTags:    nil,
+			wantLabels:  nil,
 		},
 		{
-			name:        "name with tags",
-			entry:       "comp1#auto[tag1,tag2]",
+			name:        "name with labels",
+			entry:       "comp1#auto[label1,label2]",
 			wantName:    "comp1",
 			wantParam:   "",
 			wantRunMode: "auto",
-			wantTags:    []string{"tag1", "tag2"},
+			wantLabels:  []string{"label1", "label2"},
 		},
 		{
-			name:        "name with tags and param",
-			entry:       "comp1#auto[tag1,tag2]:param1",
+			name:        "name with labels and param",
+			entry:       "comp1#auto[label1,label2]:param1",
 			wantName:    "comp1",
 			wantParam:   "param1",
 			wantRunMode: "auto",
-			wantTags:    []string{"tag1", "tag2"},
+			wantLabels:  []string{"label1", "label2"},
 		},
 		{
-			name:        "name with empty tags",
+			name:        "name with empty labels",
 			entry:       "comp1#auto[]",
 			wantName:    "comp1",
 			wantParam:   "",
 			wantRunMode: "auto",
-			wantTags:    []string{},
+			wantLabels:  []string{},
 		},
 		{
-			name:        "name with spaces in tags",
-			entry:       "comp1#auto[tag1, tag2 , tag3]",
+			name:        "name with spaces in labels",
+			entry:       "comp1#auto[label1, label2 , label3]",
 			wantName:    "comp1",
 			wantParam:   "",
 			wantRunMode: "auto",
-			wantTags:    []string{"tag1", "tag2", "tag3"},
+			wantLabels:  []string{"label1", "label2", "label3"},
 		},
 		{
 			name:           "empty name",
@@ -2785,22 +2785,22 @@ func TestParseComponentListEntry(t *testing.T) {
 			wantErrMessage: "component name cannot be empty in component list",
 		},
 		{
-			name:           "invalid tag format - missing closing bracket",
-			entry:          "comp1#auto[tag1,tag2",
+			name:           "invalid label format - missing closing bracket",
+			entry:          "comp1#auto[label1,label2",
 			wantErr:        true,
-			wantErrMessage: "invalid tag format in component list entry: comp1#auto[tag1,tag2",
+			wantErrMessage: "invalid label format in component list entry: comp1#auto[label1,label2",
 		},
 		{
-			name:           "invalid tag format - missing opening bracket",
-			entry:          "comp1#auto]tag1,tag2]",
+			name:           "invalid label format - missing opening bracket",
+			entry:          "comp1#auto]label1,label2]",
 			wantErr:        true,
-			wantErrMessage: "invalid tag format in component list entry: comp1#auto]tag1,tag2]",
+			wantErrMessage: "invalid label format in component list entry: comp1#auto]label1,label2]",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotName, gotParam, gotRunMode, gotTags, err := parseComponentListEntry(tt.entry)
+			gotName, gotParam, gotRunMode, gotLabels, err := parseComponentListEntry(tt.entry)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Equal(t, tt.wantErrMessage, err.Error())
@@ -2810,7 +2810,7 @@ func TestParseComponentListEntry(t *testing.T) {
 			assert.Equal(t, tt.wantName, gotName)
 			assert.Equal(t, tt.wantParam, gotParam)
 			assert.Equal(t, tt.wantRunMode, gotRunMode)
-			assert.Equal(t, tt.wantTags, gotTags)
+			assert.Equal(t, tt.wantLabels, gotLabels)
 		})
 	}
 }

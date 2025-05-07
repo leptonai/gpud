@@ -31,7 +31,7 @@ func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
 	r.GET(URLPathComponentsTriggerCheck, g.triggerComponentCheck)
 	r.GET(URLPathComponentsCustomPlugins, g.getComponentsCustomPlugins)
-	r.GET(URLPathComponentsTriggerTag, g.triggerComponentsByTag)
+	r.GET(URLPathComponentsTriggerLabel, g.triggerComponentsByLabel)
 
 	if g.cfg.EnablePluginAPI {
 		r.DELETE(URLPathComponents, g.deregisterComponent)
@@ -610,37 +610,37 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 	}
 }
 
-// URLPathTriggerTag is for triggering all components that have the specified tag
-const URLPathComponentsTriggerTag = "/components/trigger-tag"
+// URLPathTriggerLabel is for triggering all components that have the specified label
+const URLPathComponentsTriggerLabel = "/components/trigger-label"
 
-// triggerComponentsByTag triggers all components that have the specified tag
-func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
-	tagName := c.Query("tagName")
-	if tagName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tagName parameter is required"})
+// triggerComponentsByLabel triggers all components that have the specified label
+func (g *globalHandler) triggerComponentsByLabel(c *gin.Context) {
+	labelName := c.Query("labelName")
+	if labelName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "labelName parameter is required"})
 		return
 	}
 
-	// TODO: Consider implementing a tag-based index structure to avoid linear scan
-	// This could be a map[tag][]Component or similar structure that's maintained
+	// TODO: Consider implementing a label-based index structure to avoid linear scan
+	// This could be a map[label][]Component or similar structure that's maintained
 	// when components are registered/deregistered
 	components := g.componentsRegistry.All()
 	success := true
 	triggeredCount := 0
 
 	for _, comp := range components {
-		// Check if component has the specified tag
+		// Check if component has the specified label
 		// For now, we'll do a linear scan through all components
-		// This could be optimized with a tag-based index structure
+		// This could be optimized with a label-based index structure
 		if spec, ok := comp.(pkgcustomplugins.CustomPluginRegisteree); ok {
-			hasTag := false
-			for _, tag := range spec.Spec().Tags {
-				if tag == tagName {
-					hasTag = true
+			hasLabel := false
+			for _, label := range spec.Spec().Labels {
+				if label == labelName {
+					hasLabel = true
 					break
 				}
 			}
-			if hasTag {
+			if hasLabel {
 				triggeredCount++
 				if err := comp.Check(); err != nil {
 					success = false
@@ -651,7 +651,7 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 
 	if triggeredCount == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": fmt.Sprintf("No components found with tag: %s", tagName),
+			"error": fmt.Sprintf("No components found with label: %s", labelName),
 		})
 		return
 	}
@@ -663,7 +663,7 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":    success,
-		"message":    fmt.Sprintf("Triggered %d components with tag: %s", triggeredCount, tagName),
+		"message":    fmt.Sprintf("Triggered %d components with label: %s", triggeredCount, labelName),
 		"exitStatus": exitStatus,
 	})
 }
