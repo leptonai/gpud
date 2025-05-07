@@ -18,7 +18,7 @@ StandardError=append:/var/log/gpud.log
 Type=notify
 
 # https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
-Restart=on-failure
+Restart=always
 RestartSec=5s
 
 # all remaining processes in the control group of this unit will be killed on unit stop
