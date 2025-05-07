@@ -43,13 +43,14 @@ func LoadSpecs(path string) (Specs, error) {
 }
 
 var (
-	ErrInvalidPluginType     = errors.New("invalid plugin type")
-	ErrComponentNameRequired = errors.New("component name is required")
-	ErrStepNameRequired      = errors.New("step name is required")
-	ErrMissingPluginStep     = errors.New("plugin step cannot be empty")
-	ErrMissingStatePlugin    = errors.New("state plugin is required")
-	ErrScriptRequired        = errors.New("script is required")
-	ErrIntervalTooShort      = errors.New("interval is too short")
+	ErrInvalidPluginType        = errors.New("invalid plugin type")
+	ErrComponentNameRequired    = errors.New("component name is required")
+	ErrStepNameRequired         = errors.New("step name is required")
+	ErrMissingPluginStep        = errors.New("plugin step cannot be empty")
+	ErrMissingStatePlugin       = errors.New("state plugin is required")
+	ErrScriptRequired           = errors.New("script is required")
+	ErrIntervalTooShort         = errors.New("interval is too short")
+	ErrComponentListNotExpanded = errors.New("component list must be expanded before validation")
 )
 
 const (
@@ -114,20 +115,6 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 			return nil, fmt.Errorf("component list is empty")
 		}
 
-		// Validate each component name in the list
-		for _, component := range spec.ComponentList {
-			if component == "" {
-				return nil, fmt.Errorf("component name cannot be empty in component list")
-			}
-			// Split on ':' to get name#run_mode and parameter
-			parts := strings.SplitN(component, ":", 2)
-			// Split on '#' to get name and run_mode
-			nameParts := strings.SplitN(parts[0], "#", 2)
-			if nameParts[0] == "" {
-				return nil, fmt.Errorf("component name cannot be empty in component list")
-			}
-		}
-
 		if spec.ComponentName() == "" {
 			return nil, ErrComponentNameRequired
 		}
@@ -138,18 +125,18 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 
 		// Create a new plugin for each component in the list
 		for _, component := range spec.ComponentList {
-			// Split on ':' to get name#run_mode and parameter
-			parts := strings.SplitN(component, ":", 2)
-			// Split on '#' to get name and run_mode
-			nameParts := strings.SplitN(parts[0], "#", 2)
-			name := nameParts[0]
-			runMode := spec.RunMode // Default to parent's run_mode
-			if len(nameParts) > 1 {
-				runMode = nameParts[1]
+			name, param, runMode, tags := parseComponentListEntry(component)
+			if name == "" {
+				return nil, fmt.Errorf("component name cannot be empty in component list")
 			}
-			param := ""
-			if len(parts) > 1 {
-				param = parts[1]
+
+			// Use parent's run mode if not specified in the entry
+			if runMode == "" {
+				runMode = spec.RunMode
+			}
+
+			if tags == nil {
+				tags = spec.Tags
 			}
 
 			// Create a new plugin with substituted parameters
@@ -157,6 +144,7 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 				PluginName: name,
 				Type:       SpecTypeComponent,
 				RunMode:    runMode,
+				Tags:       tags, // Add the parsed tags to the expanded plugin
 				HealthStatePlugin: &Plugin{
 					Steps:  make([]Step, len(spec.HealthStatePlugin.Steps)),
 					Parser: spec.HealthStatePlugin.Parser,
@@ -190,6 +178,41 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 	return expandedSpecs, nil
 }
 
+// parseComponentListEntry parses a component list entry.
+// The entry can be in the following formats:
+// - "name"
+// - "name:param"
+// - "name#run_mode[tag1,tag2]"
+// - "name#run_mode[tag1,tag2]:param"
+func parseComponentListEntry(entry string) (name, param, runMode string, tags []string) {
+	// First split by ':' to separate name and param
+	parts := strings.SplitN(entry, ":", 2)
+	namePart := parts[0]
+	if len(parts) > 1 {
+		param = parts[1]
+	}
+
+	// Then split by '#' to separate name and run mode
+	nameParts := strings.SplitN(namePart, "#", 2)
+	name = nameParts[0]
+	if len(nameParts) > 1 {
+		runModePart := nameParts[1]
+		// Check if run mode contains tags
+		if strings.HasPrefix(runModePart, "[") && strings.HasSuffix(runModePart, "]") {
+			tagsStr := runModePart[1 : len(runModePart)-1]
+			tags = strings.Split(tagsStr, ",")
+			// Trim spaces from tags
+			for i, tag := range tags {
+				tags[i] = strings.TrimSpace(tag)
+			}
+		} else {
+			runMode = runModePart
+		}
+	}
+
+	return name, param, runMode, tags
+}
+
 // Validate validates the plugin spec.
 func (spec *Spec) Validate() error {
 	switch spec.Type {
@@ -219,6 +242,11 @@ func (spec *Spec) Validate() error {
 
 	if spec.Interval.Duration > 0 && spec.Interval.Duration < time.Minute {
 		return ErrIntervalTooShort
+	}
+
+	// Validate component list
+	if spec.Type == SpecTypeComponentList {
+		return ErrComponentListNotExpanded
 	}
 
 	return nil

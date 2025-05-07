@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"time"
@@ -30,6 +31,7 @@ func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
 	r.GET(URLPathComponentsTriggerCheck, g.triggerComponentCheck)
 	r.GET(URLPathComponentsCustomPlugins, g.getComponentsCustomPlugins)
+	r.GET(URLPathComponentsTriggerTag, g.triggerComponentsByTag)
 
 	if g.cfg.EnablePluginAPI {
 		r.DELETE(URLPathComponents, g.deregisterComponent)
@@ -606,4 +608,62 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "invalid content type"})
 	}
+}
+
+// URLPathTriggerTag is for triggering all components that have the specified tag
+const URLPathComponentsTriggerTag = "/components/trigger-tag"
+
+// triggerComponentsByTag triggers all components that have the specified tag
+func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
+	tagName := c.Query("tagName")
+	if tagName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tagName parameter is required"})
+		return
+	}
+
+	// TODO: Consider implementing a tag-based index structure to avoid linear scan
+	// This could be a map[tag][]Component or similar structure that's maintained
+	// when components are registered/deregistered
+	components := g.componentsRegistry.All()
+	success := true
+	triggeredCount := 0
+
+	for _, comp := range components {
+		// Check if component has the specified tag
+		// For now, we'll do a linear scan through all components
+		// This could be optimized with a tag-based index structure
+		if spec, ok := comp.(pkgcustomplugins.CustomPluginRegisteree); ok {
+			hasTag := false
+			for _, tag := range spec.Spec().Tags {
+				if tag == tagName {
+					hasTag = true
+					break
+				}
+			}
+			if hasTag {
+				triggeredCount++
+				if err := comp.Check(); err != nil {
+					success = false
+				}
+			}
+		}
+	}
+
+	if triggeredCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": fmt.Sprintf("No components found with tag: %s", tagName),
+		})
+		return
+	}
+
+	exitStatus := "all tests exited with status 0"
+	if !success {
+		exitStatus = "not all tests exited with status 0"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":    success,
+		"message":    fmt.Sprintf("Triggered %d components with tag: %s", triggeredCount, tagName),
+		"exitStatus": exitStatus,
+	})
 }

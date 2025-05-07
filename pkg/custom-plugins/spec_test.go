@@ -2524,3 +2524,267 @@ func TestComponentListWithRunMode(t *testing.T) {
 		})
 	}
 }
+
+func TestExpandComponentListWithTags(t *testing.T) {
+	tests := []struct {
+		name          string
+		spec          Spec
+		expectedSpecs []Spec
+		expectError   bool
+	}{
+		{
+			name: "component list with tags in run mode",
+			spec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				Tags:       []string{"parent-tag"},
+				ComponentList: []string{
+					"comp1#auto[tag1,tag2]",
+					"comp2#manual[tag3]:param",
+					"comp3#auto",
+				},
+				HealthStatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo ${NAME} ${PAR}",
+							},
+						},
+					},
+				},
+			},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "comp1",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{"tag1", "tag2"},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo comp1 ",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "comp2",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Tags:       []string{"tag3"},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo comp2 param",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "comp3",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{"parent-tag"},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo comp3 ",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "component list with empty tags",
+			spec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				ComponentList: []string{
+					"comp1#auto[]",
+				},
+				HealthStatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo ${NAME}",
+							},
+						},
+					},
+				},
+			},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "comp1",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo comp1",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "component list with invalid tag format",
+			spec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				ComponentList: []string{
+					"comp1#auto[tag1,tag2", // Missing closing bracket
+				},
+				HealthStatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo ${NAME}",
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			specs := Specs{tt.spec}
+			expandedSpecs, err := specs.ExpandComponentList()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, len(tt.expectedSpecs), len(expandedSpecs))
+
+			for i, expected := range tt.expectedSpecs {
+				actual := expandedSpecs[i]
+				assert.Equal(t, expected.PluginName, actual.PluginName)
+				assert.Equal(t, expected.Type, actual.Type)
+				assert.Equal(t, expected.RunMode, actual.RunMode)
+				assert.Equal(t, expected.Tags, actual.Tags)
+				assert.Equal(t, expected.HealthStatePlugin.Steps[0].RunBashScript.Script, actual.HealthStatePlugin.Steps[0].RunBashScript.Script)
+			}
+		})
+	}
+}
+
+func TestParseComponentListEntry(t *testing.T) {
+	tests := []struct {
+		name          string
+		entry         string
+		expectedName  string
+		expectedParam string
+		expectedMode  string
+		expectedTags  []string
+	}{
+		{
+			name:          "simple name",
+			entry:         "comp1",
+			expectedName:  "comp1",
+			expectedParam: "",
+			expectedMode:  "",
+			expectedTags:  nil,
+		},
+		{
+			name:          "name with param",
+			entry:         "comp1:param1",
+			expectedName:  "comp1",
+			expectedParam: "param1",
+			expectedMode:  "",
+			expectedTags:  nil,
+		},
+		{
+			name:          "name with run mode",
+			entry:         "comp1#auto",
+			expectedName:  "comp1",
+			expectedParam: "",
+			expectedMode:  "auto",
+			expectedTags:  nil,
+		},
+		{
+			name:          "name with run mode and param",
+			entry:         "comp1#auto:param1",
+			expectedName:  "comp1",
+			expectedParam: "param1",
+			expectedMode:  "auto",
+			expectedTags:  nil,
+		},
+		{
+			name:          "name with tags",
+			entry:         "comp1#auto[tag1,tag2]",
+			expectedName:  "comp1",
+			expectedParam: "",
+			expectedMode:  "auto",
+			expectedTags:  []string{"tag1", "tag2"},
+		},
+		{
+			name:          "name with tags and param",
+			entry:         "comp1#auto[tag1,tag2]:param1",
+			expectedName:  "comp1",
+			expectedParam: "param1",
+			expectedMode:  "auto",
+			expectedTags:  []string{"tag1", "tag2"},
+		},
+		{
+			name:          "name with empty tags",
+			entry:         "comp1#auto[]",
+			expectedName:  "comp1",
+			expectedParam: "",
+			expectedMode:  "auto",
+			expectedTags:  []string{},
+		},
+		{
+			name:          "name with spaces in tags",
+			entry:         "comp1#auto[tag1, tag2 , tag3]",
+			expectedName:  "comp1",
+			expectedParam: "",
+			expectedMode:  "auto",
+			expectedTags:  []string{"tag1", "tag2", "tag3"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, param, mode, tags := parseComponentListEntry(tt.entry)
+			assert.Equal(t, tt.expectedName, name)
+			assert.Equal(t, tt.expectedParam, param)
+			assert.Equal(t, tt.expectedMode, mode)
+			assert.Equal(t, tt.expectedTags, tags)
+		})
+	}
+}

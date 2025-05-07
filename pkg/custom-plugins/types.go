@@ -44,10 +44,12 @@ type Spec struct {
 
 	// ComponentList is a list of component names for SpecTypeComponentList.
 	// Each item can be a simple name or "name:param" format.
+	// For component list, tags can be specified in the format "name#run_mode[tag1,tag2]:param"
 	ComponentList []string `json:"component_list,omitempty"`
 
 	// ComponentListFile is a path to a file containing component names for SpecTypeComponentList.
 	// Each line can be a simple name or "name:param" format.
+	// For component list file, tags can be specified in the format "name#run_mode[tag1,tag2]:param"
 	ComponentListFile string `json:"component_list_file,omitempty"`
 
 	// RunMode defines the run mode of the plugin.
@@ -67,6 +69,11 @@ type Spec struct {
 	// This "manual" mode is only applicable to "component" type plugins.
 	// This "manual" mode is not applicable to "init" type plugins.
 	RunMode string `json:"run_mode"`
+
+	// Tags is a list of tags associated with this component.
+	// Tags can be used to group and trigger components together.
+	// For component list type, tags can also be specified in the run mode format.
+	Tags []string `json:"tags,omitempty"`
 
 	// HealthStatePlugin defines the plugin instructions
 	// to evaluate the health state of this plugin,
