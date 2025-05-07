@@ -27,7 +27,7 @@ func (m *mockComponent) Name() string {
 	return m.name
 }
 
-func (m *mockComponent) Tags() []string {
+func (m *mockComponent) Labels() []string {
 	return m.tags
 }
 

@@ -30,7 +30,7 @@ func (m *mockComponent) Name() string {
 	return args.String(0)
 }
 
-func (m *mockComponent) Tags() []string {
+func (m *mockComponent) Labels() []string {
 	args := m.Called()
 	return args.Get(0).([]string)
 }

@@ -37,7 +37,7 @@ func TestTags(t *testing.T) {
 		Name,
 	}
 
-	tags := c.Tags()
+	tags := c.Labels()
 	if len(tags) != len(expectedTags) {
 		t.Errorf("expected %d tags, got %d", len(expectedTags), len(tags))
 	}
