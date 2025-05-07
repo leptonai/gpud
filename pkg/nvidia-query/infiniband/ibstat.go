@@ -18,6 +18,7 @@ import (
 
 var ErrNoIbstatCommand = errors.New("ibstat not found, cannot check ib state")
 
+// GetIbstatOutput returns the output of the ibstat command.
 func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutput, error) {
 	if len(ibstatCommands) == 0 || strings.TrimSpace(ibstatCommands[0]) == "" {
 		return nil, ErrNoIbstatCommand

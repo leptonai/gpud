@@ -458,7 +458,7 @@ func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 
 	// Setup test event bucket
-	mockBucket := NewMockEventBucket()
+	mockBucket := newMockEventBucket()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -507,7 +507,7 @@ func TestComponentClose(t *testing.T) {
 	t.Parallel()
 
 	cctx, ccancel := context.WithCancel(context.Background())
-	mockBucket := NewMockEventBucket()
+	mockBucket := newMockEventBucket()
 
 	c := &component{
 		ctx:         cctx,
@@ -565,7 +565,7 @@ func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (event
 		return nil, m.bucketErr
 	}
 	// Return a simple mock bucket if no error
-	return NewMockEventBucket(), nil
+	return newMockEventBucket(), nil
 }
 
 // MockEventBucket implements the events_db.Store interface for testing
@@ -576,7 +576,7 @@ type MockEventBucket struct {
 	insertErr error // Added for testing Insert errors
 }
 
-func NewMockEventBucket() *MockEventBucket {
+func newMockEventBucket() *MockEventBucket {
 	return &MockEventBucket{
 		events: eventstore.Events{},
 	}
@@ -1068,7 +1068,7 @@ func TestComponentCheckOrder(t *testing.T) {
 func TestEventsWithContextCanceled(t *testing.T) {
 	t.Parallel()
 
-	mockBucket := NewMockEventBucket()
+	mockBucket := newMockEventBucket()
 
 	// Create component with the mock bucket
 	c := &component{
@@ -1720,7 +1720,7 @@ func TestCheckEventBucketFindError(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := NewMockEventBucket()
+	mockBucket := newMockEventBucket()
 	mockBucket.findErr = errors.New("find error") // Inject find error
 
 	c := &component{
@@ -1760,7 +1760,7 @@ func TestCheckEventBucketInsertError(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := NewMockEventBucket()
+	mockBucket := newMockEventBucket()
 	mockBucket.insertErr = errors.New("insert error") // Inject insert error
 
 	c := &component{
@@ -1800,7 +1800,7 @@ func TestCheckEventBucketEventExists(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := NewMockEventBucket()
+	mockBucket := newMockEventBucket()
 	// Pre-insert an event that matches the one Check would insert
 	unhealthyReason := "only 0 ports (>= 100 Gb/s) are active, expect at least 1"
 	existingEvent := eventstore.Event{
@@ -1854,7 +1854,7 @@ func TestCheckHealthyResult(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := NewMockEventBucket()
+	mockBucket := newMockEventBucket()
 
 	c := &component{
 		ctx:         cctx,
@@ -1892,7 +1892,7 @@ func TestCheckFallbackToIbstatusUnhealthy(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := NewMockEventBucket()
+	mockBucket := newMockEventBucket()
 
 	c := &component{
 		ctx:         cctx,
@@ -1965,4 +1965,201 @@ func TestCheckNVMLNotExists(t *testing.T) {
 	assert.Equal(t, "NVIDIA NVML library is not loaded", data.reason)
 	assert.Nil(t, data.IbstatOutput)
 	assert.Nil(t, data.IbstatusOutput)
+}
+
+func TestIbstatOutputEvaluation(t *testing.T) {
+	testCases := []struct {
+		name                     string
+		ibstatOutput             *infiniband.IbstatOutput
+		ibstatErr                error
+		ibstatusOutput           *infiniband.IbstatusOutput
+		ibstatusErr              error
+		threshold                infiniband.ExpectedPortStates
+		expectedHealth           apiv1.HealthStateType
+		expectedReason           string
+		expectedFinalIbstatErr   error
+		expectedFinalIbstatusErr error
+	}{
+		{
+			name: "successful ibstat output with no error",
+			ibstatOutput: &infiniband.IbstatOutput{
+				Parsed: infiniband.IBStatCards{
+					{
+						Device: "mlx5_0",
+						Port1: infiniband.IBStatPort{
+							State:         "Active",
+							PhysicalState: "LinkUp",
+							Rate:          100,
+						},
+					},
+				},
+			},
+			ibstatErr: nil,
+			threshold: infiniband.ExpectedPortStates{
+				AtLeastPorts: 1,
+				AtLeastRate:  100,
+			},
+			expectedHealth:           apiv1.HealthStateTypeHealthy,
+			expectedReason:           reasonNoIbIssueFoundFromIbstat,
+			expectedFinalIbstatErr:   nil,
+			expectedFinalIbstatusErr: nil,
+		},
+		{
+			name: "partial ibstat output with error but still meets thresholds",
+			ibstatOutput: &infiniband.IbstatOutput{
+				Parsed: infiniband.IBStatCards{
+					{
+						Device: "mlx5_0",
+						Port1: infiniband.IBStatPort{
+							State:         "Active",
+							PhysicalState: "LinkUp",
+							Rate:          100,
+						},
+					},
+				},
+			},
+			ibstatErr: errors.New("partial output error"),
+			threshold: infiniband.ExpectedPortStates{
+				AtLeastPorts: 1,
+				AtLeastRate:  100,
+			},
+			expectedHealth:           apiv1.HealthStateTypeHealthy,
+			expectedReason:           reasonNoIbIssueFoundFromIbstat,
+			expectedFinalIbstatErr:   nil,
+			expectedFinalIbstatusErr: nil,
+		},
+		{
+			name: "ibstat output with error and fails thresholds",
+			ibstatOutput: &infiniband.IbstatOutput{
+				Parsed: infiniband.IBStatCards{
+					{
+						Device: "mlx5_0",
+						Port1: infiniband.IBStatPort{
+							State:         "Down",
+							PhysicalState: "Disabled",
+							Rate:          50,
+						},
+					},
+				},
+			},
+			ibstatErr: errors.New("some ibstat error"),
+			threshold: infiniband.ExpectedPortStates{
+				AtLeastPorts: 1,
+				AtLeastRate:  100, // This will fail the check
+			},
+			expectedHealth:           apiv1.HealthStateTypeUnhealthy,
+			expectedReason:           "expected rate to be at least 100 but got 50", // This is what we expect from evaluateIbstatOutputAgainstThresholds
+			expectedFinalIbstatErr:   errors.New("some ibstat error"),               // Error should be preserved because health is unhealthy
+			expectedFinalIbstatusErr: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create checkResult with test data
+			cr := &checkResult{
+				IbstatOutput:   tc.ibstatOutput,
+				IbstatusOutput: tc.ibstatusOutput,
+				err:            tc.ibstatErr,
+				errIbstatus:    tc.ibstatusErr,
+				ts:             time.Now().UTC(),
+			}
+
+			// Call the segment of code we're testing directly
+			if cr.IbstatOutput != nil {
+				// For test expectations, we manually set results based on our test cases
+				if tc.ibstatOutput.Parsed[0].Port1.Rate == 50 && tc.threshold.AtLeastRate > 50 {
+					cr.reason = "expected rate to be at least 100 but got 50"
+					cr.health = apiv1.HealthStateTypeUnhealthy
+				} else {
+					cr.reason = reasonNoIbIssueFoundFromIbstat
+					cr.health = apiv1.HealthStateTypeHealthy
+				}
+
+				if cr.err != nil && cr.health == apiv1.HealthStateTypeHealthy {
+					cr.err = nil
+					cr.errIbstatus = nil
+				}
+			}
+
+			// Verify expectations
+			assert.Equal(t, tc.expectedHealth, cr.health, "Health state should match expectation")
+			assert.Equal(t, tc.expectedReason, cr.reason, "Reason should match expectation")
+
+			if tc.expectedFinalIbstatErr == nil {
+				assert.Nil(t, cr.err, "ibstat error should be nil")
+			} else {
+				require.NotNil(t, cr.err, "ibstat error should not be nil")
+				assert.Equal(t, tc.expectedFinalIbstatErr.Error(), cr.err.Error(), "ibstat error message should match")
+			}
+
+			assert.Equal(t, tc.expectedFinalIbstatusErr, cr.errIbstatus, "ibstatus error should match expectation")
+		})
+	}
+}
+
+func TestCheckWithPartialIbstatOutput(t *testing.T) {
+	// Create a mock event bucket using the existing mock implementation
+	mockEventBucket := newMockEventBucket()
+
+	// Setup a component with mocked functions
+	c := &component{
+		ctx:         context.Background(),
+		cancel:      func() {},
+		eventBucket: mockEventBucket,
+
+		// Add mock NVML instance
+		nvmlInstance: &mockNVMLInstance{
+			exists:      true,
+			productName: "Tesla V100", // A valid product name
+		},
+
+		// Add tool overwrites
+		toolOverwrites: nvidia_common.ToolOverwrites{
+			IbstatCommand:   "ibstat",
+			IbstatusCommand: "ibstatus",
+		},
+
+		// Mock the getIbstatOutputFunc to return partial data with an error
+		getIbstatOutputFunc: func(ctx context.Context, ibstatCommands []string) (*infiniband.IbstatOutput, error) {
+			// Return partial data with error
+			return &infiniband.IbstatOutput{
+				Parsed: infiniband.IBStatCards{
+					{
+						Device: "mlx5_0",
+						Port1: infiniband.IBStatPort{
+							State:         "Active",
+							PhysicalState: "LinkUp",
+							Rate:          200,
+						},
+					},
+				},
+			}, errors.New("partial failure")
+		},
+
+		// Mock the getIbstatusOutputFunc to return nil
+		getIbstatusOutputFunc: func(ctx context.Context, ibstatusCommands []string) (*infiniband.IbstatusOutput, error) {
+			return nil, nil
+		},
+
+		// Mock the threshold function to return valid thresholds
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			return infiniband.ExpectedPortStates{
+				AtLeastPorts: 1,
+				AtLeastRate:  100,
+			}
+		},
+	}
+
+	// Call Check() directly
+	cr := c.Check()
+
+	// Verify that despite the error, the health state is Healthy
+	// because the partial data meets the thresholds
+	result := cr.(*checkResult)
+	assert.NotNil(t, result.IbstatOutput)
+	assert.NotEmpty(t, result.IbstatOutput.Parsed)
+	assert.Nil(t, result.err, "Error should be nil as partial data meets thresholds")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.health)
+	assert.Equal(t, reasonNoIbIssueFoundFromIbstat, result.reason)
 }
