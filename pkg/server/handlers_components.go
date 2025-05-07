@@ -622,6 +622,7 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 	components := g.componentsRegistry.All()
 	success := true
 	triggeredComponents := make([]string, 0)
+	exitStatus := 0
 
 	for _, comp := range components {
 		// Check if component has the specified tag using the Tags() method
@@ -631,6 +632,7 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 				triggeredComponents = append(triggeredComponents, comp.Name())
 				if err := comp.Check(); err != nil {
 					success = false
+					exitStatus = 1
 				}
 				break
 			}
@@ -639,6 +641,7 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"components": triggeredComponents,
-		"exit":       0,
+		"exit":       exitStatus,
+		"success":    success,
 	})
 }
