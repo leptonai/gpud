@@ -173,97 +173,15 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.getBlockDevicesFunc != nil {
-		// in case the command is flaky with unknown characters
-		// e.g.,
-		// "unexpected end of JSON input"
-		prevFailed := false
-		for i := 0; i < 5; i++ {
-			cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-			blks, err := c.getBlockDevicesFunc(cctx)
-			ccancel()
-			if err != nil {
-				log.Logger.Errorw("failed to get block devices", "error", err)
-
-				select {
-				case <-c.ctx.Done():
-					cr.health = apiv1.HealthStateTypeUnhealthy
-					cr.err = c.ctx.Err()
-					return cr
-				case <-time.After(c.retryInterval):
-				}
-
-				prevFailed = true
-				continue
-			}
-
-			cr.BlockDevices = blks.Flatten()
-			if prevFailed {
-				log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(cr.BlockDevices))
-			}
-			break
-		}
-		if len(cr.BlockDevices) == 0 {
-			cr.health = apiv1.HealthStateTypeHealthy
-			cr.reason = "no block device found"
+		if !c.fetchBlockDevices(cr) {
 			return cr
 		}
 	}
-
-	// in case the command is flaky with unknown characters
-	// e.g.,
-	// "unexpected end of JSON input"
-	prevFailed := false
-	for i := 0; i < 5; i++ {
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		parts, err := c.getExt4PartitionsFunc(cctx)
-		ccancel()
-		if err != nil {
-			log.Logger.Errorw("failed to get ext4 partitions", "error", err)
-
-			select {
-			case <-c.ctx.Done():
-				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.err = c.ctx.Err()
-				return cr
-			case <-time.After(c.retryInterval):
-			}
-
-			prevFailed = true
-			continue
-		}
-
-		cr.ExtPartitions = parts
-		if prevFailed {
-			log.Logger.Infow("successfully got ext4 partitions after retries", "num_partitions", len(parts))
-		}
-		break
+	if !c.fetchExt4Partitions(cr) {
+		return cr
 	}
-
-	prevFailed = false
-	for i := 0; i < 5; i++ {
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		parts, err := c.getNFSPartitionsFunc(cctx)
-		ccancel()
-		if err != nil {
-			log.Logger.Errorw("failed to get nfs partitions", "error", err)
-
-			select {
-			case <-c.ctx.Done():
-				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.err = c.ctx.Err()
-				return cr
-			case <-time.After(c.retryInterval):
-			}
-
-			prevFailed = true
-			continue
-		}
-
-		cr.NFSPartitions = parts
-		if prevFailed {
-			log.Logger.Infow("successfully got nfs partitions after retries", "num_partitions", len(parts))
-		}
-		break
+	if !c.fetchNFSPartitions(cr) {
+		return cr
 	}
 
 	if len(cr.NFSPartitions) == 0 && len(cr.ExtPartitions) == 0 {
@@ -323,7 +241,7 @@ func (c *component) Check() components.CheckResult {
 		// in case the command is flaky with unknown characters
 		// e.g.,
 		// "unexpected end of JSON input"
-		prevFailed = false
+		prevFailed := false
 		for i := 0; i < 5; i++ {
 			cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
 			mntOut, err := c.findMntFunc(cctx, target)
@@ -383,6 +301,107 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Debugw(cr.reason, "extPartitions", len(cr.ExtPartitions), "nfsPartitions", len(cr.NFSPartitions), "blockDevices", len(cr.BlockDevices))
 
 	return cr
+}
+
+func (c *component) fetchBlockDevices(cr *checkResult) bool {
+	// in case the command is flaky with unknown characters
+	// e.g.,
+	// "unexpected end of JSON input"
+	prevFailed := false
+	for i := 0; i < 5; i++ {
+		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+		blks, err := c.getBlockDevicesFunc(cctx)
+		ccancel()
+		if err != nil {
+			log.Logger.Errorw("failed to get block devices", "error", err)
+
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+				return false
+			case <-time.After(c.retryInterval):
+			}
+
+			prevFailed = true
+			continue
+		}
+
+		cr.BlockDevices = blks.Flatten()
+		if prevFailed {
+			log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(cr.BlockDevices))
+		}
+		break
+	}
+	if len(cr.BlockDevices) == 0 {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "no block device found"
+		return false
+	}
+	return true
+}
+
+func (c *component) fetchExt4Partitions(cr *checkResult) bool {
+	// in case the command is flaky with unknown characters
+	// e.g.,
+	// "unexpected end of JSON input"
+	prevFailed := false
+	for i := 0; i < 5; i++ {
+		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+		parts, err := c.getExt4PartitionsFunc(cctx)
+		ccancel()
+		if err != nil {
+			log.Logger.Errorw("failed to get ext4 partitions", "error", err)
+
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+				return false
+			case <-time.After(c.retryInterval):
+			}
+
+			prevFailed = true
+			continue
+		}
+
+		cr.ExtPartitions = parts
+		if prevFailed {
+			log.Logger.Infow("successfully got ext4 partitions after retries", "num_partitions", len(parts))
+		}
+		break
+	}
+	return true
+}
+
+func (c *component) fetchNFSPartitions(cr *checkResult) bool {
+	prevFailed := false
+	for i := 0; i < 5; i++ {
+		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+		parts, err := c.getNFSPartitionsFunc(cctx)
+		ccancel()
+		if err != nil {
+			log.Logger.Errorw("failed to get nfs partitions", "error", err)
+
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+				return false
+			case <-time.After(c.retryInterval):
+			}
+
+			prevFailed = true
+			continue
+		}
+
+		cr.NFSPartitions = parts
+		if prevFailed {
+			log.Logger.Infow("successfully got nfs partitions after retries", "num_partitions", len(parts))
+		}
+		break
+	}
+	return true
 }
 
 var _ components.CheckResult = &checkResult{}
