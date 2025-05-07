@@ -2,7 +2,6 @@ package customplugins
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -256,12 +255,9 @@ func TestValidate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.plugin.Validate()
-
 			if tc.expectError {
 				assert.Error(t, err)
 				if tc.errorType != nil {
-					fmt.Printf("Expected error: %v\n", tc.errorType)
-					fmt.Printf("Actual error: %v\n", err)
 					assert.ErrorIs(t, err, tc.errorType)
 				}
 			} else {
@@ -2526,184 +2522,6 @@ func TestComponentListWithRunMode(t *testing.T) {
 	}
 }
 
-func TestExpandComponentListWithLabels(t *testing.T) {
-	tests := []struct {
-		name          string
-		spec          Spec
-		expectedSpecs []Spec
-		expectError   bool
-	}{
-		{
-			name: "component list with labels in run mode",
-			spec: Spec{
-				PluginName: "test-plugin",
-				Type:       SpecTypeComponentList,
-				RunMode:    "auto",
-				Labels:     []string{"parent-label"},
-				ComponentList: []string{
-					"comp1#auto[label1,label2]",
-					"comp2#manual[label3]:param",
-					"comp3#auto",
-				},
-				HealthStatePlugin: &Plugin{
-					Steps: []Step{
-						{
-							Name: "test-step",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo ${NAME} ${PAR}",
-							},
-						},
-					},
-				},
-			},
-			expectedSpecs: []Spec{
-				{
-					PluginName: "comp1",
-					Type:       SpecTypeComponent,
-					RunMode:    "auto",
-					Labels:     []string{"label1", "label2"},
-					HealthStatePlugin: &Plugin{
-						Steps: []Step{
-							{
-								Name: "test-step",
-								RunBashScript: &RunBashScript{
-									ContentType: "plaintext",
-									Script:      "echo comp1 ",
-								},
-							},
-						},
-					},
-				},
-				{
-					PluginName: "comp2",
-					Type:       SpecTypeComponent,
-					RunMode:    "manual",
-					Labels:     []string{"label3"},
-					HealthStatePlugin: &Plugin{
-						Steps: []Step{
-							{
-								Name: "test-step",
-								RunBashScript: &RunBashScript{
-									ContentType: "plaintext",
-									Script:      "echo comp2 param",
-								},
-							},
-						},
-					},
-				},
-				{
-					PluginName: "comp3",
-					Type:       SpecTypeComponent,
-					RunMode:    "auto",
-					Labels:     []string{"parent-label"},
-					HealthStatePlugin: &Plugin{
-						Steps: []Step{
-							{
-								Name: "test-step",
-								RunBashScript: &RunBashScript{
-									ContentType: "plaintext",
-									Script:      "echo comp3 ",
-								},
-							},
-						},
-					},
-				},
-			},
-			expectError: false,
-		},
-		{
-			name: "component list with empty labels",
-			spec: Spec{
-				PluginName: "test-plugin",
-				Type:       SpecTypeComponentList,
-				RunMode:    "auto",
-				ComponentList: []string{
-					"comp1#auto[]",
-				},
-				HealthStatePlugin: &Plugin{
-					Steps: []Step{
-						{
-							Name: "test-step",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo ${NAME}",
-							},
-						},
-					},
-				},
-			},
-			expectedSpecs: []Spec{
-				{
-					PluginName: "comp1",
-					Type:       SpecTypeComponent,
-					RunMode:    "auto",
-					Labels:     []string{},
-					HealthStatePlugin: &Plugin{
-						Steps: []Step{
-							{
-								Name: "test-step",
-								RunBashScript: &RunBashScript{
-									ContentType: "plaintext",
-									Script:      "echo comp1",
-								},
-							},
-						},
-					},
-				},
-			},
-			expectError: false,
-		},
-		{
-			name: "component list with invalid label format",
-			spec: Spec{
-				PluginName: "test-plugin",
-				Type:       SpecTypeComponentList,
-				RunMode:    "auto",
-				ComponentList: []string{
-					"comp1#auto[label1,label2", // Missing closing bracket
-				},
-				HealthStatePlugin: &Plugin{
-					Steps: []Step{
-						{
-							Name: "test-step",
-							RunBashScript: &RunBashScript{
-								ContentType: "plaintext",
-								Script:      "echo ${NAME}",
-							},
-						},
-					},
-				},
-			},
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			specs := Specs{tt.spec}
-			expandedSpecs, err := specs.ExpandComponentList()
-
-			if tt.expectError {
-				assert.Error(t, err)
-				return
-			}
-
-			assert.NoError(t, err)
-			assert.Equal(t, len(tt.expectedSpecs), len(expandedSpecs))
-
-			for i, expected := range tt.expectedSpecs {
-				actual := expandedSpecs[i]
-				assert.Equal(t, expected.PluginName, actual.PluginName)
-				assert.Equal(t, expected.Type, actual.Type)
-				assert.Equal(t, expected.RunMode, actual.RunMode)
-				assert.Equal(t, expected.Labels, actual.Labels)
-				assert.Equal(t, expected.HealthStatePlugin.Steps[0].RunBashScript.Script, actual.HealthStatePlugin.Steps[0].RunBashScript.Script)
-			}
-		})
-	}
-}
-
 func TestParseComponentListEntry(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -2976,6 +2794,184 @@ func TestExpandComponentList(t *testing.T) {
 				assert.Equal(t, tt.wantSpecs[i].Tags, gotSpecs[i].Tags)
 				assert.Equal(t, tt.wantSpecs[i].HealthStatePlugin.Steps[0].Command, gotSpecs[i].HealthStatePlugin.Steps[0].Command)
 				assert.Equal(t, tt.wantSpecs[i].HealthStatePlugin.Steps[0].Args, gotSpecs[i].HealthStatePlugin.Steps[0].Args)
+			}
+		})
+	}
+}
+
+func TestExpandComponentListWithTags(t *testing.T) {
+	tests := []struct {
+		name          string
+		spec          Spec
+		expectedSpecs []Spec
+		expectError   bool
+	}{
+		{
+			name: "component list with tags in run mode",
+			spec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				Tags:       []string{"parent-tag"},
+				ComponentList: []string{
+					"comp1#auto[tag1,tag2]",
+					"comp2#manual[tag3]:param",
+					"comp3#auto",
+				},
+				HealthStatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo ${NAME} ${PAR}",
+							},
+						},
+					},
+				},
+			},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "comp1",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{"tag1", "tag2"},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo comp1 ",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "comp2",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Tags:       []string{"tag3"},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo comp2 param",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "comp3",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{"parent-tag"},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo comp3 ",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "component list with empty tags",
+			spec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				ComponentList: []string{
+					"comp1#auto[]",
+				},
+				HealthStatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo ${NAME}",
+							},
+						},
+					},
+				},
+			},
+			expectedSpecs: []Spec{
+				{
+					PluginName: "comp1",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo comp1",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "component list with invalid tag format",
+			spec: Spec{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponentList,
+				RunMode:    "auto",
+				ComponentList: []string{
+					"comp1#auto[tag1,tag2", // Missing closing bracket
+				},
+				HealthStatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo ${NAME}",
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			specs := Specs{tt.spec}
+			expandedSpecs, err := specs.ExpandComponentList()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, len(tt.expectedSpecs), len(expandedSpecs))
+
+			for i, expected := range tt.expectedSpecs {
+				actual := expandedSpecs[i]
+				assert.Equal(t, expected.PluginName, actual.PluginName)
+				assert.Equal(t, expected.Type, actual.Type)
+				assert.Equal(t, expected.RunMode, actual.RunMode)
+				assert.Equal(t, expected.Tags, actual.Tags)
+				assert.Equal(t, expected.HealthStatePlugin.Steps[0].RunBashScript.Script, actual.HealthStatePlugin.Steps[0].RunBashScript.Script)
 			}
 		})
 	}

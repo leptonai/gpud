@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 	"sort"
 	"time"
@@ -47,9 +46,6 @@ func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 
 // URLPathComponents is for getting the list of all gpud components
 const URLPathComponents = "/components"
-
-// URLPathComponentsTriggerTag is for triggering all components that have the specified tag
-const URLPathComponentsTriggerTag = "/components/trigger-tag"
 
 // getComponents godoc
 // @Summary Fetch all components in gpud
@@ -612,6 +608,9 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 	}
 }
 
+// URLPathComponentsTriggerTag is for triggering components by tag
+const URLPathComponentsTriggerTag = "/components/trigger-tag"
+
 // triggerComponentsByTag triggers all components that have the specified tag
 func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 	tagName := c.Query("tagName")
@@ -625,7 +624,7 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 	// when components are registered/deregistered
 	components := g.componentsRegistry.All()
 	success := true
-	triggeredCount := 0
+	triggeredComponents := make([]string, 0)
 
 	for _, comp := range components {
 		// Check if component has the specified tag
@@ -640,7 +639,7 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 				}
 			}
 			if hasTag {
-				triggeredCount++
+				triggeredComponents = append(triggeredComponents, comp.Name())
 				if err := comp.Check(); err != nil {
 					success = false
 				}
@@ -648,21 +647,8 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 		}
 	}
 
-	if triggeredCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": fmt.Sprintf("No components found with tag: %s", tagName),
-		})
-		return
-	}
-
-	exitStatus := "all tests exited with status 0"
-	if !success {
-		exitStatus = "not all tests exited with status 0"
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"success":    success,
-		"message":    fmt.Sprintf("Triggered %d components with tag: %s", triggeredCount, tagName),
-		"exitStatus": exitStatus,
+		"components": triggeredComponents,
+		"exit":       0,
 	})
 }
