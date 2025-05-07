@@ -275,7 +275,7 @@ func readFollow(kmsgFile *os.File, bootTime time.Time, msgs chan<- Message, dedu
 
 		if deduper != nil {
 			if occurrences := deduper.addCache(*msg); occurrences > 1 {
-				log.Logger.Warnw("skipping duplicate kmsg message", "occurrences", occurrences, "timestamp", msg.Timestamp, "message", msg.Message)
+				log.Logger.Debugw("skipping duplicate kmsg message", "occurrences", occurrences, "timestamp", msg.Timestamp, "message", msg.Message)
 				continue
 			}
 		}
