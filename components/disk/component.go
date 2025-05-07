@@ -47,27 +47,6 @@ type component struct {
 
 const defaultRetryInterval = 5 * time.Second
 
-func DefaultFsTypeFunc(fsType string) bool {
-	return fsType == "" ||
-		fsType == "ext4" ||
-		fsType == "LVM2_member" ||
-		fsType == "linux_raid_member" ||
-		fsType == "raid0"
-}
-
-func DefaultExt4FsTypeFunc(fsType string) bool {
-	return fsType == "ext4"
-}
-
-func DefaultNFSFsTypeFunc(fsType string) bool {
-	// ref. https://www.weka.io/
-	return fsType == "wekafs" || fsType == "nfs"
-}
-
-func DefaultDeviceTypeFunc(dt string) bool {
-	return dt == "disk" || dt == "lvm" || dt == "part"
-}
-
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -77,12 +56,12 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		retryInterval: defaultRetryInterval,
 
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
-			return disk.GetPartitions(ctx, disk.WithFstype(DefaultExt4FsTypeFunc))
+			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultExt4FsTypeFunc))
 		},
 		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			// statfs on nfs can incur network I/O or impact disk I/O performance
 			// do not track usage for nfs partitions
-			return disk.GetPartitions(ctx, disk.WithFstype(DefaultNFSFsTypeFunc), disk.WithSkipUsage())
+			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithSkipUsage())
 		},
 
 		findMntFunc: disk.FindMnt,
@@ -93,8 +72,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.GetBlockDevicesWithLsblk(
 				ctx,
-				disk.WithFstype(DefaultFsTypeFunc),
-				disk.WithDeviceType(DefaultDeviceTypeFunc),
+				disk.WithFstype(disk.DefaultFsTypeFunc),
+				disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
 			)
 		}
 	}

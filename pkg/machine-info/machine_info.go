@@ -16,7 +16,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	componentsdisk "github.com/leptonai/gpud/components/disk"
 	"github.com/leptonai/gpud/pkg/asn"
 	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
 	"github.com/leptonai/gpud/pkg/disk"
@@ -236,8 +235,8 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	blks, err := disk.GetBlockDevicesWithLsblk(
 		ctx,
-		disk.WithFstype(componentsdisk.DefaultFsTypeFunc),
-		disk.WithDeviceType(componentsdisk.DefaultDeviceTypeFunc),
+		disk.WithFstype(disk.DefaultFsTypeFunc),
+		disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
 	)
 	if err != nil {
 		return nil, err
@@ -268,7 +267,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	if runtime.GOOS == "linux" {
 		nfsParts, err := disk.GetPartitions(
 			ctx,
-			disk.WithFstype(componentsdisk.DefaultNFSFsTypeFunc),
+			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
 
 			// statfs on nfs can incur network I/O or impact disk I/O performance
 			// do not track usage for nfs partitions

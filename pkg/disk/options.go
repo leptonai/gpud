@@ -62,3 +62,24 @@ func DefaultMatchFuncFstype(fs string) bool {
 func DefaultMatchFuncDeviceType(deviceType string) bool {
 	return deviceType == "disk" // not "part" partitions
 }
+
+func DefaultFsTypeFunc(fsType string) bool {
+	return fsType == "" ||
+		fsType == "ext4" ||
+		fsType == "LVM2_member" ||
+		fsType == "linux_raid_member" ||
+		fsType == "raid0"
+}
+
+func DefaultExt4FsTypeFunc(fsType string) bool {
+	return fsType == "ext4"
+}
+
+func DefaultNFSFsTypeFunc(fsType string) bool {
+	// ref. https://www.weka.io/
+	return fsType == "wekafs" || fsType == "nfs"
+}
+
+func DefaultDeviceTypeFunc(dt string) bool {
+	return dt == "disk" || dt == "lvm" || dt == "part"
+}
