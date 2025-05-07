@@ -5,6 +5,7 @@ import "strings"
 type Op struct {
 	matchFuncFstype     MatchFunc
 	matchFuncDeviceType MatchFunc
+	skipUsage           bool
 }
 
 type MatchFunc func(fs string) bool
@@ -40,6 +41,12 @@ func WithFstype(matchFunc MatchFunc) OpOption {
 func WithDeviceType(matchFunc MatchFunc) OpOption {
 	return func(op *Op) {
 		op.matchFuncDeviceType = matchFunc
+	}
+}
+
+func WithSkipUsage() OpOption {
+	return func(op *Op) {
+		op.skipUsage = true
 	}
 }
 

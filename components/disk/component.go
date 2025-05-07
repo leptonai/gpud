@@ -80,7 +80,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return disk.GetPartitions(ctx, disk.WithFstype(DefaultExt4FsTypeFunc))
 		},
 		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
-			return disk.GetPartitions(ctx, disk.WithFstype(DefaultNFSFsTypeFunc))
+			// statfs on nfs can incur network I/O or impact disk I/O performance
+			// do not track usage for nfs partitions
+			return disk.GetPartitions(ctx, disk.WithFstype(DefaultNFSFsTypeFunc), disk.WithSkipUsage())
 		},
 
 		findMntFunc: disk.FindMnt,

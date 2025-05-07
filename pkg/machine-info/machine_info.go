@@ -269,6 +269,10 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 		nfsParts, err := disk.GetPartitions(
 			ctx,
 			disk.WithFstype(componentsdisk.DefaultNFSFsTypeFunc),
+
+			// statfs on nfs can incur network I/O or impact disk I/O performance
+			// do not track usage for nfs partitions
+			disk.WithSkipUsage(),
 		)
 		if err != nil {
 			return nil, err
