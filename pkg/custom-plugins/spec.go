@@ -78,9 +78,10 @@ func (pluginSpecs Specs) ExpandedValidate() (Specs, error) {
 // The entry can be in the following formats:
 // - "name"
 // - "name:param"
-// - "name#run_mode[label1,label2]"
-// - "name#run_mode[label1,label2]:param"
-func parseComponentListEntry(entry string) (name, param, runMode string, labels []string, err error) {
+// - "name#run_mode[tag1,tag2]"
+// - "name#run_mode[tag1,tag2]:param"
+func parseComponentListEntry(entry string) (name, param, runMode string, tags []string, err error) {
+
 	// First split by ':' to separate name and param
 	parts := strings.SplitN(entry, ":", 2)
 	namePart := parts[0]
@@ -97,36 +98,36 @@ func parseComponentListEntry(entry string) (name, param, runMode string, labels 
 
 	if len(nameParts) > 1 {
 		runModePart := nameParts[1]
-		// Check if run mode contains labels
+		// Check if run mode contains tags
 		hasOpenBracket := strings.Contains(runModePart, "[")
 		hasCloseBracket := strings.Contains(runModePart, "]")
 		if hasOpenBracket != hasCloseBracket {
-			return "", "", "", nil, fmt.Errorf("invalid label format in component list entry: %s", entry)
+			return "", "", "", nil, fmt.Errorf("invalid tag format in component list entry: %s", entry)
 		}
 		if hasOpenBracket && hasCloseBracket {
-			// Extract run mode and labels
+			// Extract run mode and tags
 			runModeEnd := strings.Index(runModePart, "[")
 			runMode = strings.TrimSpace(runModePart[:runModeEnd])
-			labelsStr := runModePart[runModeEnd+1 : len(runModePart)-1]
-			if labelsStr == "" {
-				labels = []string{}
+			tagsStr := runModePart[runModeEnd+1 : len(runModePart)-1]
+			if tagsStr == "" {
+				tags = []string{}
 			} else {
-				labels = strings.Split(labelsStr, ",")
-				// Trim spaces from labels and filter out empty labels
-				validLabels := make([]string, 0, len(labels))
-				for _, label := range labels {
-					if trimmed := strings.TrimSpace(label); trimmed != "" {
-						validLabels = append(validLabels, trimmed)
+				tags = strings.Split(tagsStr, ",")
+				// Trim spaces from tags and filter out empty tags
+				validTags := make([]string, 0, len(tags))
+				for _, tag := range tags {
+					if trimmed := strings.TrimSpace(tag); trimmed != "" {
+						validTags = append(validTags, trimmed)
 					}
 				}
-				labels = validLabels
+				tags = validTags
 			}
 		} else {
 			runMode = strings.TrimSpace(runModePart)
 		}
 	}
 
-	return name, param, runMode, labels, nil
+	return name, param, runMode, tags, nil
 }
 
 // ExpandComponentList expands the component list into multiple components.
@@ -180,7 +181,8 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 
 		// Create a new plugin for each component in the list
 		for _, component := range spec.ComponentList {
-			name, param, runMode, labels, err := parseComponentListEntry(component)
+
+			name, param, runMode, tags, err := parseComponentListEntry(component)
 			if err != nil {
 				return nil, err
 			}
@@ -190,8 +192,8 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 				runMode = spec.RunMode
 			}
 
-			if labels == nil {
-				labels = spec.Labels
+			if tags == nil {
+				tags = spec.Tags
 			}
 
 			// Create a new plugin with substituted parameters
@@ -199,7 +201,7 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 				PluginName: name,
 				Type:       SpecTypeComponent,
 				RunMode:    runMode,
-				Labels:     labels,
+				Tags:       tags,
 				HealthStatePlugin: &Plugin{
 					Steps:  make([]Step, len(spec.HealthStatePlugin.Steps)),
 					Parser: spec.HealthStatePlugin.Parser,

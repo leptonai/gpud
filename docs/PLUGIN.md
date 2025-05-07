@@ -326,15 +326,15 @@ Plugins can be accessed through GPUd's API:
 - Get plugin status: `GET /v1/states?components=<plugin_name>`
 - Trigger manual check: `GET /v1/components/trigger-check?componentName=<plugin_name>` 
 
-## Labels and Component Grouping
+## Tags and Component Grouping
 
-Labels provide a powerful way to group related components together and trigger them as a group. This is particularly useful for scenarios where you need to run multiple related checks or actions together, such as Slurm job prologue/epilogue scripts or continuous monitoring tasks.
+Tags provide a powerful way to group related components together and trigger them as a group. This is particularly useful for scenarios where you need to run multiple related checks or actions together, such as Slurm job prologue/epilogue scripts or continuous monitoring tasks.
 
-### Label Specification
+### Tag Specification
 
-Labels can be specified in two ways, with the following priority:
+Tags can be specified in two ways, with the following priority:
 
-1. **Component List Entry Labels** (Highest Priority):
+1. **Component List Entry Tags** (Highest Priority):
    ```yaml
    component_list:
      - "comp1#auto[slurm.prologue]"
@@ -342,29 +342,29 @@ Labels can be specified in two ways, with the following priority:
      - "comp3#manual[slurm.epilogue]"
    ```
 
-2. **Plugin-Level Labels** (Lower Priority):
+2. **Plugin-Level Tags** (Lower Priority):
    ```yaml
    plugin_name: "slurm-checks"
    type: "component_list"
-   labels: ["slurm.continuous"]
+   tags: ["slurm.continuous"]
    component_list:
      - "comp1#auto"
      - "comp2#auto"
    ```
 
-### Triggering Components by Label
+### Triggering Components by Tag
 
-You can trigger all components with a specific label using the REST API:
+You can trigger all components with a specific tag using the REST API:
 
 ```bash
-# Trigger all components with the slurm.prologue label
-curl -X GET "http://localhost:8080/v1/components/trigger-label?labelName=slurm.prologue"
+# Trigger all components with the slurm.prologue tag
+curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.prologue"
 
-# Trigger all components with the slurm.epilogue label
-curl -X GET "http://localhost:8080/v1/components/trigger-label?labelName=slurm.epilogue"
+# Trigger all components with the slurm.epilogue tag
+curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.epilogue"
 
-# Trigger all components with the slurm.continuous label
-curl -X GET "http://localhost:8080/v1/components/trigger-label?labelName=slurm.continuous"
+# Trigger all components with the slurm.continuous tag
+curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.continuous"
 ```
 
 The API response includes:
@@ -377,14 +377,14 @@ Example response:
 ```json
 {
   "success": true,
-  "message": "Triggered 3 components with label: slurm.prologue",
+  "message": "Triggered 3 components with tag: slurm.prologue",
   "exitStatus": "all tests exited with status 0"
 }
 ```
 
 ### Example: Slurm Integration
 
-Here's a complete example of using labels to implement Slurm prologue, epilogue, and continuous monitoring:
+Here's a complete example of using tags to implement Slurm prologue, epilogue, and continuous monitoring:
 
 ```yaml
 plugin_name: "slurm-checks"
@@ -451,19 +451,19 @@ You can integrate these checks with Slurm by adding the appropriate trigger comm
 
 1. **Prologue** (in `slurm.conf`):
 ```bash
-Prolog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-label?labelName=slurm.prologue"'
+Prolog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.prologue"'
 ```
 
 2. **Epilogue** (in `slurm.conf`):
 ```bash
-Epilog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-label?labelName=slurm.epilogue"'
+Epilog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.epilogue"'
 ```
 
 3. **Continuous Monitoring** (in a separate script):
 ```bash
 #!/bin/bash
 while true; do
-  curl -X GET "http://localhost:8080/v1/components/trigger-label?labelName=slurm.continuous"
+  curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.continuous"
   sleep 300  # Check every 5 minutes
 done
 ```
@@ -472,7 +472,7 @@ The REST API's response status can be used to implement conditional logic in you
 
 ```bash
 #!/bin/bash
-response=$(curl -s -X GET "http://localhost:8080/v1/components/trigger-label?labelName=slurm.prologue")
+response=$(curl -s -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.prologue")
 success=$(echo $response | jq -r '.success')
 exit_status=$(echo $response | jq -r '.exitStatus')
 

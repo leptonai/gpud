@@ -70,10 +70,10 @@ type Spec struct {
 	// This "manual" mode is not applicable to "init" type plugins.
 	RunMode string `json:"run_mode"`
 
-	// Labels is a list of labels associated with this component.
-	// Labels can be used to group and trigger components together.
-	// For component list type, labels can also be specified in the run mode format.
-	Labels []string `json:"labels,omitempty"`
+	// Tags is a list of tags associated with this component.
+	// Tags can be used to group and trigger components together.
+	// For component list type, tags can also be specified in the run mode format.
+	Tags []string `json:"tags,omitempty"`
 
 	// HealthStatePlugin defines the plugin instructions
 	// to evaluate the health state of this plugin,

@@ -18,11 +18,10 @@ import (
 )
 
 const (
-	RequestHeaderContentType = "Content-Type"
-	RequestHeaderJSON        = "application/json"
-	RequestHeaderYAML        = "application/yaml"
-	RequestHeaderJSONIndent  = "json-indent"
-
+	RequestHeaderContentType    = "Content-Type"
+	RequestHeaderYAML           = "application/yaml"
+	RequestHeaderJSON           = "application/json"
+	RequestHeaderJSONIndent     = "json-indent"
 	RequestHeaderAcceptEncoding = "Accept-Encoding"
 	RequestHeaderEncodingGzip   = "gzip"
 )
@@ -31,7 +30,7 @@ func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
 	r.GET(URLPathComponentsTriggerCheck, g.triggerComponentCheck)
 	r.GET(URLPathComponentsCustomPlugins, g.getComponentsCustomPlugins)
-	r.GET(URLPathComponentsTriggerLabel, g.triggerComponentsByLabel)
+	r.GET(URLPathComponentsTriggerTag, g.triggerComponentsByTag)
 
 	if g.cfg.EnablePluginAPI {
 		r.DELETE(URLPathComponents, g.deregisterComponent)
@@ -48,6 +47,9 @@ func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 
 // URLPathComponents is for getting the list of all gpud components
 const URLPathComponents = "/components"
+
+// URLPathComponentsTriggerTag is for triggering all components that have the specified tag
+const URLPathComponentsTriggerTag = "/components/trigger-tag"
 
 // getComponents godoc
 // @Summary Fetch all components in gpud
@@ -610,37 +612,34 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 	}
 }
 
-// URLPathTriggerLabel is for triggering all components that have the specified label
-const URLPathComponentsTriggerLabel = "/components/trigger-label"
-
-// triggerComponentsByLabel triggers all components that have the specified label
-func (g *globalHandler) triggerComponentsByLabel(c *gin.Context) {
-	labelName := c.Query("labelName")
-	if labelName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "labelName parameter is required"})
+// triggerComponentsByTag triggers all components that have the specified tag
+func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
+	tagName := c.Query("tagName")
+	if tagName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tagName parameter is required"})
 		return
 	}
 
-	// TODO: Consider implementing a label-based index structure to avoid linear scan
-	// This could be a map[label][]Component or similar structure that's maintained
+	// TODO: Consider implementing a tag-based index structure to avoid linear scan
+	// This could be a map[tag][]Component or similar structure that's maintained
 	// when components are registered/deregistered
 	components := g.componentsRegistry.All()
 	success := true
 	triggeredCount := 0
 
 	for _, comp := range components {
-		// Check if component has the specified label
+		// Check if component has the specified tag
 		// For now, we'll do a linear scan through all components
-		// This could be optimized with a label-based index structure
+		// This could be optimized with a tag-based index structure
 		if spec, ok := comp.(pkgcustomplugins.CustomPluginRegisteree); ok {
-			hasLabel := false
-			for _, label := range spec.Spec().Labels {
-				if label == labelName {
-					hasLabel = true
+			hasTag := false
+			for _, tag := range spec.Spec().Tags {
+				if tag == tagName {
+					hasTag = true
 					break
 				}
 			}
-			if hasLabel {
+			if hasTag {
 				triggeredCount++
 				if err := comp.Check(); err != nil {
 					success = false
@@ -651,7 +650,7 @@ func (g *globalHandler) triggerComponentsByLabel(c *gin.Context) {
 
 	if triggeredCount == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": fmt.Sprintf("No components found with label: %s", labelName),
+			"error": fmt.Sprintf("No components found with tag: %s", tagName),
 		})
 		return
 	}
@@ -663,7 +662,7 @@ func (g *globalHandler) triggerComponentsByLabel(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":    success,
-		"message":    fmt.Sprintf("Triggered %d components with label: %s", triggeredCount, labelName),
+		"message":    fmt.Sprintf("Triggered %d components with tag: %s", triggeredCount, tagName),
 		"exitStatus": exitStatus,
 	})
 }
