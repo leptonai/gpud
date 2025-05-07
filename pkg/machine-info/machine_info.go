@@ -237,10 +237,8 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	blks, err := disk.GetBlockDevicesWithLsblk(
 		ctx,
 		disk.WithFstype(componentsdisk.DefaultFsTypeFunc),
-		disk.WithDeviceType(func(dt string) bool {
-			return dt == "disk" || dt == "lvm" || dt == "part"
-		},
-		))
+		disk.WithDeviceType(componentsdisk.DefaultDeviceTypeFunc),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -264,6 +262,29 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 			Parents:    bd.Parents,
 			Children:   bd.Children,
 		})
+	}
+
+	// track nfs partitions only with available fields
+	if runtime.GOOS == "linux" {
+		nfsParts, err := disk.GetPartitions(
+			ctx,
+			disk.WithFstype(componentsdisk.DefaultNFSFsTypeFunc),
+		)
+		if err != nil {
+			return nil, err
+		}
+		for _, part := range nfsParts {
+			dev := apiv1.MachineDiskDevice{
+				Name:       part.Device,
+				Type:       "nfs",
+				MountPoint: part.MountPoint,
+				FSType:     part.Fstype,
+			}
+			if part.Usage != nil {
+				dev.Size = int64(part.Usage.TotalBytes)
+			}
+			rs = append(rs, dev)
+		}
 	}
 
 	info := &apiv1.MachineDiskInfo{
