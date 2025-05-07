@@ -2705,86 +2705,112 @@ func TestExpandComponentListWithTags(t *testing.T) {
 
 func TestParseComponentListEntry(t *testing.T) {
 	tests := []struct {
-		name          string
-		entry         string
-		expectedName  string
-		expectedParam string
-		expectedMode  string
-		expectedTags  []string
+		name           string
+		entry          string
+		wantName       string
+		wantParam      string
+		wantRunMode    string
+		wantTags       []string
+		wantErr        bool
+		wantErrMessage string
 	}{
 		{
-			name:          "simple name",
-			entry:         "comp1",
-			expectedName:  "comp1",
-			expectedParam: "",
-			expectedMode:  "",
-			expectedTags:  nil,
+			name:        "simple name",
+			entry:       "comp1",
+			wantName:    "comp1",
+			wantParam:   "",
+			wantRunMode: "",
+			wantTags:    nil,
 		},
 		{
-			name:          "name with param",
-			entry:         "comp1:param1",
-			expectedName:  "comp1",
-			expectedParam: "param1",
-			expectedMode:  "",
-			expectedTags:  nil,
+			name:        "name with param",
+			entry:       "comp1:param1",
+			wantName:    "comp1",
+			wantParam:   "param1",
+			wantRunMode: "",
+			wantTags:    nil,
 		},
 		{
-			name:          "name with run mode",
-			entry:         "comp1#auto",
-			expectedName:  "comp1",
-			expectedParam: "",
-			expectedMode:  "auto",
-			expectedTags:  nil,
+			name:        "name with run mode",
+			entry:       "comp1#auto",
+			wantName:    "comp1",
+			wantParam:   "",
+			wantRunMode: "auto",
+			wantTags:    nil,
 		},
 		{
-			name:          "name with run mode and param",
-			entry:         "comp1#auto:param1",
-			expectedName:  "comp1",
-			expectedParam: "param1",
-			expectedMode:  "auto",
-			expectedTags:  nil,
+			name:        "name with run mode and param",
+			entry:       "comp1#auto:param1",
+			wantName:    "comp1",
+			wantParam:   "param1",
+			wantRunMode: "auto",
+			wantTags:    nil,
 		},
 		{
-			name:          "name with tags",
-			entry:         "comp1#auto[tag1,tag2]",
-			expectedName:  "comp1",
-			expectedParam: "",
-			expectedMode:  "auto",
-			expectedTags:  []string{"tag1", "tag2"},
+			name:        "name with tags",
+			entry:       "comp1#auto[tag1,tag2]",
+			wantName:    "comp1",
+			wantParam:   "",
+			wantRunMode: "auto",
+			wantTags:    []string{"tag1", "tag2"},
 		},
 		{
-			name:          "name with tags and param",
-			entry:         "comp1#auto[tag1,tag2]:param1",
-			expectedName:  "comp1",
-			expectedParam: "param1",
-			expectedMode:  "auto",
-			expectedTags:  []string{"tag1", "tag2"},
+			name:        "name with tags and param",
+			entry:       "comp1#auto[tag1,tag2]:param1",
+			wantName:    "comp1",
+			wantParam:   "param1",
+			wantRunMode: "auto",
+			wantTags:    []string{"tag1", "tag2"},
 		},
 		{
-			name:          "name with empty tags",
-			entry:         "comp1#auto[]",
-			expectedName:  "comp1",
-			expectedParam: "",
-			expectedMode:  "auto",
-			expectedTags:  []string{},
+			name:        "name with empty tags",
+			entry:       "comp1#auto[]",
+			wantName:    "comp1",
+			wantParam:   "",
+			wantRunMode: "auto",
+			wantTags:    []string{},
 		},
 		{
-			name:          "name with spaces in tags",
-			entry:         "comp1#auto[tag1, tag2 , tag3]",
-			expectedName:  "comp1",
-			expectedParam: "",
-			expectedMode:  "auto",
-			expectedTags:  []string{"tag1", "tag2", "tag3"},
+			name:        "name with spaces in tags",
+			entry:       "comp1#auto[tag1, tag2 , tag3]",
+			wantName:    "comp1",
+			wantParam:   "",
+			wantRunMode: "auto",
+			wantTags:    []string{"tag1", "tag2", "tag3"},
+		},
+		{
+			name:           "empty name",
+			entry:          "",
+			wantErr:        true,
+			wantErrMessage: "component name cannot be empty in component list",
+		},
+		{
+			name:           "invalid tag format - missing closing bracket",
+			entry:          "comp1#auto[tag1,tag2",
+			wantErr:        true,
+			wantErrMessage: "invalid tag format in component list entry: comp1#auto[tag1,tag2",
+		},
+		{
+			name:           "invalid tag format - missing opening bracket",
+			entry:          "comp1#auto]tag1,tag2]",
+			wantErr:        true,
+			wantErrMessage: "invalid tag format in component list entry: comp1#auto]tag1,tag2]",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			name, param, mode, tags := parseComponentListEntry(tt.entry)
-			assert.Equal(t, tt.expectedName, name)
-			assert.Equal(t, tt.expectedParam, param)
-			assert.Equal(t, tt.expectedMode, mode)
-			assert.Equal(t, tt.expectedTags, tags)
+			gotName, gotParam, gotRunMode, gotTags, err := parseComponentListEntry(tt.entry)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Equal(t, tt.wantErrMessage, err.Error())
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantName, gotName)
+			assert.Equal(t, tt.wantParam, gotParam)
+			assert.Equal(t, tt.wantRunMode, gotRunMode)
+			assert.Equal(t, tt.wantTags, gotTags)
 		})
 	}
 }

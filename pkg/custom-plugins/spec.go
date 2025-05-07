@@ -74,6 +74,61 @@ func (pluginSpecs Specs) ExpandedValidate() (Specs, error) {
 	return pluginSpecs, nil
 }
 
+// parseComponentListEntry parses a component list entry.
+// The entry can be in the following formats:
+// - "name"
+// - "name:param"
+// - "name#run_mode[tag1,tag2]"
+// - "name#run_mode[tag1,tag2]:param"
+func parseComponentListEntry(entry string) (name, param, runMode string, tags []string, err error) {
+	// First split by ':' to separate name and param
+	parts := strings.SplitN(entry, ":", 2)
+	namePart := parts[0]
+	if len(parts) > 1 {
+		param = parts[1]
+	}
+
+	// Then split by '#' to separate name and run mode
+	nameParts := strings.SplitN(namePart, "#", 2)
+	name = nameParts[0]
+	if name == "" {
+		return "", "", "", nil, fmt.Errorf("component name cannot be empty in component list")
+	}
+
+	if len(nameParts) > 1 {
+		runModePart := nameParts[1]
+		// Check if run mode contains tags
+		hasOpenBracket := strings.Contains(runModePart, "[")
+		hasCloseBracket := strings.Contains(runModePart, "]")
+		if hasOpenBracket != hasCloseBracket {
+			return "", "", "", nil, fmt.Errorf("invalid tag format in component list entry: %s", entry)
+		}
+		if hasOpenBracket && hasCloseBracket {
+			// Extract run mode and tags
+			runModeEnd := strings.Index(runModePart, "[")
+			runMode = strings.TrimSpace(runModePart[:runModeEnd])
+			tagsStr := runModePart[runModeEnd+1 : len(runModePart)-1]
+			if tagsStr == "" {
+				tags = []string{}
+			} else {
+				tags = strings.Split(tagsStr, ",")
+				// Trim spaces from tags and filter out empty tags
+				validTags := make([]string, 0, len(tags))
+				for _, tag := range tags {
+					if trimmed := strings.TrimSpace(tag); trimmed != "" {
+						validTags = append(validTags, trimmed)
+					}
+				}
+				tags = validTags
+			}
+		} else {
+			runMode = strings.TrimSpace(runModePart)
+		}
+	}
+
+	return name, param, runMode, tags, nil
+}
+
 // ExpandComponentList expands the component list into multiple components.
 func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 	expandedSpecs := make([]Spec, 0)
@@ -125,9 +180,9 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 
 		// Create a new plugin for each component in the list
 		for _, component := range spec.ComponentList {
-			name, param, runMode, tags := parseComponentListEntry(component)
-			if name == "" {
-				return nil, fmt.Errorf("component name cannot be empty in component list")
+			name, param, runMode, tags, err := parseComponentListEntry(component)
+			if err != nil {
+				return nil, err
 			}
 
 			// Use parent's run mode if not specified in the entry
@@ -144,7 +199,7 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 				PluginName: name,
 				Type:       SpecTypeComponent,
 				RunMode:    runMode,
-				Tags:       tags, // Add the parsed tags to the expanded plugin
+				Tags:       tags,
 				HealthStatePlugin: &Plugin{
 					Steps:  make([]Step, len(spec.HealthStatePlugin.Steps)),
 					Parser: spec.HealthStatePlugin.Parser,
@@ -176,41 +231,6 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 	}
 
 	return expandedSpecs, nil
-}
-
-// parseComponentListEntry parses a component list entry.
-// The entry can be in the following formats:
-// - "name"
-// - "name:param"
-// - "name#run_mode[tag1,tag2]"
-// - "name#run_mode[tag1,tag2]:param"
-func parseComponentListEntry(entry string) (name, param, runMode string, tags []string) {
-	// First split by ':' to separate name and param
-	parts := strings.SplitN(entry, ":", 2)
-	namePart := parts[0]
-	if len(parts) > 1 {
-		param = parts[1]
-	}
-
-	// Then split by '#' to separate name and run mode
-	nameParts := strings.SplitN(namePart, "#", 2)
-	name = nameParts[0]
-	if len(nameParts) > 1 {
-		runModePart := nameParts[1]
-		// Check if run mode contains tags
-		if strings.HasPrefix(runModePart, "[") && strings.HasSuffix(runModePart, "]") {
-			tagsStr := runModePart[1 : len(runModePart)-1]
-			tags = strings.Split(tagsStr, ",")
-			// Trim spaces from tags
-			for i, tag := range tags {
-				tags[i] = strings.TrimSpace(tag)
-			}
-		} else {
-			runMode = runModePart
-		}
-	}
-
-	return name, param, runMode, tags
 }
 
 // Validate validates the plugin spec.
