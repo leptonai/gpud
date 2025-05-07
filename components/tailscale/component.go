@@ -84,6 +84,10 @@ func (c *component) Close() error {
 	return nil
 }
 
+func (c *component) Tags() []string {
+	return []string{}
+}
+
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking tailscale")
 

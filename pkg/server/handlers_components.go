@@ -619,6 +619,9 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 		return
 	}
 
+	// TODO: Consider implementing a tag-based index structure to avoid linear scan
+	// This could be a map[tag][]Component or similar structure that's maintained
+	// when components are registered/deregistered
 	components := g.componentsRegistry.All()
 	success := true
 	triggeredComponents := make([]string, 0)
