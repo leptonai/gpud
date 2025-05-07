@@ -23,14 +23,27 @@ type Component interface {
 	// Must be globally unique.
 	Name() string
 
-	// Start called upon server start.
-	// Implements component-specific poller start logic.
-	Start() error
+	// Tags returns a list of tags that describe the component.
+	//
+	// The component tags are static, and will not change over time.
+	// It is important to keep in mind that, the tags only represent
+	// the component's functionality, but not the component's health state.
+	//
+	// This is useful to trigger on-demand component checks based on specific tags.
+	//
+	// e.g.,
+	// GPU enabled components may return its accelerator manufacturer,
+	// but does not report its health state via the tags.
+	Tags() []string
 
 	// IsSupported returns true if the component is supported on the current machine.
 	// For example, this returns "false" if a component requires NVIDIA GPUs,
 	// but the machine does not have NVIDIA GPUs.
 	IsSupported() bool
+
+	// Start called upon server start.
+	// Implements component-specific poller start logic.
+	Start() error
 
 	// Check triggers the component check once, and returns the latest health check result.
 	// This is used for one-time checks, such as "gpud scan".

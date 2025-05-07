@@ -458,7 +458,7 @@ func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 
 	// Setup test event bucket
-	mockBucket := newMockEventBucket()
+	mockBucket := createMockEventBucket()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -507,7 +507,7 @@ func TestComponentClose(t *testing.T) {
 	t.Parallel()
 
 	cctx, ccancel := context.WithCancel(context.Background())
-	mockBucket := newMockEventBucket()
+	mockBucket := createMockEventBucket()
 
 	c := &component{
 		ctx:         cctx,
@@ -540,19 +540,40 @@ func TestComponentClose(t *testing.T) {
 func TestNew(t *testing.T) {
 	t.Parallel()
 
-	// Create instance
-	instance := &components.GPUdInstance{
-		RootCtx:              context.Background(),
+	ctx := context.Background()
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:              ctx,
 		NVIDIAToolOverwrites: nvidia_common.ToolOverwrites{},
 	}
 
-	// Test successful creation
-	comp, err := New(instance)
+	comp, err := New(gpudInstance)
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
-	defer comp.Close()
-
 	assert.Equal(t, Name, comp.Name())
+}
+
+func TestTags(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:              ctx,
+		NVIDIAToolOverwrites: nvidia_common.ToolOverwrites{},
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }
 
 // MockEventStore for testing New errors
@@ -565,28 +586,28 @@ func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (event
 		return nil, m.bucketErr
 	}
 	// Return a simple mock bucket if no error
-	return newMockEventBucket(), nil
+	return createMockEventBucket(), nil
 }
 
-// MockEventBucket implements the events_db.Store interface for testing
-type MockEventBucket struct {
+// mockEventBucket implements the events_db.Store interface for testing
+type mockEventBucket struct {
 	events    eventstore.Events
 	mu        sync.Mutex
 	findErr   error // Added for testing Find errors
 	insertErr error // Added for testing Insert errors
 }
 
-func newMockEventBucket() *MockEventBucket {
-	return &MockEventBucket{
+func createMockEventBucket() *mockEventBucket {
+	return &mockEventBucket{
 		events: eventstore.Events{},
 	}
 }
 
-func (m *MockEventBucket) Name() string {
+func (m *mockEventBucket) Name() string {
 	return "mock"
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	if m.insertErr != nil {
 		return m.insertErr
 	}
@@ -602,7 +623,7 @@ func (m *MockEventBucket) Insert(ctx context.Context, event eventstore.Event) er
 	return nil
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -621,7 +642,7 @@ func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.
 	return result, nil
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	if m.findErr != nil {
 		return nil, m.findErr
 	}
@@ -642,7 +663,7 @@ func (m *MockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	return nil, nil
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -665,7 +686,7 @@ func (m *MockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error)
 	return &latest, nil
 }
 
-func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()
@@ -690,12 +711,12 @@ func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int
 	return purgedCount, nil
 }
 
-func (m *MockEventBucket) Close() {
+func (m *mockEventBucket) Close() {
 	// No-op for mock
 }
 
 // GetEvents returns a copy of the stored events as apiv1.Events for assertion convenience.
-func (m *MockEventBucket) GetAPIEvents() apiv1.Events {
+func (m *mockEventBucket) GetAPIEvents() apiv1.Events {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1068,7 +1089,7 @@ func TestComponentCheckOrder(t *testing.T) {
 func TestEventsWithContextCanceled(t *testing.T) {
 	t.Parallel()
 
-	mockBucket := newMockEventBucket()
+	mockBucket := createMockEventBucket()
 
 	// Create component with the mock bucket
 	c := &component{
@@ -1720,7 +1741,7 @@ func TestCheckEventBucketFindError(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := newMockEventBucket()
+	mockBucket := createMockEventBucket()
 	mockBucket.findErr = errors.New("find error") // Inject find error
 
 	c := &component{
@@ -1760,7 +1781,7 @@ func TestCheckEventBucketInsertError(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := newMockEventBucket()
+	mockBucket := createMockEventBucket()
 	mockBucket.insertErr = errors.New("insert error") // Inject insert error
 
 	c := &component{
@@ -1800,7 +1821,7 @@ func TestCheckEventBucketEventExists(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := newMockEventBucket()
+	mockBucket := createMockEventBucket()
 	// Pre-insert an event that matches the one Check would insert
 	unhealthyReason := "only 0 ports (>= 100 Gb/s) are active, expect at least 1"
 	existingEvent := eventstore.Event{
@@ -1854,7 +1875,7 @@ func TestCheckHealthyResult(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := newMockEventBucket()
+	mockBucket := createMockEventBucket()
 
 	c := &component{
 		ctx:         cctx,
@@ -1892,7 +1913,7 @@ func TestCheckFallbackToIbstatusUnhealthy(t *testing.T) {
 	cctx, ccancel := context.WithCancel(context.Background())
 	defer ccancel()
 
-	mockBucket := newMockEventBucket()
+	mockBucket := createMockEventBucket()
 
 	c := &component{
 		ctx:         cctx,
@@ -2100,7 +2121,7 @@ func TestIbstatOutputEvaluation(t *testing.T) {
 
 func TestCheckWithPartialIbstatOutput(t *testing.T) {
 	// Create a mock event bucket using the existing mock implementation
-	mockEventBucket := newMockEventBucket()
+	mockEventBucket := createMockEventBucket()
 
 	// Setup a component with mocked functions
 	c := &component{

@@ -564,60 +564,40 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 func TestComponentName(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Set up test database
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
-	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events")
-	assert.NoError(t, err)
-	defer bucket.Close()
-
-	// Create mock NVML instance
-	mockNVML := createMockNVMLInstance(map[string]device.Device{})
-
-	c := &component{
-		ctx:              ctx,
-		cancel:           cancel,
-		nvmlInstance:     mockNVML,
-		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-		eventBucket:      bucket,
-		lastCheckResult: &checkResult{
-			ts:     time.Now().UTC(),
-			health: apiv1.HealthStateTypeHealthy,
-			reason: "Initial state",
-		},
-		// Initialize required functions to avoid nil pointer dereference
-		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-			return nvidianvml.ClockEvents{
-				UUID:                 uuid,
-				Time:                 metav1.Time{Time: time.Now()},
-				HWSlowdown:           false,
-				HWSlowdownThermal:    false,
-				HWSlowdownPowerBrake: false,
-				Supported:            true,
-			}, nil
-		},
-		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
-			return true, nil
-		},
-		getSystemDriverVersionFunc: func() (string, error) {
-			return "535.104.05", nil
-		},
-		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
-			return 535, 104, 5, nil
-		},
-		checkClockEventsSupportedFunc: func(major int) bool {
-			return major >= 535
+	ctx := context.Background()
+	c := component{
+		ctx: ctx,
+		nvmlInstance: &mockNVMLInstance{
+			devices:    map[string]device.Device{},
+			nvmlExists: true,
 		},
 	}
 
 	assert.Equal(t, Name, c.Name())
+}
+
+func TestTags(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	c := component{
+		ctx: ctx,
+		nvmlInstance: &mockNVMLInstance{
+			devices:    map[string]device.Device{},
+			nvmlExists: true,
+		},
+	}
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := c.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }
 
 // TestComponentStart tests the Start method

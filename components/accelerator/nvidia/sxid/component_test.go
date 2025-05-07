@@ -438,6 +438,72 @@ func TestSXIDComponent_Name(t *testing.T) {
 	assert.Equal(t, Name, component.Name())
 }
 
+func TestTags(t *testing.T) {
+	// Initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := component.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
+// MockNVMLInstanceNoProduct is a mock implementation that has exists=true but empty product name
+type MockNVMLInstanceNoProduct struct {
+	MockNVMLInstance
+}
+
+func (m *MockNVMLInstanceNoProduct) ProductName() string {
+	return ""
+}
+
+// MockNVMLInstanceWithProduct is a mock implementation that has exists=true and a valid product name
+type MockNVMLInstanceWithProduct struct {
+	MockNVMLInstance
+}
+
+func (m *MockNVMLInstanceWithProduct) ProductName() string {
+	return "Tesla V100"
+}
+
+func TestIsSupported(t *testing.T) {
+	// Test when nvmlInstance is nil
+	comp := &component{}
+	assert.False(t, comp.IsSupported())
+
+	// Test when NVMLExists returns false
+	comp = &component{
+		nvmlInstance: &MockNVMLInstance{exists: false},
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when ProductName returns empty string
+	comp = &component{
+		nvmlInstance: &MockNVMLInstanceNoProduct{
+			MockNVMLInstance: MockNVMLInstance{exists: true},
+		},
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when all conditions are met
+	comp = &component{
+		nvmlInstance: &MockNVMLInstanceWithProduct{
+			MockNVMLInstance: MockNVMLInstance{exists: true},
+		},
+	}
+	assert.True(t, comp.IsSupported())
+}
+
 func TestDataString(t *testing.T) {
 	tests := []struct {
 		name        string

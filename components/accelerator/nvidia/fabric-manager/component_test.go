@@ -215,6 +215,51 @@ func TestComponentName(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
+func TestTags(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{}
+
+	expectedTags := []string{
+		"accelerator",
+		"gpu",
+		"nvidia",
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
+}
+
+func TestIsSupported(t *testing.T) {
+	t.Parallel()
+
+	// Test when nvmlInstance is nil
+	comp := &component{
+		nvmlInstance: nil,
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when NVMLExists returns false
+	comp = &component{
+		nvmlInstance: &mockNVMLInstance{exists: false, productName: ""},
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when ProductName returns empty string
+	comp = &component{
+		nvmlInstance: &mockNVMLInstance{exists: true, productName: ""},
+	}
+	assert.False(t, comp.IsSupported())
+
+	// Test when all conditions are met
+	comp = &component{
+		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+	}
+	assert.True(t, comp.IsSupported())
+}
+
 func TestComponentStart(t *testing.T) {
 	t.Parallel()
 

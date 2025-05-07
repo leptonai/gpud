@@ -81,6 +81,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 func (c *component) Name() string { return Name }
 
+func (c *component) Tags() []string {
+	return []string{
+		Name,
+	}
+}
+
+func (c *component) IsSupported() bool {
+	return true
+}
+
 func (c *component) Start() error {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
@@ -97,10 +107,6 @@ func (c *component) Start() error {
 		}
 	}()
 	return nil
-}
-
-func (c *component) IsSupported() bool {
-	return true
 }
 
 func (c *component) LastHealthStates() apiv1.HealthStates {

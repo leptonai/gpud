@@ -48,6 +48,25 @@ func TestComponentName(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
+func TestTags(t *testing.T) {
+	t.Parallel()
+
+	comp, err := New(&components.GPUdInstance{
+		RootCtx: context.Background(),
+	})
+	assert.NoError(t, err)
+	defer comp.Close()
+
+	expectedTags := []string{
+		"network",
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 2, "Component should return exactly 2 tags")
+}
+
 func TestComponentEvents(t *testing.T) {
 	t.Parallel()
 

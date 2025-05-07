@@ -63,6 +63,17 @@ func (c *component) CanDeregister() bool {
 
 func (c *component) Name() string { return c.spec.ComponentName() }
 
+func (c *component) Tags() []string {
+	return []string{
+		"custom-plugin",
+		c.spec.ComponentName(),
+	}
+}
+
+func (c *component) IsSupported() bool {
+	return true
+}
+
 func (c *component) Start() error {
 	log.Logger.Infow("starting custom plugin", "type", c.spec.Type, "component", c.Name(), "plugin", c.spec.PluginName)
 
@@ -195,10 +206,6 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	return cr
-}
-
-func (c *component) IsSupported() bool {
-	return true
 }
 
 func (c *component) LastHealthStates() apiv1.HealthStates {

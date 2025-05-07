@@ -27,6 +27,25 @@ func TestComponentName(t *testing.T) {
 	assert.Equal(t, Name, component.Name())
 }
 
+func TestTags(t *testing.T) {
+	t.Parallel()
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:     context.Background(),
+		Annotations: map[string]string{"a": "b"},
+	}
+	component, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := component.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
+}
+
 func TestComponentStartAndClose(t *testing.T) {
 	t.Parallel()
 

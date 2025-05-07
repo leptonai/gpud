@@ -637,8 +637,20 @@ func TestData_HealthState(t *testing.T) {
 
 // TestComponent_NameMethod tests the Name method of component
 func TestComponent_NameMethod(t *testing.T) {
-	c := &component{}
-	assert.Equal(t, Name, c.Name())
+	comp := &component{}
+	assert.Equal(t, Name, comp.Name())
+}
+
+func TestTags(t *testing.T) {
+	comp := &component{}
+
+	expectedTags := []string{
+		Name,
+	}
+
+	tags := comp.Tags()
+	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
+	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
 }
 
 // TestComponent_ManualCheckSimulation tests manual data injection into component

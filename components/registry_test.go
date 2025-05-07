@@ -16,6 +16,7 @@ import (
 // mockComponent implements the Component interface for testing
 type mockComponent struct {
 	name string
+	tags []string
 }
 
 func newMockComponent(name string) Component {
@@ -26,12 +27,16 @@ func (m *mockComponent) Name() string {
 	return m.name
 }
 
-func (m *mockComponent) Start() error {
-	return nil
+func (m *mockComponent) Tags() []string {
+	return m.tags
 }
 
 func (m *mockComponent) IsSupported() bool {
 	return true
+}
+
+func (m *mockComponent) Start() error {
+	return nil
 }
 
 func (m *mockComponent) Check() CheckResult {
