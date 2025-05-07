@@ -238,6 +238,13 @@ func (c *component) Check() components.CheckResult {
 		// which means we may overwrite the error above
 		// (e.g., "ibstat" command exited 255 but still meets the thresholds)
 		cr.reason, cr.health = evaluateIbstatOutputAgainstThresholds(cr.IbstatOutput, thresholds)
+
+		// partial output from "ibstat" command worked
+		if cr.err != nil && cr.health == apiv1.HealthStateTypeHealthy {
+			log.Logger.Debugw("ibstat command returned partial output -- discarding error", "error", cr.err, "reason", cr.reason)
+			cr.err = nil
+			cr.errIbstatus = nil
+		}
 	} else if cr.IbstatusOutput != nil {
 		// ibstat command failed and no output
 		// then we need fallback to the second data source "ibstatus"
