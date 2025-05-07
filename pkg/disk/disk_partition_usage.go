@@ -51,7 +51,7 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 			continue
 		}
 
-		if part.Mounted {
+		if part.Mounted && !op.skipUsage {
 			part.Usage, err = GetUsage(ctx, p.Mountpoint)
 			if err != nil {
 				// mount point is gone

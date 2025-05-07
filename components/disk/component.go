@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,9 +30,14 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	getBlockDevicesFunc   func(ctx context.Context) (disk.BlockDevices, error)
+	retryInterval time.Duration
+
+	getBlockDevicesFunc func(ctx context.Context) (disk.BlockDevices, error)
+
 	getExt4PartitionsFunc func(ctx context.Context) (disk.Partitions, error)
-	findMntFunc           func(ctx context.Context, target string) (*disk.FindMntOutput, error)
+	getNFSPartitionsFunc  func(ctx context.Context) (disk.Partitions, error)
+
+	findMntFunc func(ctx context.Context, target string) (*disk.FindMntOutput, error)
 
 	mountPointsToTrackUsage map[string]struct{}
 
@@ -41,13 +45,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
-func DefaultFsTypeFunc(fsType string) bool {
-	return fsType == "" ||
-		fsType == "ext4" ||
-		fsType == "LVM2_member" ||
-		fsType == "linux_raid_member" ||
-		fsType == "raid0"
-}
+const defaultRetryInterval = 5 * time.Second
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
@@ -55,23 +53,28 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
+		retryInterval: defaultRetryInterval,
+
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
-			return disk.GetPartitions(ctx, disk.WithFstype(func(fs string) bool {
-				return fs == "ext4"
-			}))
+			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultExt4FsTypeFunc))
 		},
+		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			// statfs on nfs can incur network I/O or impact disk I/O performance
+			// do not track usage for nfs partitions
+			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithSkipUsage())
+		},
+
 		findMntFunc: disk.FindMnt,
 	}
+
 	if runtime.GOOS == "linux" {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.GetBlockDevicesWithLsblk(
 				ctx,
-				disk.WithFstype(DefaultFsTypeFunc),
-				disk.WithDeviceType(func(dt string) bool {
-					return dt == "disk" || dt == "lvm" || dt == "part"
-				},
-				))
+				disk.WithFstype(disk.DefaultFsTypeFunc),
+				disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
+			)
 		}
 	}
 
@@ -149,79 +152,43 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.getBlockDevicesFunc != nil {
-		// in case the command is flaky with unknown characters
-		// e.g.,
-		// "unexpected end of JSON input"
-		prevFailed := false
-		for i := 0; i < 5; i++ {
-			cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-			blks, err := c.getBlockDevicesFunc(cctx)
-			ccancel()
-			if err != nil {
-				log.Logger.Errorw("failed to get block devices", "error", err)
-
-				select {
-				case <-c.ctx.Done():
-					cr.health = apiv1.HealthStateTypeUnhealthy
-					cr.err = c.ctx.Err()
-					return cr
-				case <-time.After(5 * time.Second):
-				}
-
-				prevFailed = true
-				continue
-			}
-
-			cr.BlockDevices = blks.Flatten()
-			if prevFailed {
-				log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(cr.BlockDevices))
-			}
-			break
-		}
-		if len(cr.BlockDevices) == 0 {
-			cr.health = apiv1.HealthStateTypeHealthy
-			cr.reason = "no block device found"
+		if !c.fetchBlockDevices(cr) {
 			return cr
 		}
 	}
-
-	// in case the command is flaky with unknown characters
-	// e.g.,
-	// "unexpected end of JSON input"
-	prevFailed := false
-	for i := 0; i < 5; i++ {
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		parts, err := c.getExt4PartitionsFunc(cctx)
-		ccancel()
-		if err != nil {
-			log.Logger.Errorw("failed to get partitions", "error", err)
-
-			select {
-			case <-c.ctx.Done():
-				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.err = c.ctx.Err()
-				return cr
-			case <-time.After(5 * time.Second):
-			}
-
-			prevFailed = true
-			continue
-		}
-
-		cr.ExtPartitions = parts
-		if prevFailed {
-			log.Logger.Infow("successfully got partitions after retries", "num_partitions", len(parts))
-		}
-		break
+	if !c.fetchExt4Partitions(cr) {
+		return cr
 	}
-	if len(cr.ExtPartitions) == 0 {
+	if !c.fetchNFSPartitions(cr) {
+		return cr
+	}
+
+	if len(cr.NFSPartitions) == 0 && len(cr.ExtPartitions) == 0 {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = "no ext4 partition found"
+		cr.reason = "no ext4/nfs partition found"
 		return cr
 	}
 
 	devToUsage := make(map[string]disk.Usage)
 	for _, p := range cr.ExtPartitions {
+		usage := p.Usage
+		if usage == nil {
+			log.Logger.Warnw("no usage found for mount point", "mount_point", p.MountPoint)
+			continue
+		}
+
+		devToUsage[p.Device] = *usage
+
+		if _, ok := c.mountPointsToTrackUsage[p.MountPoint]; !ok {
+			continue
+		}
+
+		metricTotalBytes.With(prometheus.Labels{"mount_point": p.MountPoint}).Set(float64(usage.TotalBytes))
+		metricFreeBytes.With(prometheus.Labels{"mount_point": p.MountPoint}).Set(float64(usage.FreeBytes))
+		metricUsedBytes.With(prometheus.Labels{"mount_point": p.MountPoint}).Set(float64(usage.UsedBytes))
+	}
+
+	for _, p := range cr.NFSPartitions {
 		usage := p.Usage
 		if usage == nil {
 			log.Logger.Warnw("no usage found for mount point", "mount_point", p.MountPoint)
@@ -253,7 +220,7 @@ func (c *component) Check() components.CheckResult {
 		// in case the command is flaky with unknown characters
 		// e.g.,
 		// "unexpected end of JSON input"
-		prevFailed = false
+		prevFailed := false
 		for i := 0; i < 5; i++ {
 			cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
 			mntOut, err := c.findMntFunc(cctx, target)
@@ -266,7 +233,7 @@ func (c *component) Check() components.CheckResult {
 					cr.health = apiv1.HealthStateTypeUnhealthy
 					cr.err = c.ctx.Err()
 					return cr
-				case <-time.After(5 * time.Second):
+				case <-time.After(c.retryInterval):
 				}
 
 				prevFailed = true
@@ -284,23 +251,149 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
-	if len(cr.BlockDevices) > 0 && len(cr.ExtPartitions) > 0 {
-		cr.DeviceUsages = cr.BlockDevices.GetDeviceUsages(cr.ExtPartitions)
+	if len(cr.BlockDevices) > 0 {
+		if len(cr.ExtPartitions) > 0 {
+			cr.DeviceUsages = cr.BlockDevices.GetDeviceUsages(cr.ExtPartitions)
+		}
+
+		if len(cr.NFSPartitions) > 0 {
+			for _, p := range cr.NFSPartitions {
+				usage := p.Usage
+				if usage == nil {
+					log.Logger.Warnw("no usage found for mount point", "mount_point", p.MountPoint)
+					continue
+				}
+
+				cr.DeviceUsages = append(cr.DeviceUsages, disk.DeviceUsage{
+					DeviceName: p.Device,
+					MountPoint: p.MountPoint,
+					TotalBytes: usage.TotalBytes,
+					FreeBytes:  usage.FreeBytes,
+					UsedBytes:  usage.UsedBytes,
+				})
+			}
+		}
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "ok"
-	log.Logger.Debugw(cr.reason, "extPartitions", len(cr.ExtPartitions), "blockDevices", len(cr.BlockDevices))
+	log.Logger.Debugw(cr.reason, "extPartitions", len(cr.ExtPartitions), "nfsPartitions", len(cr.NFSPartitions), "blockDevices", len(cr.BlockDevices))
 
 	return cr
+}
+
+func (c *component) fetchBlockDevices(cr *checkResult) bool {
+	// in case the command is flaky with unknown characters
+	// e.g.,
+	// "unexpected end of JSON input"
+	prevFailed := false
+	for i := 0; i < 5; i++ {
+		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+		blks, err := c.getBlockDevicesFunc(cctx)
+		ccancel()
+		if err != nil {
+			log.Logger.Errorw("failed to get block devices", "error", err)
+
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+				return false
+			case <-time.After(c.retryInterval):
+			}
+
+			prevFailed = true
+			continue
+		}
+
+		cr.BlockDevices = blks.Flatten()
+		if prevFailed {
+			log.Logger.Infow("successfully got block devices after retries", "num_block_devices", len(cr.BlockDevices))
+		}
+		break
+	}
+	if len(cr.BlockDevices) == 0 {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "no block device found"
+		return false
+	}
+	return true
+}
+
+func (c *component) fetchExt4Partitions(cr *checkResult) bool {
+	// in case the command is flaky with unknown characters
+	// e.g.,
+	// "unexpected end of JSON input"
+	prevFailed := false
+	for i := 0; i < 5; i++ {
+		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+		parts, err := c.getExt4PartitionsFunc(cctx)
+		ccancel()
+		if err != nil {
+			log.Logger.Errorw("failed to get ext4 partitions", "error", err)
+
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+				return false
+			case <-time.After(c.retryInterval):
+			}
+
+			prevFailed = true
+			continue
+		}
+
+		cr.ExtPartitions = parts
+		if prevFailed {
+			log.Logger.Infow("successfully got ext4 partitions after retries", "num_partitions", len(parts))
+		}
+		break
+	}
+	return true
+}
+
+func (c *component) fetchNFSPartitions(cr *checkResult) bool {
+	prevFailed := false
+	for i := 0; i < 5; i++ {
+		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
+		parts, err := c.getNFSPartitionsFunc(cctx)
+		ccancel()
+		if err != nil {
+			log.Logger.Errorw("failed to get nfs partitions", "error", err)
+
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+				return false
+			case <-time.After(c.retryInterval):
+			}
+
+			prevFailed = true
+			continue
+		}
+
+		cr.NFSPartitions = parts
+		if prevFailed {
+			log.Logger.Infow("successfully got nfs partitions after retries", "num_partitions", len(parts))
+		}
+		break
+	}
+	return true
 }
 
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	ExtPartitions     disk.Partitions               `json:"ext_partitions"`
-	BlockDevices      disk.FlattenedBlockDevices    `json:"block_devices"`
-	DeviceUsages      disk.DeviceUsages             `json:"device_usages"`
+	ExtPartitions disk.Partitions `json:"ext_partitions"`
+	NFSPartitions disk.Partitions `json:"nfs_partitions"`
+
+	BlockDevices disk.FlattenedBlockDevices `json:"block_devices"`
+
+	// DeviceUsages is derived from BlockDevices and ExtPartitions/NFSPartitions.
+	DeviceUsages disk.DeviceUsages `json:"device_usages"`
+
 	MountTargetUsages map[string]disk.FindMntOutput `json:"mount_target_usages"`
 
 	// timestamp of the last check
@@ -324,23 +417,16 @@ func (cr *checkResult) String() string {
 	}
 
 	buf := bytes.NewBuffer(nil)
-	table := tablewriter.NewWriter(buf)
-	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"Mount Point", "Total", "Free", "Used"})
-	for _, p := range cr.ExtPartitions {
-		if p.Usage == nil {
-			continue
-		}
-
-		table.Append([]string{
-			p.MountPoint,
-			humanize.Bytes(p.Usage.TotalBytes),
-			humanize.Bytes(p.Usage.FreeBytes),
-			humanize.Bytes(p.Usage.UsedBytes),
-		})
-	}
-	table.Render()
+	cr.ExtPartitions.RenderTable(buf)
 	output := buf.String()
+
+	if len(cr.NFSPartitions) > 0 {
+		output += "\n\n"
+
+		buf.Reset()
+		cr.NFSPartitions.RenderTable(buf)
+		output += buf.String()
+	}
 
 	if len(cr.BlockDevices) > 0 {
 		output += "\n\n"
