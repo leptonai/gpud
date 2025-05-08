@@ -209,6 +209,34 @@ func TriggerComponentCheck(ctx context.Context, addr string, componentName strin
 	return healthStates, nil
 }
 
+// GetInfo returns component information from the server.
+//
+// Example:
+//
+//	baseURL := "https://localhost:15132"
+//	componentName := "" // Leave empty to query all components
+//
+//	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+//	defer cancel()
+//	info, err := GetInfo(ctx, baseURL, WithComponent(componentName))
+//	if err != nil {
+//		fmt.Println("Error fetching component info:", err)
+//		return
+//	}
+//
+//	fmt.Println("Component Information:")
+//	for _, i := range info {
+//		fmt.Printf("Component: %s\n", i.Component)
+//		for _, event := range i.Info.Events {
+//			fmt.Printf("  Event: %s - %s\n", event.Name, event.Message)
+//		}
+//		for _, metric := range i.Info.Metrics {
+//			fmt.Printf("  Metric: %s (labels: %q) - Value: %f\n", metric.Name, metric.Labels, metric.Value)
+//		}
+//		for _, state := range i.Info.States {
+//			fmt.Printf("  State: %s - Health: %s\n", state.Name, state.Health)
+//		}
+//	}
 func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
@@ -306,6 +334,31 @@ func ReadInfo(rd io.Reader, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 	return info, nil
 }
 
+// GetHealthStates returns health states from the server for the given components.
+//
+// Example:
+//
+//	baseURL := "https://localhost:15132"
+//	for _, componentName := range []string{"disk", "accelerator-nvidia-info"} {
+//		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+//		defer cancel()
+//		states, err := GetHealthStates(ctx, baseURL, WithComponent(componentName))
+//		if err != nil {
+//			if errdefs.IsNotFound(err) {
+//				log.Logger.Warnw("component not found", "component", componentName)
+//				return
+//			}
+//
+//			log.Logger.Error("error fetching component info", "error", err)
+//			return
+//		}
+//
+//		for _, ss := range states {
+//			for _, s := range ss.States {
+//				log.Logger.Infof("state: %q, health: %s\n", s.Name, s.Health)
+//			}
+//		}
+//	}
 func GetHealthStates(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComponentHealthStates, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
