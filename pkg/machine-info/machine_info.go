@@ -222,10 +222,16 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 			return nil, err
 		}
 
+		boardID, err := nvidianvml.GetBoardID(uuid, dev)
+		if err != nil {
+			return nil, err
+		}
+
 		info.GPUs = append(info.GPUs, apiv1.MachineGPUInstance{
 			UUID:    uuid,
 			SN:      serialID,
 			MinorID: strconv.Itoa(minorID),
+			BoardID: boardID,
 		})
 	}
 

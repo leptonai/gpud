@@ -365,6 +365,9 @@ func TestCheckOnce_WithDevices(t *testing.T) {
 		GetMinorNumberFunc: func() (int, nvml.Return) {
 			return 0, nvml.SUCCESS
 		},
+		GetBoardIdFunc: func() (uint32, nvml.Return) {
+			return 123, nvml.SUCCESS
+		},
 	}
 	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
 
@@ -526,6 +529,9 @@ func TestCheckOnce_ProductNameError(t *testing.T) {
 		GetMinorNumberFunc: func() (int, nvml.Return) {
 			return 0, nvml.SUCCESS
 		},
+		GetBoardIdFunc: func() (uint32, nvml.Return) {
+			return 123, nvml.SUCCESS
+		},
 	}
 	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
 
@@ -594,6 +600,9 @@ func TestCheckOnce_ArchitectureError(t *testing.T) {
 		},
 		GetMinorNumberFunc: func() (int, nvml.Return) {
 			return 0, nvml.SUCCESS
+		},
+		GetBoardIdFunc: func() (uint32, nvml.Return) {
+			return 123, nvml.SUCCESS
 		},
 	}
 	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
@@ -667,6 +676,9 @@ func TestCheckOnce_BrandError(t *testing.T) {
 		},
 		GetMinorNumberFunc: func() (int, nvml.Return) {
 			return 0, nvml.SUCCESS
+		},
+		GetBoardIdFunc: func() (uint32, nvml.Return) {
+			return 123, nvml.SUCCESS
 		},
 	}
 	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
@@ -1060,6 +1072,9 @@ func TestCheckOnce_MinorIDFunc_ReturnError(t *testing.T) {
 		},
 		GetMinorNumberFunc: func() (int, nvml.Return) {
 			return 0, nvml.SUCCESS
+		},
+		GetBoardIdFunc: func() (uint32, nvml.Return) {
+			return 123, nvml.SUCCESS
 		},
 	}
 	mockDev := testutil.NewMockDevice(mockDeviceObj, "Ampere", "NVIDIA", "8.0", "0000:00:1E.0")
