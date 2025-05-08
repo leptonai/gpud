@@ -17,11 +17,10 @@ import (
 )
 
 const (
-	RequestHeaderContentType = "Content-Type"
-	RequestHeaderJSON        = "application/json"
-	RequestHeaderYAML        = "application/yaml"
-	RequestHeaderJSONIndent  = "json-indent"
-
+	RequestHeaderContentType    = "Content-Type"
+	RequestHeaderYAML           = "application/yaml"
+	RequestHeaderJSON           = "application/json"
+	RequestHeaderJSONIndent     = "json-indent"
 	RequestHeaderAcceptEncoding = "Accept-Encoding"
 	RequestHeaderEncodingGzip   = "gzip"
 )
@@ -30,6 +29,7 @@ func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
 	r.GET(URLPathComponentsTriggerCheck, g.triggerComponentCheck)
 	r.GET(URLPathComponentsCustomPlugins, g.getComponentsCustomPlugins)
+	r.GET(URLPathComponentsTriggerTag, g.triggerComponentsByTag)
 
 	if g.cfg.EnablePluginAPI {
 		r.DELETE(URLPathComponents, g.deregisterComponent)
@@ -623,4 +623,45 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "invalid content type"})
 	}
+}
+
+// URLPathComponentsTriggerTag is for triggering components by tag
+const URLPathComponentsTriggerTag = "/components/trigger-tag"
+
+// triggerComponentsByTag triggers all components that have the specified tag
+func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
+	tagName := c.Query("tagName")
+	if tagName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tagName parameter is required"})
+		return
+	}
+
+	// TODO: Consider implementing a tag-based index structure to avoid linear scan
+	// This could be a map[tag][]Component or similar structure that's maintained
+	// when components are registered/deregistered
+	components := g.componentsRegistry.All()
+	success := true
+	triggeredComponents := make([]string, 0)
+	exitStatus := 0
+
+	for _, comp := range components {
+		// Check if component has the specified tag using the Tags() method
+		tags := comp.Tags()
+		for _, tag := range tags {
+			if tag == tagName {
+				triggeredComponents = append(triggeredComponents, comp.Name())
+				if err := comp.Check(); err != nil {
+					success = false
+					exitStatus = 1
+				}
+				break
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"components": triggeredComponents,
+		"exit":       exitStatus,
+		"success":    success,
+	})
 }

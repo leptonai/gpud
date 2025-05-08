@@ -325,3 +325,168 @@ Plugins can be accessed through GPUd's API:
 - List all plugins: `GET /v1/components/custom-plugin`
 - Get plugin status: `GET /v1/states?components=<plugin_name>`
 - Trigger manual check: `GET /v1/components/trigger-check?componentName=<plugin_name>` 
+
+## Tags and Component Grouping
+
+Tags provide a powerful way to group related components together and trigger them as a group. This is particularly useful for scenarios where you need to run multiple related checks or actions together, such as Slurm job prologue/epilogue scripts or continuous monitoring tasks.
+
+### Tag Specification
+
+Tags can be specified in two ways, with the following priority:
+
+1. **Component List Entry Tags** (Highest Priority):
+   ```yaml
+   component_list:
+     - "comp1#auto[slurm.prologue]"
+     - "comp2#auto[slurm.prologue,slurm.continuous]"
+     - "comp3#manual[slurm.epilogue]"
+   ```
+
+2. **Plugin-Level Tags** (Lower Priority):
+   ```yaml
+   plugin_name: "slurm-checks"
+   type: "component_list"
+   tags: ["slurm.continuous"]
+   component_list:
+     - "comp1#auto"
+     - "comp2#auto"
+   ```
+
+### Triggering Components by Tag
+
+You can trigger all components with a specific tag using the REST API:
+
+```bash
+# Trigger all components with the slurm.prologue tag
+curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.prologue"
+
+# Trigger all components with the slurm.epilogue tag
+curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.epilogue"
+
+# Trigger all components with the slurm.continuous tag
+curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.continuous"
+```
+
+The API response includes:
+- Success status of the trigger operation
+- Number of components triggered
+- Exit status of the tests
+- Detailed error messages if any tests failed
+
+Example response:
+```json
+{
+  "success": true,
+  "message": "Triggered 3 components with tag: slurm.prologue",
+  "exitStatus": "all tests exited with status 0"
+}
+```
+
+### Example: Slurm Integration
+
+Here's a complete example of using tags to implement Slurm prologue, epilogue, and continuous monitoring:
+
+```yaml
+plugin_name: "slurm-checks"
+type: "component_list"
+run_mode: "manual"
+timeout: "5m"
+component_list:
+  # Prologue checks (run before job starts)
+  - "check-gpu-availability#auto[slurm.prologue]"
+  - "check-memory#auto[slurm.prologue]"
+  - "check-disk-space#auto[slurm.prologue]"
+  
+  # Epilogue checks (run after job ends)
+  - "cleanup-temp-files#auto[slurm.epilogue]"
+  - "archive-logs#auto[slurm.epilogue]"
+  - "release-resources#auto[slurm.epilogue]"
+  
+  # Continuous monitoring
+  - "monitor-gpu-usage#auto[slurm.continuous]"
+  - "monitor-memory-usage#auto[slurm.continuous]"
+  - "monitor-disk-usage#auto[slurm.continuous]"
+
+health_state_plugin:
+  steps:
+    - name: "execute-check"
+      run_bash_script:
+        content_type: "plaintext"
+        script: |
+          #!/bin/bash
+          case "${NAME}" in
+            "check-gpu-availability")
+              nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | awk '{ if ($1 > 100) exit 1; exit 0 }'
+              ;;
+            "check-memory")
+              free -g | awk '/^Mem:/ { if ($3 > 90) exit 1; exit 0 }'
+              ;;
+            "check-disk-space")
+              df -h ${PAR} | awk 'NR==2 { if ($5 > 90) exit 1; exit 0 }'
+              ;;
+            "cleanup-temp-files")
+              rm -rf /tmp/job-${SLURM_JOB_ID}/*
+              ;;
+            "archive-logs")
+              tar -czf /var/log/slurm/job-${SLURM_JOB_ID}.tar.gz /tmp/job-${SLURM_JOB_ID}/logs
+              ;;
+            "release-resources")
+              # Release any held resources
+              ;;
+            "monitor-gpu-usage")
+              nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | awk '{ print "GPU Usage: " $1 "%" }'
+              ;;
+            "monitor-memory-usage")
+              free -g | awk '/^Mem:/ { print "Memory Usage: " $3 "GB" }'
+              ;;
+            "monitor-disk-usage")
+              df -h ${PAR} | awk 'NR==2 { print "Disk Usage: " $5 }'
+              ;;
+          esac
+```
+
+### Integration with Slurm
+
+You can integrate these checks with Slurm by adding the appropriate trigger commands to your Slurm configuration:
+
+1. **Prologue** (in `slurm.conf`):
+```bash
+Prolog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.prologue"'
+```
+
+2. **Epilogue** (in `slurm.conf`):
+```bash
+Epilog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.epilogue"'
+```
+
+3. **Continuous Monitoring** (in a separate script):
+```bash
+#!/bin/bash
+while true; do
+  curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.continuous"
+  sleep 300  # Check every 5 minutes
+done
+```
+
+The REST API's response status can be used to implement conditional logic in your scripts:
+
+```bash
+#!/bin/bash
+response=$(curl -s -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.prologue")
+success=$(echo $response | jq -r '.success')
+exit_status=$(echo $response | jq -r '.exitStatus')
+
+if [ "$success" = "true" ] && [ "$exit_status" = "all tests exited with status 0" ]; then
+  echo "All prologue checks passed"
+  exit 0
+else
+  echo "Prologue checks failed"
+  exit 1
+fi
+```
+
+This allows you to:
+1. Run multiple related checks together
+2. Get a single success/failure status for the entire group
+3. Implement conditional logic based on the test results
+4. Maintain a clean separation of concerns between different types of checks 
