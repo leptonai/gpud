@@ -1,4 +1,4 @@
-package fd
+package os
 
 import "testing"
 
@@ -152,5 +152,47 @@ func TestGetMatches(t *testing.T) {
 	}
 	if vfsMatch.check("invalid input") {
 		t.Error("check function matched invalid input")
+	}
+}
+
+// TestMatch_ComprehensiveInvalidInputs tests the Match function with various invalid inputs
+func TestMatch_ComprehensiveInvalidInputs(t *testing.T) {
+	invalidInputs := []string{
+		"",
+		" ",
+		"VFS: file-max limit",
+		"file-max limit reached",
+		"VFS file-max limit reached",          // Missing colon
+		"vfs: file-max limit 1000000 reached", // Lowercase VFS
+	}
+
+	for _, input := range invalidInputs {
+		t.Run("Invalid: "+input, func(t *testing.T) {
+			name, message := Match(input)
+			if name != "" || message != "" {
+				t.Errorf("Match(%q) = (%q, %q), want empty strings", input, name, message)
+			}
+		})
+	}
+}
+
+// TestMatch_WithMultipleMatchers tests the behavior if we were to have multiple matchers
+func TestMatch_WithMultipleMatchers(t *testing.T) {
+	// This test verifies that the first match is returned
+	matches := getMatches()
+	if len(matches) == 0 {
+		t.Skip("No matches defined, skipping test")
+	}
+
+	// Test that the first match takes precedence
+	match := matches[0]
+	testInput := "VFS: file-max limit 1000000 reached"
+
+	name, message := Match(testInput)
+	if name != match.eventName {
+		t.Errorf("Match(%q) name = %q, want %q", testInput, name, match.eventName)
+	}
+	if message != match.message {
+		t.Errorf("Match(%q) message = %q, want %q", testInput, message, match.message)
 	}
 }

@@ -1,4 +1,4 @@
-package fd
+package os
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
@@ -100,6 +100,16 @@ var (
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
 	).MustCurryWith(componentLabel)
+
+	metricZombieProcesses = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "",
+			Subsystem: SubSystem,
+			Name:      "zombie_processes",
+			Help:      "tracks the total number of zombie processes",
+		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
+	).MustCurryWith(componentLabel)
 )
 
 func init() {
@@ -113,5 +123,6 @@ func init() {
 		metricThresholdRunningPIDsPercent,
 		metricThresholdAllocatedFileHandles,
 		metricThresholdAllocatedFileHandlesPercent,
+		metricZombieProcesses,
 	)
 }

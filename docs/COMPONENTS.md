@@ -35,8 +35,7 @@
 ## System components
 
 - [**`info`**](https://pkg.go.dev/github.com/leptonai/gpud/components/info): Provides static information about the host (e.g., labels, IDs).
-- [**`os`**](https://pkg.go.dev/github.com/leptonai/gpud/components/os): Queries the host OS information (e.g., kernel version).
-- [**`file-descriptor`**](https://pkg.go.dev/github.com/leptonai/gpud/components/fd): Tracks the number of file descriptors used on the host.
+- [**`os`**](https://pkg.go.dev/github.com/leptonai/gpud/components/os): Queries the host OS information (e.g., kernel version, file descriptor usage).
 - [**`fuse`**](https://pkg.go.dev/github.com/leptonai/gpud/components/fuse): Tracks the number of file descriptors used on the host.
 - [**`kernel-module`**](https://pkg.go.dev/github.com/leptonai/gpud/components/kernel-module): Monitors the FUSE (Filesystem in Userspace).
 
