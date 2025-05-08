@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/url"
-	"os"
 	stdos "os"
 	"strings"
 	"sync"
@@ -679,6 +678,6 @@ func (s *Server) startListener(nvmlInstance nvidianvml.Instance, metricsSyncer *
 	}
 	if err := srv.ListenAndServeTLS("", ""); err != nil {
 		log.Logger.Warnw("gpud serve failed", "address", config.Address, "error", err)
-		os.Exit(1)
+		stdos.Exit(1)
 	}
 }
