@@ -37,7 +37,6 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/gossip"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
-	metrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -318,7 +317,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		componentNames = append(componentNames, c.Name())
 	}
 
-	go printRegistered(ctx)
 	go recordInternalMetrics(ctx, dbRW)
 	go doCompact(ctx, dbRW, config.CompactPeriod.Duration)
 
@@ -576,29 +574,6 @@ func WriteToken(token string, fifoFile string) error {
 		return fmt.Errorf("failed to write token: %w", err)
 	}
 	return nil
-}
-
-func printRegistered(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute) // only first run is 1-minute wait
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			ticker.Reset(20 * time.Minute)
-		}
-
-		total, err := metrics.ReadRegisteredTotal(pkgmetrics.DefaultGatherer())
-		if err != nil {
-			log.Logger.Errorw("failed to get registered total", "error", err)
-			continue
-		}
-
-		log.Logger.Debugw("components status",
-			"inflight_components", total,
-		)
-	}
 }
 
 func recordInternalMetrics(ctx context.Context, db *sql.DB) {
