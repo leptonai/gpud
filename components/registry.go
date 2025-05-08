@@ -10,7 +10,6 @@ import (
 
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	gpudmetrics "github.com/leptonai/gpud/pkg/gpud-metrics"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
@@ -104,7 +103,6 @@ func (r *registry) Register(initFunc InitFunc) (Component, error) {
 	if r.hasRegistered(c.Name()) {
 		return nil, fmt.Errorf("component %s already registered: %w", c.Name(), ErrAlreadyRegistered)
 	}
-	gpudmetrics.SetRegistered(c.Name())
 
 	r.mu.Lock()
 	r.components[c.Name()] = c
