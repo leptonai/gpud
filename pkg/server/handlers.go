@@ -16,6 +16,11 @@ import (
 )
 
 const (
+	URLPathSwagger     = "/swagger/*any"
+	URLPathSwaggerDesc = "Swagger endpoint for docs"
+)
+
+const (
 	RequestHeaderContentType = "Content-Type"
 	RequestHeaderJSON        = "application/json"
 	RequestHeaderYAML        = "application/yaml"
@@ -90,8 +95,3 @@ func (g *globalHandler) getReqComponents(c *gin.Context) ([]string, error) {
 	}
 	return ret, nil
 }
-
-const (
-	URLPathSwagger     = "/swagger/*any"
-	URLPathSwaggerDesc = "Swagger endpoint for docs"
-)

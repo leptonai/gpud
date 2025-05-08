@@ -7,7 +7,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-const urlPathHealthz = "/healthz"
+const URLPathHealthz = "/healthz"
 
 type Healthz struct {
 	Status  string `json:"status"`
@@ -19,7 +19,7 @@ var DefaultHealthz = Healthz{
 	Version: "v1",
 }
 
-func createHealthzHandler() func(ctx *gin.Context) {
+func handleHealthz() func(ctx *gin.Context) {
 	return func(c *gin.Context) {
 		if c.GetHeader("Content-Type") == "application/yaml" {
 			yb, err := yaml.Marshal(DefaultHealthz)

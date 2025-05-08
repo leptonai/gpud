@@ -14,7 +14,7 @@ import (
 func TestCreateHealthzHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.GET("/healthz", createHealthzHandler())
+	router.GET("/healthz", handleHealthz())
 
 	tests := []struct {
 		name        string

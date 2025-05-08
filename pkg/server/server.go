@@ -349,17 +349,18 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	ghler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore)
 	ghler.registerComponentRoutes(v1)
+
 	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
 		promHandler.ServeHTTP(ctx.Writer, ctx.Request)
 	})
 
 	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
-	router.GET(urlPathHealthz, createHealthzHandler())
+	router.GET(URLPathHealthz, handleHealthz())
 
 	admin := router.Group(urlPathAdmin)
-	admin.GET(urlPathConfig, createConfigHandler(config))
-	admin.GET(urlPathPackages, createPackageHandler(packageManager))
+	admin.GET(urlPathConfig, handleAdminConfig(config))
+	admin.GET(urlPathPackages, handleAdminPackagesStatus(packageManager))
 
 	if config.Pprof {
 		log.Logger.Debugw("registering pprof handlers")
