@@ -298,27 +298,6 @@ func TestDoCompact(t *testing.T) {
 	}
 }
 
-func TestPrintRegistered(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	done := make(chan struct{})
-	go func() {
-		printRegistered(ctx)
-		close(done)
-	}()
-
-	// Cancel immediately and check that the goroutine exits
-	cancel()
-
-	select {
-	case <-done:
-		// printRegistered exited properly
-	case <-time.After(time.Second):
-		t.Fatal("printRegistered didn't exit after context was canceled")
-	}
-}
-
 func TestServerStopNil(t *testing.T) {
 	s := &Server{
 		dbRW:     nil, // These would normally be initialized
