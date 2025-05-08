@@ -6,26 +6,41 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shirou/gopsutil/v4/host"
 	procs "github.com/shirou/gopsutil/v4/process"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
 // Name is the ID of the OS component.
 const Name = "os"
+
+const (
+	// DefaultThresholdAllocatedFileHandles is some high number, in case the system is under high file descriptor usage.
+	DefaultThresholdAllocatedFileHandles = 10000000
+
+	// DefaultThresholdRunningPIDs is some high number, in case fd-max is unlimited
+	DefaultThresholdRunningPIDs = 900000
+
+	WarningFileHandlesAllocationPercent    = 80.0
+	ErrFileHandlesAllocationExceedsWarning = "file handles allocation exceeds its threshold (80%)"
+)
 
 var _ components.Component = &component{}
 
@@ -34,9 +49,27 @@ type component struct {
 	cancel context.CancelFunc
 
 	rebootEventStore pkghost.RebootEventStore
+	eventBucket      eventstore.Bucket
+	kmsgSyncer       *kmsg.Syncer
 
 	countProcessesByStatusFunc  func(ctx context.Context) (map[string][]process.ProcessStatus, error)
 	zombieProcessCountThreshold int
+
+	getFileHandlesFunc            func() (uint64, uint64, error)
+	countRunningPIDsFunc          func() (uint64, error)
+	getUsageFunc                  func() (uint64, error)
+	getLimitFunc                  func() (uint64, error)
+	checkFileHandlesSupportedFunc func() bool
+	checkFDLimitSupportedFunc     func() bool
+
+	// thresholdAllocatedFileHandles is the number of file descriptors that are currently allocated,
+	// at which we consider the system to be under high file descriptor usage.
+	thresholdAllocatedFileHandles uint64
+	// thresholdRunningPIDs is the number of running pids at which
+	// we consider the system to be under high file descriptor usage.
+	// This is useful for triggering alerts when the system is under high load.
+	// And useful when the actual system fd-max is set to unlimited.
+	thresholdRunningPIDs uint64
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -44,13 +77,44 @@ type component struct {
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
-	return &component{
-		ctx:                         cctx,
-		cancel:                      ccancel,
-		rebootEventStore:            gpudInstance.RebootEventStore,
+	c := &component{
+		ctx:    cctx,
+		cancel: ccancel,
+
+		rebootEventStore: gpudInstance.RebootEventStore,
+
 		countProcessesByStatusFunc:  process.CountProcessesByStatus,
 		zombieProcessCountThreshold: defaultZombieProcessCountThreshold,
-	}, nil
+
+		getFileHandlesFunc:            file.GetFileHandles,
+		countRunningPIDsFunc:          process.CountRunningPids,
+		getUsageFunc:                  file.GetUsage,
+		getLimitFunc:                  file.GetLimit,
+		checkFileHandlesSupportedFunc: file.CheckFileHandlesSupported,
+		checkFDLimitSupportedFunc:     file.CheckFDLimitSupported,
+
+		thresholdAllocatedFileHandles: DefaultThresholdAllocatedFileHandles,
+		thresholdRunningPIDs:          DefaultThresholdRunningPIDs,
+	}
+
+	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+
+		if os.Geteuid() == 0 {
+			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			if err != nil {
+				ccancel()
+				return nil, err
+			}
+		}
+	}
+
+	return c, nil
 }
 
 func (c *component) Name() string { return Name }
@@ -89,20 +153,53 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	if c.rebootEventStore == nil {
+	if c.eventBucket == nil && c.rebootEventStore == nil {
 		return nil, nil
 	}
-	evs, err := c.rebootEventStore.GetRebootEvents(ctx, since)
-	if err != nil {
-		return nil, err
+
+	var events apiv1.Events
+	if c.eventBucket != nil {
+		componentEvents, err := c.eventBucket.Get(ctx, since)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(componentEvents) > 0 {
+			events = make(apiv1.Events, len(componentEvents))
+			for i, ev := range componentEvents {
+				events[i] = ev.ToEvent()
+			}
+		}
 	}
-	return evs.Events(), nil
+
+	if c.rebootEventStore != nil {
+		rebootEvents, err := c.rebootEventStore.GetRebootEvents(ctx, since)
+		if err != nil {
+			return nil, err
+		}
+		if len(rebootEvents) > 0 {
+			events = append(events, rebootEvents.Events()...)
+		}
+	}
+
+	if len(events) == 0 {
+		return nil, nil
+	}
+
+	return events, nil
 }
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
 
 	return nil
 }
@@ -160,19 +257,99 @@ func (c *component) Check() components.CheckResult {
 
 	for status, procsWithStatus := range allProcs {
 		if status == procs.Zombie {
-			cr.ProcessCountZombieProcesses = len(procsWithStatus)
+			cr.ZombieProcesses = len(procsWithStatus)
 			break
 		}
 	}
-	if cr.ProcessCountZombieProcesses > c.zombieProcessCountThreshold {
+	metricZombieProcesses.With(prometheus.Labels{}).Set(float64(cr.ZombieProcesses))
+	if cr.ZombieProcesses > c.zombieProcessCountThreshold {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("too many zombie processes (threshold: %d)", c.zombieProcessCountThreshold)
-		log.Logger.Errorw(cr.reason, "count", cr.ProcessCountZombieProcesses)
+		log.Logger.Errorw(cr.reason, "count", cr.ZombieProcesses)
 		return cr
 	}
 
-	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("os kernel version %s", cr.Kernel.Version)
+	cr.FileDescriptors.AllocatedFileHandles, _, cr.err = c.getFileHandlesFunc()
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error getting file handles"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
+		return cr
+	}
+	metricAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(cr.FileDescriptors.AllocatedFileHandles))
+
+	cr.FileDescriptors.RunningPIDs, cr.err = c.countRunningPIDsFunc()
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error getting running pids"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
+		return cr
+	}
+	metricRunningPIDs.With(prometheus.Labels{}).Set(float64(cr.FileDescriptors.RunningPIDs))
+
+	// may fail for mac
+	// e.g.,
+	// stat /proc: no such file or directory
+	cr.FileDescriptors.Usage, cr.err = c.getUsageFunc()
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error getting file descriptor usage"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
+		return cr
+	}
+
+	cr.FileDescriptors.Limit, cr.err = c.getLimitFunc()
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error getting file descriptor limit"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
+		return cr
+	}
+	metricLimit.With(prometheus.Labels{}).Set(float64(cr.FileDescriptors.Limit))
+
+	allocatedFileHandlesPct := calcUsagePct(cr.FileDescriptors.AllocatedFileHandles, cr.FileDescriptors.Limit)
+	cr.FileDescriptors.AllocatedFileHandlesPercent = fmt.Sprintf("%.2f", allocatedFileHandlesPct)
+	metricAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(allocatedFileHandlesPct)
+
+	usageVal := cr.FileDescriptors.RunningPIDs // for mac
+	if cr.FileDescriptors.Usage > 0 {
+		usageVal = cr.FileDescriptors.Usage
+	}
+	usedPct := calcUsagePct(usageVal, cr.FileDescriptors.Limit)
+	cr.FileDescriptors.UsedPercent = fmt.Sprintf("%.2f", usedPct)
+	metricUsedPercent.With(prometheus.Labels{}).Set(usedPct)
+
+	fileHandlesSupported := c.checkFileHandlesSupportedFunc()
+	cr.FileDescriptors.FileHandlesSupported = fileHandlesSupported
+
+	fdLimitSupported := c.checkFDLimitSupportedFunc()
+	cr.FileDescriptors.FDLimitSupported = fdLimitSupported
+
+	var thresholdRunningPIDsPct float64
+	if fdLimitSupported && c.thresholdRunningPIDs > 0 {
+		thresholdRunningPIDsPct = calcUsagePct(cr.FileDescriptors.Usage, c.thresholdRunningPIDs)
+	}
+	cr.FileDescriptors.ThresholdRunningPIDs = c.thresholdRunningPIDs
+	cr.FileDescriptors.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
+	metricThresholdRunningPIDs.With(prometheus.Labels{}).Set(float64(c.thresholdRunningPIDs))
+	metricThresholdRunningPIDsPercent.With(prometheus.Labels{}).Set(thresholdRunningPIDsPct)
+
+	var thresholdAllocatedFileHandlesPct float64
+	if c.thresholdAllocatedFileHandles > 0 {
+		thresholdAllocatedFileHandlesPct = calcUsagePct(cr.FileDescriptors.Usage, min(c.thresholdAllocatedFileHandles, cr.FileDescriptors.Limit))
+	}
+	cr.FileDescriptors.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
+	cr.FileDescriptors.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
+	metricThresholdAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(c.thresholdAllocatedFileHandles))
+	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(thresholdAllocatedFileHandlesPct)
+
+	if thresholdAllocatedFileHandlesPct > WarningFileHandlesAllocationPercent {
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = ErrFileHandlesAllocationExceedsWarning
+	} else {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "ok"
+	}
 
 	return cr
 }
@@ -180,14 +357,15 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	VirtualizationEnvironment   pkghost.VirtualizationEnvironment `json:"virtualization_environment"`
-	SystemManufacturer          string                            `json:"system_manufacturer"`
-	MachineMetadata             MachineMetadata                   `json:"machine_metadata"`
-	Host                        Host                              `json:"host"`
-	Kernel                      Kernel                            `json:"kernel"`
-	Platform                    Platform                          `json:"platform"`
-	Uptimes                     Uptimes                           `json:"uptimes"`
-	ProcessCountZombieProcesses int                               `json:"process_count_zombie_processes"`
+	VirtualizationEnvironment pkghost.VirtualizationEnvironment `json:"virtualization_environment"`
+	SystemManufacturer        string                            `json:"system_manufacturer"`
+	MachineMetadata           MachineMetadata                   `json:"machine_metadata"`
+	Host                      Host                              `json:"host"`
+	Kernel                    Kernel                            `json:"kernel"`
+	Platform                  Platform                          `json:"platform"`
+	Uptimes                   Uptimes                           `json:"uptimes"`
+	ZombieProcesses           int                               `json:"zombie_processes"`
+	FileDescriptors           FileDescriptors                   `json:"file_descriptors"`
 
 	// timestamp of the last check
 	ts time.Time
@@ -235,6 +413,10 @@ func (cr *checkResult) String() string {
 		return ""
 	}
 
+	boottimeTS := time.Unix(int64(cr.Uptimes.BootTimeUnixSeconds), 0)
+	nowUTC := time.Now().UTC()
+	uptimeHumanized := humanize.RelTime(boottimeTS, nowUTC, "ago", "from now")
+
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
@@ -243,13 +425,20 @@ func (cr *checkResult) String() string {
 	table.Append([]string{"Kernel Version", cr.Kernel.Version})
 	table.Append([]string{"Platform Name", cr.Platform.Name})
 	table.Append([]string{"Platform Version", cr.Platform.Version})
-
-	boottimeTS := time.Unix(int64(cr.Uptimes.BootTimeUnixSeconds), 0)
-	nowUTC := time.Now().UTC()
-	uptimeHumanized := humanize.RelTime(boottimeTS, nowUTC, "ago", "from now")
 	table.Append([]string{"Uptime", uptimeHumanized})
+	table.Append([]string{"Zombie Process Count", fmt.Sprintf("%d", cr.ZombieProcesses)})
 
-	table.Append([]string{"Zombie Process Count", fmt.Sprintf("%d", cr.ProcessCountZombieProcesses)})
+	table.Append([]string{"File Descriptor Running PIDs", fmt.Sprintf("%d", cr.FileDescriptors.RunningPIDs)})
+	table.Append([]string{"File Descriptor Usage", fmt.Sprintf("%d", cr.FileDescriptors.Usage)})
+	table.Append([]string{"File Descriptor Limit", fmt.Sprintf("%d", cr.FileDescriptors.Limit)})
+	table.Append([]string{"File Descriptor Used %", cr.FileDescriptors.UsedPercent})
+	table.Append([]string{"File Descriptor Allocated File Handles", fmt.Sprintf("%d", cr.FileDescriptors.AllocatedFileHandles)})
+	table.Append([]string{"File Descriptor Allocated File Handles %", cr.FileDescriptors.AllocatedFileHandlesPercent})
+	table.Append([]string{"File Descriptor Threshold Alloc File Handles", fmt.Sprintf("%d", cr.FileDescriptors.ThresholdAllocatedFileHandles)})
+	table.Append([]string{"File Descriptor Threshold Alloc File Handles %", cr.FileDescriptors.ThresholdAllocatedFileHandlesPercent})
+	table.Append([]string{"File Descriptor Threshold Running PIDs", fmt.Sprintf("%d", cr.FileDescriptors.ThresholdRunningPIDs)})
+	table.Append([]string{"File Descriptor Threshold Running PIDs %", cr.FileDescriptors.ThresholdRunningPIDsPercent})
+
 	table.Render()
 
 	return buf.String()
@@ -319,4 +508,11 @@ func init() {
 			defaultZombieProcessCountThreshold = int(float64(limit) * 0.20)
 		}
 	}
+}
+
+func calcUsagePct(usage, limit uint64) float64 {
+	if limit > 0 {
+		return float64(usage) / float64(limit) * 100
+	}
+	return 0
 }
