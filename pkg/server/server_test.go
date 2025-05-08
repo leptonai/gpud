@@ -23,7 +23,7 @@ func TestServerErrorForEmptyConfig(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, &config.Config{}, "", "", nil)
+	s, err := New(ctx, &config.Config{}, "", nil)
 	require.Nil(t, s)
 	require.NotNil(t, err)
 }
@@ -64,7 +64,7 @@ func TestServerConfigValidation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			s, err := New(ctx, tt.config, "", "", nil)
+			s, err := New(ctx, tt.config, "", nil)
 			require.Nil(t, s)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.expectedErr)
@@ -76,7 +76,7 @@ func TestServerErrInvalidStateFile(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, &config.Config{State: "invalid"}, "", "", nil)
+	s, err := New(ctx, &config.Config{State: "invalid"}, "", nil)
 	require.Nil(t, s)
 	require.Error(t, err)
 }
@@ -392,12 +392,14 @@ func TestUpdateToken(t *testing.T) {
 	defer cancel()
 
 	// Create a server with a minimal setup
-	s := &Server{}
+	s := &Server{
+		machineID: "test-uid",
+	}
 	userToken := &UserToken{}
 
 	// Call updateToken directly - it will try to mkfifo and fail,
 	// but that's ok for this test as we just want to make sure it doesn't hang
-	s.updateToken(ctx, db, "test-uid", "https://example.com", nil, userToken)
+	s.updateToken(ctx, db, "https://example.com", nil, userToken)
 
 	// If we get here, the function returned after context expiration
 }

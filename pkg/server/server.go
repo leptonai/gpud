@@ -141,10 +141,13 @@ type Server struct {
 	// componentsRegistry is the registry for the regular components
 	componentsRegistry components.Registry
 
-	uid                string
-	fifoPath           string
-	fifo               *stdos.File
-	session            *session.Session
+	machineID string
+
+	fifoPath string
+	fifo     *stdos.File
+
+	session *session.Session
+
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 }
@@ -163,7 +166,7 @@ func createURL(endpoint string) string {
 	return fmt.Sprintf("https://%s", host)
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID string, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
+func New(ctx context.Context, config *lepconfig.Config, endpoint string, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
@@ -216,7 +219,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		dbRW: dbRW,
 		dbRO: dbRO,
 
-		fifoPath:           fifoPath,
+		fifoPath: fifoPath,
+
 		enableAutoUpdate:   config.EnableAutoUpdate,
 		autoUpdateExitCode: config.AutoUpdateExitCode,
 	}
@@ -261,6 +265,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		MountPoints:  []string{"/"},
 		MountTargets: []string{"/var/lib/kubelet"},
 	}
+
 	s.componentsRegistry = components.NewRegistry(gpudInstance)
 	for _, initFunc := range componentInits {
 		s.componentsRegistry.MustRegister(initFunc)
@@ -273,6 +278,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 		if err != nil {
 			return nil, fmt.Errorf("failed to load plugin specs: %w", err)
 		}
+
 		if err := specs.Validate(); err != nil {
 			return nil, fmt.Errorf("failed to validate plugin specs: %w", err)
 		}
@@ -320,58 +326,57 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	go recordInternalMetrics(ctx, dbRW)
 	go doCompact(ctx, dbRW, config.CompactPeriod.Duration)
 
-	uid, err := gpudstate.ReadMachineID(ctx, dbRO)
+	s.machineID, err = gpudstate.ReadMachineID(ctx, dbRO)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
-	s.uid = uid
-	if s.uid != "" {
-		if err = gpudstate.UpdateComponents(ctx, dbRW, uid, strings.Join(componentNames, ",")); err != nil {
+	if s.machineID != "" {
+		if err = gpudstate.UpdateComponents(ctx, dbRW, s.machineID, strings.Join(componentNames, ",")); err != nil {
 			return nil, fmt.Errorf("failed to update components: %w", err)
 		}
 	}
-
-	router := gin.Default()
 
 	cert, err := s.generateSelfSignedCert()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tls cert: %w", err)
 	}
 
+	router := gin.Default()
 	installRootGinMiddlewares(router)
 	installCommonGinMiddlewares(router, log.Logger.Desugar())
 
-	v1 := router.Group("/v1")
+	globalHandler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore, gpudInstance)
 
 	// if the request header is set "Accept-Encoding: gzip",
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
-	v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
+	v1Group := router.Group("/v1")
+	v1Group.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
+	globalHandler.registerComponentRoutes(v1Group)
 
-	ghler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore)
-	ghler.registerComponentRoutes(v1)
 	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
 		promHandler.ServeHTTP(ctx.Writer, ctx.Request)
 	})
 
 	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
-	router.GET(URLPathHealthz, createHealthzHandler())
+	router.GET(URLPathHealthz, handleHealthz())
+	router.GET(URLPathMachineInfo, globalHandler.handleMachineInfo)
 
-	admin := router.Group(urlPathAdmin)
-	admin.GET(URLPathConfig, createConfigHandler(config))
-	admin.GET(urlPathPackages, createPackageHandler(packageManager))
+	adminGroup := router.Group(urlPathAdmin)
+	adminGroup.GET(urlPathConfig, handleAdminConfig(config))
+	adminGroup.GET(urlPathPackages, handleAdminPackagesStatus(packageManager))
 
 	if config.Pprof {
 		log.Logger.Debugw("registering pprof handlers")
-		admin.GET("/pprof/profile", gin.WrapH(http.HandlerFunc(pprof.Profile)))
-		admin.GET("/pprof/heap", gin.WrapH(pprof.Handler("heap")))
-		admin.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
+		adminGroup.GET("/pprof/profile", gin.WrapH(http.HandlerFunc(pprof.Profile)))
+		adminGroup.GET("/pprof/heap", gin.WrapH(pprof.Handler("heap")))
+		adminGroup.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
 	}
 
 	userToken := &UserToken{}
-	go s.updateToken(ctx, dbRW, uid, endpoint, metricsSQLiteStore, userToken)
+	go s.updateToken(ctx, dbRW, endpoint, metricsSQLiteStore, userToken)
+	go s.sendGossip(ctx, nvmlInstance, endpoint, userToken)
 	go s.startListener(nvmlInstance, syncer, config, router, cert)
-	go s.sendGossip(ctx, uid, nvmlInstance, endpoint, userToken)
 
 	return s, nil
 }
@@ -462,11 +467,12 @@ func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
 	return cert, nil
 }
 
-func (s *Server) updateToken(ctx context.Context, db *sql.DB, machineID string, endpoint string, metricsStore pkgmetrics.Store, token *UserToken) {
+func (s *Server) updateToken(ctx context.Context, db *sql.DB, endpoint string, metricsStore pkgmetrics.Store, token *UserToken) {
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := gpudstate.GetLoginInfo(ctx, db, machineID); err == nil {
+	if dbToken, err := gpudstate.GetLoginInfo(ctx, db, s.machineID); err == nil {
 		userToken = dbToken
+
 		token.mu.Lock()
 		token.userToken = userToken
 		token.mu.Unlock()
@@ -478,7 +484,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, machineID string, 
 			ctx,
 			endpoint,
 			userToken,
-			session.WithMachineID(machineID),
+			session.WithMachineID(s.machineID),
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -529,7 +535,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, machineID string, 
 				ctx,
 				endpoint,
 				userToken,
-				session.WithMachineID(machineID),
+				session.WithMachineID(s.machineID),
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -615,7 +621,7 @@ func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 	}
 }
 
-func (s *Server) sendGossip(ctx context.Context, uid string, nvmlInstance nvidianvml.Instance, endpoint string, userToken *UserToken) {
+func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instance, endpoint string, userToken *UserToken) {
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
@@ -627,7 +633,7 @@ func (s *Server) sendGossip(ctx context.Context, uid string, nvmlInstance nvidia
 		if token == "" {
 			continue
 		}
-		gossipReq, err := pkgmachineinfo.CreateGossipRequest(uid, nvmlInstance, token)
+		gossipReq, err := pkgmachineinfo.CreateGossipRequest(s.machineID, nvmlInstance, token)
 		if err != nil {
 			log.Logger.Errorw("failed to create gossip request", "error", err)
 		} else {
@@ -653,10 +659,15 @@ func (s *Server) startListener(nvmlInstance nvidianvml.Instance, metricsSyncer *
 				log.Logger.Warnw("failed to shutdown NVML instance", "error", err)
 			}
 		}
+
 		if metricsSyncer != nil {
 			metricsSyncer.Stop()
 		}
+
+		s.Stop()
 	}()
+
+	log.Logger.Infow("gpud started serving", "address", config.Address, "pluginSpecFile", config.PluginSpecsFile)
 
 	srv := &http.Server{
 		Addr:    config.Address,
@@ -665,11 +676,8 @@ func (s *Server) startListener(nvmlInstance nvidianvml.Instance, metricsSyncer *
 			Certificates: []tls.Certificate{cert},
 		},
 	}
-
-	log.Logger.Infow("serving", "address", config.Address)
-	err := srv.ListenAndServeTLS("", "")
-	if err != nil {
-		s.Stop()
-		log.Logger.Fatalw("serve failed", "address", config.Address, "error", err)
+	if err := srv.ListenAndServeTLS("", ""); err != nil {
+		log.Logger.Warnw("gpud serve failed", "address", config.Address, "error", err)
+		stdos.Exit(1)
 	}
 }
