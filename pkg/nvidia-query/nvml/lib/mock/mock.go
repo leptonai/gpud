@@ -127,6 +127,9 @@ var AllSuccessInterface = &nvmlmock.Interface{
 			GetSerialFunc: func() (string, nvml.Return) {
 				return "MOCK-GPU-SERIAL", nvml.SUCCESS
 			},
+			GetBoardIdFunc: func() (uint32, nvml.Return) {
+				return 123, nvml.SUCCESS
+			},
 		}, nvml.SUCCESS
 	},
 
