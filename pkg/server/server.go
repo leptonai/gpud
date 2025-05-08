@@ -347,7 +347,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
 	v1.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 
-	ghler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore)
+	ghler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore, gpudInstance)
 	ghler.registerComponentRoutes(v1)
 
 	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
@@ -357,6 +357,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 
 	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
 	router.GET(URLPathHealthz, handleHealthz())
+	router.GET(URLPathMachineInfo, ghler.handleMachineInfo)
 
 	admin := router.Group(urlPathAdmin)
 	admin.GET(urlPathConfig, handleAdminConfig(config))

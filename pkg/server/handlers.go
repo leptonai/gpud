@@ -39,9 +39,11 @@ type globalHandler struct {
 	componentNames   []string
 
 	metricsStore pkgmetrics.Store
+
+	gpudInstance *components.GPUdInstance
 }
 
-func newGlobalHandler(cfg *gpudconfig.Config, componentsRegistry components.Registry, metricsStore pkgmetrics.Store) *globalHandler {
+func newGlobalHandler(cfg *gpudconfig.Config, componentsRegistry components.Registry, metricsStore pkgmetrics.Store, gpudInstance *components.GPUdInstance) *globalHandler {
 	var componentNames []string
 	for _, c := range componentsRegistry.All() {
 		componentNames = append(componentNames, c.Name())
@@ -53,6 +55,7 @@ func newGlobalHandler(cfg *gpudconfig.Config, componentsRegistry components.Regi
 		componentsRegistry: componentsRegistry,
 		componentNames:     componentNames,
 		metricsStore:       metricsStore,
+		gpudInstance:       gpudInstance,
 	}
 }
 

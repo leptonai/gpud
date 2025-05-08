@@ -228,7 +228,7 @@ func TestGetComponents(t *testing.T) {
 	cfg := &config.Config{}
 	store := &mockMetricsStore{}
 
-	handler := newGlobalHandler(cfg, registry, store)
+	handler := newGlobalHandler(cfg, registry, store, nil)
 	_, c, w := setupTestRouter()
 
 	// Test with default JSON content type
@@ -258,7 +258,7 @@ func TestGetComponentsYAML(t *testing.T) {
 	cfg := &config.Config{}
 	store := &mockMetricsStore{}
 
-	handler := newGlobalHandler(cfg, registry, store)
+	handler := newGlobalHandler(cfg, registry, store, nil)
 	_, c, w := setupTestRouter()
 
 	// Set up a new request with YAML content type
@@ -606,7 +606,7 @@ func TestGetInfo(t *testing.T) {
 	cfg := &config.Config{}
 	store := &mockMetricsStore{metrics: metricsData}
 
-	handler := newGlobalHandler(cfg, registry, store)
+	handler := newGlobalHandler(cfg, registry, store, nil)
 	_, c, w := setupTestRouter()
 
 	// Test getting info for a specific component
@@ -677,7 +677,7 @@ func TestGetMetrics(t *testing.T) {
 	cfg := &config.Config{}
 	store := &mockMetricsStore{metrics: metricsData}
 
-	handler := newGlobalHandler(cfg, registry, store)
+	handler := newGlobalHandler(cfg, registry, store, nil)
 	_, c, w := setupTestRouter()
 
 	// Test getting metrics for a specific component

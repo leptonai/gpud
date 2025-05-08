@@ -14,7 +14,7 @@ import (
 
 func TestNewGlobalHandler(t *testing.T) {
 	var metricStore metrics.Store
-	ghler := newGlobalHandler(nil, components.NewRegistry(nil), metricStore)
+	ghler := newGlobalHandler(nil, components.NewRegistry(nil), metricStore, nil)
 	assert.NotNil(t, ghler)
 }
 

@@ -174,6 +174,12 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			GinkgoLogr.Info("success health check", "response", string(b1), "ep", ep)
 			fmt.Println("/healthz RESPONSE:", string(b1))
 
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			err = clientv1.CheckHealthz(ctx, "https://"+ep)
+			Expect(err).NotTo(HaveOccurred(), "failed to check health")
+			fmt.Println("/healthz RESPONSE (with clientv1):", string(b1))
+
 			return nil
 		}).WithTimeout(15*time.Second).WithPolling(3*time.Second).ShouldNot(HaveOccurred(), "failed to wait for gpud started")
 		By("gpud started")
@@ -193,6 +199,21 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 	AfterEach(func() {
 		rootCancel()
+	})
+
+	Describe("/machine-info requests", func() {
+
+		It("request without compress", func() {
+			info, err := clientv1.GetMachineInfo(rootCtx, "https://"+ep)
+
+			Expect(err).NotTo(HaveOccurred(), "failed to get machine info")
+			GinkgoLogr.Info("got machine info", "machine info", info)
+
+			b, err := json.Marshal(info)
+			Expect(err).NotTo(HaveOccurred(), "failed to marshal machine info")
+
+			fmt.Println("machine info", string(b))
+		})
 	})
 
 	Describe("/v1/states requests", func() {
