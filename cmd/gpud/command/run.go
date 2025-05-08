@@ -123,15 +123,8 @@ func cmdRun(cliContext *cli.Context) error {
 	if err := gpudstate.CreateTableMachineMetadata(rootCtx, dbRW); err != nil {
 		return fmt.Errorf("failed to create table: %w", err)
 	}
-	uid, err := gpudstate.ReadMachineID(rootCtx, dbRO)
-	if err != nil {
-		return fmt.Errorf("failed to read machine ID: %w", err)
-	}
-	if uid == "" {
-		log.Logger.Warnw("machine ID not found, running in local mode not connected to any control plane")
-	}
 
-	server, err := gpudserver.New(rootCtx, cfg, cliContext.String("endpoint"), uid, m)
+	server, err := gpudserver.New(rootCtx, cfg, cliContext.String("endpoint"), m)
 	if err != nil {
 		return err
 	}
