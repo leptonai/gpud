@@ -16,15 +16,16 @@ type MockDevice struct {
 	PCIBusID              string
 	Serial                string
 	MinorNumber           int
+	BoardID               uint32
 }
 
 // NewMockDevice creates a new mock device with the given parameters
 func NewMockDevice(device *mock.Device, architecture, brand, cudaComputeCapability, pciBusID string) *MockDevice {
-	return NewMockDeviceWithIDs(device, architecture, brand, cudaComputeCapability, pciBusID, "MOCK-GPU-SERIAL", 0)
+	return NewMockDeviceWithIDs(device, architecture, brand, cudaComputeCapability, pciBusID, "MOCK-GPU-SERIAL", 0, 0)
 }
 
 // NewMockDeviceWithIDs creates a new mock device with the given parameters including serial and minor number
-func NewMockDeviceWithIDs(device *mock.Device, architecture, brand, cudaComputeCapability, pciBusID, serial string, minorNumber int) *MockDevice {
+func NewMockDeviceWithIDs(device *mock.Device, architecture, brand, cudaComputeCapability, pciBusID, serial string, minorNumber int, boardID uint32) *MockDevice {
 	return &MockDevice{
 		Device:                device,
 		Architecture:          architecture,
@@ -33,6 +34,7 @@ func NewMockDeviceWithIDs(device *mock.Device, architecture, brand, cudaComputeC
 		PCIBusID:              pciBusID,
 		Serial:                serial,
 		MinorNumber:           minorNumber,
+		BoardID:               boardID,
 	}
 }
 
@@ -66,6 +68,10 @@ func (d *MockDevice) GetSerial() (string, nvml.Return) {
 
 func (d *MockDevice) GetMinorNumber() (int, nvml.Return) {
 	return d.MinorNumber, nvml.SUCCESS
+}
+
+func (d *MockDevice) GetBoardId() (uint32, nvml.Return) {
+	return d.BoardID, nvml.SUCCESS
 }
 
 func (d *MockDevice) IsFabricAttached() (bool, error) {

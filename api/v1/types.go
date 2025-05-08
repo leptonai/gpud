@@ -333,6 +333,7 @@ type MachineGPUInstance struct {
 	UUID    string `json:"uuid,omitempty"`
 	SN      string `json:"sn,omitempty"`
 	MinorID string `json:"minorID,omitempty"`
+	BoardID uint32 `json:"boardID,omitempty"`
 }
 
 func (gi *MachineGPUInfo) RenderTable(wr io.Writer) {

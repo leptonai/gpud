@@ -22,3 +22,11 @@ func GetMinorID(uuid string, dev device.Device) (int, error) {
 	}
 	return minorID, nil
 }
+
+func GetBoardID(uuid string, dev device.Device) (uint32, error) {
+	boardID, ret := dev.GetBoardId()
+	if ret != nvml.SUCCESS {
+		return 0, fmt.Errorf("failed to get board id: %v", nvml.ErrorString(ret))
+	}
+	return boardID, nil
+}
