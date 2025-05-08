@@ -16,15 +16,6 @@ import (
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
-const (
-	RequestHeaderContentType    = "Content-Type"
-	RequestHeaderYAML           = "application/yaml"
-	RequestHeaderJSON           = "application/json"
-	RequestHeaderJSONIndent     = "json-indent"
-	RequestHeaderAcceptEncoding = "Accept-Encoding"
-	RequestHeaderEncodingGzip   = "gzip"
-)
-
 func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
 	r.GET(URLPathComponentsTriggerCheck, g.triggerComponentCheck)

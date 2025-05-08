@@ -2,22 +2,27 @@ package server
 
 import (
 	"fmt"
-	"net/http"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"sigs.k8s.io/yaml"
-
 	"github.com/gin-gonic/gin"
 	"github.com/leptonai/gpud/components"
 	gpudconfig "github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/errdefs"
-	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+)
+
+const (
+	RequestHeaderContentType = "Content-Type"
+	RequestHeaderJSON        = "application/json"
+	RequestHeaderYAML        = "application/yaml"
+	RequestHeaderJSONIndent  = "json-indent"
+
+	RequestHeaderAcceptEncoding = "Accept-Encoding"
+	RequestHeaderEncodingGzip   = "gzip"
 )
 
 type globalHandler struct {
@@ -90,82 +95,3 @@ const (
 	URLPathSwagger     = "/swagger/*any"
 	URLPathSwaggerDesc = "Swagger endpoint for docs"
 )
-
-const (
-	URLPathHealthz     = "/healthz"
-	URLPathHealthzDesc = "Get the health status of the gpud instance"
-)
-
-type Healthz struct {
-	Status  string `json:"status"`
-	Version string `json:"version"`
-}
-
-var DefaultHealthz = Healthz{
-	Status:  "ok",
-	Version: "v1",
-}
-
-func createHealthzHandler() func(ctx *gin.Context) {
-	return func(c *gin.Context) {
-		if c.GetHeader("Content-Type") == "application/yaml" {
-			yb, err := yaml.Marshal(DefaultHealthz)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal components " + err.Error()})
-				return
-			}
-			c.String(http.StatusOK, string(yb))
-		} else {
-			if c.GetHeader("json-indent") == "true" {
-				c.IndentedJSON(http.StatusOK, DefaultHealthz)
-			} else {
-				c.JSON(http.StatusOK, DefaultHealthz)
-			}
-		}
-	}
-}
-
-const (
-	URLPathConfig     = "/config"
-	URLPathConfigDesc = "Get the configuration of the gpud instance"
-)
-
-func createConfigHandler(cfg *gpudconfig.Config) func(c *gin.Context) {
-	return func(c *gin.Context) {
-		if c.GetHeader("Content-Type") == "application/yaml" {
-			yb, err := yaml.Marshal(cfg)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal components " + err.Error()})
-				return
-			}
-			c.String(http.StatusOK, string(yb))
-		} else {
-			if c.GetHeader("json-indent") == "true" {
-				c.IndentedJSON(http.StatusOK, cfg)
-			} else {
-				c.JSON(http.StatusOK, cfg)
-			}
-		}
-	}
-}
-
-const (
-	urlPathAdmin        = "/admin"
-	urlPathPackages     = "/packages"
-	urlPathPackagesDesc = "Get the status of gpud managed packages"
-)
-
-var (
-	URLPathAdminPackages = path.Join(urlPathAdmin, urlPathPackages)
-)
-
-func createPackageHandler(m *gpudmanager.Manager) func(c *gin.Context) {
-	return func(c *gin.Context) {
-		packageStatus, err := m.Status(c)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to get package status " + err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, packageStatus)
-	}
-}

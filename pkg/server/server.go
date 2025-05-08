@@ -355,10 +355,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, cliUID 
 	})
 
 	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
-	router.GET(URLPathHealthz, createHealthzHandler())
+	router.GET(urlPathHealthz, createHealthzHandler())
 
 	admin := router.Group(urlPathAdmin)
-	admin.GET(URLPathConfig, createConfigHandler(config))
+	admin.GET(urlPathConfig, createConfigHandler(config))
 	admin.GET(urlPathPackages, createPackageHandler(packageManager))
 
 	if config.Pprof {
