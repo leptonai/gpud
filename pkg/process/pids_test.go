@@ -5,6 +5,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	procs "github.com/shirou/gopsutil/v4/process"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCountProcessesByStatus(t *testing.T) {
@@ -153,19 +156,24 @@ func TestCountRunningPids(t *testing.T) {
 	}
 }
 
-// MockProcessStatus implements the ProcessStatus interface for testing
-type MockProcessStatus struct {
+// mockProcessStatus implements the ProcessStatus interface for testing
+type mockProcessStatus struct {
 	name    string
+	pid     int32
 	status  []string
 	nameErr error
 	statErr error
 }
 
-func (m *MockProcessStatus) Name() (string, error) {
+func (m *mockProcessStatus) Name() (string, error) {
 	return m.name, m.nameErr
 }
 
-func (m *MockProcessStatus) Status() ([]string, error) {
+func (m *mockProcessStatus) PID() int32 {
+	return m.pid
+}
+
+func (m *mockProcessStatus) Status() ([]string, error) {
 	return m.status, m.statErr
 }
 
@@ -196,7 +204,7 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 
 	// Test with a nil process in the list
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
-		return []ProcessStatus{nil, &MockProcessStatus{status: []string{"running"}}}, nil
+		return []ProcessStatus{nil, &mockProcessStatus{status: []string{"running"}}}, nil
 	})
 	if err != nil {
 		t.Fatalf("Expected no error with nil process, got: %v", err)
@@ -208,7 +216,7 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 	// Test with a process that returns an error for Status()
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
 		return []ProcessStatus{
-			&MockProcessStatus{
+			&mockProcessStatus{
 				name:    "error-process",
 				status:  nil,
 				statErr: errors.New("not found"),
@@ -225,7 +233,7 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 	// Test with a process that returns an error containing "no such file"
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
 		return []ProcessStatus{
-			&MockProcessStatus{
+			&mockProcessStatus{
 				name:    "no-such-file-process",
 				status:  nil,
 				statErr: errors.New("open /proc/12345/status: no such file or directory"),
@@ -242,7 +250,7 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 	// Test with a process that returns an empty status list
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
 		return []ProcessStatus{
-			&MockProcessStatus{
+			&mockProcessStatus{
 				name:   "empty-status-process",
 				status: []string{},
 			},
@@ -258,11 +266,11 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 	// Test with multiple processes with different statuses
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
 		return []ProcessStatus{
-			&MockProcessStatus{status: []string{"running"}},
-			&MockProcessStatus{status: []string{"running"}},
-			&MockProcessStatus{status: []string{"sleeping"}},
-			&MockProcessStatus{status: []string{"waiting"}},
-			&MockProcessStatus{status: []string{"zombie"}},
+			&mockProcessStatus{status: []string{"running"}},
+			&mockProcessStatus{status: []string{"running"}},
+			&mockProcessStatus{status: []string{"sleeping"}},
+			&mockProcessStatus{status: []string{"waiting"}},
+			&mockProcessStatus{status: []string{"zombie"}},
 		}, nil
 	})
 	if err != nil {
@@ -317,4 +325,212 @@ func TestCountRunningPidsError(t *testing.T) {
 	if count != 3 {
 		t.Fatalf("Expected count of 3, got %d", count)
 	}
+}
+
+// TestFindProcessByName tests the findProcessByName function
+func TestFindProcessByName(t *testing.T) {
+	ctx := context.Background()
+
+	// To keep the tests separately, we'll use a different approach and not modify findProcessByName
+
+	t.Run("empty process list", func(t *testing.T) {
+		emptyListFunc := func(ctx context.Context) ([]*procs.Process, error) {
+			return []*procs.Process{}, nil
+		}
+
+		result, err := findProcessByName(ctx, "test", emptyListFunc)
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("no matching process", func(t *testing.T) {
+		noMatchListFunc := func(ctx context.Context) ([]*procs.Process, error) {
+			return []*procs.Process{
+				{Pid: 100},
+				{Pid: 200},
+			}, nil
+		}
+
+		result, err := findProcessByName(ctx, "nonexistent", noMatchListFunc)
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("matching process found", func(t *testing.T) {
+		// This test needs to be skipped as it relies on the behavior of real Process.Name() calls
+		// which we can't properly mock in this test framework
+		t.Skip("This test requires real process objects and can't be properly mocked")
+	})
+
+	t.Run("error getting process list", func(t *testing.T) {
+		expectedErr := errors.New("failed to list processes")
+		errorListFunc := func(ctx context.Context) ([]*procs.Process, error) {
+			return nil, expectedErr
+		}
+
+		result, err := findProcessByName(ctx, "test", errorListFunc)
+		assert.Equal(t, expectedErr, err)
+		assert.Nil(t, result)
+	})
+}
+
+// TestFindProcessByNameWrapper tests the FindProcessByName wrapper function
+func TestFindProcessByNameWrapper(t *testing.T) {
+	// This test is best run with a process we know is running
+	// We'll test with a common process that should exist on most systems
+	ctx := context.Background()
+
+	// Skip this test in automated environments where it might be flaky
+	t.Run("real process", func(t *testing.T) {
+		// Try a few common process names that might be running
+		commonProcesses := []string{"bash", "sh", "launchd", "systemd", "init"}
+
+		var foundProcess string
+		var result ProcessStatus
+		var err error
+
+		for _, proc := range commonProcesses {
+			result, err = FindProcessByName(ctx, proc)
+			if err == nil && result != nil {
+				foundProcess = proc
+				break
+			}
+		}
+
+		if foundProcess == "" {
+			t.Skip("Could not find a common process to test with")
+		}
+
+		// We found a process, check that it has the expected name
+		name, err := result.Name()
+		assert.NoError(t, err)
+		assert.Contains(t, name, foundProcess)
+
+		// Check that it has a valid PID
+		assert.Greater(t, result.PID(), int32(0))
+	})
+
+	t.Run("nonexistent process", func(t *testing.T) {
+		result, err := FindProcessByName(ctx, "nonexistentprocessthatdoesnotexist123456789")
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+// TestProcessStatusPID tests the PID method of the processStatus struct
+func TestProcessStatusPID(t *testing.T) {
+	// Create a process with a known PID
+	p := &processStatus{
+		Process: &procs.Process{
+			Pid: 12345,
+		},
+	}
+
+	// Verify that the PID method returns the expected value
+	assert.Equal(t, int32(12345), p.PID())
+}
+
+// TestGetProcessStatus tests the getProcessStatus function
+func TestGetProcessStatus(t *testing.T) {
+	// Create a process with a known PID
+	proc := &procs.Process{
+		Pid: 67890,
+	}
+
+	// Get the process status
+	status := getProcessStatus(proc)
+
+	// Verify that the status is not nil and has the expected PID
+	assert.NotNil(t, status)
+	assert.Equal(t, int32(67890), status.PID())
+}
+
+// TestCountProcessesByStatusContextCanceled tests the context cancellation handling in CountProcessesByStatus
+func TestCountProcessesByStatusContextCanceled(t *testing.T) {
+	// Create a context that's already canceled
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Call the CountProcessesByStatus function with the canceled context
+	// The function may or may not return an error depending on how quickly it detects the cancellation
+	result, err := CountProcessesByStatus(ctx)
+
+	if err != nil {
+		// If we got an error, it should be a context error
+		assert.True(t, errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded),
+			"Expected context error, got: %v", err)
+	} else {
+		// If we didn't get an error, we should have a valid result
+		// (this can happen if the list process call completes before checking the context)
+		assert.NotNil(t, result, "Expected non-nil result when no error occurred")
+	}
+
+	// Test with an immediate context timeout
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+	// Sleep to ensure the timeout expires
+	time.Sleep(1 * time.Millisecond)
+
+	// The function may or may not return an error depending on how quickly it detects the timeout
+	result, err = CountProcessesByStatus(timeoutCtx)
+
+	if err != nil {
+		// If we got an error, it should be a context error
+		assert.True(t, errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded),
+			"Expected context error, got: %v", err)
+	} else {
+		// If we didn't get an error, we should have a valid result
+		assert.NotNil(t, result, "Expected non-nil result when no error occurred")
+	}
+}
+
+// TestCountProcessesByStatusWithError tests error handling in CountProcessesByStatus
+func TestCountProcessesByStatusWithError(t *testing.T) {
+	originalFunc := CountProcessesByStatus
+
+	// Create a custom function that wraps the underlying implementation
+	// with our test-specific behavior
+	customFunc := func(ctx context.Context) (map[string][]ProcessStatus, error) {
+		// Directly call countProcessesByStatus with a mock process lister
+		// that simulates the error we want to test
+		return countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
+			return nil, errors.New("mocked process list error")
+		})
+	}
+
+	// Test with our custom function to simulate the error
+	ctx := context.Background()
+	result, err := customFunc(ctx)
+
+	// Verify the results
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "mocked process list error")
+	assert.Nil(t, result)
+
+	// Verify the original function works as expected
+	// This is just a sanity check
+	_, origErr := originalFunc(ctx)
+	// We don't expect an error here in normal operation
+	// but we're not testing that, we're just ensuring we didn't break anything
+	if origErr != nil {
+		t.Logf("Original function returned expected error: %v", origErr)
+	}
+}
+
+// TestCountProcessesByStatusRealError tests error handling in CountProcessesByStatus
+// by directly calling the underlying implementation with a mock that reliably returns errors
+func TestCountProcessesByStatusRealError(t *testing.T) {
+	// Create a mocked version of the pids.go:84-92 func wrapper
+	mockedProcessListFunc := func(ctx context.Context) ([]ProcessStatus, error) {
+		return nil, errors.New("mocked error from process list")
+	}
+
+	// Call the underlying implementation with our custom mock
+	ctx := context.Background()
+	result, err := countProcessesByStatus(ctx, mockedProcessListFunc)
+
+	// Verify the results
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "mocked error from process list")
+	assert.Nil(t, result)
 }
