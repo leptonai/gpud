@@ -317,8 +317,8 @@ func TestCreateLoginRequest(t *testing.T) {
 	// Validate request fields
 	assert.Equal(t, token, req1.Token)
 	assert.Equal(t, machineID, req1.MachineID)
-	assert.Equal(t, privateIP, req1.Network.PrivateIP)
-	assert.Equal(t, publicIP, req1.Network.PublicIP)
+	assert.Equal(t, privateIP, req1.MachineInfo.NetworkInfo.PrivateIP)
+	assert.Equal(t, publicIP, req1.MachineInfo.NetworkInfo.PublicIP)
 	assert.NotNil(t, req1.Location)
 	assert.NotNil(t, req1.MachineInfo)
 

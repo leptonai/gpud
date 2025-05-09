@@ -13,24 +13,23 @@ func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineI
 	req := &apiv1.LoginRequest{
 		Token:     token,
 		MachineID: machineID,
-		Network:   GetMachineNetwork(),
 		Location:  GetMachineLocation(),
 		Resources: map[string]string{},
 	}
-	if privateIP != "" {
-		req.Network.PrivateIP = privateIP
-	}
-	if publicIP != "" {
-		req.Network.PublicIP = publicIP
-	}
 
-	req.Provider = GetProvider(req.Network.PublicIP)
+	req.Provider = GetProvider(publicIP)
 
 	var err error
 	req.MachineInfo, err = GetMachineInfo(nvmlInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine info: %w", err)
 	}
+
+	if req.MachineInfo.NetworkInfo == nil {
+		req.MachineInfo.NetworkInfo = &apiv1.MachineNetworkInfo{}
+	}
+	req.MachineInfo.NetworkInfo.PrivateIP = privateIP
+	req.MachineInfo.NetworkInfo.PublicIP = publicIP
 
 	cpu, _, err := GetSystemResourceLogicalCores()
 	if err != nil {

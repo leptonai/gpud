@@ -28,6 +28,7 @@ import (
 	"github.com/leptonai/gpud/version"
 )
 
+// GetMachineInfo fetches a set of "static" machine information.
 func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 	hostname, _ := os.Hostname()
 	info := &apiv1.MachineInfo{
@@ -45,7 +46,8 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		Hostname:                hostname,
 		Uptime:                  metav1.NewTime(time.Unix(int64(pkghost.BootTimeUnixSeconds()), 0)),
 
-		CPUInfo: GetMachineCPUInfo(),
+		CPUInfo:     GetMachineCPUInfo(),
+		NetworkInfo: GetMachineNetwork(),
 	}
 
 	var err error
@@ -141,9 +143,9 @@ func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
 	}
 }
 
-func GetMachineNetwork() *apiv1.MachineNetwork {
+func GetMachineNetwork() *apiv1.MachineNetworkInfo {
 	publicIP, _ := netutil.PublicIP()
-	return &apiv1.MachineNetwork{
+	return &apiv1.MachineNetworkInfo{
 		PublicIP:  publicIP,
 		PrivateIP: "",
 	}
