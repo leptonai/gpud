@@ -311,7 +311,7 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 		// Verify all fields are correctly sent
 		assert.Equal(t, "test-token", receivedReq.Token)
 		assert.Equal(t, "aws", receivedReq.Provider)
-		assert.Equal(t, "192.168.1.1", receivedReq.Network.PrivateIP)
+		assert.Equal(t, "192.168.1.1", receivedReq.MachineInfo.NetworkInfo.PrivateIP)
 
 		// Return successful response
 		w.WriteHeader(http.StatusOK)
@@ -327,13 +327,15 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 	req := apiv1.LoginRequest{
 		Token:    "test-token",
 		Provider: "aws",
-		Network: &apiv1.MachineNetwork{
-			PrivateIP: "192.168.1.1",
-			PublicIP:  "203.0.113.1",
-		},
 		Location: &apiv1.MachineLocation{
 			Region: "us-west-2",
 			Zone:   "us-west-2a",
+		},
+		MachineInfo: &apiv1.MachineInfo{
+			NetworkInfo: &apiv1.MachineNetworkInfo{
+				PrivateIP: "192.168.1.1",
+				PublicIP:  "203.0.113.1",
+			},
 		},
 	}
 

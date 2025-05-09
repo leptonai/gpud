@@ -270,6 +270,8 @@ type MachineInfo struct {
 	GPUInfo *MachineGPUInfo `json:"gpuInfo,omitempty"`
 	// DiskInfo is the Disk info of the machine.
 	DiskInfo *MachineDiskInfo `json:"diskInfo,omitempty"`
+	// NetworkInfo is the Network info of the machine.
+	NetworkInfo *MachineNetworkInfo `json:"networkInfo,omitempty"`
 }
 
 func (i *MachineInfo) RenderTable(wr io.Writer) {
@@ -285,6 +287,11 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 		table.Append([]string{"Container Root Disk", i.DiskInfo.ContainerRootDisk})
 	}
 
+	if i.NetworkInfo != nil {
+		table.Append([]string{"Public IP", i.NetworkInfo.PublicIP})
+		table.Append([]string{"Private IP", i.NetworkInfo.PrivateIP})
+	}
+
 	if i.GPUInfo != nil {
 		table.Append([]string{"GPU Driver Version", i.GPUDriverVersion})
 		table.Append([]string{"GPU Product", i.GPUInfo.Product})
@@ -296,13 +303,13 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 	table.Render()
 	fmt.Fprintf(wr, "\n")
 
-	if i.DiskInfo != nil {
-		i.DiskInfo.RenderTable(wr)
+	if i.GPUInfo != nil {
+		i.GPUInfo.RenderTable(wr)
 		fmt.Fprintf(wr, "\n")
 	}
 
-	if i.GPUInfo != nil {
-		i.GPUInfo.RenderTable(wr)
+	if i.DiskInfo != nil {
+		i.DiskInfo.RenderTable(wr)
 		fmt.Fprintf(wr, "\n")
 	}
 }
@@ -399,7 +406,7 @@ func (di *MachineDiskInfo) RenderTable(wr io.Writer) {
 	}
 }
 
-type MachineNetwork struct {
+type MachineNetworkInfo struct {
 	PublicIP  string `json:"publicIP,omitempty"`
 	PrivateIP string `json:"privateIP,omitempty"`
 }
