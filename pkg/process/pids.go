@@ -42,6 +42,29 @@ type ProcessStatus interface {
 	Status() ([]string, error)
 }
 
+// FindProcessByName finds a process by its name.
+func FindProcessByName(ctx context.Context, processName string) (ProcessStatus, error) {
+	return findProcessByName(ctx, processName, procs.ProcessesWithContext)
+}
+
+// findProcessByName finds a process by its name.
+func findProcessByName(ctx context.Context, processName string, listProcessFunc func(ctx context.Context) ([]*procs.Process, error)) (ProcessStatus, error) {
+	procs, err := listProcessFunc(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range procs {
+		name, err := p.Name()
+		if err != nil {
+			continue
+		}
+		if strings.Contains(name, processName) {
+			return p, nil
+		}
+	}
+	return nil, nil
+}
+
 // CountProcessesByStatus counts all processes by its process status.
 func CountProcessesByStatus(ctx context.Context) (map[string][]ProcessStatus, error) {
 	return countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {

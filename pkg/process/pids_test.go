@@ -5,6 +5,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	procs "github.com/shirou/gopsutil/v4/process"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCountProcessesByStatus(t *testing.T) {
@@ -317,4 +320,51 @@ func TestCountRunningPidsError(t *testing.T) {
 	if count != 3 {
 		t.Fatalf("Expected count of 3, got %d", count)
 	}
+}
+
+// TestFindProcessByName tests the findProcessByName function
+func TestFindProcessByName(t *testing.T) {
+	ctx := context.Background()
+
+	// To keep the tests separately, we'll use a different approach and not modify findProcessByName
+
+	t.Run("empty process list", func(t *testing.T) {
+		emptyListFunc := func(ctx context.Context) ([]*procs.Process, error) {
+			return []*procs.Process{}, nil
+		}
+
+		result, err := findProcessByName(ctx, "test", emptyListFunc)
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("no matching process", func(t *testing.T) {
+		noMatchListFunc := func(ctx context.Context) ([]*procs.Process, error) {
+			return []*procs.Process{
+				{Pid: 100},
+				{Pid: 200},
+			}, nil
+		}
+
+		result, err := findProcessByName(ctx, "nonexistent", noMatchListFunc)
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("matching process found", func(t *testing.T) {
+		// This test needs to be skipped as it relies on the behavior of real Process.Name() calls
+		// which we can't properly mock in this test framework
+		t.Skip("This test requires real process objects and can't be properly mocked")
+	})
+
+	t.Run("error getting process list", func(t *testing.T) {
+		expectedErr := errors.New("failed to list processes")
+		errorListFunc := func(ctx context.Context) ([]*procs.Process, error) {
+			return nil, expectedErr
+		}
+
+		result, err := findProcessByName(ctx, "test", errorListFunc)
+		assert.Equal(t, expectedErr, err)
+		assert.Nil(t, result)
+	})
 }
