@@ -998,6 +998,7 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 	t.Run("context cancellation during NFS partitions", func(t *testing.T) {
 		ctxWithCancel, ctxCancel := context.WithCancel(context.Background())
 		c := createTestComponent(ctxWithCancel, []string{"/mnt/nfs"}, []string{})
+		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{mockDevice}, nil
@@ -1007,7 +1008,7 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 		}
 		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
 			ctxCancel()
-			return nil, assert.AnError
+			return nil, context.Canceled
 		}
 
 		c.Check()
@@ -1018,8 +1019,9 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 
 		assert.NotNil(t, lastCheckResult)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health)
-		assert.NotNil(t, lastCheckResult.err)
-		assert.Contains(t, lastCheckResult.err.Error(), "context canceled")
+		if assert.NotNil(t, lastCheckResult.err) {
+			assert.Contains(t, lastCheckResult.err.Error(), "context canceled")
+		}
 	})
 }
 

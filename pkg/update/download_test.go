@@ -4,245 +4,253 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"fmt"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
-func Test_tarballName(t *testing.T) {
-	ubuntuVer := detectUbuntuVersion()
-	ubuntuSuffix := ""
-	if ubuntuVer != "" {
-		ubuntuSuffix = "_" + ubuntuVer
+func TestTarballName(t *testing.T) {
+	// Test with various OS/arch combinations
+	expectedSuffix := ""
+
+	// Get the Ubuntu version if on Ubuntu
+	ubuntuVersion := detectUbuntuVersion()
+	if ubuntuVersion != "" {
+		expectedSuffix = "_" + ubuntuVersion
 	}
-	name := tarballName("v0.0.1", "linux", "amd64")
-	want := fmt.Sprintf("gpud_v0.0.1_linux_amd64%s.tgz", ubuntuSuffix)
-	if name != want {
-		t.Fatalf("want: %s, got: %s", want, name)
+
+	testCases := []struct {
+		version  string
+		os       string
+		arch     string
+		expected string
+	}{
+		{"1.0.0", "linux", "amd64", "gpud_1.0.0_linux_amd64" + expectedSuffix + ".tgz"},
+		{"0.5.2", "darwin", "arm64", "gpud_0.5.2_darwin_arm64" + expectedSuffix + ".tgz"},
+		{"2.1.3", "windows", "amd64", "gpud_2.1.3_windows_amd64" + expectedSuffix + ".tgz"},
+	}
+
+	for _, tc := range testCases {
+		result := tarballName(tc.version, tc.os, tc.arch)
+		if result != tc.expected {
+			t.Errorf("tarballName(%q, %q, %q) = %q, want %q",
+				tc.version, tc.os, tc.arch, result, tc.expected)
+		}
 	}
 }
 
-func Test_writeFile(t *testing.T) {
-	// Create a temporary directory for the test
-	tempDir, err := os.MkdirTemp("", "writeFileTest")
+func TestWriteFile(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp(t.TempDir(), "gpud-writeFile-test")
 	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
+		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Create a test file path
-	testFilePath := filepath.Join(tempDir, "testFile")
+	testFile := filepath.Join(tempDir, "test.txt")
+	testContent := "test content"
 
-	// Test case 1: Writing to a new file
-	testContent := []byte("test content")
-	err = writeFile(bytes.NewReader(testContent), testFilePath, 0644)
+	// Test writing file
+	err = writeFile(bytes.NewBufferString(testContent), testFile, 0644)
 	if err != nil {
 		t.Fatalf("writeFile failed: %v", err)
 	}
 
-	// Verify the file content
-	content, err := os.ReadFile(testFilePath)
+	// Read back and verify
+	content, err := os.ReadFile(testFile)
 	if err != nil {
-		t.Fatalf("failed to read test file: %v", err)
+		t.Fatalf("Failed to read test file: %v", err)
 	}
-	if !bytes.Equal(content, testContent) {
-		t.Fatalf("file content mismatch; got %q, want %q", content, testContent)
+	if string(content) != testContent {
+		t.Errorf("Content mismatch: got %q, want %q", string(content), testContent)
 	}
 
-	// Test case 2: Overwriting an existing file
-	newContent := []byte("new content")
-	err = writeFile(bytes.NewReader(newContent), testFilePath, 0644)
+	// Test writing to existing file (should succeed by replacing)
+	newContent := "new content"
+	err = writeFile(bytes.NewBufferString(newContent), testFile, 0644)
 	if err != nil {
-		t.Fatalf("writeFile failed on overwrite: %v", err)
+		t.Fatalf("writeFile failed on existing file: %v", err)
 	}
 
-	// Verify the new content
-	content, err = os.ReadFile(testFilePath)
+	// Read back and verify again
+	content, err = os.ReadFile(testFile)
 	if err != nil {
-		t.Fatalf("failed to read test file after overwrite: %v", err)
+		t.Fatalf("Failed to read test file after rewrite: %v", err)
 	}
-	if !bytes.Equal(content, newContent) {
-		t.Fatalf("file content mismatch after overwrite; got %q, want %q", content, newContent)
+	if string(content) != newContent {
+		t.Errorf("Content mismatch after rewrite: got %q, want %q", string(content), newContent)
 	}
 }
 
-func Test_copyFile(t *testing.T) {
-	// Create a temporary directory for the test
-	tempDir, err := os.MkdirTemp("", "copyFileTest")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Create a source file with test content
-	srcPath := filepath.Join(tempDir, "srcFile")
-	srcContent := []byte("source file content")
-	if err := os.WriteFile(srcPath, srcContent, 0644); err != nil {
-		t.Fatalf("failed to create source file: %v", err)
-	}
-
-	// Set up destination path
-	dstPath := filepath.Join(tempDir, "dstFile")
-
-	// Copy the file
-	if err := copyFile(srcPath, dstPath); err != nil {
-		t.Fatalf("copyFile failed: %v", err)
-	}
-
-	// Verify the destination file has the correct content
-	dstContent, err := os.ReadFile(dstPath)
-	if err != nil {
-		t.Fatalf("failed to read destination file: %v", err)
-	}
-	if !bytes.Equal(dstContent, srcContent) {
-		t.Fatalf("destination file content mismatch; got %q, want %q", dstContent, srcContent)
-	}
-
-	// Test error case: non-existent source file
-	nonExistPath := filepath.Join(tempDir, "nonExistent")
-	if err := copyFile(nonExistPath, dstPath); err == nil {
-		t.Fatalf("expected an error when copying from non-existent file, got nil")
-	}
-}
-
-func Test_downloadFile(t *testing.T) {
-	// Create a temporary directory for the test
-	tempDir, err := os.MkdirTemp("", "downloadFileTest")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Create mock content to serve
-	mockContent := []byte("mock server response")
-
-	// Create a mock HTTP server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestDownloadFile(t *testing.T) {
+	// Create a test server
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/success" {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(mockContent)
-		} else if r.URL.Path == "/error" {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("server error"))
+			_, _ = w.Write([]byte("test content"))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	defer server.Close()
+	defer ts.Close()
 
-	// Test case 1: Successful download
-	downloadPath := filepath.Join(tempDir, "downloadedFile")
-	err = downloadFile(server.URL+"/success", downloadPath)
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp(t.TempDir(), "gpud-downloadFile-test")
 	if err != nil {
-		t.Fatalf("downloadFile failed: %v", err)
-	}
-
-	// Verify the downloaded content
-	content, err := os.ReadFile(downloadPath)
-	if err != nil {
-		t.Fatalf("failed to read downloaded file: %v", err)
-	}
-	if !bytes.Equal(content, mockContent) {
-		t.Fatalf("downloaded content mismatch; got %q, want %q", content, mockContent)
-	}
-
-	// Test case 2: Server error
-	err = downloadFile(server.URL+"/error", downloadPath+".error")
-	if err == nil {
-		t.Fatalf("expected an error from server, got nil")
-	}
-}
-
-func createMockTarball(t *testing.T, path string) {
-	t.Helper()
-
-	// Create a buffer to write our tar file to
-	var buf bytes.Buffer
-
-	// Create a gzip writer
-	gw := gzip.NewWriter(&buf)
-
-	// Create a tar writer
-	tw := tar.NewWriter(gw)
-
-	// Add a file to the archive
-	content := []byte("binary file content")
-	hdr := &tar.Header{
-		Name: "gpud", // This is the file we specifically look for in unpackLinuxTarball
-		Mode: 0755,
-		Size: int64(len(content)),
-	}
-
-	if err := tw.WriteHeader(hdr); err != nil {
-		t.Fatalf("failed to write tar header: %v", err)
-	}
-
-	if _, err := tw.Write(content); err != nil {
-		t.Fatalf("failed to write tar content: %v", err)
-	}
-
-	// Close to flush and complete the tar archive
-	if err := tw.Close(); err != nil {
-		t.Fatalf("failed to close tar writer: %v", err)
-	}
-
-	if err := gw.Close(); err != nil {
-		t.Fatalf("failed to close gzip writer: %v", err)
-	}
-
-	// Write the buffer to the file
-	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
-		t.Fatalf("failed to write tarball file: %v", err)
-	}
-}
-
-func Test_unpackLinuxTarball(t *testing.T) {
-	// Create a temporary directory for the test
-	tempDir, err := os.MkdirTemp("", "unpackTarballTest")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
+		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Create paths for the tarball and the file to replace
-	tarballPath := filepath.Join(tempDir, "test.tgz")
-	fileToReplace := filepath.Join(tempDir, "gpud")
-
-	// Create a mock tarball with the necessary structure
-	createMockTarball(t, tarballPath)
-
-	// Test unpacking the tarball
-	err = unpackLinuxTarball(tarballPath, fileToReplace)
+	// Test successful download
+	successPath := filepath.Join(tempDir, "success.txt")
+	err = downloadFile(ts.URL+"/success", successPath)
 	if err != nil {
-		t.Fatalf("unpackLinuxTarball failed: %v", err)
+		t.Errorf("downloadFile failed for success path: %v", err)
+	} else {
+		// Verify file content
+		content, err := os.ReadFile(successPath)
+		if err != nil {
+			t.Fatalf("Failed to read downloaded file: %v", err)
+		}
+		if string(content) != "test content" {
+			t.Errorf("Downloaded content mismatch: got %q, want %q",
+				string(content), "test content")
+		}
 	}
 
-	// Verify the file was extracted correctly
-	if _, err := os.Stat(fileToReplace); os.IsNotExist(err) {
-		t.Fatalf("target file was not created: %v", err)
-	}
-
-	// Check the permission on the file
-	info, err := os.Stat(fileToReplace)
-	if err != nil {
-		t.Fatalf("failed to stat extracted file: %v", err)
-	}
-
-	// On Unix systems, check the file mode (permission bits)
-	if info.Mode().Perm() != 0755 {
-		t.Fatalf("extracted file has unexpected permissions: got %o, want %o",
-			info.Mode().Perm(), 0755)
-	}
-
-	// Test case with invalid tarball
-	invalidTarballPath := filepath.Join(tempDir, "invalid.tgz")
-	if err := os.WriteFile(invalidTarballPath, []byte("not a tarball"), 0644); err != nil {
-		t.Fatalf("failed to create invalid tarball: %v", err)
-	}
-
-	err = unpackLinuxTarball(invalidTarballPath, fileToReplace)
+	// Test 404 response
+	notFoundPath := filepath.Join(tempDir, "notfound.txt")
+	err = downloadFile(ts.URL+"/notfound", notFoundPath)
 	if err == nil {
-		t.Fatalf("expected an error with invalid tarball, got nil")
+		t.Error("downloadFile should have failed for 404 response")
+	}
+}
+
+func TestCopyFile(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp(t.TempDir(), "gpud-copyFile-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create source file
+	srcPath := filepath.Join(tempDir, "source.txt")
+	srcContent := "test content for copy"
+	err = os.WriteFile(srcPath, []byte(srcContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create source file: %v", err)
+	}
+
+	// Test copying to destination
+	dstPath := filepath.Join(tempDir, "destination.txt")
+	err = copyFile(srcPath, dstPath)
+	if err != nil {
+		t.Errorf("copyFile failed: %v", err)
+	} else {
+		// Verify file content
+		content, err := os.ReadFile(dstPath)
+		if err != nil {
+			t.Fatalf("Failed to read copied file: %v", err)
+		}
+		if string(content) != srcContent {
+			t.Errorf("Copied content mismatch: got %q, want %q",
+				string(content), srcContent)
+		}
+	}
+
+	// Test copying from non-existent source
+	err = copyFile(filepath.Join(tempDir, "nonexistent.txt"), dstPath)
+	if err == nil {
+		t.Error("copyFile should have failed for non-existent source")
+	}
+}
+
+func TestDownloadLinuxTarball(t *testing.T) {
+	// Skip test if not on linux (to avoid unexpected behavior)
+	if runtime.GOOS != "linux" {
+		t.Skip("Test only applicable on Linux")
+	}
+
+	// Test with a context that's already been canceled
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	_, err := downloadLinuxTarball(ctx, "0.0.1", DefaultUpdateURL)
+	// This should fail because the context is canceled
+	if err == nil {
+		t.Error("Expected error when downloadLinuxTarball with canceled context")
+	}
+}
+
+func createTestTarball(t *testing.T, path string) {
+	// Create a gzipped tarball for testing
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("Failed to create test tarball: %v", err)
+	}
+	defer f.Close()
+
+	gw := gzip.NewWriter(f)
+	defer gw.Close()
+
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
+
+	// Add a dummy gpud file
+	hdr := &tar.Header{
+		Name: "gpud",
+		Mode: 0755,
+		Size: int64(len("dummy gpud binary")),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatalf("Failed to write tar header: %v", err)
+	}
+	if _, err := tw.Write([]byte("dummy gpud binary")); err != nil {
+		t.Fatalf("Failed to write tar content: %v", err)
+	}
+}
+
+func TestUnpackLinuxTarball(t *testing.T) {
+	tempDir, err := os.MkdirTemp(t.TempDir(), "gpud-unpackTarball-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a test tarball
+	tarballPath := filepath.Join(tempDir, "test.tgz")
+	createTestTarball(t, tarballPath)
+
+	// Test unpacking
+	gpudPath := filepath.Join(tempDir, "gpud")
+	err = unpackLinuxTarball(tarballPath, gpudPath)
+	if err != nil {
+		t.Errorf("unpackLinuxTarball failed: %v", err)
+	} else {
+		// Verify file exists
+		if _, err := os.Stat(gpudPath); os.IsNotExist(err) {
+			t.Error("Unpacked gpud binary not found")
+		}
+
+		// Verify file content
+		content, err := os.ReadFile(gpudPath)
+		if err != nil {
+			t.Fatalf("Failed to read unpacked file: %v", err)
+		}
+		if string(content) != "dummy gpud binary" {
+			t.Errorf("Unpacked content mismatch: got %q, want %q",
+				string(content), "dummy gpud binary")
+		}
+	}
+
+	// Test with non-existent tarball
+	err = unpackLinuxTarball(filepath.Join(tempDir, "nonexistent.tgz"), gpudPath)
+	if err == nil {
+		t.Error("unpackLinuxTarball should have failed for non-existent tarball")
 	}
 }

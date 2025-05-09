@@ -14,15 +14,14 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-type FileInformer struct {
-}
+type fileInformer struct{}
 
 func NewFileInformer() chan packages.PackageInfo {
-	i := &FileInformer{}
+	i := &fileInformer{}
 	return i.Start()
 }
 
-func (f *FileInformer) Start() chan packages.PackageInfo {
+func (f *fileInformer) Start() chan packages.PackageInfo {
 	c := make(chan packages.PackageInfo)
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {

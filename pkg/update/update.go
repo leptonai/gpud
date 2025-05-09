@@ -14,6 +14,8 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
+const DefaultUpdateURL = "https://pkg.gpud.dev/"
+
 func Update(ver, url string) error {
 	return update(ver, url, true, true)
 }
