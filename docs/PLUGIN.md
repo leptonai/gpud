@@ -204,6 +204,19 @@ In your bash scripts, you can use these variables:
 
 ## Plugin Output and Parsing
 
+### Purpose of Output Parsing
+The output parsing system serves as a bridge between raw plugin output and actionable system responses. It:
+- Extracts structured information from plugin output
+- Classifies issues into categories
+- Triggers appropriate remediation actions
+- Provides context for operator decisions
+
+This system is crucial for:
+- Automated remediation of common issues
+- Consistent handling of plugin outputs
+- Clear communication of problems and solutions
+- Integration with cluster management systems
+
 ### Output Format
 The plugin must output its result to stdout. The output must be a valid JSON object. The output can be embedded within other text output - the parser will extract the first valid JSON object it finds.
 
@@ -220,6 +233,100 @@ Example JSON output:
   "commands": ["reboot"]
 }
 ```
+
+### Understanding JSONPath and Parser Configuration
+
+The parser uses JSONPath syntax to extract information from the plugin output. JSONPath is a query language for JSON data, similar to XPath for XML:
+
+- `$` represents the root of the JSON object
+- `.` is the child operator
+- `$.name` means "get the 'name' field from the root object"
+
+Example JSON and corresponding JSONPath queries:
+```json
+{
+  "name": "gpu-check",
+  "result": "error",
+  "error": "GPU memory overflow"
+}
+```
+- `$.name` → "gpu-check"
+- `$.result` → "error"
+- `$.error` → "GPU memory overflow"
+
+### Parser Configuration Components
+
+The parser configuration consists of several key components:
+
+```yaml
+parser:
+  json_paths:
+    - query: "$.name"          # JSONPath to extract
+      field: "name"            # Where to store the value
+      expect:                  # Optional validation
+        regex: "^gpu-check$"   # Must match pattern
+      suggested_actions:       # Optional action triggers
+        REBOOT_SYSTEM:         # Action name
+          regex: ".*reboot.*"  # When to trigger
+```
+
+#### Configuration Elements
+
+1. **query**: The JSONPath expression to extract data
+   - `$.name` - gets the name field
+   - `$.result` - gets the result field
+   - `$.error` - gets the error field
+
+2. **field**: The internal name to store the extracted value
+   - Used by the system to reference the value
+   - Must be unique within the parser configuration
+
+3. **expect**: Validation rules for the extracted value
+   ```yaml
+   expect:
+     regex: "(?i)^true$"  # Case-insensitive match for "true"
+   ```
+   - Validates the extracted value matches the pattern
+   - Can be used to ensure data quality
+
+4. **suggested_actions**: Triggers for automated responses
+   ```yaml
+   suggested_actions:
+     REBOOT_SYSTEM:
+       regex: "(?i).*reboot.*"  # Trigger on any text containing "reboot"
+   ```
+   - Maps extracted values to system actions
+   - Uses regex to match patterns in the output
+
+### Real-World Example
+
+Consider this plugin output:
+```json
+{
+  "name": "gpu-memory-check",
+  "result": "error",
+  "error": "GPU memory overflow",
+  "passed": false,
+  "action": "system needs reboot",
+  "suggestion": "GPU memory exceeded limits, reboot required",
+  "commands": ["reboot"]
+}
+```
+
+This output would be parsed as:
+- `$.name` → "gpu-memory-check" (stored in `name` field)
+- `$.result` → "error" (stored in `result` field)
+- `$.error` → "GPU memory overflow" (stored in `error` field)
+- `$.passed` → false (stored in `passed` field, fails `expect` rule)
+- `$.action` → "system needs reboot" (stored in `action` field, triggers `REBOOT_SYSTEM`)
+- `$.suggestion` → "GPU memory exceeded limits, reboot required" (stored in `suggestion` field, triggers `REBOOT_SYSTEM`)
+- `$.commands` → ["reboot"] (stored in `commands` field)
+
+The parser would:
+1. Extract all these values
+2. Validate the `passed` field against the expect rule
+3. Trigger the `REBOOT_SYSTEM` action because both `action` and `suggestion` contain "reboot"
+4. Make all this information available to the system for automated or operator-initiated remediation
 
 ### Standard Fields
 The following fields are standardized across all plugins:
@@ -593,3 +700,97 @@ This allows you to:
 2. Get a single success/failure status for the entire group
 3. Implement conditional logic based on the test results
 4. Maintain a clean separation of concerns between different types of checks 
+
+### Understanding Field Relationships and Error Handling
+
+#### JSON vs GPUd Fields
+- **JSON Fields**: The fields in your plugin's output JSON
+  ```json
+  {
+    "action": "system needs reboot"  // JSON field
+  }
+  ```
+- **GPUd Fields**: The internal names where GPUd stores extracted values
+  ```yaml
+  - query: "$.action"    # JSON field to extract
+    field: "action"      # GPUd field to store in
+  ```
+
+#### Multiple Action Triggers
+You can define multiple actions that trigger based on different conditions:
+
+```yaml
+- query: "$.action"
+  field: "action"
+  suggested_actions:
+    REBOOT_SYSTEM:
+      regex: "(?i).*reboot.*"
+    HARDWARE_INSPECTION:
+      regex: "(?i).*hardware.*"
+    CHECK_USER_APP_AND_GPU:
+      regex: "(?i).*application.*"
+```
+
+If the action field contains multiple matching terms, ALL matching actions will be triggered:
+```json
+{
+  "action": "application error requires hardware inspection and reboot"
+}
+```
+This would trigger:
+- `REBOOT_SYSTEM` (matches "reboot")
+- `HARDWARE_INSPECTION` (matches "hardware")
+- `CHECK_USER_APP_AND_GPU` (matches "application")
+
+#### Result and Expect Rules
+The `result` field is a string, not a boolean:
+```yaml
+- query: "$.result"
+  field: "result"
+  expect:
+    regex: "^success$"  # Must be exactly "success"
+```
+
+If the expect rule fails:
+- The check is marked as failed
+- The error is logged
+- The system may trigger appropriate actions
+- The plugin's exit code is still considered
+
+#### Error Code Handling
+Errors are captured in two ways:
+
+1. **Plugin Exit Code**:
+```bash
+#!/bin/bash
+if [ $? -eq 0 ]; then
+  # Success case
+  echo '{"result": "success", "error": null}'
+  exit 0
+else
+  # Error case
+  echo '{"result": "error", "error": "command failed"}'
+  exit 1
+fi
+```
+
+2. **JSON Error Information**:
+```json
+{
+  "result": "error",           // Overall result
+  "error": "GPU memory overflow", // Detailed error message
+  "passed": false,            // Quick status check
+  "action": "system needs reboot", // Suggested action
+  "suggestion": "GPU memory exceeded limits, reboot required" // Detailed suggestion
+}
+```
+
+The system considers both:
+- The plugin's exit code (0 for success, non-zero for failure)
+- The JSON output fields (result, error, passed, etc.)
+
+This dual approach allows for:
+- Quick failure detection via exit codes
+- Detailed error information via JSON
+- Structured error handling and remediation
+- Clear communication of issues and solutions
