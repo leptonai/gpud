@@ -30,6 +30,10 @@ Component plugins run periodically to monitor system health. They can be:
 - **Single Component**: One health check with one configuration
 - **Multi-Component**: Multiple health checks from a single configuration, either specified directly or loaded from a file
 
+GPUd uses the exit status of plugins to determine success or failure of a plugin.  Ensure that plugins return an error code
+0 for success, and non-zero for failure.  (Plugs with multiple commands may experience an error at every command.  Ensure 
+that all errors are handled.  (See also **Best Practices** below.)
+
 ## Configuration Format
 
 Plugins are configured using YAML files. Here's the basic structure:
@@ -302,14 +306,27 @@ health_state_plugin:
    - Consider system load when setting intervals
 
 3. **Component Lists**:
-   - Use `component_list_file` for large numbers of components
+   - Use `component_list_file` for large numbers of components that use standardized scripts (e.g., checking multiple devices, executing different health check scripts,...)
    - Keep component names descriptive and unique
    - Use parameters to make scripts more flexible
 
 4. **Error Handling**:
    - Always check for errors in your scripts
    - Provide meaningful error messages
-   - Use appropriate exit codes
+   - Use appropriate exit codes.
+
+5. **Plugin scripts**
+   - Plugins are executed by `/bin/bash`. You can use bash conventions, bvariables etc.
+   - When running multiple commands in a plugin using bash, each command may experience an error that may lead to a corrupt result.
+   - Ensure each command's error is caught and handled.  To propagate unhandled errors to GPUd, you can figure your commands with these settings:
+```
+            # do not mask errors
+            set -o pipefail
+            # treat unset variables as an error
+            set -o nounset
+            # exit script whenever it errs
+            set -o errexit
+```
 
 ## Integration with GPUd
 
