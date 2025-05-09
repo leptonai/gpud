@@ -6,11 +6,11 @@ import (
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
-const SubSystem = "fd"
+const SubSystem = "os_fd"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "fd",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricAllocatedFileHandles = prometheus.NewGaugeVec(

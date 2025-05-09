@@ -10,7 +10,7 @@ const SubSystem = "accelerator_nvidia_clock_speed"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-clock-speed",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricGraphicsMHz = prometheus.NewGaugeVec(

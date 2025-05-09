@@ -10,7 +10,7 @@ const SubSystem = "memory"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "memory",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricTotalBytes = prometheus.NewGaugeVec(

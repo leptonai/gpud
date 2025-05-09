@@ -10,7 +10,7 @@ const SubSystem = "fuse"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "fuse",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricConnsCongestedPct = prometheus.NewGaugeVec(

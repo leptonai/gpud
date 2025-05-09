@@ -10,7 +10,7 @@ const SubSystem = "accelerator_nvidia_power"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-power",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricCurrentUsageMilliWatts = prometheus.NewGaugeVec(

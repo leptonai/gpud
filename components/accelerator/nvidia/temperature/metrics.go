@@ -10,7 +10,7 @@ const SubSystem = "accelerator_nvidia_temperature"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-temperature",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricCurrentCelsius = prometheus.NewGaugeVec(

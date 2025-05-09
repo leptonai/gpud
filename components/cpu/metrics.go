@@ -10,7 +10,7 @@ const SubSystem = "cpu"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "cpu",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	// ref. https://www.digitalocean.com/community/tutorials/load-average-in-linux

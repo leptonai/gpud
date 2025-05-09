@@ -10,7 +10,7 @@ const SubSystem = "accelerator_nvidia_processes"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-processes",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricRunningProcesses = prometheus.NewGaugeVec(

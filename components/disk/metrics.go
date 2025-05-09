@@ -10,7 +10,7 @@ const SubSystem = "disk"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "disk",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricTotalBytes = prometheus.NewGaugeVec(
