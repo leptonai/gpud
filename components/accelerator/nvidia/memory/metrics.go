@@ -10,7 +10,7 @@ const SubSystem = "accelerator_nvidia_memory"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-memory",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricTotalBytes = prometheus.NewGaugeVec(

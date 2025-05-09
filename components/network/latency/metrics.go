@@ -10,7 +10,7 @@ const SubSystem = "network_latency"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "network-latency",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricEdgeInMilliseconds = prometheus.NewGaugeVec(

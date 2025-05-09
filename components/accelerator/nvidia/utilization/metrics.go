@@ -10,7 +10,7 @@ const SubSystem = "accelerator_nvidia_utilization"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-utilization",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricGPUUtilPercent = prometheus.NewGaugeVec(

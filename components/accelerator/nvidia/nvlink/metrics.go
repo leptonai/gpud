@@ -10,7 +10,7 @@ const SubSystem = "accelerator_nvidia_nvlink"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-nvlink",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricFeatureEnabled = prometheus.NewGaugeVec(

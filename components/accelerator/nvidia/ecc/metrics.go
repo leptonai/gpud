@@ -11,7 +11,7 @@ const SubSystem = "accelerator_nvidia_ecc"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-ecc",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricAggregateTotalCorrected = prometheus.NewGaugeVec(

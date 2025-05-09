@@ -13,7 +13,7 @@ const SubSystem = "accelerator_nvidia_gpm"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-gpm",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	// metricGPUSMOccupancyPercent is the percentage of warps that were active vs theoretical maximum (0.0 - 100.0).

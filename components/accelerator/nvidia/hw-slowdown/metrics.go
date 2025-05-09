@@ -10,7 +10,7 @@ const SubSystem = "accelerator_nvidia_clock"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-hw-slowdown",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricHWSlowdown = prometheus.NewGaugeVec(

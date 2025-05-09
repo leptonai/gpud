@@ -10,7 +10,7 @@ const SubSystem = "accelerator_nvidia_remapped_rows"
 
 var (
 	componentLabel = prometheus.Labels{
-		pkgmetrics.MetricComponentLabelKey: "accelerator-nvidia-remapped-rows",
+		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
 	metricUncorrectableErrors = prometheus.NewGaugeVec(

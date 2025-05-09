@@ -1992,16 +1992,16 @@ func TestComponent_MetricsUpdate(t *testing.T) {
 	// Note: In a real test, you would need to verify the actual values
 	// This test is primarily to verify that metrics are registered and receive updates
 	metricNames := []string{
-		"fd_allocated_file_handles",
-		"fd_running_pids",
-		"fd_limit",
-		"fd_allocated_file_handles_percent",
-		"fd_used_percent",
-		"fd_threshold_running_pids",
-		"fd_threshold_running_pids_percent",
-		"fd_threshold_allocated_file_handles",
-		"fd_threshold_allocated_file_handles_percent",
-		"fd_zombie_processes",
+		"os_fd_allocated_file_handles",
+		"os_fd_running_pids",
+		"os_fd_limit",
+		"os_fd_allocated_file_handles_percent",
+		"os_fd_used_percent",
+		"os_fd_threshold_running_pids",
+		"os_fd_threshold_running_pids_percent",
+		"os_fd_threshold_allocated_file_handles",
+		"os_fd_threshold_allocated_file_handles_percent",
+		"os_fd_zombie_processes",
 	}
 
 	for _, name := range metricNames {
