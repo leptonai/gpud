@@ -12,6 +12,7 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
@@ -20,16 +21,34 @@ func cmdStatus(cliContext *cli.Context) error {
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer rootCancel()
 
+	var (
+		active bool
+		err    error
+	)
 	if systemd.SystemctlExists() {
-		active, err := systemd.IsActive("gpud.service")
+		active, err = systemd.IsActive("gpud.service")
 		if err != nil {
 			return err
 		}
 		if !active {
-			fmt.Printf("%s gpud is not running\n", warningSign)
+			fmt.Printf("%s gpud.service is not active\n", warningSign)
+		} else {
+			fmt.Printf("%s gpud.service is active\n", checkMark)
+		}
+	}
+	if !active {
+		// fallback to process list
+		// in case it's not using systemd
+		proc, err := process.FindProcessByName(rootCtx, "gpud")
+		if err != nil {
+			return err
+		}
+		if proc == nil {
+			fmt.Printf("%s gpud process is not running\n", warningSign)
 			return nil
 		}
-		fmt.Printf("%s gpud is running\n", checkMark)
+
+		fmt.Printf("%s gpud process is running (PID %d)\n", checkMark, proc.PID())
 	}
 	fmt.Printf("%s successfully checked gpud status\n", checkMark)
 

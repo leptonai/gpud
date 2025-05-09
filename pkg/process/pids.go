@@ -39,7 +39,43 @@ func countRunningPidsImpl(getPids func() ([]int32, error)) (uint64, error) {
 // ref. https://pkg.go.dev/github.com/shirou/gopsutil/v4@v4.25.3/process#Process
 type ProcessStatus interface {
 	Name() (string, error)
+	PID() int32
 	Status() ([]string, error)
+}
+
+func getProcessStatus(p *procs.Process) ProcessStatus {
+	return &processStatus{Process: p}
+}
+
+type processStatus struct {
+	*procs.Process
+}
+
+func (p *processStatus) PID() int32 {
+	return p.Pid
+}
+
+// FindProcessByName finds a process by its name.
+func FindProcessByName(ctx context.Context, processName string) (ProcessStatus, error) {
+	return findProcessByName(ctx, processName, procs.ProcessesWithContext)
+}
+
+// findProcessByName finds a process by its name.
+func findProcessByName(ctx context.Context, processName string, listProcessFunc func(ctx context.Context) ([]*procs.Process, error)) (ProcessStatus, error) {
+	procs, err := listProcessFunc(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range procs {
+		name, err := p.Name()
+		if err != nil {
+			continue
+		}
+		if strings.Contains(name, processName) {
+			return getProcessStatus(p), nil
+		}
+	}
+	return nil, nil
 }
 
 // CountProcessesByStatus counts all processes by its process status.
@@ -51,7 +87,7 @@ func CountProcessesByStatus(ctx context.Context) (map[string][]ProcessStatus, er
 		}
 		ps := make([]ProcessStatus, len(procs))
 		for i, p := range procs {
-			ps[i] = p
+			ps[i] = getProcessStatus(p)
 		}
 		return ps, nil
 	})
