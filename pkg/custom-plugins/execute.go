@@ -1,15 +1,18 @@
 package customplugins
 
 import (
+	"fmt"
 	"sort"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
 // ExecuteInOrder executes all the plugins in the specs, in sequence.
 // This is ONLY used for dry-run plugins from the spec.
-func (specs Specs) ExecuteInOrder(gpudInstance *components.GPUdInstance) ([]components.CheckResult, error) {
+// If failFast is true, the execution will stop at the first failed plugin.
+func (specs Specs) ExecuteInOrder(gpudInstance *components.GPUdInstance, failFast bool) ([]components.CheckResult, error) {
 	// execute "init" type plugins first
 	sort.Slice(specs, func(i, j int) bool {
 		// "init" type first
@@ -34,8 +37,16 @@ func (specs Specs) ExecuteInOrder(gpudInstance *components.GPUdInstance) ([]comp
 		checkResult := comp.Check()
 		_ = comp.Close()
 
+		if checkResult.HealthStateType() != apiv1.HealthStateTypeHealthy {
+			if failFast {
+				return nil, fmt.Errorf("plugin %s returned unhealthy state (summary %s)", comp.Name(), checkResult.Summary())
+			}
+			log.Logger.Warnw("plugin returned unhealthy state", "component", comp.Name())
+		} else {
+			log.Logger.Infow("executed custom plugin", "component", comp.Name())
+		}
+
 		results = append(results, checkResult)
-		log.Logger.Infow("executed custom plugin", "component", comp.Name())
 	}
 	return results, nil
 }

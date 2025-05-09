@@ -41,7 +41,8 @@ var (
 
 	enablePluginAPI bool
 
-	customPluginsRun bool
+	customPluginsRun      bool
+	customPluginsFailFast bool
 )
 
 const (
@@ -541,6 +542,11 @@ sudo gpud join
 					Name:        "run,r",
 					Usage:       "run the custom plugins (default: false)",
 					Destination: &customPluginsRun,
+				},
+				&cli.BoolTFlag{
+					Name:        "fail-fast,f",
+					Usage:       "fail fast, exit immediately if any plugin returns unhealthy state (default: true)",
+					Destination: &customPluginsFailFast,
 				},
 
 				// only for testing
