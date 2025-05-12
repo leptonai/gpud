@@ -505,10 +505,6 @@ sudo gpud join
 					Name:  "skip-interactive",
 					Usage: "use detected value instead of prompting for user input",
 				},
-				cli.BoolFlag{
-					Name:  "no-public-ip",
-					Usage: "do not use any public ip",
-				},
 				cli.StringFlag{
 					Name:  "extra-info",
 					Usage: "base64 encoded extra info to pass to control plane",
