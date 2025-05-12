@@ -54,8 +54,9 @@ type database struct {
 }
 
 type table struct {
-	rootCtx       context.Context
-	rootCancel    context.CancelFunc
+	rootCtx    context.Context
+	rootCancel context.CancelFunc
+
 	retention     time.Duration
 	purgeInterval time.Duration
 
@@ -193,7 +194,8 @@ func createTable(ctx context.Context, db *sql.DB, tableName string) error {
 	}
 
 	// create table
-	_, err = tx.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
+CREATE TABLE IF NOT EXISTS %s (
 	%s INTEGER NOT NULL,
 	%s TEXT NOT NULL,
 	%s TEXT NOT NULL,

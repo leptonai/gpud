@@ -20,26 +20,26 @@ import (
 const (
 	schemaVersion = "v0_5"
 
-	// ColumnUnixMilliseconds represents the Unix timestamp of the metric.
-	ColumnUnixMilliseconds = "unix_milliseconds"
+	// columnUnixMilliseconds represents the Unix timestamp of the metric.
+	columnUnixMilliseconds = "unix_milliseconds"
 
-	// ColumnComponentName represents the name of the component this metric
+	// columnComponentName represents the name of the component this metric
 	// belongs to.
-	ColumnComponentName = "component_name"
+	columnComponentName = "component_name"
 
-	// ColumnMetricName represents the name of the metric.
-	ColumnMetricName = "metric_name"
+	// columnMetricName represents the name of the metric.
+	columnMetricName = "metric_name"
 
-	// ColumnMetricLabels represents the labels of the metric
+	// columnMetricLabels represents the labels of the metric
 	// such as GPU ID, mount points, etc. (as a secondary metric name).
 	// The value is a set of key-value pairs in JSON format.
 	//
 	// Go JSON encoder sorts the keys alphabetically.
 	// ref. https://pkg.go.dev/encoding/json#Marshal
-	ColumnMetricLabels = "metric_labels"
+	columnMetricLabels = "metric_labels"
 
-	// ColumnMetricValue represents the numeric value of the metric.
-	ColumnMetricValue = "metric_value"
+	// columnMetricValue represents the numeric value of the metric.
+	columnMetricValue = "metric_value"
 )
 
 // TODO: drop the old table "gpud_metrics"
@@ -99,8 +99,8 @@ CREATE TABLE IF NOT EXISTS %s (
 	PRIMARY KEY (%s, %s, %s, %s)
 ) WITHOUT ROWID;`,
 		table,
-		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricLabels, ColumnMetricValue, // columns
-		ColumnUnixMilliseconds, ColumnComponentName, ColumnMetricName, ColumnMetricLabels, // primary keys
+		columnUnixMilliseconds, columnComponentName, columnMetricName, columnMetricLabels, columnMetricValue, // columns
+		columnUnixMilliseconds, columnComponentName, columnMetricName, columnMetricLabels, // primary keys
 	))
 	return err
 }
@@ -128,11 +128,11 @@ func insert(ctx context.Context, dbRW *sql.DB, table string, ms ...pkgmetrics.Me
 	query := fmt.Sprintf(
 		"INSERT OR REPLACE INTO %s (%s, %s, %s, %s, %s) VALUES ",
 		table,
-		ColumnUnixMilliseconds,
-		ColumnComponentName,
-		ColumnMetricName,
-		ColumnMetricLabels,
-		ColumnMetricValue,
+		columnUnixMilliseconds,
+		columnComponentName,
+		columnMetricName,
+		columnMetricLabels,
+		columnMetricValue,
 	)
 
 	// Create proper placeholders with commas between value sets
@@ -181,16 +181,16 @@ func read(ctx context.Context, dbRO *sql.DB, table string, opts ...pkgmetrics.Op
 		params = append(params, op.Since.UnixMilli())
 	}
 
-	orderByStatement := fmt.Sprintf("ORDER BY %s ASC;", ColumnUnixMilliseconds)
+	orderByStatement := fmt.Sprintf("ORDER BY %s ASC;", columnUnixMilliseconds)
 	whereStatement := ""
 	if !op.Since.IsZero() {
-		whereStatement = fmt.Sprintf("%s >= ?", ColumnUnixMilliseconds)
+		whereStatement = fmt.Sprintf("%s >= ?", columnUnixMilliseconds)
 	}
 	if len(op.SelectedComponents) > 0 {
 		if whereStatement != "" {
 			whereStatement += " AND "
 		}
-		whereStatement += fmt.Sprintf("%s IN (", ColumnComponentName)
+		whereStatement += fmt.Sprintf("%s IN (", columnComponentName)
 
 		components := make([]string, 0, len(op.SelectedComponents))
 		for component := range op.SelectedComponents {
@@ -205,11 +205,11 @@ func read(ctx context.Context, dbRO *sql.DB, table string, opts ...pkgmetrics.Op
 	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
 FROM %s
 `,
-		ColumnUnixMilliseconds,
-		ColumnComponentName,
-		ColumnMetricName,
-		ColumnMetricLabels,
-		ColumnMetricValue,
+		columnUnixMilliseconds,
+		columnComponentName,
+		columnMetricName,
+		columnMetricLabels,
+		columnMetricValue,
 		table,
 	)
 	if whereStatement != "" {
@@ -261,7 +261,7 @@ func purge(ctx context.Context, dbRW *sql.DB, table string, before time.Time) (i
 	}
 
 	query := fmt.Sprintf(`
-DELETE FROM %s WHERE %s < ?;`, table, ColumnUnixMilliseconds)
+DELETE FROM %s WHERE %s < ?;`, table, columnUnixMilliseconds)
 
 	start := time.Now()
 	rs, err := dbRW.ExecContext(ctx, query, before.UnixMilli())
