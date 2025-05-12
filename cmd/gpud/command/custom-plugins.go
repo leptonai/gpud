@@ -91,7 +91,7 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 		},
 	}
 
-	results, err := specs.ExecuteInOrder(gpudInstance)
+	results, err := specs.ExecuteInOrder(gpudInstance, customPluginsFailFast)
 	if err != nil {
 		return err
 	}
