@@ -186,3 +186,122 @@ func TestCompact(t *testing.T) {
 		}
 	})
 }
+
+func TestRunCompact(t *testing.T) {
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "sqlite_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbFile := filepath.Join(tmpDir, "runcompact_test.db")
+	db, err := Open(dbFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+
+	// Setup test data
+	_, err = db.Exec("CREATE TABLE test_runcompact (id INTEGER PRIMARY KEY, data TEXT)")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert large data
+	for i := 0; i < 100; i++ {
+		_, err = db.Exec("INSERT INTO test_runcompact (data) VALUES (?)", strings.Repeat("x", 1000))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Delete data to create free space
+	_, err = db.Exec("DELETE FROM test_runcompact")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Close the DB connection before running RunCompact
+	db.Close()
+
+	t.Run("successful compaction", func(t *testing.T) {
+		err := RunCompact(ctx, dbFile)
+		if err != nil {
+			t.Fatalf("RunCompact failed: %v", err)
+		}
+	})
+
+	t.Run("non-existent file", func(t *testing.T) {
+		nonExistentFile := filepath.Join(tmpDir, "non-existent.db")
+		err := RunCompact(ctx, nonExistentFile)
+		if err == nil {
+			t.Error("expected error when compacting non-existent file")
+		}
+	})
+
+	t.Run("canceled context", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := RunCompact(ctx, dbFile)
+		if err == nil {
+			t.Error("expected error with canceled context")
+		}
+	})
+
+	t.Run("compacted size check", func(t *testing.T) {
+		// Create a new DB with data and delete it again to ensure we have something to compact
+		db, err := Open(dbFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Insert more data to ensure the DB needs compacting
+		for i := 0; i < 100; i++ {
+			_, err = db.Exec("INSERT INTO test_runcompact (data) VALUES (?)", strings.Repeat("y", 1000))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		// Delete data
+		_, err = db.Exec("DELETE FROM test_runcompact")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		db.Close()
+
+		// Get size before compaction
+		dbRO, err := Open(dbFile, WithReadOnly(true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sizeBeforeCompact, err := ReadDBSize(ctx, dbRO)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dbRO.Close()
+
+		// Run compaction
+		err = RunCompact(ctx, dbFile)
+		if err != nil {
+			t.Fatalf("RunCompact failed: %v", err)
+		}
+
+		// Check size after compaction
+		dbRO, err = Open(dbFile, WithReadOnly(true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sizeAfterCompact, err := ReadDBSize(ctx, dbRO)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dbRO.Close()
+
+		if sizeAfterCompact >= sizeBeforeCompact {
+			t.Errorf("expected size to decrease after compacting, before: %d, after: %d", sizeBeforeCompact, sizeAfterCompact)
+		}
+	})
+}
