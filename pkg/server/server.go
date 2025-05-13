@@ -18,7 +18,6 @@ import (
 	"net/http/pprof"
 	"net/url"
 	stdos "os"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -110,6 +109,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
+	if err := gpudstate.CreateTableMachineMetadata(ctx, dbRW); err != nil {
+		return nil, fmt.Errorf("failed to create table: %w", err)
+	}
+
 	eventStore, err := eventstore.New(dbRW, dbRO, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open events database: %w", err)
@@ -158,21 +161,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 	nvmlInstance, err := nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
-	}
-
-	if err := gpudstate.CreateTableMachineMetadata(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create table: %w", err)
-	}
-	if err := gpudstate.CreateTableAPIVersion(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create api version table: %w", err)
-	}
-	ver, err := gpudstate.UpdateAPIVersionIfNotExists(ctx, dbRW, "v1")
-	if err != nil {
-		return nil, fmt.Errorf("failed to update api version: %w", err)
-	}
-	log.Logger.Infow("api version", "version", ver)
-	if ver != "v1" {
-		return nil, fmt.Errorf("api version mismatch: %s (only supports v1)", ver)
 	}
 
 	gpudInstance := &components.GPUdInstance{
@@ -240,12 +228,10 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 		}
 	}
 
-	componentNames := make([]string, 0)
 	for _, c := range s.componentsRegistry.All() {
 		if err = c.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
 		}
-		componentNames = append(componentNames, c.Name())
 	}
 
 	go recordInternalMetrics(ctx, dbRW)
@@ -254,11 +240,6 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 	s.machineID, err = gpudstate.ReadMachineID(ctx, dbRO)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
-	}
-	if s.machineID != "" {
-		if err = gpudstate.UpdateComponents(ctx, dbRW, s.machineID, strings.Join(componentNames, ",")); err != nil {
-			return nil, fmt.Errorf("failed to update components: %w", err)
-		}
 	}
 
 	cert, err := s.generateSelfSignedCert()
@@ -518,7 +499,7 @@ func recordInternalMetrics(ctx context.Context, db *sql.DB) {
 			ticker.Reset(time.Hour)
 		}
 
-		if err := gpudstate.RecordMetrics(ctx, db); err != nil {
+		if err := gpudstate.RecordDBSize(ctx, db); err != nil {
 			log.Logger.Errorw("failed to record metrics", "error", err)
 		}
 	}

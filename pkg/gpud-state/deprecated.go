@@ -9,9 +9,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/prometheus/client_golang/prometheus"
 
-	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -131,63 +129,4 @@ DELETE * FROM %s;
 	_, err := dbRW.ExecContext(ctx, query)
 	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
 	return err
-}
-
-func GetComponents(ctx context.Context, db *sql.DB, machineID string) (string, error) {
-	query := fmt.Sprintf(`
-SELECT COALESCE(%s, '') FROM %s WHERE %s = ?
-LIMIT 1;
-`,
-		ColumnComponents,
-		TableNameMachineMetadata,
-		ColumnMachineID,
-	)
-
-	start := time.Now()
-	var components string
-	err := db.QueryRowContext(ctx, query, machineID).Scan(&components)
-	sqlite.RecordSelect(time.Since(start).Seconds())
-
-	return components, err
-}
-
-func UpdateComponents(ctx context.Context, db *sql.DB, machineID string, components string) error {
-	query := fmt.Sprintf(`
-UPDATE %s SET %s = ? WHERE %s = ?;
-`,
-		TableNameMachineMetadata,
-		ColumnComponents,
-		ColumnMachineID,
-	)
-
-	start := time.Now()
-	_, err := db.ExecContext(ctx, query, components, machineID)
-	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
-
-	return err
-}
-
-var (
-	metricCurrentSize = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "gpud",
-			Subsystem: "state_sqlite",
-			Name:      "current_size",
-			Help:      "current size of the database file (number of pages * size of page)",
-		},
-	)
-)
-
-func init() {
-	pkgmetrics.MustRegister(metricCurrentSize)
-}
-
-func RecordMetrics(ctx context.Context, db *sql.DB) error {
-	dbSize, err := sqlite.ReadDBSize(ctx, db)
-	if err != nil {
-		return err
-	}
-	metricCurrentSize.Set(float64(dbSize))
-
-	return nil
 }

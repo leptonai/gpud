@@ -144,58 +144,6 @@ func TestLoginInfoOperations(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestComponentsOperations(t *testing.T) {
-	t.Parallel()
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
-	// Create table
-	err := CreateTableMachineMetadata(ctx, dbRW)
-	require.NoError(t, err)
-
-	// Insert a machine ID for testing
-	insertTestMachineID(t, ctx, dbRW, testMachineID)
-
-	// Test getting components for a machine ID with no components yet
-	components, err := GetComponents(ctx, dbRO, testMachineID)
-	assert.NoError(t, err)
-	assert.Empty(t, components)
-
-	// Test getting components for non-existent machine ID
-	nonExistentID := "non-existent-id"
-	components, err = GetComponents(ctx, dbRO, nonExistentID)
-	assert.Error(t, err)
-	assert.True(t, errors.Is(err, sql.ErrNoRows))
-	assert.Empty(t, components)
-
-	// Test updating components
-	testComponents := `{"gpu": {"vendor": "nvidia", "count": 4}}`
-	err = UpdateComponents(ctx, dbRW, testMachineID, testComponents)
-	require.NoError(t, err)
-
-	// Verify components were updated
-	components, err = GetComponents(ctx, dbRO, testMachineID)
-	assert.NoError(t, err)
-	assert.Equal(t, testComponents, components)
-
-	// Test updating components again with different data
-	updatedComponents := `{"gpu": {"vendor": "amd", "count": 2}}`
-	err = UpdateComponents(ctx, dbRW, testMachineID, updatedComponents)
-	require.NoError(t, err)
-
-	// Verify components were updated
-	components, err = GetComponents(ctx, dbRO, testMachineID)
-	assert.NoError(t, err)
-	assert.Equal(t, updatedComponents, components)
-
-	// Test updating non-existent machine ID (should not error but no row affected)
-	err = UpdateComponents(ctx, dbRW, nonExistentID, testComponents)
-	assert.NoError(t, err)
-}
-
 func TestRecordMetrics(t *testing.T) {
 	t.Parallel()
 	dbRW, _, cleanup := sqlite.OpenTestDB(t)
@@ -212,6 +160,6 @@ func TestRecordMetrics(t *testing.T) {
 	insertTestMachineID(t, ctx, dbRW, testMachineID)
 
 	// Verify recording metrics doesn't error
-	err = RecordMetrics(ctx, dbRW)
+	err = RecordDBSize(ctx, dbRW)
 	require.NoError(t, err)
 }
