@@ -12,13 +12,17 @@ import (
 
 // Lists all PCI devices that are compatible with NVIDIA.
 func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
-	lspciPath, err := file.LocateExecutable("lspci")
-	if err != nil {
-		return nil, nil
+	return listNVIDIAPCIs(ctx, "lspci")
+}
+
+func listNVIDIAPCIs(ctx context.Context, command string) ([]string, error) {
+	lspciPath, err := file.LocateExecutable(strings.Split(command, " ")[0])
+	if lspciPath == "" || err != nil {
+		return nil, fmt.Errorf("failed to locate lspci: %w", err)
 	}
 
 	p, err := process.New(
-		process.WithCommand(lspciPath),
+		process.WithCommand(command),
 		process.WithRunAsBashScript(),
 	)
 	if err != nil {
@@ -41,10 +45,14 @@ func ListNVIDIAPCIs(ctx context.Context) ([]string, error) {
 		process.WithReadStdout(),
 		process.WithReadStderr(),
 		process.WithProcessLine(func(line string) {
+			// 3D controller represents the GPU device itself
+			// whereas PCI Bridge refers to the PCIe switch/bridge component
+			// that connects the GPU to the system's PCIe infrastructure
+			//
 			// e.g.,
-			// 01:00.0 VGA compatible controller: NVIDIA Corporation Device 2684 (rev a1)
-			// 01:00.1 Audio device: NVIDIA Corporation Device 22ba (rev a1)
-			if strings.Contains(line, "NVIDIA") {
+			// 000a:00:00.0 Bridge: NVIDIA Corporation Device 1af1 (rev a1)
+			// 000b:00:00.0 3D controller: NVIDIA Corporation GA100 [A100 SXM4 80GB] (rev a1)
+			if strings.Contains(line, "3D controller") && strings.Contains(line, "NVIDIA") {
 				lines = append(lines, line)
 			}
 		}),
