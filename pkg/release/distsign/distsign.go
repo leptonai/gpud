@@ -85,7 +85,7 @@ func GenerateRootKey() (priv, pub []byte, err error) {
 	}
 	return pem.EncodeToMemory(&pem.Block{
 			Type:  pemTypeRootPrivate,
-			Bytes: []byte(priv),
+			Bytes: priv,
 		}), pem.EncodeToMemory(&pem.Block{
 			Type:  pemTypeRootPublic,
 			Bytes: []byte(pub),
@@ -124,10 +124,10 @@ func GenerateSigningKey() (priv, pub []byte, err error) {
 	}
 	return pem.EncodeToMemory(&pem.Block{
 			Type:  pemTypeSigningPrivate,
-			Bytes: []byte(priv),
+			Bytes: priv,
 		}), pem.EncodeToMemory(&pem.Block{
 			Type:  pemTypeSigningPublic,
-			Bytes: []byte(pub),
+			Bytes: pub,
 		}), nil
 }
 

@@ -486,7 +486,7 @@ func (s *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func (s *testServer) addSigned(name string, data []byte) {
