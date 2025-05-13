@@ -152,10 +152,10 @@ func (c *component) Check() components.CheckResult {
 
 	if len(notEnabled) > 0 {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = strings.Join(notEnabled, ", ")
-
 		if len(notEnabled) == len(cr.PersistenceModes) {
-			cr.reason = fmt.Sprintf("all %d GPU(s) persistence mode supported but not enabled", len(devs))
+			cr.reason = fmt.Sprintf("all %d GPU(s) disabled persistence mode", len(devs))
+		} else {
+		    cr.reason = strings.Join(notEnabled, ", ")
 		}
 	} else {
 		cr.health = apiv1.HealthStateTypeHealthy
