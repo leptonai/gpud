@@ -58,16 +58,19 @@ func cmdLogin(cliContext *cli.Context) error {
 	// we need write mode
 	// read-only mode fails with "no such file or directory"
 	// if the db file does not already exist
-	machineID, err := gpudstate.ReadMachineID(rootCtx, dbRW)
+	prevMachineID, err := gpudstate.ReadMachineID(rootCtx, dbRW)
 	if err != nil {
 		return err
 	}
-	if machineID != "" {
-		fmt.Printf("machine ID %s already assigned (skipping login)\n", machineID)
+	if prevMachineID != "" {
+		fmt.Printf("machine ID %s already assigned (skipping login)\n", prevMachineID)
 		return nil
 	}
 
 	endpoint := cliContext.String("endpoint")
+	privateIP := cliContext.String("private-ip")
+	publicIP := cliContext.String("public-ip")
+	gpuCount := cliContext.String("gpu-count")
 
 	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
@@ -79,7 +82,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		}
 	}()
 
-	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, cliContext.String("machine-id"), cliContext.String("gpu-count"), cliContext.String("private-ip"), cliContext.String("public-ip"))
+	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, gpuCount, privateIP, publicIP)
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}
@@ -90,11 +93,10 @@ func cmdLogin(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	machineID = loginResp.MachineID
 	sessionToken := loginResp.Token
 
 	// consume the login response to persist the machine ID
-	if err := gpudstate.RecordMachineID(rootCtx, dbRW, dbRO, machineID); err != nil {
+	if err := gpudstate.RecordMachineID(rootCtx, dbRW, dbRO, loginResp.MachineID); err != nil {
 		return fmt.Errorf("failed to record machine ID: %w", err)
 	}
 
@@ -110,7 +112,7 @@ func cmdLogin(cliContext *cli.Context) error {
 		log.Logger.Debugw("failed to write token -- login before first gpud run/up", "error", err)
 	}
 
-	if err = gpudstate.UpdateLoginInfo(rootCtx, dbRW, machineID, sessionToken); err != nil {
+	if err = gpudstate.UpdateLoginInfo(rootCtx, dbRW, loginResp.MachineID, sessionToken); err != nil {
 		fmt.Println("machine logged in but failed to update token:", err)
 	}
 

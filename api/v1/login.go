@@ -3,7 +3,6 @@ package v1
 // LoginRequest is the request for the login request.
 type LoginRequest struct {
 	Token       string            `json:"token"`
-	MachineID   string            `json:"machineID"`
 	Network     *MachineNetwork   `json:"network,omitempty"`
 	Location    *MachineLocation  `json:"location,omitempty"`
 	Provider    string            `json:"provider"`

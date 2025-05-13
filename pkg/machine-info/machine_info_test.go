@@ -304,19 +304,17 @@ func TestCreateLoginRequest(t *testing.T) {
 
 	// Test parameters
 	token := "test-token"
-	machineID := "test-machine-id"
 	privateIP := "10.0.0.1"
 	publicIP := "203.0.113.1"
 
 	// Test with GPU count specified
-	req1, err := CreateLoginRequest(token, nvmlInstance, machineID, "2", privateIP, publicIP)
+	req1, err := CreateLoginRequest(token, nvmlInstance, "2", privateIP, publicIP)
 	if err != nil {
 		t.Skipf("Could not create login request with GPU count: %v", err)
 	}
 
 	// Validate request fields
 	assert.Equal(t, token, req1.Token)
-	assert.Equal(t, machineID, req1.MachineID)
 	assert.Equal(t, privateIP, req1.Network.PrivateIP)
 	assert.Equal(t, publicIP, req1.Network.PublicIP)
 	assert.NotNil(t, req1.Location)
@@ -329,7 +327,7 @@ func TestCreateLoginRequest(t *testing.T) {
 	assert.Equal(t, "2", req1.Resources["nvidia.com/gpu"])
 
 	// Test without GPU count specified (auto-detect)
-	req2, err := CreateLoginRequest(token, nvmlInstance, machineID, "", privateIP, publicIP)
+	req2, err := CreateLoginRequest(token, nvmlInstance, "", privateIP, publicIP)
 	if err != nil {
 		t.Skipf("Could not create login request without GPU count: %v", err)
 	}
@@ -344,7 +342,7 @@ func TestCreateLoginRequest(t *testing.T) {
 	}
 
 	// Test with no IPs specified
-	req3, err := CreateLoginRequest(token, nvmlInstance, machineID, "0", "", "")
+	req3, err := CreateLoginRequest(token, nvmlInstance, "0", "", "")
 	if err != nil {
 		t.Skipf("Could not create login request without IPs: %v", err)
 	}
