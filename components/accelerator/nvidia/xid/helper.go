@@ -86,7 +86,7 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 		reason = "XIDComponent is healthy"
 	} else {
 		if xidDetail, ok := xid.GetDetail(int(lastXidErr.Xid)); ok {
-			reason = fmt.Sprintf("XID %d(%s) detected on %s", lastXidErr.Xid, xidDetail.Name, lastXidErr.DeviceUUID)
+			reason = fmt.Sprintf("XID %d (%s) detected on %s", lastXidErr.Xid, xidDetail.Name, lastXidErr.DeviceUUID)
 		} else {
 			reason = fmt.Sprintf("XID %d detected on %s", lastXidErr.Xid, lastXidErr.DeviceUUID)
 		}
