@@ -321,8 +321,9 @@ func TestCheck_MultipleDevices(t *testing.T) {
 	require.True(t, ok, "result should be of type *checkResult")
 
 	require.NotNil(t, data, "data should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
-	assert.Equal(t, "all 2 GPU(s) were checked, no persistence mode issue found", data.reason)
+	// This should be unhealthy since one device has persistence mode supported but not enabled
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.Equal(t, "gpu-uuid-456 persistence mode supported but not enabled", data.reason)
 	assert.Len(t, data.PersistenceModes, 2)
 
 	// Verify each device's persistence mode status
@@ -684,4 +685,121 @@ func TestIsSupported(t *testing.T) {
 	}
 	comp.nvmlInstance = mockNVML
 	assert.True(t, comp.IsSupported())
+}
+
+func TestPersistenceModeCheck(t *testing.T) {
+	tests := []struct {
+		name              string
+		persistenceModes  []nvidianvml.PersistenceMode
+		expectedHealth    apiv1.HealthStateType
+		expectedReasonCmp string
+	}{
+		{
+			name: "all GPUs have persistence mode supported and enabled",
+			persistenceModes: []nvidianvml.PersistenceMode{
+				{UUID: "GPU-1", Supported: true, Enabled: true},
+				{UUID: "GPU-2", Supported: true, Enabled: true},
+			},
+			expectedHealth:    apiv1.HealthStateTypeHealthy,
+			expectedReasonCmp: "all 2 GPU(s) were checked, no persistence mode issue found",
+		},
+		{
+			name: "some GPUs have persistence mode supported but not enabled",
+			persistenceModes: []nvidianvml.PersistenceMode{
+				{UUID: "GPU-1", Supported: true, Enabled: true},
+				{UUID: "GPU-2", Supported: true, Enabled: false},
+			},
+			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
+			expectedReasonCmp: "GPU-2 persistence mode supported but not enabled",
+		},
+		{
+			name: "all GPUs have persistence mode supported but not enabled",
+			persistenceModes: []nvidianvml.PersistenceMode{
+				{UUID: "GPU-1", Supported: true, Enabled: false},
+				{UUID: "GPU-2", Supported: true, Enabled: false},
+			},
+			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
+			expectedReasonCmp: "all 2 GPU(s) persistence mode supported but not enabled",
+		},
+		{
+			name: "GPU has persistence mode not supported",
+			persistenceModes: []nvidianvml.PersistenceMode{
+				{UUID: "GPU-1", Supported: false, Enabled: false},
+			},
+			expectedHealth:    apiv1.HealthStateTypeHealthy,
+			expectedReasonCmp: "all 1 GPU(s) were checked, no persistence mode issue found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create device map for test
+			devs := make(map[string]device.Device)
+			for _, pm := range tt.persistenceModes {
+				mockDeviceObj := &mock.Device{
+					GetUUIDFunc: func() (string, nvml.Return) {
+						return pm.UUID, nvml.SUCCESS
+					},
+				}
+				devs[pm.UUID] = testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+			}
+
+			// Mock NVML instance
+			mockNVML := &mockNVMLInstance{
+				devicesFunc: func() map[string]device.Device {
+					return devs
+				},
+				nvmlExists: true, // Set this to true to pass the NVML existence check
+			}
+
+			// Create component with mocked functions
+			c := &component{
+				nvmlInstance: mockNVML,
+				getPersistenceModeFunc: func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
+					for _, pm := range tt.persistenceModes {
+						if pm.UUID == uuid {
+							return pm, nil
+						}
+					}
+					return nvidianvml.PersistenceMode{}, nil
+				},
+			}
+
+			result := c.Check().(*checkResult)
+
+			// Verify the result
+			assert.Equal(t, tt.expectedHealth, result.health)
+			assert.Equal(t, tt.expectedReasonCmp, result.reason)
+		})
+	}
+}
+
+func TestComponentName(t *testing.T) {
+	result := &checkResult{}
+	assert.Equal(t, Name, result.ComponentName())
+}
+
+func TestCheck_EmptyProductName(t *testing.T) {
+	ctx := context.Background()
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	mockNVML := &mockNVMLInstance{
+		nvmlExists:       true,
+		emptyProductName: true,
+	}
+
+	component := &component{
+		ctx:          cctx,
+		cancel:       cancel,
+		nvmlInstance: mockNVML,
+	}
+
+	result := component.Check()
+
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "NVIDIA NVML is loaded but GPU is not detected (missing product name)", data.reason)
 }
