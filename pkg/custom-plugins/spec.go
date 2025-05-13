@@ -3,10 +3,12 @@ package customplugins
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/olekukonko/tablewriter"
 	"sigs.k8s.io/yaml"
 )
 
@@ -25,6 +27,23 @@ func (specs Specs) Validate() error {
 	}
 
 	return nil
+}
+
+func (pluginSpecs Specs) PrintValidateResults(wr io.Writer, checkMark string, warningSign string) {
+	table := tablewriter.NewWriter(wr)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.SetRowLine(true)
+	table.SetAutoWrapText(false)
+	table.SetHeader([]string{"Component", "Type", "Run Mode", "Timeout", "Interval", "Valid"})
+	for _, spec := range pluginSpecs {
+		verr := spec.Validate()
+		s := checkMark + " valid"
+		if verr != nil {
+			s = warningSign + " invalid"
+		}
+		table.Append([]string{spec.ComponentName(), spec.Type, spec.RunMode, spec.Timeout.Duration.String(), spec.Interval.Duration.String(), s})
+	}
+	table.Render()
 }
 
 // LoadSpecs loads the plugin specs from the given path.
@@ -81,7 +100,6 @@ func (pluginSpecs Specs) ExpandedValidate() (Specs, error) {
 // - "name#run_mode[tag1,tag2]"
 // - "name#run_mode[tag1,tag2]:param"
 func parseComponentListEntry(entry string) (name, param, runMode string, tags []string, err error) {
-
 	// First split by ':' to separate name and param
 	parts := strings.SplitN(entry, ":", 2)
 	namePart := parts[0]

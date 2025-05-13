@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"bytes"
+
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2832,6 +2834,96 @@ func TestExpandComponentListWithTags(t *testing.T) {
 				assert.Equal(t, expected.RunMode, actual.RunMode)
 				assert.Equal(t, expected.Tags, actual.Tags)
 				assert.Equal(t, expected.HealthStatePlugin.Steps[0].RunBashScript.Script, actual.HealthStatePlugin.Steps[0].RunBashScript.Script)
+			}
+		})
+	}
+}
+
+func TestPrintValidateResults(t *testing.T) {
+	tests := []struct {
+		name         string
+		specs        Specs
+		expectedRows []string
+	}{
+		{
+			name:  "empty_specs",
+			specs: Specs{},
+			expectedRows: []string{
+				"COMPONENT", "TYPE", "RUN MODE", "TIMEOUT", "INTERVAL", "VALID",
+			},
+		},
+		{
+			name: "valid_and_invalid_specs",
+			specs: Specs{
+				{
+					PluginName: "valid-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "daemon",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									Script: "echo 'test'",
+								},
+							},
+						},
+					},
+				},
+				{
+					// Invalid spec with no state plugin
+					PluginName: "invalid-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "oneshot",
+					Timeout:    metav1.Duration{Duration: 1 * time.Minute},
+					Interval:   metav1.Duration{Duration: 10 * time.Minute},
+				},
+			},
+			expectedRows: []string{
+				"COMPONENT", "TYPE", "RUN MODE", "TIMEOUT", "INTERVAL", "VALID",
+				"valid-plugin", "component", "daemon", "30s", "5m0s", " valid",
+				"invalid-plugin", "component", "oneshot", "1m0s", "10m0s", " invalid",
+			},
+		},
+		{
+			name: "component_list_invalid",
+			specs: Specs{
+				{
+					PluginName:    "component-list",
+					Type:          SpecTypeComponentList,
+					RunMode:       "daemon",
+					Timeout:       metav1.Duration{Duration: 1 * time.Minute},
+					Interval:      metav1.Duration{Duration: 2 * time.Minute},
+					ComponentList: []string{"comp1", "comp2"},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									Script: "echo 'test'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedRows: []string{
+				"COMPONENT", "TYPE", "RUN MODE", "TIMEOUT", "INTERVAL", "VALID",
+				"component-list", "component_list", "daemon", "1m0s", "2m0s", " invalid",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			tt.specs.PrintValidateResults(&buf, "+", "-")
+
+			output := buf.String()
+			for _, expected := range tt.expectedRows {
+				assert.Contains(t, output, expected, "Output should contain expected row")
 			}
 		})
 	}
