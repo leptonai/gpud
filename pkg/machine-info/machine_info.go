@@ -24,6 +24,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
+	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/version"
 )
@@ -186,6 +187,16 @@ func GetMachineLocation() *apiv1.MachineLocation {
 // ref. https://github.com/NVIDIA/DCGM/blob/903d745504f50153be8293f8566346f9de3b3c93/nvvs/plugin_src/software/Software.cpp#L220-L249
 func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error) {
 	deviceCount := len(nvmlInstance.Devices())
+	if deviceCount == 0 {
+		// fallback to pci in case nvml/nvidia driver has not been loaded
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		devs, err := nvidiaquery.ListNVIDIAPCIs(ctx)
+		if err != nil {
+			log.Logger.Errorw("failed to list nvidia pci devices", "error", err)
+		}
+		deviceCount = len(devs)
+	}
 	if deviceCount == 0 {
 		return "0", nil
 	}
