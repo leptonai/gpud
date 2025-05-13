@@ -719,7 +719,7 @@ func TestPersistenceModeCheck(t *testing.T) {
 				{UUID: "GPU-2", Supported: true, Enabled: false},
 			},
 			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
-			expectedReasonCmp: "all 2 GPU(s) persistence mode supported but not enabled",
+			expectedReasonCmp: "all 2 GPU(s) disabled persistence mode",
 		},
 		{
 			name: "GPU has persistence mode not supported",
