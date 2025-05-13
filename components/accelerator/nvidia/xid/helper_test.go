@@ -46,7 +46,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		}
 		state := evolveHealthyState(events)
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
-		assert.Equal(t, "XID 123(SPI PMU RPC Write Failure) detected on PCI:0000:9b:00", state.Reason)
+		assert.Equal(t, "XID 123 (SPI PMU RPC Write Failure) detected on PCI:0000:9b:00", state.Reason)
 	})
 
 	t.Run("fatal xid", func(t *testing.T) {

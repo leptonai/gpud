@@ -205,13 +205,5 @@ func TestDetailsValidation(t *testing.T) {
 				t.Fatalf("xid %d is only driver error, but has %s action", d.Xid, d.SuggestedActionsByGPUd.RepairActions[0])
 			}
 		}
-
-		if d.SuggestedActionsByGPUd != nil && len(d.SuggestedActionsByGPUd.DeprecatedDescriptions) > 0 &&
-			len(d.SuggestedActionsByGPUd.DeprecatedDescriptions) != len(d.SuggestedActionsByGPUd.RepairActions) {
-			t.Errorf("xid %d has %d descriptions and %d repair actions",
-				d.Xid,
-				len(d.SuggestedActionsByGPUd.DeprecatedDescriptions),
-				len(d.SuggestedActionsByGPUd.RepairActions))
-		}
 	}
 }

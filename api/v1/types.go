@@ -185,10 +185,6 @@ type SuggestedActions struct {
 
 	// A list of repair actions to mitigate the issue.
 	RepairActions []RepairActionType `json:"repair_actions"`
-
-	// TO BE DEPRECATED
-	DeprecatedReferences   []string `json:"references,omitempty"`
-	DeprecatedDescriptions []string `json:"descriptions,omitempty"`
 }
 
 func (sa *SuggestedActions) DescribeActions() string {
