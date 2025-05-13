@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/components"
 	componentsacceleratornvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	"github.com/leptonai/gpud/components/all"
@@ -17,16 +18,10 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
-const (
-	inProgress  = "\033[33m⌛\033[0m"
-	checkMark   = "\033[32m✔\033[0m"
-	warningSign = "\033[31m✘\033[0m"
-)
-
 func printSummary(result components.CheckResult) {
-	header := checkMark
+	header := cmdcommon.CheckMark
 	if result.HealthStateType() != apiv1.HealthStateTypeHealthy {
-		header = warningSign
+		header = cmdcommon.WarningSign
 	}
 	fmt.Printf("%s %s\n", header, result.Summary())
 	fmt.Println(result.String())
@@ -40,7 +35,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		return err
 	}
 
-	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", inProgress, runtime.GOOS)
+	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", cmdcommon.InProgress, runtime.GOOS)
 
 	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
@@ -51,7 +46,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("\n%s machine info\n", checkMark)
+	fmt.Printf("\n%s machine info\n", cmdcommon.CheckMark)
 	mi.RenderTable(os.Stdout)
 
 	if mi.GPUInfo != nil && mi.GPUInfo.Product != "" {
@@ -89,6 +84,6 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		printSummary(c.Check())
 	}
 
-	fmt.Printf("\n\n%s scan complete\n\n", checkMark)
+	fmt.Printf("\n\n%s scan complete\n\n", cmdcommon.CheckMark)
 	return nil
 }

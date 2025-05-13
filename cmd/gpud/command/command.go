@@ -45,12 +45,6 @@ var (
 	customPluginsFailFast bool
 )
 
-const (
-	inProgress  = "\033[33m⌛\033[0m"
-	checkMark   = "\033[32m✔\033[0m"
-	warningSign = "\033[31m✘\033[0m"
-)
-
 var (
 	ErrEmptyToken = errors.New("token is empty")
 )

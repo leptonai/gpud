@@ -8,6 +8,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/urfave/cli"
 
+	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
@@ -69,6 +70,6 @@ func cmdCompact(cliContext *cli.Context) error {
 	}
 	log.Logger.Infow("state file size after compact", "size", humanize.Bytes(dbSize))
 
-	fmt.Printf("%s successfully compacted state file\n", checkMark)
+	fmt.Printf("%s successfully compacted state file\n", cmdcommon.CheckMark)
 	return nil
 }

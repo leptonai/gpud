@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/urfave/cli"
+
+	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	pkg_systemd "github.com/leptonai/gpud/pkg/systemd"
 	pkg_update "github.com/leptonai/gpud/pkg/update"
-
-	"github.com/urfave/cli"
 )
 
 func cmdDown(cliContext *cli.Context) error {
@@ -16,34 +17,34 @@ func cmdDown(cliContext *cli.Context) error {
 		return err
 	}
 	if err := pkg_update.RequireRoot(); err != nil {
-		fmt.Printf("%s %q requires root to stop gpud (if not run by systemd, manually kill the process with 'pidof gpud')\n", warningSign, bin)
+		fmt.Printf("%s %q requires root to stop gpud (if not run by systemd, manually kill the process with 'pidof gpud')\n", cmdcommon.WarningSign, bin)
 		os.Exit(1)
 	}
 	if !pkg_systemd.SystemctlExists() {
-		fmt.Printf("%s requires systemd, if not run by systemd, manually kill the process with 'pidof gpud'\n", warningSign)
+		fmt.Printf("%s requires systemd, if not run by systemd, manually kill the process with 'pidof gpud'\n", cmdcommon.WarningSign)
 		os.Exit(1)
 	}
 
 	active, err := pkg_systemd.IsActive("gpud.service")
 	if err != nil {
-		fmt.Printf("%s failed to check if gpud is running: %v\n", warningSign, err)
+		fmt.Printf("%s failed to check if gpud is running: %v\n", cmdcommon.WarningSign, err)
 		os.Exit(1)
 	}
 	if !active {
-		fmt.Printf("%s gpud is not running (no-op)\n", checkMark)
+		fmt.Printf("%s gpud is not running (no-op)\n", cmdcommon.CheckMark)
 		os.Exit(0)
 	}
 
 	if err := pkg_update.StopSystemdUnit(); err != nil {
-		fmt.Printf("%s failed to stop systemd unit 'gpud.service': %v\n", warningSign, err)
+		fmt.Printf("%s failed to stop systemd unit 'gpud.service': %v\n", cmdcommon.WarningSign, err)
 		os.Exit(1)
 	}
 
 	if err := pkg_update.DisableGPUdSystemdUnit(); err != nil {
-		fmt.Printf("%s failed to disable systemd unit 'gpud.service': %v\n", warningSign, err)
+		fmt.Printf("%s failed to disable systemd unit 'gpud.service': %v\n", cmdcommon.WarningSign, err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("%s successfully stopped gpud\n", checkMark)
+	fmt.Printf("%s successfully stopped gpud\n", cmdcommon.CheckMark)
 	return nil
 }
