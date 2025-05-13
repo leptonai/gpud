@@ -338,11 +338,9 @@ func (c *component) Check() components.CheckResult {
 	cr.health = apiv1.HealthStateTypeUnhealthy
 	cr.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
 	cr.suggestedActions = &apiv1.SuggestedActions{
+		// Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue
 		RepairActions: []apiv1.RepairActionType{
 			apiv1.RepairActionTypeHardwareInspection,
-		},
-		DeprecatedDescriptions: []string{
-			"Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue",
 		},
 	}
 

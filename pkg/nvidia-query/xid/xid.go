@@ -299,16 +299,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 9 indicates driver error programming GPU, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 9 indicates driver error programming GPU, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -380,16 +375,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 12 indicates a driver error handling GPU exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 12 indicates a driver error handling GPU exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -416,45 +406,40 @@ var details = map[int]Detail{
 		Description:     `Run DCGM and Field diagnostics to confirm if the issue is related to hardware. If not, debug the user application using guidance from https://docs.nvidia.com/deploy/xid-errors/index.html. If the latter, see Report a GPU Issue at https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 13 is a potential hw/driver/user app/system memory corruption/bus/thermal issue/fb corruption.
-				`"NVIDIA Xid 13: GR: SW Notify Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-13-gr-sw-notify-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 13.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin implements Xid 13 as an application error.
-				`"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 13 as a non-hardware error.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
-
-				// NOTE: The AWS support doc does not mention Xid 13.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc explains Xid 13 is returned when applications have illegal memory access issues, and recommends cuda-memcheck and CUDA-GDB for debugging.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 13 requires self-check by the user and users to resubmit the load to see if the issue goes away
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 13.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement any health check for Xid 13.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 13 indicates GPU memory anomalies, but can be a hardware error.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 13, marked as non-critical in GPUd, indicates GPU memory anomalies affecting code and data segments, arrays being out of their declared ranges, applications having illegal memory access issues, or instruction errors. Restart applications and check whether the same Xid is returned. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html. Since in rare cases it can be caused by the hardware degradation, please report if the issue persists.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 13 is a potential hw/driver/user app/system memory corruption/bus/thermal issue/fb corruption.
+			// "NVIDIA Xid 13: GR: SW Notify Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-13-gr-sw-notify-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 13.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin implements Xid 13 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 13 as a non-hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
+			//
+			// NOTE: The AWS support doc does not mention Xid 13.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc explains Xid 13 is returned when applications have illegal memory access issues, and recommends cuda-memcheck and CUDA-GDB for debugging.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 13 requires self-check by the user and users to resubmit the load to see if the issue goes away
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 13.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement any health check for Xid 13.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 13 indicates GPU memory anomalies, but can be a hardware error.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 13, marked as non-critical in GPUd, indicates GPU memory anomalies affecting code and data segments, arrays being out of their declared ranges, applications having illegal memory access issues, or instruction errors. Restart applications and check whether the same Xid is returned. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html. Since in rare cases it can be caused by the hardware degradation, please report if the issue persists.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
@@ -531,16 +516,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 16 indicates display engine hung, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 16 indicates display engine hung, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -590,16 +570,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 18 indicates bus mastering disabled in PCI Config Space, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 18 indicates bus mastering disabled in PCI Config Space, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -627,16 +602,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 19 indicates display engine hung, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 19 indicates display engine hung, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -796,16 +766,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 26 indicates framebuffer timeout, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 26 indicates framebuffer timeout, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -833,16 +798,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 27 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 27 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -870,16 +830,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 28 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 28 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -907,16 +862,10 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 29 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			// Xid 29 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -944,16 +893,10 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 34 indicates GPU semaphore access error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			// Xid 34 indicates GPU semaphore access error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -980,49 +923,44 @@ var details = map[int]Detail{
 		Description:     `Debug the user application unless the issue is new and there have been no changes to the application but there has been changes to GPU driver or other GPU system software. If the latter, see Report a GPU Issue via https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#reporting-gpu-issue.`,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 31 as a user application issue, but can also be driver bugs or hardware issues.
-				// This event is logged when MMU reports a fault when an illegal address access is made by an application unit on the chip.
-				`"NVIDIA Xid 31: FIFO: MMU Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-31-fifo-mmu-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline explains Xid 31 requires user application debugging.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 31.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin implements Xid 31 as a user application issue.
-				`"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement any Xid 31 health checks.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
-
-				// NOTE: The AWS support doc does not mention Xid 31.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc explains Xid 31 is returned when applications have illegal memory access issues, and recommends cuda-memcheck and CUDA-GDB for debugging.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 31 requires self-check by users and users to resubmit the workload to see if the same Xid is returned.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 31.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 31 health checks.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 31 is a user application issue, which may indicate the GPU memory anomalies, but can also be hardware issues.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 31, marked as non-critical in GPUd, indicates GPU memory page fault, with applications having illegal memory access issues. Restart applications and check whether the same Xid is returned. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html.",
-				"Xid 31, marked as non-critical in GPUd, indicates GPU memory page fault. In rare cases it can be caused by the hardware degradation. If the issue persists, please report for hardware inspection and repair.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 31 as a user application issue, but can also be driver bugs or hardware issues.
+			// This event is logged when MMU reports a fault when an illegal address access is made by an application unit on the chip.
+			// "NVIDIA Xid 31: FIFO: MMU Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-31-fifo-mmu-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline explains Xid 31 requires user application debugging.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 31.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin implements Xid 31 as a user application issue.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement any Xid 31 health checks.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
+			//
+			// NOTE: The AWS support doc does not mention Xid 31.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc explains Xid 31 is returned when applications have illegal memory access issues, and recommends cuda-memcheck and CUDA-GDB for debugging.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 31 requires self-check by users and users to resubmit the workload to see if the same Xid is returned.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 31.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 31 health checks.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 31 is a user application issue, which may indicate the GPU memory anomalies, but can also be hardware issues.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 31, marked as non-critical in GPUd, indicates GPU memory page fault, with applications having illegal memory access issues. Restart applications and check whether the same Xid is returned. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html.
+			// Xid 31, marked as non-critical in GPUd, indicates GPU memory page fault. In rare cases it can be caused by the hardware degradation. If the issue persists, please report for hardware inspection and repair.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeCheckUserAppAndGPU,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -1053,49 +991,43 @@ var details = map[int]Detail{
 		Description:     "The event is reported by the DMA controller of the PCIE bus that manages communication between the NVIDIA driver and GPU. In most cases, a PCI quality issue occurs.",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 32 is a DMA controller error which manages the communication between the NVIDIA driver and GPU over the PCI-E bus.
-				// Which indicates the PCI quality issues, not the user application issues.
-				`"NVIDIA Xid 32: PBDMA Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-32-pbdma-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 32.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 32.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat this as an application issue.
-				`"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement any Xid 32 health checks.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
-
-				// NOTE: The AWS support doc does not mention Xid 32.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 32.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 32 indicates invalid/corrupted push buffer stream in the PCIE bus between the NVIDIA driver and GPU, recommending submitting technical support tickets.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 32.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 32 health checks.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper does not mention Xid 32.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 32, marked as critical in GPUd, indicates PCI bus issues between the NVIDIA driver and GPU. Reboot the system to check whether the PCI quality issue persists.",
-				"Xid 32, marked as critical in GPUd, indicates PCI bus issues between the NVIDIA driver and GPU. If the issue persists after system reboot, please submit a technical support ticket for hardware inspection and repair.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 32 is a DMA controller error which manages the communication between the NVIDIA driver and GPU over the PCI-E bus.
+			// Which indicates the PCI quality issues, not the user application issues.
+			// "NVIDIA Xid 32: PBDMA Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-32-pbdma-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 32.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 32.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat this as an application issue.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement any Xid 32 health checks.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
+			//
+			// NOTE: The AWS support doc does not mention Xid 32.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 32.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 32 indicates invalid/corrupted push buffer stream in the PCIE bus between the NVIDIA driver and GPU, recommending submitting technical support tickets.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 32.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 32 health checks.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper does not mention Xid 32.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			// Xid 32, marked as critical in GPUd, indicates PCI bus issues between the NVIDIA driver and GPU. Reboot the system to check whether the PCI quality issue persists.
+			// Xid 32, marked as critical in GPUd, indicates PCI bus issues between the NVIDIA driver and GPU. If the issue persists after system reboot, please submit a technical support ticket for hardware inspection and repair.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -1124,16 +1056,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 33 indicates internal micro-controller error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 33 indicates internal micro-controller error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -1161,16 +1088,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 34 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 34 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -1198,16 +1120,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 35 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 35 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -1235,16 +1152,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 36 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 36 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -1293,47 +1205,42 @@ var details = map[int]Detail{
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 38 as a potential driver firmware error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 38.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 38.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 38 as an application issue.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement any Xid 38 health checks.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
-
-				// NOTE: The AWS support doc does not mention Xid 38.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 38.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 38 as a driver firmware issue.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 38.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 38 health checks.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper does not mention Xid 38.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 38, marked as critical in GPUd, indicates NVIDIA driver firmware issues. Reboot the system to check whether the firmware issue persists.",
-				"Xid 38, marked as critical in GPUd, indicates NVIDIA driver firmware issues. If the firmware issue persists after system reboot, please submit a technical support ticket for hardware inspection and repair.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 38 as a potential driver firmware error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 38.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 38.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 38 as an application issue.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement any Xid 38 health checks.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
+			//
+			// NOTE: The AWS support doc does not mention Xid 38.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 38.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 38 as a driver firmware issue.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 38.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 38 health checks.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper does not mention Xid 38.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 38, marked as critical in GPUd, indicates NVIDIA driver firmware issues. Reboot the system to check whether the firmware issue persists.",
+			// Xid 38, marked as critical in GPUd, indicates NVIDIA driver firmware issues. If the firmware issue persists after system reboot, please submit a technical support ticket for hardware inspection and repair.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -1428,16 +1335,10 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 42 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			// Xid 42 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -1464,47 +1365,42 @@ var details = map[int]Detail{
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 43 as a user application hitting a software induced faults.
-				`"NVIDIA Xid 43: Reset Channel Verif Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-43-reset-channel-verif-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 43.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 43.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin implements Xid 43 as a user application error, indicating GPU stopped processing.
-				`"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement any Xid 43 health checks.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
-
-				// NOTE: The AWS support doc does not mention Xid 43.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 43.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 43 as a user application error encountering a software induced fault, as a result, GPU stopped processing.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 43.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 43 health checks.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 43 as a user application error, but may indicate GPU memory anomalies.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 43, marked as non-critical in GPUd, indicates GPU stopped processing, due to a user application encountering a software induced fault. Restart applications and check whether the same Xid is returned. And report if the issue persists.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 43 as a user application hitting a software induced faults.
+			// "NVIDIA Xid 43: Reset Channel Verif Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-43-reset-channel-verif-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 43.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 43.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin implements Xid 43 as a user application error, indicating GPU stopped processing.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement any Xid 43 health checks.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
+			//
+			// NOTE: The AWS support doc does not mention Xid 43.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 43.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 43 as a user application error encountering a software induced fault, as a result, GPU stopped processing.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 43.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 43 health checks.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 43 as a user application error, but may indicate GPU memory anomalies.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 43, marked as non-critical in GPUd, indicates GPU stopped processing, due to a user application encountering a software induced fault. Restart applications and check whether the same Xid is returned. And report if the issue persists.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
@@ -1535,47 +1431,42 @@ var details = map[int]Detail{
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 44 as a potential driver issue.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 44.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 44.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 44 as a user application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement any Xid 44 health checks.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
-
-				// NOTE: The AWS support doc does not mention Xid 44.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 44.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc does not mention Xid 44.
-				// `"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 44.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 44 health checks.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 44 indicates uncorrectable GPU errors, recommends GPU reset or node reboot.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 44, marked as critical in GPUd, indicates uncorrectable GPU errors. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
-				"Xid 44, marked as critical in GPUd, indicates uncorrectable GPU errors. If the uncorrectable GPU error persists after rebooting the system, inspect and repair the hardware.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 44 as a potential driver issue.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 44.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 44.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 44 as a user application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement any Xid 44 health checks.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
+			//
+			// NOTE: The AWS support doc does not mention Xid 44.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 44.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc does not mention Xid 44.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 44.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 44 health checks.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 44 indicates uncorrectable GPU errors, recommends GPU reset or node reboot.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 44, marked as critical in GPUd, indicates uncorrectable GPU errors. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.
+			// Xid 44, marked as critical in GPUd, indicates uncorrectable GPU errors. If the uncorrectable GPU error persists after rebooting the system, inspect and repair the hardware.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -1603,50 +1494,45 @@ var details = map[int]Detail{
 		Description:     "Robust Channel Preemptive Removal. No action, informative only. Indicates channels affected by another failure. On A100, this error could be seen by itself due to unexpected Fabric Manager shutdown when FM is running in the same OS environment as the GPU. Otherwise, this error is safe to ignore as an informational message.",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 45 is returned when the kernel driver terminates a GPU application, as a result of a user of system action.
-				`"NVIDIA Xid 45: OS: Preemptive Channel Removal", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-45-os-preemptive-channel-removal (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline explains Xid 45 indicates channel affected by another failure, or may indicate unexpected Fabric Manager shutdown.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 45.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin implements Xid 45 as a user application error, being preemptive cleanup due to previous errors.
-				`"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement any Xid 45 health checks.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
-
-				// NOTE: The AWS support doc does not mention Xid 45.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 45.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 45 may indicate multiple cuda applications hitting a DBE, or the result of application being stopped due to another error.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc explains does not mention Xid 45.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 45 health checks.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 45 indicates GPU memory anomalies, affecting code and data segments, but can be hardware-related.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-
-				// NOTE: A Reddit user reports Xid 45 was reported before the GPU was dead.
-				`"screen blacks out and I am given NVRM Nvidia Xid 45, GPU was dead", https://www.reddit.com/r/pop_os/comments/joq8zn/nvrm_nvidia_xid_45_error_intermittent (accessed on Nov 3, 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 45, indicates preemptive cleanup due to previous errors. Xid 45 indicates the result of GPU memory issues, such as multiple cuda applications hitting uncorrectable double bit errors (DBE), or an application being stopped by another error. This Xid is likely to overlap with other ongoing Xid events, thus ignore for now.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 45 is returned when the kernel driver terminates a GPU application, as a result of a user of system action.
+			// "NVIDIA Xid 45: OS: Preemptive Channel Removal", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-45-os-preemptive-channel-removal (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline explains Xid 45 indicates channel affected by another failure, or may indicate unexpected Fabric Manager shutdown.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 45.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin implements Xid 45 as a user application error, being preemptive cleanup due to previous errors.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement any Xid 45 health checks.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`
+			//
+			// NOTE: The AWS support doc does not mention Xid 45.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 45.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 45 may indicate multiple cuda applications hitting a DBE, or the result of application being stopped due to another error.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc explains does not mention Xid 45.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement any Xid 45 health checks.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 45 indicates GPU memory anomalies, affecting code and data segments, but can be hardware-related.
+			// //"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// NOTE: A Reddit user reports Xid 45 was reported before the GPU was dead.
+			// "screen blacks out and I am given NVRM Nvidia Xid 45, GPU was dead", https://www.reddit.com/r/pop_os/comments/joq8zn/nvrm_nvidia_xid_45_error_intermittent (accessed on Nov 3, 2024)
+			//
+			// Xid 45, indicates preemptive cleanup due to previous errors. Xid 45 indicates the result of GPU memory issues, such as multiple cuda applications hitting uncorrectable double bit errors (DBE), or an application being stopped by another error. This Xid is likely to overlap with other ongoing Xid events, thus ignore for now.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeIgnoreNoActionRequired,
 			},
@@ -1681,16 +1567,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 46 indicates GPU stopped processing, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 46 indicates GPU stopped processing, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -1718,16 +1599,11 @@ var details = map[int]Detail{
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 47 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 47 indicates a video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -1763,51 +1639,46 @@ The error is also reported to your application. In most cases, you need to reset
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 48 indicates uncorrectable double bit errors (DBE), recommending GPU reset or system reboot.
-				`"NVIDIA Xid 48: DBE (Double Bit Error) ECC Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline explains if Xid 48 is followed by Xid 63 or 64, the node should be drained and the GPUs should be reset.
-				// If Xid 48 is not followed by Xid 63 or 64, the user should run field diagnostics to collect additional debug information.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 48.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 48 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 48 as a hardware error.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc explains Xid 48 indicates a DBE has occurred, recommending system reboot after checking if any GPUs are missing.
-				`"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc explains Xid 48 indicates a DBE has occurred, recommending stopping the existing workloads and rebooting the system.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 48 indicates Double Bit ECC Error (DBE), reported when the GPU encounters an uncorrectable error.
-				// In most cases, Xid 48 requires GPU reset or system reboot to fix the error.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc explains Xid 48 indicates a Double Bit ECC error,
-				// recommending GPU reset or system reboot to fix the error.
-				`"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 48 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 48 as an uncorrectable GPU failure, recommending GPU reset or system reboot.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 48, marked as critical in GPUd, indicates uncorrectable double bit ECC errors (DBE), which also reports back to the user application. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
-				"Xid 48, marked as critical in GPUd, indicates uncorrectable double bit ECC errors (DBE). If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 48 indicates uncorrectable double bit errors (DBE), recommending GPU reset or system reboot.
+			// "NVIDIA Xid 48: DBE (Double Bit Error) ECC Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline explains if Xid 48 is followed by Xid 63 or 64, the node should be drained and the GPUs should be reset.
+			// If Xid 48 is not followed by Xid 63 or 64, the user should run field diagnostics to collect additional debug information.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 48.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 48 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 48 as a hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc explains Xid 48 indicates a DBE has occurred, recommending system reboot after checking if any GPUs are missing.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc explains Xid 48 indicates a DBE has occurred, recommending stopping the existing workloads and rebooting the system.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 48 indicates Double Bit ECC Error (DBE), reported when the GPU encounters an uncorrectable error.
+			// In most cases, Xid 48 requires GPU reset or system reboot to fix the error.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc explains Xid 48 indicates a Double Bit ECC error,
+			// recommending GPU reset or system reboot to fix the error.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 48 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 48 as an uncorrectable GPU failure, recommending GPU reset or system reboot.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 48, marked as critical in GPUd, indicates uncorrectable double bit ECC errors (DBE), which also reports back to the user application. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
+			// Xid 48, marked as critical in GPUd, indicates uncorrectable double bit ECC errors (DBE). If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -2056,16 +1927,11 @@ The error is also reported to your application. In most cases, you need to reset
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 59 indicates an internal micro-controller error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 59 indicates an internal micro-controller error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -2093,16 +1959,11 @@ The error is also reported to your application. In most cases, you need to reset
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 60 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 60 indicates video processor exception, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -2132,47 +1993,42 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 61 indicates internal micro-controller warning.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline recommends resetting the GPU that reports the Xid 61.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 61.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 61 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement Xid 61 detection.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 61.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 61.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 61 indicates GPU internal engine stops working, thus affecting the business.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 61.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement Xid 61 detection.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 61 indicates uncorrectable GPU errors, which reports back to the user application,
-				// recommending GPU reset or node reboot to clear this error.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 61, marked as critical in GPUd, indicates internal micro-controller breakpoint/warning and GPU internal engine stops working. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 61 indicates internal micro-controller warning.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline recommends resetting the GPU that reports the Xid 61.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 61.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 61 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement Xid 61 detection.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 61.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 61.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 61 indicates GPU internal engine stops working, thus affecting the business.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 61.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement Xid 61 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 61 indicates uncorrectable GPU errors, which reports back to the user application,
+			// recommending GPU reset or node reboot to clear this error.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 61, marked as critical in GPUd, indicates internal micro-controller breakpoint/warning and GPU internal engine stops working. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -2199,48 +2055,43 @@ Internal micro-controller breakpoint/warning. The GPU internal engine stops work
 		Description:     "This event is similar to Xid 61. PMU Halt Error. Report a GPU Issue and Reset GPU(s) reporting the XID (refer GPU reset capabilities/limitations section below).",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 62 indicates internal micro-controller halt.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline recommends resetting the GPU that reports the Xid 62.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 62.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 62 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 62 as a hardware error.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 62.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 62.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 62 indicates internal micro-controller halt, similar to Xid 61.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 62.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 62 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 62 indicates uncorrectable GPU errors, which reports back to the user application,
-				// recommending GPU reset or node reboot to clear this error.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 62, marked as critical in GPUd, indicates internal micro-controller halt and GPU internal engine stops working. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.",
-				"Xid 62, marked as critical in GPUd, indicates internal micro-controller halt. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 62 indicates internal micro-controller halt.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline recommends resetting the GPU that reports the Xid 62.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 62.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 62 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 62 as a hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 62.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 62.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 62 indicates internal micro-controller halt, similar to Xid 61.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 62.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 62 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 62 indicates uncorrectable GPU errors, which reports back to the user application,
+			// recommending GPU reset or node reboot to clear this error.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 62, marked as critical in GPUd, indicates internal micro-controller halt and GPU internal engine stops working. Stop existing workloads and reboot the system (or reset GPUs) to clear this error.
+			// Xid 62, marked as critical in GPUd, indicates internal micro-controller halt. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -2284,55 +2135,50 @@ Xid 63 indicates that the retirement or remapping information is successfully re
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 63 indicates ECC page retirement recording event for legacy GPUs or row-remapping recording event for A100.
-				`"NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline explains for legacy GPUs, if Xid 63 is associated with Xid 48, then drain/cordon the node and reset the GPU.
-				// If not, it is from a single bit error, then the system can keep running as is until there is a convenient time to reboot it.
-				// For A100 GPUs that support row-remapping, if associated with Xid 94, the application that encountered the error needs to be restarted.
-				// All other applications on the system can keep running until there's a convenient time to reset the GPU or reboot the system.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc explains Xid 63 indicates successful recording of a row-remapping entry to the InfoROM.
-				// The row-remapping process requires GPU reset or system reboot to take effect.
-				`"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 63 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 63 as a hardware error.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc explains Xid 63 indicates a page has successfully been retired,
-				// recommending checking the number of attached GPUs.
-				`"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc explains Xid 63 indicates ECC page retirement or row remapping recording event,
-				// recommending stopping the workloads and GPU reset to clear this error.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains explains Xid 63 as ECC page retirement or row remapping recording event,
-				// recommending submitting a ticket to request for technical support.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 63.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 63 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 63 as memory ECC error, which can be resolved by simply resetting the GPU to retain the optimal performance.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 63, marked as critical in GPUd, indicates ECC page retirement recording event for legacy GPUs, row remapping recording event for >=A100/H100. User applications can keep running, but for optimal performance, stop the workloads and reset the GPU or reboot the system. The process of row-remapping requires GPU reset or system reboot to take effect, and to remain permanently effective.",
-				"Xid 63, marked as critical in GPUd, indicates ECC page retirement recording event or row remapping recording event. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 63 indicates ECC page retirement recording event for legacy GPUs or row-remapping recording event for A100.
+			// "NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline explains for legacy GPUs, if Xid 63 is associated with Xid 48, then drain/cordon the node and reset the GPU.
+			// If not, it is from a single bit error, then the system can keep running as is until there is a convenient time to reboot it.
+			// For A100 GPUs that support row-remapping, if associated with Xid 94, the application that encountered the error needs to be restarted.
+			// All other applications on the system can keep running until there's a convenient time to reset the GPU or reboot the system.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc explains Xid 63 indicates successful recording of a row-remapping entry to the InfoROM.
+			// The row-remapping process requires GPU reset or system reboot to take effect.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 63 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 63 as a hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc explains Xid 63 indicates a page has successfully been retired,
+			// recommending checking the number of attached GPUs.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc explains Xid 63 indicates ECC page retirement or row remapping recording event,
+			// recommending stopping the workloads and GPU reset to clear this error.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains explains Xid 63 as ECC page retirement or row remapping recording event,
+			// recommending submitting a ticket to request for technical support.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 63.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 63 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 63 as memory ECC error, which can be resolved by simply resetting the GPU to retain the optimal performance.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 63, marked as critical in GPUd, indicates ECC page retirement recording event for legacy GPUs, row remapping recording event for >=A100/H100. User applications can keep running, but for optimal performance, stop the workloads and reset the GPU or reboot the system. The process of row-remapping requires GPU reset or system reboot to take effect, and to remain permanently effective.
+			// Xid 63, marked as critical in GPUd, indicates ECC page retirement recording event or row remapping recording event. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -2378,53 +2224,48 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 64 indicates ECC page retirement recording failure or row-remapping recording failure.
-				`"NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline explains if not associated with Xid 48, then these are related to single bit-errors.
-				// If the errors persist, drain and triage the machine.
-				// If the error is the row-remapping recording failure, the node should be rebooted immediately.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc explains Xid 64 indicates a failure in recording a row-remapping entry to the InfoROM.
-				`"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 64 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 64 as a hardware error.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc explains Xid 64 indicates a page has failed retirement due to an error,
-				// recommending checking the number of attached GPUs.
-				`"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc explains Xid 64 indicates ECC page retirement or row remapper recording failure,
-				// recommending stopping the workloads and rebooting the system.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains explains Xid 64 as ECC page retirement or row remapper recording failure,
-				// recommending submitting a ticket to request for technical support.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 64.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 64 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 64 as memory ECC error, which can be resolved by simply resetting the GPU to retain the optimal performance.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 64, marked as critical in GPUd, indicates ECC page retirement recording failure for legacy GPUs, row remapping recording failure for >=A100/H100. The node should be rebooted immediately since there is a recording failure.",
-				"Xid 64, marked as critical in GPUd, indicates ECC page retirement recording failure or row remapping recording failure. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 64 indicates ECC page retirement recording failure or row-remapping recording failure.
+			// "NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline explains if not associated with Xid 48, then these are related to single bit-errors.
+			// If the errors persist, drain and triage the machine.
+			// If the error is the row-remapping recording failure, the node should be rebooted immediately.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc explains Xid 64 indicates a failure in recording a row-remapping entry to the InfoROM.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 64 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 64 as a hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc explains Xid 64 indicates a page has failed retirement due to an error,
+			// recommending checking the number of attached GPUs.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc explains Xid 64 indicates ECC page retirement or row remapper recording failure,
+			// recommending stopping the workloads and rebooting the system.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains explains Xid 64 as ECC page retirement or row remapper recording failure,
+			// recommending submitting a ticket to request for technical support.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 64.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 64 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 64 as memory ECC error, which can be resolved by simply resetting the GPU to retain the optimal performance.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 64, marked as critical in GPUd, indicates ECC page retirement recording failure for legacy GPUs, row remapping recording failure for >=A100/H100. The node should be rebooted immediately since there is a recording failure.
+			// Xid 64, marked as critical in GPUd, indicates ECC page retirement recording failure or row remapping recording failure. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -2455,14 +2296,7 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		// "most instances can be resolved by simply resetting the GPU to retain optimal performance."
 		// ref. "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning" https://arxiv.org/abs/2408.14158
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				//
-			},
-
-			DeprecatedDescriptions: []string{
-				"Row-remapping happened (Xid 65, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.",
-			},
-
+			// Row-remapping happened (Xid 65, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -2533,48 +2367,42 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		Description:     "Video processor exception",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 68 as a potential hardware/driver issue or a user application error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 68.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 68.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin implements Xid 68 as a user application error.
-				`"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 68 as a hardware issue.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 68.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 68.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 68 requires user-side troubleshooting, recommending resubmitting the workloads and report if the issue persists.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 68.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 68 detection.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper does not mention Xid 68.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 68, marked as non-critical in GPUd, indicates video processor exception. In some cases, Xid 68 indicates deeper GPU driver or hardware issues. Thus, reboot the system.",
-				"Xid 68, marked as non-critical in GPUd, indicates video processor exception. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 68 as a potential hardware/driver issue or a user application error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 68.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 68.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin implements Xid 68 as a user application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 68 as a hardware issue.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 68.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 68.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 68 requires user-side troubleshooting, recommending resubmitting the workloads and report if the issue persists.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 68.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 68 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper does not mention Xid 68.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 68, marked as non-critical in GPUd, indicates video processor exception. In some cases, Xid 68 indicates deeper GPU driver or hardware issues. Thus, reboot the system.
+			// Xid 68, marked as non-critical in GPUd, indicates video processor exception. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -2609,47 +2437,42 @@ Xid 64 indicates that the retirement or remapping information fails to be record
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 69 as a potential hardware/driver issue.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 69.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 69.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 69 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 69 as a hardware issue.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 69.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 69.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc does not mention Xid 69.
-				// `"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 69.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 69 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 69 indicates GPU uncorrectable errors, recommending GPU reset or node reboot.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 69, marked as critical in GPUd, indicates uncorrectable GPU errors. Stop the workloads and reboot the system. And report if the issue persists.",
-				"Xid 69, marked as critical in GPUd, indicates uncorrectable GPU errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 69 as a potential hardware/driver issue.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 69.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 69.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 69 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 69 as a hardware issue.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 69.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 69.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc does not mention Xid 69.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 69.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 69 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 69 indicates GPU uncorrectable errors, recommending GPU reset or node reboot.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 69, marked as critical in GPUd, indicates uncorrectable GPU errors. Stop the workloads and reboot the system. And report if the issue persists.
+			// Xid 69, marked as critical in GPUd, indicates uncorrectable GPU errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -2795,49 +2618,44 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 74 indicates a connection problem between GPUs, or NVSwitch over NVLink.
-				// GPU reset or system reboot is needed to clear the error.
-				`"NVIDIA Xid 74: NVLink Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-74-nvlink-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline explains Xid 74 indicates a NVLink hardware error.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 74.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 74 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 74 as a hardware error.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 74.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc Xid 74 requires stopping the workloads and GPU reset.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 74 indicates a NVLink hardware error, recommending submitting a ticket for technical support.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 74.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 74 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 74 indicates NVLink errors.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 74, marked as critical in GPUd, indicates an NVLink hardware error. It is a critical hardware error that impacts the physical link between the GPUs, and must be repaired. Stop the workloads and reboot the system.",
-				"Xid 74, marked as critical in GPUd, is a critical hardware error that impacts the physical link between the GPUs, must be repaired if the issue persists after rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 74 indicates a connection problem between GPUs, or NVSwitch over NVLink.
+			// GPU reset or system reboot is needed to clear the error.
+			// "NVIDIA Xid 74: NVLink Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-74-nvlink-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline explains Xid 74 indicates a NVLink hardware error.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 74.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 74 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 74 as a hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 74.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc Xid 74 requires stopping the workloads and GPU reset.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 74 indicates a NVLink hardware error, recommending submitting a ticket for technical support.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 74.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 74 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 74 indicates NVLink errors.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 74, marked as critical in GPUd, indicates an NVLink hardware error. It is a critical hardware error that impacts the physical link between the GPUs, and must be repaired. Stop the workloads and reboot the system.
+			// Xid 74, marked as critical in GPUd, is a critical hardware error that impacts the physical link between the GPUs, must be repaired if the issue persists after rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -2932,16 +2750,11 @@ The XID indicates an NVLink hardware error. The GPU encounters a critical hardwa
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 78 indicates vGPU start error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 78 indicates vGPU start error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -2976,48 +2789,43 @@ This event may also be cause by failing GPU hardware or other driver issues.
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 79 indicates GPUs not being accessible, due to the PCI express connection failures.
-				`"NVIDIA Xid 79: GPU has fallen off the bus", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-79-gpu-has-fallen-off-the-bus (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline explains Xid 79 requires node drain.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 79.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 79 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 79 as a hardware error.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc explains Xid 79 indicates that the instance lost communication with the GPUs, recommending system reboot.
-				`"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc explains Xid 79 indicates that the driver is not able to communicate with the GPUs, and requires system reboot.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 79 indicates that the GPU has fallen off the bus, not able to find the GPUs, recommending hardware repair.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc explains Xid 79 is returned due to a GPU driver or hardware issue, recommending system reboot.
-				`"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 79 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 79 as uncorrectable GPU errors, recommending GPU reset or system reboot.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 79, marked as critical in GPUd, indicates GPU has fallen off the bus, with the driver not able to communicate with underlying GPUs. Stop the workloads and reboot the system.",
-				"Xid 79, marked as critical in GPUd, indicates GPU driver is not able to communicate with underlying GPUs. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 79 indicates GPUs not being accessible, due to the PCI express connection failures.
+			// "NVIDIA Xid 79: GPU has fallen off the bus", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-79-gpu-has-fallen-off-the-bus (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline explains Xid 79 requires node drain.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 79.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 79 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 79 as a hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc explains Xid 79 indicates that the instance lost communication with the GPUs, recommending system reboot.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc explains Xid 79 indicates that the driver is not able to communicate with the GPUs, and requires system reboot.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 79 indicates that the GPU has fallen off the bus, not able to find the GPUs, recommending hardware repair.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc explains Xid 79 is returned due to a GPU driver or hardware issue, recommending system reboot.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 79 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 79 as uncorrectable GPU errors, recommending GPU reset or system reboot.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 79, marked as critical in GPUd, indicates GPU has fallen off the bus, with the driver not able to communicate with underlying GPUs. Stop the workloads and reboot the system.
+			// Xid 79, marked as critical in GPUd, indicates GPU driver is not able to communicate with underlying GPUs. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -3068,16 +2876,11 @@ This event may also be cause by failing GPU hardware or other driver issues.
 
 		// if nvidia says only possible reason is hw, then we do hard inspections directly
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 81 indicates VGA subsystem error, labeling a hardware failure as an only possible reason, thus we recommend submitting a ticket for hardware inspection.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// Xid 81 indicates VGA subsystem error, labeling a hardware failure as an only possible reason, thus we recommend submitting a ticket for hardware inspection.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
@@ -3329,48 +3132,42 @@ See below for guidelines on when to RMA GPUs based on excessive errors.
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 92 as a potential hardware or driver issue.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline explains Xid 92 indicates a high single-bit ECC error rate,
-				// which may qualify for the RMA process, if the rates are excessive.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 92.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not implement Xid 92 as an application-level error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 92 as a hardware issue.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 92.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc explains Xid 92 is returned after the GPU correcting the correctable errors, not affecting your workloads.
-				// This Xid is informational only -- no action is required.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc explains Xid 92 can be returned when a hardware or driver issue occurs.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 92.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 92 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper does not mention Xid 92.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 92, indicates high single-bit ECC error rate, meaning the GPU driver has corrected correctable errors. Xid 92 is informational only -- no action is required.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 92 as a potential hardware or driver issue.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline explains Xid 92 indicates a high single-bit ECC error rate,
+			// which may qualify for the RMA process, if the rates are excessive.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 92.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not implement Xid 92 as an application-level error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 92 as a hardware issue.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 92.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc explains Xid 92 is returned after the GPU correcting the correctable errors, not affecting your workloads.
+			// This Xid is informational only -- no action is required.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc explains Xid 92 can be returned when a hardware or driver issue occurs.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 92.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 92 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper does not mention Xid 92.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			// Xid 92, indicates high single-bit ECC error rate, meaning the GPU driver has corrected correctable errors. Xid 92 is informational only -- no action is required.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeIgnoreNoActionRequired,
 			},
@@ -3440,51 +3237,46 @@ This event is generated if the error suppression mechanism successfully suppress
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 94 indicates a contained ECC error, successfully suppressed.
-				`"NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
+			// NOTE: The official nvidia doc explains Xid 94 indicates a contained ECC error, successfully suppressed.
+			// "NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 
-				// NOTE: The official nvidia debugging guideline explains Xid 94 indicates that the application that encountered the error must be restarted.
-				// All other applications can keep running as is until there is a convenient time to reset the GPU or reboot for row remapping to activate.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
+			// NOTE: The official nvidia debugging guideline explains Xid 94 indicates that the application that encountered the error must be restarted.
+			// All other applications can keep running as is until there is a convenient time to reset the GPU or reboot for row remapping to activate.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
 
-				// NOTE: The official nvidia memory error doc explains Xid 94 indicates a contained ECC error has occurred.
-				// Row-remapping requires GPU reset or system reboot to take effect.
-				`"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
+			// NOTE: The official nvidia memory error doc explains Xid 94 indicates a contained ECC error has occurred.
+			// Row-remapping requires GPU reset or system reboot to take effect.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
 
-				// NOTE: The official nvidia k8s device plugin does not implement Xid 94 as an application-level error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
+			// NOTE: The official nvidia k8s device plugin does not implement Xid 94 as an application-level error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
 
-				// NOTE: The imbue-ai GPU health check implements Xid 94 as a hardware issue.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
+			// NOTE: The imbue-ai GPU health check implements Xid 94 as a hardware issue.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
 
-				// NOTE: The AWS support doc does not mention Xid 94.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
+			// NOTE: The AWS support doc does not mention Xid 94.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
 
-				// NOTE: The Google Cloud doc explains Xid 94 requires stopping the workloads and resetting the GPU.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
+			// NOTE: The Google Cloud doc explains Xid 94 requires stopping the workloads and resetting the GPU.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
 
-				// NOTE: The Alibaba Cloud doc explains Xid 94 indicates that the uncorrectable ECC error is successfully suppressed, only affecting the faulty application,
-				// recommending to submit a ticket for technical support.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
+			// NOTE: The Alibaba Cloud doc explains Xid 94 indicates that the uncorrectable ECC error is successfully suppressed, only affecting the faulty application,
+			// recommending to submit a ticket for technical support.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
 
-				// NOTE: The Tencent Cloud doc explains Xid 94 indicates contained ECC error, recommending application restarts. If the issue persists, reboot the system.
-				`"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
+			// NOTE: The Tencent Cloud doc explains Xid 94 indicates contained ECC error, recommending application restarts. If the issue persists, reboot the system.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
 
-				// NOTE: The Azure HPC GPU node problem detector does not implement Xid 94 detection.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
+			// NOTE: The Azure HPC GPU node problem detector does not implement Xid 94 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
 
-				// NOTE: DeepSeek AI paper explains Xid 94 indicates GPU memory ECC error, recommending GPU reset for optimal performance.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 94, marked as critical in GPUd, indicates contained ECC errors with row-remapping successfully suppressing the errors. User applications can keep running, but the faulty application must be restarted. Stop the workloads and reset the GPU or reboot the system. This ensures retirement or remapping is permanently effective.",
-				"Xid 94, marked as critical in GPUd, indicates contained ECC errors with row-remapping successfully suppressing the errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: DeepSeek AI paper explains Xid 94 indicates GPU memory ECC error, recommending GPU reset for optimal performance.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 94, marked as critical in GPUd, indicates contained ECC errors with row-remapping successfully suppressing the errors. User applications can keep running, but the faulty application must be restarted. Stop the workloads and reset the GPU or reboot the system. This ensures retirement or remapping is permanently effective.",
+			// Xid 94, marked as critical in GPUd, indicates contained ECC errors with row-remapping successfully suppressing the errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeIgnoreNoActionRequired,
@@ -3533,50 +3325,45 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 
-				// NOTE: The official nvidia debugging guideline explains Xid 95 requires immediate system reboot (when MIG is disabled),
-				// since there is an uncorrectable uncontained ECC error.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
+			// NOTE: The official nvidia debugging guideline explains Xid 95 requires immediate system reboot (when MIG is disabled),
+			// since there is an uncorrectable uncontained ECC error.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
 
-				// NOTE: The official nvidia memory error doc explains Xid 95 indicates an uncontained ECC error has occurred.
-				`"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
+			// NOTE: The official nvidia memory error doc explains Xid 95 indicates an uncontained ECC error has occurred.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
 
-				// NOTE: The official nvidia k8s device plugin does not implement Xid 95 as an application-level error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
+			// NOTE: The official nvidia k8s device plugin does not implement Xid 95 as an application-level error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
 
-				// NOTE: The imbue-ai GPU health check implements Xid 95 as a hardware issue.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
+			// NOTE: The imbue-ai GPU health check implements Xid 95 as a hardware issue.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
 
-				// NOTE: The AWS support doc does not mention Xid 95.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
+			// NOTE: The AWS support doc does not mention Xid 95.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
 
-				// NOTE: The Google Cloud doc explains Xid 95 requires stopping the workloads and resetting the GPU.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
+			// NOTE: The Google Cloud doc explains Xid 95 requires stopping the workloads and resetting the GPU.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
 
-				// NOTE: The Alibaba Cloud doc explains Xid 95 indicates that the uncorrectable ECC error fails to be suppressed, affecting other applications,
-				// recommending to submit a ticket for technical support.
-				`"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
+			// NOTE: The Alibaba Cloud doc explains Xid 95 indicates that the uncorrectable ECC error fails to be suppressed, affecting other applications,
+			// recommending to submit a ticket for technical support.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
 
-				// NOTE: The Tencent Cloud doc explains Xid 95 indicates uncontained ECC error, recommending system reboot.
-				`"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
+			// NOTE: The Tencent Cloud doc explains Xid 95 indicates uncontained ECC error, recommending system reboot.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
 
-				// NOTE: The Azure HPC GPU node problem detector does not implement Xid 95 detection.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
+			// NOTE: The Azure HPC GPU node problem detector does not implement Xid 95 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
 
-				// NOTE: DeepSeek AI paper explains Xid 95 indicates GPU memory ECC error, recommending GPU reset for optimal performance.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 95, marked as critical in GPUd, indicates uncontained ECC errors with row-remapping, failing to suppress the errors. In addition to the faulty application, other applications are affected. Stop the workloads and reset the GPU or reboot the system to clear this uncontained ECC error. If MIG is disabled, the node should be rebooted immediately since there is an uncorrectable uncontained ECC error.",
-				"Xid 95, marked as critical in GPUd, indicates uncontained ECC errors with row-remapping, failing to suppress the errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: DeepSeek AI paper explains Xid 95 indicates GPU memory ECC error, recommending GPU reset for optimal performance.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 95, marked as critical in GPUd, indicates uncontained ECC errors with row-remapping, failing to suppress the errors. In addition to the faulty application, other applications are affected. Stop the workloads and reset the GPU or reboot the system to clear this uncontained ECC error. If MIG is disabled, the node should be rebooted immediately since there is an uncorrectable uncontained ECC error.
+			// Xid 95, marked as critical in GPUd, indicates uncontained ECC errors with row-remapping, failing to suppress the errors. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -3914,16 +3701,10 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 
 		// if nvidia says only possible reason is hw, then we do hard inspections directly
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 110 indicates a security fault error, labeling a hardware failure as an only possible reason, thus we recommend submitting a ticket for hardware inspection.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			// Xid 110 indicates a security fault error, labeling a hardware failure as an only possible reason, thus we recommend submitting a ticket for hardware inspection.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
@@ -4126,49 +3907,44 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 119 indicates GSP module failures to respond to RPC messages,
-				// recommending GPU reset or node power cycle if the issue persists.
-				`"Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 119.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 119 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 119 as a hardware error.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc explains Xid 119 requires GSP being turned off.
-				`"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc explains Xid 119 requires stopping the workloads and rebooting the system.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc does not mention Xid 119.
-				// `"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: This Alibaba Cloud support doc explains Xid 119 requires disabling the GSP component.
-				`"Xid 119/120 error occurs", https://help.aliyun.com/zh/egs/support/a-gpu-has-fallen-off-the-bus-due-to-an-xid-119-or-xid-120-error (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc explains Xid 119 requires disabling the GSP component.
-				`"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 119 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper explains Xid 119 requires diagnosing for potential RMA.
-				`"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 119, marked as critical in GPUd, indicates GSP module failures (e.g., GSP core timed out responding to RPC messages). Stop the workloads and reboot the system.",
-				"Xid 119, marked as critical in GPUd, indicates GSP module failures. If the same Xid is reported again after rebooting the system, the GSP module should be disabled. If the issue persists, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 119 indicates GSP module failures to respond to RPC messages,
+			// recommending GPU reset or node power cycle if the issue persists.
+			// "Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 119.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 119 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 119 as a hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc explains Xid 119 requires GSP being turned off.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc explains Xid 119 requires stopping the workloads and rebooting the system.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc does not mention Xid 119.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: This Alibaba Cloud support doc explains Xid 119 requires disabling the GSP component.
+			// "Xid 119/120 error occurs", https://help.aliyun.com/zh/egs/support/a-gpu-has-fallen-off-the-bus-due-to-an-xid-119-or-xid-120-error (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc explains Xid 119 requires disabling the GSP component.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 119 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper explains Xid 119 requires diagnosing for potential RMA.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 119, marked as critical in GPUd, indicates GSP module failures (e.g., GSP core timed out responding to RPC messages). Stop the workloads and reboot the system.
+			// Xid 119, marked as critical in GPUd, indicates GSP module failures. If the same Xid is reported again after rebooting the system, the GSP module should be disabled. If the issue persists, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -4196,49 +3972,44 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 120 indicates GSP module failures to respond to RPC messages,
-				// recommending GPU reset or node power cycle if the issue persists.
-				`"Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 120.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 120 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 120 as a hardware error.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc explains Xid 120 requires GSP being turned off.
-				`"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc explains Xid 120 requires stopping the workloads and rebooting the system.
-				`"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc does not mention Xid 120.
-				// `"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: This Alibaba Cloud support doc explains Xid 120 requires disabling the GSP component.
-				`"Xid 119/120 error occurs", https://help.aliyun.com/zh/egs/support/a-gpu-has-fallen-off-the-bus-due-to-an-xid-119-or-xid-120-error (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 120.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector implements Xid 120 detection.
-				`"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper does not mention Xid 120.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 120, marked as critical in GPUd, indicates GSP module failures (e.g., GSP core timed out responding to RPC messages). Stop the workloads and reboot the system.",
-				"Xid 120, marked as critical in GPUd, indicates GSP module failures. If the same Xid is reported again after rebooting the system, the GSP module should be disabled. If the issue persists, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 120 indicates GSP module failures to respond to RPC messages,
+			// recommending GPU reset or node power cycle if the issue persists.
+			// "Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 120.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 120 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 120 as a hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc explains Xid 120 requires GSP being turned off.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc explains Xid 120 requires stopping the workloads and rebooting the system.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc does not mention Xid 120.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: This Alibaba Cloud support doc explains Xid 120 requires disabling the GSP component.
+			// "Xid 119/120 error occurs", https://help.aliyun.com/zh/egs/support/a-gpu-has-fallen-off-the-bus-due-to-an-xid-119-or-xid-120-error (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 120.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector implements Xid 120 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper does not mention Xid 120.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 120, marked as critical in GPUd, indicates GSP module failures (e.g., GSP core timed out responding to RPC messages). Stop the workloads and reboot the system.
+			// Xid 120, marked as critical in GPUd, indicates GSP module failures. If the same Xid is reported again after rebooting the system, the GSP module should be disabled. If the issue persists, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -4266,49 +4037,44 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 121 indicates corrected errors on the C2C NVLink connection to a Grace CPU, with no operational impact,
-				// recommending the GPU reset to retrain the link.
-				`"NVIDIA Xid 121: C2C Link corrected error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-121-c2c-link-corrected-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 121.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 121.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 121 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement Xid 121 detection.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 121.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 121.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc does not mention Xid 121.
-				// `"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 121.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement Xid 121 detection.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper does not mention Xid 121.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 121, marked as non-critical in GPUd, indicates corrected errors on the C2C NVLink connection to a Grace CPU, with no operational impact. Stop the workloads and reboot the system to retrain the link when it's convenient.",
-				"Xid 121, marked as non-critical in GPUd, indicates corrected errors on the C2C NVLink connection to a Grace CPU. If the same Xid is returned after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 121 indicates corrected errors on the C2C NVLink connection to a Grace CPU, with no operational impact,
+			// recommending the GPU reset to retrain the link.
+			// "NVIDIA Xid 121: C2C Link corrected error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-121-c2c-link-corrected-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 121.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 121.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 121 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement Xid 121 detection.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 121.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 121.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc does not mention Xid 121.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 121.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement Xid 121 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper does not mention Xid 121.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 121, marked as non-critical in GPUd, indicates corrected errors on the C2C NVLink connection to a Grace CPU, with no operational impact. Stop the workloads and reboot the system to retrain the link when it's convenient.
+			// Xid 121, marked as non-critical in GPUd, indicates corrected errors on the C2C NVLink connection to a Grace CPU. If the same Xid is returned after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -4360,47 +4126,42 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 `,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 123 indicates potential hardware or driver errors.
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline explains Xid 123 requires GPU reset that reports the Xid error.
-				`"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 123.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 123 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check implements Xid 123 detection as a hardware error.
-				`"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 123.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 123.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc does not mention Xid 123.
-				// `"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 123.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement Xid 123 detection.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper does not mention Xid 123.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 123, marked as non-critical in GPUd, indicates SPI PMU RPC write failures. Stop the workloads and reboot the system.",
-				"Xid 123, marked as non-critical in GPUd, indicates SPI PMU RPC write failures. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 123 indicates potential hardware or driver errors.
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline explains Xid 123 requires GPU reset that reports the Xid error.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 123.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 123 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check implements Xid 123 detection as a hardware error.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 123.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 123.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc does not mention Xid 123.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 123.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement Xid 123 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper does not mention Xid 123.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 123, marked as non-critical in GPUd, indicates SPI PMU RPC write failures. Stop the workloads and reboot the system.
+			// Xid 123, marked as non-critical in GPUd, indicates SPI PMU RPC write failures. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -4692,47 +4453,42 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Description:     `This event is logged when a fault is reported by the remote MMU, such as when an illegal NVLink peer-to-peer access is made by an applicable unit on the chip. Typically these are application-level bugs, but can also be driver bugs or hardware bugs.`,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 137 indicates a user application error, recommending cuda-memcheck or CUDA-GDB for debugging.
-				`"NVIDIA Xid 137: NVLink FLA privilege error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-137-nvlink-fla-privilege-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 137.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 137.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 137 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement Xid 137 detection.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 137.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 137.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc does not mention Xid 137.
-				// `"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 137.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement Xid 137 detection.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper does not mention Xid 137.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 137, marked as non-critical in GPUd, indicates illegal NVLink peer-to-peer access by an applicable unit on the chip, typically application-level bugs, but can also be driver bugs or hardware issues. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 137 indicates a user application error, recommending cuda-memcheck or CUDA-GDB for debugging.
+			// "NVIDIA Xid 137: NVLink FLA privilege error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-137-nvlink-fla-privilege-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 137.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 137.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 137 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement Xid 137 detection.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 137.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 137.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc does not mention Xid 137.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 137.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement Xid 137 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper does not mention Xid 137.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 137, marked as non-critical in GPUd, indicates illegal NVLink peer-to-peer access by an applicable unit on the chip, typically application-level bugs, but can also be driver bugs or hardware issues. To debug, refer to cuda-memcheck https://developer.nvidia.com/cuda-memcheck or CUDA-GDB https://docs.nvidia.com/cuda/cuda-gdb/index.html.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
@@ -4804,49 +4560,44 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Description:     `This event may occur when the GPU driver has observed uncorrectable errors in GPU memory, in such a way as to interrupt the GPU driver’s ability to mark the pages for dynamic page offlining or row remapping. Reset the GPU, and if the problem persists, contact your hardware vendor for support.`,
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// NOTE: The official nvidia doc explains Xid 140 indicates uncorrectable GPU memory errors, which may impact the dynamic page offlining or row remapping,
-				// recommending GPU reset if the issue persists.
-				`"NVIDIA Xid 140: ECC unrecovered error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-140-ecc-unrecovered-error (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)`,
-				`"NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)`,
-
-				// NOTE: The official nvidia debugging guideline does not mention Xid 140.
-				// `"NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia memory error doc does not mention Xid 140.
-				// `"NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)`,
-
-				// NOTE: The official nvidia k8s device plugin does not treat Xid 140 as an application error.
-				// `"NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)`,
-
-				// NOTE: The imbue-ai GPU health check does not implement Xid 140 detection.
-				// `"imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)`,
-
-				// NOTE: The AWS support doc does not mention Xid 140.
-				// `"Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Google Cloud doc does not mention Xid 140.
-				// `"Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Alibaba Cloud doc does not mention Xid 140.
-				// `"Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Tencent Cloud doc does not mention Xid 140.
-				// `"How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)`,
-
-				// NOTE: The Azure HPC GPU node problem detector does not implement Xid 140 detection.
-				// `"Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)`,
-
-				// NOTE: DeepSeek AI paper does not mention Xid 140.
-				// `"Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 140, marked as critical in GPUd, indicates uncorrectable errors in GPU memory, interrupting the GPU driver's ability to mark the pages for dynamic page offlining or row remapping. Reset the GPU or reboot the system.",
-				"Xid 140, marked as critical in GPUd, indicates uncorrectable errors in GPU memory. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.",
-			},
-
+			// NOTE: The official nvidia doc explains Xid 140 indicates uncorrectable GPU memory errors, which may impact the dynamic page offlining or row remapping,
+			// recommending GPU reset if the issue persists.
+			// "NVIDIA Xid 140: ECC unrecovered error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-140-ecc-unrecovered-error (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
+			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
+			//
+			// NOTE: The official nvidia debugging guideline does not mention Xid 140.
+			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia memory error doc does not mention Xid 140.
+			// "NVIDIA GPU Memory Error Management", https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html (accessed on Nov 3, 2024)
+			//
+			// NOTE: The official nvidia k8s device plugin does not treat Xid 140 as an application error.
+			// "NVIDIA/k8s-device-plugin health check", https://github.com/NVIDIA/k8s-device-plugin/blob/v0.17.0/internal/rm/health.go#L65-L71 (Aug 2024)
+			//
+			// NOTE: The imbue-ai GPU health check does not implement Xid 140 detection.
+			// "imbue-ai/cluster-health health check", https://github.com/imbue-ai/cluster-health/blob/8f5964ac620931138ed29f43557557048e826cd7/health_checks/health_checks.py#L769-L782 (Aug 2024)
+			//
+			// NOTE: The AWS support doc does not mention Xid 140.
+			// "Troubleshoot Xid errors", https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Google Cloud doc does not mention Xid 140.
+			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Alibaba Cloud doc does not mention Xid 140.
+			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Tencent Cloud doc does not mention Xid 140.
+			// "How to handle common Xid events", https://cloud.tencent.com/document/product/560/106781 (accessed on Nov 3, 2024)
+			//
+			// NOTE: The Azure HPC GPU node problem detector does not implement Xid 140 detection.
+			// "Azure HPC NPD", https://github.com/Azure/azurehpc/blob/master/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L293 (accessed on Nov 3, 2024)
+			//
+			// NOTE: DeepSeek AI paper does not mention Xid 140.
+			// "Fire-Flyer AI-HPC: A Cost-Effective Software-Hardware Co-Design for Deep Learning", https://arxiv.org/abs/2408.14158v1 (Aug 2024)
+			//
+			// Xid 140, marked as critical in GPUd, indicates uncorrectable errors in GPU memory, interrupting the GPU driver's ability to mark the pages for dynamic page offlining or row remapping. Reset the GPU or reboot the system.",
+			// Xid 140, marked as critical in GPUd, indicates uncorrectable errors in GPU memory. If the same Xid is reported again after rebooting the system, the GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 				apiv1.RepairActionTypeHardwareInspection,
@@ -4918,15 +4669,10 @@ Report a GPU issue and reset GPU(s) reporting the XID (refer to GPU reset capabi
 		Description:     "",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			DeprecatedReferences: []string{
-				// e.g., "Error status 0x... while polling for FSP boot complete"
-				`"GPU_INIT_ERROR in driver", https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/src/kernel/gpu/fsp/arch/blackwell/kern_fsp_gb202.c#L84`,
-			},
-
-			DeprecatedDescriptions: []string{
-				"Xid 143, marked as critical in GPUd, indicates GPU initialization failure. GPU hardware should be inspected and repaired.",
-			},
-
+			// e.g., "Error status 0x... while polling for FSP boot complete"
+			// "GPU_INIT_ERROR in driver", https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/src/kernel/gpu/fsp/arch/blackwell/kern_fsp_gb202.c#L84`,
+			//
+			// Xid 143, marked as critical in GPUd, indicates GPU initialization failure. GPU hardware should be inspected and repaired.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
