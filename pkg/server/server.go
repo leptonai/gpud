@@ -381,10 +381,55 @@ func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
 	return cert, nil
 }
 
+func (s *Server) WaitUntilMachineID(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	log.Logger.Infow("waiting for machine id")
+	for {
+		s.machineIDMu.RLock()
+		machineID := s.machineID
+		s.machineIDMu.RUnlock()
+
+		log.Logger.Infow("current server machine id", "id", machineID)
+
+		if machineID != "" {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		machineID, err := gpudstate.ReadMachineIDWithFallback(ctx, s.dbRW, s.dbRO)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			log.Logger.Errorw("failed to read machine uid", "error", err)
+			continue
+		}
+		if machineID == "" {
+			log.Logger.Debugw("machine id is not set, waiting for it to be set")
+			continue
+		}
+
+		s.machineIDMu.Lock()
+		s.machineID = machineID
+		s.machineIDMu.Unlock()
+
+		log.Logger.Infow("loaded server machine id", "id", machineID)
+		break
+	}
+}
+
 func (s *Server) updateToken(ctx context.Context, endpoint string, metricsStore pkgmetrics.Store, token *UserToken) {
+	s.machineIDMu.RLock()
+	machineID := s.machineID
+	s.machineIDMu.RUnlock()
+
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := gpudstate.ReadTokenWithFallback(ctx, s.dbRW, s.dbRO, s.machineID); err == nil {
+	if dbToken, err := gpudstate.ReadTokenWithFallback(ctx, s.dbRW, s.dbRO, machineID); err == nil {
 		userToken = dbToken
 
 		token.mu.Lock()
@@ -398,7 +443,7 @@ func (s *Server) updateToken(ctx context.Context, endpoint string, metricsStore 
 			ctx,
 			endpoint,
 			userToken,
-			session.WithMachineID(s.machineID),
+			session.WithMachineID(machineID),
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -449,7 +494,7 @@ func (s *Server) updateToken(ctx context.Context, endpoint string, metricsStore 
 				ctx,
 				endpoint,
 				userToken,
-				session.WithMachineID(s.machineID),
+				session.WithMachineID(machineID),
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -499,6 +544,7 @@ func WriteToken(token string, fifoFile string) error {
 func recordInternalMetrics(ctx context.Context, db *sql.DB) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -536,6 +582,13 @@ func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 }
 
 func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instance, endpoint string, userToken *UserToken) {
+	// TODO
+	// s.WaitUntilMachineID(ctx)
+
+	s.machineIDMu.RLock()
+	machineID := s.machineID
+	s.machineIDMu.RUnlock()
+
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
@@ -547,7 +600,8 @@ func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instanc
 		if token == "" {
 			continue
 		}
-		gossipReq, err := pkgmachineinfo.CreateGossipRequest(s.machineID, nvmlInstance, token)
+
+		gossipReq, err := pkgmachineinfo.CreateGossipRequest(machineID, nvmlInstance, token)
 		if err != nil {
 			log.Logger.Errorw("failed to create gossip request", "error", err)
 		} else {
