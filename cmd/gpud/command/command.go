@@ -427,7 +427,7 @@ sudo rm /etc/systemd/system/gpud.service
 			},
 		},
 		{
-			Name:    "run",
+			Name:    "run-plugin",
 			Aliases: []string{"r"},
 			Usage:   "run a component check for a specific plugin group",
 			Action:  cmdRunPlugin,
@@ -436,91 +436,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:        "log-level,l",
 					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 					Destination: &logLevel,
-				},
-			},
-		},
-		{
-			Name:    "daemon",
-			Aliases: []string{"d"},
-
-			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux)",
-			Action: cmdRun,
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
-				},
-				&cli.StringFlag{
-					Name:        "log-file",
-					Usage:       "set the log file path (set empty to stdout/stderr)",
-					Destination: &logFile,
-					Value:       "",
-				},
-				&cli.StringFlag{
-					Name:        "listen-address",
-					Usage:       "set the listen address",
-					Destination: &listenAddress,
-					Value:       fmt.Sprintf("0.0.0.0:%d", config.DefaultGPUdPort),
-				},
-				&cli.StringFlag{
-					Name:        "annotations",
-					Usage:       "set the annotations",
-					Destination: &annotations,
-				},
-				&cli.BoolFlag{
-					Name:        "pprof",
-					Usage:       "enable pprof (default: false)",
-					Destination: &pprof,
-				},
-				&cli.DurationFlag{
-					Name:        "retention-period",
-					Usage:       "set the time period to retain metrics for (once elapsed, old records are compacted/purged)",
-					Destination: &retentionPeriod,
-					Value:       config.DefaultRetentionPeriod.Duration,
-				},
-				cli.StringFlag{
-					Name:  "endpoint",
-					Usage: "endpoint for control plane",
-					Value: "mothership-machine.app.lepton.ai",
-				},
-				&cli.BoolTFlag{
-					Name:        "enable-auto-update",
-					Usage:       "enable auto update of gpud (default: true)",
-					Destination: &enableAutoUpdate,
-				},
-				&cli.IntFlag{
-					Name:        "auto-update-exit-code",
-					Usage:       "specifies the exit code to exit with when auto updating (default: -1 to disable exit code)",
-					Destination: &autoUpdateExitCode,
-					Value:       -1,
-				},
-				cli.StringFlag{
-					Name:        "plugin-specs-file",
-					Usage:       "sets the plugin specs file (leave empty for default, useful for testing)",
-					Destination: &pluginSpecsFile,
-					Hidden:      true,
-				},
-
-				// only for testing
-				cli.StringFlag{
-					Name:        "ibstat-command",
-					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
-					Destination: &ibstatCommand,
-					Value:       "ibstat",
-					Hidden:      true,
-				},
-				cli.StringFlag{
-					Name:        "ibstatus-command",
-					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
-					Destination: &ibstatusCommand,
-					Value:       "ibstatus",
-					Hidden:      true,
-				},
-				&cli.BoolFlag{
-					Name:        "enable-plugin-api",
-					Usage:       "enable plugin API (default: false)",
-					Destination: &enablePluginAPI,
 				},
 			},
 		},
