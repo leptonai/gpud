@@ -22,7 +22,9 @@ func TestCmdRunPluginGroup(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"components":["test1","test2"],"exit":0,"success":true}`))
+		if _, err := w.Write([]byte(`{"components":["test1","test2"],"exit":0,"success":true}`)); err != nil {
+			t.Logf("Error writing response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -83,7 +85,10 @@ func TestCmdListPlugins(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"plugin1":{"type":"shell","run_mode":"async"}}`))
+		w.WriteHeader(http.StatusOK)
+		if _, err := w.Write([]byte(`{"plugin1":{"type":"shell","run_mode":"async"}}`)); err != nil {
+			t.Logf("Error writing response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -161,19 +166,25 @@ func TestCmdListPluginsServerResponses(t *testing.T) {
 		if accept == "application/json" || format == "json" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"plugin1":{"type":"shell","run_mode":"async"},"plugin2":{"type":"python","run_mode":"sync"}}`))
+			if _, err := w.Write([]byte(`{"plugin1":{"type":"shell","run_mode":"async"},"plugin2":{"type":"python","run_mode":"sync"}}`)); err != nil {
+				t.Logf("Error writing response: %v", err)
+			}
 			return
 		}
 		if accept == "application/yaml" || format == "yaml" {
 			w.Header().Set("Content-Type", "application/yaml")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`plugin1:\n  type: shell\n  run_mode: async\nplugin2:\n  type: python\n  run_mode: sync`))
+			if _, err := w.Write([]byte(`plugin1:\n  type: shell\n  run_mode: async\nplugin2:\n  type: python\n  run_mode: sync`)); err != nil {
+				t.Logf("Error writing response: %v", err)
+			}
 			return
 		}
 		// For empty response case
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{}`))
+		if _, err := w.Write([]byte(`{}`)); err != nil {
+			t.Logf("Error writing response: %v", err)
+		}
 	}))
 	defer server.Close()
 
