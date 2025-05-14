@@ -13,6 +13,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
+	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -51,24 +52,18 @@ func cmdLogin(cliContext *cli.Context) error {
 	defer dbRO.Close()
 
 	// in case the table has not been created
-	if err := gpudstate.CreateTableMachineMetadata(rootCtx, dbRW); err != nil {
-		return fmt.Errorf("failed to create table: %w", err)
+	if err := gpudstate.CreateTableMetadata(rootCtx, dbRW); err != nil {
+		return fmt.Errorf("failed to create metadata table: %w", err)
 	}
 
-	// if the login is the "first" operations before creating the db,
-	// we need write mode
-	// read-only mode fails with "no such file or directory"
-	// if the db file does not already exist
-	machineID, err := gpudstate.ReadMachineID(rootCtx, dbRW)
+	prevMachineID, err := gpudstate.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
 	if err != nil {
 		return err
 	}
-	if machineID != "" {
-		fmt.Printf("machine ID %s already assigned (skipping login)\n", machineID)
+	if prevMachineID != "" {
+		fmt.Printf("machine ID %s already assigned (skipping login)\n", prevMachineID)
 		return nil
 	}
-
-	endpoint := cliContext.String("endpoint")
 
 	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
@@ -80,23 +75,46 @@ func cmdLogin(cliContext *cli.Context) error {
 		}
 	}()
 
-	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, cliContext.String("machine-id"), cliContext.String("gpu-count"), cliContext.String("private-ip"), cliContext.String("public-ip"))
+	// previous/existing machine ID is not found (can be empty)
+	// if specified, the control plane will validate the machine ID
+	// otherwise, the control plane will assign a new machine ID
+	machineID := cliContext.String("machine-id") // can be empty
+
+	gpuCount := cliContext.String("gpu-count")
+	privateIP := cliContext.String("private-ip")
+	publicIP := cliContext.String("public-ip")
+	if publicIP == "" {
+		publicIP, _ = netutil.PublicIP()
+	}
+
+	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, machineID, gpuCount, privateIP, publicIP)
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}
 
 	// machine ID has not been assigned yet
 	// thus request one and blocks until the login request is processed
+	endpoint := cliContext.String("endpoint")
 	loginResp, err := login.SendRequest(rootCtx, endpoint, *req)
 	if err != nil {
 		return err
 	}
-	machineID = loginResp.MachineID
-	sessionToken := loginResp.Token
 
-	// consume the login response to persist the machine ID
-	if err := gpudstate.RecordMachineID(rootCtx, dbRW, dbRO, machineID); err != nil {
+	// persist only after the successful login
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyEndpoint, endpoint); err != nil {
+		return fmt.Errorf("failed to record endpoint: %w", err)
+	}
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyMachineID, loginResp.MachineID); err != nil {
 		return fmt.Errorf("failed to record machine ID: %w", err)
+	}
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyToken, loginResp.Token); err != nil {
+		return fmt.Errorf("failed to record session token: %w", err)
+	}
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPrivateIP, privateIP); err != nil {
+		return fmt.Errorf("failed to record private IP: %w", err)
+	}
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPublicIP, publicIP); err != nil {
+		return fmt.Errorf("failed to record public IP: %w", err)
 	}
 
 	fifoFile, err := config.DefaultFifoFile()
@@ -109,10 +127,6 @@ func cmdLogin(cliContext *cli.Context) error {
 	// we still need this in case "gpud up" and then "gpud login" afterwards
 	if err := server.WriteToken(token, fifoFile); err != nil {
 		log.Logger.Debugw("failed to write token -- login before first gpud run/up", "error", err)
-	}
-
-	if err = gpudstate.UpdateLoginInfo(rootCtx, dbRW, machineID, sessionToken); err != nil {
-		fmt.Println("machine logged in but failed to update token:", err)
 	}
 
 	fmt.Printf("%s successfully logged in with machine id %s\n", cmdcommon.CheckMark, loginResp.MachineID)

@@ -23,7 +23,7 @@ func TestServerErrorForEmptyConfig(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, &config.Config{}, "", nil)
+	s, err := New(ctx, &config.Config{}, nil)
 	require.Nil(t, s)
 	require.NotNil(t, err)
 }
@@ -64,7 +64,7 @@ func TestServerConfigValidation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			s, err := New(ctx, tt.config, "", nil)
+			s, err := New(ctx, tt.config, nil)
 			require.Nil(t, s)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.expectedErr)
@@ -76,7 +76,7 @@ func TestServerErrInvalidStateFile(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, &config.Config{State: "invalid"}, "", nil)
+	s, err := New(ctx, &config.Config{State: "invalid"}, nil)
 	require.Nil(t, s)
 	require.Error(t, err)
 }
@@ -335,51 +335,6 @@ func TestRecordInternalMetrics(t *testing.T) {
 	}
 }
 
-func TestSendGossip(t *testing.T) {
-	// Instead of testing sendGossip directly, which has dependencies on pkgmachineinfo
-	// that are hard to mock, we'll test a simplified version just to exercise its core logic
-
-	// Create a context that we can cancel
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Create a channel to track when the function exits
-	done := make(chan struct{})
-
-	// Create a mock ticker for testing
-	tickerC := make(chan time.Time)
-	ticker := &time.Ticker{C: tickerC}
-
-	// Start a simplified version of the sendGossip function
-	go func() {
-		defer close(done)
-
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				// Pretend to do work but don't actually call any external packages
-			}
-		}
-	}()
-
-	// Trigger a tick
-	tickerC <- time.Now()
-
-	// Cancel the context to stop the function
-	cancel()
-
-	// Verify that the function exits after context is canceled
-	select {
-	case <-done:
-		// Function exited properly
-	case <-time.After(time.Second):
-		t.Fatal("sendGossip didn't exit after context was canceled")
-	}
-}
-
 func TestUpdateToken(t *testing.T) {
 	// This is a simple test to ensure the function can be called without errors
 	// We're not trying to test the full functionality, just that it handles basic input
@@ -394,12 +349,14 @@ func TestUpdateToken(t *testing.T) {
 	// Create a server with a minimal setup
 	s := &Server{
 		machineID: "test-uid",
+		dbRW:      db,
+		dbRO:      db,
 	}
 	userToken := &UserToken{}
 
 	// Call updateToken directly - it will try to mkfifo and fail,
 	// but that's ok for this test as we just want to make sure it doesn't hang
-	s.updateToken(ctx, db, "https://example.com", nil, userToken)
+	s.updateToken(ctx, "https://example.com", nil, userToken)
 
 	// If we get here, the function returned after context expiration
 }

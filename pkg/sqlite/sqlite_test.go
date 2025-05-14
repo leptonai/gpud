@@ -305,3 +305,46 @@ func TestRunCompact(t *testing.T) {
 		}
 	})
 }
+
+func TestTableExists(t *testing.T) {
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "sqlite_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbFile := filepath.Join(tmpDir, "table_exists_test.db")
+	db, err := Open(dbFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// Test non-existent table
+	t.Run("non-existent table", func(t *testing.T) {
+		exists, err := TableExists(ctx, db, "non_existent_table")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if exists {
+			t.Error("expected non-existent table to return false")
+		}
+	})
+
+	// Test existing table
+	t.Run("existing table", func(t *testing.T) {
+		_, err = db.Exec("CREATE TABLE test_table (id INTEGER PRIMARY KEY, data TEXT)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		exists, err := TableExists(ctx, db, "test_table")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !exists {
+			t.Error("expected existing table to return true")
+		}
+	})
+}

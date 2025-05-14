@@ -8,9 +8,9 @@ import (
 	"fmt"
 
 	"github.com/dustin/go-humanize"
-	"github.com/leptonai/gpud/pkg/log"
-
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 // Helper function to open a SQLite3 database.
@@ -123,4 +123,16 @@ func RunCompact(ctx context.Context, dbFile string) error {
 	log.Logger.Infow("state file size after compact", "size", humanize.Bytes(dbSize))
 
 	return nil
+}
+
+func TableExists(ctx context.Context, db *sql.DB, name string) (bool, error) {
+	var exists int
+	err := db.QueryRowContext(ctx, "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", name).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }

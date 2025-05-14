@@ -65,7 +65,8 @@ type Server struct {
 	// componentsRegistry is the registry for the regular components
 	componentsRegistry components.Registry
 
-	machineID string
+	machineIDMu sync.RWMutex
+	machineID   string
 
 	fifoPath string
 	fifo     *stdos.File
@@ -90,16 +91,16 @@ func createURL(endpoint string) string {
 	return fmt.Sprintf("https://%s", host)
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
+func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
-	endpoint = createURL(endpoint)
 
 	stateFile := ":memory:"
 	if config.State != "" {
 		stateFile = config.State
 	}
+
 	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open state file (for read-write): %w", err)
@@ -109,8 +110,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
-	if err := gpudstate.CreateTableMachineMetadata(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create table: %w", err)
+	if err := gpudstate.CreateTableMetadata(ctx, dbRW); err != nil {
+		return nil, fmt.Errorf("failed to create metadata table: %w", err)
 	}
 
 	eventStore, err := eventstore.New(dbRW, dbRO, 0)
@@ -228,6 +229,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 		}
 	}
 
+	// component must be started after initialization
 	for _, c := range s.componentsRegistry.All() {
 		if err = c.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
@@ -237,7 +239,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 	go recordInternalMetrics(ctx, dbRW)
 	go doCompact(ctx, dbRW, config.CompactPeriod.Duration)
 
-	s.machineID, err = gpudstate.ReadMachineID(ctx, dbRO)
+	s.machineID, err = gpudstate.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
@@ -279,8 +281,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 		adminGroup.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
 	}
 
+	endpoint, err := gpudstate.ReadMetadata(ctx, dbRO, gpudstate.MetadataKeyEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read endpoint: %w", err)
+	}
+	endpoint = createURL(endpoint)
+
 	userToken := &UserToken{}
-	go s.updateToken(ctx, dbRW, endpoint, metricsSQLiteStore, userToken)
+	go s.updateToken(ctx, endpoint, metricsSQLiteStore, userToken)
 	go s.sendGossip(ctx, nvmlInstance, endpoint, userToken)
 	go s.startListener(nvmlInstance, syncer, config, router, cert)
 
@@ -373,10 +381,55 @@ func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
 	return cert, nil
 }
 
-func (s *Server) updateToken(ctx context.Context, db *sql.DB, endpoint string, metricsStore pkgmetrics.Store, token *UserToken) {
+func (s *Server) WaitUntilMachineID(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	log.Logger.Infow("waiting for machine id")
+	for {
+		s.machineIDMu.RLock()
+		machineID := s.machineID
+		s.machineIDMu.RUnlock()
+
+		log.Logger.Infow("current server machine id", "id", machineID)
+
+		if machineID != "" {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		machineID, err := gpudstate.ReadMachineIDWithFallback(ctx, s.dbRW, s.dbRO)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			log.Logger.Errorw("failed to read machine uid", "error", err)
+			continue
+		}
+		if machineID == "" {
+			log.Logger.Debugw("machine id is not set, waiting for it to be set")
+			continue
+		}
+
+		s.machineIDMu.Lock()
+		s.machineID = machineID
+		s.machineIDMu.Unlock()
+
+		log.Logger.Infow("loaded server machine id", "id", machineID)
+		break
+	}
+}
+
+func (s *Server) updateToken(ctx context.Context, endpoint string, metricsStore pkgmetrics.Store, token *UserToken) {
+	s.machineIDMu.RLock()
+	machineID := s.machineID
+	s.machineIDMu.RUnlock()
+
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := gpudstate.GetLoginInfo(ctx, db, s.machineID); err == nil {
+	if dbToken, err := gpudstate.ReadTokenWithFallback(ctx, s.dbRW, s.dbRO, machineID); err == nil {
 		userToken = dbToken
 
 		token.mu.Lock()
@@ -390,7 +443,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, endpoint string, m
 			ctx,
 			endpoint,
 			userToken,
-			session.WithMachineID(s.machineID),
+			session.WithMachineID(machineID),
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -441,7 +494,7 @@ func (s *Server) updateToken(ctx context.Context, db *sql.DB, endpoint string, m
 				ctx,
 				endpoint,
 				userToken,
-				session.WithMachineID(s.machineID),
+				session.WithMachineID(machineID),
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -491,6 +544,7 @@ func WriteToken(token string, fifoFile string) error {
 func recordInternalMetrics(ctx context.Context, db *sql.DB) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -528,6 +582,13 @@ func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 }
 
 func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instance, endpoint string, userToken *UserToken) {
+	// TODO
+	// s.WaitUntilMachineID(ctx)
+
+	s.machineIDMu.RLock()
+	machineID := s.machineID
+	s.machineIDMu.RUnlock()
+
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
@@ -539,7 +600,8 @@ func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instanc
 		if token == "" {
 			continue
 		}
-		gossipReq, err := pkgmachineinfo.CreateGossipRequest(s.machineID, nvmlInstance, token)
+
+		gossipReq, err := pkgmachineinfo.CreateGossipRequest(machineID, nvmlInstance, token)
 		if err != nil {
 			log.Logger.Errorw("failed to create gossip request", "error", err)
 		} else {
