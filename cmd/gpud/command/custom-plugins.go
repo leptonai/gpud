@@ -50,7 +50,7 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 	})
 
 	println()
-	specs.PrintValidateResults(os.Stdout, cmdcommon.CheckMark, cmdcommon.WarningSig)
+	specs.PrintValidateResults(os.Stdout, cmdcommon.CheckMark, cmdcommon.WarningSign)
 	println()
 
 	if verr := specs.Validate(); verr != nil {
