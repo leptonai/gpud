@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -124,6 +125,32 @@ func TestGetClockSpeed(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name:           "GPU lost error on graphics clock",
+			graphicsClock:  0,
+			graphicsReturn: nvml.ERROR_GPU_IS_LOST,
+			memoryClock:    0,
+			memoryReturn:   nvml.SUCCESS,
+			expectedClockSpeed: ClockSpeed{
+				UUID: testUUID,
+			},
+			expectError:         true,
+			expectedErrorString: "gpu lost",
+		},
+		{
+			name:           "GPU lost error on memory clock",
+			graphicsClock:  1200,
+			graphicsReturn: nvml.SUCCESS,
+			memoryClock:    0,
+			memoryReturn:   nvml.ERROR_GPU_IS_LOST,
+			expectedClockSpeed: ClockSpeed{
+				UUID:                   testUUID,
+				GraphicsMHz:            1200,
+				ClockGraphicsSupported: true,
+			},
+			expectError:         true,
+			expectedErrorString: "gpu lost",
+		},
 	}
 
 	for _, tt := range tests {
@@ -142,6 +169,9 @@ func TestGetClockSpeed(t *testing.T) {
 				assert.Error(t, err)
 				if tt.expectedErrorString != "" {
 					assert.Contains(t, err.Error(), tt.expectedErrorString)
+				}
+				if tt.graphicsReturn == nvml.ERROR_GPU_IS_LOST || tt.memoryReturn == nvml.ERROR_GPU_IS_LOST {
+					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
 				}
 				return
 			}

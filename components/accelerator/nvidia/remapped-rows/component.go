@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -175,6 +176,9 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting remapped rows"
+			if errors.Is(err, nvml.ErrGPULost) {
+				cr.reason += " (GPU is lost)"
+			}
 			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
 			continue
 		}

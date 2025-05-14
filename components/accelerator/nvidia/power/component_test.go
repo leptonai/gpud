@@ -448,3 +448,41 @@ func TestData_GetError(t *testing.T) {
 		})
 	}
 }
+
+func TestCheck_GPULostError(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	mockNvml := &mockNVMLInstance{
+		devices: devs,
+	}
+
+	// Use nvidianvml.ErrGPULost for the error
+	getPowerFunc := func(uuid string, dev device.Device) (nvidianvml.Power, error) {
+		return nvidianvml.Power{}, nvidianvml.ErrGPULost
+	}
+
+	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
+	result := component.Check()
+
+	// Verify error handling for GPU lost case
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
+	assert.Equal(t, "error getting power (GPU is lost)", data.reason,
+		"reason should have '(GPU is lost)' suffix")
+}

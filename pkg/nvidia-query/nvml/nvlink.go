@@ -87,7 +87,9 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 			nvlink.Supported = false
 			break
 		}
-
+		if IsGPULostError(ret) {
+			return nvlink, ErrGPULost
+		}
 		if ret != nvml.SUCCESS {
 			log.Logger.Debugw("failed get nvlink state -- retrying", "link", link, "error", nvml.ErrorString(ret))
 			continue

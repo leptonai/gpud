@@ -141,7 +141,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
-
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, corrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
@@ -161,6 +163,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, uncorrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -177,6 +182,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(volatile, corrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, corrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
@@ -195,6 +203,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(volatile, uncorrected) get total ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, uncorrected) failed to get total ecc errors: %s", nvml.ErrorString(ret))
@@ -222,6 +233,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, corrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -237,6 +251,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(aggregate, uncorrected) get l1 cache ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, uncorrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
@@ -254,6 +271,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, corrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -269,6 +289,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(aggregate, uncorrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, uncorrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
@@ -286,6 +309,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, corrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -301,6 +327,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(aggregate, uncorrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, uncorrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
@@ -318,6 +347,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, corrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -333,6 +365,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(aggregate, uncorrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, uncorrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
@@ -350,6 +385,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, corrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -364,6 +402,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(aggregate, uncorrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
@@ -381,6 +422,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, corrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -396,6 +440,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(aggregate, uncorrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, uncorrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
@@ -413,6 +460,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, corrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -428,6 +478,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(aggregate, uncorrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(aggregate, uncorrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
@@ -445,6 +498,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, corrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -461,6 +517,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, uncorrected) failed to get l1 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -472,6 +531,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		nvml.VOLATILE_ECC,
 		nvml.MEMORY_LOCATION_L2_CACHE,
 	)
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		if ret == nvml.ERROR_NOT_SUPPORTED {
 			log.Logger.Debugw("(volatile, corrected) get l2 cache ecc errors not supported", "error", nvml.ErrorString(ret))
@@ -492,6 +554,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, uncorrected) failed to get l2 cache ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -507,6 +572,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(volatile, corrected) get dram cache ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, corrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
@@ -524,6 +592,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, uncorrected) failed to get dram cache ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -539,6 +610,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(volatile, corrected) get sram ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, corrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
@@ -556,6 +630,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, uncorrected) failed to get sram ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -571,6 +648,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(volatile, corrected) get gpu device memory ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, corrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
@@ -588,6 +668,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, uncorrected) failed to get gpu device memory ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -603,6 +686,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(volatile, corrected) get gpu texture memory ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, corrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
@@ -620,6 +706,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, uncorrected) failed to get gpu texture memory ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -635,6 +724,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(volatile, corrected) get shared memory ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, corrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
@@ -652,6 +744,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, uncorrected) failed to get shared memory ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -668,6 +763,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		result.Supported = false
 		return result, nil
 	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, corrected) failed to get register file ecc errors: %s", nvml.ErrorString(ret))
 	}
@@ -683,6 +781,9 @@ func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (E
 		log.Logger.Debugw("(volatile, uncorrected) get register file ecc errors not supported", "error", nvml.ErrorString(ret))
 		result.Supported = false
 		return result, nil
+	}
+	if IsGPULostError(ret) {
+		return result, ErrGPULost
 	}
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("(volatile, uncorrected) failed to get register file ecc errors: %s", nvml.ErrorString(ret))

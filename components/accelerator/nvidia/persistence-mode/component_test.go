@@ -803,3 +803,41 @@ func TestCheck_EmptyProductName(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
 	assert.Equal(t, "NVIDIA NVML is loaded but GPU is not detected (missing product name)", data.reason)
 }
+
+func TestCheck_GPULostError(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	// Use nvidianvml.ErrGPULost for the error
+	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
+		return nvidianvml.PersistenceMode{}, nvidianvml.ErrGPULost
+	}
+
+	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	result := component.Check()
+
+	// Verify error handling for GPU lost case
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
+	assert.Equal(t, "error getting persistence mode (GPU is lost)", data.reason,
+		"reason should have '(GPU is lost)' suffix")
+}

@@ -525,3 +525,67 @@ func TestIsNotFoundError(t *testing.T) {
 		})
 	}
 }
+
+func TestIsGPULostError(t *testing.T) {
+	// Create a function to patch nvml.ErrorString for testing
+	originalErrorString := nvml.ErrorString
+	defer func() {
+		nvml.ErrorString = originalErrorString
+	}()
+
+	// Test cases
+	testCases := []struct {
+		name     string
+		ret      nvml.Return
+		message  string
+		expected bool
+	}{
+		{
+			name:     "ERROR_GPU_IS_LOST constant",
+			ret:      nvml.ERROR_GPU_IS_LOST,
+			message:  "unused in this case",
+			expected: true,
+		},
+		{
+			name:     "message contains 'gpu lost'",
+			ret:      nvml.Return(9999), // custom error code
+			message:  "the gpu lost error occurred",
+			expected: true,
+		},
+		{
+			name:     "message contains 'gpu is lost'",
+			ret:      nvml.Return(9998), // custom error code
+			message:  "the gpu is lost error message",
+			expected: true,
+		},
+		{
+			name:     "message contains 'gpu_is_lost'",
+			ret:      nvml.Return(9997), // custom error code
+			message:  "gpu_is_lost encountered",
+			expected: true,
+		},
+		{
+			name:     "unrelated error",
+			ret:      nvml.ERROR_UNKNOWN,
+			message:  "this is an unrelated error",
+			expected: false,
+		},
+	}
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Mock nvml.ErrorString function to return our test message
+			nvml.ErrorString = func(r nvml.Return) string {
+				if r == nvml.ERROR_GPU_IS_LOST {
+					return "GPU is lost"
+				}
+				return tc.message
+			}
+
+			// Call the function and verify the result
+			result := IsGPULostError(tc.ret)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}

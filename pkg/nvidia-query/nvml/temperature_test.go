@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -389,4 +390,138 @@ func TestGetTemperatureEdgeCases(t *testing.T) {
 		assert.Equal(t, uint32(100), temperature.CurrentCelsiusGPUCore)
 		assert.Equal(t, "100.00", temperature.UsedPercentShutdown)
 	})
+}
+
+// TestGetTemperatureWithGPULostError tests that GetTemperature correctly handles GPU lost errors
+func TestGetTemperatureWithGPULostError(t *testing.T) {
+	testUUID := "GPU-LOST"
+
+	// Create a mock device that returns GPU_IS_LOST error
+	mockDevice := &testutil.MockDevice{
+		Device: &mock.Device{
+			GetTemperatureFunc: func(sensor nvml.TemperatureSensors) (uint32, nvml.Return) {
+				return 0, nvml.ERROR_GPU_IS_LOST
+			},
+			GetTemperatureThresholdFunc: func(thresholdType nvml.TemperatureThresholds) (uint32, nvml.Return) {
+				// This function needs to be mocked but its return values don't matter
+				// since the first call to GetTemperature will fail
+				return 0, nvml.ERROR_UNKNOWN
+			},
+		},
+	}
+
+	// Call the function
+	_, err := GetTemperature(testUUID, mockDevice)
+
+	// Check error handling
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
+}
+
+// TestGetTemperatureWithGPULostErrorCases tests all cases where the temperature functions can return GPU lost errors
+func TestGetTemperatureWithGPULostErrorCases(t *testing.T) {
+	testCases := []struct {
+		name               string
+		currentTempRet     nvml.Return
+		shutdownThreshRet  nvml.Return
+		slowdownThreshRet  nvml.Return
+		memMaxThreshRet    nvml.Return
+		gpuMaxThreshRet    nvml.Return
+		expectedErrorMatch bool
+	}{
+		{
+			name:               "GPU lost in current temperature",
+			currentTempRet:     nvml.ERROR_GPU_IS_LOST,
+			shutdownThreshRet:  nvml.SUCCESS,
+			slowdownThreshRet:  nvml.SUCCESS,
+			memMaxThreshRet:    nvml.SUCCESS,
+			gpuMaxThreshRet:    nvml.SUCCESS,
+			expectedErrorMatch: true,
+		},
+		{
+			name:               "GPU lost in shutdown threshold",
+			currentTempRet:     nvml.SUCCESS,
+			shutdownThreshRet:  nvml.ERROR_GPU_IS_LOST,
+			slowdownThreshRet:  nvml.SUCCESS,
+			memMaxThreshRet:    nvml.SUCCESS,
+			gpuMaxThreshRet:    nvml.SUCCESS,
+			expectedErrorMatch: true,
+		},
+		{
+			name:               "GPU lost in slowdown threshold",
+			currentTempRet:     nvml.SUCCESS,
+			shutdownThreshRet:  nvml.SUCCESS,
+			slowdownThreshRet:  nvml.ERROR_GPU_IS_LOST,
+			memMaxThreshRet:    nvml.SUCCESS,
+			gpuMaxThreshRet:    nvml.SUCCESS,
+			expectedErrorMatch: true,
+		},
+		{
+			name:               "GPU lost in memory max threshold",
+			currentTempRet:     nvml.SUCCESS,
+			shutdownThreshRet:  nvml.SUCCESS,
+			slowdownThreshRet:  nvml.SUCCESS,
+			memMaxThreshRet:    nvml.ERROR_GPU_IS_LOST,
+			gpuMaxThreshRet:    nvml.SUCCESS,
+			expectedErrorMatch: true,
+		},
+		{
+			name:               "GPU lost in GPU max threshold",
+			currentTempRet:     nvml.SUCCESS,
+			shutdownThreshRet:  nvml.SUCCESS,
+			slowdownThreshRet:  nvml.SUCCESS,
+			memMaxThreshRet:    nvml.SUCCESS,
+			gpuMaxThreshRet:    nvml.ERROR_GPU_IS_LOST,
+			expectedErrorMatch: true,
+		},
+		{
+			name:               "No GPU lost errors",
+			currentTempRet:     nvml.SUCCESS,
+			shutdownThreshRet:  nvml.SUCCESS,
+			slowdownThreshRet:  nvml.SUCCESS,
+			memMaxThreshRet:    nvml.SUCCESS,
+			gpuMaxThreshRet:    nvml.SUCCESS,
+			expectedErrorMatch: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testUUID := "GPU-LOST-TEST"
+
+			// Create a mock device with specified returns for each call
+			mockDevice := &testutil.MockDevice{
+				Device: &mock.Device{
+					GetTemperatureFunc: func(sensor nvml.TemperatureSensors) (uint32, nvml.Return) {
+						return 0, tc.currentTempRet
+					},
+					GetTemperatureThresholdFunc: func(thresholdType nvml.TemperatureThresholds) (uint32, nvml.Return) {
+						switch thresholdType {
+						case nvml.TEMPERATURE_THRESHOLD_SHUTDOWN:
+							return 0, tc.shutdownThreshRet
+						case nvml.TEMPERATURE_THRESHOLD_SLOWDOWN:
+							return 0, tc.slowdownThreshRet
+						case nvml.TEMPERATURE_THRESHOLD_MEM_MAX:
+							return 0, tc.memMaxThreshRet
+						case nvml.TEMPERATURE_THRESHOLD_GPU_MAX:
+							return 0, tc.gpuMaxThreshRet
+						default:
+							return 0, nvml.ERROR_INVALID_ARGUMENT
+						}
+					},
+				},
+			}
+
+			// Call the function
+			_, err := GetTemperature(testUUID, mockDevice)
+
+			// Verify results
+			if tc.expectedErrorMatch {
+				assert.Error(t, err)
+				assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error for case: %s", tc.name)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

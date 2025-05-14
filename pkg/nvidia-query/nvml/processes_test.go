@@ -2,11 +2,16 @@ package nvml
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
 func TestGetProcessesWithNilDevice(t *testing.T) {
@@ -18,6 +23,27 @@ func TestGetProcessesWithNilDevice(t *testing.T) {
 		// Call the function with a nil device
 		_, _ = GetProcesses(testUUID, nilDevice)
 	}, "Expected panic when calling GetProcesses with nil device")
+}
+
+// TestGetProcessesWithGPULostError tests that the function properly handles GPU lost errors
+func TestGetProcessesWithGPULostError(t *testing.T) {
+	testUUID := "GPU-LOST"
+
+	// Create a mock device that returns GPU_IS_LOST error
+	mockDevice := &testutil.MockDevice{
+		Device: &mock.Device{
+			GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
+				return nil, nvml.ERROR_GPU_IS_LOST
+			},
+		},
+	}
+
+	// Call the function
+	_, err := GetProcesses(testUUID, mockDevice)
+
+	// Check that we get a GPU lost error
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
 }
 
 func TestProcessesJSON(t *testing.T) {

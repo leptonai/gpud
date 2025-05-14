@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -169,4 +170,25 @@ func TestGetUtilizationWithNilDevice(t *testing.T) {
 		// Call the function with a nil device
 		_, _ = GetUtilization(testUUID, nilDevice)
 	}, "Expected panic when calling GetUtilization with nil device")
+}
+
+// TestUtilizationWithGPULostError tests that GetUtilization correctly handles GPU lost errors
+func TestUtilizationWithGPULostError(t *testing.T) {
+	testUUID := "GPU-LOST"
+
+	// Create a mock device that returns GPU_IS_LOST error
+	mockDevice := &testutil.MockDevice{
+		Device: &mock.Device{
+			GetUtilizationRatesFunc: func() (nvml.Utilization, nvml.Return) {
+				return nvml.Utilization{}, nvml.ERROR_GPU_IS_LOST
+			},
+		},
+	}
+
+	// Call the function
+	_, err := GetUtilization(testUUID, mockDevice)
+
+	// Check error handling
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
 }

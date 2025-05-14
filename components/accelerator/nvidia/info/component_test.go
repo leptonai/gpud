@@ -1546,3 +1546,180 @@ func TestCheckOnce_SerialFunc_Nil_MinorIDFunc_NotNil(t *testing.T) {
 	assert.Empty(t, cr.GPUIDs[0].SN)
 	assert.Equal(t, "0", cr.GPUIDs[0].MinorID)
 }
+
+func TestCheckOnce_MemoryGPULostError(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock devices
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	// Setup devices map
+	devicesMap := map[string]device.Device{
+		uuid: mockDev,
+	}
+	mockInstance := new(mockNVMLInstance)
+	mockInstance.On("NVMLExists").Return(true)
+	mockInstance.On("Devices").Return(devicesMap)
+	mockInstance.On("DriverVersion").Return("530.82.01")
+	mockInstance.On("CUDAVersion").Return("12.7")
+	mockInstance.On("ProductName").Return("NVIDIA A100")
+	mockInstance.On("Architecture").Return("Ampere")
+	mockInstance.On("Brand").Return("NVIDIA")
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
+
+	// Override component methods
+	c.getDeviceCountFunc = func() (int, error) {
+		return 1, nil
+	}
+
+	// Mock memory function with GPU lost error
+	c.getMemoryFunc = func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return nvidianvml.Memory{}, nvidianvml.ErrGPULost
+	}
+
+	// Call the function
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Verify the results
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting memory (GPU is lost)", cr.reason)
+	assert.True(t, errors.Is(cr.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
+}
+
+func TestCheckOnce_SerialGPULostError(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock device
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	// Setup devices map
+	devicesMap := map[string]device.Device{
+		uuid: mockDev,
+	}
+	mockInstance := new(mockNVMLInstance)
+	mockInstance.On("NVMLExists").Return(true)
+	mockInstance.On("Devices").Return(devicesMap)
+	mockInstance.On("DriverVersion").Return("530.82.01")
+	mockInstance.On("CUDAVersion").Return("12.7")
+	mockInstance.On("ProductName").Return("NVIDIA A100")
+	mockInstance.On("Architecture").Return("Ampere")
+	mockInstance.On("Brand").Return("NVIDIA")
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
+
+	// Override component methods
+	c.getDeviceCountFunc = func() (int, error) {
+		return 1, nil
+	}
+
+	c.getMemoryFunc = func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return nvidianvml.Memory{
+			TotalBytes:     uint64(16 * 1024 * 1024 * 1024),
+			TotalHumanized: "16GB",
+		}, nil
+	}
+
+	// Mock serial function with GPU lost error
+	c.getSerialFunc = func(uuid string, dev device.Device) (string, error) {
+		return "", nvidianvml.ErrGPULost
+	}
+
+	// Call the function
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Verify the results
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting serial id (GPU is lost)", cr.reason)
+	assert.True(t, errors.Is(cr.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
+}
+
+func TestCheckOnce_MinorIDGPULostError(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock device
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &nvmlmock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	// Setup devices map
+	devicesMap := map[string]device.Device{
+		uuid: mockDev,
+	}
+	mockInstance := new(mockNVMLInstance)
+	mockInstance.On("NVMLExists").Return(true)
+	mockInstance.On("Devices").Return(devicesMap)
+	mockInstance.On("DriverVersion").Return("530.82.01")
+	mockInstance.On("CUDAVersion").Return("12.7")
+	mockInstance.On("ProductName").Return("NVIDIA A100")
+	mockInstance.On("Architecture").Return("Ampere")
+	mockInstance.On("Brand").Return("NVIDIA")
+
+	gpudInstance := createMockGPUdInstance(ctx, mockInstance)
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := comp.(*component)
+
+	// Override component methods
+	c.getDeviceCountFunc = func() (int, error) {
+		return 1, nil
+	}
+
+	c.getMemoryFunc = func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return nvidianvml.Memory{
+			TotalBytes:     uint64(16 * 1024 * 1024 * 1024),
+			TotalHumanized: "16GB",
+		}, nil
+	}
+
+	c.getSerialFunc = func(uuid string, dev device.Device) (string, error) {
+		return "SERIAL123", nil
+	}
+
+	// Mock minorID function with GPU lost error
+	c.getMinorIDFunc = func(uuid string, dev device.Device) (int, error) {
+		return 0, nvidianvml.ErrGPULost
+	}
+
+	// Call the function
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Verify the results
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "error getting minor id (GPU is lost)", cr.reason)
+	assert.True(t, errors.Is(cr.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
+}

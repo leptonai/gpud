@@ -61,7 +61,11 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 				return mem, nil
 			}
 
-			// v2 API failed, v1 API failed
+			if IsGPULostError(retV1) {
+				return mem, ErrGPULost
+			}
+
+			// v2 API failed AND v1 API fallback failed
 			return mem, fmt.Errorf("failed to get device memory info: %v (v2 API error %v)", nvml.ErrorString(retV1), nvml.ErrorString(retV2))
 		}
 	}

@@ -1262,6 +1262,71 @@ func TestCheckEdgeCases(t *testing.T) {
 			expectHealthy: false,
 			expectReason:  "error getting clock events",
 		},
+		{
+			name: "gpu lost error when getting clock events supported",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Test GPU",
+				devices: map[string]device.Device{
+					"gpu-0": testutil.NewMockDevice(
+						&mock.Device{
+							GetUUIDFunc: func() (string, nvml.Return) {
+								return "gpu-0", nvml.SUCCESS
+							},
+						},
+						"test-arch", "test-brand", "test-cuda", "test-pci",
+					),
+				},
+			},
+			mockGetSystemDriverVersion: func() (string, error) {
+				return "535.104.05", nil
+			},
+			mockParseDriverVersion: func(driverVersion string) (int, int, int, error) {
+				return 535, 104, 5, nil
+			},
+			mockCheckClockEventsSupported: func(major int) bool {
+				return true
+			},
+			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
+				return false, nvidianvml.ErrGPULost
+			},
+			expectHealthy: false,
+			expectReason:  "error getting clock events supported (GPU is lost)",
+		},
+		{
+			name: "gpu lost error when getting clock events",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Test GPU",
+				devices: map[string]device.Device{
+					"gpu-0": testutil.NewMockDevice(
+						&mock.Device{
+							GetUUIDFunc: func() (string, nvml.Return) {
+								return "gpu-0", nvml.SUCCESS
+							},
+						},
+						"test-arch", "test-brand", "test-cuda", "test-pci",
+					),
+				},
+			},
+			mockGetSystemDriverVersion: func() (string, error) {
+				return "535.104.05", nil
+			},
+			mockParseDriverVersion: func(driverVersion string) (int, int, int, error) {
+				return 535, 104, 5, nil
+			},
+			mockCheckClockEventsSupported: func(major int) bool {
+				return true
+			},
+			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
+				return true, nil
+			},
+			mockGetClockEvents: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+				return nvidianvml.ClockEvents{}, nvidianvml.ErrGPULost
+			},
+			expectHealthy: false,
+			expectReason:  "error getting clock events (GPU is lost)",
+		},
 	}
 
 	for _, tc := range tests {

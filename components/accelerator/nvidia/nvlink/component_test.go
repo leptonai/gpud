@@ -727,3 +727,41 @@ func TestCheck_MetricsGeneration(t *testing.T) {
 	assert.Equal(t, uint64(5), lastCheckResult.NVLinks[0].States.TotalCRCErrors(),
 		"TotalCRCErrors should match the sum")
 }
+
+func TestCheck_GPULostError(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	// Use nvidianvml.ErrGPULost for the error
+	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
+		return nvidianvml.NVLink{}, nvidianvml.ErrGPULost
+	}
+
+	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	result := component.Check()
+
+	// Verify error handling for GPU lost case
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
+	assert.Equal(t, "error getting nvlink (GPU is lost)", data.reason,
+		"reason should have '(GPU is lost)' suffix")
+}

@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -194,6 +195,14 @@ func TestGetClockEvents(t *testing.T) {
 			expectedError:  true,
 			expectedErrMsg: "device GPU-NOT-READY is not initialized",
 		},
+		{
+			name:           "GPU lost error",
+			uuid:           "GPU-LOST",
+			mockReasons:    0,
+			mockReturn:     nvml.ERROR_GPU_IS_LOST,
+			expectedError:  true,
+			expectedErrMsg: "gpu lost",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -214,6 +223,9 @@ func TestGetClockEvents(t *testing.T) {
 				}
 				if tc.expectedErrMsg != "" && !strings.Contains(err.Error(), tc.expectedErrMsg) {
 					t.Errorf("error message mismatch: got %v, want to contain %v", err.Error(), tc.expectedErrMsg)
+				}
+				if tc.mockReturn == nvml.ERROR_GPU_IS_LOST {
+					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
 				}
 				return
 			}
