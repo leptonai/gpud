@@ -144,8 +144,8 @@ func (s *Session) serve() {
 				dbRW.Close()
 				break
 			}
-			if err = gpudstate.DeleteLoginInfo(ctx, dbRW); err != nil {
-				log.Logger.Errorw("failed to delete login info", "error", err)
+			if err = gpudstate.DeleteAllMetadata(ctx, dbRW); err != nil {
+				log.Logger.Errorw("failed to purge metadata", "error", err)
 				response.Error = err.Error()
 				dbRW.Close()
 				break
@@ -156,6 +156,7 @@ func (s *Session) serve() {
 				log.Logger.Errorf("failed to trigger stop gpud: %v", err)
 				response.Error = err.Error()
 			}
+
 		case "setHealthy":
 			log.Logger.Infow("setHealthy received", "components", payload.Components)
 			for _, componentName := range payload.Components {

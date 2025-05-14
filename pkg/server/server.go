@@ -65,7 +65,8 @@ type Server struct {
 	// componentsRegistry is the registry for the regular components
 	componentsRegistry components.Registry
 
-	machineID string
+	machineIDMu sync.RWMutex
+	machineID   string
 
 	fifoPath string
 	fifo     *stdos.File
@@ -90,16 +91,16 @@ func createURL(endpoint string) string {
 	return fmt.Sprintf("https://%s", host)
 }
 
-func New(ctx context.Context, config *lepconfig.Config, endpoint string, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
+func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
-	endpoint = createURL(endpoint)
 
 	stateFile := ":memory:"
 	if config.State != "" {
 		stateFile = config.State
 	}
+
 	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open state file (for read-write): %w", err)
@@ -109,8 +110,8 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
-	if err := gpudstate.CreateTableMachineMetadata(ctx, dbRW); err != nil {
-		return nil, fmt.Errorf("failed to create table: %w", err)
+	if err := gpudstate.CreateTableMetadata(ctx, dbRW); err != nil {
+		return nil, fmt.Errorf("failed to create metadata table: %w", err)
 	}
 
 	eventStore, err := eventstore.New(dbRW, dbRO, 0)
@@ -228,6 +229,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 		}
 	}
 
+	// component must be started after initialization
 	for _, c := range s.componentsRegistry.All() {
 		if err = c.Start(); err != nil {
 			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
@@ -237,7 +239,7 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 	go recordInternalMetrics(ctx, dbRW)
 	go doCompact(ctx, dbRW, config.CompactPeriod.Duration)
 
-	s.machineID, err = gpudstate.ReadMachineID(ctx, dbRO)
+	s.machineID, err = gpudstate.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
@@ -279,8 +281,14 @@ func New(ctx context.Context, config *lepconfig.Config, endpoint string, package
 		adminGroup.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
 	}
 
+	endpoint, err := gpudstate.ReadMetadata(ctx, dbRO, gpudstate.MetadataKeyEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read endpoint: %w", err)
+	}
+	endpoint = createURL(endpoint)
+
 	userToken := &UserToken{}
-	go s.updateToken(ctx, dbRW, endpoint, metricsSQLiteStore, userToken)
+	go s.updateToken(ctx, endpoint, metricsSQLiteStore, userToken)
 	go s.sendGossip(ctx, nvmlInstance, endpoint, userToken)
 	go s.startListener(nvmlInstance, syncer, config, router, cert)
 
@@ -373,10 +381,10 @@ func (s *Server) generateSelfSignedCert() (tls.Certificate, error) {
 	return cert, nil
 }
 
-func (s *Server) updateToken(ctx context.Context, db *sql.DB, endpoint string, metricsStore pkgmetrics.Store, token *UserToken) {
+func (s *Server) updateToken(ctx context.Context, endpoint string, metricsStore pkgmetrics.Store, token *UserToken) {
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := gpudstate.GetLoginInfo(ctx, db, s.machineID); err == nil {
+	if dbToken, err := gpudstate.ReadTokenWithFallback(ctx, s.dbRW, s.dbRO, s.machineID); err == nil {
 		userToken = dbToken
 
 		token.mu.Lock()

@@ -392,11 +392,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 					Destination: &logLevel,
 				},
-				cli.StringFlag{
-					Name:  "endpoint",
-					Usage: "endpoint for control plane",
-					Value: "mothership-machine.app.lepton.ai",
-				},
 			},
 			Subcommands: []cli.Command{
 				{
@@ -471,14 +466,10 @@ sudo gpud join
 			Action: cmdJoin,
 			Flags: []cli.Flag{
 				cli.StringFlag{
-					Name:  "endpoint",
-					Usage: "endpoint for control plane",
-					Value: "mothership-machine.app.lepton.ai",
-				},
-				cli.StringFlag{
-					Name:  "cluster-name",
-					Usage: "cluster name for control plane (e.g.: lepton-prod-0)",
-					Value: "lepton-prod-0",
+					Name:   "cluster-name",
+					Usage:  "[DEPRECATED] cluster name for control plane (e.g.: lepton-prod-0)",
+					Value:  "lepton-prod-0",
+					Hidden: true,
 				},
 				cli.StringFlag{
 					Name:  "provider",

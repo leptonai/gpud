@@ -4,13 +4,26 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
+
+func createDeprecatedTableMachineMetadata(ctx context.Context, dbRW *sql.DB) error {
+	_, err := dbRW.ExecContext(ctx, fmt.Sprintf(`
+CREATE TABLE IF NOT EXISTS %s (
+	%s TEXT PRIMARY KEY,
+	%s INTEGER,
+	%s TEXT,
+	%s TEXT
+);`, deprecatedTableNameMachineMetadata, deprecatedColumnMachineID, deprecatedColumnUnixSeconds, deprecatedColumnToken, deprecatedColumnComponents))
+	return err
+}
 
 const testMachineID = "test-machine-id"
 
@@ -31,65 +44,23 @@ func TestCreateTableMachineMetadata(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	err := CreateTableMachineMetadata(ctx, dbRW)
+	err := createDeprecatedTableMachineMetadata(ctx, dbRW)
 	require.NoError(t, err)
 
 	// Verify table exists
 	var name string
-	err = dbRO.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", TableNameMachineMetadata).Scan(&name)
+	err = dbRO.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", deprecatedTableNameMachineMetadata).Scan(&name)
 	require.NoError(t, err)
-	assert.Equal(t, TableNameMachineMetadata, name)
+	assert.Equal(t, deprecatedTableNameMachineMetadata, name)
 
 	// Verify columns exist
-	columns := []string{ColumnMachineID, ColumnUnixSeconds, ColumnToken, ColumnComponents}
+	columns := []string{deprecatedColumnMachineID, deprecatedColumnUnixSeconds, deprecatedColumnToken, deprecatedColumnComponents}
 	for _, col := range columns {
 		var columnName string
-		err = dbRO.QueryRow("SELECT name FROM pragma_table_info(?) WHERE name=?", TableNameMachineMetadata, col).Scan(&columnName)
+		err = dbRO.QueryRow("SELECT name FROM pragma_table_info(?) WHERE name=?", deprecatedTableNameMachineMetadata, col).Scan(&columnName)
 		require.NoError(t, err)
 		assert.Equal(t, col, columnName)
 	}
-}
-
-func TestMachineIDOperations(t *testing.T) {
-	t.Parallel()
-	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
-	defer cleanup()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
-	// Create table
-	err := CreateTableMachineMetadata(ctx, dbRW)
-	require.NoError(t, err)
-
-	// Test getting non-existent machine ID
-	id, err := ReadMachineID(ctx, dbRO)
-	assert.NoError(t, err)
-	assert.Empty(t, id)
-
-	// Test recording machine ID
-	err = RecordMachineID(ctx, dbRW, dbRO, testMachineID)
-	require.NoError(t, err)
-
-	// Verify machine ID was recorded
-	id, err = ReadMachineID(ctx, dbRO)
-	assert.NoError(t, err)
-	assert.Equal(t, testMachineID, id)
-
-	// Test attempting to record a different machine ID (should fail)
-	differentID := "different-id"
-	err = RecordMachineID(ctx, dbRW, dbRO, differentID)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "already assigned")
-
-	// Verify original machine ID is still in place
-	id, err = ReadMachineID(ctx, dbRO)
-	assert.NoError(t, err)
-	assert.Equal(t, testMachineID, id)
-
-	// Test recording the same machine ID again (should succeed)
-	err = RecordMachineID(ctx, dbRW, dbRO, testMachineID)
-	assert.NoError(t, err)
 }
 
 func TestLoginInfoOperations(t *testing.T) {
@@ -101,47 +72,23 @@ func TestLoginInfoOperations(t *testing.T) {
 	defer cancel()
 
 	// Create table
-	err := CreateTableMachineMetadata(ctx, dbRW)
+	err := createDeprecatedTableMachineMetadata(ctx, dbRW)
 	require.NoError(t, err)
 
 	// Insert a machine ID for testing
 	insertTestMachineID(t, ctx, dbRW, testMachineID)
 
 	// Test getting login info for a machine ID with no token yet
-	token, err := GetLoginInfo(ctx, dbRO, testMachineID)
+	token, err := readTokenFromDeprecatedTable(ctx, dbRO, testMachineID)
 	assert.NoError(t, err)
 	assert.Empty(t, token)
 
 	// Test getting login info for non-existent machine ID
 	nonExistentID := "non-existent-id"
-	token, err = GetLoginInfo(ctx, dbRO, nonExistentID)
+	token, err = readTokenFromDeprecatedTable(ctx, dbRO, nonExistentID)
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, sql.ErrNoRows))
 	assert.Empty(t, token)
-
-	// Test updating login info
-	testToken := "test-token-123"
-	err = UpdateLoginInfo(ctx, dbRW, testMachineID, testToken)
-	require.NoError(t, err)
-
-	// Verify login info was updated
-	token, err = GetLoginInfo(ctx, dbRO, testMachineID)
-	assert.NoError(t, err)
-	assert.Equal(t, testToken, token)
-
-	// Test updating login info again with a different token
-	updatedToken := "updated-token-456"
-	err = UpdateLoginInfo(ctx, dbRW, testMachineID, updatedToken)
-	require.NoError(t, err)
-
-	// Verify login info was updated
-	token, err = GetLoginInfo(ctx, dbRO, testMachineID)
-	assert.NoError(t, err)
-	assert.Equal(t, updatedToken, token)
-
-	// Test updating non-existent machine ID (should not error but no row affected)
-	err = UpdateLoginInfo(ctx, dbRW, nonExistentID, testToken)
-	assert.NoError(t, err)
 }
 
 func TestRecordMetrics(t *testing.T) {
@@ -153,7 +100,7 @@ func TestRecordMetrics(t *testing.T) {
 	defer cancel()
 
 	// Create table first to ensure we have something to measure
-	err := CreateTableMachineMetadata(ctx, dbRW)
+	err := createDeprecatedTableMachineMetadata(ctx, dbRW)
 	require.NoError(t, err)
 
 	// Insert some data to have a non-empty database
@@ -162,4 +109,79 @@ func TestRecordMetrics(t *testing.T) {
 	// Verify recording metrics doesn't error
 	err = RecordDBSize(ctx, dbRW)
 	require.NoError(t, err)
+}
+
+func TestReadMachineIDFromDeprecatedTable(t *testing.T) {
+	t.Parallel()
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	// Test 1: When table doesn't exist
+	machineID, err := readMachineIDFromDeprecatedTable(ctx, dbRO)
+	assert.Error(t, err) // Should error because table doesn't exist
+	assert.Empty(t, machineID)
+
+	// Create table for further tests
+	err = createDeprecatedTableMachineMetadata(ctx, dbRW)
+	require.NoError(t, err)
+
+	// Test 2: When table exists but no entries
+	machineID, err = readMachineIDFromDeprecatedTable(ctx, dbRO)
+	require.NoError(t, err)
+	assert.Empty(t, machineID)
+
+	// Test 3: With machine ID in table
+	testMachineID := "test-machine-id"
+	_, err = dbRW.ExecContext(ctx,
+		"INSERT INTO machine_metadata (machine_id, unix_seconds) VALUES (?, ?)",
+		testMachineID, time.Now().Unix())
+	require.NoError(t, err)
+
+	machineID, err = readMachineIDFromDeprecatedTable(ctx, dbRO)
+	require.NoError(t, err)
+	assert.Equal(t, testMachineID, machineID)
+}
+
+func TestReadTokenFromDeprecatedTable(t *testing.T) {
+	t.Parallel()
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	// Create deprecated table
+	err := createDeprecatedTableMachineMetadata(ctx, dbRW)
+	require.NoError(t, err)
+
+	machineID := "test-machine-id"
+
+	// Test 1: When machine ID doesn't exist
+	token, err := readTokenFromDeprecatedTable(ctx, dbRO, machineID)
+	assert.Error(t, err) // Should be sql.ErrNoRows
+	assert.Empty(t, token)
+
+	// Test 2: When machine ID exists but no token
+	_, err = dbRW.ExecContext(ctx,
+		"INSERT INTO machine_metadata (machine_id, unix_seconds) VALUES (?, ?)",
+		machineID, time.Now().Unix())
+	require.NoError(t, err)
+
+	token, err = readTokenFromDeprecatedTable(ctx, dbRO, machineID)
+	require.NoError(t, err)
+	assert.Empty(t, token) // COALESCE returns empty string
+
+	// Test 3: When machine ID and token exist
+	testToken := "test-token"
+	_, err = dbRW.ExecContext(ctx,
+		"UPDATE machine_metadata SET token = ? WHERE machine_id = ?",
+		testToken, machineID)
+	require.NoError(t, err)
+
+	token, err = readTokenFromDeprecatedTable(ctx, dbRO, machineID)
+	require.NoError(t, err)
+	assert.Equal(t, testToken, token)
 }

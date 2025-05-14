@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,28 +17,65 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/leptonai/gpud/pkg/asn"
+	"github.com/leptonai/gpud/pkg/config"
+	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
-	"github.com/leptonai/gpud/pkg/netutil"
 	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func cmdJoin(cliContext *cli.Context) (retErr error) {
+	stateFile, err := config.DefaultStateFile()
+	if err != nil {
+		return fmt.Errorf("failed to get state file: %w", err)
+	}
+
+	dbRW, err := sqlite.Open(stateFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRW.Close()
+
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRO.Close()
+
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
+	machineID, err := gpudstate.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+	if err != nil {
+		return err
+	}
 
-	endpoint := cliContext.String("endpoint")
+	// always read endpoint from state file
+	endpoint, err := gpudstate.ReadMetadata(rootCtx, dbRO, gpudstate.MetadataKeyEndpoint)
+	if err != nil {
+		return fmt.Errorf("failed to read endpoint: %w", err)
+	}
+	if endpoint == "" {
+		return errors.New("endpoint not found in state file")
+	}
+
+	// assume if not empty, it should have been persisted by the "gpud login" command
+	privateIP, err := gpudstate.ReadMetadata(rootCtx, dbRO, gpudstate.MetadataKeyPrivateIP)
+	if err != nil {
+		return fmt.Errorf("failed to read private IP: %w", err)
+	}
+
+	// assume if not empty, it should have been persisted by the "gpud login" command
+	publicIP, err := gpudstate.ReadMetadata(rootCtx, dbRO, gpudstate.MetadataKeyPublicIP)
+	if err != nil {
+		return fmt.Errorf("failed to read public IP: %w", err)
+	}
+
 	clusterName := cliContext.String("cluster-name")
 	provider := cliContext.String("provider")
 	nodeGroup := cliContext.String("node-group")
 	extraInfo := cliContext.String("extra-info")
-	privateIP := cliContext.String("private-ip")
-
-	uid, err := GetUID(rootCtx)
-	if err != nil {
-		return err
-	}
 
 	_, totalCPU, err := pkgmachineinfo.GetSystemResourceLogicalCores()
 	if err != nil {
@@ -65,16 +103,11 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	}
 
 	detectProvider := "unknown"
-	publicIP, _ := netutil.PublicIP()
 	asnResult, err := asn.GetASLookup(publicIP)
 	if err != nil {
 		log.Logger.Errorf("failed to get asn lookup: %v", err)
 	} else {
 		detectProvider = asnResult.AsnName
-	}
-
-	if cliContext.String("public-ip") != "" {
-		publicIP = cliContext.String("public-ip")
 	}
 
 	if !cliContext.Bool("skip-interactive") {
@@ -144,7 +177,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		Status string `json:"status"`
 	}
 	content := payload{
-		ID:               uid,
+		ID:               machineID,
 		ClusterName:      clusterName,
 		PublicIP:         publicIP,
 		Provider:         strings.Replace(provider, " ", "-", -1),
@@ -188,6 +221,25 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		}
 		return fmt.Errorf("failed to join: %v", errorResponse)
 	}
+
+	// persist on the successful join
+	// so that next gpud up/run doesn't need to specify the same parameters
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPublicIP, publicIP); err != nil {
+		return fmt.Errorf("failed to record public IP: %w", err)
+	}
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyProvider, provider); err != nil {
+		return fmt.Errorf("failed to record provider: %w", err)
+	}
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyNodeGroup, nodeGroup); err != nil {
+		return fmt.Errorf("failed to record node group: %w", err)
+	}
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyRegion, region); err != nil {
+		return fmt.Errorf("failed to record region: %w", err)
+	}
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyExtraInfo, extraInfo); err != nil {
+		return fmt.Errorf("failed to record extra info: %w", err)
+	}
+
 	fmt.Println("Basic setup finished, GPUd is installing necessary components onto your machine, this may take 10 - 15 minutes.\nYou can run `gpud status` or `gpud status -w` to check the progress of each component.")
 	return nil
 }
