@@ -145,13 +145,6 @@ func TestComponentStates(t *testing.T) {
 
 	// Test with data
 	testData := &checkResult{
-		Info: Info{
-			Arch:      "x86_64",
-			CPU:       "0",
-			Family:    "6",
-			Model:     "60",
-			ModelName: "Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
-		},
 		Cores: Cores{
 			Logical: 8,
 		},
@@ -527,13 +520,6 @@ func TestComponentGetError(t *testing.T) {
 func TestComponentDataExtraInfo(t *testing.T) {
 	// Create test data
 	testData := &checkResult{
-		Info: Info{
-			Arch:      "x86_64",
-			CPU:       "0",
-			Family:    "6",
-			Model:     "60",
-			ModelName: "Intel(R) Core(TM) i7-4710MQ CPU @ 2.50GHz",
-		},
 		Cores: Cores{
 			Logical: 8,
 		},
@@ -559,8 +545,6 @@ func TestComponentDataExtraInfo(t *testing.T) {
 
 	// Verify JSON contains expected data
 	jsonData := states[0].ExtraInfo["data"]
-	assert.Contains(t, jsonData, testData.Info.Arch)
-	assert.Contains(t, jsonData, testData.Info.CPU)
 	assert.Contains(t, jsonData, testData.Usage.UsedPercent)
 	assert.Contains(t, jsonData, testData.Usage.LoadAvg1Min)
 }
@@ -640,13 +624,6 @@ func TestCalculateCPUUsageEdgeCases(t *testing.T) {
 func TestDataMarshalingInStates(t *testing.T) {
 	// Test data with unusual values
 	testData := &checkResult{
-		Info: Info{
-			Arch:      "x86_64",
-			CPU:       "unusual-cpu-name+!@#$",
-			Family:    "unusual-family+!@#$",
-			Model:     "unusual-model+!@#$",
-			ModelName: "unusual-model-name+!@#$",
-		},
 		Cores: Cores{
 			Logical: 999999, // Very high core count
 		},

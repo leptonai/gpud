@@ -156,8 +156,6 @@ func (c *component) Check() components.CheckResult {
 
 	cr := &checkResult{
 		ts: time.Now().UTC(),
-
-		Info: getInfo(),
 		Cores: Cores{
 			Logical: pkghost.CPULogicalCores(),
 		},
@@ -232,7 +230,6 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	Info  Info  `json:"info"`
 	Cores Cores `json:"cores"`
 	Usage Usage `json:"usage"`
 
@@ -245,16 +242,6 @@ type checkResult struct {
 	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
-}
-
-type Info struct {
-	Arch      string `json:"arch"`
-	GoArch    string `json:"go_arch"`
-	CPU       string `json:"cpu"`
-	Family    string `json:"family"`
-	Model     string `json:"model"`
-	ModelName string `json:"model_name"`
-	VendorID  string `json:"vendor_id"`
 }
 
 type Cores struct {
@@ -290,12 +277,6 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.Append([]string{"Arch", cr.Info.Arch})
-	table.Append([]string{"Go Arch", cr.Info.GoArch})
-	table.Append([]string{"CPU", cr.Info.CPU})
-	table.Append([]string{"Family", cr.Info.Family})
-	table.Append([]string{"Model", cr.Info.Model})
-	table.Append([]string{"Model Name", cr.Info.ModelName})
 	table.Append([]string{"Logical Cores", fmt.Sprintf("%d", cr.Cores.Logical)})
 	table.Append([]string{"Avg Load 1-min", cr.Usage.LoadAvg1Min})
 	table.Append([]string{"Avg Load 5-min", cr.Usage.LoadAvg5Min})
