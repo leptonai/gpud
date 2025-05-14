@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/dustin/go-humanize"
 	"github.com/leptonai/gpud/pkg/log"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -79,6 +80,7 @@ func ReadDBSize(ctx context.Context, db *sql.DB) (uint64, error) {
 	return pageCount * pageSize, nil
 }
 
+// Compact compacts the database by running the VACUUM command.
 func Compact(ctx context.Context, db *sql.DB) error {
 	log.Logger.Infow("compacting state database")
 	_, err := db.ExecContext(ctx, "VACUUM;")
@@ -86,5 +88,39 @@ func Compact(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	log.Logger.Infow("successfully compacted state database")
+	return nil
+}
+
+// RunCompact compacts the database by running the VACUUM command,
+// and prints the size before and after the compact.
+func RunCompact(ctx context.Context, dbFile string) error {
+	dbRW, err := Open(dbFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRW.Close()
+
+	dbRO, err := Open(dbFile, WithReadOnly(true))
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRO.Close()
+
+	dbSize, err := ReadDBSize(ctx, dbRO)
+	if err != nil {
+		return fmt.Errorf("failed to read state file size: %w", err)
+	}
+	log.Logger.Infow("state file size before compact", "size", humanize.Bytes(dbSize))
+
+	if err := Compact(ctx, dbRW); err != nil {
+		return fmt.Errorf("failed to compact state file: %w", err)
+	}
+
+	dbSize, err = ReadDBSize(ctx, dbRO)
+	if err != nil {
+		return fmt.Errorf("failed to read state file size: %w", err)
+	}
+	log.Logger.Infow("state file size after compact", "size", humanize.Bytes(dbSize))
+
 	return nil
 }
