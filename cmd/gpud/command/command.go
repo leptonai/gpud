@@ -427,19 +427,6 @@ sudo rm /etc/systemd/system/gpud.service
 			},
 		},
 		{
-			Name:    "run-plugin",
-			Aliases: []string{"r"},
-			Usage:   "run a component check for a specific plugin group",
-			Action:  cmdRunPlugin,
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
-				},
-			},
-		},
-		{
 			Name:    "list-plugins",
 			Aliases: []string{"lp"},
 			Usage:   "list all registered custom plugins",

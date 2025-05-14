@@ -2227,7 +2227,11 @@ backup
 			expectError: false,
 		},
 		{
+<<<<<<< HEAD
 			name: "empty listfile filename",
+=======
+			name: "empty listfile filename case",
+>>>>>>> 6ea6959 (improve test coverage)
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
@@ -2279,7 +2283,11 @@ backup
 			expectError:   true,
 		},
 		{
+<<<<<<< HEAD
 			name: "empty listfile",
+=======
+			name: "empty listfile case",
+>>>>>>> 6ea6959 (improve test coverage)
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
@@ -2305,7 +2313,11 @@ backup
 			expectError:   true,
 		},
 		{
+<<<<<<< HEAD
 			name: "component_list and listfile not allowed",
+=======
+			name: "componet_list and listfile not allowed",
+>>>>>>> 6ea6959 (improve test coverage)
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
