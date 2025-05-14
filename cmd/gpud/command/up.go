@@ -1,24 +1,25 @@
 package command
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
+	"github.com/urfave/cli"
+
+	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
+	"github.com/leptonai/gpud/pkg/log"
 	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
-
-	"github.com/urfave/cli"
 )
 
 func cmdUp(cliContext *cli.Context) (retErr error) {
 	if cliContext.String("token") != "" {
 		if lerr := cmdLogin(cliContext); lerr != nil {
-			fmt.Printf("%s failed to login (%v)\n", warningSign, lerr)
+			fmt.Printf("%s failed to login (%v)\n", cmdcommon.WarningSign, lerr)
 			return lerr
 		}
-		fmt.Printf("%s successfully logged in\n", checkMark)
+		fmt.Printf("%s successfully logged in\n", cmdcommon.CheckMark)
 	} else {
 		fmt.Printf("\nvisit https://localhost:15132 to view the dashboard\n\n")
 	}
@@ -28,12 +29,10 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 	if err := pkgupdate.RequireRoot(); err != nil {
-		fmt.Printf("%s %q requires root to run with systemd: %v (to run without systemd, '%s run')\n", warningSign, bin, err, bin)
 		return err
 	}
 	if !pkdsystemd.SystemctlExists() {
-		fmt.Printf("%s requires systemd, to run without systemd, '%s run'\n", warningSign, bin)
-		return errors.ErrUnsupported
+		return fmt.Errorf("requires systemd, to run without systemd, '%s run'", bin)
 	}
 
 	if !systemd.DefaultBinExists() {
@@ -42,21 +41,18 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 
 	endpoint := cliContext.String("endpoint")
 	if err := systemdInit(endpoint); err != nil {
-		fmt.Printf("%s failed to initialize systemd files\n", warningSign)
 		return err
 	}
 
 	if err := pkgupdate.EnableGPUdSystemdUnit(); err != nil {
-		fmt.Printf("%s failed to enable systemd unit 'gpud.service'\n", warningSign)
 		return err
 	}
 
 	if err := pkgupdate.RestartGPUdSystemdUnit(); err != nil {
-		fmt.Printf("%s failed to restart systemd unit 'gpud.service'\n", warningSign)
 		return err
 	}
 
-	fmt.Printf("%s successfully started gpud (run 'gpud status' for checking status)\n", checkMark)
+	log.Logger.Infow("successfully started gpud (run 'gpud status' for checking status)")
 	return nil
 }
 

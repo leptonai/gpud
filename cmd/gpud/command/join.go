@@ -84,8 +84,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 			fmt.Printf("We detect your gpu type is %v, if this is correct, press Enter. If not, please enter your gpu shape below\n", productName)
 			input, err = reader.ReadString('\n')
 			if err != nil {
-				fmt.Println("Error reading input:", err)
-				return
+				return err
 			}
 			if input != "\n" {
 				productName = strings.TrimSpace(input)
@@ -95,8 +94,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		fmt.Printf("We detect your public IP is %v, if this is correct, press Enter. If not, please enter your public IP below\n", publicIP)
 		input, err = reader.ReadString('\n')
 		if err != nil {
-			fmt.Println("Error reading input:", err)
-			return
+			return err
 		}
 		if input != "\n" {
 			publicIP = strings.TrimSpace(input)
@@ -106,8 +104,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 			fmt.Printf("Provider name not specified, we detected your provider is %v, if correct, press Enter. If not, please enter your provider's name below\n", detectProvider)
 			input, err = reader.ReadString('\n')
 			if err != nil {
-				fmt.Println("Error reading input:", err)
-				return
+				return err
 			}
 			if input != "\n" {
 				provider = strings.TrimSpace(input)
@@ -119,8 +116,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		fmt.Printf("We detect your region is %v, if this is correct, press Enter. If not, please enter your region below\n", region)
 		input, err = reader.ReadString('\n')
 		if err != nil {
-			fmt.Println("Error reading input:", err)
-			return
+			return err
 		}
 		if input != "\n" {
 			region = strings.TrimSpace(input)
@@ -188,7 +184,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		var errorResponse RespErr
 		err = json.Unmarshal(body, &errorResponse)
 		if err != nil {
-			return fmt.Errorf("Error parsing error response: %v\nResponse body: %s", err, body)
+			return fmt.Errorf("error parsing error response: %v %s", err, string(body))
 		}
 		return fmt.Errorf("failed to join: %v", errorResponse)
 	}

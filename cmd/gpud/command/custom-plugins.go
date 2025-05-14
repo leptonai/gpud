@@ -12,6 +12,7 @@ import (
 	"github.com/urfave/cli"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/components"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	customplugins "github.com/leptonai/gpud/pkg/custom-plugins"
@@ -49,7 +50,7 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 	})
 
 	println()
-	specs.PrintValidateResults(os.Stdout, checkMark, warningSign)
+	specs.PrintValidateResults(os.Stdout, cmdcommon.CheckMark, cmdcommon.WarningSign)
 	println()
 
 	if verr := specs.Validate(); verr != nil {
@@ -99,9 +100,9 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 	table.SetAutoWrapText(false)
 	table.SetHeader([]string{"Component", "Health State", "Summary", "Error", "Run Mode", "Extra Info"})
 	for _, rs := range results {
-		healthState := checkMark + " " + string(apiv1.HealthStateTypeHealthy)
+		healthState := cmdcommon.CheckMark + " " + string(apiv1.HealthStateTypeHealthy)
 		if rs.HealthStateType() != apiv1.HealthStateTypeHealthy {
-			healthState = warningSign + " " + string(rs.HealthStateType())
+			healthState = cmdcommon.WarningSign + " " + string(rs.HealthStateType())
 		}
 
 		err := ""

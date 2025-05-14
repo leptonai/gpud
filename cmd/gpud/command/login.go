@@ -7,6 +7,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
@@ -114,6 +115,6 @@ func cmdLogin(cliContext *cli.Context) error {
 		fmt.Println("machine logged in but failed to update token:", err)
 	}
 
-	fmt.Printf("%s successfully logged in with machine id %s\n", checkMark, loginResp.MachineID)
+	fmt.Printf("%s successfully logged in with machine id %s\n", cmdcommon.CheckMark, loginResp.MachineID)
 	return nil
 }

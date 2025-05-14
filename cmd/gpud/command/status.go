@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli"
 
 	client "github.com/leptonai/gpud/client/v1"
+	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/log"
@@ -31,9 +32,9 @@ func cmdStatus(cliContext *cli.Context) error {
 			return err
 		}
 		if !active {
-			fmt.Printf("%s gpud.service is not active\n", warningSign)
+			fmt.Printf("%s gpud.service is not active\n", cmdcommon.WarningSign)
 		} else {
-			fmt.Printf("%s gpud.service is active\n", checkMark)
+			fmt.Printf("%s gpud.service is active\n", cmdcommon.CheckMark)
 		}
 	}
 	if !active {
@@ -44,23 +45,23 @@ func cmdStatus(cliContext *cli.Context) error {
 			return err
 		}
 		if proc == nil {
-			fmt.Printf("%s gpud process is not running\n", warningSign)
+			fmt.Printf("%s gpud process is not running\n", cmdcommon.WarningSign)
 			return nil
 		}
 
-		fmt.Printf("%s gpud process is running (PID %d)\n", checkMark, proc.PID())
+		fmt.Printf("%s gpud process is running (PID %d)\n", cmdcommon.CheckMark, proc.PID())
 	}
-	fmt.Printf("%s successfully checked gpud status\n", checkMark)
+	fmt.Printf("%s successfully checked gpud status\n", cmdcommon.CheckMark)
 
 	if err := checkDiskComponent(); err != nil {
 		return err
 	}
-	fmt.Printf("%s successfully checked whether disk component is running\n", checkMark)
+	fmt.Printf("%s successfully checked whether disk component is running\n", cmdcommon.CheckMark)
 
 	if err := checkNvidiaInfoComponent(); err != nil {
 		return err
 	}
-	fmt.Printf("%s successfully checked whether accelerator-nvidia-info component is running\n", checkMark)
+	fmt.Printf("%s successfully checked whether accelerator-nvidia-info component is running\n", cmdcommon.CheckMark)
 
 	if err := client.BlockUntilServerReady(
 		rootCtx,
@@ -68,14 +69,14 @@ func cmdStatus(cliContext *cli.Context) error {
 	); err != nil {
 		return err
 	}
-	fmt.Printf("%s successfully checked gpud health\n", checkMark)
+	fmt.Printf("%s successfully checked gpud health\n", cmdcommon.CheckMark)
 
 	for {
 		cctx, ccancel := context.WithTimeout(rootCtx, 15*time.Second)
 		packageStatus, err := client.GetPackageStatus(cctx, fmt.Sprintf("https://localhost:%d%s", config.DefaultGPUdPort, server.URLPathAdminPackages))
 		ccancel()
 		if err != nil {
-			fmt.Printf("%s failed to get package status: %v\n", warningSign, err)
+			fmt.Printf("%s failed to get package status: %v\n", cmdcommon.WarningSign, err)
 			return err
 		}
 		if len(packageStatus) == 0 {

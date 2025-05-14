@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
 	"github.com/stretchr/testify/assert"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
+	cmdcommon "github.com/leptonai/gpud/cmd/common"
+	"github.com/leptonai/gpud/components"
 )
 
 // mockCheckResult implements the components.CheckResult interface for testing
@@ -76,7 +78,7 @@ func TestPrintSummary(t *testing.T) {
 			},
 			expectedOutput: fmt.Sprintf(
 				"%s %s\n%s\n",
-				checkMark,
+				cmdcommon.CheckMark,
 				"All systems operational",
 				"Component details go here",
 			),
@@ -91,7 +93,7 @@ func TestPrintSummary(t *testing.T) {
 			},
 			expectedOutput: fmt.Sprintf(
 				"%s %s\n%s\n",
-				warningSign,
+				cmdcommon.WarningSign,
 				"System error detected",
 				"Error details go here",
 			),
@@ -106,7 +108,7 @@ func TestPrintSummary(t *testing.T) {
 			},
 			expectedOutput: fmt.Sprintf(
 				"%s %s\n%s\n",
-				warningSign,
+				cmdcommon.WarningSign,
 				"Performance degraded",
 				"Degradation details go here",
 			),
@@ -121,7 +123,7 @@ func TestPrintSummary(t *testing.T) {
 			},
 			expectedOutput: fmt.Sprintf(
 				"%s %s\n%s\n",
-				warningSign,
+				cmdcommon.WarningSign,
 				"System initializing",
 				"Initialization details go here",
 			),
