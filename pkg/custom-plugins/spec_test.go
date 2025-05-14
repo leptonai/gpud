@@ -17,7 +17,7 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	// Get the path to the test data file
+	// Get the path to the test data file 
 	testFile := filepath.Join("testdata", "plugins.base64.yaml")
 
 	// Load the plugins
