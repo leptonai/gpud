@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -142,8 +143,24 @@ func (c *component) Check() components.CheckResult {
 		cr.PersistenceModes = append(cr.PersistenceModes, persistenceMode)
 	}
 
-	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no persistence mode issue found", len(devs))
+	notEnabled := []string{}
+	for _, pm := range cr.PersistenceModes {
+		if pm.Supported && !pm.Enabled {
+			notEnabled = append(notEnabled, fmt.Sprintf("%s persistence mode supported but not enabled", pm.UUID))
+		}
+	}
+
+	if len(notEnabled) > 0 {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		if len(notEnabled) == len(cr.PersistenceModes) {
+			cr.reason = fmt.Sprintf("all %d GPU(s) disabled persistence mode", len(devs))
+		} else {
+			cr.reason = strings.Join(notEnabled, ", ")
+		}
+	} else {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no persistence mode issue found", len(devs))
+	}
 
 	return cr
 }

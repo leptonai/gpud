@@ -50,20 +50,7 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 	})
 
 	println()
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetRowLine(true)
-	table.SetAutoWrapText(false)
-	table.SetHeader([]string{"Component", "Type", "Run Mode", "Timeout", "Interval", "Valid"})
-	for _, spec := range specs {
-		verr := spec.Validate()
-		s := cmdcommon.CheckMark + " valid"
-		if verr != nil {
-			s = cmdcommon.WarningSign + " invalid"
-		}
-		table.Append([]string{spec.ComponentName(), spec.Type, spec.RunMode, spec.Timeout.Duration.String(), spec.Interval.Duration.String(), s})
-	}
-	table.Render()
+	specs.PrintValidateResults(os.Stdout, cmdcommon.CheckMark, cmdcommon.WarningSig)
 	println()
 
 	if verr := specs.Validate(); verr != nil {
@@ -107,7 +94,7 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 
 	println()
 	fmt.Printf("### Results\n\n")
-	table = tablewriter.NewWriter(os.Stdout)
+	table := tablewriter.NewWriter(os.Stdout)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetRowLine(true)
 	table.SetAutoWrapText(false)
