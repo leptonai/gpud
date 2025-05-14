@@ -50,17 +50,6 @@ func IsNotFoundError(ret nvml.Return) bool {
 	return strings.Contains(e, "not found") || strings.Contains(e, "not_found")
 }
 
-// IsGPULostError returns true if the error indicates that the GPU is lost.
-// "if the target GPU has fallen off the bus or is otherwise inaccessible".
-func IsGPULostError(ret nvml.Return) bool {
-	if ret == nvml.ERROR_GPU_IS_LOST {
-		return true
-	}
-
-	e := normalizeNVMLReturnString(ret)
-	return strings.Contains(e, "gpu lost") || strings.Contains(e, "gpu_is_lost")
-}
-
 // normalizeNVMLReturnString normalizes an NVML return to a string.
 func normalizeNVMLReturnString(ret nvml.Return) string {
 	s := nvml.ErrorString(ret)
