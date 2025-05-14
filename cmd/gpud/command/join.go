@@ -162,20 +162,25 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 
 	type payload struct {
 		ID               string `json:"id"`
-		ClusterName      string `json:"cluster_name"`
+		ClusterName      string `json:"cluster_name,omitempty"`
 		PublicIP         string `json:"public_ip"`
 		Provider         string `json:"provider"`
-		ProviderGPUShape string `json:"provider_gpu_shape"`
+		ProviderGPUShape string `json:"provider_gpu_shape,omitempty"`
 		TotalCPU         int64  `json:"total_cpu"`
 		NodeGroup        string `json:"node_group"`
 		ExtraInfo        string `json:"extra_info"`
 		Region           string `json:"region"`
-		PrivateIP        string `json:"private_ip"`
+		PrivateIP        string `json:"private_ip,omitempty"`
 	}
 	type RespErr struct {
 		Error  string `json:"error"`
 		Status string `json:"status"`
 	}
+
+	fmt.Printf("%sWarning: GPUd will upgrade your container runtime to containerd, will affect your current running containers (if any)%s\n", "\033[33m", "\033[0m")
+	fmt.Printf("%sWarning: GPUd will Reboot your machine to finish necessary setup%s\n", "\033[33m", "\033[0m")
+	fmt.Printf("Please look carefully about the above warning, if ok, please hit Enter\n")
+
 	content := payload{
 		ID:               machineID,
 		ClusterName:      clusterName,
@@ -188,13 +193,12 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		Region:           region,
 		PrivateIP:        privateIP,
 	}
+
 	rawPayload, _ := json.Marshal(&content)
 	fmt.Println("Your machine will be initialized with following configuration, please press Enter if it is ok")
 	prettyJSON, _ := json.MarshalIndent(content, "", "  ")
 	fmt.Println(string(prettyJSON))
-	fmt.Printf("%sWarning: GPUd will upgrade your container runtime to containerd, will affect your current running containers (if any)%s\n", "\033[33m", "\033[0m")
-	fmt.Printf("%sWarning: GPUd will Reboot your machine to finish necessary setup%s\n", "\033[33m", "\033[0m")
-	fmt.Printf("Please look carefully about the above warning, if ok, please hit Enter\n")
+
 	if !cliContext.Bool("skip-interactive") {
 		reader := bufio.NewReader(os.Stdin)
 		input, _ := reader.ReadString('\n')
@@ -203,6 +207,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 			return nil
 		}
 	}
+
 	fmt.Println("Please wait while control plane is initializing basic setup for your machine, this may take up to one minute...")
 	response, err := http.Post(createJoinURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {

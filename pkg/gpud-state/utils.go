@@ -25,7 +25,7 @@ func ReadMachineIDWithFallback(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) 
 
 	// not found in the new table
 	// TODO: remove this once we have migrated all users to the new table
-	log.Logger.Warnw("machine_id not found in the new table, checking the deprecated table")
+	log.Logger.Debugw("machine_id not found in the new table, checking the deprecated table")
 	ok, err := sqlite.TableExists(ctx, dbRW, deprecatedTableNameMachineMetadata)
 	if err != nil {
 		return "", err
@@ -41,7 +41,7 @@ func ReadMachineIDWithFallback(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB) 
 		return "", err
 	}
 	if machineID != "" {
-		log.Logger.Warnw("machine_id found in the deprecated table, migrating to the new table for next reads")
+		log.Logger.Debugw("machine_id found in the deprecated table, migrating to the new table for next reads")
 		if err := SetMetadata(ctx, dbRW, MetadataKeyMachineID, machineID); err != nil {
 			return "", err
 		}
@@ -64,7 +64,7 @@ func ReadTokenWithFallback(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, mach
 
 	// not found in the new table
 	// TODO: remove this once we have migrated all users to the new table
-	log.Logger.Warnw("token not found in the new table, checking the deprecated table", "machine_id", machineID)
+	log.Logger.Debugw("token not found in the new table, checking the deprecated table", "machine_id", machineID)
 	ok, err := sqlite.TableExists(ctx, dbRW, deprecatedTableNameMachineMetadata)
 	if err != nil {
 		return "", err
@@ -80,7 +80,7 @@ func ReadTokenWithFallback(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, mach
 		return "", err
 	}
 	if token != "" {
-		log.Logger.Warnw("token found in the deprecated table, migrating to the new table for next reads", "machine_id", machineID)
+		log.Logger.Debugw("token found in the deprecated table, migrating to the new table for next reads", "machine_id", machineID)
 		if err := SetMetadata(ctx, dbRW, MetadataKeyToken, token); err != nil {
 			return "", err
 		}

@@ -52,7 +52,7 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
-	log.Logger.Infow("successfully started gpud (run 'gpud status' for checking status)")
+	log.Logger.Debugw("successfully started gpud (run 'gpud status' for checking status)")
 	return nil
 }
 
