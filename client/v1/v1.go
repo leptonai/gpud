@@ -210,19 +210,19 @@ func TriggerComponentCheck(ctx context.Context, addr string, componentName strin
 }
 
 // TriggerComponentCheckByTag triggers all components that have the specified tag
-func TriggerComponentCheckByTag(ctx context.Context, addr string, tagName string, opts ...OpOption) (v1.HealthStates, error) {
+func TriggerComponentCheckByTag(ctx context.Context, addr string, tagName string, opts ...OpOption) error {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
-		return nil, err
+		return err
 	}
 
 	if tagName == "" {
-		return nil, errors.New("tag name is required")
+		return errors.New("tag name is required")
 	}
 
 	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/components/trigger-tag", addr))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	q := reqURL.Query()
@@ -231,7 +231,7 @@ func TriggerComponentCheckByTag(ctx context.Context, addr string, tagName string
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	if op.requestContentType != "" {
@@ -243,21 +243,28 @@ func TriggerComponentCheckByTag(ctx context.Context, addr string, tagName string
 
 	resp, err := createDefaultHTTPClient().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
+		return fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("server not ready, response not 200")
+		return errors.New("server not ready, response not 200")
 	}
 
-	var healthStates v1.HealthStates
-	if err := json.NewDecoder(resp.Body).Decode(&healthStates); err != nil {
-		return nil, fmt.Errorf("failed to decode json: %w", err)
+	var response struct {
+		Components []string `json:"components"`
+		Exit       int      `json:"exit"`
+		Success    bool     `json:"success"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return fmt.Errorf("failed to decode json: %w", err)
 	}
 
-	log.Logger.Infow("triggered component check by tag", "tag", tagName, "healthStates", healthStates)
-	return healthStates, nil
+	if !response.Success {
+		return fmt.Errorf("health check failed for tag %s, components: %v", tagName, response.Components)
+	}
+
+	return nil
 }
 
 // GetInfo returns component information from the server.
