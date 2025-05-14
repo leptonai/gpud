@@ -14,6 +14,7 @@ import (
 var (
 	currentHostID              string
 	currentArch                string
+	currentVendorID            string
 	currentCPUModelName        string
 	currentCPUModel            string
 	currentCPUFamily           string
@@ -59,7 +60,8 @@ func loadInfo() {
 	if len(infos) == 0 {
 		log.Logger.Errorw("no cpu info found")
 	} else {
-		currentCPUModelName = infos[0].ModelName
+		currentVendorID = infos[0].VendorID      // e.g., "AuthenticAMD"
+		currentCPUModelName = infos[0].ModelName // e.g., "AMD EPYC Processor"
 		currentCPUModel = infos[0].Model
 		currentCPUFamily = infos[0].Family
 	}
@@ -148,6 +150,10 @@ func HostID() string {
 
 func Arch() string {
 	return currentArch
+}
+
+func CPUVendorID() string {
+	return currentVendorID
 }
 
 func CPUModelName() string {

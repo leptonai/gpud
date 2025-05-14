@@ -7,22 +7,10 @@ import (
 	"runtime"
 	"sync"
 
-	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/shirou/gopsutil/v4/cpu"
 )
 
 const collectCPUUsagePerCPU = false
-
-func getInfo() Info {
-	return Info{
-		Arch:      pkghost.Arch(),
-		GoArch:    runtime.GOARCH,
-		CPU:       pkghost.CPUModelName(),
-		Family:    pkghost.CPUFamily(),
-		Model:     pkghost.CPUModel(),
-		ModelName: pkghost.CPUModelName(),
-	}
-}
 
 var (
 	prevMu sync.RWMutex
