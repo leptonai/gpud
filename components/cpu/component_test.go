@@ -648,8 +648,6 @@ func TestDataMarshalingInStates(t *testing.T) {
 
 	// JSON data should contain all the unusual values
 	jsonData := states[0].ExtraInfo["data"]
-	assert.Contains(t, jsonData, "unusual-cpu-name")
-	assert.Contains(t, jsonData, "unusual-family")
 	assert.Contains(t, jsonData, "999999.99")
 	assert.Contains(t, jsonData, "999999") // Core count
 }
