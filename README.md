@@ -9,16 +9,6 @@
 
 [GPUd](https://www.gpud.ai) is designed to ensure GPU efficiency and reliability by actively monitoring GPUs and effectively managing AI/ML workloads.
 
-Unlike CPUs, GPU failures and issues are common and can significantly impact training and inference efficiency.
-
-> "78% of unexpected interruptions are attributed to confirmed hardware issues, such as GPU or host component failures, or suspected hardware-related issues like silent data corruption and unplanned individual host maintenance events. GPU issues are the largest category, accounting for 58.7% of all unexpected issues."
->
-> [*Reliability and Operational Challenges by Meta Llama team (2024)*](https://ai.meta.com/research/publications/the-llama-3-herd-of-models/)
-
-GPUd addresses these challenges by automatically identifying, diagnosing, and repairing GPU-related issues, thereby minimizing downtime and maintaining high efficiency.
-
-Read our announcement blog post [here](https://blog.lepton.ai/introducing-gpud-the-missing-gpu-management-for-ai-0f0d026337e3).
-
 ## Why GPUd
 
 GPUd is built on years of experience operating large-scale GPU clusters at Meta, Alibaba Cloud, Uber, and Lepton AI. It is carefully designed to be self-contained and to integrate seamlessly with other systems such as Docker, containerd, Kubernetes, and Nvidia ecosystems.
