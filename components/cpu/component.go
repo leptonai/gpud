@@ -254,6 +254,7 @@ type Info struct {
 	Family    string `json:"family"`
 	Model     string `json:"model"`
 	ModelName string `json:"model_name"`
+	VendorID  string `json:"vendor_id"`
 }
 
 type Cores struct {

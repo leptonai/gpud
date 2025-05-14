@@ -21,6 +21,7 @@ func getInfo() Info {
 		Family:    pkghost.CPUFamily(),
 		Model:     pkghost.CPUModel(),
 		ModelName: pkghost.CPUModelName(),
+		VendorID:  pkghost.CPUVendorID(),
 	}
 }
 

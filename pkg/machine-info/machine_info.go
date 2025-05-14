@@ -138,6 +138,8 @@ func GetSystemResourceLogicalCores() (string, int64, error) {
 
 func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
 	return &apiv1.MachineCPUInfo{
+		Type:         pkghost.CPUModelName(),
+		Manufacturer: pkghost.CPUVendorID(),
 		Architecture: runtime.GOARCH,
 	}
 }
