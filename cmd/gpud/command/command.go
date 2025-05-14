@@ -540,6 +540,12 @@ sudo gpud join
 				},
 			},
 		},
+		{
+			Name:      "run-plugin-group",
+			Usage:     "Run all components in a plugin group by tag",
+			UsageText: "gpud run-plugin-group <plugin_group_name>",
+			Action:    cmdRunPluginGroup,
+		},
 	}
 
 	return app
