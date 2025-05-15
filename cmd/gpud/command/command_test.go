@@ -86,7 +86,7 @@ func TestCmdListPlugins(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"plugin1":{"type":"shell","run_mode":"async"}}`)); err != nil {
+		if _, err := w.Write([]byte(`{}`)); err != nil {
 			t.Logf("Error writing response: %v", err)
 		}
 	}))
