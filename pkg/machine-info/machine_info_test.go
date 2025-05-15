@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -41,13 +40,14 @@ func TestGetSystemResourceLogicalCores(t *testing.T) {
 
 func TestGetMachineNetwork(t *testing.T) {
 	// Even if the environment variable is not set, we can still test the function structure
-	network := GetMachineNetwork()
+	network := GetMachineNetworkInfo()
 	assert.NotNil(t, network)
 
 	// Run more detailed test if environment variable is set
 	if os.Getenv("TEST_MACHINE_NETWORK") == "true" {
 		t.Log("Running detailed network test")
-		assert.NotEmpty(t, network.PublicIP, "Public IP should not be empty when TEST_MACHINE_NETWORK is set")
+		assert.NotNil(t, network)
+		assert.NotEmpty(t, network.PrivateIPInterfaces)
 	} else {
 		t.Log("Basic network test - verify structure only")
 	}
@@ -250,106 +250,4 @@ func TestGetMachineDiskInfo(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		t.Logf("Container root disk: %s", info.ContainerRootDisk)
 	}
-}
-
-// TestCreateGossipRequest tests the gossip request creation
-func TestCreateGossipRequest(t *testing.T) {
-	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
-		t.Skip("Test only runs on Linux or macOS")
-	}
-
-	// Skip if NVML is not available
-	nvmlInstance, err := nvidianvml.New()
-	if err != nil {
-		t.Skip("NVML not available, skipping test")
-	}
-	defer func() {
-		if err := nvmlInstance.Shutdown(); err != nil {
-			log.Logger.Warnw("failed to shutdown nvml instance", "error", err)
-		}
-	}()
-
-	// Test with valid parameters
-	machineID := "test-machine-id"
-	token := "test-token"
-	req, err := CreateGossipRequest(machineID, nvmlInstance, token)
-	if err != nil {
-		t.Skipf("Could not create gossip request: %v", err)
-	}
-
-	// Validate request fields
-	assert.Equal(t, machineID, req.MachineID)
-	assert.Equal(t, token, req.Token)
-	assert.NotNil(t, req.MachineInfo)
-	assert.NotEmpty(t, req.MachineInfo.Hostname)
-	assert.NotNil(t, req.MachineInfo.CPUInfo)
-}
-
-// TestCreateLoginRequest tests the login request creation
-func TestCreateLoginRequest(t *testing.T) {
-	if os.Getenv("TEST_CREATE_LOGIN_REQUEST") != "true" {
-		t.Skip("TEST_CREATE_LOGIN_REQUEST is not set")
-	}
-
-	// Skip if NVML is not available
-	nvmlInstance, err := nvidianvml.New()
-	if err != nil {
-		t.Skip("NVML not available, skipping test")
-	}
-	defer func() {
-		if err := nvmlInstance.Shutdown(); err != nil {
-			log.Logger.Warnw("failed to shutdown nvml instance", "error", err)
-		}
-	}()
-
-	// Test parameters
-	token := "test-token"
-	machineID := "test-machine-id"
-	privateIP := "10.0.0.1"
-	publicIP := "203.0.113.1"
-
-	// Test with GPU count specified
-	req1, err := CreateLoginRequest(token, nvmlInstance, machineID, "2", privateIP, publicIP)
-	if err != nil {
-		t.Skipf("Could not create login request with GPU count: %v", err)
-	}
-
-	// Validate request fields
-	assert.Equal(t, token, req1.Token)
-	assert.Equal(t, machineID, req1.MachineID)
-	assert.Equal(t, privateIP, req1.Network.PrivateIP)
-	assert.Equal(t, publicIP, req1.Network.PublicIP)
-	assert.NotNil(t, req1.Location)
-	assert.NotNil(t, req1.MachineInfo)
-
-	// Check resources
-	assert.NotEmpty(t, req1.Resources[string(corev1.ResourceCPU)])
-	assert.NotEmpty(t, req1.Resources[string(corev1.ResourceMemory)])
-	assert.NotEmpty(t, req1.Resources[string(corev1.ResourceEphemeralStorage)])
-	assert.Equal(t, "2", req1.Resources["nvidia.com/gpu"])
-
-	// Test without GPU count specified (auto-detect)
-	req2, err := CreateLoginRequest(token, nvmlInstance, machineID, "", privateIP, publicIP)
-	if err != nil {
-		t.Skipf("Could not create login request without GPU count: %v", err)
-	}
-
-	// Check that GPU resources were set based on auto-detection
-	if gpuCount, err := GetSystemResourceGPUCount(nvmlInstance); err == nil && gpuCount != "0" {
-		assert.Equal(t, gpuCount, req2.Resources["nvidia.com/gpu"])
-	} else {
-		// If no GPUs or error, the nvidia.com/gpu resource should not be present
-		_, hasGPU := req2.Resources["nvidia.com/gpu"]
-		assert.False(t, hasGPU)
-	}
-
-	// Test with no IPs specified
-	req3, err := CreateLoginRequest(token, nvmlInstance, machineID, "0", "", "")
-	if err != nil {
-		t.Skipf("Could not create login request without IPs: %v", err)
-	}
-
-	// Since no GPUs (count "0"), nvidia.com/gpu should not be present
-	_, hasGPU := req3.Resources["nvidia.com/gpu"]
-	assert.False(t, hasGPU)
 }

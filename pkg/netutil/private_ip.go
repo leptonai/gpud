@@ -17,9 +17,9 @@ type InterfaceAddrs []InterfaceAddr
 func (addrs InterfaceAddrs) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"Interface Name", "Address"})
+	table.SetHeader([]string{"Interface Name", "MAC Address", "IP Address"})
 	for _, addr := range addrs {
-		table.Append([]string{addr.Iface.Name, addr.Addr.String()})
+		table.Append([]string{addr.Iface.Name, addr.Iface.HardwareAddr.String(), addr.Addr.String()})
 	}
 	table.Render()
 }

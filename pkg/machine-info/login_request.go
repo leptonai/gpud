@@ -6,45 +6,88 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
-func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineID string, gpuCount string, privateIP string, publicIP string) (*apiv1.LoginRequest, error) {
+func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineID string, gpuCount string) (*apiv1.LoginRequest, error) {
+	return createLoginRequest(
+		token,
+		nvmlInstance,
+		machineID,
+		gpuCount,
+		netutil.PublicIP,
+		GetMachineLocation,
+		GetMachineInfo,
+		GetProvider,
+		GetSystemResourceLogicalCores,
+		GetSystemResourceMemoryTotal,
+		GetSystemResourceRootVolumeTotal,
+		GetSystemResourceGPUCount,
+	)
+}
+
+func createLoginRequest(
+	token string,
+	nvmlInstance nvidianvml.Instance,
+	machineID string,
+	gpuCount string,
+	getPublicIPFunc func() (string, error),
+	getMachineLocationFunc func() *apiv1.MachineLocation,
+	getMachineInfoFunc func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error),
+	getProviderFunc func(ip string) string,
+	getSystemResourceLogicalCoresFunc func() (string, int64, error),
+	getSystemResourceMemoryTotalFunc func() (string, error),
+	getSystemResourceRootVolumeTotalFunc func() (string, error),
+	getSystemResourceGPUCountFunc func(nvmlInstance nvidianvml.Instance) (string, error),
+) (*apiv1.LoginRequest, error) {
 	req := &apiv1.LoginRequest{
 		Token:     token,
 		MachineID: machineID,
-		Network:   GetMachineNetwork(),
-		Location:  GetMachineLocation(),
+		Network:   &apiv1.MachineNetwork{},
+		Location:  getMachineLocationFunc(),
 		Resources: map[string]string{},
 	}
-	if privateIP != "" {
-		req.Network.PrivateIP = privateIP
-	}
-	if publicIP != "" {
-		req.Network.PublicIP = publicIP
-	}
 
-	req.Provider = GetProvider(req.Network.PublicIP)
+	publicIP, err := getPublicIPFunc()
+	if err != nil {
+		log.Logger.Errorw("failed to get public IP", "error", err)
+	}
+	req.Network.PublicIP = publicIP
+	req.Provider = getProviderFunc(publicIP)
 
-	var err error
-	req.MachineInfo, err = GetMachineInfo(nvmlInstance)
+	req.MachineInfo, err = getMachineInfoFunc(nvmlInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine info: %w", err)
 	}
 
-	cpu, _, err := GetSystemResourceLogicalCores()
+	// get the default values from the machine info
+	if req.MachineInfo != nil && req.MachineInfo.NetworkInfo != nil {
+		for _, iface := range req.MachineInfo.NetworkInfo.PrivateIPInterfaces {
+			if iface.IP == "" {
+				continue
+			}
+			if req.Network.PrivateIP == "" && iface.Addr.IsPrivate() && iface.Addr.Is4() {
+				req.Network.PrivateIP = iface.IP
+				break
+			}
+		}
+	}
+
+	cpu, _, err := getSystemResourceLogicalCoresFunc()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get system resource logical cores: %w", err)
 	}
 	req.Resources[string(corev1.ResourceCPU)] = cpu
 
-	memory, err := GetSystemResourceMemoryTotal()
+	memory, err := getSystemResourceMemoryTotalFunc()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get system resource memory total: %w", err)
 	}
 	req.Resources[string(corev1.ResourceMemory)] = memory
 
-	volumeSize, err := GetSystemResourceRootVolumeTotal()
+	volumeSize, err := getSystemResourceRootVolumeTotalFunc()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get system resource root volume total: %w", err)
 	}
@@ -52,7 +95,7 @@ func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineI
 
 	gpuCnt := gpuCount
 	if gpuCnt == "" {
-		gpuCnt, err = GetSystemResourceGPUCount(nvmlInstance)
+		gpuCnt, err = getSystemResourceGPUCountFunc(nvmlInstance)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get system resource gpu count: %w", err)
 		}
