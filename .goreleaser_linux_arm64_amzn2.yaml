@@ -7,7 +7,7 @@ builds:
     main: ./cmd/gpud
     env:
       - CGO_ENABLED=1
-      - CC=aarch64-linux-gnu-gcc
+      - CC=gcc
     flags:
       - -v
 
