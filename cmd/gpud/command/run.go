@@ -22,6 +22,7 @@ import (
 	"github.com/leptonai/gpud/version"
 )
 
+// cmdRun implements the run command for starting the daemon
 func cmdRun(cliContext *cli.Context) error {
 	if runtime.GOOS != "linux" {
 		fmt.Printf("gpud run on %q not supported\n", runtime.GOOS)

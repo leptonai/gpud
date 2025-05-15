@@ -209,6 +209,64 @@ func TriggerComponentCheck(ctx context.Context, addr string, componentName strin
 	return healthStates, nil
 }
 
+// TriggerComponentCheckByTag triggers all components that have the specified tag
+func TriggerComponentCheckByTag(ctx context.Context, addr string, tagName string, opts ...OpOption) error {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return err
+	}
+
+	if tagName == "" {
+		return errors.New("tag name is required")
+	}
+
+	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/components/trigger-tag", addr))
+	if err != nil {
+		return err
+	}
+
+	q := reqURL.Query()
+	q.Add("tagName", tagName)
+	reqURL.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if op.requestContentType != "" {
+		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+	}
+	if op.requestAcceptEncoding != "" {
+		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+	}
+
+	resp, err := createDefaultHTTPClient().Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("server not ready, response not 200")
+	}
+
+	var response struct {
+		Components []string `json:"components"`
+		Exit       int      `json:"exit"`
+		Success    bool     `json:"success"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return fmt.Errorf("failed to decode json: %w", err)
+	}
+
+	if !response.Success {
+		return fmt.Errorf("health check failed for tag %s, components: %v", tagName, response.Components)
+	}
+
+	return nil
+}
+
 // GetInfo returns component information from the server.
 //
 // Example:

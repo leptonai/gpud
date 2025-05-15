@@ -427,6 +427,19 @@ sudo rm /etc/systemd/system/gpud.service
 			},
 		},
 		{
+			Name:    "list-plugins",
+			Aliases: []string{"lp"},
+			Usage:   "list all registered custom plugins",
+			Action:  cmdListPlugins,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "log-level,l",
+					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+					Destination: &logLevel,
+				},
+			},
+		},
+		{
 			Name:  "join",
 			Usage: "join gpud machine into a lepton cluster",
 			UsageText: `# to join gpud into a lepton cluster
@@ -513,6 +526,12 @@ sudo gpud join
 					Hidden:      true,
 				},
 			},
+		},
+		{
+			Name:      "run-plugin-group",
+			Usage:     "Run all components in a plugin group by tag",
+			UsageText: "gpud run-plugin-group <plugin_group_name>",
+			Action:    cmdRunPluginGroup,
 		},
 	}
 
