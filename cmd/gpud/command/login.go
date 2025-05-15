@@ -13,7 +13,6 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
-	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -81,15 +80,20 @@ func cmdLogin(cliContext *cli.Context) error {
 	machineID := cliContext.String("machine-id") // can be empty
 
 	gpuCount := cliContext.String("gpu-count")
-	privateIP := cliContext.String("private-ip")
-	publicIP := cliContext.String("public-ip")
-	if publicIP == "" {
-		publicIP, _ = netutil.PublicIP()
-	}
 
-	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, machineID, gpuCount, privateIP, publicIP)
+	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, machineID, gpuCount)
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
+	}
+
+	publicIP := cliContext.String("public-ip")
+	if publicIP != "" { // overwrite if not empty
+		req.Network.PublicIP = publicIP
+	}
+
+	privateIP := cliContext.String("private-ip")
+	if privateIP != "" { // overwrite if not empty
+		req.Network.PrivateIP = privateIP
 	}
 
 	// machine ID has not been assigned yet
@@ -110,11 +114,11 @@ func cmdLogin(cliContext *cli.Context) error {
 	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyToken, loginResp.Token); err != nil {
 		return fmt.Errorf("failed to record session token: %w", err)
 	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPrivateIP, privateIP); err != nil {
-		return fmt.Errorf("failed to record private IP: %w", err)
-	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPublicIP, publicIP); err != nil {
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPublicIP, req.Network.PublicIP); err != nil {
 		return fmt.Errorf("failed to record public IP: %w", err)
+	}
+	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPrivateIP, req.Network.PrivateIP); err != nil {
+		return fmt.Errorf("failed to record private IP: %w", err)
 	}
 
 	fifoFile, err := config.DefaultFifoFile()

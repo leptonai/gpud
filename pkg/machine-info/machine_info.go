@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -46,7 +47,8 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		Hostname:                hostname,
 		Uptime:                  metav1.NewTime(time.Unix(int64(pkghost.BootTimeUnixSeconds()), 0)),
 
-		CPUInfo: GetMachineCPUInfo(),
+		CPUInfo:     GetMachineCPUInfo(),
+		NetworkInfo: GetMachineNetworkInfo(),
 	}
 
 	var err error
@@ -144,10 +146,16 @@ func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
 	}
 }
 
-func GetMachineNetwork() *apiv1.MachineNetwork {
+func GetMachineNetworkInfo() *apiv1.MachineNetworkInfo {
 	publicIP, err := netutil.PublicIP()
 	if err != nil {
 		log.Logger.Errorw("failed to get public ip", "error", err)
+	}
+
+	ifaces := []apiv1.MachineNetworkInterface{
+		{
+			IP: publicIP,
+		},
 	}
 
 	privateIPs, err := netutil.GetPrivateIPs(
@@ -165,22 +173,24 @@ func GetMachineNetwork() *apiv1.MachineNetwork {
 		log.Logger.Errorw("failed to get private ips", "error", err)
 	}
 
-	privIPv4 := ""
 	for _, ip := range privateIPs {
 		addr := ip.Addr.String()
 		if addr == "" {
 			continue
 		}
-		if !ip.Addr.Is4() {
-			continue
-		}
-		privIPv4 = addr
-		break
+		ifaces = append(ifaces, apiv1.MachineNetworkInterface{
+			Interface: ip.Iface.Name,
+			MAC:       ip.Iface.HardwareAddr.String(),
+			PrivateIP: ip.Addr.String(),
+			Addr:      ip.Addr,
+		})
 	}
 
-	return &apiv1.MachineNetwork{
-		PublicIP:  publicIP,
-		PrivateIP: privIPv4,
+	sort.Slice(ifaces, func(i, j int) bool {
+		return ifaces[i].PrivateIP < ifaces[j].PrivateIP
+	})
+	return &apiv1.MachineNetworkInfo{
+		Interfaces: ifaces,
 	}
 }
 
