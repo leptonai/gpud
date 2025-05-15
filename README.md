@@ -31,6 +31,12 @@ To install from the official release on Linux and amd64 (x86_64) machine:
 curl -fsSL https://pkg.gpud.dev/install.sh | sh
 ```
 
+To specify a version
+
+```bash
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.5.0-rc-22
+```
+
 Note that the install script doesn't support other architectures (arm64) and OSes (macos), yet.
 
 ### Run GPUd with Lepton Platform
