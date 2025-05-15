@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -586,6 +587,50 @@ func TestIsGPULostError(t *testing.T) {
 			// Call the function and verify the result
 			result := IsGPULostError(tc.ret)
 			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestIsNoSuchFileOrDirectoryError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "not found error",
+			err:      errors.New("file not found"),
+			expected: true,
+		},
+		{
+			name:     "no such file or directory error",
+			err:      errors.New("no such file or directory"),
+			expected: true,
+		},
+		{
+			name:     "mixed case error",
+			err:      errors.New("No SuCh FiLe Or DiReCtoRy"),
+			expected: true,
+		},
+		{
+			name:     "different error",
+			err:      errors.New("permission denied"),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := IsNoSuchFileOrDirectoryError(test.err)
+			if result != test.expected {
+				t.Errorf("Expected IsNoSuchFileOrDirectoryError to return %v for error '%v', got %v",
+					test.expected, test.err, result)
+			}
 		})
 	}
 }

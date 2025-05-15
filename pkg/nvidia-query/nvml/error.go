@@ -59,6 +59,14 @@ func IsNotFoundError(ret nvml.Return) bool {
 	return strings.Contains(e, "not found") || strings.Contains(e, "not_found")
 }
 
+func IsNoSuchFileOrDirectoryError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "not found") || strings.Contains(s, "no such file or directory")
+}
+
 // IsGPULostError returns true if the error indicates that the GPU is lost.
 // "if the target GPU has fallen off the bus or is otherwise inaccessible".
 func IsGPULostError(ret nvml.Return) bool {
