@@ -1456,9 +1456,24 @@ func TestTriggerComponentCheckByTag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a test server
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "POST", r.Method)
-				assert.Equal(t, "/api/v1/component-check/tag/"+tt.tagName, r.URL.Path)
-				w.WriteHeader(tt.serverResp)
+				assert.Equal(t, "GET", r.Method)
+				assert.Equal(t, "/v1/components/trigger-tag", r.URL.Path)
+				if !tt.expectError {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(tt.serverResp)
+					response := struct {
+						Components []string `json:"components"`
+						Exit       int      `json:"exit"`
+						Success    bool     `json:"success"`
+					}{
+						Components: []string{"component1", "component2"},
+						Exit:       0,
+						Success:    true,
+					}
+					_ = json.NewEncoder(w).Encode(response)
+				} else {
+					w.WriteHeader(tt.serverResp)
+				}
 			}))
 			defer server.Close()
 
