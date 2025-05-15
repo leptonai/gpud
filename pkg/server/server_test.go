@@ -348,15 +348,16 @@ func TestUpdateToken(t *testing.T) {
 
 	// Create a server with a minimal setup
 	s := &Server{
-		machineID: "test-uid",
-		dbRW:      db,
-		dbRO:      db,
+		machineID:      "test-uid",
+		dbRW:           db,
+		dbRO:           db,
+		epControlPlane: "https://example.com",
 	}
 	userToken := &UserToken{}
 
 	// Call updateToken directly - it will try to mkfifo and fail,
 	// but that's ok for this test as we just want to make sure it doesn't hang
-	s.updateToken(ctx, "https://example.com", nil, userToken)
+	s.updateToken(ctx, nil, userToken)
 
 	// If we get here, the function returned after context expiration
 }

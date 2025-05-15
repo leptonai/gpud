@@ -88,7 +88,7 @@ func GenerateRootKey() (priv, pub []byte, err error) {
 			Bytes: priv,
 		}), pem.EncodeToMemory(&pem.Block{
 			Type:  pemTypeRootPublic,
-			Bytes: []byte(pub),
+			Bytes: pub,
 		}), nil
 }
 
