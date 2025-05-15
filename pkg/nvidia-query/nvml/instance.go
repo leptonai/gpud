@@ -114,13 +114,13 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) 
 		return nil, err
 	}
 
-	log.Logger.Infow("checking if nvml exists from info library")
+	log.Logger.Debugw("checking if nvml exists from info library")
 	nvmlExists, nvmlExistsMsg := nvmlLib.Info().HasNvml()
 	if !nvmlExists {
 		return nil, fmt.Errorf("nvml not found: %s", nvmlExistsMsg)
 	}
 
-	log.Logger.Infow("getting driver version from nvml library")
+	log.Logger.Debugw("getting driver version from nvml library")
 	driverVersion, err := GetSystemDriverVersion(nvmlLib.NVML())
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) 
 	if err != nil {
 		return nil, err
 	}
-	log.Logger.Infow("successfully initialized NVML", "driverVersion", driverVersion, "cudaVersion", cudaVersion)
+	log.Logger.Debugw("successfully initialized NVML", "driverVersion", driverVersion, "cudaVersion", cudaVersion)
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
@@ -142,7 +142,7 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) 
 	if err != nil {
 		return nil, err
 	}
-	log.Logger.Infow("got devices from device library", "numDevices", len(devices))
+	log.Logger.Debugw("got devices from device library", "numDevices", len(devices))
 
 	productName := ""
 	archFamily := ""

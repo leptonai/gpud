@@ -129,7 +129,7 @@ func connect(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 		return nil, fmt.Errorf("connection is nil")
 	}
 
-	log.Logger.Infow("successfully established connection", "endpoint", endpoint)
+	log.Logger.Debugw("successfully established connection", "endpoint", endpoint)
 	return conn, nil
 }
 

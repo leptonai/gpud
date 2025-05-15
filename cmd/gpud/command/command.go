@@ -450,7 +450,7 @@ sudo gpud join
 				cli.StringFlag{
 					Name:   "cluster-name",
 					Usage:  "[DEPRECATED] cluster name for control plane (e.g.: lepton-prod-0)",
-					Value:  "lepton-prod-0",
+					Value:  "",
 					Hidden: true,
 				},
 				cli.StringFlag{
