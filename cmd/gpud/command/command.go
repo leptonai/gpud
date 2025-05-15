@@ -535,7 +535,7 @@ sudo gpud join
 		},
 		{
 			Name:      "private-ip",
-			Usage:     "get private ip addresses of the machine",
+			Usage:     "get private ip addresses of the machine (useful for debugging)",
 			UsageText: "gpud private-ip",
 			Action:    cmdPrivateIP,
 		},
