@@ -10,7 +10,6 @@ import (
 	v1 "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/config"
 )
 
 // cmdListPlugins implements the list-plugins command
