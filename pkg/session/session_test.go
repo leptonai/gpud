@@ -153,15 +153,16 @@ func TestStartWriterAndReader(t *testing.T) {
 	defer cancel()
 
 	s := &Session{
-		ctx:            ctx,
-		cancel:         cancel,
-		pipeInterval:   10 * time.Millisecond, // Reduce interval for faster testing
-		epControlPlane: server.URL,
-		token:          "testToken",
-		machineID:      "test_machine",
-		writer:         make(chan Body, 100),
-		reader:         make(chan Body, 100),
-		closer:         &closeOnce{closer: make(chan any)},
+		ctx:               ctx,
+		cancel:            cancel,
+		pipeInterval:      10 * time.Millisecond, // Reduce interval for faster testing
+		epLocalGPUdServer: server.URL,
+		epControlPlane:    server.URL,
+		token:             "testToken",
+		machineID:         "test_machine",
+		writer:            make(chan Body, 100),
+		reader:            make(chan Body, 100),
+		closer:            &closeOnce{closer: make(chan any)},
 	}
 
 	// start writer reader keepAlive
