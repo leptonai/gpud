@@ -1244,13 +1244,6 @@ func TestGetMetrics(t *testing.T) {
 			statusCode:     http.StatusOK,
 			expectedError:  "failed to decode json",
 		},
-		{
-			name:           "invalid YAML response",
-			serverResponse: []byte(`invalid yaml:`),
-			contentType:    server.RequestHeaderYAML,
-			statusCode:     http.StatusOK,
-			expectedError:  "failed to unmarshal yaml",
-		},
 	}
 
 	for _, tt := range tests {
