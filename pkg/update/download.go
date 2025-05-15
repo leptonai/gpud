@@ -14,7 +14,7 @@ import (
 	"runtime"
 
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/third_party/tailscale/distsign"
+	"github.com/leptonai/gpud/pkg/release/distsign"
 )
 
 func downloadURLToFile(ctx context.Context, pathSrc, fileDst, pkgAddr string) (ret error) {

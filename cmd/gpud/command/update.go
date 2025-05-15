@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leptonai/gpud/pkg/third_party/tailscale/distsign"
+	"github.com/leptonai/gpud/pkg/release/distsign"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
 	"github.com/leptonai/gpud/version"
 

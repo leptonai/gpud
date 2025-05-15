@@ -14,7 +14,7 @@ import (
 	"github.com/urfave/cli"
 	"golang.org/x/crypto/blake2s"
 
-	"github.com/leptonai/gpud/pkg/third_party/tailscale/distsign"
+	"github.com/leptonai/gpud/pkg/release/distsign"
 )
 
 func cmdReleaseGenKey(cliContext *cli.Context) error {
