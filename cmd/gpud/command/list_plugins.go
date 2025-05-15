@@ -24,8 +24,14 @@ func cmdListPlugins(c *cli.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
+	// Get the server address from the flag, default to http://localhost:8080
+	serverAddr := c.String("server")
+	if serverAddr == "" {
+		serverAddr = "http://localhost:8080"
+	}
+
 	// Get custom plugins
-	plugins, err := v1.GetCustomPlugins(ctx, "http://localhost:8080")
+	plugins, err := v1.GetCustomPlugins(ctx, serverAddr)
 	if err != nil {
 		return fmt.Errorf("failed to get custom plugins: %w", err)
 	}

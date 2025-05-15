@@ -591,6 +591,27 @@ func TestGetCustomPlugins(t *testing.T) {
 			statusCode:     http.StatusInternalServerError,
 			expectedError:  "server not ready, response not 200",
 		},
+		{
+			name:           "empty response",
+			serverResponse: []byte(`{}`),
+			contentType:    server.RequestHeaderJSON,
+			statusCode:     http.StatusOK,
+			expectedResult: map[string]pkgcustomplugins.Spec{},
+		},
+		{
+			name:           "invalid JSON response",
+			serverResponse: []byte(`invalid json`),
+			contentType:    server.RequestHeaderJSON,
+			statusCode:     http.StatusOK,
+			expectedError:  "failed to decode json",
+		},
+		{
+			name:           "invalid YAML response",
+			serverResponse: []byte(`invalid yaml:`),
+			contentType:    server.RequestHeaderYAML,
+			statusCode:     http.StatusOK,
+			expectedError:  "failed to unmarshal yaml",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1406,6 +1427,60 @@ func TestReadMetrics(t *testing.T) {
 					assert.Equal(t, tt.expectedResult[i].Metrics[j].UnixSeconds, result[i].Metrics[j].UnixSeconds)
 					assert.Equal(t, tt.expectedResult[i].Metrics[j].Labels, result[i].Metrics[j].Labels)
 				}
+			}
+		})
+	}
+}
+
+func TestTriggerComponentCheckByTag(t *testing.T) {
+	tests := []struct {
+		name        string
+		tagName     string
+		serverResp  int
+		expectError bool
+	}{
+		{
+			name:        "successful trigger",
+			tagName:     "test-tag",
+			serverResp:  http.StatusOK,
+			expectError: false,
+		},
+		{
+			name:        "server error",
+			tagName:     "test-tag",
+			serverResp:  http.StatusInternalServerError,
+			expectError: true,
+		},
+		{
+			name:        "empty tag name",
+			tagName:     "",
+			serverResp:  http.StatusBadRequest,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test server
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/api/v1/component-check/tag/"+tt.tagName, r.URL.Path)
+				w.WriteHeader(tt.serverResp)
+			}))
+			defer server.Close()
+
+			// Create context with timeout
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			// Call the function
+			err := TriggerComponentCheckByTag(ctx, server.URL, tt.tagName)
+
+			// Check the result
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
