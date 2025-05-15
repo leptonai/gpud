@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli"
 
 	v1 "github.com/leptonai/gpud/client/v1"
+	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -24,10 +25,10 @@ func cmdListPlugins(c *cli.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// Get the server address from the flag, default to http://localhost:8080
+	// Get the server address from the flag, default to http://localhost:<Default GPUd port>
 	serverAddr := c.String("server")
 	if serverAddr == "" {
-		serverAddr = "http://localhost:8080"
+		serverAddr = fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
 	}
 
 	// Get custom plugins

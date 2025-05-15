@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli"
 
 	v1 "github.com/leptonai/gpud/client/v1"
+	"github.com/leptonai/gpud/pkg/config"
 )
 
 // cmdRunPluginGroup implements the run-plugin-group command
@@ -18,8 +19,11 @@ func cmdRunPluginGroup(c *cli.Context) error {
 	}
 	tagName := c.Args().Get(0)
 
-	// Get the server address from the flag
+	// Get the server address from the flag, default to http://localhost:<Default GPUd port>
 	serverAddr := c.String("server")
+	if serverAddr == "" {
+		serverAddr = fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
+	}
 
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
