@@ -533,6 +533,12 @@ sudo gpud join
 			UsageText: "gpud run-plugin-group <plugin_group_name>",
 			Action:    cmdRunPluginGroup,
 		},
+		{
+			Name:      "private-ip",
+			Usage:     "get private ip addresses of the machine",
+			UsageText: "gpud private-ip",
+			Action:    cmdPrivateIP,
+		},
 	}
 
 	return app
