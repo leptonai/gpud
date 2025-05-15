@@ -81,7 +81,7 @@ func TestNewSession(t *testing.T) {
 	endpoint := "test-endpoint.com"
 	machineID := "test-machine-id"
 
-	session, err := NewSession(ctx, endpoint, "", WithMachineID(machineID), WithPipeInterval(time.Second), WithEnableAutoUpdate(true), WithComponentsRegistry(components.NewRegistry(nil)))
+	session, err := NewSession(ctx, "", endpoint, "", WithMachineID(machineID), WithPipeInterval(time.Second), WithEnableAutoUpdate(true), WithComponentsRegistry(components.NewRegistry(nil)))
 	if err != nil {
 		t.Fatalf("error creating session: %v", err)
 	}
@@ -90,8 +90,8 @@ func TestNewSession(t *testing.T) {
 	if session == nil {
 		t.Fatal("Expected non-nil session")
 	}
-	if session.endpoint != endpoint {
-		t.Errorf("expected endpoint %s, got %s", endpoint, session.endpoint)
+	if session.epControlPlane != endpoint {
+		t.Errorf("expected endpoint %s, got %s", endpoint, session.epControlPlane)
 	}
 	if session.machineID != machineID {
 		t.Errorf("expected machineID %s, got %s", machineID, session.machineID)
@@ -153,15 +153,15 @@ func TestStartWriterAndReader(t *testing.T) {
 	defer cancel()
 
 	s := &Session{
-		ctx:          ctx,
-		cancel:       cancel,
-		pipeInterval: 10 * time.Millisecond, // Reduce interval for faster testing
-		endpoint:     server.URL,
-		token:        "testToken",
-		machineID:    "test_machine",
-		writer:       make(chan Body, 100),
-		reader:       make(chan Body, 100),
-		closer:       &closeOnce{closer: make(chan any)},
+		ctx:            ctx,
+		cancel:         cancel,
+		pipeInterval:   10 * time.Millisecond, // Reduce interval for faster testing
+		epControlPlane: server.URL,
+		token:          "testToken",
+		machineID:      "test_machine",
+		writer:         make(chan Body, 100),
+		reader:         make(chan Body, 100),
+		closer:         &closeOnce{closer: make(chan any)},
 	}
 
 	// start writer reader keepAlive
@@ -227,14 +227,14 @@ func TestReaderWriterServerError(t *testing.T) {
 	defer cancel()
 
 	s := &Session{
-		ctx:          ctx,
-		cancel:       cancel,
-		pipeInterval: 10 * time.Millisecond, // Reduce interval for faster testing
-		endpoint:     server.URL,
-		machineID:    "test_machine",
-		writer:       make(chan Body, 100),
-		reader:       make(chan Body, 100),
-		closer:       &closeOnce{closer: make(chan any)},
+		ctx:            ctx,
+		cancel:         cancel,
+		pipeInterval:   10 * time.Millisecond, // Reduce interval for faster testing
+		epControlPlane: server.URL,
+		machineID:      "test_machine",
+		writer:         make(chan Body, 100),
+		reader:         make(chan Body, 100),
+		closer:         &closeOnce{closer: make(chan any)},
 	}
 	localCtx, localCancel := context.WithCancel(context.Background()) // create local context for each session
 	defer localCancel()
@@ -547,14 +547,14 @@ func TestSessionKeepAlive(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Session{
-		ctx:          ctx,
-		cancel:       cancel,
-		endpoint:     server.URL,
-		machineID:    "test",
-		pipeInterval: 100 * time.Millisecond,
-		writer:       make(chan Body, 10),
-		reader:       make(chan Body, 10),
-		closer:       &closeOnce{closer: make(chan any)},
+		ctx:            ctx,
+		cancel:         cancel,
+		epControlPlane: server.URL,
+		machineID:      "test",
+		pipeInterval:   100 * time.Millisecond,
+		writer:         make(chan Body, 10),
+		reader:         make(chan Body, 10),
+		closer:         &closeOnce{closer: make(chan any)},
 	}
 
 	go s.keepAlive()

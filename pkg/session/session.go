@@ -91,8 +91,13 @@ type Session struct {
 	pipeInterval time.Duration
 
 	machineID string
-	endpoint  string
-	token     string
+
+	// epLocalGPUdServer is the endpoint of the local GPUd server
+	epLocalGPUdServer string
+	// epControlPlane is the endpoint of the control plane
+	epControlPlane string
+
+	token string
 
 	metricsStore       pkgmetrics.Store
 	componentsRegistry components.Registry
@@ -128,7 +133,7 @@ func (c *closeOnce) Done() chan any {
 	return c.closer
 }
 
-func NewSession(ctx context.Context, endpoint string, token string, opts ...OpOption) (*Session, error) {
+func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane string, token string, opts ...OpOption) (*Session, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -146,7 +151,9 @@ func NewSession(ctx context.Context, endpoint string, token string, opts ...OpOp
 
 		pipeInterval: op.pipeInterval,
 
-		endpoint:  endpoint,
+		epLocalGPUdServer: epLocalGPUdServer,
+		epControlPlane:    epControlPlane,
+
 		machineID: op.machineID,
 		token:     token,
 
@@ -224,8 +231,8 @@ func createHTTPClient(jar *cookiejar.Jar) *http.Client {
 	}
 }
 
-func createSessionRequest(ctx context.Context, endpoint, machineID, sessionType, token string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint+"/api/v1/session", body)
+func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessionType, token string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", epControlPlane+"/api/v1/session", body)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +254,7 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *coo
 	reader, writer := io.Pipe()
 	go s.handleWriterPipe(writer, goroutineCloseCh, pipeFinishCh)
 
-	req, err := createSessionRequest(ctx, s.endpoint, s.machineID, "write", s.token, reader)
+	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "write", s.token, reader)
 	if err != nil {
 		log.Logger.Debugf("session writer: error creating request: %v", err)
 		return
@@ -308,7 +315,7 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 		close(readerExit)
 	}()
 
-	req, err := createSessionRequest(ctx, s.endpoint, s.machineID, "read", s.token, nil)
+	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "read", s.token, nil)
 	if err != nil {
 		log.Logger.Debugf("session reader: error creating request: %v", err)
 		close(pipeFinishCh)
@@ -332,7 +339,7 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 }
 
 func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", s.endpoint+"/healthz", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", s.epLocalGPUdServer+"/healthz", nil)
 	if err != nil {
 		return err
 	}

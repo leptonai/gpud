@@ -68,6 +68,11 @@ type Server struct {
 	machineIDMu sync.RWMutex
 	machineID   string
 
+	// epLocalGPUdServer is the endpoint of the local GPUd server
+	epLocalGPUdServer string
+	// epControlPlane is the endpoint of the control plane
+	epControlPlane string
+
 	fifoPath string
 	fifo     *stdos.File
 
@@ -281,15 +286,16 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		adminGroup.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
 	}
 
-	endpoint, err := gpudstate.ReadMetadata(ctx, dbRO, gpudstate.MetadataKeyEndpoint)
+	epControlPlane, err := gpudstate.ReadMetadata(ctx, dbRO, gpudstate.MetadataKeyEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read endpoint: %w", err)
 	}
-	endpoint = createURL(endpoint)
+	s.epControlPlane = createURL(epControlPlane)
+	s.epLocalGPUdServer = fmt.Sprintf("https://%s", config.Address)
 
 	userToken := &UserToken{}
-	go s.updateToken(ctx, endpoint, metricsSQLiteStore, userToken)
-	go s.sendGossip(ctx, nvmlInstance, endpoint, userToken)
+	go s.updateToken(ctx, metricsSQLiteStore, userToken)
+	go s.sendGossip(ctx, nvmlInstance, userToken)
 	go s.startListener(nvmlInstance, syncer, config, router, cert)
 
 	return s, nil
@@ -422,7 +428,7 @@ func (s *Server) WaitUntilMachineID(ctx context.Context) {
 	}
 }
 
-func (s *Server) updateToken(ctx context.Context, endpoint string, metricsStore pkgmetrics.Store, token *UserToken) {
+func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store, token *UserToken) {
 	s.machineIDMu.RLock()
 	machineID := s.machineID
 	s.machineIDMu.RUnlock()
@@ -441,7 +447,8 @@ func (s *Server) updateToken(ctx context.Context, endpoint string, metricsStore 
 		var err error
 		s.session, err = session.NewSession(
 			ctx,
-			endpoint,
+			s.epLocalGPUdServer,
+			s.epControlPlane,
 			userToken,
 			session.WithMachineID(machineID),
 			session.WithPipeInterval(3*time.Second),
@@ -492,7 +499,8 @@ func (s *Server) updateToken(ctx context.Context, endpoint string, metricsStore 
 			}
 			s.session, err = session.NewSession(
 				ctx,
-				endpoint,
+				s.epLocalGPUdServer,
+				s.epControlPlane,
 				userToken,
 				session.WithMachineID(machineID),
 				session.WithPipeInterval(3*time.Second),
@@ -581,7 +589,7 @@ func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 	}
 }
 
-func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instance, endpoint string, userToken *UserToken) {
+func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instance, userToken *UserToken) {
 	// TODO
 	// s.WaitUntilMachineID(ctx)
 
@@ -605,7 +613,7 @@ func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instanc
 		if err != nil {
 			log.Logger.Errorw("failed to create gossip request", "error", err)
 		} else {
-			if _, err = gossip.SendRequest(ctx, endpoint, *gossipReq); err != nil {
+			if _, err = gossip.SendRequest(ctx, s.epControlPlane, *gossipReq); err != nil {
 				log.Logger.Errorw("failed to gossip", "error", err)
 			} else {
 				log.Logger.Debugw("successfully sent gossip")
