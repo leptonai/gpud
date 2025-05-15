@@ -92,6 +92,7 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	}
 
 	// network section
+	log.Logger.Infow("measuring latencies to public tailscale DERP nodes to determine region")
 	region := "unknown"
 	latencies, _ := latencyedge.Measure(rootCtx)
 	if len(latencies) > 0 {

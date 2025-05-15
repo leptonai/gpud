@@ -30,7 +30,7 @@ func measureDERP(ctx context.Context, targetDerpServrs *tailcfg.DERPMap, opts ..
 		return nil, err
 	}
 
-	log.Logger.Infow("measuring latencies to public tailscale DERP nodes")
+	log.Logger.Debugw("measuring latencies to public tailscale DERP nodes")
 
 	logf := logger.Discard
 	if op.verbose {
