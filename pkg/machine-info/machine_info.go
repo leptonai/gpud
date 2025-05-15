@@ -145,10 +145,40 @@ func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
 }
 
 func GetMachineNetwork() *apiv1.MachineNetwork {
-	publicIP, _ := netutil.PublicIP()
+	publicIP, err := netutil.PublicIP()
+	if err != nil {
+		log.Logger.Errorw("failed to get public ip", "error", err)
+	}
+
+	privateIPs, err := netutil.GetPrivateIPs(
+		netutil.WithPrefixToSkip("lo"),
+		netutil.WithPrefixToSkip("eni"),
+		netutil.WithPrefixToSkip("cali"),
+		netutil.WithPrefixToSkip("docker"),
+		netutil.WithPrefixToSkip("lepton"),
+		netutil.WithPrefixToSkip("tailscale"),
+		netutil.WithSuffixToSkip(".calico"),
+	)
+	if err != nil {
+		log.Logger.Errorw("failed to get private ips", "error", err)
+	}
+
+	privIPv4 := ""
+	for _, ip := range privateIPs {
+		addr := ip.Addr.String()
+		if addr == "" {
+			continue
+		}
+		if !ip.Addr.Is4() {
+			continue
+		}
+		privIPv4 = addr
+		break
+	}
+
 	return &apiv1.MachineNetwork{
 		PublicIP:  publicIP,
-		PrivateIP: "",
+		PrivateIP: privIPv4,
 	}
 }
 
