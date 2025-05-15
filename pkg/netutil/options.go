@@ -20,7 +20,9 @@ func WithPrefixToSkip(pfx string) OpOption {
 		if op.prefixesToSkip == nil {
 			op.prefixesToSkip = make(map[string]any)
 		}
-		op.prefixesToSkip[pfx] = nil
+		for _, v := range prefixes {
+		   op.prefixesToSkip[pfx] = nil
+		}
 	}
 }
 
