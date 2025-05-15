@@ -36,7 +36,7 @@ func TestGetPrivateIPsWithFilter(t *testing.T) {
 }
 
 func TestGetPrivateIPs(t *testing.T) {
-	ips, err := GetPrivateIPs(WithPrefixToSkip("lo"), WithPrefixToSkip("docker"))
+	ips, err := GetPrivateIPs(WithPrefixesToSkip("lo", "docker"))
 
 	// We should not get an error
 	assert.NoError(t, err)

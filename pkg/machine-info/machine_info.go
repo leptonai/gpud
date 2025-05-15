@@ -151,13 +151,15 @@ func GetMachineNetwork() *apiv1.MachineNetwork {
 	}
 
 	privateIPs, err := netutil.GetPrivateIPs(
-		netutil.WithPrefixToSkip("lo"),
-		netutil.WithPrefixToSkip("eni"),
-		netutil.WithPrefixToSkip("cali"),
-		netutil.WithPrefixToSkip("docker"),
-		netutil.WithPrefixToSkip("lepton"),
-		netutil.WithPrefixToSkip("tailscale"),
-		netutil.WithSuffixToSkip(".calico"),
+		netutil.WithPrefixesToSkip(
+			"lo",
+			"eni",
+			"cali",
+			"docker",
+			"lepton",
+			"tailscale",
+		),
+		netutil.WithSuffixesToSkip(".calico"),
 	)
 	if err != nil {
 		log.Logger.Errorw("failed to get private ips", "error", err)

@@ -15,22 +15,24 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	return nil
 }
 
-func WithPrefixToSkip(pfx string) OpOption {
+func WithPrefixesToSkip(prefixes ...string) OpOption {
 	return func(op *Op) {
 		if op.prefixesToSkip == nil {
 			op.prefixesToSkip = make(map[string]any)
 		}
-		for _, v := range prefixes {
-		   op.prefixesToSkip[pfx] = nil
+		for _, pfx := range prefixes {
+			op.prefixesToSkip[pfx] = nil
 		}
 	}
 }
 
-func WithSuffixToSkip(sfx string) OpOption {
+func WithSuffixesToSkip(suffixes ...string) OpOption {
 	return func(op *Op) {
 		if op.suffixesToSkip == nil {
 			op.suffixesToSkip = make(map[string]any)
 		}
-		op.suffixesToSkip[sfx] = nil
+		for _, sfx := range suffixes {
+			op.suffixesToSkip[sfx] = nil
+		}
 	}
 }

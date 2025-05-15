@@ -17,13 +17,15 @@ func cmdPrivateIP(cliContext *cli.Context) error {
 	log.Logger = log.CreateLogger(zapLvl, logFile)
 
 	ips, err := netutil.GetPrivateIPs(
-		netutil.WithPrefixToSkip("lo"),
-		netutil.WithPrefixToSkip("eni"),
-		netutil.WithPrefixToSkip("cali"),
-		netutil.WithPrefixToSkip("docker"),
-		netutil.WithPrefixToSkip("lepton"),
-		netutil.WithPrefixToSkip("tailscale"),
-		netutil.WithSuffixToSkip(".calico"),
+		netutil.WithPrefixesToSkip(
+			"lo",
+			"eni",
+			"cali",
+			"docker",
+			"lepton",
+			"tailscale",
+		),
+		netutil.WithSuffixesToSkip(".calico"),
 	)
 	if err != nil {
 		return err
