@@ -400,7 +400,7 @@ func (di *MachineDiskInfo) RenderTable(wr io.Writer) {
 
 // MachineNetwork is the network info of the machine.
 type MachineNetwork struct {
-	PublicIP string `json:"publicIP,omitempty"`
+	PublicIP string `json:"ip,omitempty"`
 	// PrivateIP is the first private IP in IPv4 family,
 	// detected from the local host.
 	// May be overridden by the user with the private IP address.
@@ -409,7 +409,7 @@ type MachineNetwork struct {
 
 // MachineNetworkInfo consists of the network info of the machine.
 type MachineNetworkInfo struct {
-	Interfaces []MachineNetworkInterface `json:"interfaces,omitempty"`
+	PrivateIPInterfaces []MachineNetworkInterface `json:"privateIPInterfaces,omitempty"`
 }
 
 // MachineNetworkInterface is the network interface info of the machine.
@@ -420,11 +420,8 @@ type MachineNetworkInterface struct {
 	// MAC is the MAC address of the machine.
 	MAC string `json:"mac,omitempty"`
 
-	// IP is the public IP address of the machine.
+	// IP is the string representation of the netip.Addr of the machine.
 	IP string `json:"ip,omitempty"`
-
-	// PrivateIP is the private IP address of the machine.
-	PrivateIP string `json:"privateIP,omitempty"`
 
 	// Addr is the netip.Addr of the machine.
 	Addr netip.Addr `json:"-"`

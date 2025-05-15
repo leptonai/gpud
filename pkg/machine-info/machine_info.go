@@ -147,17 +147,7 @@ func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
 }
 
 func GetMachineNetworkInfo() *apiv1.MachineNetworkInfo {
-	publicIP, err := netutil.PublicIP()
-	if err != nil {
-		log.Logger.Errorw("failed to get public ip", "error", err)
-	}
-
-	ifaces := []apiv1.MachineNetworkInterface{
-		{
-			IP: publicIP,
-		},
-	}
-
+	ifaces := []apiv1.MachineNetworkInterface{}
 	privateIPs, err := netutil.GetPrivateIPs(
 		netutil.WithPrefixesToSkip(
 			"lo",
@@ -181,16 +171,16 @@ func GetMachineNetworkInfo() *apiv1.MachineNetworkInfo {
 		ifaces = append(ifaces, apiv1.MachineNetworkInterface{
 			Interface: ip.Iface.Name,
 			MAC:       ip.Iface.HardwareAddr.String(),
-			PrivateIP: ip.Addr.String(),
+			IP:        ip.Addr.String(),
 			Addr:      ip.Addr,
 		})
 	}
 
 	sort.Slice(ifaces, func(i, j int) bool {
-		return ifaces[i].PrivateIP < ifaces[j].PrivateIP
+		return ifaces[i].IP < ifaces[j].IP
 	})
 	return &apiv1.MachineNetworkInfo{
-		Interfaces: ifaces,
+		PrivateIPInterfaces: ifaces,
 	}
 }
 

@@ -47,7 +47,7 @@ func TestGetMachineNetwork(t *testing.T) {
 	if os.Getenv("TEST_MACHINE_NETWORK") == "true" {
 		t.Log("Running detailed network test")
 		assert.NotNil(t, network)
-		assert.NotEmpty(t, network.Interfaces)
+		assert.NotEmpty(t, network.PrivateIPInterfaces)
 	} else {
 		t.Log("Basic network test - verify structure only")
 	}
