@@ -994,7 +994,7 @@ func TestCheck_GPMLostError(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, "error getting GPM supported (GPU is lost)", data.reason, "reason should indicate GPU is lost")
+		assert.Equal(t, "error getting GPM supported", data.reason, "reason should indicate GPU is lost")
 	})
 
 	// Test GPM metrics function returning GPU lost error
@@ -1016,6 +1016,6 @@ func TestCheck_GPMLostError(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, "error getting GPM metrics (GPU is lost)", data.reason, "reason should indicate GPU is lost")
+		assert.Equal(t, "error getting GPM metrics", data.reason, "reason should indicate GPU is lost")
 	})
 }

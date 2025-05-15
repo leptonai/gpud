@@ -507,6 +507,6 @@ func TestComponent_Check_GPU_Lost(t *testing.T) {
 	require.NotNil(t, c.lastCheckResult)
 	assert.True(t, errors.Is(c.lastCheckResult.err, nvidianvml.ErrGPULost))
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
-	assert.Equal(t, "error getting clock speed (GPU is lost)", c.lastCheckResult.reason)
+	assert.Equal(t, "error getting clock speed", c.lastCheckResult.reason)
 	assert.Equal(t, data, c.lastCheckResult)
 }

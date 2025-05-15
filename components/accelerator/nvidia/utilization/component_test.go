@@ -701,6 +701,6 @@ func TestCheck_GPULostError(t *testing.T) {
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
-	assert.Equal(t, "error getting utilization (GPU is lost)", data.reason,
+	assert.Equal(t, "error getting utilization", data.reason,
 		"reason should have '(GPU is lost)' suffix")
 }

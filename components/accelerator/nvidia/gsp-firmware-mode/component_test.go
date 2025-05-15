@@ -649,5 +649,5 @@ func TestCheck_GPULostError(t *testing.T) {
 	require.NotNil(t, data, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-	assert.Equal(t, "error getting GSP firmware mode (GPU is lost)", data.reason, "reason should indicate GPU is lost")
+	assert.Equal(t, "error getting GSP firmware mode", data.reason, "reason should indicate GPU is lost")
 }

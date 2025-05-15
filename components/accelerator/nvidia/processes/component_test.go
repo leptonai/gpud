@@ -555,6 +555,6 @@ func TestCheck_GPULostError(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
-	assert.Equal(t, "error getting processes (GPU is lost)", data.reason,
+	assert.Equal(t, "error getting processes", data.reason,
 		"reason should have '(GPU is lost)' suffix")
 }

@@ -1596,7 +1596,7 @@ func TestCheckOnce_MemoryGPULostError(t *testing.T) {
 	// Verify the results
 	assert.NotNil(t, cr)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "error getting memory (GPU is lost)", cr.reason)
+	assert.Equal(t, "error getting memory", cr.reason)
 	assert.True(t, errors.Is(cr.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
 }
 
@@ -1656,7 +1656,7 @@ func TestCheckOnce_SerialGPULostError(t *testing.T) {
 	// Verify the results
 	assert.NotNil(t, cr)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "error getting serial id (GPU is lost)", cr.reason)
+	assert.Equal(t, "error getting serial id", cr.reason)
 	assert.True(t, errors.Is(cr.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
 }
 
@@ -1720,6 +1720,6 @@ func TestCheckOnce_MinorIDGPULostError(t *testing.T) {
 	// Verify the results
 	assert.NotNil(t, cr)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "error getting minor id (GPU is lost)", cr.reason)
+	assert.Equal(t, "error getting minor id", cr.reason)
 	assert.True(t, errors.Is(cr.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
 }

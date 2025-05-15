@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -19,7 +18,6 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -179,9 +177,6 @@ func (c *component) Check() components.CheckResult {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error getting memory"
-				if errors.Is(err, nvml.ErrGPULost) {
-					cr.reason += " (GPU is lost)"
-				}
 				log.Logger.Errorw(cr.reason, "error", cr.err)
 				return cr
 			}
@@ -199,9 +194,6 @@ func (c *component) Check() components.CheckResult {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error getting serial id"
-				if errors.Is(err, nvml.ErrGPULost) {
-					cr.reason += " (GPU is lost)"
-				}
 				log.Logger.Errorw(cr.reason, "error", cr.err)
 				return cr
 			}
@@ -214,9 +206,6 @@ func (c *component) Check() components.CheckResult {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error getting minor id"
-				if errors.Is(err, nvml.ErrGPULost) {
-					cr.reason += " (GPU is lost)"
-				}
 				log.Logger.Errorw(cr.reason, "error", cr.err)
 				return cr
 			}

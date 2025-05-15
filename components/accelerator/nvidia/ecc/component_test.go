@@ -808,7 +808,7 @@ func TestCheck_GPULostError(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, "error getting ECC mode (GPU is lost)", data.reason, "reason should indicate GPU is lost")
+		assert.Equal(t, "error getting ECC mode", data.reason, "reason should indicate GPU is lost")
 	})
 
 	// Test ECC errors function returning GPU lost error
@@ -838,6 +838,6 @@ func TestCheck_GPULostError(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, "error getting ECC errors (GPU is lost)", data.reason, "reason should indicate GPU is lost")
+		assert.Equal(t, "error getting ECC errors", data.reason, "reason should indicate GPU is lost")
 	})
 }

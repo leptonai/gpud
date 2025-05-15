@@ -1291,7 +1291,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				return false, nvidianvml.ErrGPULost
 			},
 			expectHealthy: false,
-			expectReason:  "error getting clock events supported (GPU is lost)",
+			expectReason:  "error getting clock events supported",
 		},
 		{
 			name: "gpu lost error when getting clock events",
@@ -1325,7 +1325,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				return nvidianvml.ClockEvents{}, nvidianvml.ErrGPULost
 			},
 			expectHealthy: false,
-			expectReason:  "error getting clock events (GPU is lost)",
+			expectReason:  "error getting clock events",
 		},
 	}
 
