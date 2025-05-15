@@ -769,3 +769,75 @@ func TestCheck_MultipleDevices(t *testing.T) {
 	assert.Contains(t, uuids, uuid1)
 	assert.Contains(t, uuids, uuid2)
 }
+
+// TestCheck_GPULostError tests the error handling when GPU is lost during check
+func TestCheck_GPULostError(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	// Test ECC mode function returning GPU lost error
+	t.Run("GPU lost in ECC mode check", func(t *testing.T) {
+		getDevicesFunc := func() map[string]device.Device {
+			return devs
+		}
+
+		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
+			return nvidianvml.ECCMode{}, nvidianvml.ErrGPULost
+		}
+
+		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
+			return nvidianvml.ECCErrors{}, nil
+		}
+
+		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+		result := component.Check()
+
+		data, ok := result.(*checkResult)
+		require.True(t, ok, "result should be of type *checkResult")
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
+		assert.Equal(t, "error getting ECC mode", data.reason, "reason should indicate GPU is lost")
+	})
+
+	// Test ECC errors function returning GPU lost error
+	t.Run("GPU lost in ECC errors check", func(t *testing.T) {
+		getDevicesFunc := func() map[string]device.Device {
+			return devs
+		}
+
+		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
+			return nvidianvml.ECCMode{
+				UUID:           uuid,
+				EnabledCurrent: true,
+				EnabledPending: true,
+				Supported:      true,
+			}, nil
+		}
+
+		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
+			return nvidianvml.ECCErrors{}, nvidianvml.ErrGPULost
+		}
+
+		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+		result := component.Check()
+
+		data, ok := result.(*checkResult)
+		require.True(t, ok, "result should be of type *checkResult")
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
+		assert.Equal(t, "error getting ECC errors", data.reason, "reason should indicate GPU is lost")
+	})
+}

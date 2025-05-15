@@ -959,3 +959,63 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 	require.True(t, ok, "sample_duration should be a string")
 	assert.Contains(t, sampleDurationStr, "s", "sample_duration should contain time unit")
 }
+
+func TestCheck_GPMLostError(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	// Test GPM support function returning GPU lost error
+	t.Run("GPU lost in GPM support check", func(t *testing.T) {
+		errExpected := nvidianvml.ErrGPULost
+		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+			return false, errExpected
+		}
+
+		component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, nil).(*component)
+		result := component.Check()
+
+		data, ok := result.(*checkResult)
+		require.True(t, ok, "result should be of type *checkResult")
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
+		assert.Equal(t, "error getting GPM supported", data.reason, "reason should indicate GPU is lost")
+	})
+
+	// Test GPM metrics function returning GPU lost error
+	t.Run("GPU lost in GPM metrics check", func(t *testing.T) {
+		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+			return true, nil
+		}
+
+		errExpected := nvidianvml.ErrGPULost
+		getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+			return nil, errExpected
+		}
+
+		component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+		result := component.Check()
+
+		data, ok := result.(*checkResult)
+		require.True(t, ok, "result should be of type *checkResult")
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
+		assert.Equal(t, "error getting GPM metrics", data.reason, "reason should indicate GPU is lost")
+	})
+}

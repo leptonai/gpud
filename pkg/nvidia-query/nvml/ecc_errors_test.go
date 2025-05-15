@@ -2,6 +2,7 @@ package nvml
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -152,6 +153,23 @@ func TestGetECCErrors(t *testing.T) {
 			expectError:           true,
 			expectedErrorContains: "failed to get",
 		},
+		{
+			name:                  "GPU lost error on total ECC",
+			uuid:                  "test-uuid",
+			eccModeEnabled:        true,
+			totalECCRet:           nvml.ERROR_GPU_IS_LOST,
+			expectError:           true,
+			expectedErrorContains: "gpu lost",
+		},
+		{
+			name:                  "GPU lost error on memory error counter",
+			uuid:                  "test-uuid",
+			eccModeEnabled:        true,
+			totalECCRet:           nvml.SUCCESS,
+			memoryErrorRet:        nvml.ERROR_GPU_IS_LOST,
+			expectError:           true,
+			expectedErrorContains: "gpu lost",
+		},
 	}
 
 	for _, tc := range tests {
@@ -170,6 +188,9 @@ func TestGetECCErrors(t *testing.T) {
 				assert.Error(t, err)
 				if tc.expectedErrorContains != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+				if tc.totalECCRet == nvml.ERROR_GPU_IS_LOST || tc.memoryErrorRet == nvml.ERROR_GPU_IS_LOST {
+					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
 				}
 			} else {
 				assert.NoError(t, err)

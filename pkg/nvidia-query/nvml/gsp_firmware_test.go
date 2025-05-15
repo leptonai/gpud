@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -63,6 +64,14 @@ func TestGetGSPFirmwareMode(t *testing.T) {
 			expectError:           true,
 			expectedErrorContains: "failed to get gsp firmware mode",
 		},
+		{
+			name:                  "GPU lost error",
+			gspEnabled:            false,
+			gspSupported:          false,
+			gspFirmwareRet:        nvml.ERROR_GPU_IS_LOST,
+			expectError:           true,
+			expectedErrorContains: "gpu lost",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -80,6 +89,9 @@ func TestGetGSPFirmwareMode(t *testing.T) {
 				assert.Error(t, err)
 				if tc.expectedErrorContains != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+				if tc.gspFirmwareRet == nvml.ERROR_GPU_IS_LOST {
+					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
 				}
 			} else {
 				assert.NoError(t, err)

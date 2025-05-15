@@ -475,3 +475,38 @@ func TestComponent_Check_MultipleDevices(t *testing.T) {
 	assert.Nil(t, c.lastCheckResult.err)
 	assert.Equal(t, data, c.lastCheckResult)
 }
+
+// TestComponent_Check_GPU_Lost tests the Check method when the GPU is lost
+func TestComponent_Check_GPU_Lost(t *testing.T) {
+	ctx := context.Background()
+
+	mockNvmlDevice := &mock.Device{}
+	mockDevice := testutil.NewMockDevice(mockNvmlDevice, "test-arch", "test-brand", "1.0", "0000:00:00.0")
+
+	mockDevices := map[string]device.Device{
+		"test-uuid": mockDevice,
+	}
+
+	// Test GPU lost error
+	c := &component{
+		ctx: ctx,
+		nvmlInstance: &mockNVMLInstance{
+			devices:    mockDevices,
+			nvmlExists: true,
+		},
+		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
+			return nvidianvml.ClockSpeed{}, nvidianvml.ErrGPULost
+		},
+	}
+
+	result := c.Check()
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify that lastCheckResult contains the error
+	require.NotNil(t, c.lastCheckResult)
+	assert.True(t, errors.Is(c.lastCheckResult.err, nvidianvml.ErrGPULost))
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
+	assert.Equal(t, "error getting clock speed", c.lastCheckResult.reason)
+	assert.Equal(t, data, c.lastCheckResult)
+}

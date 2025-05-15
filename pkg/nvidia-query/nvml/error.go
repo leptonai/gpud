@@ -1,9 +1,18 @@
 package nvml
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+)
+
+var (
+	// ErrGPULost is an error that indicates the GPU is lost.
+	// Likely due to the GPU is physically removed from the machine.
+	// Also manifested as Xid 79 (GPU has fallen off the bus).
+	// ref. https://github.com/leptonai/gpud/issues/604
+	ErrGPULost = errors.New("gpu lost")
 )
 
 // IsVersionMismatchError returns true if the error indicates a version mismatch.
@@ -48,6 +57,25 @@ func IsNotFoundError(ret nvml.Return) bool {
 
 	e := normalizeNVMLReturnString(ret)
 	return strings.Contains(e, "not found") || strings.Contains(e, "not_found")
+}
+
+func IsNoSuchFileOrDirectoryError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "not found") || strings.Contains(s, "no such file or directory")
+}
+
+// IsGPULostError returns true if the error indicates that the GPU is lost.
+// "if the target GPU has fallen off the bus or is otherwise inaccessible".
+func IsGPULostError(ret nvml.Return) bool {
+	if ret == nvml.ERROR_GPU_IS_LOST {
+		return true
+	}
+
+	e := normalizeNVMLReturnString(ret)
+	return strings.Contains(e, "gpu lost") || strings.Contains(e, "gpu is lost") || strings.Contains(e, "gpu_is_lost")
 }
 
 // normalizeNVMLReturnString normalizes an NVML return to a string.

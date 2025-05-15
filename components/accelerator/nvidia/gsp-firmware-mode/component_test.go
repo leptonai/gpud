@@ -613,3 +613,41 @@ func TestCheckResult_HealthStateType(t *testing.T) {
 		})
 	}
 }
+
+// TestCheck_GPULostError tests the Check method when GPU is lost
+func TestCheck_GPULostError(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	errExpected := nvidianvml.ErrGPULost
+	getGSPFirmwareModeFunc := func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error) {
+		return nvidianvml.GSPFirmwareMode{}, errExpected
+	}
+
+	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, getGSPFirmwareModeFunc).(*component)
+	result := component.Check()
+
+	// Verify error handling
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+
+	require.NotNil(t, data, "lastCheckResult should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
+	assert.Equal(t, "error getting GSP firmware mode", data.reason, "reason should indicate GPU is lost")
+}

@@ -41,7 +41,9 @@ func GetPersistenceMode(uuid string, dev device.Device) (PersistenceMode, error)
 		mode.Supported = false
 		return mode, nil
 	}
-
+	if IsGPULostError(ret) {
+		return mode, ErrGPULost
+	}
 	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
 		return mode, fmt.Errorf("failed to get device persistence mode: %v", nvml.ErrorString(ret))

@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -522,6 +523,114 @@ func TestIsNotFoundError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsNotFoundError(tt.ret)
 			assert.Equal(t, tt.expected, result, "IsNotFoundError(%v) = %v, want %v", tt.ret, result, tt.expected)
+		})
+	}
+}
+
+func TestIsGPULostError(t *testing.T) {
+	// Create a function to patch nvml.ErrorString for testing
+	originalErrorString := nvml.ErrorString
+	defer func() {
+		nvml.ErrorString = originalErrorString
+	}()
+
+	// Test cases
+	testCases := []struct {
+		name     string
+		ret      nvml.Return
+		message  string
+		expected bool
+	}{
+		{
+			name:     "ERROR_GPU_IS_LOST constant",
+			ret:      nvml.ERROR_GPU_IS_LOST,
+			message:  "unused in this case",
+			expected: true,
+		},
+		{
+			name:     "message contains 'gpu lost'",
+			ret:      nvml.Return(9999), // custom error code
+			message:  "the gpu lost error occurred",
+			expected: true,
+		},
+		{
+			name:     "message contains 'gpu is lost'",
+			ret:      nvml.Return(9998), // custom error code
+			message:  "the gpu is lost error message",
+			expected: true,
+		},
+		{
+			name:     "message contains 'gpu_is_lost'",
+			ret:      nvml.Return(9997), // custom error code
+			message:  "gpu_is_lost encountered",
+			expected: true,
+		},
+		{
+			name:     "unrelated error",
+			ret:      nvml.ERROR_UNKNOWN,
+			message:  "this is an unrelated error",
+			expected: false,
+		},
+	}
+
+	// Run test cases
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Mock nvml.ErrorString function to return our test message
+			nvml.ErrorString = func(r nvml.Return) string {
+				if r == nvml.ERROR_GPU_IS_LOST {
+					return "GPU is lost"
+				}
+				return tc.message
+			}
+
+			// Call the function and verify the result
+			result := IsGPULostError(tc.ret)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestIsNoSuchFileOrDirectoryError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "not found error",
+			err:      errors.New("file not found"),
+			expected: true,
+		},
+		{
+			name:     "no such file or directory error",
+			err:      errors.New("no such file or directory"),
+			expected: true,
+		},
+		{
+			name:     "mixed case error",
+			err:      errors.New("No SuCh FiLe Or DiReCtoRy"),
+			expected: true,
+		},
+		{
+			name:     "different error",
+			err:      errors.New("permission denied"),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := IsNoSuchFileOrDirectoryError(test.err)
+			if result != test.expected {
+				t.Errorf("Expected IsNoSuchFileOrDirectoryError to return %v for error '%v', got %v",
+					test.expected, test.err, result)
+			}
 		})
 	}
 }

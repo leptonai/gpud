@@ -56,10 +56,14 @@ func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 		remRws.Supported = false
 		return remRws, nil
 	}
-
-	if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+	if IsGPULostError(ret) {
+		return remRws, ErrGPULost
+	}
+	if ret != nvml.SUCCESS {
+		// not a "not supported" error, not a success return, thus return an error here
 		return remRws, fmt.Errorf("failed to get device remapped rows: %v", nvml.ErrorString(ret))
 	}
+
 	remRws.RemappedDueToCorrectableErrors = corrRows
 	remRws.RemappedDueToUncorrectableErrors = uncRows
 	remRws.RemappingPending = isPending

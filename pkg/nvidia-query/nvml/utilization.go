@@ -38,7 +38,9 @@ func GetUtilization(uuid string, dev device.Device) (Utilization, error) {
 		util.Supported = false
 		return util, nil
 	}
-
+	if IsGPULostError(ret) {
+		return util, ErrGPULost
+	}
 	if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 		return util, fmt.Errorf("failed to get device utilization rates: %v", nvml.ErrorString(ret))
 	}

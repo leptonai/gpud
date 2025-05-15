@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -58,6 +59,13 @@ func TestGPMSupportedByDevice(t *testing.T) {
 			expectError:           true,
 			expectedErrorContains: "could not query GPM support",
 		},
+		{
+			name:                  "GPU lost error",
+			gpmDeviceSupport:      nvml.GpmSupport{},
+			gpmDeviceSupportRet:   nvml.ERROR_GPU_IS_LOST,
+			expectError:           true,
+			expectedErrorContains: "gpu lost",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -74,6 +82,9 @@ func TestGPMSupportedByDevice(t *testing.T) {
 				assert.Error(t, err)
 				if tc.expectedErrorContains != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+				if tc.gpmDeviceSupportRet == nvml.ERROR_GPU_IS_LOST {
+					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
 				}
 			} else {
 				assert.NoError(t, err)

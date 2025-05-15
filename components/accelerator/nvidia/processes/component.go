@@ -135,7 +135,8 @@ func (c *component) Check() components.CheckResult {
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting processes for device %s: %v", uuid, err)
+			cr.reason = "error getting processes"
+			log.Logger.Errorw(cr.reason, "error", err)
 			return cr
 		}
 

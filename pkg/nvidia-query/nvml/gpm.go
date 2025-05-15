@@ -27,7 +27,9 @@ func GPMSupportedByDevice(dev device.Device) (bool, error) {
 	if IsVersionMismatchError(ret) {
 		return false, nil
 	}
-
+	if IsGPULostError(ret) {
+		return false, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return false, fmt.Errorf("could not query GPM support: %v", nvml.ErrorString(ret))
 	}
@@ -72,7 +74,9 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.D
 	if IsVersionMismatchError(ret) {
 		return nil, nil
 	}
-
+	if IsGPULostError(ret) {
+		return nil, ErrGPULost
+	}
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("could not allocate sample: %v", nvml.ErrorString(ret))
 	}

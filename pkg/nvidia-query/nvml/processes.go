@@ -67,7 +67,9 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 		procs.GetComputeRunningProcessesSupported = false
 		return procs, nil
 	}
-
+	if IsGPULostError(ret) {
+		return procs, ErrGPULost
+	}
 	if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 		return procs, fmt.Errorf("failed to get device compute processes: %v", nvml.ErrorString(ret))
 	}
@@ -103,6 +105,9 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 		if IsNotFoundError(ret) {
 			continue
 		}
+		if IsGPULostError(ret) {
+			return procs, ErrGPULost
+		}
 		if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 			return procs, fmt.Errorf("failed to get process %d utilization (%v)", proc.Pid, nvml.ErrorString(ret))
 		}
@@ -119,8 +124,7 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 
 		status, err := procObject.Status()
 		if err != nil {
-			// e.g., Not Found
-			if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			if IsNoSuchFileOrDirectoryError(err) {
 				continue
 			}
 			return procs, fmt.Errorf("failed to get process %d status: %v", proc.Pid, err)
@@ -135,6 +139,9 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 
 		envs, err := procObject.Environ()
 		if err != nil {
+			if IsNoSuchFileOrDirectoryError(err) {
+				continue
+			}
 			return procs, fmt.Errorf("failed to get process %d environ: %v", proc.Pid, err)
 		}
 

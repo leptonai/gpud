@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -112,6 +113,14 @@ func TestGetECCModeEnabled(t *testing.T) {
 			expectError:           true,
 			expectedErrorContains: "failed to get current/pending ecc mode",
 		},
+		{
+			name:                  "GPU lost error",
+			currentECC:            nvml.FEATURE_DISABLED,
+			pendingECC:            nvml.FEATURE_DISABLED,
+			eccModeRet:            nvml.ERROR_GPU_IS_LOST,
+			expectError:           true,
+			expectedErrorContains: "gpu lost",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -129,6 +138,9 @@ func TestGetECCModeEnabled(t *testing.T) {
 				assert.Error(t, err)
 				if tc.expectedErrorContains != "" {
 					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+				if tc.eccModeRet == nvml.ERROR_GPU_IS_LOST {
+					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
 				}
 			} else {
 				assert.NoError(t, err)

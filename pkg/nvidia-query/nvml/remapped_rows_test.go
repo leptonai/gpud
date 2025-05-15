@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -100,6 +101,7 @@ func TestGetRemappedRows(t *testing.T) {
 		expectedRemappedRows RemappedRows
 		expectError          bool
 		errorContains        string
+		expectedErrorType    error
 	}{
 		{
 			name:            "success case",
@@ -116,8 +118,9 @@ func TestGetRemappedRows(t *testing.T) {
 				RemappingFailed:                  false,
 				Supported:                        true,
 			},
-			expectError:   false,
-			errorContains: "",
+			expectError:       false,
+			errorContains:     "",
+			expectedErrorType: nil,
 		},
 		{
 			name:            "feature not supported",
@@ -134,8 +137,9 @@ func TestGetRemappedRows(t *testing.T) {
 				RemappingFailed:                  false,
 				Supported:                        false,
 			},
-			expectError:   false,
-			errorContains: "",
+			expectError:       false,
+			errorContains:     "",
+			expectedErrorType: nil,
 		},
 		{
 			name:            "severe error with failure",
@@ -152,8 +156,9 @@ func TestGetRemappedRows(t *testing.T) {
 				RemappingFailed:                  true,
 				Supported:                        true,
 			},
-			expectError:   false,
-			errorContains: "",
+			expectError:       false,
+			errorContains:     "",
+			expectedErrorType: nil,
 		},
 		{
 			name:            "other error",
@@ -166,8 +171,24 @@ func TestGetRemappedRows(t *testing.T) {
 				UUID:      testUUID,
 				Supported: true,
 			},
-			expectError:   true,
-			errorContains: "failed to get device remapped rows",
+			expectError:       true,
+			errorContains:     "failed to get device remapped rows",
+			expectedErrorType: nil,
+		},
+		{
+			name:            "GPU lost error",
+			corrRows:        0,
+			uncRows:         0,
+			isPending:       false,
+			failureOccurred: false,
+			ret:             nvml.ERROR_GPU_IS_LOST,
+			expectedRemappedRows: RemappedRows{
+				UUID:      testUUID,
+				Supported: true,
+			},
+			expectError:       true,
+			errorContains:     "",
+			expectedErrorType: ErrGPULost,
 		},
 	}
 
@@ -190,6 +211,9 @@ func TestGetRemappedRows(t *testing.T) {
 				assert.Error(t, err)
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+				if tt.expectedErrorType != nil {
+					assert.True(t, errors.Is(err, tt.expectedErrorType), "Expected error type %v but got %v", tt.expectedErrorType, err)
 				}
 			} else {
 				assert.NoError(t, err)

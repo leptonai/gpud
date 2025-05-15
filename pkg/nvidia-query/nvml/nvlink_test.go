@@ -1,6 +1,7 @@
 package nvml
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
@@ -128,6 +129,8 @@ func TestGetNVLink(t *testing.T) {
 		expectedReplayErrors   uint64
 		expectedRecoveryErrors uint64
 		expectedCRCErrors      uint64
+		expectError            bool
+		expectedErrorContains  string
 	}{
 		{
 			name: "NVLink supported and working",
@@ -173,6 +176,16 @@ func TestGetNVLink(t *testing.T) {
 			expectedSupported:   true,
 			expectedStatesCount: 0,
 		},
+		{
+			name: "GPU lost error",
+			mockDev: &mockDevice{
+				nvLinkStateErr: nvml.ERROR_GPU_IS_LOST,
+			},
+			expectedSupported:     false,
+			expectedStatesCount:   0,
+			expectError:           true,
+			expectedErrorContains: "gpu lost",
+		},
 	}
 
 	for _, tc := range tests {
@@ -183,6 +196,17 @@ func TestGetNVLink(t *testing.T) {
 			}
 
 			nvlink, err := GetNVLink("test-uuid", tc.mockDev)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.expectedErrorContains != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrorContains)
+				}
+				if tc.mockDev.nvLinkStateErr == nvml.ERROR_GPU_IS_LOST {
+					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
+				}
+				return
+			}
 
 			// No error should be returned
 			assert.NoError(t, err)

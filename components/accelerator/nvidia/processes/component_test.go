@@ -512,3 +512,49 @@ func TestCheckEdgeCases(t *testing.T) {
 		assert.Equal(t, "all 2 GPU(s) were checked, no process issue found", data.reason)
 	})
 }
+
+func TestCheck_GPULostError(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock devices with no processes
+	mockDev1 := createMockDevice("gpu-uuid-1", nil)
+
+	mockDevices := map[string]device.Device{
+		"gpu-uuid-1": mockDev1,
+	}
+
+	mockInstance := &mockNVMLInstance{
+		nvmlExists: true,
+		devicesFunc: func() map[string]device.Device {
+			return mockDevices
+		},
+	}
+
+	// Create a mock GPUdInstance with the required fields
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	// Cast to component to access internal methods
+	c := comp.(*component)
+
+	// Create a getProcessesFunc that returns GPU lost error
+	c.getProcessesFunc = func(uuid string, dev device.Device) (nvidianvml.Processes, error) {
+		return nvidianvml.Processes{}, nvidianvml.ErrGPULost
+	}
+
+	// Run Check
+	result := c.Check()
+
+	// Verify result is correct
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
+	assert.Equal(t, "error getting processes", data.reason,
+		"reason should have '(GPU is lost)' suffix")
+}
