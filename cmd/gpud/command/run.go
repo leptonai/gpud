@@ -9,16 +9,19 @@ import (
 	"runtime"
 	"time"
 
+	sd "github.com/coreos/go-systemd/v22/daemon"
 	"github.com/gin-gonic/gin"
 	"github.com/urfave/cli"
 	"go.uber.org/zap"
+	"golang.org/x/sys/unix"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/config"
 	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
-	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
+	"github.com/leptonai/gpud/pkg/systemd"
+	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -88,11 +91,19 @@ func cmdRun(cliContext *cli.Context) error {
 	start := time.Now()
 
 	signals := make(chan os.Signal, 2048)
-	serverC := make(chan *gpudserver.Server, 1)
+	serverC := make(chan gpudserver.ServerStopper, 1)
 
 	log.Logger.Infof("starting gpud %v", version.Version)
 
-	done := handleSignals(rootCtx, rootCancel, signals, serverC)
+	done := gpudserver.HandleSignals(rootCtx, rootCancel, signals, serverC, func(ctx context.Context) error {
+		if systemd.SystemctlExists() {
+			if err := notifyStopping(ctx); err != nil {
+				log.Logger.Errorw("notify stopping failed")
+			}
+		}
+		return nil
+	})
+
 	// start the signal handler as soon as we can to make sure that
 	// we don't miss any signals during boot
 	signal.Notify(signals, handledSignals...)
@@ -108,7 +119,7 @@ func cmdRun(cliContext *cli.Context) error {
 	}
 	serverC <- server
 
-	if pkd_systemd.SystemctlExists() {
+	if pkgsystemd.SystemctlExists() {
 		if err := notifyReady(rootCtx); err != nil {
 			log.Logger.Warnw("notify ready failed")
 		}
@@ -120,4 +131,27 @@ func cmdRun(cliContext *cli.Context) error {
 	<-done
 
 	return nil
+}
+
+var handledSignals = []os.Signal{
+	unix.SIGTERM,
+	unix.SIGINT,
+	unix.SIGUSR1,
+	unix.SIGPIPE,
+}
+
+// notifyReady notifies systemd that the daemon is ready to serve requests
+func notifyReady(_ context.Context) error {
+	return sdNotify(sd.SdNotifyReady)
+}
+
+// notifyStopping notifies systemd that the daemon is about to be stopped
+func notifyStopping(_ context.Context) error {
+	return sdNotify(sd.SdNotifyStopping)
+}
+
+func sdNotify(state string) error {
+	notified, err := sd.SdNotify(false, state)
+	log.Logger.Debugf("sd notification: %v %v %v", state, notified, err)
+	return err
 }
