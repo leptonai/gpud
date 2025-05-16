@@ -112,6 +112,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 		token                                string
 		machineID                            string
 		gpuCount                             string
+		getPublicIPFunc                      func() (string, error)
 		getMachineLocationFunc               func() *apiv1.MachineLocation
 		getMachineInfoFunc                   func(nvidianvml.Instance) (*apiv1.MachineInfo, error)
 		getProviderFunc                      func(string) string
@@ -128,6 +129,9 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			token:     "test-token",
 			machineID: "test-machine-id",
 			gpuCount:  "",
+			getPublicIPFunc: func() (string, error) {
+				return "1.2.3.4", nil
+			},
 			getMachineLocationFunc: func() *apiv1.MachineLocation {
 				return &apiv1.MachineLocation{
 					Region: "us-east-1",
@@ -136,8 +140,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			},
 			getMachineInfoFunc: func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 				return &apiv1.MachineInfo{
-					NetworkInfo: &apiv1.MachineNetworkInfo{
-						PublicIP: "1.2.3.4",
+					NICInfo: &apiv1.MachineNICInfo{
 						PrivateIPInterfaces: []apiv1.MachineNetworkInterface{
 							mockNetworkInterface("1.2.3.4", "10.0.0.1"),
 						},
@@ -180,12 +183,15 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			token:     "test-token",
 			machineID: "test-machine-id",
 			gpuCount:  "3", // Explicit GPU count
+			getPublicIPFunc: func() (string, error) {
+				return "5.6.7.8", nil
+			},
 			getMachineLocationFunc: func() *apiv1.MachineLocation {
 				return &apiv1.MachineLocation{}
 			},
 			getMachineInfoFunc: func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 				return &apiv1.MachineInfo{
-					NetworkInfo: &apiv1.MachineNetworkInfo{
+					NICInfo: &apiv1.MachineNICInfo{
 						PrivateIPInterfaces: []apiv1.MachineNetworkInterface{},
 					},
 				}, nil
@@ -216,12 +222,15 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			token:     "test-token",
 			machineID: "test-machine-id",
 			gpuCount:  "0",
+			getPublicIPFunc: func() (string, error) {
+				return "", nil
+			},
 			getMachineLocationFunc: func() *apiv1.MachineLocation {
 				return &apiv1.MachineLocation{}
 			},
 			getMachineInfoFunc: func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 				return &apiv1.MachineInfo{
-					NetworkInfo: &apiv1.MachineNetworkInfo{
+					NICInfo: &apiv1.MachineNICInfo{
 						PrivateIPInterfaces: []apiv1.MachineNetworkInterface{},
 					},
 				}, nil
@@ -253,6 +262,9 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			token:     "test-token",
 			machineID: "test-machine-id",
 			gpuCount:  "",
+			getPublicIPFunc: func() (string, error) {
+				return "", nil
+			},
 			getMachineLocationFunc: func() *apiv1.MachineLocation {
 				return &apiv1.MachineLocation{}
 			},
@@ -282,6 +294,9 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			token:     "test-token",
 			machineID: "test-machine-id",
 			gpuCount:  "",
+			getPublicIPFunc: func() (string, error) {
+				return "", nil
+			},
 			getMachineLocationFunc: func() *apiv1.MachineLocation {
 				return &apiv1.MachineLocation{}
 			},
@@ -311,6 +326,9 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			token:     "test-token",
 			machineID: "test-machine-id",
 			gpuCount:  "",
+			getPublicIPFunc: func() (string, error) {
+				return "", nil
+			},
 			getMachineLocationFunc: func() *apiv1.MachineLocation {
 				return &apiv1.MachineLocation{}
 			},
@@ -340,6 +358,9 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			token:     "test-token",
 			machineID: "test-machine-id",
 			gpuCount:  "",
+			getPublicIPFunc: func() (string, error) {
+				return "", nil
+			},
 			getMachineLocationFunc: func() *apiv1.MachineLocation {
 				return &apiv1.MachineLocation{}
 			},
@@ -369,6 +390,9 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			token:     "test-token",
 			machineID: "test-machine-id",
 			gpuCount:  "",
+			getPublicIPFunc: func() (string, error) {
+				return "", nil
+			},
 			getMachineLocationFunc: func() *apiv1.MachineLocation {
 				return &apiv1.MachineLocation{}
 			},
@@ -406,6 +430,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 				&mockNvmlInstance{},
 				tt.machineID,
 				tt.gpuCount,
+				tt.getPublicIPFunc,
 				tt.getMachineLocationFunc,
 				tt.getMachineInfoFunc,
 				tt.getProviderFunc,
@@ -445,8 +470,7 @@ func TestCreateLoginRequest_NetworkBasics(t *testing.T) {
 
 	getMachineInfoFunc := func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 		return &apiv1.MachineInfo{
-			NetworkInfo: &apiv1.MachineNetworkInfo{
-				PublicIP:            "1.2.3.4",
+			NICInfo: &apiv1.MachineNICInfo{
 				PrivateIPInterfaces: test.ifacesFn(),
 			},
 		}, nil
@@ -457,6 +481,7 @@ func TestCreateLoginRequest_NetworkBasics(t *testing.T) {
 		&mockNvmlInstance{},
 		"machine-id",
 		"1",
+		func() (string, error) { return "1.2.3.4", nil },
 		func() *apiv1.MachineLocation { return &apiv1.MachineLocation{} },
 		getMachineInfoFunc,
 		func(ip string) string { return fmt.Sprintf("provider-%s", ip) },

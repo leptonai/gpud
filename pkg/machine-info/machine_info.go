@@ -47,8 +47,8 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		Hostname:                hostname,
 		Uptime:                  metav1.NewTime(time.Unix(int64(pkghost.BootTimeUnixSeconds()), 0)),
 
-		CPUInfo:     GetMachineCPUInfo(),
-		NetworkInfo: GetMachineNetworkInfo(),
+		CPUInfo: GetMachineCPUInfo(),
+		NICInfo: GetMachineNICInfo(),
 	}
 
 	var err error
@@ -146,16 +146,7 @@ func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
 	}
 }
 
-func GetMachineNetworkInfo() *apiv1.MachineNetworkInfo {
-	return getMachineNetworkInfo(netutil.PublicIP)
-}
-
-func getMachineNetworkInfo(getPublicIPFunc func() (string, error)) *apiv1.MachineNetworkInfo {
-	publicIP, err := getPublicIPFunc()
-	if err != nil {
-		log.Logger.Errorw("failed to get public ip", "error", err)
-	}
-
+func GetMachineNICInfo() *apiv1.MachineNICInfo {
 	ifaces := []apiv1.MachineNetworkInterface{}
 	privateIPs, err := netutil.GetPrivateIPs(
 		netutil.WithPrefixesToSkip(
@@ -188,8 +179,7 @@ func getMachineNetworkInfo(getPublicIPFunc func() (string, error)) *apiv1.Machin
 	sort.Slice(ifaces, func(i, j int) bool {
 		return ifaces[i].IP < ifaces[j].IP
 	})
-	return &apiv1.MachineNetworkInfo{
-		PublicIP:            publicIP,
+	return &apiv1.MachineNICInfo{
 		PrivateIPInterfaces: ifaces,
 	}
 }

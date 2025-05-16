@@ -267,8 +267,8 @@ type MachineInfo struct {
 	GPUInfo *MachineGPUInfo `json:"gpuInfo,omitempty"`
 	// DiskInfo is the Disk info of the machine.
 	DiskInfo *MachineDiskInfo `json:"diskInfo,omitempty"`
-	// NetworkInfo is the network info of the machine.
-	NetworkInfo *MachineNetworkInfo `json:"networkInfo,omitempty"`
+	// NICInfo is the network info of the machine.
+	NICInfo *MachineNICInfo `json:"nicInfo,omitempty"`
 }
 
 func (i *MachineInfo) RenderTable(wr io.Writer) {
@@ -408,10 +408,8 @@ type MachineNetwork struct {
 	PrivateIP string `json:"privateIP,omitempty"`
 }
 
-// MachineNetworkInfo consists of the network info of the machine.
-type MachineNetworkInfo struct {
-	// PublicIP is the public IP address of the machine.
-	PublicIP string `json:"publicIP,omitempty"`
+// MachineNICInfo consists of the network info of the machine.
+type MachineNICInfo struct {
 	// PrivateIPInterfaces is the private network interface info of the machine.
 	PrivateIPInterfaces []MachineNetworkInterface `json:"privateIPInterfaces,omitempty"`
 }
