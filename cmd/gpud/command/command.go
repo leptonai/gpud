@@ -7,6 +7,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
 )
@@ -64,7 +65,7 @@ func App() *cli.App {
 			UsageText: `# to login gpud to lepton.ai with an existing, running gpud
 sudo gpud login --token <LEPTON_AI_TOKEN>
 `,
-			Action: cmdLogin,
+			Action: cmdlogin.Command,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "token",

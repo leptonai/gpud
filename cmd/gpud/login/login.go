@@ -1,7 +1,8 @@
-package command
+package login
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,7 +19,11 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-func cmdLogin(cliContext *cli.Context) error {
+var (
+	ErrEmptyToken = errors.New("token is empty")
+)
+
+func Command(cliContext *cli.Context) error {
 	token := cliContext.String("token")
 	if token == "" {
 		fmt.Print("Please visit https://dashboard.lepton.ai/ under Settings/Tokens to fetch your token\nPlease enter your token:")
