@@ -7,6 +7,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/leptonai/gpud/cmd/gpud/scan"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
 )
@@ -403,26 +404,23 @@ sudo rm /etc/systemd/system/gpud.service
 			Aliases: []string{"check", "s"},
 
 			Usage:  "quick scans the host for any major issues",
-			Action: cmdScan,
+			Action: scan.CreateCommand(),
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 
 				// only for testing
 				cli.StringFlag{
-					Name:        "ibstat-command",
-					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
-					Destination: &ibstatCommand,
-					Hidden:      true,
+					Name:   "ibstat-command",
+					Usage:  "sets the ibstat command (leave empty for default, useful for testing)",
+					Hidden: true,
 				},
 				cli.StringFlag{
-					Name:        "ibstatus-command",
-					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
-					Destination: &ibstatusCommand,
-					Hidden:      true,
+					Name:   "ibstatus-command",
+					Usage:  "sets the ibstatus command (leave empty for default, useful for testing)",
+					Hidden: true,
 				},
 			},
 		},
