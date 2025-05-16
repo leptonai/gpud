@@ -410,6 +410,9 @@ type MachineNetwork struct {
 
 // MachineNetworkInfo consists of the network info of the machine.
 type MachineNetworkInfo struct {
+	// PublicIP is the public IP address of the machine.
+	PublicIP string `json:"publicIP,omitempty"`
+	// PrivateIPInterfaces is the private network interface info of the machine.
 	PrivateIPInterfaces []MachineNetworkInterface `json:"privateIPInterfaces,omitempty"`
 }
 
