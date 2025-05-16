@@ -7,7 +7,8 @@ builds:
     main: ./cmd/gpud
     env:
       - CGO_ENABLED=1
-      - CC=aarch64-linux-gnu-gcc
+      # ref. https://docs.aws.amazon.com/linux/al2023/ug/compare-with-al2.html#compiler-triplet
+      - CC=aarch64-amazon-linux-gcc
     flags:
       - -v
 
