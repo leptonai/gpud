@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	clientv1 "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -181,6 +181,14 @@ type Body struct {
 	ReqID string `json:"req_id,omitempty"`
 }
 
+func (s *Session) waitUntilServerReady(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	log.Logger.Infow("waiting for server to be ready", "endpoint", s.epLocalGPUdServer)
+	return clientv1.BlockUntilServerReady(ctx, s.epLocalGPUdServer)
+}
+
 func (s *Session) keepAlive() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -190,21 +198,25 @@ func (s *Session) keepAlive() {
 			log.Logger.Debug("session keep alive: closing keep alive")
 			return
 		case <-ticker.C:
-			readerExit := make(chan any)
-			writerExit := make(chan any)
-			s.closer = &closeOnce{closer: make(chan any)}
-			ctx, cancel := context.WithCancel(context.Background()) // create local context for each session
-			jar, _ := cookiejar.New(nil)
-			if err := s.checkServerHealth(ctx, jar); err != nil {
-				log.Logger.Errorf("session keep alive: error checking server health: %v", err)
-				cancel()
+			if err := s.waitUntilServerReady(s.ctx); err != nil {
+				log.Logger.Errorf("session keep alive: error waiting for server ready: %v", err)
 				continue
 			}
+
+			s.closer = &closeOnce{closer: make(chan any)}
+
+			ctx, cancel := context.WithCancel(context.Background()) // create local context for each session
+
+			readerExit := make(chan any)
+			writerExit := make(chan any)
+			jar, _ := cookiejar.New(nil)
 			go s.startReader(ctx, readerExit, jar)
 			go s.startWriter(ctx, writerExit, jar)
+
 			<-readerExit
 			log.Logger.Debug("session reader: reader exited")
 			cancel()
+
 			<-writerExit
 			log.Logger.Debug("session writer: writer exited")
 			cancel()
@@ -336,25 +348,6 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	}
 
 	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
-}
-
-func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", s.epLocalGPUdServer+"/healthz", nil)
-	if err != nil {
-		return err
-	}
-
-	client := createHTTPClient(jar)
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server health check failed: %s", resp.Status)
-	}
-	return nil
 }
 
 func (s *Session) setLastPackageTimestamp(t time.Time) {

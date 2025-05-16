@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/pkg/asn"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
@@ -210,7 +210,11 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	}
 
 	fmt.Println("Please wait while control plane is initializing basic setup for your machine, this may take up to one minute...")
-	response, err := http.Post(createJoinURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
+	u, err := httputil.CreateURL("https", endpoint, "/api/v1/join")
+	if err != nil {
+		return fmt.Errorf("failed to create join URL: %w", err)
+	}
+	response, err := http.Post(u, "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
 	}
@@ -248,14 +252,4 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 
 	fmt.Println("Basic setup finished, GPUd is installing necessary components onto your machine, this may take 10 - 15 minutes.\nYou can run `gpud status` or `gpud status -w` to check the progress of each component.")
 	return nil
-}
-
-// createJoinURL creates a URL for the join endpoint
-func createJoinURL(endpoint string) string {
-	host := endpoint
-	url, _ := url.Parse(endpoint)
-	if url.Host != "" {
-		host = url.Host
-	}
-	return fmt.Sprintf("https://%s/api/v1/join", host)
 }

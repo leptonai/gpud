@@ -1,10 +1,6 @@
 // Package v1 provides the gpud v1 client for the server.
 package v1
 
-import (
-	"github.com/leptonai/gpud/pkg/server"
-)
-
 type Op struct {
 	requestContentType    string
 	requestAcceptEncoding string
@@ -24,21 +20,21 @@ func (op *Op) applyOpts(opts []OpOption) error {
 // WithRequestContentTypeYAML sets the request content type to YAML.
 func WithRequestContentTypeYAML() OpOption {
 	return func(op *Op) {
-		op.requestContentType = server.RequestHeaderYAML
+		op.requestContentType = RequestHeaderYAML
 	}
 }
 
 // WithRequestContentTypeJSON sets the request content type to JSON.
 func WithRequestContentTypeJSON() OpOption {
 	return func(op *Op) {
-		op.requestContentType = server.RequestHeaderJSON
+		op.requestContentType = RequestHeaderJSON
 	}
 }
 
 // WithAcceptEncodingGzip requests gzip encoding for the response.
 func WithAcceptEncodingGzip() OpOption {
 	return func(op *Op) {
-		op.requestAcceptEncoding = server.RequestHeaderEncodingGzip
+		op.requestAcceptEncoding = RequestHeaderEncodingGzip
 	}
 }
 

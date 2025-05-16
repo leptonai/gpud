@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/server"
 )
 
 func TestGetMachineInfo(t *testing.T) {
@@ -76,8 +75,8 @@ func TestGetMachineInfo(t *testing.T) {
 				srv.Close()
 			} else {
 				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path != server.URLPathMachineInfo {
-						t.Errorf("Expected %s path, got %s", server.URLPathMachineInfo, r.URL.Path)
+					if r.URL.Path != "/machine-info" {
+						t.Errorf("Expected %s path, got %s", "/machine-info", r.URL.Path)
 						http.NotFound(w, r)
 						return
 					}
@@ -163,7 +162,7 @@ func TestGetMachineInfoWithHeaders(t *testing.T) {
 
 	// Create a custom server that just verifies the request was made and returns a response
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, server.URLPathMachineInfo, r.URL.Path)
+		assert.Equal(t, "/machine-info", r.URL.Path)
 		assert.Equal(t, http.MethodGet, r.Method)
 
 		w.WriteHeader(http.StatusOK)

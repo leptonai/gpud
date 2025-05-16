@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"time"
-
-	"github.com/leptonai/gpud/pkg/server"
 )
 
 var ErrServerNotReady = errors.New("server not ready, timeout waiting")
@@ -26,15 +23,10 @@ func CheckHealthz(ctx context.Context, addr string, opts ...OpOption) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	exp, err := json.Marshal(server.DefaultHealthz)
-	if err != nil {
-		return fmt.Errorf("failed to marshal expected healthz response: %w", err)
-	}
-
-	return checkHealthz(createDefaultHTTPClient(), req, exp)
+	return checkHealthz(createDefaultHTTPClient(), req)
 }
 
-func checkHealthz(cli *http.Client, req *http.Request, exp []byte) error {
+func checkHealthz(cli *http.Client, req *http.Request) error {
 	resp, err := cli.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to make request to /healthz: %w", err)
@@ -50,11 +42,23 @@ func checkHealthz(cli *http.Client, req *http.Request, exp []byte) error {
 		return fmt.Errorf("failed to read healthz response: %w", err)
 	}
 
-	if !bytes.Equal(b, exp) {
-		return fmt.Errorf("unexpected healthz response: %s", string(b))
+	var healthz Healthz
+	if err := json.Unmarshal(b, &healthz); err != nil {
+		return fmt.Errorf("failed to unmarshal healthz response: %w", err)
+	}
+
+	if healthz.Status != "ok" {
+		return errors.New("server not ready, status is not ok")
 	}
 
 	return nil
+}
+
+// copied from "github.com/leptonai/gpud/pkg/server.Healthz"
+// to avoid import cycle
+type Healthz struct {
+	Status  string `json:"status"`
+	Version string `json:"version"`
 }
 
 func BlockUntilServerReady(ctx context.Context, addr string, opts ...OpOption) error {
@@ -68,11 +72,6 @@ func BlockUntilServerReady(ctx context.Context, addr string, opts ...OpOption) e
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	exp, err := json.Marshal(server.DefaultHealthz)
-	if err != nil {
-		return fmt.Errorf("failed to marshal expected healthz response: %w", err)
-	}
-
 	httpClient := createDefaultHTTPClient()
 
 	ticker := time.NewTicker(time.Second)
@@ -81,7 +80,7 @@ func BlockUntilServerReady(ctx context.Context, addr string, opts ...OpOption) e
 	for range 30 {
 		select {
 		case <-ticker.C:
-			if err := checkHealthz(httpClient, req, exp); err == nil {
+			if err := checkHealthz(httpClient, req); err == nil {
 				return nil
 			}
 		case <-ctx.Done():

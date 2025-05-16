@@ -16,7 +16,6 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/pprof"
-	"net/url"
 	stdos "os"
 	"sync"
 	"syscall"
@@ -39,6 +38,7 @@ import (
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -85,15 +85,6 @@ type Server struct {
 type UserToken struct {
 	userToken string
 	mu        sync.RWMutex
-}
-
-func createURL(endpoint string) string {
-	host := endpoint
-	url, err := url.Parse(endpoint)
-	if err == nil && url != nil && url.Host != "" {
-		host = url.Host
-	}
-	return fmt.Sprintf("https://%s", host)
 }
 
 func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
@@ -290,8 +281,15 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	if err != nil {
 		return nil, fmt.Errorf("failed to read endpoint: %w", err)
 	}
-	s.epControlPlane = createURL(epControlPlane)
-	s.epLocalGPUdServer = fmt.Sprintf("https://%s", config.Address)
+
+	s.epControlPlane, err = httputil.CreateURL("https", epControlPlane, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create control plane URL: %w", err)
+	}
+	s.epLocalGPUdServer, err = httputil.CreateURL("https", config.Address, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create local GPUd server URL: %w", err)
+	}
 
 	userToken := &UserToken{}
 	go s.updateToken(ctx, metricsSQLiteStore, userToken)
