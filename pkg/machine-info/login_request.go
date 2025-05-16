@@ -6,8 +6,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -17,7 +15,6 @@ func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineI
 		nvmlInstance,
 		machineID,
 		gpuCount,
-		netutil.PublicIP,
 		GetMachineLocation,
 		GetMachineInfo,
 		GetProvider,
@@ -33,7 +30,6 @@ func createLoginRequest(
 	nvmlInstance nvidianvml.Instance,
 	machineID string,
 	gpuCount string,
-	getPublicIPFunc func() (string, error),
 	getMachineLocationFunc func() *apiv1.MachineLocation,
 	getMachineInfoFunc func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error),
 	getProviderFunc func(ip string) string,
@@ -50,13 +46,7 @@ func createLoginRequest(
 		Resources: map[string]string{},
 	}
 
-	publicIP, err := getPublicIPFunc()
-	if err != nil {
-		log.Logger.Errorw("failed to get public IP", "error", err)
-	}
-	req.Network.PublicIP = publicIP
-	req.Provider = getProviderFunc(publicIP)
-
+	var err error
 	req.MachineInfo, err = getMachineInfoFunc(nvmlInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine info: %w", err)
@@ -64,6 +54,9 @@ func createLoginRequest(
 
 	// get the default values from the machine info
 	if req.MachineInfo != nil && req.MachineInfo.NetworkInfo != nil {
+		req.Network.PublicIP = req.MachineInfo.NetworkInfo.PublicIP
+		req.Provider = getProviderFunc(req.Network.PublicIP)
+
 		for _, iface := range req.MachineInfo.NetworkInfo.PrivateIPInterfaces {
 			if iface.IP == "" {
 				continue
