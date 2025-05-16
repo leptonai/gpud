@@ -18,6 +18,7 @@ import (
 	"net/http/pprof"
 	"net/url"
 	stdos "os"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -291,8 +292,12 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		return nil, fmt.Errorf("failed to read endpoint: %w", err)
 	}
 	s.epControlPlane = createURL(epControlPlane)
-	s.epLocalGPUdServer = fmt.Sprintf("https://%s", config.Address)
 
+	if strings.HasPrefix(config.Address, ":") { // e.g., ":12345"
+		s.epLocalGPUdServer = fmt.Sprintf("https://localhost%s", config.Address)
+	} else { // e.g., "0.0.0.0:12345"
+		s.epLocalGPUdServer = fmt.Sprintf("https://%s", config.Address)
+	}
 	userToken := &UserToken{}
 	go s.updateToken(ctx, metricsSQLiteStore, userToken)
 	go s.sendGossip(ctx, nvmlInstance, userToken)

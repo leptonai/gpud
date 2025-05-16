@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -195,11 +196,14 @@ func (s *Session) keepAlive() {
 			s.closer = &closeOnce{closer: make(chan any)}
 			ctx, cancel := context.WithCancel(context.Background()) // create local context for each session
 			jar, _ := cookiejar.New(nil)
+
+			log.Logger.Infow("session keep alive: checking server health")
 			if err := s.checkServerHealth(ctx, jar); err != nil {
 				log.Logger.Errorf("session keep alive: error checking server health: %v", err)
 				cancel()
 				continue
 			}
+
 			go s.startReader(ctx, readerExit, jar)
 			go s.startWriter(ctx, writerExit, jar)
 			<-readerExit
@@ -345,6 +349,9 @@ func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) err
 	}
 
 	client := createHTTPClient(jar)
+	tr := client.Transport.(*http.Transport)
+	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
