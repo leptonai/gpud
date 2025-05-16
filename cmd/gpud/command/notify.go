@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/config"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -121,7 +121,13 @@ func notification(endpoint string, req payload) error {
 		Status string `json:"status"`
 	}
 	rawPayload, _ := json.Marshal(&req)
-	response, err := http.Post(createNotificationURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
+
+	u, err := httputil.CreateURL("https", endpoint, "/api/v1/notification")
+	if err != nil {
+		return fmt.Errorf("failed to create notification URL: %w", err)
+	}
+
+	response, err := http.Post(u, "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
 	}
@@ -139,14 +145,4 @@ func notification(endpoint string, req payload) error {
 		return fmt.Errorf("failed to send notification: %v", errorResponse)
 	}
 	return nil
-}
-
-// createNotificationURL creates a URL for the notification endpoint
-func createNotificationURL(endpoint string) string {
-	host := endpoint
-	url, _ := url.Parse(endpoint)
-	if url.Host != "" {
-		host = url.Host
-	}
-	return fmt.Sprintf("https://%s/api/v1/notification", host)
 }

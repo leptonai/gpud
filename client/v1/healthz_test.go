@@ -11,8 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/leptonai/gpud/pkg/server"
 )
 
 func TestCheckHealthz(t *testing.T) {
@@ -44,42 +42,41 @@ func TestCheckHealthz(t *testing.T) {
 			statusCode:    http.StatusInternalServerError,
 			body:          "",
 			wantErr:       true,
-			errorContains: "server not ready",
+			errorContains: "server not ready, response not 200",
 		},
 		{
-			name:          "Wrong Body",
+			name:          "Wrong Body Status",
 			statusCode:    http.StatusOK,
 			body:          `{"status":"error"}`,
 			wantErr:       true,
-			errorContains: "unexpected healthz response",
+			errorContains: "server not ready, status is not ok",
 		},
 		{
 			name:          "Empty Body",
 			statusCode:    http.StatusOK,
 			body:          "",
 			wantErr:       true,
-			errorContains: "unexpected healthz response",
+			errorContains: "failed to unmarshal healthz response",
 		},
 		{
 			name:          "Malformed JSON",
 			statusCode:    http.StatusOK,
 			body:          `{"status":`,
 			wantErr:       true,
-			errorContains: "unexpected healthz response",
+			errorContains: "failed to unmarshal healthz response",
 		},
 		{
-			name:          "Extra Fields",
-			statusCode:    http.StatusOK,
-			body:          `{"status":"ok","version":"v1","extra":"field"}`,
-			wantErr:       true,
-			errorContains: "unexpected healthz response",
+			name:       "Extra Fields",
+			statusCode: http.StatusOK,
+			body:       `{"status":"ok","version":"v1","extra":"field"}`,
+			wantErr:    false, // Extra fields should not cause an error
 		},
 		{
 			name:            "Connection Close",
 			statusCode:      http.StatusOK,
 			closeConnection: true,
 			wantErr:         true,
-			errorContains:   "EOF",
+			errorContains:   "EOF", // This is what the http client returns when connection is closed
 		},
 		{
 			name:          "Network Error",
@@ -92,47 +89,63 @@ func TestCheckHealthz(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var srv *httptest.Server
+
 			if tt.networkError {
-				// Use a port that's unlikely to be in use but will cause connection refused
-				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-				srv.Close()
-			} else {
-				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path != "/healthz" {
-						t.Errorf("Expected /healthz path, got %s", r.URL.Path)
-						http.NotFound(w, r)
-						return
-					}
+				// Use a non-routable IP address with a short timeout
+				nonRoutableURL := "http://192.0.2.1:12345"
 
-					if tt.closeConnection {
-						// Hijack the connection and close it immediately
-						conn, _, err := w.(http.Hijacker).Hijack()
-						require.NoError(t, err)
-						conn.Close()
-						return
-					}
+				// Use a short timeout for the network error test
+				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+				defer cancel()
 
-					if tt.gzip {
-						w.Header().Set("Content-Encoding", "gzip")
-						gz := gzip.NewWriter(w)
-						_, err := gz.Write([]byte(tt.body))
-						require.NoError(t, err)
-						require.NoError(t, gz.Close())
-						return
-					}
-
-					w.WriteHeader(tt.statusCode)
-					_, err := w.Write([]byte(tt.body))
-					require.NoError(t, err)
-				}))
-				defer srv.Close()
-			}
-
-			err := CheckHealthz(context.Background(), srv.URL)
-			if tt.wantErr {
+				err := CheckHealthz(ctx, nonRoutableURL)
 				assert.Error(t, err)
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+				return
+			}
+
+			// Set up test server for non-network error cases
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/healthz" {
+					t.Errorf("Expected /healthz path, got %s", r.URL.Path)
+					http.NotFound(w, r)
+					return
+				}
+
+				if tt.closeConnection {
+					// Simply close the connection without sending any data
+					conn, _, err := w.(http.Hijacker).Hijack()
+					require.NoError(t, err)
+					conn.Close()
+					return
+				}
+
+				if tt.gzip {
+					w.Header().Set("Content-Encoding", RequestHeaderEncodingGzip)
+					gz := gzip.NewWriter(w)
+					_, err := gz.Write([]byte(tt.body))
+					require.NoError(t, err)
+					require.NoError(t, gz.Close())
+					return
+				}
+
+				w.WriteHeader(tt.statusCode)
+				_, err := w.Write([]byte(tt.body))
+				require.NoError(t, err)
+			}))
+			defer srv.Close()
+
+			// Use a context with a timeout to prevent tests from hanging
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			err := CheckHealthz(ctx, srv.URL)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains, "Error message does not contain expected string for test %s", tt.name)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -148,11 +161,16 @@ func TestCheckHealthzInvalidURL(t *testing.T) {
 	}
 }
 
+var defaultHealthz = Healthz{
+	Status:  "ok",
+	Version: "v1",
+}
+
 func TestCheckHealthzContextCancellation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
-		json, _ := json.Marshal(server.DefaultHealthz)
+		json, _ := json.Marshal(defaultHealthz)
 		_, err := w.Write(json)
 		if err != nil {
 			t.Errorf("Error writing response: %v", err)
@@ -171,7 +189,7 @@ func TestCheckHealthzContextCancellation(t *testing.T) {
 
 func TestBlockUntilServerReady(t *testing.T) {
 	t.Run("server becomes ready immediately", func(t *testing.T) {
-		expectedHealthz, err := json.Marshal(server.DefaultHealthz)
+		expectedHealthz, err := json.Marshal(defaultHealthz)
 		require.NoError(t, err)
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -191,7 +209,7 @@ func TestBlockUntilServerReady(t *testing.T) {
 	})
 
 	t.Run("server becomes ready after delay", func(t *testing.T) {
-		expectedHealthz, err := json.Marshal(server.DefaultHealthz)
+		expectedHealthz, err := json.Marshal(defaultHealthz)
 		require.NoError(t, err)
 
 		// Track number of requests to simulate the server becoming ready after a few attempts

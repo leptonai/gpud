@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/server"
 )
 
 func GetMachineInfo(ctx context.Context, addr string, opts ...OpOption) (*apiv1.MachineInfo, error) {
@@ -16,7 +15,7 @@ func GetMachineInfo(ctx context.Context, addr string, opts ...OpOption) (*apiv1.
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s%s", addr, server.URLPathMachineInfo), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/machine-info", addr), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

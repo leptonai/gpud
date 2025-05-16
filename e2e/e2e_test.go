@@ -29,6 +29,7 @@ import (
 	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/httputil"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/server"
 )
@@ -151,34 +152,14 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 		By("waiting for gpud started")
 		Eventually(func() error {
-			req1NoCompress, err := http.NewRequest("GET", fmt.Sprintf("https://%s/healthz", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			resp1, err := client.Do(req1NoCompress)
-			if err != nil {
-				return fmt.Errorf("request failed: %w", err)
-			}
-
-			defer resp1.Body.Close()
-			if resp1.StatusCode != http.StatusOK {
-				return fmt.Errorf("unexpected healthz status: %s", resp1.Status)
-			}
-
-			b1, err := io.ReadAll(resp1.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-
-			expectedBody := `{"status":"ok","version":"v1"}`
-			if string(b1) != expectedBody {
-				return fmt.Errorf("unexpected response body: %s", string(b1))
-			}
-			GinkgoLogr.Info("success health check", "response", string(b1), "ep", ep)
-			fmt.Println("/healthz RESPONSE:", string(b1))
-
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
+
+			err = clientv1.BlockUntilServerReady(ctx, "https://"+ep)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for gpud started")
+
 			err = clientv1.CheckHealthz(ctx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to check health")
-			fmt.Println("/healthz RESPONSE (with clientv1):", string(b1))
 
 			return nil
 		}).WithTimeout(15*time.Second).WithPolling(3*time.Second).ShouldNot(HaveOccurred(), "failed to wait for gpud started")
@@ -219,7 +200,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	Describe("/v1/states requests", func() {
 
 		It("request without compress", func() {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
+			u, err := httputil.CreateURL("https", ep, "/v1/states")
+			Expect(err).NotTo(HaveOccurred(), "failed to create URL")
+
+			req, err := http.NewRequest("GET", u, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 
 			req.Header.Set("Content-Type", "application/json")
@@ -261,7 +245,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		})
 
 		It("request with compress", func() {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
+			u, err := httputil.CreateURL("https", ep, "/v1/states")
+			Expect(err).NotTo(HaveOccurred(), "failed to create URL")
+
+			req, err := http.NewRequest("GET", u, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 
 			req.Header.Set(server.RequestHeaderContentType, server.RequestHeaderJSON)
@@ -307,7 +294,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			// enough time for metrics to be collected
 			time.Sleep(time.Minute + 30*time.Second)
 
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
+			u, err := httputil.CreateURL("https", ep, "/v1/metrics")
+			Expect(err).NotTo(HaveOccurred(), "failed to create URL")
+
+			req, err := http.NewRequest("GET", u, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 
 			req.Header.Set("Content-Type", "application/json")
@@ -343,7 +333,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		})
 
 		It("request with compress", func() {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
+			u, err := httputil.CreateURL("https", ep, "/v1/metrics")
+			Expect(err).NotTo(HaveOccurred(), "failed to create URL")
+
+			req, err := http.NewRequest("GET", u, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 
 			req.Header.Set("Content-Type", "application/json")
@@ -368,7 +361,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	Describe("/metrics requests", func() {
 
 		It("request prometheus metrics without compress", func() {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics", ep), nil)
+			u, err := httputil.CreateURL("https", ep, "/metrics")
+			Expect(err).NotTo(HaveOccurred(), "failed to create URL")
+
+			req, err := http.NewRequest("GET", u, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 
 			resp, err := client.Do(req)
@@ -660,7 +656,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			_, err = os.Stat(fileToWrite2)
 			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
 
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
+			u, err := httputil.CreateURL("https", ep, "/v1/states")
+			Expect(err).NotTo(HaveOccurred(), "failed to create URL")
+
+			req, err := http.NewRequest("GET", u, nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 			req.Header.Set("Content-Type", "application/json")
 

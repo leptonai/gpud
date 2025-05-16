@@ -90,47 +90,6 @@ func TestGenerateSelfSignedCert(t *testing.T) {
 	assert.NotNil(t, cert.PrivateKey, "Private key should not be nil")
 }
 
-func TestCreateURL(t *testing.T) {
-	tests := []struct {
-		name     string
-		endpoint string
-		expected string
-	}{
-		{
-			name:     "simple hostname",
-			endpoint: "example.com",
-			expected: "https://example.com",
-		},
-		{
-			name:     "hostname with port",
-			endpoint: "example.com:8080",
-			expected: "https://example.com:8080",
-		},
-		{
-			name:     "full url",
-			endpoint: "https://example.com/path",
-			expected: "https://example.com",
-		},
-		{
-			name:     "IP address",
-			endpoint: "127.0.0.1",
-			expected: "https://127.0.0.1",
-		},
-		{
-			name:     "IP address with port",
-			endpoint: "127.0.0.1:8443",
-			expected: "https://127.0.0.1:8443",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := createURL(tt.endpoint)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestWriteToken(t *testing.T) {
 	// Create a temporary file to use as a FIFO (we won't actually make it a FIFO for testing)
 	tempFile, err := os.CreateTemp("", "gpud-token-test")
