@@ -19,6 +19,13 @@ import (
 )
 
 func cmdLogin(cliContext *cli.Context) error {
+	// Set up logging
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, logFile)
+
 	token := cliContext.String("token")
 	if token == "" {
 		fmt.Print("Please visit https://dashboard.lepton.ai/ under Settings/Tokens to fetch your token\nPlease enter your token:")
