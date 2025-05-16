@@ -40,7 +40,7 @@ func TestGetSystemResourceLogicalCores(t *testing.T) {
 
 func TestGetMachineNetwork(t *testing.T) {
 	// Even if the environment variable is not set, we can still test the function structure
-	network := GetMachineNetworkInfo()
+	network := GetMachineNICInfo()
 	assert.NotNil(t, network)
 
 	// Run more detailed test if environment variable is set
