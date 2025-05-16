@@ -20,8 +20,6 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 			return lerr
 		}
 		fmt.Printf("%s successfully logged in\n", cmdcommon.CheckMark)
-	} else {
-		fmt.Printf("\nvisit https://localhost:15132 to view the dashboard\n\n")
 	}
 
 	bin, err := os.Executable()
