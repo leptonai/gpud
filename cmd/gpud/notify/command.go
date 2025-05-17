@@ -1,4 +1,4 @@
-package command
+package notify
 
 import (
 	"bytes"
@@ -13,32 +13,14 @@ import (
 
 	"github.com/urfave/cli"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-type NotificationType string
-
-const (
-	NotificationTypeShutdown NotificationType = "shutdown"
-	NotificationTypeStartup  NotificationType = "startup"
-)
-
-type payload struct {
-	ID   string           `json:"id"`
-	Type NotificationType `json:"type"`
-}
-
-func cmdNotifyStartup(cliContext *cli.Context) error {
-	// Set up logging
-	zapLvl, err := log.ParseLogLevel(logLevel)
-	if err != nil {
-		return err
-	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
-
+func CommandStartup(cliContext *cli.Context) error {
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
@@ -72,22 +54,15 @@ func cmdNotifyStartup(cliContext *cli.Context) error {
 		os.Exit(0)
 	}
 
-	req := payload{
+	req := apiv1.NotificationRequest{
 		ID:   machineID,
-		Type: NotificationTypeStartup,
+		Type: apiv1.NotificationTypeStartup,
 	}
 
-	return notification(endpoint, req)
+	return sendNotification(endpoint, req)
 }
 
-func cmdNotifyShutdown(cliContext *cli.Context) error {
-	// Set up logging
-	zapLvl, err := log.ParseLogLevel(logLevel)
-	if err != nil {
-		return err
-	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
-
+func CommandShutdown(cliContext *cli.Context) error {
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
@@ -121,19 +96,15 @@ func cmdNotifyShutdown(cliContext *cli.Context) error {
 		os.Exit(0)
 	}
 
-	req := payload{
+	req := apiv1.NotificationRequest{
 		ID:   machineID,
-		Type: NotificationTypeShutdown,
+		Type: apiv1.NotificationTypeShutdown,
 	}
 
-	return notification(endpoint, req)
+	return sendNotification(endpoint, req)
 }
 
-func notification(endpoint string, req payload) error {
-	type RespErr struct {
-		Error  string `json:"error"`
-		Status string `json:"status"`
-	}
+func sendNotification(endpoint string, req apiv1.NotificationRequest) error {
 	rawPayload, _ := json.Marshal(&req)
 	response, err := http.Post(createNotificationURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
@@ -145,7 +116,7 @@ func notification(endpoint string, req payload) error {
 		if err != nil {
 			return fmt.Errorf("error reading response body: %w", err)
 		}
-		var errorResponse RespErr
+		var errorResponse apiv1.NotificationResponse
 		err = json.Unmarshal(body, &errorResponse)
 		if err != nil {
 			return fmt.Errorf("Error parsing error response: %v\nResponse body: %s", err, body)
