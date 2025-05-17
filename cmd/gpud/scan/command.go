@@ -1,3 +1,4 @@
+// Package scan implements the "scan" command.
 package scan
 
 import (

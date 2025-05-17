@@ -1,3 +1,4 @@
+// Package status implements the "status" command.
 package status
 
 import (

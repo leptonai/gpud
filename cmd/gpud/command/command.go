@@ -1,23 +1,24 @@
 package command
 
 import (
-	"errors"
 	"fmt"
-	"time"
 
 	"github.com/urfave/cli"
 
 	cmdcompact "github.com/leptonai/gpud/cmd/gpud/compact"
 	cmdcustomplugins "github.com/leptonai/gpud/cmd/gpud/custom-plugins"
 	cmddown "github.com/leptonai/gpud/cmd/gpud/down"
+	cmdjoin "github.com/leptonai/gpud/cmd/gpud/join"
 	cmdlistplugins "github.com/leptonai/gpud/cmd/gpud/list-plugins"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
 	cmdprivateip "github.com/leptonai/gpud/cmd/gpud/private-ip"
 	cmdrelease "github.com/leptonai/gpud/cmd/gpud/release"
+	cmdrun "github.com/leptonai/gpud/cmd/gpud/run"
 	cmdrunplugingroup "github.com/leptonai/gpud/cmd/gpud/run-plugin-group"
 	cmdscan "github.com/leptonai/gpud/cmd/gpud/scan"
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
+	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
@@ -30,31 +31,6 @@ gpud scan
 # to start gpud as a systemd unit
 sudo gpud up
 `
-
-var (
-	logLevel string
-	logFile  string
-
-	annotations   string
-	listenAddress string
-
-	pprof bool
-
-	retentionPeriod time.Duration
-
-	enableAutoUpdate   bool
-	autoUpdateExitCode int
-
-	ibstatCommand   string
-	ibstatusCommand string
-	pluginSpecsFile string
-
-	enablePluginAPI bool
-)
-
-var (
-	ErrEmptyToken = errors.New("token is empty")
-)
 
 func App() *cli.App {
 	app := cli.NewApp()
@@ -121,12 +97,11 @@ gpud run
 # or
 nohup sudo gpud run &>> <your log file path> &
 `,
-			Action: cmdUp,
+			Action: cmdup.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 				cli.StringFlag{
 					Name:  "token",
@@ -171,40 +146,34 @@ sudo rm /etc/systemd/system/gpud.service
 		{
 			Name:   "run",
 			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux)",
-			Action: cmdRun,
+			Action: cmdrun.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 				&cli.StringFlag{
-					Name:        "log-file",
-					Usage:       "set the log file path (set empty to stdout/stderr)",
-					Destination: &logFile,
-					Value:       "",
+					Name:  "log-file",
+					Usage: "set the log file path (set empty to stdout/stderr)",
+					Value: "",
 				},
 				&cli.StringFlag{
-					Name:        "listen-address",
-					Usage:       "set the listen address",
-					Destination: &listenAddress,
-					Value:       fmt.Sprintf("0.0.0.0:%d", config.DefaultGPUdPort),
+					Name:  "listen-address",
+					Usage: "set the listen address",
+					Value: fmt.Sprintf("0.0.0.0:%d", config.DefaultGPUdPort),
 				},
 				&cli.StringFlag{
-					Name:        "annotations",
-					Usage:       "set the annotations",
-					Destination: &annotations,
+					Name:  "annotations",
+					Usage: "set the annotations",
 				},
 				&cli.BoolFlag{
-					Name:        "pprof",
-					Usage:       "enable pprof (default: false)",
-					Destination: &pprof,
+					Name:  "pprof",
+					Usage: "enable pprof (default: false)",
 				},
 				&cli.DurationFlag{
-					Name:        "retention-period",
-					Usage:       "set the time period to retain metrics for (once elapsed, old records are compacted/purged)",
-					Destination: &retentionPeriod,
-					Value:       config.DefaultRetentionPeriod.Duration,
+					Name:  "retention-period",
+					Usage: "set the time period to retain metrics for (once elapsed, old records are compacted/purged)",
+					Value: config.DefaultRetentionPeriod.Duration,
 				},
 				cli.StringFlag{
 					Name:  "endpoint",
@@ -212,42 +181,36 @@ sudo rm /etc/systemd/system/gpud.service
 					Value: "mothership-machine.app.lepton.ai",
 				},
 				&cli.BoolTFlag{
-					Name:        "enable-auto-update",
-					Usage:       "enable auto update of gpud (default: true)",
-					Destination: &enableAutoUpdate,
+					Name:  "enable-auto-update",
+					Usage: "enable auto update of gpud (default: true)",
 				},
 				&cli.IntFlag{
-					Name:        "auto-update-exit-code",
-					Usage:       "specifies the exit code to exit with when auto updating (default: -1 to disable exit code)",
-					Destination: &autoUpdateExitCode,
-					Value:       -1,
+					Name:  "auto-update-exit-code",
+					Usage: "specifies the exit code to exit with when auto updating (default: -1 to disable exit code)",
+					Value: -1,
 				},
 				cli.StringFlag{
-					Name:        "plugin-specs-file",
-					Usage:       "sets the plugin specs file (leave empty for default, useful for testing)",
-					Destination: &pluginSpecsFile,
-					Hidden:      true,
+					Name:   "plugin-specs-file",
+					Usage:  "sets the plugin specs file (leave empty for default, useful for testing)",
+					Hidden: true,
 				},
 
 				// only for testing
 				cli.StringFlag{
-					Name:        "ibstat-command",
-					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
-					Destination: &ibstatCommand,
-					Value:       "ibstat",
-					Hidden:      true,
+					Name:   "ibstat-command",
+					Usage:  "sets the ibstat command (leave empty for default, useful for testing)",
+					Value:  "ibstat",
+					Hidden: true,
 				},
 				cli.StringFlag{
-					Name:        "ibstatus-command",
-					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
-					Destination: &ibstatusCommand,
-					Value:       "ibstatus",
-					Hidden:      true,
+					Name:   "ibstatus-command",
+					Usage:  "sets the ibstatus command (leave empty for default, useful for testing)",
+					Value:  "ibstatus",
+					Hidden: true,
 				},
 				&cli.BoolFlag{
-					Name:        "enable-plugin-api",
-					Usage:       "enable plugin API (default: false)",
-					Destination: &enablePluginAPI,
+					Name:  "enable-plugin-api",
+					Usage: "enable plugin API (default: false)",
 				},
 			},
 		},
@@ -390,9 +353,8 @@ sudo rm /etc/systemd/system/gpud.service
 			Usage: "notify control plane of state change",
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 			},
 			Subcommands: []cli.Command{
@@ -487,12 +449,11 @@ sudo rm /etc/systemd/system/gpud.service
 			UsageText: `# to join gpud into a lepton cluster
 sudo gpud join
 `,
-			Action: cmdJoin,
+			Action: cmdjoin.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 				cli.StringFlag{
 					Name:   "cluster-name",

@@ -1,3 +1,4 @@
+// Package customplugins implements the "custom-plugins" command.
 package customplugins
 
 import (

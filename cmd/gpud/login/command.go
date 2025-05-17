@@ -1,3 +1,4 @@
+// Package login implements the "login" command.
 package login
 
 import (

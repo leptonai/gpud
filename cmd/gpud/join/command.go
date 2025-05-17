@@ -1,4 +1,5 @@
-package command
+// Package join implements the "join" command.
+package join
 
 import (
 	"bufio"
@@ -27,8 +28,9 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-func cmdJoin(cliContext *cli.Context) (retErr error) {
-	// Set up logging
+func Command(cliContext *cli.Context) (retErr error) {
+	logLevel := cliContext.String("log-level")
+	logFile := cliContext.String("log-file")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err

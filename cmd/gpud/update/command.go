@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // This file is based on https://github.com/tailscale/tailscale/blob/012933635b43ac41c8ff4340213bdae9abd6d059/clientupdate/clientupdate.go
 
+// Package update implements the "update" commands.
 package update
 
 import (
