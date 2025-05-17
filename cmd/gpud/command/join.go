@@ -176,7 +176,6 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 
 	fmt.Printf("%sWarning: GPUd will upgrade your container runtime to containerd, will affect your current running containers (if any)%s\n", "\033[33m", "\033[0m")
 	fmt.Printf("%sWarning: GPUd will Reboot your machine to finish necessary setup%s\n", "\033[33m", "\033[0m")
-	fmt.Printf("Please look carefully about the above warning, if ok, please hit Enter\n")
 
 	content := apiv1.JoinRequest{
 		ID:               machineID,
@@ -192,11 +191,12 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 	}
 
 	rawPayload, _ := json.Marshal(&content)
-	fmt.Println("Your machine will be initialized with following configuration, please press Enter if it is ok")
+	fmt.Println("Your machine will be initialized with following configuration")
 	prettyJSON, _ := json.MarshalIndent(content, "", "  ")
 	fmt.Println(string(prettyJSON))
 
 	if !cliContext.Bool("skip-interactive") {
+		fmt.Printf("Please look carefully about the above warning, if ok, please hit Enter\n")
 		reader := bufio.NewReader(os.Stdin)
 		input, _ := reader.ReadString('\n')
 		if input != "\n" {
@@ -205,7 +205,6 @@ func cmdJoin(cliContext *cli.Context) (retErr error) {
 		}
 	}
 
-	fmt.Println("Please wait while control plane is initializing basic setup for your machine, this may take up to one minute...")
 	response, err := http.Post(createJoinURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
