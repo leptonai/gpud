@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/config"
-	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
@@ -104,7 +104,7 @@ func cmdRun(cliContext *cli.Context) error {
 	// start the signal handler as soon as we can to make sure that
 	// we don't miss any signals during boot
 	signal.Notify(signals, gpudserver.DefaultSignalsToHandle...)
-	m, err := gpud_manager.New()
+	m, err := gpudmanager.New()
 	if err != nil {
 		return err
 	}
