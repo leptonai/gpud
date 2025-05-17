@@ -16,6 +16,13 @@ type ServerStopper interface {
 	Stop()
 }
 
+var DefaultSignalsToHandle = []os.Signal{
+	unix.SIGTERM,
+	unix.SIGINT,
+	unix.SIGUSR1,
+	unix.SIGPIPE,
+}
+
 // HandleSignals handles signals and stops the server.
 func HandleSignals(ctx context.Context, cancel context.CancelFunc, signals chan os.Signal, serverC chan ServerStopper, notifyStopping func(ctx context.Context) error) chan struct{} {
 	done := make(chan struct{}, 1)
