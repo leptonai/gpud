@@ -151,34 +151,14 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 		By("waiting for gpud started")
 		Eventually(func() error {
-			req1NoCompress, err := http.NewRequest("GET", fmt.Sprintf("https://%s/healthz", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			resp1, err := client.Do(req1NoCompress)
-			if err != nil {
-				return fmt.Errorf("request failed: %w", err)
-			}
-
-			defer resp1.Body.Close()
-			if resp1.StatusCode != http.StatusOK {
-				return fmt.Errorf("unexpected healthz status: %s", resp1.Status)
-			}
-
-			b1, err := io.ReadAll(resp1.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-
-			expectedBody := `{"status":"ok","version":"v1"}`
-			if string(b1) != expectedBody {
-				return fmt.Errorf("unexpected response body: %s", string(b1))
-			}
-			GinkgoLogr.Info("success health check", "response", string(b1), "ep", ep)
-			fmt.Println("/healthz RESPONSE:", string(b1))
-
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
+
+			err = clientv1.BlockUntilServerReady(ctx, "https://"+ep)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for gpud started")
+
 			err = clientv1.CheckHealthz(ctx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to check health")
-			fmt.Println("/healthz RESPONSE (with clientv1):", string(b1))
 
 			return nil
 		}).WithTimeout(15*time.Second).WithPolling(3*time.Second).ShouldNot(HaveOccurred(), "failed to wait for gpud started")
