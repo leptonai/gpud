@@ -17,6 +17,13 @@ import (
 )
 
 func cmdCompact(cliContext *cli.Context) error {
+	// Set up logging
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, logFile)
+
 	if systemd.SystemctlExists() {
 		active, err := systemd.IsActive("gpud.service")
 		if err != nil {

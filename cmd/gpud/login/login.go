@@ -24,6 +24,13 @@ var (
 )
 
 func Command(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, "")
+
 	token := cliContext.String("token")
 	if token == "" {
 		fmt.Print("Please visit https://dashboard.lepton.ai/ under Settings/Tokens to fetch your token\nPlease enter your token:")

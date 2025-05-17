@@ -15,14 +15,19 @@ import (
 )
 
 func cmdUp(cliContext *cli.Context) (retErr error) {
+	// Set up logging
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, logFile)
+
 	if cliContext.String("token") != "" {
 		if lerr := cmdlogin.Command(cliContext); lerr != nil {
 			fmt.Printf("%s failed to login (%v)\n", cmdcommon.WarningSign, lerr)
 			return lerr
 		}
 		fmt.Printf("%s successfully logged in\n", cmdcommon.CheckMark)
-	} else {
-		fmt.Printf("\nvisit https://localhost:15132 to view the dashboard\n\n")
 	}
 
 	bin, err := os.Executable()

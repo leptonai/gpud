@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli"
 
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
+	cmdscan "github.com/leptonai/gpud/cmd/gpud/scan"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
 )
@@ -67,6 +68,10 @@ sudo gpud login --token <LEPTON_AI_TOKEN>
 `,
 			Action: cmdlogin.Command,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
 				cli.StringFlag{
 					Name:  "token",
 					Usage: "lepton.ai workspace token for checking in",
@@ -75,6 +80,23 @@ sudo gpud login --token <LEPTON_AI_TOKEN>
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
 					Value: "mothership-machine.app.lepton.ai",
+				},
+				cli.StringFlag{
+					Name:   "machine-id",
+					Hidden: true,
+					Usage:  "for override default machine id",
+				},
+				cli.StringFlag{
+					Name:  "gpu-count",
+					Usage: "specify count of gpu",
+				},
+				cli.StringFlag{
+					Name:  "private-ip",
+					Usage: "can specify private ip for internal network",
+				},
+				cli.StringFlag{
+					Name:  "public-ip",
+					Usage: "can specify public ip for machine",
 				},
 			},
 		},
@@ -96,6 +118,11 @@ nohup sudo gpud run &>> <your log file path> &
 `,
 			Action: cmdUp,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "log-level,l",
+					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+					Destination: &logLevel,
+				},
 				cli.StringFlag{
 					Name:  "token",
 					Usage: "lepton.ai workspace token for checking in",
@@ -385,6 +412,11 @@ sudo rm /etc/systemd/system/gpud.service
 			Usage:  "checks the status of gpud",
 			Action: cmdStatus,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "log-level,l",
+					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+					Destination: &logLevel,
+				},
 				&cli.BoolFlag{
 					Name:        "watch, w",
 					Usage:       "watch for package install status",
@@ -396,6 +428,13 @@ sudo rm /etc/systemd/system/gpud.service
 			Name:   "compact",
 			Usage:  "compact the GPUd state database to reduce the size in disk (GPUd must be stopped)",
 			Action: cmdCompact,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "log-level,l",
+					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+					Destination: &logLevel,
+				},
+			},
 		},
 
 		// for diagnose + quick scanning
@@ -404,26 +443,23 @@ sudo rm /etc/systemd/system/gpud.service
 			Aliases: []string{"check", "s"},
 
 			Usage:  "quick scans the host for any major issues",
-			Action: cmdScan,
+			Action: cmdscan.CreateCommand(),
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 
 				// only for testing
 				cli.StringFlag{
-					Name:        "ibstat-command",
-					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
-					Destination: &ibstatCommand,
-					Hidden:      true,
+					Name:   "ibstat-command",
+					Usage:  "sets the ibstat command (leave empty for default, useful for testing)",
+					Hidden: true,
 				},
 				cli.StringFlag{
-					Name:        "ibstatus-command",
-					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
-					Destination: &ibstatusCommand,
-					Hidden:      true,
+					Name:   "ibstatus-command",
+					Usage:  "sets the ibstatus command (leave empty for default, useful for testing)",
+					Hidden: true,
 				},
 			},
 		},
@@ -438,6 +474,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 					Destination: &logLevel,
 				},
+				&cli.StringFlag{
+					Name:  "server",
+					Usage: "server address for control plane",
+				},
 			},
 		},
 		{
@@ -448,6 +488,11 @@ sudo gpud join
 `,
 			Action: cmdJoin,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "log-level,l",
+					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+					Destination: &logLevel,
+				},
 				cli.StringFlag{
 					Name:   "cluster-name",
 					Usage:  "[DEPRECATED] cluster name for control plane (e.g.: lepton-prod-0)",
@@ -533,6 +578,17 @@ sudo gpud join
 			Usage:     "Run all components in a plugin group by tag",
 			UsageText: "gpud run-plugin-group <plugin_group_name>",
 			Action:    cmdRunPluginGroup,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:        "log-level,l",
+					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+					Destination: &logLevel,
+				},
+				&cli.StringFlag{
+					Name:  "server",
+					Usage: "server address for control plane",
+				},
+			},
 		},
 		{
 			Name:      "private-ip",

@@ -18,7 +18,6 @@ import (
 	"net/http/pprof"
 	"net/url"
 	stdos "os"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -40,6 +39,7 @@ import (
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -293,11 +293,11 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	}
 	s.epControlPlane = createURL(epControlPlane)
 
-	if strings.HasPrefix(config.Address, ":") { // e.g., ":12345"
-		s.epLocalGPUdServer = fmt.Sprintf("https://localhost%s", config.Address)
-	} else { // e.g., "0.0.0.0:12345"
-		s.epLocalGPUdServer = fmt.Sprintf("https://%s", config.Address)
+	s.epLocalGPUdServer, err = httputil.CreateURL("https", config.Address, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create local GPUd server endpoint: %w", err)
 	}
+
 	userToken := &UserToken{}
 	go s.updateToken(ctx, metricsSQLiteStore, userToken)
 	go s.sendGossip(ctx, nvmlInstance, userToken)

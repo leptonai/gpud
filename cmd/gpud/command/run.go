@@ -15,10 +15,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/config"
-	gpud_manager "github.com/leptonai/gpud/pkg/gpud-manager"
+	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
-	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
+	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -88,15 +88,23 @@ func cmdRun(cliContext *cli.Context) error {
 	start := time.Now()
 
 	signals := make(chan os.Signal, 2048)
-	serverC := make(chan *gpudserver.Server, 1)
+	serverC := make(chan gpudserver.ServerStopper, 1)
 
 	log.Logger.Infof("starting gpud %v", version.Version)
 
-	done := handleSignals(rootCtx, rootCancel, signals, serverC)
+	done := gpudserver.HandleSignals(rootCtx, rootCancel, signals, serverC, func(ctx context.Context) error {
+		if pkgsystemd.SystemctlExists() {
+			if err := pkgsystemd.NotifyStopping(ctx); err != nil {
+				log.Logger.Errorw("notify stopping failed")
+			}
+		}
+		return nil
+	})
+
 	// start the signal handler as soon as we can to make sure that
 	// we don't miss any signals during boot
-	signal.Notify(signals, handledSignals...)
-	m, err := gpud_manager.New()
+	signal.Notify(signals, gpudserver.DefaultSignalsToHandle...)
+	m, err := gpudmanager.New()
 	if err != nil {
 		return err
 	}
@@ -108,8 +116,8 @@ func cmdRun(cliContext *cli.Context) error {
 	}
 	serverC <- server
 
-	if pkd_systemd.SystemctlExists() {
-		if err := notifyReady(rootCtx); err != nil {
+	if pkgsystemd.SystemctlExists() {
+		if err := pkgsystemd.NotifyReady(rootCtx); err != nil {
 			log.Logger.Warnw("notify ready failed")
 		}
 	} else {
