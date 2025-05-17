@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli"
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
+	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
 	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
@@ -22,7 +23,7 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 	log.Logger = log.CreateLogger(zapLvl, logFile)
 
 	if cliContext.String("token") != "" {
-		if lerr := cmdLogin(cliContext); lerr != nil {
+		if lerr := cmdlogin.Command(cliContext); lerr != nil {
 			fmt.Printf("%s failed to login (%v)\n", cmdcommon.WarningSign, lerr)
 			return lerr
 		}

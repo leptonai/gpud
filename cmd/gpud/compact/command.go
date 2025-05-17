@@ -1,4 +1,4 @@
-package command
+package compact
 
 import (
 	"context"
@@ -16,13 +16,13 @@ import (
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 
-func cmdCompact(cliContext *cli.Context) error {
-	// Set up logging
+func Command(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
+	log.Logger = log.CreateLogger(zapLvl, "")
 
 	if systemd.SystemctlExists() {
 		active, err := systemd.IsActive("gpud.service")

@@ -1,7 +1,8 @@
-package command
+package login
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,13 +19,17 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-func cmdLogin(cliContext *cli.Context) error {
-	// Set up logging
+var (
+	ErrEmptyToken = errors.New("token is empty")
+)
+
+func Command(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
+	log.Logger = log.CreateLogger(zapLvl, "")
 
 	token := cliContext.String("token")
 	if token == "" {

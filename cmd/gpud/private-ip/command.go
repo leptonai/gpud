@@ -1,4 +1,4 @@
-package command
+package privateip
 
 import (
 	"os"
@@ -9,12 +9,13 @@ import (
 	"github.com/leptonai/gpud/pkg/netutil"
 )
 
-func cmdPrivateIP(cliContext *cli.Context) error {
+func Command(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
+	log.Logger = log.CreateLogger(zapLvl, "")
 
 	ips, err := netutil.GetPrivateIPs(
 		netutil.WithPrefixesToSkip(
