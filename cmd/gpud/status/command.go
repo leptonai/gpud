@@ -1,4 +1,4 @@
-package command
+package status
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/urfave/cli"
 
-	client "github.com/leptonai/gpud/client/v1"
+	clientv1 "github.com/leptonai/gpud/client/v1"
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/errdefs"
@@ -18,13 +18,13 @@ import (
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 
-func cmdStatus(cliContext *cli.Context) error {
-	// Set up logging
+func Command(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
+	log.Logger = log.CreateLogger(zapLvl, "")
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer rootCancel()
@@ -67,7 +67,7 @@ func cmdStatus(cliContext *cli.Context) error {
 	}
 	fmt.Printf("%s successfully checked whether accelerator-nvidia-info component is running\n", cmdcommon.CheckMark)
 
-	if err := client.BlockUntilServerReady(
+	if err := clientv1.BlockUntilServerReady(
 		rootCtx,
 		fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort),
 	); err != nil {
@@ -75,9 +75,11 @@ func cmdStatus(cliContext *cli.Context) error {
 	}
 	fmt.Printf("%s successfully checked gpud health\n", cmdcommon.CheckMark)
 
+	statusWatch := cliContext.Bool("watch")
+
 	for {
 		cctx, ccancel := context.WithTimeout(rootCtx, 15*time.Second)
-		packageStatus, err := client.GetPackageStatus(cctx, fmt.Sprintf("https://localhost:%d%s", config.DefaultGPUdPort, server.URLPathAdminPackages))
+		packageStatus, err := clientv1.GetPackageStatus(cctx, fmt.Sprintf("https://localhost:%d%s", config.DefaultGPUdPort, server.URLPathAdminPackages))
 		ccancel()
 		if err != nil {
 			fmt.Printf("%s failed to get package status: %v\n", cmdcommon.WarningSign, err)
@@ -117,7 +119,7 @@ func checkDiskComponent() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	states, err := client.GetHealthStates(ctx, baseURL, client.WithComponent(componentName))
+	states, err := clientv1.GetHealthStates(ctx, baseURL, clientv1.WithComponent(componentName))
 	if err != nil {
 		// assume disk component is enabled for all platforms
 		return err
@@ -142,7 +144,7 @@ func checkNvidiaInfoComponent() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	states, err := client.GetHealthStates(ctx, baseURL, client.WithComponent(componentName))
+	states, err := clientv1.GetHealthStates(ctx, baseURL, clientv1.WithComponent(componentName))
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			log.Logger.Warnw("component not found", "component", componentName)

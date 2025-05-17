@@ -7,8 +7,12 @@ import (
 
 	"github.com/urfave/cli"
 
+	cmdcompact "github.com/leptonai/gpud/cmd/gpud/compact"
+	cmddown "github.com/leptonai/gpud/cmd/gpud/down"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
+	cmdprivateip "github.com/leptonai/gpud/cmd/gpud/private-ip"
 	cmdscan "github.com/leptonai/gpud/cmd/gpud/scan"
+	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
 )
@@ -24,8 +28,6 @@ sudo gpud up
 var (
 	logLevel string
 	logFile  string
-
-	statusWatch bool
 
 	annotations   string
 	listenAddress string
@@ -161,7 +163,7 @@ sudo gpud down
 sudo rm /usr/sbin/gpud
 sudo rm /etc/systemd/system/gpud.service
 `,
-			Action: cmdDown,
+			Action: cmddown.Command,
 		},
 		{
 			Name:   "run",
@@ -410,29 +412,26 @@ sudo rm /etc/systemd/system/gpud.service
 			Aliases: []string{"st"},
 
 			Usage:  "checks the status of gpud",
-			Action: cmdStatus,
+			Action: cmdstatus.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 				&cli.BoolFlag{
-					Name:        "watch, w",
-					Usage:       "watch for package install status",
-					Destination: &statusWatch,
+					Name:  "watch,w",
+					Usage: "watch for package install status",
 				},
 			},
 		},
 		{
 			Name:   "compact",
 			Usage:  "compact the GPUd state database to reduce the size in disk (GPUd must be stopped)",
-			Action: cmdCompact,
+			Action: cmdcompact.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 			},
 		},
@@ -594,7 +593,13 @@ sudo gpud join
 			Name:      "private-ip",
 			Usage:     "get private ip addresses of the machine (useful for debugging)",
 			UsageText: "gpud private-ip",
-			Action:    cmdPrivateIP,
+			Action:    cmdprivateip.Command,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+			},
 		},
 	}
 
