@@ -1,4 +1,4 @@
-package command
+package scan
 
 import (
 	"context"
@@ -11,12 +11,24 @@ import (
 	"github.com/leptonai/gpud/pkg/scan"
 )
 
-func cmdScan(cliContext *cli.Context) error {
+func CreateCommand() func(*cli.Context) error {
+	return func(cliContext *cli.Context) error {
+		return cmdScan(
+			cliContext.String("log-level"),
+			cliContext.String("ibstat-command"),
+			cliContext.String("ibstatus-command"),
+		)
+	}
+}
+
+func cmdScan(logLevel string, ibstatCommand string, ibstatusCommand string) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
+	log.Logger = log.CreateLogger(zapLvl, "")
+
+	log.Logger.Debugw("start scan command")
 
 	opts := []scan.OpOption{
 		scan.WithIbstatCommand(ibstatCommand),
