@@ -17,6 +17,7 @@ import (
 	cmdrunplugingroup "github.com/leptonai/gpud/cmd/gpud/run-plugin-group"
 	cmdscan "github.com/leptonai/gpud/cmd/gpud/scan"
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
+	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
 )
@@ -255,7 +256,7 @@ sudo rm /etc/systemd/system/gpud.service
 			Name:      "update",
 			Usage:     "update gpud",
 			UsageText: "",
-			Action:    cmdUpdate,
+			Action:    cmdupdate.Command,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "url",
@@ -270,7 +271,7 @@ sudo rm /etc/systemd/system/gpud.service
 				{
 					Name:   "check",
 					Usage:  "check availability of new version gpud",
-					Action: cmdUpdateCheck,
+					Action: cmdupdate.CommandCheck,
 				},
 			},
 		},
