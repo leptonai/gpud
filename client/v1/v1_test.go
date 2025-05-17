@@ -19,7 +19,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
-	"github.com/leptonai/gpud/pkg/server"
+	"github.com/leptonai/gpud/pkg/httputil"
 )
 
 func gzipContent(t *testing.T, data []byte) []byte {
@@ -47,22 +47,22 @@ func TestGetComponents(t *testing.T) {
 		{
 			name:           "successful JSON response",
 			serverResponse: []byte(`["comp1","comp2","comp3"]`),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedResult: testComponents,
 		},
 		{
 			name:           "successful YAML response",
 			serverResponse: []byte("- comp1\n- comp2\n- comp3\n"),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			statusCode:     http.StatusOK,
 			expectedResult: testComponents,
 		},
 		{
 			name:           "successful gzipped JSON response",
 			serverResponse: []byte(`["comp1","comp2","comp3"]`),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			statusCode:     http.StatusOK,
 			expectedResult: testComponents,
 			useGzip:        true,
@@ -76,14 +76,14 @@ func TestGetComponents(t *testing.T) {
 		{
 			name:           "invalid JSON response",
 			serverResponse: []byte(`invalid json`),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedError:  "failed to decode json",
 		},
 		{
 			name:           "invalid YAML response",
 			serverResponse: []byte(`invalid yaml:`),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			statusCode:     http.StatusOK,
 			expectedError:  "failed to unmarshal yaml",
 		},
@@ -102,17 +102,17 @@ func TestGetComponents(t *testing.T) {
 				assert.Equal(t, "/v1/components", r.URL.Path)
 				assert.Equal(t, http.MethodGet, r.Method)
 
-				contentType := r.Header.Get(server.RequestHeaderContentType)
+				contentType := r.Header.Get(httputil.RequestHeaderContentType)
 				if tt.contentType != "" {
 					assert.Equal(t, tt.contentType, contentType)
 				}
 				if tt.acceptEncoding != "" {
-					assert.Equal(t, tt.acceptEncoding, r.Header.Get(server.RequestHeaderAcceptEncoding))
+					assert.Equal(t, tt.acceptEncoding, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 				}
 
 				// Set response content type
 				if tt.contentType != "" {
-					w.Header().Set(server.RequestHeaderContentType, tt.contentType)
+					w.Header().Set(httputil.RequestHeaderContentType, tt.contentType)
 				}
 
 				w.WriteHeader(tt.statusCode)
@@ -127,16 +127,16 @@ func TestGetComponents(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			} else if tt.contentType != "" {
 				opts = append(opts, func(op *Op) {
 					op.requestContentType = tt.contentType
 				})
 			}
-			if tt.acceptEncoding == server.RequestHeaderEncodingGzip {
+			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
@@ -185,14 +185,14 @@ func TestGetInfo(t *testing.T) {
 		{
 			name:           "successful JSON response",
 			serverResponse: mustMarshalJSON(t, testInfo),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedResult: testInfo,
 		},
 		{
 			name:           "successful YAML response",
 			serverResponse: mustMarshalYAML(t, testInfo),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			statusCode:     http.StatusOK,
 			expectedResult: testInfo,
 		},
@@ -200,7 +200,7 @@ func TestGetInfo(t *testing.T) {
 			name:           "with components filter",
 			components:     []string{"comp1", "comp2"},
 			serverResponse: mustMarshalJSON(t, testInfo),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedResult: testInfo,
 		},
@@ -223,11 +223,11 @@ func TestGetInfo(t *testing.T) {
 				}
 
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
-					w.Header().Set(server.RequestHeaderContentType, tt.contentType)
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
+					w.Header().Set(httputil.RequestHeaderContentType, tt.contentType)
 				}
 				if tt.acceptEncoding != "" {
-					assert.Equal(t, tt.acceptEncoding, r.Header.Get(server.RequestHeaderAcceptEncoding))
+					assert.Equal(t, tt.acceptEncoding, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 				}
 
 				w.WriteHeader(tt.statusCode)
@@ -242,12 +242,12 @@ func TestGetInfo(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
-			if tt.acceptEncoding == server.RequestHeaderEncodingGzip {
+			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 			for _, comp := range tt.components {
@@ -301,7 +301,7 @@ func TestGetStates(t *testing.T) {
 		{
 			name:           "successful JSON response",
 			serverResponse: mustMarshalJSON(t, testStates),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedResult: testStates,
 		},
@@ -324,11 +324,11 @@ func TestGetStates(t *testing.T) {
 				}
 
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
-					w.Header().Set(server.RequestHeaderContentType, tt.contentType)
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
+					w.Header().Set(httputil.RequestHeaderContentType, tt.contentType)
 				}
 				if tt.acceptEncoding != "" {
-					assert.Equal(t, tt.acceptEncoding, r.Header.Get(server.RequestHeaderAcceptEncoding))
+					assert.Equal(t, tt.acceptEncoding, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 				}
 
 				w.WriteHeader(tt.statusCode)
@@ -343,12 +343,12 @@ func TestGetStates(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
-			if tt.acceptEncoding == server.RequestHeaderEncodingGzip {
+			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 			for _, comp := range tt.components {
@@ -384,20 +384,20 @@ func TestReadComponents(t *testing.T) {
 		{
 			name:           "read JSON",
 			input:          bytes.NewReader(jsonData),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			expectedResult: testComponents,
 		},
 		{
 			name:           "read YAML",
 			input:          bytes.NewReader(yamlData),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			expectedResult: testComponents,
 		},
 		{
 			name:           "read gzipped JSON",
 			input:          bytes.NewReader(gzipContent(t, jsonData)),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			expectedResult: testComponents,
 		},
 		{
@@ -412,9 +412,9 @@ func TestReadComponents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := []OpOption{}
 			if tt.contentType != "" {
-				if tt.contentType == server.RequestHeaderYAML {
+				if tt.contentType == httputil.RequestHeaderYAML {
 					opts = append(opts, WithRequestContentTypeYAML())
-				} else if tt.contentType == server.RequestHeaderJSON {
+				} else if tt.contentType == httputil.RequestHeaderJSON {
 					opts = append(opts, WithRequestContentTypeJSON())
 				} else {
 					opts = append(opts, func(op *Op) {
@@ -465,7 +465,7 @@ func TestDeregisterComponent(t *testing.T) {
 			name:          "successful deregistration",
 			componentName: "test-component",
 			statusCode:    http.StatusOK,
-			contentType:   server.RequestHeaderJSON,
+			contentType:   httputil.RequestHeaderJSON,
 		},
 		{
 			name:          "empty component name",
@@ -496,10 +496,10 @@ func TestDeregisterComponent(t *testing.T) {
 				assert.Equal(t, tt.componentName, r.URL.Query().Get("componentName"))
 
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
 				}
 				if tt.acceptEncoding != "" {
-					assert.Equal(t, tt.acceptEncoding, r.Header.Get(server.RequestHeaderAcceptEncoding))
+					assert.Equal(t, tt.acceptEncoding, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 				}
 
 				w.WriteHeader(tt.statusCode)
@@ -509,12 +509,12 @@ func TestDeregisterComponent(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
-			if tt.acceptEncoding == server.RequestHeaderEncodingGzip {
+			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
@@ -559,22 +559,22 @@ func TestGetCustomPlugins(t *testing.T) {
 		{
 			name:           "successful JSON response",
 			serverResponse: mustMarshalJSON(t, testPlugins),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedResult: testPlugins,
 		},
 		{
 			name:           "successful YAML response",
 			serverResponse: mustMarshalYAML(t, testPlugins),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			statusCode:     http.StatusOK,
 			expectedResult: testPlugins,
 		},
 		{
 			name:           "successful gzipped JSON response",
 			serverResponse: mustMarshalJSON(t, testPlugins),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			statusCode:     http.StatusOK,
 			expectedResult: testPlugins,
 			useGzip:        true,
@@ -594,14 +594,14 @@ func TestGetCustomPlugins(t *testing.T) {
 		{
 			name:           "empty response",
 			serverResponse: []byte(`{}`),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedResult: map[string]pkgcustomplugins.Spec{},
 		},
 		{
 			name:           "invalid JSON response",
 			serverResponse: []byte(`invalid json`),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedError:  "failed to decode json",
 		},
@@ -614,11 +614,11 @@ func TestGetCustomPlugins(t *testing.T) {
 				assert.Equal(t, http.MethodGet, r.Method)
 
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
-					w.Header().Set(server.RequestHeaderContentType, tt.contentType)
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
+					w.Header().Set(httputil.RequestHeaderContentType, tt.contentType)
 				}
 				if tt.acceptEncoding != "" {
-					assert.Equal(t, tt.acceptEncoding, r.Header.Get(server.RequestHeaderAcceptEncoding))
+					assert.Equal(t, tt.acceptEncoding, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 				}
 
 				w.WriteHeader(tt.statusCode)
@@ -633,12 +633,12 @@ func TestGetCustomPlugins(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
-			if tt.acceptEncoding == server.RequestHeaderEncodingGzip {
+			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
@@ -684,20 +684,20 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 		{
 			name:           "read JSON",
 			input:          bytes.NewReader(jsonData),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			expectedResult: testPlugins,
 		},
 		{
 			name:           "read YAML",
 			input:          bytes.NewReader(yamlData),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			expectedResult: testPlugins,
 		},
 		{
 			name:           "read gzipped JSON",
 			input:          bytes.NewReader(gzipContent(t, jsonData)),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			expectedResult: testPlugins,
 		},
 		{
@@ -712,9 +712,9 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := []OpOption{}
 			if tt.contentType != "" {
-				if tt.contentType == server.RequestHeaderYAML {
+				if tt.contentType == httputil.RequestHeaderYAML {
 					opts = append(opts, WithRequestContentTypeYAML())
-				} else if tt.contentType == server.RequestHeaderJSON {
+				} else if tt.contentType == httputil.RequestHeaderJSON {
 					opts = append(opts, WithRequestContentTypeJSON())
 				} else {
 					opts = append(opts, func(op *Op) {
@@ -773,7 +773,7 @@ func TestRegisterCustomPlugin(t *testing.T) {
 			spec:        createValidPluginSpec(),
 			method:      http.MethodPost,
 			statusCode:  http.StatusOK,
-			contentType: server.RequestHeaderJSON,
+			contentType: httputil.RequestHeaderJSON,
 		},
 		{
 			name:          "invalid spec",
@@ -787,7 +787,7 @@ func TestRegisterCustomPlugin(t *testing.T) {
 			spec:          createValidPluginSpec(),
 			method:        http.MethodPost,
 			statusCode:    http.StatusInternalServerError,
-			contentType:   server.RequestHeaderJSON,
+			contentType:   httputil.RequestHeaderJSON,
 			expectedError: "server not ready, response not 200",
 		},
 	}
@@ -807,7 +807,7 @@ func TestRegisterCustomPlugin(t *testing.T) {
 				assert.Equal(t, tt.method, r.Method)
 
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
 				}
 
 				// Verify the request body contains the correct spec
@@ -823,9 +823,9 @@ func TestRegisterCustomPlugin(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 
@@ -856,7 +856,7 @@ func TestUpdateCustomPlugin(t *testing.T) {
 			spec:        createValidPluginSpec(),
 			method:      http.MethodPut,
 			statusCode:  http.StatusOK,
-			contentType: server.RequestHeaderJSON,
+			contentType: httputil.RequestHeaderJSON,
 		},
 		{
 			name:          "invalid spec",
@@ -870,7 +870,7 @@ func TestUpdateCustomPlugin(t *testing.T) {
 			spec:          createValidPluginSpec(),
 			method:        http.MethodPut,
 			statusCode:    http.StatusInternalServerError,
-			contentType:   server.RequestHeaderJSON,
+			contentType:   httputil.RequestHeaderJSON,
 			expectedError: "server not ready, response not 200",
 		},
 	}
@@ -890,7 +890,7 @@ func TestUpdateCustomPlugin(t *testing.T) {
 				assert.Equal(t, tt.method, r.Method)
 
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
 				}
 
 				// Verify the request body contains the correct spec
@@ -906,9 +906,9 @@ func TestUpdateCustomPlugin(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 
@@ -954,22 +954,22 @@ func TestGetEvents(t *testing.T) {
 		{
 			name:           "successful JSON response",
 			serverResponse: mustMarshalJSON(t, testEvents),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedResult: testEvents,
 		},
 		{
 			name:           "successful YAML response",
 			serverResponse: mustMarshalYAML(t, testEvents),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			statusCode:     http.StatusOK,
 			expectedResult: testEvents,
 		},
 		{
 			name:           "successful gzipped JSON response",
 			serverResponse: mustMarshalJSON(t, testEvents),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			statusCode:     http.StatusOK,
 			expectedResult: testEvents,
 			useGzip:        true,
@@ -983,14 +983,14 @@ func TestGetEvents(t *testing.T) {
 		{
 			name:           "invalid JSON response",
 			serverResponse: []byte(`invalid json`),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedError:  "failed to decode json",
 		},
 		{
 			name:           "invalid YAML response",
 			serverResponse: []byte(`invalid yaml:`),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			statusCode:     http.StatusOK,
 			expectedError:  "failed to unmarshal yaml",
 		},
@@ -1003,11 +1003,11 @@ func TestGetEvents(t *testing.T) {
 				assert.Equal(t, http.MethodGet, r.Method)
 
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
-					w.Header().Set(server.RequestHeaderContentType, tt.contentType)
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
+					w.Header().Set(httputil.RequestHeaderContentType, tt.contentType)
 				}
 				if tt.acceptEncoding != "" {
-					assert.Equal(t, tt.acceptEncoding, r.Header.Get(server.RequestHeaderAcceptEncoding))
+					assert.Equal(t, tt.acceptEncoding, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 				}
 
 				w.WriteHeader(tt.statusCode)
@@ -1022,12 +1022,12 @@ func TestGetEvents(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
-			if tt.acceptEncoding == server.RequestHeaderEncodingGzip {
+			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
@@ -1060,7 +1060,7 @@ func TestGetEvents(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "/v1/events", r.URL.Path)
 			assert.Equal(t, http.MethodGet, r.Method)
-			w.Header().Set(server.RequestHeaderContentType, "application/xml")
+			w.Header().Set(httputil.RequestHeaderContentType, "application/xml")
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte(`<events></events>`))
 			require.NoError(t, err)
@@ -1109,20 +1109,20 @@ func TestReadEvents(t *testing.T) {
 		{
 			name:           "read JSON",
 			input:          bytes.NewReader(jsonData),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			expectedResult: testEvents,
 		},
 		{
 			name:           "read YAML",
 			input:          bytes.NewReader(yamlData),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			expectedResult: testEvents,
 		},
 		{
 			name:           "read gzipped JSON",
 			input:          bytes.NewReader(gzipContent(t, jsonData)),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			expectedResult: testEvents,
 		},
 		{
@@ -1137,9 +1137,9 @@ func TestReadEvents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := []OpOption{}
 			if tt.contentType != "" {
-				if tt.contentType == server.RequestHeaderYAML {
+				if tt.contentType == httputil.RequestHeaderYAML {
 					opts = append(opts, WithRequestContentTypeYAML())
-				} else if tt.contentType == server.RequestHeaderJSON {
+				} else if tt.contentType == httputil.RequestHeaderJSON {
 					opts = append(opts, WithRequestContentTypeJSON())
 				} else {
 					opts = append(opts, func(op *Op) {
@@ -1204,22 +1204,22 @@ func TestGetMetrics(t *testing.T) {
 		{
 			name:           "successful JSON response",
 			serverResponse: mustMarshalJSON(t, testMetrics),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedResult: testMetrics,
 		},
 		{
 			name:           "successful YAML response",
 			serverResponse: mustMarshalYAML(t, testMetrics),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			statusCode:     http.StatusOK,
 			expectedResult: testMetrics,
 		},
 		{
 			name:           "successful gzipped JSON response",
 			serverResponse: mustMarshalJSON(t, testMetrics),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			statusCode:     http.StatusOK,
 			expectedResult: testMetrics,
 			useGzip:        true,
@@ -1233,14 +1233,14 @@ func TestGetMetrics(t *testing.T) {
 		{
 			name:           "invalid JSON response",
 			serverResponse: []byte(`invalid json`),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedError:  "failed to decode json",
 		},
 		{
 			name:           "invalid YAML response",
 			serverResponse: []byte(`invalid yaml:`),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			statusCode:     http.StatusOK,
 			expectedError:  "failed to unmarshal yaml",
 		},
@@ -1253,11 +1253,11 @@ func TestGetMetrics(t *testing.T) {
 				assert.Equal(t, http.MethodGet, r.Method)
 
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
-					w.Header().Set(server.RequestHeaderContentType, tt.contentType)
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
+					w.Header().Set(httputil.RequestHeaderContentType, tt.contentType)
 				}
 				if tt.acceptEncoding != "" {
-					assert.Equal(t, tt.acceptEncoding, r.Header.Get(server.RequestHeaderAcceptEncoding))
+					assert.Equal(t, tt.acceptEncoding, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 				}
 
 				w.WriteHeader(tt.statusCode)
@@ -1272,12 +1272,12 @@ func TestGetMetrics(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
-			if tt.acceptEncoding == server.RequestHeaderEncodingGzip {
+			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
@@ -1310,10 +1310,10 @@ func TestGetMetrics(t *testing.T) {
 			assert.Equal(t, http.MethodGet, r.Method)
 
 			// Verify that the XML content type is sent
-			contentType := r.Header.Get(server.RequestHeaderContentType)
+			contentType := r.Header.Get(httputil.RequestHeaderContentType)
 			assert.Equal(t, "application/xml", contentType)
 
-			w.Header().Set(server.RequestHeaderContentType, "application/xml")
+			w.Header().Set(httputil.RequestHeaderContentType, "application/xml")
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte(`<metrics></metrics>`))
 			require.NoError(t, err)
@@ -1360,20 +1360,20 @@ func TestReadMetrics(t *testing.T) {
 		{
 			name:           "read JSON",
 			input:          bytes.NewReader(jsonData),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			expectedResult: testMetrics,
 		},
 		{
 			name:           "read YAML",
 			input:          bytes.NewReader(yamlData),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			expectedResult: testMetrics,
 		},
 		{
 			name:           "read gzipped JSON",
 			input:          bytes.NewReader(gzipContent(t, jsonData)),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			expectedResult: testMetrics,
 		},
 		{
@@ -1388,9 +1388,9 @@ func TestReadMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := []OpOption{}
 			if tt.contentType != "" {
-				if tt.contentType == server.RequestHeaderYAML {
+				if tt.contentType == httputil.RequestHeaderYAML {
 					opts = append(opts, WithRequestContentTypeYAML())
-				} else if tt.contentType == server.RequestHeaderJSON {
+				} else if tt.contentType == httputil.RequestHeaderJSON {
 					opts = append(opts, WithRequestContentTypeJSON())
 				} else {
 					opts = append(opts, func(op *Op) {
