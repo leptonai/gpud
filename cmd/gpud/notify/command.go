@@ -1,3 +1,4 @@
+// Package notify implements the "notify" commands.
 package notify
 
 import (

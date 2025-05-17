@@ -1,3 +1,4 @@
+// Package privateip implements the "private-ip" command.
 package privateip
 
 import (

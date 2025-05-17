@@ -1,3 +1,4 @@
+// Package listplugins implements the "list-plugins" command.
 package listplugins
 
 import (

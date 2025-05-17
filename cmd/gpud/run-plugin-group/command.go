@@ -1,3 +1,4 @@
+// Package runplugingroup implements the "run-plugin-group" command.
 package runplugingroup
 
 import (

@@ -1,3 +1,4 @@
+// Package compact implements the "compact" command.
 package compact
 
 import (

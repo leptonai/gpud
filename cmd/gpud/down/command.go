@@ -1,3 +1,4 @@
+// Package down implements the "down" command.
 package down
 
 import (
