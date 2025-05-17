@@ -1,4 +1,4 @@
-package command
+package customplugins
 
 import (
 	"context"
@@ -21,12 +21,13 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
-func cmdCustomPlugins(cliContext *cli.Context) error {
+func Command(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
+	log.Logger = log.CreateLogger(zapLvl, "")
 
 	args := cliContext.Args()
 	var specs customplugins.Specs
@@ -57,6 +58,7 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 		return verr
 	}
 
+	customPluginsRun := cliContext.Bool("run")
 	if !customPluginsRun {
 		log.Logger.Infow("custom plugins are not run, only validating the specs")
 		return nil
@@ -74,11 +76,12 @@ func cmdCustomPlugins(cliContext *cli.Context) error {
 		RootCtx:      ctx,
 		NVMLInstance: nvmlInstance,
 		NVIDIAToolOverwrites: nvidiacommon.ToolOverwrites{
-			IbstatCommand:   ibstatCommand,
-			IbstatusCommand: ibstatusCommand,
+			IbstatCommand:   cliContext.String("ibstat-command"),
+			IbstatusCommand: cliContext.String("ibstatus-command"),
 		},
 	}
 
+	customPluginsFailFast := cliContext.Bool("fail-fast")
 	results, err := specs.ExecuteInOrder(gpudInstance, customPluginsFailFast)
 	if err != nil {
 		return err

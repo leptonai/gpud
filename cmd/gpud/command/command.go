@@ -8,8 +8,10 @@ import (
 	"github.com/urfave/cli"
 
 	cmdcompact "github.com/leptonai/gpud/cmd/gpud/compact"
+	cmdcustomplugins "github.com/leptonai/gpud/cmd/gpud/custom-plugins"
 	cmddown "github.com/leptonai/gpud/cmd/gpud/down"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
+	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
 	cmdprivateip "github.com/leptonai/gpud/cmd/gpud/private-ip"
 	cmdscan "github.com/leptonai/gpud/cmd/gpud/scan"
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
@@ -44,9 +46,6 @@ var (
 	pluginSpecsFile string
 
 	enablePluginAPI bool
-
-	customPluginsRun      bool
-	customPluginsFailFast bool
 )
 
 var (
@@ -396,12 +395,12 @@ sudo rm /etc/systemd/system/gpud.service
 				{
 					Name:   "startup",
 					Usage:  "notify machine startup",
-					Action: cmdNotifyStartup,
+					Action: cmdnotify.CommandStartup,
 				},
 				{
 					Name:   "shutdown",
 					Usage:  "notify machine shutdown",
-					Action: cmdNotifyShutdown,
+					Action: cmdnotify.CommandShutdown,
 				},
 			},
 		},
@@ -539,36 +538,31 @@ sudo gpud join
 			Aliases: []string{"cs", "plugin", "plugins"},
 
 			Usage:  "checks/runs custom plugins",
-			Action: cmdCustomPlugins,
+			Action: cmdcustomplugins.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 				&cli.BoolFlag{
-					Name:        "run,r",
-					Usage:       "run the custom plugins (default: false)",
-					Destination: &customPluginsRun,
+					Name:  "run,r",
+					Usage: "run the custom plugins (default: false)",
 				},
 				&cli.BoolTFlag{
-					Name:        "fail-fast,f",
-					Usage:       "fail fast, exit immediately if any plugin returns unhealthy state (default: true)",
-					Destination: &customPluginsFailFast,
+					Name:  "fail-fast,f",
+					Usage: "fail fast, exit immediately if any plugin returns unhealthy state (default: true)",
 				},
 
 				// only for testing
 				cli.StringFlag{
-					Name:        "ibstat-command",
-					Usage:       "sets the ibstat command (leave empty for default, useful for testing)",
-					Destination: &ibstatCommand,
-					Hidden:      true,
+					Name:   "ibstat-command",
+					Usage:  "sets the ibstat command (leave empty for default, useful for testing)",
+					Hidden: true,
 				},
 				cli.StringFlag{
-					Name:        "ibstatus-command",
-					Usage:       "sets the ibstatus command (leave empty for default, useful for testing)",
-					Destination: &ibstatusCommand,
-					Hidden:      true,
+					Name:   "ibstatus-command",
+					Usage:  "sets the ibstatus command (leave empty for default, useful for testing)",
+					Hidden: true,
 				},
 			},
 		},
