@@ -14,6 +14,7 @@ import (
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
 	cmdprivateip "github.com/leptonai/gpud/cmd/gpud/private-ip"
+	cmdrelease "github.com/leptonai/gpud/cmd/gpud/release"
 	cmdrunplugingroup "github.com/leptonai/gpud/cmd/gpud/run-plugin-group"
 	cmdscan "github.com/leptonai/gpud/cmd/gpud/scan"
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
@@ -282,7 +283,7 @@ sudo rm /etc/systemd/system/gpud.service
 				{
 					Name:   "gen-key",
 					Usage:  "generate root or signing key pair",
-					Action: cmdReleaseGenKey,
+					Action: cmdrelease.CommandGenKey,
 					Flags: []cli.Flag{
 						cli.BoolFlag{
 							Name:  "root (default: false)",
@@ -305,7 +306,7 @@ sudo rm /etc/systemd/system/gpud.service
 				{
 					Name:   "sign-key",
 					Usage:  "Sign signing keys with a root key",
-					Action: cmdReleaseSignKey,
+					Action: cmdrelease.CommandSignKey,
 					Flags: []cli.Flag{
 						cli.StringFlag{
 							Name:  "root-priv-path",
@@ -324,7 +325,7 @@ sudo rm /etc/systemd/system/gpud.service
 				{
 					Name:   "verify-key-signature",
 					Usage:  "Verify a root signture of the signing keys' bundle",
-					Action: cmdReleaseVerifyKeySignature,
+					Action: cmdrelease.CommandVerifyKeySignature,
 					Flags: []cli.Flag{
 						cli.StringFlag{
 							Name:  "root-pub-path",
@@ -343,7 +344,7 @@ sudo rm /etc/systemd/system/gpud.service
 				{
 					Name:   "sign-package",
 					Usage:  "Sign a package with a signing key",
-					Action: cmdReleaseSignPackage,
+					Action: cmdrelease.CommandSignPackage,
 					Flags: []cli.Flag{
 						cli.StringFlag{
 							Name:  "package-path",
@@ -362,7 +363,7 @@ sudo rm /etc/systemd/system/gpud.service
 				{
 					Name:   "verify-package-signature",
 					Usage:  "Verify a package signture using a signing key",
-					Action: cmdReleaseVerifyPackageSignature,
+					Action: cmdrelease.CommandVerifyPackageSignature,
 					Flags: []cli.Flag{
 						cli.StringFlag{
 							Name:  "package-path",
