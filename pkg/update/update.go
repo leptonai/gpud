@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/osutil"
 )
 
 const DefaultUpdateURL = "https://pkg.gpud.dev/"
@@ -30,7 +31,7 @@ func update(ver, url string, requireRoot bool, useSystemd bool) error {
 	log.Logger.Infow("starting gpud update", "version", ver, "url", url, "requireRoot", requireRoot, "useSystemd", useSystemd)
 
 	if requireRoot {
-		if err := RequireRoot(); err != nil {
+		if err := osutil.RequireRoot(); err != nil {
 			log.Logger.Errorf("this command needs to be run as root: %v", err)
 			return err
 		}

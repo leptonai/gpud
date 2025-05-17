@@ -10,11 +10,16 @@ import (
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/osutil"
 	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
 )
 
 func cmdUp(cliContext *cli.Context) (retErr error) {
+	if err := osutil.RequireRoot(); err != nil {
+		return err
+	}
+
 	// Set up logging
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
@@ -32,9 +37,6 @@ func cmdUp(cliContext *cli.Context) (retErr error) {
 
 	bin, err := os.Executable()
 	if err != nil {
-		return err
-	}
-	if err := pkgupdate.RequireRoot(); err != nil {
 		return err
 	}
 	if !pkdsystemd.SystemctlExists() {

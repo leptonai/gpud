@@ -7,19 +7,16 @@ import (
 	"github.com/urfave/cli"
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
+	"github.com/leptonai/gpud/pkg/osutil"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
 )
 
 func Command(cliContext *cli.Context) error {
-	bin, err := os.Executable()
-	if err != nil {
+	if err := osutil.RequireRoot(); err != nil {
 		return err
 	}
-	if err := pkgupdate.RequireRoot(); err != nil {
-		fmt.Printf("%s %q requires root to stop gpud (if not run by systemd, manually kill the process with 'pidof gpud')\n", cmdcommon.WarningSign, bin)
-		os.Exit(1)
-	}
+
 	if !pkgsystemd.SystemctlExists() {
 		fmt.Printf("%s requires systemd, if not run by systemd, manually kill the process with 'pidof gpud'\n", cmdcommon.WarningSign)
 		os.Exit(1)
