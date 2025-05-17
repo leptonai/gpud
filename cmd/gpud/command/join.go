@@ -28,6 +28,13 @@ import (
 )
 
 func cmdJoin(cliContext *cli.Context) (retErr error) {
+	// Set up logging
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, logFile)
+
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)

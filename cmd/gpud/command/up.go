@@ -14,6 +14,13 @@ import (
 )
 
 func cmdUp(cliContext *cli.Context) (retErr error) {
+	// Set up logging
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, logFile)
+
 	if cliContext.String("token") != "" {
 		if lerr := cmdLogin(cliContext); lerr != nil {
 			fmt.Printf("%s failed to login (%v)\n", cmdcommon.WarningSign, lerr)
