@@ -10,9 +10,11 @@ import (
 	cmdcompact "github.com/leptonai/gpud/cmd/gpud/compact"
 	cmdcustomplugins "github.com/leptonai/gpud/cmd/gpud/custom-plugins"
 	cmddown "github.com/leptonai/gpud/cmd/gpud/down"
+	cmdlistplugins "github.com/leptonai/gpud/cmd/gpud/list-plugins"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
 	cmdprivateip "github.com/leptonai/gpud/cmd/gpud/private-ip"
+	cmdrunplugingroup "github.com/leptonai/gpud/cmd/gpud/run-plugin-group"
 	cmdscan "github.com/leptonai/gpud/cmd/gpud/scan"
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	"github.com/leptonai/gpud/pkg/config"
@@ -465,12 +467,11 @@ sudo rm /etc/systemd/system/gpud.service
 			Name:    "list-plugins",
 			Aliases: []string{"lp"},
 			Usage:   "list all registered custom plugins",
-			Action:  cmdListPlugins,
+			Action:  cmdlistplugins.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 				&cli.StringFlag{
 					Name:  "server",
@@ -570,12 +571,11 @@ sudo gpud join
 			Name:      "run-plugin-group",
 			Usage:     "Run all components in a plugin group by tag",
 			UsageText: "gpud run-plugin-group <plugin_group_name>",
-			Action:    cmdRunPluginGroup,
+			Action:    cmdrunplugingroup.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 				&cli.StringFlag{
 					Name:  "server",

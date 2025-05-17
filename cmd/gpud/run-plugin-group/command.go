@@ -1,4 +1,4 @@
-package command
+package runplugingroup
 
 import (
 	"context"
@@ -7,20 +7,20 @@ import (
 
 	"github.com/urfave/cli"
 
-	v1 "github.com/leptonai/gpud/client/v1"
+	clientv1 "github.com/leptonai/gpud/client/v1"
 	"github.com/leptonai/gpud/pkg/config"
 )
 
-// cmdRunPluginGroup implements the run-plugin-group command
-func cmdRunPluginGroup(c *cli.Context) error {
+// Command implements the run-plugin-group command
+func Command(cliContext *cli.Context) error {
 	// Get the tag name from arguments
-	if c.NArg() != 1 {
+	if cliContext.NArg() != 1 {
 		return fmt.Errorf("exactly one argument (tag_name) is required")
 	}
-	tagName := c.Args().Get(0)
+	tagName := cliContext.Args().Get(0)
 
 	// Get the server address from the flag, default to http://localhost:<Default GPUd port>
-	serverAddr := c.String("server")
+	serverAddr := cliContext.String("server")
 	if serverAddr == "" {
 		serverAddr = fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
 	}
@@ -30,7 +30,7 @@ func cmdRunPluginGroup(c *cli.Context) error {
 	defer cancel()
 
 	// Trigger the component check by tag
-	err := v1.TriggerComponentCheckByTag(ctx, serverAddr, tagName)
+	err := clientv1.TriggerComponentCheckByTag(ctx, serverAddr, tagName)
 	if err != nil {
 		return fmt.Errorf("failed to trigger component check for tag %s: %w", tagName, err)
 	}
