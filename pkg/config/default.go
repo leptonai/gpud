@@ -5,6 +5,7 @@ import (
 	"fmt"
 	stdos "os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/mitchellh/go-homedir"
@@ -64,21 +65,23 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	return cfg, nil
 }
 
-const defaultVarLib = "/var/lib/gpud"
+var (
+	defaultVarLibLinux  = "/var/lib/gpud"
+	defaultVarLibOthers = ""
+)
+
+func init() {
+	homeDir, err := homedir.Dir()
+	if err == nil {
+		defaultVarLibOthers = filepath.Join(homeDir, ".gpud")
+	}
+}
 
 func setupDefaultDir() (string, error) {
-	asRoot := stdos.Geteuid() == 0 // running as root
-
-	d := defaultVarLib
-	_, err := stdos.Stat("/var/lib")
-	if !asRoot || stdos.IsNotExist(err) {
-		homeDir, err := homedir.Dir()
-		if err != nil {
-			return "", err
-		}
-		d = filepath.Join(homeDir, ".gpud")
+	d := defaultVarLibLinux
+	if runtime.GOOS != "linux" {
+		d = defaultVarLibOthers
 	}
-
 	if _, err := stdos.Stat(d); stdos.IsNotExist(err) {
 		if err = stdos.MkdirAll(d, 0755); err != nil {
 			return "", err
