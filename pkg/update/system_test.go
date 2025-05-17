@@ -6,24 +6,8 @@ import (
 	"runtime"
 	"testing"
 
-	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
+	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
 )
-
-func TestRequireRoot(t *testing.T) {
-	// We can't modify os.Geteuid, but we can test the error message
-	// when not running as root
-	if os.Geteuid() == 0 {
-		t.Skip("Test requires non-root user")
-	}
-
-	err := RequireRoot()
-	if err == nil {
-		t.Error("Expected error when not running as root, got nil")
-	}
-	if err.Error() != "this command needs to be run as root" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
-}
 
 func TestDetectUbuntuVersion(t *testing.T) {
 	// This test only verifies the function doesn't panic
@@ -38,7 +22,7 @@ func TestDetectUbuntuVersion(t *testing.T) {
 
 func TestSystemdFunctions(t *testing.T) {
 	// Skip if systemctl doesn't exist
-	if !pkd_systemd.SystemctlExists() {
+	if !pkdsystemd.SystemctlExists() {
 		t.Skip("systemctl not available")
 	}
 

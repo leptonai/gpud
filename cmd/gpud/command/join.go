@@ -24,10 +24,15 @@ import (
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/osutil"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func cmdJoin(cliContext *cli.Context) (retErr error) {
+	if err := osutil.RequireRoot(); err != nil {
+		return err
+	}
+
 	// Set up logging
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {

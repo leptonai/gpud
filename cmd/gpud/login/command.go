@@ -15,6 +15,7 @@ import (
 	"github.com/leptonai/gpud/pkg/login"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/osutil"
 	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
@@ -24,6 +25,10 @@ var (
 )
 
 func Command(cliContext *cli.Context) error {
+	if err := osutil.RequireRoot(); err != nil {
+		return err
+	}
+
 	logLevel := cliContext.String("log-level")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
