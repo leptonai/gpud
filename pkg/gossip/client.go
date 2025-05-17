@@ -7,16 +7,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
 // SendRequest sends a gossip request.
 func SendRequest(ctx context.Context, endpoint string, req apiv1.GossipRequest) (*apiv1.GossipResponse, error) {
-	url := createURL(endpoint)
+	url, err := httputil.CreateURL("https", endpoint, "/api/v1/gossip")
+	if err != nil {
+		return nil, fmt.Errorf("error creating URL: %w", err)
+	}
 	return sendRequest(ctx, url, req)
 }
 
@@ -62,14 +65,4 @@ func sendRequest(ctx context.Context, url string, req apiv1.GossipRequest) (*api
 
 	log.Logger.Debugw("gossip request processed", "data", string(b), "url", url)
 	return &resp, nil
-}
-
-// createURL creates a URL for the gossip endpoint
-func createURL(endpoint string) string {
-	host := endpoint
-	url, _ := url.Parse(endpoint)
-	if url.Host != "" {
-		host = url.Host
-	}
-	return fmt.Sprintf("https://%s/api/v1/gossip", host)
 }

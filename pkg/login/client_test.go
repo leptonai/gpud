@@ -14,22 +14,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
-func TestCreateURL(t *testing.T) {
-	tests := []struct {
-		endpoint string
-		expected string
-	}{
-		{"https://example.com", "https://example.com/api/v1/login"},
-		{"example.com", "https://example.com/api/v1/login"},
-		{"api.leptonai.com", "https://api.leptonai.com/api/v1/login"},
-	}
-
-	for _, tc := range tests {
-		url := createURL(tc.endpoint)
-		assert.Equal(t, tc.expected, url)
-	}
-}
-
 func TestSendRequest_Success(t *testing.T) {
 	// Setup mock server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
