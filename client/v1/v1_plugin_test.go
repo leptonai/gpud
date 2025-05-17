@@ -12,7 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
-	"github.com/leptonai/gpud/pkg/server"
+	"github.com/leptonai/gpud/pkg/httputil"
 )
 
 func TestReadCustomPluginSpecs_Comprehensive(t *testing.T) {
@@ -71,46 +71,46 @@ func TestReadCustomPluginSpecs_Comprehensive(t *testing.T) {
 		{
 			name:           "read JSON explicitly",
 			input:          bytes.NewReader(jsonData),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			expectedResult: testPlugins,
 		},
 		{
 			name:           "read YAML",
 			input:          bytes.NewReader(yamlData),
-			contentType:    server.RequestHeaderYAML,
+			contentType:    httputil.RequestHeaderYAML,
 			expectedResult: testPlugins,
 		},
 		{
 			name:           "read gzipped JSON",
 			input:          bytes.NewReader(gzipJSON),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			expectedResult: testPlugins,
 		},
 		{
 			name:           "read gzipped YAML",
 			input:          bytes.NewReader(gzipYAML),
-			contentType:    server.RequestHeaderYAML,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderYAML,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			expectedResult: testPlugins,
 		},
 		{
 			name:          "invalid JSON data",
 			input:         bytes.NewReader([]byte(`{"invalid": JSON`)),
-			contentType:   server.RequestHeaderJSON,
+			contentType:   httputil.RequestHeaderJSON,
 			expectedError: "failed to decode json",
 		},
 		{
 			name:          "invalid YAML data",
 			input:         bytes.NewReader([]byte(`invalid: YAML:`)),
-			contentType:   server.RequestHeaderYAML,
+			contentType:   httputil.RequestHeaderYAML,
 			expectedError: "failed to unmarshal yaml",
 		},
 		{
 			name:           "invalid gzip data with JSON content type",
 			input:          bytes.NewReader([]byte(`not a gzip`)),
-			contentType:    server.RequestHeaderJSON,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			expectedError:  "failed to create gzip reader",
 		},
 		{
@@ -125,9 +125,9 @@ func TestReadCustomPluginSpecs_Comprehensive(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := []OpOption{}
 			if tt.contentType != "" {
-				if tt.contentType == server.RequestHeaderYAML {
+				if tt.contentType == httputil.RequestHeaderYAML {
 					opts = append(opts, WithRequestContentTypeYAML())
-				} else if tt.contentType == server.RequestHeaderJSON {
+				} else if tt.contentType == httputil.RequestHeaderJSON {
 					opts = append(opts, WithRequestContentTypeJSON())
 				} else {
 					opts = append(opts, func(op *Op) {

@@ -21,16 +21,6 @@ const (
 	URLPathSwaggerDesc = "Swagger endpoint for docs"
 )
 
-const (
-	RequestHeaderContentType = "Content-Type"
-	RequestHeaderJSON        = "application/json"
-	RequestHeaderYAML        = "application/yaml"
-	RequestHeaderJSONIndent  = "json-indent"
-
-	RequestHeaderAcceptEncoding = "Accept-Encoding"
-	RequestHeaderEncodingGzip   = "gzip"
-)
-
 type globalHandler struct {
 	cfg *gpudconfig.Config
 

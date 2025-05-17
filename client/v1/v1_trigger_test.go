@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	v1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/server"
+	"github.com/leptonai/gpud/pkg/httputil"
 )
 
 func TestTriggerComponentCheck(t *testing.T) {
@@ -37,7 +37,7 @@ func TestTriggerComponentCheck(t *testing.T) {
 			name:           "successful trigger check",
 			componentName:  "test-component",
 			serverResponse: mustMarshalJSON(t, testHealthStates),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedResult: testHealthStates,
 		},
@@ -56,7 +56,7 @@ func TestTriggerComponentCheck(t *testing.T) {
 			name:           "invalid JSON response",
 			componentName:  "test-component",
 			serverResponse: []byte(`invalid json`),
-			contentType:    server.RequestHeaderJSON,
+			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
 			expectedError:  "failed to decode json",
 		},
@@ -79,10 +79,10 @@ func TestTriggerComponentCheck(t *testing.T) {
 				assert.Equal(t, tt.componentName, r.URL.Query().Get("componentName"))
 
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
 				}
 				if tt.acceptEncoding != "" {
-					assert.Equal(t, tt.acceptEncoding, r.Header.Get(server.RequestHeaderAcceptEncoding))
+					assert.Equal(t, tt.acceptEncoding, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 				}
 
 				w.WriteHeader(tt.statusCode)
@@ -94,12 +94,12 @@ func TestTriggerComponentCheck(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
-			if tt.acceptEncoding == server.RequestHeaderEncodingGzip {
+			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 

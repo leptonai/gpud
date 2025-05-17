@@ -29,8 +29,8 @@ import (
 	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/httputil"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
-	"github.com/leptonai/gpud/pkg/server"
 )
 
 func TestE2E(t *testing.T) {
@@ -244,8 +244,8 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 
-			req.Header.Set(server.RequestHeaderContentType, server.RequestHeaderJSON)
-			req.Header.Set(server.RequestHeaderAcceptEncoding, server.RequestHeaderEncodingGzip)
+			req.Header.Set(httputil.RequestHeaderContentType, httputil.RequestHeaderJSON)
+			req.Header.Set(httputil.RequestHeaderAcceptEncoding, httputil.RequestHeaderEncodingGzip)
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
