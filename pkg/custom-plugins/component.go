@@ -12,6 +12,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 // NewInitFunc creates a new component initializer for the given plugin spec.
@@ -20,11 +21,17 @@ func (spec *Spec) NewInitFunc() components.InitFunc {
 		return nil
 	}
 	return func(gpudInstance *components.GPUdInstance) (components.Component, error) {
+		healthStateSetter, err := pkgmetrics.RegisterHealthStateMetrics(spec.ComponentName())
+		if err != nil {
+			return nil, err
+		}
+
 		cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 		c := &component{
-			ctx:    cctx,
-			cancel: ccancel,
-			spec:   spec,
+			ctx:               cctx,
+			cancel:            ccancel,
+			spec:              spec,
+			healthStateSetter: healthStateSetter,
 		}
 		return c, nil
 	}
@@ -40,6 +47,8 @@ type component struct {
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
+
+	healthStateSetter pkgmetrics.HealthStateSetter
 }
 
 var _ CustomPluginRegisteree = &component{}
@@ -118,6 +127,9 @@ func (c *component) Check() components.CheckResult {
 	defer func() {
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
+		if c.healthStateSetter != nil {
+			c.healthStateSetter.Set(cr.health)
+		}
 		c.lastMu.Unlock()
 	}()
 
