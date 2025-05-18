@@ -282,91 +282,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		})
 	})
 
-	Describe("/v1/metrics requests", func() {
-		It("request without compress", func() {
-			// enough time for metrics to be collected
-			time.Sleep(time.Minute + 30*time.Second)
-
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			req.Header.Set("Content-Type", "application/json")
-
-			resp, err := client.Do(req)
-			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			body, err := io.ReadAll(resp.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-			fmt.Println("/v1/metrics RESPONSE SIZE:", len(body))
-			GinkgoLogr.Info("/v1/metrics response size", "size", string(body))
-			fmt.Println("/v1/metrics RESPONSE BODY:", string(body))
-			GinkgoLogr.Info("/v1/metrics response", "response", string(body))
-
-			var metrics apiv1.GPUdComponentMetrics
-			err = json.Unmarshal(body, &metrics)
-			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-
-			// should not be empty
-			Expect(metrics).ToNot(BeEmpty(), "expected metrics to not be empty")
-
-			// make sure default components are present (enabled by default)
-			found := make(map[string]bool)
-			for _, m := range metrics {
-				found[m.Component] = true
-			}
-			Expect(found["cpu"]).To(BeTrue(), "expected cpu component to be present")
-			Expect(found["memory"]).To(BeTrue(), "expected memory component to be present")
-			Expect(found["disk"]).To(BeTrue(), "expected disk component to be present")
-			Expect(found["network-latency"]).To(BeTrue(), "expected network-latency component to be present")
-		})
-
-		It("request with compress", func() {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Accept-Encoding", "gzip")
-
-			resp, err := client.Do(req)
-			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			gr, err := gzip.NewReader(resp.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to create gzip reader")
-			body, err := io.ReadAll(gr)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-
-			var metrics apiv1.GPUdComponentMetrics
-			err = json.Unmarshal(body, &metrics)
-			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-		})
-	})
-
-	Describe("/metrics requests", func() {
-
-		It("request prometheus metrics without compress", func() {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			resp, err := client.Do(req)
-			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			body, err := io.ReadAll(resp.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-
-			fmt.Println("/metrics RESPONSE SIZE:", len(body))
-			GinkgoLogr.Info("/metrics response size", "size", string(body))
-			fmt.Println("/metrics RESPONSE BODY:", string(body))
-			GinkgoLogr.Info("/metrics response", "response", string(body))
-		})
-
-	})
-
 	Describe("states with client/v1", func() {
 
 		It("get disk states", func() {
@@ -677,6 +592,101 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
 			Expect(csPlugins).To(BeEmpty(), "expected no custom plugins")
 		})
+	})
+
+	// enough time for metrics syncer to be triggers
+	time.Sleep(time.Minute + 30*time.Second)
+
+	Describe("/v1/metrics requests", func() {
+		It("request without compress", func() {
+			// enough time for metrics to be collected
+			time.Sleep(time.Minute + 30*time.Second)
+
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+			fmt.Println("/v1/metrics RESPONSE SIZE:", len(body))
+			GinkgoLogr.Info("/v1/metrics response size", "size", string(body))
+
+			var metrics apiv1.GPUdComponentMetrics
+			err = json.Unmarshal(body, &metrics)
+			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
+
+			indentB, err := json.MarshalIndent(metrics, "", "  ")
+			Expect(err).NotTo(HaveOccurred(), "failed to marshal response body")
+			fmt.Println("/v1/metrics RESPONSE BODY:", string(indentB))
+			GinkgoLogr.Info("/v1/metrics response", "response", string(indentB))
+
+			// should not be empty
+			Expect(metrics).ToNot(BeEmpty(), "expected metrics to not be empty")
+
+			// make sure default components are present (enabled by default)
+			found := make(map[string]bool)
+			for _, m := range metrics {
+				found[m.Component] = true
+			}
+			Expect(found["cpu"]).To(BeTrue(), "expected cpu component to be present")
+			Expect(found["memory"]).To(BeTrue(), "expected memory component to be present")
+			Expect(found["disk"]).To(BeTrue(), "expected disk component to be present")
+			Expect(found["network-latency"]).To(BeTrue(), "expected network-latency component to be present")
+		})
+
+		It("request with compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept-Encoding", "gzip")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			gr, err := gzip.NewReader(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to create gzip reader")
+			body, err := io.ReadAll(gr)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+
+			var metrics apiv1.GPUdComponentMetrics
+			err = json.Unmarshal(body, &metrics)
+			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
+		})
+	})
+
+	Describe("/metrics requests", func() {
+
+		It("request prometheus metrics without compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+
+			fmt.Println("/metrics RESPONSE SIZE:", len(body))
+			GinkgoLogr.Info("/metrics response size", "size", string(body))
+			fmt.Println("/metrics RESPONSE BODY:", string(body))
+			GinkgoLogr.Info("/metrics response", "response", string(body))
+
+			Expect(string(body)).To(ContainSubstring("health_state_healthy"))
+			Expect(string(body)).To(ContainSubstring("health_state_unhealthy"))
+			Expect(string(body)).To(ContainSubstring("health_state_degraded"))
+		})
+
 	})
 })
 

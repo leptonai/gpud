@@ -275,21 +275,33 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.Append([]string{"GPUd Version", i.GPUdVersion})
-	table.Append([]string{"CUDA Version", i.CUDAVersion})
 	table.Append([]string{"Container Runtime Version", i.ContainerRuntimeVersion})
-	table.Append([]string{"Kernel Version", i.KernelVersion})
 	table.Append([]string{"OS Image", i.OSImage})
+	table.Append([]string{"Kernel Version", i.KernelVersion})
 
-	if i.DiskInfo != nil {
-		table.Append([]string{"Container Root Disk", i.DiskInfo.ContainerRootDisk})
+	if i.CPUInfo != nil {
+		table.Append([]string{"CPU Type", i.CPUInfo.Type})
+		table.Append([]string{"CPU Manufacturer", i.CPUInfo.Manufacturer})
+		table.Append([]string{"CPU Architecture", i.CPUInfo.Architecture})
 	}
 
+	table.Append([]string{"CUDA Version", i.CUDAVersion})
 	if i.GPUInfo != nil {
 		table.Append([]string{"GPU Driver Version", i.GPUDriverVersion})
 		table.Append([]string{"GPU Product", i.GPUInfo.Product})
 		table.Append([]string{"GPU Manufacturer", i.GPUInfo.Manufacturer})
 		table.Append([]string{"GPU Architecture", i.GPUInfo.Architecture})
 		table.Append([]string{"GPU Memory", i.GPUInfo.Memory})
+	}
+
+	if i.NICInfo != nil {
+		for idx, nic := range i.NICInfo.PrivateIPInterfaces {
+			table.Append([]string{fmt.Sprintf("Private IP Interface %d", idx+1), fmt.Sprintf("%s (%s, %s)", nic.Interface, nic.MAC, nic.IP)})
+		}
+	}
+
+	if i.DiskInfo != nil {
+		table.Append([]string{"Container Root Disk", i.DiskInfo.ContainerRootDisk})
 	}
 
 	table.Render()
