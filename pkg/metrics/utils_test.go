@@ -1,9 +1,11 @@
 package metrics
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -174,4 +176,183 @@ func TestConvertToLeptonMetrics_SortingByTimestamp(t *testing.T) {
 	assert.Equal(t, now, result[0].Metrics[0].UnixSeconds, "first metric should have earliest timestamp")
 	assert.Equal(t, now+1000, result[0].Metrics[1].UnixSeconds, "second metric should have middle timestamp")
 	assert.Equal(t, now+2000, result[0].Metrics[2].UnixSeconds, "third metric should have latest timestamp")
+}
+
+func TestNormalizeComponentNameToMetricSubsystem(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Lowercase string with no special characters",
+			input:    "component",
+			expected: "component",
+		},
+		{
+			name:     "Uppercase string",
+			input:    "COMPONENT",
+			expected: "component",
+		},
+		{
+			name:     "Mixed case string",
+			input:    "ComPoNeNt",
+			expected: "component",
+		},
+		{
+			name:     "String with hyphens",
+			input:    "nvidia-gpu",
+			expected: "nvidia_gpu",
+		},
+		{
+			name:     "String with dots",
+			input:    "nvidia.gpu",
+			expected: "nvidia_gpu",
+		},
+		{
+			name:     "String with slashes",
+			input:    "nvidia/gpu",
+			expected: "nvidia_gpu",
+		},
+		{
+			name:     "String with all special characters",
+			input:    "Com-Po.Ne/Nt",
+			expected: "com_po_ne_nt",
+		},
+		{
+			name:     "Complex component path",
+			input:    "accelerator/nvidia/clock-speed",
+			expected: "accelerator_nvidia_clock_speed",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := NormalizeComponentNameToMetricSubsystem(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func Test_registerHealthStateMetrics(t *testing.T) {
+	// Create a mock registry using testutil helper
+	registry := prometheus.NewRegistry()
+	componentName := "test-component"
+
+	// Call registerHealthStateMetrics
+	setter, err := RegisterHealthStateMetricsWithRegisterer(registry, componentName)
+	require.NoError(t, err)
+	require.NotNil(t, setter)
+
+	// Test setter functionality
+	setter.Set(v1.HealthStateTypeHealthy)
+	setter.Set(v1.HealthStateTypeUnhealthy)
+	setter.Set(v1.HealthStateTypeDegraded)
+
+	// Call the setter multiple times to verify it works
+	setter.Set(v1.HealthStateTypeHealthy)
+	setter.Set(v1.HealthStateTypeUnhealthy)
+	setter.Set(v1.HealthStateTypeDegraded)
+
+	// Success if no panics occurred
+}
+
+func Test_registerHealthStateMetrics_RegistrationError(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	componentName := "test-component"
+
+	// First registration should succeed
+	_, err := RegisterHealthStateMetricsWithRegisterer(registry, componentName)
+	require.NoError(t, err)
+
+	// Second registration with same name should fail
+	_, err = RegisterHealthStateMetricsWithRegisterer(registry, componentName)
+	require.Error(t, err)
+}
+
+func Test_registerHealthStateMetrics_MultipleComponents(t *testing.T) {
+	registry := prometheus.NewRegistry()
+
+	// Register for two different components
+	component1 := "component1"
+	setter1, err := RegisterHealthStateMetricsWithRegisterer(registry, component1)
+	require.NoError(t, err)
+	require.NotNil(t, setter1)
+
+	component2 := "component2"
+	setter2, err := RegisterHealthStateMetricsWithRegisterer(registry, component2)
+	require.NoError(t, err)
+	require.NotNil(t, setter2)
+
+	// Test setters for both components
+	setter1.Set(v1.HealthStateTypeHealthy)
+	setter2.Set(v1.HealthStateTypeUnhealthy)
+
+	// Success if no panics occurred
+}
+
+func Test_registerHealthStateMetrics_ErrorOnSecondMetric(t *testing.T) {
+	// Create a test registry with a collector that will
+	// only allow one registration and then return an error
+	registry := prometheus.NewRegistry()
+	componentName := "test-component"
+
+	// Create a custom registerer that will allow only the first registration
+	customReg := &limitedRegisterer{
+		Registry:                registry,
+		maxRegistrationsAllowed: 1,
+	}
+
+	// Now when we call registerHealthStateMetrics, it should fail on the second metric
+	_, err := RegisterHealthStateMetricsWithRegisterer(customReg, componentName)
+	require.Error(t, err)
+}
+
+func Test_registerHealthStateMetrics_ErrorOnThirdMetric(t *testing.T) {
+	// Create a test registry with a collector that will
+	// only allow two registrations and then return an error
+	registry := prometheus.NewRegistry()
+	componentName := "test-component"
+
+	// Create a custom registerer that will allow only the first and second registrations
+	customReg := &limitedRegisterer{
+		Registry:                registry,
+		maxRegistrationsAllowed: 2,
+	}
+
+	// Now when we call registerHealthStateMetrics, it should fail on the third metric
+	_, err := RegisterHealthStateMetricsWithRegisterer(customReg, componentName)
+	require.Error(t, err)
+}
+
+// limitedRegisterer is a custom registerer that allows only a fixed number of registrations
+type limitedRegisterer struct {
+	Registry                *prometheus.Registry
+	registrationCount       int
+	maxRegistrationsAllowed int
+}
+
+func (r *limitedRegisterer) Register(c prometheus.Collector) error {
+	r.registrationCount++
+	if r.registrationCount > r.maxRegistrationsAllowed {
+		return fmt.Errorf("registration limit reached")
+	}
+	return r.Registry.Register(c)
+}
+
+func (r *limitedRegisterer) MustRegister(cs ...prometheus.Collector) {
+	for _, c := range cs {
+		if err := r.Register(c); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (r *limitedRegisterer) Unregister(c prometheus.Collector) bool {
+	return r.Registry.Unregister(c)
 }

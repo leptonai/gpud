@@ -217,6 +217,19 @@ func (g *globalHandler) registerComponentsCustomPlugin(c *gin.Context) {
 		return
 	}
 
+	g.componentNamesMu.Lock()
+	defer g.componentNamesMu.Unlock()
+	found := false
+	for _, name := range g.componentNames {
+		if name == comp.Name() {
+			found = true
+			break
+		}
+	}
+	if !found {
+		g.componentNames = append(g.componentNames, comp.Name())
+	}
+
 	c.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "component registered and started", "component": comp.Name()})
 }
 
