@@ -12,6 +12,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
@@ -52,8 +53,8 @@ func (g *globalHandler) getComponents(c *gin.Context) {
 	}
 	sort.Strings(components)
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(components)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal components " + err.Error()})
@@ -61,8 +62,8 @@ func (g *globalHandler) getComponents(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, components)
 			return
 		}
@@ -160,8 +161,8 @@ func (g *globalHandler) getComponentsCustomPlugins(c *gin.Context) {
 		}
 	}
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(cs)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal custom plugins " + err.Error()})
@@ -169,8 +170,8 @@ func (g *globalHandler) getComponentsCustomPlugins(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, cs)
 			return
 		}
@@ -334,8 +335,8 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 		states = append(states, currState)
 	}
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(states)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal states " + err.Error()})
@@ -343,8 +344,8 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, states)
 			return
 		}
@@ -418,8 +419,8 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		events = append(events, currEvent)
 	}
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(events)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal events " + err.Error()})
@@ -427,8 +428,8 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, events)
 			return
 		}
@@ -546,8 +547,8 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		infos = append(infos, currInfo)
 	}
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(infos)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal infos " + err.Error()})
@@ -555,8 +556,8 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, infos)
 			return
 		}
@@ -608,8 +609,8 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 	}
 
 	metrics := pkgmetrics.ConvertToLeptonMetrics(metricsData)
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(metrics)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal metrics " + err.Error()})
@@ -617,8 +618,8 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, metrics)
 			return
 		}

@@ -698,6 +698,7 @@ func TestComponentStates(t *testing.T) {
 		expectedHealthy            bool
 		expectContainsRMAMessage   bool
 		expectContainsResetMessage bool
+		expectedSuggestedAction    *apiv1.SuggestedActions
 	}{
 		{
 			name:                  "No row remapping support",
@@ -740,6 +741,12 @@ func TestComponentStates(t *testing.T) {
 			expectedHealth:           apiv1.HealthStateTypeUnhealthy,
 			expectedHealthy:          false,
 			expectContainsRMAMessage: true,
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping failure requires hardware inspection",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
 		},
 		{
 			name:                  "Reset required GPU",
@@ -753,24 +760,30 @@ func TestComponentStates(t *testing.T) {
 			expectedHealth:             apiv1.HealthStateTypeUnhealthy,
 			expectedHealthy:            false,
 			expectContainsResetMessage: true,
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
 		},
 		{
-			name:                  "Mixed state GPUs",
+			name:                  "Mixed state GPUs - RMA takes precedence for suggestedAction if both apply and RMA is later",
 			rowRemappingSupported: true,
 			remappedRows: []nvml.RemappedRows{
 				{
-					UUID:                             "GPU1",
+					UUID:                             "GPU1", // Healthy
 					RemappedDueToUncorrectableErrors: 0,
 					RemappingFailed:                  false,
 					RemappingPending:                 false,
 				},
 				{
-					UUID:                             "GPU2",
+					UUID:                             "GPU2", // RMA
 					RemappedDueToUncorrectableErrors: 1,
 					RemappingFailed:                  true,
 				},
 				{
-					UUID:             "GPU3",
+					UUID:             "GPU3", // Reset
 					RemappingPending: true,
 				},
 			},
@@ -778,6 +791,12 @@ func TestComponentStates(t *testing.T) {
 			expectedHealthy:            false,
 			expectContainsRMAMessage:   true,
 			expectContainsResetMessage: true,
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping failure requires hardware inspection",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
 		},
 	}
 
@@ -825,6 +844,7 @@ func TestComponentStates(t *testing.T) {
 				MemoryErrorManagementCapabilities: getMemoryErrorManagementCapabilitiesFunc(),
 				RemappedRows:                      tt.remappedRows,
 				ts:                                time.Now(),
+				suggestedActions:                  tt.expectedSuggestedAction,
 			}
 
 			// Calculate the reason and health based on the data
@@ -862,6 +882,7 @@ func TestComponentStates(t *testing.T) {
 			state := states[0]
 			assert.Equal(t, Name, state.Name)
 			assert.Equal(t, tt.expectedHealth, state.Health)
+			assert.Equal(t, tt.expectedSuggestedAction, state.SuggestedActions)
 
 			if tt.expectContainsRMAMessage {
 				assert.Contains(t, state.Reason, "qualifies for RMA")
@@ -1077,8 +1098,17 @@ func TestStateTransitions(t *testing.T) {
 				RemappingPending:                 false,
 			}, nil
 
+		case 3: // Fourth check - remapping pending AND failed (failed should take precedence for suggestion)
+			stateCheckCount++
+			return nvml.RemappedRows{
+				UUID:                             uuid,
+				RemappedDueToUncorrectableErrors: 1, // Needs some uncorrectable for RMA
+				RemappingFailed:                  true,
+				RemappingPending:                 true,
+			}, nil
+
 		default: // Back to healthy
-			stateCheckCount = 0
+			stateCheckCount = 0 // Reset for potential future loop if test extended
 			return nvml.RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 0,
@@ -1088,11 +1118,13 @@ func TestStateTransitions(t *testing.T) {
 		}
 	}
 
-	// Perform first check cycle
+	// Perform first check cycle - healthy
 	c.Check()
 	states := c.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+	assert.Nil(t, c.lastCheckResult.suggestedActions, "Healthy state should have nil suggestedActions")
+	assert.Nil(t, states[0].SuggestedActions, "Healthy state should have nil SuggestedActions in HealthState")
 
 	// Perform second check cycle - should transition to unhealthy (pending)
 	c.Check()
@@ -1100,6 +1132,11 @@ func TestStateTransitions(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "needs reset")
+	require.NotNil(t, c.lastCheckResult.suggestedActions, "Pending state should have suggestedActions")
+	assert.Equal(t, "row remapping pending requires GPU reset or system reboot", c.lastCheckResult.suggestedActions.Description)
+	require.Len(t, c.lastCheckResult.suggestedActions.RepairActions, 1)
+	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, c.lastCheckResult.suggestedActions.RepairActions[0])
+	assert.Equal(t, c.lastCheckResult.suggestedActions, states[0].SuggestedActions)
 
 	// Perform third check cycle - should remain unhealthy (failed)
 	c.Check()
@@ -1107,12 +1144,32 @@ func TestStateTransitions(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "qualifies for RMA")
+	require.NotNil(t, c.lastCheckResult.suggestedActions, "Failed state should have suggestedActions")
+	assert.Equal(t, "row remapping failure requires hardware inspection", c.lastCheckResult.suggestedActions.Description)
+	require.Len(t, c.lastCheckResult.suggestedActions.RepairActions, 1)
+	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, c.lastCheckResult.suggestedActions.RepairActions[0])
+	assert.Equal(t, c.lastCheckResult.suggestedActions, states[0].SuggestedActions)
 
-	// Perform fourth check cycle - should return to healthy
+	// Perform fourth check cycle - pending AND failed (should be unhealthy, failed suggestion)
+	c.Check()
+	states = c.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+	assert.Contains(t, states[0].Reason, "qualifies for RMA") // RMA message due to failed
+	assert.Contains(t, states[0].Reason, "needs reset")       // Reset message due to pending
+	require.NotNil(t, c.lastCheckResult.suggestedActions, "Pending and Failed state should have suggestedActions")
+	assert.Equal(t, "row remapping failure requires hardware inspection", c.lastCheckResult.suggestedActions.Description, "Failed suggestion should take precedence")
+	require.Len(t, c.lastCheckResult.suggestedActions.RepairActions, 1)
+	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, c.lastCheckResult.suggestedActions.RepairActions[0])
+	assert.Equal(t, c.lastCheckResult.suggestedActions, states[0].SuggestedActions)
+
+	// Perform fifth check cycle - should return to healthy
 	c.Check()
 	states = c.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+	assert.Nil(t, c.lastCheckResult.suggestedActions, "Back to Healthy state should have nil suggestedActions")
+	assert.Nil(t, states[0].SuggestedActions, "Back to Healthy state should have nil SuggestedActions in HealthState")
 
 	// Verify that events were generated for state transitions
 	events, err := eventBucket.Get(ctx, time.Time{})
@@ -1508,10 +1565,20 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 			summary := tt.data.Summary()
 			assert.Equal(t, tt.expectedSummary, summary)
 
-			// If data is not nil, test HealthState() method
+			// If data is not nil, test HealthState() method and ComponentName()
 			if tt.data != nil {
-				tt.data.health = apiv1.HealthStateTypeUnhealthy
+				tt.data.health = apiv1.HealthStateTypeUnhealthy // Example health state
 				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, tt.data.HealthStateType())
+				assert.Equal(t, Name, tt.data.ComponentName()) // Test ComponentName
+			} else {
+				// Test HealthStateType() for nil checkResult
+				assert.Equal(t, apiv1.HealthStateType(""), tt.data.HealthStateType()) // Expect empty string for nil receiver
+				// ComponentName() for nil checkResult would panic if called as tt.data.ComponentName()
+				// but the method is on *checkResult, so one could call (*checkResult)(nil).ComponentName(),
+				// which would return Name. Testing the non-nil case is generally more relevant for typical usage.
+				// Let's ensure ComponentName() is also tested for the nil case if it makes sense.
+				// As Name is a const, (*checkResult)(nil).ComponentName() would return it without panic.
+				assert.Equal(t, Name, (*checkResult)(nil).ComponentName()) // Test ComponentName for nil receiver
 			}
 		})
 	}
@@ -1546,4 +1613,81 @@ func TestComponentWithNoNVML(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "NVIDIA NVML instance is nil", states[0].Reason)
+	assert.Nil(t, states[0].SuggestedActions, "SuggestedActions should be nil when NVML instance is nil")
+
+	// Test Events() method when eventBucket is nil (which it will be here as EventStore is nil)
+	events, err := c.Events(ctx, time.Now())
+	assert.NoError(t, err, "Events() should not error with nil eventBucket")
+	assert.Nil(t, events, "Events() should return nil events with nil eventBucket")
+}
+
+// TestCheckSuggestedActionsWithNilEventBucket verifies that suggestedActions are not set if eventBucket is nil.
+func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mockDevices := map[string]device.Device{
+		"GPU1": nil,
+	}
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc: func() map[string]device.Device { return mockDevices },
+		getProductNameFunc: func() string {
+			return "NVIDIA Test GPU"
+		},
+		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+			return nvml.MemoryErrorManagementCapabilities{
+				RowRemapping: true, // Supports remapping
+			}
+		},
+	}
+
+	// Create GPUdInstance with nil EventStore, which should lead to a nil eventBucket in the component
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: nvmlInstance,
+		EventStore:   nil,
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+
+	c := comp.(*component)
+	// Explicitly ensure eventBucket is nil (though New should handle it based on EventStore == nil for non-Linux)
+	// Forcing it to nil for clarity in test intent, especially if runtime.GOOS affects New's behavior.
+	if c.eventBucket != nil {
+		// If New still created a bucket (e.g. if test env is Linux and it used a default store)
+		// we force it to nil to test the specific condition 'c.eventBucket == nil' in Check()
+		c.eventBucket = nil
+	}
+
+	// Configure getRemappedRowsFunc to indicate remapping is pending
+	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+		return nvml.RemappedRows{
+			UUID:             uuid,
+			RemappingPending: true, // Condition that would normally trigger suggestedAction
+		}, nil
+	}
+
+	// Run the check
+	result := c.Check()
+	checkRes, ok := result.(*checkResult)
+	require.True(t, ok, "Check result should be of type *checkResult")
+
+	// Verify that suggestedActions is nil because eventBucket is nil
+	assert.Nil(t, checkRes.suggestedActions, "suggestedActions should be nil when eventBucket is nil, even if remapping is pending")
+
+	// Also verify through LastHealthStates
+	healthStates := c.LastHealthStates()
+	require.Len(t, healthStates, 1)
+	assert.Nil(t, healthStates[0].SuggestedActions, "HealthState.SuggestedActions should be nil when eventBucket is nil")
+	// The component should still report unhealthy due to pending remapping, but without a suggestion
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
+	assert.Contains(t, healthStates[0].Reason, "needs reset")
+
+	// Test Events() method when eventBucket is nil - this was already tested above in TestComponentWithNoNVML
+	// but this test specifically sets up c.eventBucket = nil (or verifies it from New() with nil EventStore)
+	// So, re-asserting here for this specific test's setup is fine.
+	eventsClient, errClient := c.Events(ctx, time.Now())
+	assert.NoError(t, errClient, "Events() should not error with nil eventBucket in TestCheckSuggestedActionsWithNilEventBucket")
+	assert.Nil(t, eventsClient, "Events() should return nil events with nil eventBucket in TestCheckSuggestedActionsWithNilEventBucket")
 }
