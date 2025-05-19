@@ -18,6 +18,8 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
+	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -40,6 +42,9 @@ type component struct {
 	findMntFunc func(ctx context.Context, target string) (*disk.FindMntOutput, error)
 
 	mountPointsToTrackUsage map[string]struct{}
+
+	eventBucket eventstore.Bucket
+	kmsgSyncer  *kmsg.Syncer
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -87,6 +92,23 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 	c.mountPointsToTrackUsage = muntPointsToTrackUsage
 
+	if gpudInstance.EventStore != nil {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+
+		if os.Geteuid() == 0 {
+			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			if err != nil {
+				ccancel()
+				return nil, err
+			}
+		}
+	}
+
 	return c, nil
 }
 
@@ -128,13 +150,27 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	return nil, nil
+	if c.eventBucket == nil {
+		return nil, nil
+	}
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
 
 	return nil
 }

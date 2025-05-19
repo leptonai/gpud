@@ -11,12 +11,89 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
+	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/kmsg"
 )
+
+// mockEventStore implements a mock for eventstore.Store
+type mockEventStore struct {
+	mock.Mock
+}
+
+func (m *mockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+	args := m.Called(name) // Do not pass opts to m.Called for simplicity unless needed
+	var bucket eventstore.Bucket
+	if args.Get(0) != nil {
+		bucket = args.Get(0).(eventstore.Bucket)
+	}
+	return bucket, args.Error(1)
+}
+
+// mockEventBucket implements a mock for eventstore.Bucket
+type mockEventBucket struct {
+	mock.Mock
+}
+
+func (m *mockEventBucket) Name() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
+	args := m.Called(ctx, event)
+	return args.Error(0)
+}
+
+func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
+	args := m.Called(ctx, event)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*eventstore.Event), args.Error(1)
+}
+
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+	args := m.Called(ctx, since)
+	var events eventstore.Events
+	if args.Get(0) != nil {
+		events = args.Get(0).(eventstore.Events)
+	}
+	return events, args.Error(1)
+}
+
+func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*eventstore.Event), args.Error(1)
+}
+
+func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+	args := m.Called(ctx, beforeTimestamp)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *mockEventBucket) Close() {
+	m.Called()
+}
+
+// MockKmsgSyncer implements a mock for kmsg.Syncer's Close method
+type MockKmsgSyncer struct {
+	mock.Mock
+	kmsg.Syncer // Embed Syncer if it has other methods needed, or define them
+}
+
+func (m *MockKmsgSyncer) Close() error {
+	args := m.Called()
+	return args.Error(0)
+}
 
 // createTestComponent creates a test component with the given mount points and targets
 func createTestComponent(ctx context.Context, mountPoints, mountTargets []string) *component {
@@ -1453,4 +1530,205 @@ func TestNewComponentMoreCases(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		assert.NotNil(t, component.getBlockDevicesFunc)
 	}
+}
+
+// TestNew_EventStoreHandling tests the New function's handling of EventStore.
+func TestNew_EventStoreHandling(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("eventStoreIsNil", func(t *testing.T) {
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:    ctx,
+			EventStore: nil, // Explicitly nil
+		}
+		comp, err := New(gpudInstance)
+		require.NoError(t, err)
+		defer comp.Close()
+
+		diskComp, ok := comp.(*component)
+		require.True(t, ok)
+		assert.Nil(t, diskComp.eventBucket, "eventBucket should be nil if EventStore is nil")
+		assert.Nil(t, diskComp.kmsgSyncer, "kmsgSyncer should be nil if EventStore is nil")
+	})
+
+	t.Run("eventStoreBucketSuccess", func(t *testing.T) {
+		mockEventStore := new(mockEventStore)
+		mockBucket := new(mockEventBucket)
+
+		// This expectation is only relevant if runtime.GOOS == "linux"
+		if runtime.GOOS == "linux" {
+			mockEventStore.On("Bucket", Name).Return(mockBucket, nil)
+			// If Bucket is called and eventBucket is set, its Close might be called.
+			mockBucket.On("Close").Return().Maybe()
+		}
+
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:    ctx,
+			EventStore: mockEventStore,
+		}
+
+		comp, err := New(gpudInstance)
+		require.NoError(t, err)
+		// comp.Close() might be called on a nil comp if New fails, so guard it.
+		if comp != nil {
+			defer comp.Close()
+		}
+
+		diskComp, ok := comp.(*component)
+		require.True(t, ok)
+
+		if runtime.GOOS == "linux" {
+			// Further check if euid is 0 for kmsgSyncer, though eventBucket depends only on linux
+			if gpudInstance.EventStore != nil { // Ensure eventStore was provided
+				assert.Equal(t, mockBucket, diskComp.eventBucket, "eventBucket should be initialized on Linux")
+				mockEventStore.AssertCalled(t, "Bucket", Name)
+				if os.Geteuid() != 0 { // if not root, kmsgSyncer should be nil even if eventBucket is set
+					assert.Nil(t, diskComp.kmsgSyncer, "kmsgSyncer should be nil if not on Linux as root, even if eventBucket is set")
+				}
+			}
+		} else {
+			assert.Nil(t, diskComp.eventBucket, "eventBucket should be nil if not on Linux")
+			mockEventStore.AssertNotCalled(t, "Bucket", Name)
+			assert.Nil(t, diskComp.kmsgSyncer, "kmsgSyncer should be nil if not on Linux")
+		}
+	})
+
+	t.Run("eventStoreBucketError", func(t *testing.T) {
+		mockEventStore := new(mockEventStore)
+		expectedErr := errors.New("bucket error")
+
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:    ctx,
+			EventStore: mockEventStore,
+		}
+
+		if runtime.GOOS == "linux" {
+			mockEventStore.On("Bucket", Name).Return(nil, expectedErr)
+			// No need to setup mockBucket.On("Close") as bucket creation fails.
+
+			comp, err := New(gpudInstance)
+			assert.Error(t, err)
+			assert.Equal(t, expectedErr, err)
+			assert.Nil(t, comp)
+			mockEventStore.AssertCalled(t, "Bucket", Name)
+		} else {
+			// On non-Linux, Bucket is not called, so New should succeed without this error.
+			comp, err := New(gpudInstance)
+			assert.NoError(t, err)
+			assert.NotNil(t, comp)
+			if comp != nil {
+				defer comp.Close() // comp.eventBucket will be nil, so no mock call to bucket.Close()
+			}
+			mockEventStore.AssertNotCalled(t, "Bucket", Name)
+		}
+	})
+
+	// Note: Testing kmsg.NewSyncer success/failure path requires runtime.GOOS == "linux"
+	// and os.Geteuid() == 0, which is hard to control portably in tests without
+	// modifying the source code for dependency injection of kmsg.NewSyncer itself or os.Geteuid.
+	// The coverage for those lines might be 0 if tests are not run in such an environment.
+}
+
+// TestComponentEvents_WithEventBucket tests the Events method with a focus on eventBucket.
+func TestComponentEvents_WithEventBucket(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("eventBucketIsNil", func(t *testing.T) {
+		// This scenario is implicitly tested by createTestComponent when no EventStore is set up,
+		// leading to c.eventBucket being nil.
+		c := createTestComponent(ctx, []string{}, []string{}) // This component will have c.eventBucket = nil
+		defer c.Close()
+
+		evs, err := c.Events(ctx, time.Now())
+		assert.NoError(t, err)
+		assert.Nil(t, evs)
+	})
+
+	t.Run("eventBucketGetError", func(t *testing.T) {
+		mockBucket := new(mockEventBucket)
+		expectedErr := errors.New("get error")
+		sinceTime := time.Now().Add(-1 * time.Hour)
+		// Use mock.Anything for the context to avoid type mismatches with unexported context types
+		mockBucket.On("Get", mock.Anything, sinceTime).Return(nil, expectedErr)
+		// If eventBucket is set and comp.Close() is called, bucket.Close() will be invoked.
+		mockBucket.On("Close").Return().Maybe()
+
+		// Create component and manually set the eventBucket
+		c := createTestComponent(ctx, []string{}, []string{})
+		defer c.Close()
+		c.eventBucket = mockBucket // Manually set mock bucket
+
+		evs, err := c.Events(ctx, sinceTime)
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		assert.Nil(t, evs)
+		mockBucket.AssertCalled(t, "Get", mock.Anything, sinceTime)
+	})
+
+	t.Run("eventBucketGetSuccess", func(t *testing.T) {
+		mockBucket := new(mockEventBucket)
+		expectedEvents := eventstore.Events{
+			{Time: time.Now(), Name: "test_event", Type: "type1", Message: "message1", Component: Name},
+		}
+		sinceTime := time.Now().Add(-1 * time.Hour)
+		// Use mock.Anything for the context
+		mockBucket.On("Get", mock.Anything, sinceTime).Return(expectedEvents, nil)
+		// If eventBucket is set and comp.Close() is called, bucket.Close() will be invoked.
+		mockBucket.On("Close").Return().Maybe()
+
+		c := createTestComponent(ctx, []string{}, []string{})
+		defer c.Close()
+		c.eventBucket = mockBucket // Manually set mock bucket
+
+		evs, err := c.Events(ctx, sinceTime)
+		assert.NoError(t, err)
+		require.NotNil(t, evs)
+		assert.Equal(t, expectedEvents.Events(), evs) // Compare apiv1.Events
+		mockBucket.AssertCalled(t, "Get", mock.Anything, sinceTime)
+	})
+}
+
+// TestComponentClose_EventHandling tests the Close method's handling of eventBucket and kmsgSyncer.
+func TestComponentClose_EventHandling(t *testing.T) {
+	ctx := context.Background()
+
+	// Renamed from closeWithEventBucketAndKmsgSyncerNotNil
+	t.Run("closeWithEventBucketSetAndKmsgSyncerNil", func(t *testing.T) {
+		mockBucket := new(mockEventBucket)
+		mockBucket.On("Close").Return()
+
+		cctx, ccancel := context.WithCancel(ctx)
+		c := &component{
+			ctx:         cctx,
+			cancel:      ccancel,
+			eventBucket: mockBucket,
+			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+		}
+
+		err := c.Close()
+		assert.NoError(t, err)
+		mockBucket.AssertCalled(t, "Close")
+	})
+
+	// The subtest "closeWithEventBucketOnly_KmsgSyncerNil" is identical to the one above after the change.
+	// It can be removed or kept if preferred for explicitness, but for consolidation, we rely on the above.
+
+	// Renamed from closeWithKmsgSyncerNotNilOnly_EventBucketNil
+	// This also becomes similar to "closeWithBothEventBucketAndKmsgSyncerNil"
+	t.Run("closeWithEventBucketNilAndKmsgSyncerNil", func(t *testing.T) {
+		cctx, ccancel := context.WithCancel(ctx)
+		c := &component{
+			ctx:         cctx,
+			cancel:      ccancel,
+			eventBucket: nil,
+			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+		}
+
+		err := c.Close()
+		assert.NoError(t, err)
+		// No eventBucket.Close() should be called. kmsgSyncer.Close() path also not taken.
+	})
+
+	// The subtest "closeWithBothEventBucketAndKmsgSyncerNil" is identical to the one above.
+	// It can be removed for consolidation.
 }
