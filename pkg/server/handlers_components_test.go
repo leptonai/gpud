@@ -20,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -263,7 +264,7 @@ func TestGetComponentsYAML(t *testing.T) {
 
 	// Set up a new request with YAML content type
 	c.Request = httptest.NewRequest("GET", "/v1/components", nil)
-	c.Request.Header.Set(RequestHeaderContentType, RequestHeaderYAML)
+	c.Request.Header.Set(httputil.RequestHeaderContentType, httputil.RequestHeaderYAML)
 
 	handler.getComponents(c)
 
