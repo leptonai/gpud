@@ -1,4 +1,5 @@
-package command
+// Package run implements the "run" command.
+package run
 
 import (
 	"context"
@@ -22,13 +23,14 @@ import (
 	"github.com/leptonai/gpud/version"
 )
 
-// cmdRun implements the run command for starting the daemon
-func cmdRun(cliContext *cli.Context) error {
+func Command(cliContext *cli.Context) error {
 	if runtime.GOOS != "linux" {
 		fmt.Printf("gpud run on %q not supported\n", runtime.GOOS)
 		os.Exit(1)
 	}
 
+	logLevel := cliContext.String("log-level")
+	logFile := cliContext.String("log-file")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
@@ -40,6 +42,17 @@ func cmdRun(cliContext *cli.Context) error {
 	} else {
 		gin.SetMode(gin.DebugMode)
 	}
+
+	listenAddress := cliContext.String("listen-address")
+	annotations := cliContext.String("annotations")
+	pprof := cliContext.Bool("pprof")
+	retentionPeriod := cliContext.Duration("retention-period")
+	enableAutoUpdate := cliContext.Bool("enable-auto-update")
+	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
+	pluginSpecsFile := cliContext.String("plugin-specs-file")
+	ibstatCommand := cliContext.String("ibstat-command")
+	ibstatusCommand := cliContext.String("ibstatus-command")
+	enablePluginAPI := cliContext.Bool("enable-plugin-api")
 
 	configOpts := []config.OpOption{
 		config.WithIbstatCommand(ibstatCommand),
