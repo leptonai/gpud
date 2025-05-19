@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"runtime"
 	"sync"
 	"time"
 
@@ -62,7 +61,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		setPrevTimeStatFunc: setPrevTimeStat,
 	}
 
-	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+	if gpudInstance.EventStore != nil {
 		var err error
 		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
 		if err != nil {

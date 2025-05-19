@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
-	"runtime"
 	"sync"
 	"time"
 
@@ -52,7 +51,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		checkFMActiveFunc: checkFMActive,
 	}
 
-	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+	if gpudInstance.EventStore != nil {
 		var err error
 		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
 		if err != nil {
