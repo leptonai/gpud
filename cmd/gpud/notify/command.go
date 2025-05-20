@@ -21,6 +21,13 @@ import (
 )
 
 func CommandStartup(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, "")
+
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
@@ -63,6 +70,13 @@ func CommandStartup(cliContext *cli.Context) error {
 }
 
 func CommandShutdown(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, "")
+
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)

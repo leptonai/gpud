@@ -8,6 +8,7 @@ import (
 	cmdcompact "github.com/leptonai/gpud/cmd/gpud/compact"
 	cmdcustomplugins "github.com/leptonai/gpud/cmd/gpud/custom-plugins"
 	cmddown "github.com/leptonai/gpud/cmd/gpud/down"
+	cmdjoin "github.com/leptonai/gpud/cmd/gpud/join"
 	cmdlistplugins "github.com/leptonai/gpud/cmd/gpud/list-plugins"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
@@ -30,11 +31,6 @@ gpud scan
 # to start gpud as a systemd unit
 sudo gpud up
 `
-
-var (
-	logLevel string
-	logFile  string
-)
 
 func App() *cli.App {
 	app := cli.NewApp()
@@ -348,25 +344,29 @@ sudo rm /etc/systemd/system/gpud.service
 		{
 			Name:    "notify",
 			Aliases: []string{"nt"},
-
-			Usage: "notify control plane of state change",
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
-				},
-			},
+			Usage:   "notify control plane of state change",
 			Subcommands: []cli.Command{
 				{
 					Name:   "startup",
 					Usage:  "notify machine startup",
 					Action: cmdnotify.CommandStartup,
+					Flags: []cli.Flag{
+						&cli.StringFlag{
+							Name:  "log-level,l",
+							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+						},
+					},
 				},
 				{
 					Name:   "shutdown",
 					Usage:  "notify machine shutdown",
 					Action: cmdnotify.CommandShutdown,
+					Flags: []cli.Flag{
+						&cli.StringFlag{
+							Name:  "log-level,l",
+							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+						},
+					},
 				},
 			},
 		},
@@ -449,12 +449,11 @@ sudo rm /etc/systemd/system/gpud.service
 			UsageText: `# to join gpud into a lepton cluster
 sudo gpud join
 `,
-			Action: cmdJoin,
+			Action: cmdjoin.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 				cli.StringFlag{
 					Name:   "cluster-name",
