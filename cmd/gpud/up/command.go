@@ -1,4 +1,5 @@
-package command
+// Package up implements the "up" command.
+package up
 
 import (
 	"fmt"
@@ -15,12 +16,13 @@ import (
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
 )
 
-func cmdUp(cliContext *cli.Context) (retErr error) {
+func Command(cliContext *cli.Context) (retErr error) {
 	if err := osutil.RequireRoot(); err != nil {
 		return err
 	}
 
-	// Set up logging
+	logLevel := cliContext.String("log-level")
+	logFile := cliContext.String("log-file")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err

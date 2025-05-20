@@ -17,6 +17,7 @@ import (
 	cmdrunplugingroup "github.com/leptonai/gpud/cmd/gpud/run-plugin-group"
 	cmdscan "github.com/leptonai/gpud/cmd/gpud/scan"
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
+	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
@@ -100,12 +101,11 @@ gpud run
 # or
 nohup sudo gpud run &>> <your log file path> &
 `,
-			Action: cmdUp,
+			Action: cmdup.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
-					Name:        "log-level,l",
-					Usage:       "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-					Destination: &logLevel,
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 				cli.StringFlag{
 					Name:  "token",
