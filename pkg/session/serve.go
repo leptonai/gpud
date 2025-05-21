@@ -48,6 +48,9 @@ type Request struct {
 	// ComponentName is the name of the component to query or deregister.
 	ComponentName string `json:"component_name,omitempty"`
 
+	// TagName is the tag of the component to trigger check.
+	TagName string `json:"tag_name,omitempty"`
+
 	// CustomPluginSpec is the spec for the custom plugin to register or update.
 	CustomPluginSpec *pkgcustomplugins.Spec `json:"custom_plugin_spec,omitempty"`
 }
@@ -277,6 +280,30 @@ func (s *Session) serve() {
 						Component: payload.ComponentName,
 						States:    rs.HealthStates(),
 					},
+				}
+			}
+
+		case "triggerComponentCheckByTag":
+			if payload.TagName != "" {
+				components := s.componentsRegistry.All()
+				for _, comp := range components {
+					matched := false
+					for _, tag := range comp.Tags() {
+						if tag == payload.TagName {
+							matched = true
+							break
+						}
+					}
+					if !matched {
+						continue
+					}
+					rs := comp.Check()
+					response.States = apiv1.GPUdComponentHealthStates{
+						{
+							Component: payload.ComponentName,
+							States:    rs.HealthStates(),
+						},
+					}
 				}
 			}
 
