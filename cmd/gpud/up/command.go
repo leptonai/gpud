@@ -31,7 +31,6 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	if cliContext.String("token") != "" {
 		if lerr := cmdlogin.Command(cliContext); lerr != nil {
-			fmt.Printf("%s failed to login (%v)\n", cmdcommon.WarningSign, lerr)
 			return lerr
 		}
 		fmt.Printf("%s successfully logged in\n", cmdcommon.CheckMark)

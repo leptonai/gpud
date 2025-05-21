@@ -118,6 +118,14 @@ func Command(cliContext *cli.Context) error {
 	endpoint := cliContext.String("endpoint")
 	loginResp, err := login.SendRequest(rootCtx, endpoint, *req)
 	if err != nil {
+		log.Logger.Debugw("failed to login", "error", err)
+		if loginResp != nil {
+			es := ""
+			if loginResp.Error != "" {
+				es = fmt.Sprintf(", error: %s", loginResp.Error)
+			}
+			return fmt.Errorf("failed to login (reason: %s%s)", loginResp.Status, es)
+		}
 		return err
 	}
 

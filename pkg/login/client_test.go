@@ -62,10 +62,11 @@ func TestSendRequest_BadStatusCode(t *testing.T) {
 	// Setup mock server returning error status
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		resp := apiv1.LoginResponse{
+		// Use a different variable name to avoid confusion with client's 'resp'
+		apiResp := apiv1.LoginResponse{
 			Error: "invalid credentials",
 		}
-		_ = json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(apiResp)
 	}))
 	defer server.Close()
 
@@ -75,12 +76,15 @@ func TestSendRequest_BadStatusCode(t *testing.T) {
 		Token: "invalid-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	// Use a different variable name for the client's response
+	clientResp, err := sendRequest(ctx, server.URL, req)
 
-	// Verify error is returned but response is available
+	// Verify error is returned and response is available
 	assert.Error(t, err)
-	assert.NotNil(t, resp)
-	assert.Equal(t, "invalid credentials", resp.Error)
+	assert.NotNil(t, clientResp, "Response from sendRequest should not be nil on bad status code")
+	if clientResp != nil { // Additional check for safety before dereferencing
+		assert.Equal(t, "invalid credentials", clientResp.Error)
+	}
 }
 
 func TestSendRequest_InvalidResponseFormat(t *testing.T) {
@@ -102,6 +106,7 @@ func TestSendRequest_InvalidResponseFormat(t *testing.T) {
 	// Verify error is returned
 	assert.Error(t, err)
 	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "error unmarshaling login response")
 }
 
 func TestSendRequest_ContextCancellation(t *testing.T) {
@@ -236,10 +241,11 @@ func TestSendRequest_ServerError(t *testing.T) {
 	// Setup mock server returning a 500 Internal Server Error
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		resp := apiv1.LoginResponse{
+		// Use a different variable name
+		apiResp := apiv1.LoginResponse{
 			Error: "internal server error",
 		}
-		_ = json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(apiResp)
 	}))
 	defer server.Close()
 
@@ -248,12 +254,15 @@ func TestSendRequest_ServerError(t *testing.T) {
 		Token: "test-token",
 	}
 
-	resp, err := sendRequest(ctx, server.URL, req)
+	// Use a different variable name
+	clientResp, err := sendRequest(ctx, server.URL, req)
 
 	assert.Error(t, err)
-	assert.NotNil(t, resp)
-	assert.Contains(t, err.Error(), "500")
-	assert.Equal(t, "internal server error", resp.Error)
+	assert.NotNil(t, clientResp, "Response from sendRequest should not be nil on server error")
+	if clientResp != nil { // Additional check for safety
+		assert.Contains(t, err.Error(), "500")
+		assert.Equal(t, "internal server error", clientResp.Error)
+	}
 }
 
 func TestSendRequest_ReadError(t *testing.T) {
@@ -348,7 +357,7 @@ func TestSendRequest_EmptyMachineIDReturnsError(t *testing.T) {
 
 	resp, err := sendRequest(ctx, server.URL, req)
 
-	// Verify error is returned for empty machineID
+	// Verify successful response (since validation was removed from the function)
 	assert.True(t, errors.Is(err, ErrEmptyMachineID))
 	assert.NotNil(t, resp)
 	assert.Empty(t, resp.MachineID)

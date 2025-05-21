@@ -58,7 +58,7 @@ func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		return &resp, fmt.Errorf("login request failed with status code %d (%+v)", httpResp.StatusCode, resp)
+		return &resp, fmt.Errorf("unexpected status code %d (%s)", httpResp.StatusCode, string(body))
 	}
 
 	if resp.MachineID == "" {

@@ -342,4 +342,7 @@ func TestSendRequest_PublicWrapper(t *testing.T) {
 	resp, err := SendRequest(ctx, serverURL, req)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
+	if resp != nil {
+		assert.Equal(t, "success", resp.Status)
+	}
 }
