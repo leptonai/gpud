@@ -28,7 +28,7 @@ func DefaultBinExists() bool {
 // CreateDefaultEnvFile creates the default environment file for gpud systemd service.
 // Assume systemdctl is already installed, and runs on the linux system.
 func CreateDefaultEnvFile(endpoint string) error {
-	return writeEnvFile(DefaultEnvFile, endpoint)
+	return writeEnvFile(DefaultEnvFile, "")
 }
 
 const defaultEnvFileContent = `# gpud environment variables are set here
@@ -45,9 +45,6 @@ FLAGS="--log-level=info --log-file=/var/log/gpud.log --endpoint=%s"
 }
 
 func writeEnvFile(file string, endpoint string) error {
-	if _, err := os.Stat(file); err == nil {
-		return updateFlagsFromExistingEnvFile(file, endpoint)
-	}
 	return atomicfile.WriteFile(file, []byte(createDefaultEnvFileContent(endpoint)), 0644)
 }
 
