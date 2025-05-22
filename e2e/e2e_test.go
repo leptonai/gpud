@@ -222,7 +222,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			found := false
 			for _, comp := range componentStates {
-				if comp.Component != "info" {
+				if comp.Component != "machine-info" {
 					continue
 				}
 				for _, state := range comp.States {
@@ -263,7 +263,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			found := false
 			for _, comp := range componentStates {
-				if comp.Component != "info" {
+				if comp.Component != "machine-info" {
 					continue
 				}
 				for _, state := range comp.States {

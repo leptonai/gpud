@@ -12,7 +12,6 @@ import (
 	componentsacceleratornvidiagspfirmwaremode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	componentsacceleratornvidiahwslowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	componentsacceleratornvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
-	componentsacceleratornvidiainfo "github.com/leptonai/gpud/components/accelerator/nvidia/info"
 	componentsacceleratornvidiamemory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
 	componentsacceleratornvidianccl "github.com/leptonai/gpud/components/accelerator/nvidia/nccl"
 	componentsacceleratornvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
@@ -30,10 +29,10 @@ import (
 	componentsdisk "github.com/leptonai/gpud/components/disk"
 	componentsdockercontainer "github.com/leptonai/gpud/components/docker/container"
 	componentsfuse "github.com/leptonai/gpud/components/fuse"
-	componentsinfo "github.com/leptonai/gpud/components/info"
 	componentskernelmodule "github.com/leptonai/gpud/components/kernel-module"
 	componentskubeletpod "github.com/leptonai/gpud/components/kubelet/pod"
 	componentslibrary "github.com/leptonai/gpud/components/library"
+	componentsmachineinfo "github.com/leptonai/gpud/components/machine-info"
 	componentsmemory "github.com/leptonai/gpud/components/memory"
 	componentsnetworklatency "github.com/leptonai/gpud/components/network/latency"
 	componentsos "github.com/leptonai/gpud/components/os"
@@ -51,7 +50,7 @@ var componentInits = []components.InitFunc{
 	componentsdisk.New,
 	componentsdockercontainer.New,
 	componentsfuse.New,
-	componentsinfo.New,
+	componentsmachineinfo.New,
 	componentskernelmodule.New,
 	componentskubeletpod.New,
 	componentslibrary.New,
@@ -68,7 +67,6 @@ var componentInits = []components.InitFunc{
 	componentsacceleratornvidiagspfirmwaremode.New,
 	componentsacceleratornvidiahwslowdown.New,
 	componentsacceleratornvidiainfiniband.New,
-	componentsacceleratornvidiainfo.New,
 	componentsacceleratornvidiamemory.New,
 	componentsacceleratornvidianccl.New,
 	componentsacceleratornvidianvlink.New,
