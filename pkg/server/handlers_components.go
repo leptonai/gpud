@@ -132,14 +132,43 @@ func (g *globalHandler) triggerComponentCheck(c *gin.Context) {
 		return
 	}
 
-	comp := g.componentsRegistry.Get(componentName)
-	if comp == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
-		return
-	}
+	tagName := c.Query("tagName")
+	switch tagName {
+	case "":
+		comp := g.componentsRegistry.Get(componentName)
+		if comp == nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
+			return
+		}
 
-	rs := comp.Check()
-	c.JSON(http.StatusOK, rs.HealthStates())
+		rs := comp.Check()
+		c.JSON(http.StatusOK, rs.HealthStates())
+
+	default:
+		components := g.componentsRegistry.All()
+		states := make([]apiv1.ComponentHealthStates, 0)
+		for _, comp := range components {
+			matched := false
+			for _, tag := range comp.Tags() {
+				if tag == tagName {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+			rs := comp.Check()
+
+			compHealthStates := apiv1.ComponentHealthStates{
+				Component: comp.Name(),
+				States:    rs.HealthStates(),
+			}
+
+			states = append(states, compHealthStates)
+		}
+		c.JSON(http.StatusOK, states)
+	}
 }
 
 const URLPathComponentsCustomPlugins = "/components/custom-plugin"

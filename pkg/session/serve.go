@@ -48,6 +48,11 @@ type Request struct {
 	// ComponentName is the name of the component to query or deregister.
 	ComponentName string `json:"component_name,omitempty"`
 
+	// TagName is the tag of the component to trigger check.
+	// Optional. If set, it triggers all the component checks
+	// that match this tag value.
+	TagName string `json:"tag_name,omitempty"`
+
 	// CustomPluginSpec is the spec for the custom plugin to register or update.
 	CustomPluginSpec *pkgcustomplugins.Spec `json:"custom_plugin_spec,omitempty"`
 }
@@ -264,19 +269,45 @@ func (s *Session) serve() {
 
 		case "triggerComponentCheck":
 			if payload.ComponentName != "" {
-				comp := s.componentsRegistry.Get(payload.ComponentName)
-				if comp == nil {
-					log.Logger.Warnw("component not found", "name", payload.ComponentName)
-					response.ErrorCode = http.StatusNotFound
-					break
-				}
+				switch payload.TagName {
+				case "":
+					comp := s.componentsRegistry.Get(payload.ComponentName)
+					if comp == nil {
+						log.Logger.Warnw("component not found", "name", payload.ComponentName)
+						response.ErrorCode = http.StatusNotFound
+						break
+					}
 
-				rs := comp.Check()
-				response.States = apiv1.GPUdComponentHealthStates{
-					{
-						Component: payload.ComponentName,
-						States:    rs.HealthStates(),
-					},
+					rs := comp.Check()
+					response.States = apiv1.GPUdComponentHealthStates{
+						{
+							Component: payload.ComponentName,
+							States:    rs.HealthStates(),
+						},
+					}
+
+				default:
+					components := s.componentsRegistry.All()
+					for _, comp := range components {
+						matched := false
+						for _, tag := range comp.Tags() {
+							if tag == payload.TagName {
+								matched = true
+								break
+							}
+						}
+						if !matched {
+							continue
+						}
+						rs := comp.Check()
+
+						compHealthStates := apiv1.ComponentHealthStates{
+							Component: payload.ComponentName,
+							States:    rs.HealthStates(),
+						}
+
+						response.States = append(response.States, compHealthStates)
+					}
 				}
 			}
 

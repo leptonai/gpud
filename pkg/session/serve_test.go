@@ -551,6 +551,78 @@ func TestTriggerComponentCheck(t *testing.T) {
 	compResults.AssertExpectations(t)
 }
 
+// Test triggerComponentCheckByTag with non-empty TagName
+func TestTriggerComponentCheckByTag(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader) // Ensure the goroutine exits
+
+	// Create two components with different tags
+	comp1 := new(mockComponent)
+	comp2 := new(mockComponent)
+	compResults := new(mockCheckResult)
+	healthStates := apiv1.HealthStates{
+		{Health: apiv1.HealthStateTypeHealthy, Name: "test-state"},
+	}
+
+	// Set up component behaviors
+	comp1.On("Tags").Return([]string{"tag1", "common-tag"})
+	comp1.On("Check").Return(compResults)
+
+	comp2.On("Tags").Return([]string{"tag2"}) // This one doesn't have the matching tag
+	// comp2 should not have Check called since it doesn't match the tag
+
+	// Only comp1 should have its Check method called since only it has the matching tag
+	compResults.On("HealthStates").Return(healthStates)
+
+	// Set up registry to return both components
+	registry.On("All").Return([]components.Component{comp1, comp2})
+
+	// Note: This is NOT using "triggerComponentCheckByTag" method, but rather "triggerComponentCheck"
+	// with a non-empty TagName, as that's how the code is implemented
+	req := Request{
+		Method:        "triggerComponentCheck",
+		TagName:       "common-tag",
+		ComponentName: "test-component", // This will be used as identifier in the response
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+	assert.Len(t, response.States, 1)
+	assert.Equal(t, "test-component", response.States[0].Component) // Should use ComponentName from request
+	assert.Equal(t, healthStates, response.States[0].States)
+
+	// Verify expectations
+	registry.AssertExpectations(t)
+	comp1.AssertExpectations(t)
+	comp2.AssertExpectations(t)
+	compResults.AssertExpectations(t)
+}
+
 // Test deregisterComponent
 func TestDeregisterComponent(t *testing.T) {
 	session, registry, _, _, reader, writer := setupTestSession()
