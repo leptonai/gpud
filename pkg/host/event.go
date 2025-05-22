@@ -32,30 +32,30 @@ func NewRebootEventStore(eventStore eventstore.Store) RebootEventStore {
 }
 
 func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
-	return recordEvent(ctx, s.eventStore, s.getLastRebootTime)
+	return recordEvent(ctx, s.eventStore, time.Now().UTC(), s.getLastRebootTime)
 }
 
 func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return getEvents(ctx, s.eventStore, since)
 }
 
-func recordEvent(ctx context.Context, eventStore eventstore.Store, getLastRebootTime func(context.Context) (time.Time, error)) error {
-	bootTime, err := getLastRebootTime(ctx)
+func recordEvent(ctx context.Context, eventStore eventstore.Store, now time.Time, getLastRebootTime func(context.Context) (time.Time, error)) error {
+	currentBootTime, err := getLastRebootTime(ctx)
 	if err != nil {
 		return err
 	}
 
 	// if now - event time > retention, then skip
-	if time.Since(bootTime) >= eventstore.DefaultRetention {
-		log.Logger.Debugw("skipping reboot event", "time_since", time.Since(bootTime), "retention", eventstore.DefaultRetention)
+	if now.Sub(currentBootTime) >= eventstore.DefaultRetention {
+		log.Logger.Debugw("skipping reboot event", "time_since", time.Since(currentBootTime), "retention", eventstore.DefaultRetention)
 		return nil
 	}
 
-	rebootEvent := eventstore.Event{
-		Time:    bootTime,
+	currentRebootEvent := eventstore.Event{
+		Time:    currentBootTime,
 		Name:    "reboot",
 		Type:    string(apiv1.EventTypeWarning),
-		Message: fmt.Sprintf("system reboot detected %v", bootTime),
+		Message: fmt.Sprintf("system reboot detected %v", currentBootTime),
 	}
 
 	bucket, err := eventStore.Bucket(defaultBucketName, eventstore.WithDisablePurge())
@@ -64,17 +64,40 @@ func recordEvent(ctx context.Context, eventStore eventstore.Store, getLastReboot
 	}
 	defer bucket.Close()
 
-	lastEvent, err := bucket.Latest(ctx)
+	// to prevent duplicate events
+	// in case "uptime -s" returns outdated but already recorded timestamp
+	existing, err := bucket.Find(ctx, currentRebootEvent)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return nil
+	}
+
+	prevRebootEvent, err := bucket.Latest(ctx)
 	if err != nil {
 		return err
 	}
 
-	if lastEvent != nil && lastEvent.Time.Sub(bootTime).Abs() < time.Minute {
+	// no previous reboot event
+	if prevRebootEvent == nil {
+		return bucket.Insert(ctx, currentRebootEvent)
+	}
+
+	// previous reboot event happened after the current reboot event
+	// thus do not insert the outdated reboot event
+	if !prevRebootEvent.Time.IsZero() && prevRebootEvent.Time.After(currentBootTime) {
 		return nil
 	}
 
-	// else insert event
-	return bucket.Insert(ctx, rebootEvent)
+	// reboot already recorded in the last minute, thus skip
+	elapsed := currentBootTime.Sub(prevRebootEvent.Time)
+	if elapsed > 0 && elapsed < time.Minute {
+		return nil
+	}
+
+	// reboot not recorded in the last minute, thus record
+	return bucket.Insert(ctx, currentRebootEvent)
 }
 
 func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) (eventstore.Events, error) {

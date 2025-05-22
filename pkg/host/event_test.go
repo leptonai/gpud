@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ func TestRecordEvent(t *testing.T) {
 			return recentTime, nil
 		}
 
-		err = recordEvent(ctx, store, mockLastReboot)
+		err = recordEvent(ctx, store, recentTime, mockLastReboot)
 		assert.NoError(t, err)
 
 		bucket, err := store.Bucket("os")
@@ -55,7 +56,8 @@ func TestRecordEvent(t *testing.T) {
 			return oldTime, nil
 		}
 
-		err = recordEvent(ctx, store, mockLastReboot)
+		now := time.Now()
+		err = recordEvent(ctx, store, now, mockLastReboot)
 		assert.NoError(t, err)
 
 		bucket, err := store.Bucket("os")
@@ -74,7 +76,8 @@ func TestRecordEvent(t *testing.T) {
 			return time.Time{}, errors.New("uptime command failed")
 		}
 
-		err = recordEvent(ctx, store, mockLastReboot)
+		now := time.Now()
+		err = recordEvent(ctx, store, now, mockLastReboot)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "uptime command failed")
 	})
@@ -92,18 +95,313 @@ func TestRecordEvent(t *testing.T) {
 
 		existingTime := events[0].Time
 
+		// Use a fresh store to isolate this test
+		dbRW2, dbRO2, cleanup2 := sqlite.OpenTestDB(t)
+		defer cleanup2()
+		isolatedStore, err := eventstore.New(dbRW2, dbRO2, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		isolatedBucket, err := isolatedStore.Bucket("os")
+		require.NoError(t, err)
+		err = isolatedBucket.Insert(ctx, eventstore.Event{
+			Time:    existingTime,
+			Name:    "reboot",
+			Type:    string(apiv1.EventTypeWarning),
+			Message: fmt.Sprintf("system reboot detected %v", existingTime),
+		})
+		require.NoError(t, err)
+		isolatedBucket.Close()
+
 		// Try to record with same timestamp
 		mockLastReboot := func(ctx context.Context) (time.Time, error) {
 			return existingTime, nil
 		}
 
-		err = recordEvent(ctx, store, mockLastReboot)
+		now := time.Now()
+		err = recordEvent(ctx, isolatedStore, now, mockLastReboot)
 		assert.NoError(t, err)
 
 		// Should still be only 1 event
-		events, err = bucket.Get(ctx, time.Time{})
+		isolatedBucket, err = isolatedStore.Bucket("os")
+		require.NoError(t, err)
+		events, err = isolatedBucket.Get(ctx, time.Time{})
 		assert.NoError(t, err)
 		assert.Len(t, events, 1)
+	})
+
+	// Test with duplicate event with timestamp that's a few seconds different
+	t.Run("event with timestamp less than a minute different should not be recorded", func(t *testing.T) {
+		// Use a fresh store to isolate this test
+		dbRW2, dbRO2, cleanup2 := sqlite.OpenTestDB(t)
+		defer cleanup2()
+		isolatedStore, err := eventstore.New(dbRW2, dbRO2, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		baseTime := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+
+		// Insert first event
+		isolatedBucket, err := isolatedStore.Bucket("os")
+		require.NoError(t, err)
+		err = isolatedBucket.Insert(ctx, eventstore.Event{
+			Time:    baseTime,
+			Name:    "reboot",
+			Type:    string(apiv1.EventTypeWarning),
+			Message: fmt.Sprintf("system reboot detected %v", baseTime),
+		})
+		require.NoError(t, err)
+		isolatedBucket.Close()
+
+		// Now try to record one 30 seconds later
+		slightlyDifferentTime := baseTime.Add(30 * time.Second)
+		mockLastReboot := func(ctx context.Context) (time.Time, error) {
+			return slightlyDifferentTime, nil
+		}
+
+		now := time.Now()
+		err = recordEvent(ctx, isolatedStore, now, mockLastReboot)
+		assert.NoError(t, err)
+
+		// Should still be only 1 event
+		isolatedBucket, err = isolatedStore.Bucket("os")
+		require.NoError(t, err)
+		events, err := isolatedBucket.Get(ctx, time.Time{})
+		assert.NoError(t, err)
+		assert.Len(t, events, 1)
+	})
+
+	// Test with non-duplicate event with timestamp more than a minute different
+	t.Run("event with timestamp more than a minute different should be recorded", func(t *testing.T) {
+		// Create a separate database for this test
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		// Create event store and bucket for this test
+		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		// Fixed test time to keep comparisons deterministic
+		now := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
+
+		// First event - should be recorded (at 1:00 PM)
+		baseTime := time.Date(2025, 5, 21, 13, 0, 0, 0, time.UTC)
+		mockLastReboot := func(ctx context.Context) (time.Time, error) {
+			return baseTime, nil
+		}
+
+		err = recordEvent(ctx, store, now, mockLastReboot)
+		assert.NoError(t, err)
+
+		// Check first event was recorded
+		bucket, err := store.Bucket("os")
+		require.NoError(t, err)
+		events, err := bucket.Get(ctx, time.Time{})
+		require.NoError(t, err)
+		require.Len(t, events, 1, "Should have exactly 1 event to start")
+		bucket.Close()
+
+		// Second event - should also be recorded (at 1:02 PM, more than a minute after first)
+		laterTime := time.Date(2025, 5, 21, 13, 2, 0, 0, time.UTC)
+		mockLastReboot2 := func(ctx context.Context) (time.Time, error) {
+			return laterTime, nil
+		}
+
+		err = recordEvent(ctx, store, now, mockLastReboot2)
+		assert.NoError(t, err)
+
+		// Verify both events were recorded
+		bucket, err = store.Bucket("os")
+		require.NoError(t, err)
+		defer bucket.Close()
+
+		events, err = bucket.Get(ctx, time.Time{})
+		require.NoError(t, err)
+		assert.Len(t, events, 2, "Should have recorded both events")
+	})
+}
+
+// Test to specifically test the scenario from the image where we have duplicate reboot events
+func TestDuplicateRebootEvents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("prevent duplicate timestamp reboot events", func(t *testing.T) {
+		// Create a separate database for this test
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		// Create event store and bucket for this test
+		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		baseTime := time.Date(2025, 5, 21, 14, 56, 59, 0, time.UTC)
+		now := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
+
+		// First event - should be recorded
+		mockLastReboot := func(ctx context.Context) (time.Time, error) {
+			return baseTime, nil
+		}
+		err = recordEvent(ctx, store, now, mockLastReboot)
+		assert.NoError(t, err)
+
+		// Try to record same event again - should be skipped
+		err = recordEvent(ctx, store, now, mockLastReboot)
+		assert.NoError(t, err)
+
+		// Check we only have one event
+		bucket, err := store.Bucket("os")
+		require.NoError(t, err)
+		defer bucket.Close()
+
+		events, err := bucket.Get(ctx, time.Time{})
+		assert.NoError(t, err)
+		assert.Len(t, events, 1)
+	})
+
+	t.Run("handle multiple reboot events with image timestamps", func(t *testing.T) {
+		// Create a separate database for this test
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		// Create event store and bucket for this test
+		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		timestamps := []time.Time{
+			time.Date(2025, 5, 21, 5, 26, 28, 0, time.UTC),
+			time.Date(2025, 5, 21, 14, 18, 59, 0, time.UTC),
+			time.Date(2025, 5, 21, 14, 56, 59, 0, time.UTC),
+
+			// Try recording the same timestamps again (simulating duplicate detection)
+			time.Date(2025, 5, 21, 5, 26, 28, 0, time.UTC),
+			time.Date(2025, 5, 21, 14, 18, 59, 0, time.UTC),
+			time.Date(2025, 5, 21, 14, 56, 59, 0, time.UTC),
+		}
+
+		now := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
+
+		// Record each timestamp sequentially
+		for _, ts := range timestamps {
+			finalTs := ts // Capture for closure
+			mockLastReboot := func(ctx context.Context) (time.Time, error) {
+				return finalTs, nil
+			}
+
+			err = recordEvent(ctx, store, now, mockLastReboot)
+			assert.NoError(t, err)
+		}
+
+		// Verify we have only 3 events (not 6)
+		bucket, err := store.Bucket("os")
+		require.NoError(t, err)
+		defer bucket.Close()
+
+		events, err := bucket.Get(ctx, time.Time{})
+		assert.NoError(t, err)
+		assert.Len(t, events, 3, "Should have 3 events, one for each unique timestamp")
+
+		// Verify the events have the correct timestamps
+		timeSet := make(map[int64]bool)
+		for _, event := range events {
+			timeSet[event.Time.Unix()] = true
+		}
+
+		// Check all three unique timestamps are present
+		expectedTimestamps := []time.Time{
+			time.Date(2025, 5, 21, 5, 26, 28, 0, time.UTC),
+			time.Date(2025, 5, 21, 14, 18, 59, 0, time.UTC),
+			time.Date(2025, 5, 21, 14, 56, 59, 0, time.UTC),
+		}
+		for _, ts := range expectedTimestamps {
+			assert.True(t, timeSet[ts.Unix()], "Missing timestamp %v", ts)
+		}
+	})
+
+	t.Run("timestamps just under one minute apart should be considered duplicates", func(t *testing.T) {
+		// Create a separate database for this test
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		// Create event store and bucket for this test
+		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		baseTime := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
+		now := time.Date(2025, 5, 21, 15, 10, 0, 0, time.UTC)
+
+		// Record first event
+		mockLastReboot := func(ctx context.Context) (time.Time, error) {
+			return baseTime, nil
+		}
+		err = recordEvent(ctx, store, now, mockLastReboot)
+		assert.NoError(t, err)
+
+		// Try to record event 30 seconds later
+		almostOneMinuteLater := baseTime.Add(30 * time.Second)
+		mockLastReboot = func(ctx context.Context) (time.Time, error) {
+			return almostOneMinuteLater, nil
+		}
+		err = recordEvent(ctx, store, now, mockLastReboot)
+		assert.NoError(t, err)
+
+		// Check we only have one event
+		bucket, err := store.Bucket("os")
+		require.NoError(t, err)
+		defer bucket.Close()
+
+		events, err := bucket.Get(ctx, time.Time{})
+		assert.NoError(t, err)
+		assert.Len(t, events, 1, "Events under 1 minute apart should be considered duplicates")
+	})
+
+	t.Run("timestamps over one minute apart should be recorded as separate events", func(t *testing.T) {
+		// Create a separate database for this test
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		// Create event store and bucket for this test
+		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		baseTime := time.Date(2025, 5, 21, 16, 0, 0, 0, time.UTC)
+		now := time.Date(2025, 5, 21, 16, 10, 0, 0, time.UTC)
+
+		// Record first event
+		mockLastReboot := func(ctx context.Context) (time.Time, error) {
+			return baseTime, nil
+		}
+		err = recordEvent(ctx, store, now, mockLastReboot)
+		assert.NoError(t, err)
+
+		// Try to record event 61 seconds later
+		overOneMinuteLater := baseTime.Add(61 * time.Second)
+		mockLastReboot = func(ctx context.Context) (time.Time, error) {
+			return overOneMinuteLater, nil
+		}
+		err = recordEvent(ctx, store, now, mockLastReboot)
+		assert.NoError(t, err)
+
+		// Check we have two events
+		bucket, err := store.Bucket("os")
+		require.NoError(t, err)
+		defer bucket.Close()
+
+		events, err := bucket.Get(ctx, time.Time{})
+		assert.NoError(t, err)
+		assert.Len(t, events, 2, "Events over 1 minute apart should be recorded separately")
 	})
 }
 
@@ -181,7 +479,8 @@ func TestRecordEventEdgeCases(t *testing.T) {
 			return time.Time{}, nil
 		}
 
-		err = recordEvent(ctx, store, mockLastReboot)
+		now := time.Now()
+		err = recordEvent(ctx, store, now, mockLastReboot)
 		assert.NoError(t, err)
 
 		// Since time.Time{} is way in the past, it should be filtered by retention period
@@ -204,7 +503,7 @@ func TestRecordEventEdgeCases(t *testing.T) {
 			return recentTime, nil
 		}
 
-		err = recordEvent(canceledCtx, store, mockLastReboot)
+		err = recordEvent(canceledCtx, store, recentTime, mockLastReboot)
 		assert.Error(t, err)
 	})
 }
@@ -347,7 +646,8 @@ func TestRecordEventWithContextTimeout(t *testing.T) {
 			return recentTime, nil
 		}
 
-		err = recordEvent(timeoutCtx, store, mockLastReboot)
+		now := time.Now()
+		err = recordEvent(timeoutCtx, store, now, mockLastReboot)
 		assert.Error(t, err)
 	})
 }
