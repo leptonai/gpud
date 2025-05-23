@@ -155,6 +155,11 @@ sudo rm /etc/systemd/system/gpud.service
 			Action: cmdrun.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
+					Name:   "endpoint",
+					Usage:  "endpoint for control plane",
+					Hidden: true,
+				},
+				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
