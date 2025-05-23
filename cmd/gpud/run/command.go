@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -53,6 +54,7 @@ func Command(cliContext *cli.Context) error {
 	ibstatCommand := cliContext.String("ibstat-command")
 	ibstatusCommand := cliContext.String("ibstatus-command")
 	enablePluginAPI := cliContext.Bool("enable-plugin-api")
+	enableComponents := cliContext.String("enable-components")
 
 	configOpts := []config.OpOption{
 		config.WithIbstatCommand(ibstatCommand),
@@ -83,6 +85,10 @@ func Command(cliContext *cli.Context) error {
 
 	cfg.PluginSpecsFile = pluginSpecsFile
 	cfg.EnablePluginAPI = enablePluginAPI
+
+	if enableComponents != "" && enableComponents != "*" && enableComponents != "all" {
+		cfg.EnableComponents = strings.Split(enableComponents, ",")
+	}
 
 	if err := cfg.Validate(); err != nil {
 		return err

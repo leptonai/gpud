@@ -189,9 +189,20 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		MountTargets: []string{"/var/lib/kubelet"},
 	}
 
+	enableComponents := make(map[string]any)
+	for _, c := range config.EnableComponents {
+		enableComponents[c] = struct{}{}
+	}
+
 	s.componentsRegistry = components.NewRegistry(gpudInstance)
-	for _, initFunc := range all.InitFuncs() {
-		s.componentsRegistry.MustRegister(initFunc)
+	for _, c := range all.All() {
+		name := c.Name
+		if len(enableComponents) > 0 {
+			if _, ok := enableComponents[name]; !ok {
+				continue
+			}
+		}
+		s.componentsRegistry.MustRegister(c.InitFunc)
 	}
 
 	// must be registered before starting the components
