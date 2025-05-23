@@ -127,19 +127,49 @@ const URLPathComponentsTriggerCheck = "/components/trigger-check"
 // @Router /v1/components/trigger-check [get]
 func (g *globalHandler) triggerComponentCheck(c *gin.Context) {
 	componentName := c.Query("componentName")
-	if componentName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component name is required"})
+	tagName := c.Query("tagName")
+
+	if componentName == "" && tagName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component or tag name is required"})
 		return
 	}
 
-	comp := g.componentsRegistry.Get(componentName)
-	if comp == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
-		return
+	checkResults := make([]components.CheckResult, 0)
+	if componentName != "" {
+		// requesting a specific component, tag is ignored
+		comp := g.componentsRegistry.Get(componentName)
+		if comp == nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
+			return
+		}
+
+		checkResults = append(checkResults, comp.Check())
+	} else if tagName != "" {
+		components := g.componentsRegistry.All()
+		for _, comp := range components {
+			matched := false
+			for _, tag := range comp.Tags() {
+				if tag == tagName {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+
+			checkResults = append(checkResults, comp.Check())
+		}
 	}
 
-	rs := comp.Check()
-	c.JSON(http.StatusOK, rs.HealthStates())
+	resp := apiv1.GPUdComponentHealthStates{}
+	for _, checkResult := range checkResults {
+		resp = append(resp, apiv1.ComponentHealthStates{
+			Component: checkResult.ComponentName(),
+			States:    checkResult.HealthStates(),
+		})
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 const URLPathComponentsCustomPlugins = "/components/custom-plugin"

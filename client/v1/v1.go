@@ -159,7 +159,7 @@ func DeregisterComponent(ctx context.Context, addr string, componentName string,
 }
 
 // TriggerComponentCheck manually triggers a component check.
-func TriggerComponentCheck(ctx context.Context, addr string, componentName string, opts ...OpOption) (v1.HealthStates, error) {
+func TriggerComponentCheck(ctx context.Context, addr string, componentName string, opts ...OpOption) (v1.GPUdComponentHealthStates, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -200,7 +200,7 @@ func TriggerComponentCheck(ctx context.Context, addr string, componentName strin
 		return nil, errors.New("server not ready, response not 200")
 	}
 
-	var healthStates v1.HealthStates
+	var healthStates v1.GPUdComponentHealthStates
 	if err := json.NewDecoder(resp.Body).Decode(&healthStates); err != nil {
 		return nil, fmt.Errorf("failed to decode json: %w", err)
 	}
