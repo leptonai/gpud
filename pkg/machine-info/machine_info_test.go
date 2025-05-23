@@ -125,27 +125,6 @@ func TestGetSystemResourceRootVolumeTotal(t *testing.T) {
 	t.Logf("Root volume: %s", volume)
 }
 
-func TestGetProvider(t *testing.T) {
-	// Test with empty IP
-	provider := GetProvider("")
-	assert.Empty(t, provider)
-
-	// Test with localhost IP
-	provider = GetProvider("127.0.0.1")
-	assert.Empty(t, provider)
-
-	// Test with invalid IP
-	provider = GetProvider("999.999.999.999")
-	assert.Empty(t, provider)
-
-	// Skip real IP test as it depends on external service
-	if os.Getenv("TEST_PROVIDER_LOOKUP") == "true" {
-		// Test with a real public IP (Google DNS)
-		provider = GetProvider("8.8.8.8")
-		t.Logf("Provider for 8.8.8.8: %s", provider)
-	}
-}
-
 // TestGetMachineInfo tests only basic functionality without mocking
 func TestGetMachineInfo(t *testing.T) {
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {

@@ -13,10 +13,20 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/release/distsign"
 )
 
 func CommandVerifyPackageSignature(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, "")
+
+	log.Logger.Debugw("starting verify-package-signature command")
+
 	signPubPath := cliContext.String("sign-pub-path")
 	signPubBundle, err := os.ReadFile(signPubPath)
 	if err != nil {

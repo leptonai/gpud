@@ -309,32 +309,6 @@ func TestServerStopNil(t *testing.T) {
 	s.Stop()
 }
 
-func TestRecordInternalMetrics(t *testing.T) {
-	db, _, cleanup := setupTestDB(t)
-	defer cleanup()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Start recordInternalMetrics in a goroutine
-	done := make(chan struct{})
-	go func() {
-		recordInternalMetrics(ctx, db)
-		close(done)
-	}()
-
-	// Cancel the context immediately to stop the function
-	cancel()
-
-	// Check that the goroutine exits after context cancellation
-	select {
-	case <-done:
-		// Function exited properly
-	case <-time.After(time.Second):
-		t.Fatal("recordInternalMetrics didn't exit after context was canceled")
-	}
-}
-
 func TestUpdateToken(t *testing.T) {
 	// This is a simple test to ensure the function can be called without errors
 	// We're not trying to test the full functionality, just that it handles basic input

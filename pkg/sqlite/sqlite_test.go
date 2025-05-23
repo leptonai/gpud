@@ -87,17 +87,30 @@ func TestReadDBSize(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbFile := filepath.Join(tmpDir, "size_test.db")
-	db, err := Open(dbFile)
+
+	// Create the database file first in read-write mode to ensure it exists
+	dbInit, err := Open(dbFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	// Perform a simple operation to ensure the file is actually created
+	_, err = dbInit.Exec("SELECT 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dbInit.Close()
 
 	ctx := context.Background()
 
 	// Test initial size
 	t.Run("initial size", func(t *testing.T) {
-		size, err := ReadDBSize(ctx, db)
+		dbRO, err := Open(dbFile, WithReadOnly(true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dbRO.Close()
+
+		size, err := ReadDBSize(ctx, dbRO)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -108,9 +121,15 @@ func TestReadDBSize(t *testing.T) {
 
 	// Test with canceled context
 	t.Run("canceled context", func(t *testing.T) {
+		dbRO, err := Open(dbFile, WithReadOnly(true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dbRO.Close()
+
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, err := ReadDBSize(ctx, db)
+		_, err = ReadDBSize(ctx, dbRO)
 		if err == nil {
 			t.Error("expected error with canceled context")
 		}

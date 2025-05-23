@@ -10,10 +10,20 @@ import (
 	"github.com/urfave/cli"
 	"golang.org/x/crypto/blake2s"
 
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/release/distsign"
 )
 
 func CommandSignPackage(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, "")
+
+	log.Logger.Debugw("starting sign-package command")
+
 	signPrivPath := cliContext.String("sign-priv-path")
 	signPrivRaw, err := os.ReadFile(signPrivPath)
 	if err != nil {

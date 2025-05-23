@@ -17,10 +17,6 @@ import (
 )
 
 func Command(cliContext *cli.Context) (retErr error) {
-	if err := osutil.RequireRoot(); err != nil {
-		return err
-	}
-
 	logLevel := cliContext.String("log-level")
 	logFile := cliContext.String("log-file")
 	zapLvl, err := log.ParseLogLevel(logLevel)
@@ -28,6 +24,12 @@ func Command(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 	log.Logger = log.CreateLogger(zapLvl, logFile)
+
+	log.Logger.Debugw("starting up command")
+
+	if err := osutil.RequireRoot(); err != nil {
+		return err
+	}
 
 	if cliContext.String("token") != "" {
 		if lerr := cmdlogin.Command(cliContext); lerr != nil {

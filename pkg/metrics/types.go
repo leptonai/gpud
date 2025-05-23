@@ -26,6 +26,12 @@ type Metric struct {
 // Metrics is a slice of Metric.
 type Metrics []Metric
 
+// Recorder defines the metrics recorder interface.
+type Recorder interface {
+	// Start starts the periodic metrics recorder.
+	Start()
+}
+
 // Scraper defines the metrics scraper interface.
 type Scraper interface {
 	Scrape(context.Context) (Metrics, error)

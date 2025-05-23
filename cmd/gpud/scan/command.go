@@ -28,7 +28,7 @@ func cmdScan(logLevel string, ibstatCommand string, ibstatusCommand string) erro
 	}
 	log.Logger = log.CreateLogger(zapLvl, "")
 
-	log.Logger.Debugw("start scan command")
+	log.Logger.Debugw("starting scan command")
 
 	opts := []scan.OpOption{
 		scan.WithIbstatCommand(ibstatCommand),

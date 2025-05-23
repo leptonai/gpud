@@ -24,6 +24,8 @@ func Command(cliContext *cli.Context) error {
 	}
 	log.Logger = log.CreateLogger(zapLvl, "")
 
+	log.Logger.Debugw("starting compact command")
+
 	if systemd.SystemctlExists() {
 		active, err := systemd.IsActive("gpud.service")
 		if err != nil {

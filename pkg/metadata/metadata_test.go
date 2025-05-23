@@ -1,4 +1,4 @@
-package gpudstate
+package metadata
 
 import (
 	"context"

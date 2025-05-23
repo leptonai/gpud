@@ -11,8 +11,8 @@ import (
 	cmdjoin "github.com/leptonai/gpud/cmd/gpud/join"
 	cmdlistplugins "github.com/leptonai/gpud/cmd/gpud/list-plugins"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
+	cmdmachineinfo "github.com/leptonai/gpud/cmd/gpud/machine-info"
 	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
-	cmdprivateip "github.com/leptonai/gpud/cmd/gpud/private-ip"
 	cmdrelease "github.com/leptonai/gpud/cmd/gpud/release"
 	cmdrun "github.com/leptonai/gpud/cmd/gpud/run"
 	cmdrunplugingroup "github.com/leptonai/gpud/cmd/gpud/run-plugin-group"
@@ -142,6 +142,12 @@ sudo rm /usr/sbin/gpud
 sudo rm /etc/systemd/system/gpud.service
 `,
 			Action: cmddown.Command,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+			},
 		},
 		{
 			Name:   "run",
@@ -214,6 +220,10 @@ sudo rm /etc/systemd/system/gpud.service
 			Action:    cmdupdate.Command,
 			Flags: []cli.Flag{
 				cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+				cli.StringFlag{
 					Name:  "url",
 					Usage: "url for getting a package",
 				},
@@ -227,6 +237,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:   "check",
 					Usage:  "check availability of new version gpud",
 					Action: cmdupdate.CommandCheck,
+					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "log-level,l",
+							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+						},
+					},
 				},
 			},
 		},
@@ -239,6 +255,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "generate root or signing key pair",
 					Action: cmdrelease.CommandGenKey,
 					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "log-level,l",
+							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+						},
 						cli.BoolFlag{
 							Name:  "root (default: false)",
 							Usage: "generate root key",
@@ -263,6 +283,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Action: cmdrelease.CommandSignKey,
 					Flags: []cli.Flag{
 						cli.StringFlag{
+							Name:  "log-level,l",
+							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+						},
+						cli.StringFlag{
 							Name:  "root-priv-path",
 							Usage: "path of root private key",
 						},
@@ -281,6 +305,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "Verify a root signture of the signing keys' bundle",
 					Action: cmdrelease.CommandVerifyKeySignature,
 					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "log-level,l",
+							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+						},
 						cli.StringFlag{
 							Name:  "root-pub-path",
 							Usage: "path of root public key",
@@ -301,6 +329,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Action: cmdrelease.CommandSignPackage,
 					Flags: []cli.Flag{
 						cli.StringFlag{
+							Name:  "log-level,l",
+							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+						},
+						cli.StringFlag{
 							Name:  "package-path",
 							Usage: "path of package",
 						},
@@ -319,6 +351,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "Verify a package signture using a signing key",
 					Action: cmdrelease.CommandVerifyPackageSignature,
 					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "log-level,l",
+							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+						},
 						cli.StringFlag{
 							Name:  "package-path",
 							Usage: "path of package",
@@ -543,10 +579,10 @@ sudo gpud join
 			},
 		},
 		{
-			Name:      "private-ip",
-			Usage:     "get private ip addresses of the machine (useful for debugging)",
-			UsageText: "gpud private-ip",
-			Action:    cmdprivateip.Command,
+			Name:      "machine-info",
+			Usage:     "get machine info (useful for debugging)",
+			UsageText: "gpud machine-info",
+			Action:    cmdmachineinfo.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:  "log-level,l",

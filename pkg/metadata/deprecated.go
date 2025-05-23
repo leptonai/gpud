@@ -1,5 +1,5 @@
-// Package gpudstate provides the persistent storage layer for component states.
-package gpudstate
+// Package metadata provides the persistent storage layer for component states.
+package metadata
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/leptonai/gpud/pkg/sqlite"
+	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
 )
 
 const (
@@ -33,7 +33,11 @@ LIMIT 1;
 	)
 
 	var machineID string
+
+	start := time.Now()
 	err := dbRO.QueryRowContext(ctx, query).Scan(&machineID)
+	pkgmetricsrecorder.RecordSQLiteSelect(time.Since(start).Seconds())
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
@@ -52,10 +56,11 @@ LIMIT 1;
 		deprecatedColumnMachineID,
 	)
 
-	start := time.Now()
 	var token string
+
+	start := time.Now()
 	err := dbRO.QueryRowContext(ctx, query, machineID).Scan(&token)
-	sqlite.RecordSelect(time.Since(start).Seconds())
+	pkgmetricsrecorder.RecordSQLiteSelect(time.Since(start).Seconds())
 
 	return token, err
 }

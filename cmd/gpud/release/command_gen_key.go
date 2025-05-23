@@ -11,14 +11,23 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/release/distsign"
 )
 
 func CommandGenKey(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, "")
+
+	log.Logger.Debugw("starting gen-key command")
+
 	root := cliContext.Bool("root")
 	signing := cliContext.Bool("signing")
 	var pub, priv []byte
-	var err error
 	switch {
 	case root && signing:
 		return errors.New("only one of --root or --signing can be set")

@@ -19,9 +19,9 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
-	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -149,7 +149,7 @@ func (s *Session) serve() {
 				dbRW.Close()
 				break
 			}
-			if err = gpudstate.DeleteAllMetadata(ctx, dbRW); err != nil {
+			if err = pkgmetadata.DeleteAllMetadata(ctx, dbRW); err != nil {
 				log.Logger.Errorw("failed to purge metadata", "error", err)
 				response.Error = err.Error()
 				dbRW.Close()

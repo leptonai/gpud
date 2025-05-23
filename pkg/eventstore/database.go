@@ -12,7 +12,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/sqlite"
+	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
 )
 
 // TODO: drop tables with "v0_4_0"
@@ -238,7 +238,6 @@ CREATE TABLE IF NOT EXISTS %s (
 }
 
 func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev Event) error {
-	start := time.Now()
 	var extraInfoJSON []byte
 	if ev.ExtraInfo != nil {
 		var err error
@@ -248,6 +247,7 @@ func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev Event) er
 		}
 	}
 
+	start := time.Now()
 	_, err := db.ExecContext(ctx, fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s) VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''))",
 		tableName,
 		columnTimestamp,
@@ -262,7 +262,7 @@ func insertEvent(ctx context.Context, db *sql.DB, tableName string, ev Event) er
 		ev.Message,
 		string(extraInfoJSON),
 	)
-	sqlite.RecordInsertUpdate(time.Since(start).Seconds())
+	pkgmetricsrecorder.RecordSQLiteInsertUpdate(time.Since(start).Seconds())
 
 	return err
 }
@@ -291,7 +291,7 @@ SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 
 	start := time.Now()
 	rows, err := db.QueryContext(ctx, selectStatement, params...)
-	sqlite.RecordSelect(time.Since(start).Seconds())
+	pkgmetricsrecorder.RecordSQLiteSelect(time.Since(start).Seconds())
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -328,7 +328,7 @@ ORDER BY %s DESC`,
 
 	start := time.Now()
 	rows, err := db.QueryContext(ctx, query, params...)
-	sqlite.RecordSelect(time.Since(start).Seconds())
+	pkgmetricsrecorder.RecordSQLiteSelect(time.Since(start).Seconds())
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -358,7 +358,7 @@ func lastEvent(ctx context.Context, db *sql.DB, tableName string) (*Event, error
 
 	start := time.Now()
 	row := db.QueryRowContext(ctx, query)
-	sqlite.RecordSelect(time.Since(start).Seconds())
+	pkgmetricsrecorder.RecordSQLiteSelect(time.Since(start).Seconds())
 
 	foundEvent, err := scanRow(row)
 	if err != nil {
@@ -435,7 +435,7 @@ func purgeEvents(ctx context.Context, db *sql.DB, tableName string, beforeTimest
 	if err != nil {
 		return 0, err
 	}
-	sqlite.RecordDelete(time.Since(start).Seconds())
+	pkgmetricsrecorder.RecordSQLiteDelete(time.Since(start).Seconds())
 
 	affected, err := rs.RowsAffected()
 	if err != nil {

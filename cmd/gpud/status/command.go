@@ -26,6 +26,8 @@ func Command(cliContext *cli.Context) error {
 	}
 	log.Logger = log.CreateLogger(zapLvl, "")
 
+	log.Logger.Debugw("starting status command")
+
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer rootCancel()
 

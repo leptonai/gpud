@@ -14,7 +14,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	pkgsqlite "github.com/leptonai/gpud/pkg/sqlite"
+	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
 )
 
 const (
@@ -158,7 +158,7 @@ func insert(ctx context.Context, dbRW *sql.DB, table string, ms ...pkgmetrics.Me
 	log.Logger.Infow("inserting metrics", "metrics", len(ms))
 	start := time.Now()
 	_, err := dbRW.ExecContext(ctx, query, args...)
-	pkgsqlite.RecordInsertUpdate(time.Since(start).Seconds())
+	pkgmetricsrecorder.RecordSQLiteInsertUpdate(time.Since(start).Seconds())
 
 	return err
 }
@@ -219,7 +219,7 @@ FROM %s
 
 	start := time.Now()
 	defer func() {
-		pkgsqlite.RecordSelect(time.Since(start).Seconds())
+		pkgmetricsrecorder.RecordSQLiteSelect(time.Since(start).Seconds())
 	}()
 
 	queryRows, err := dbRO.QueryContext(ctx, query, params...)
@@ -265,7 +265,7 @@ DELETE FROM %s WHERE %s < ?;`, table, columnUnixMilliseconds)
 
 	start := time.Now()
 	rs, err := dbRW.ExecContext(ctx, query, before.UnixMilli())
-	pkgsqlite.RecordDelete(time.Since(start).Seconds())
+	pkgmetricsrecorder.RecordSQLiteDelete(time.Since(start).Seconds())
 
 	if err != nil {
 		return 0, err

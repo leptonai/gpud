@@ -20,7 +20,7 @@ func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineI
 		netutil.PublicIP,
 		GetMachineLocation,
 		GetMachineInfo,
-		GetProvider,
+		GetProviderName,
 		GetSystemResourceLogicalCores,
 		GetSystemResourceMemoryTotal,
 		GetSystemResourceRootVolumeTotal,

@@ -10,10 +10,20 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/release/distsign"
 )
 
 func CommandSignKey(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, "")
+
+	log.Logger.Debugw("starting sign-key command")
+
 	rootPrivPath := cliContext.String("root-priv-path")
 	rkRaw, err := os.ReadFile(rootPrivPath)
 	if err != nil {

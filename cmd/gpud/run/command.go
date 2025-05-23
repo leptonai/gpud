@@ -23,11 +23,6 @@ import (
 )
 
 func Command(cliContext *cli.Context) error {
-	if runtime.GOOS != "linux" {
-		fmt.Printf("gpud run on %q not supported\n", runtime.GOOS)
-		os.Exit(1)
-	}
-
 	logLevel := cliContext.String("log-level")
 	logFile := cliContext.String("log-file")
 	zapLvl, err := log.ParseLogLevel(logLevel)
@@ -35,6 +30,13 @@ func Command(cliContext *cli.Context) error {
 		return err
 	}
 	log.Logger = log.CreateLogger(zapLvl, logFile)
+
+	log.Logger.Debugw("starting run command")
+
+	if runtime.GOOS != "linux" {
+		fmt.Printf("gpud run on %q not supported\n", runtime.GOOS)
+		os.Exit(1)
+	}
 
 	if zapLvl.Level() > zap.DebugLevel { // e.g., info, warn, error
 		gin.SetMode(gin.ReleaseMode)

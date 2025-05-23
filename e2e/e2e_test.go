@@ -167,7 +167,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		By("stop gpud command")
 		gCancel()
 		err := cmd.Process.Kill()
-		Expect(err).NotTo(HaveOccurred(), "failed to kill gpud process")
+		if err != nil && err.Error() != "os: process already finished" {
+			Expect(err).NotTo(HaveOccurred(), "failed to kill gpud process")
+		}
 	})
 
 	var rootCtx context.Context
@@ -180,7 +182,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("/machine-info requests", func() {
-
 		It("request without compress", func() {
 			info, err := clientv1.GetMachineInfo(rootCtx, "https://"+ep)
 
@@ -195,7 +196,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("/v1/states requests", func() {
-
 		It("request without compress", func() {
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
@@ -218,7 +218,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
 		})
-
 		It("request with compress", func() {
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
@@ -243,7 +242,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("states with client/v1", func() {
-
 		It("get disk states", func() {
 			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent("disk"))
 			Expect(err).NotTo(HaveOccurred(), "failed to get disk states")
@@ -290,13 +288,11 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("register custom plugin with client/v1", func() {
-
 		It("make sure init plugin has run", func() {
 			b, err := os.ReadFile(initPluginWriteFile)
 			Expect(err).NotTo(HaveOccurred(), "failed to read init plugin file")
 			Expect(string(b)).To(ContainSubstring(initPluginWriteFileContents), "expected init plugin to have run")
 		})
-
 		It("list custom plugins", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
@@ -314,7 +310,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
 		fileToWrite1 := filepath.Join(os.TempDir(), "testplugin"+randSfx1)
 		defer os.Remove(fileToWrite1)
-
 		It("register a custom plugin with manual mode", func() {
 			testPluginSpec := pkgcustomplugins.Spec{
 				PluginName: pluginName,
@@ -366,7 +361,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			rerr = clientv1.RegisterCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
 			Expect(rerr).To(HaveOccurred(), "expected to fail with redundant registration")
 		})
-
 		It("list custom plugins and make sure the plugin is registered even with manual mode", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
@@ -383,7 +377,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			}
 			Expect(csPlugins[customComponentName]).NotTo(BeNil(), "expected to be registered")
 		})
-
 		It("make sure the plugin has been not run as it's manual mode", func() {
 			// wait for the plugin to run
 			time.Sleep(3 * time.Second)
@@ -391,7 +384,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			_, err := os.Stat(fileToWrite1)
 			Expect(errors.Is(err, os.ErrNotExist)).Should(BeTrue(), "expected file to not be created")
 		})
-
 		It("trigger the plugin that is in manual mode", func() {
 			resp, err := clientv1.TriggerComponentCheck(rootCtx, "https://"+ep, customComponentName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
@@ -403,12 +395,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			fmt.Printf("%+v\n", resp)
 		})
-
 		It("make sure the plugin has been run manually", func() {
 			_, err := os.Stat(fileToWrite1)
 			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
 		})
-
 		It("make sure the plugin has been failed as configured", func() {
 			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent(customComponentName))
 			Expect(err).NotTo(HaveOccurred(), "failed to get states")
@@ -427,7 +417,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 		randStrToEcho, err := randStr(100)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
-
 		It("updates the custom plugin with non-manual mode", func() {
 			testPluginSpec := pkgcustomplugins.Spec{
 				PluginName: pluginName,
@@ -542,12 +531,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(states[0].States[0].Time.IsZero()).Should(BeFalse(), "expected time to be set")
 			Expect(states[0].States[0].RunMode).Should(BeEmpty(), "expected run mode to be empty")
 		})
-
 		It("deregister the custom plugin", func() {
 			derr := clientv1.DeregisterComponent(rootCtx, "https://"+ep, customComponentName)
 			Expect(derr).NotTo(HaveOccurred(), "failed to deregister custom plugin")
 		})
-
 		It("list custom plugins and make sure the plugin has been de-registered", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
@@ -601,7 +588,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(found["disk"]).To(BeTrue(), "expected disk component to be present")
 			Expect(found["network-latency"]).To(BeTrue(), "expected network-latency component to be present")
 		})
-
 		It("request with compress", func() {
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
@@ -626,7 +612,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("/metrics requests", func() {
-
 		It("request prometheus metrics without compress", func() {
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
@@ -648,7 +633,17 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(string(body)).To(ContainSubstring("health_state_unhealthy"))
 			Expect(string(body)).To(ContainSubstring("health_state_degraded"))
 		})
+	})
 
+	Describe("machine-info command", func() {
+		It("should print machine info", func() {
+			By("start gpud machine-info")
+			cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), "machine-info", "--log-level", "debug")
+			b, err := cmd.CombinedOutput()
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to run gpud machine-info:\n%s", string(b)))
+			GinkgoLogr.Info("gpud machine-info successfully", "output", string(b))
+			fmt.Println("'gpud machine-info' OUTPUT:", string(b))
+		})
 	})
 })
 

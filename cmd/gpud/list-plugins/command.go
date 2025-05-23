@@ -21,6 +21,8 @@ func Command(cliContext *cli.Context) error {
 	}
 	log.Logger = log.CreateLogger(zapLvl, "")
 
+	log.Logger.Debugw("starting list-plugins command")
+
 	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
