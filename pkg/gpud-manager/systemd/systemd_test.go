@@ -1,6 +1,7 @@
 package systemd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGPUdServiceUnitFileContents(t *testing.T) {
+	t.Run("without endpoint", func(t *testing.T) {
+		content := GPUdServiceUnitFileContents()
+
+		_, err := os.Stat(DefaultBinPath)
+		if errors.Is(err, os.ErrNotExist) {
+			assert.Contains(t, content, DeprecatedDefaultBinPathSbin)
+		}
+	})
+}
 
 func TestCreateDefaultEnvFileContent(t *testing.T) {
 	t.Run("without endpoint", func(t *testing.T) {
