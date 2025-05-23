@@ -317,14 +317,14 @@ func TestTriggerComponentCheck(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Parse the response
-	var responseStates []apiv1.HealthState
+	var responseStates apiv1.GPUdComponentHealthStates
 	err := json.Unmarshal(w.Body.Bytes(), &responseStates)
 	require.NoError(t, err)
 
 	// Verify the health states
 	assert.Len(t, responseStates, 1)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, responseStates[0].Health)
-	assert.Equal(t, "Component is healthy", responseStates[0].Reason)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, responseStates[0].States[0].Health)
+	assert.Equal(t, "Component is healthy", responseStates[0].States[0].Reason)
 }
 
 func TestGetComponentsCustomPlugins(t *testing.T) {
