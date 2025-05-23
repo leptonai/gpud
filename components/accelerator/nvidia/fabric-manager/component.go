@@ -5,6 +5,7 @@ package fabricmanager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"sync"
 	"time"
@@ -182,8 +183,16 @@ func (c *component) Check() components.CheckResult {
 	active := c.checkFMActiveFunc()
 	if !active {
 		cr.FabricManagerActive = false
+
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "nv-fabricmanager found but fabric manager service is not active"
+
+		deviceCnt := len(c.nvmlInstance.Devices())
+		if deviceCnt <= 1 {
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = fmt.Sprintf("only %d GPU(s) detected, skipping fabric manager check", deviceCnt)
+		}
+
 		return cr
 	}
 
