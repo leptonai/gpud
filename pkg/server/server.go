@@ -176,8 +176,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		NVMLInstance:         nvmlInstance,
 		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
 
-		Annotations: config.Annotations,
-		DBRO:        dbRO,
+		DBRO: dbRO,
 
 		EventStore:       eventStore,
 		RebootEventStore: rebootEventStore,

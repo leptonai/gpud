@@ -162,10 +162,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "set the listen address",
 					Value: fmt.Sprintf("0.0.0.0:%d", config.DefaultGPUdPort),
 				},
-				&cli.StringFlag{
-					Name:  "annotations",
-					Usage: "set the annotations",
-				},
 				&cli.BoolFlag{
 					Name:  "pprof",
 					Usage: "enable pprof (default: false)",

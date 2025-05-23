@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -134,7 +133,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			`--log-file=""`, // stdout/stderr
 			"--log-level=debug",
 			"--enable-auto-update=false",
-			"--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal),
 			fmt.Sprintf("--listen-address=%s", ep),
 
 			// to run e2e test with api plugin registration
@@ -219,25 +217,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			var componentStates []apiv1.ComponentHealthStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-
-			found := false
-			for _, comp := range componentStates {
-				if comp.Component != "info" {
-					continue
-				}
-				for _, state := range comp.States {
-					if len(state.ExtraInfo) == 0 {
-						continue
-					}
-					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
-						continue
-					}
-
-					found = true
-					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
-				}
-			}
-			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
 		})
 
 		It("request with compress", func() {
@@ -260,25 +239,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			var componentStates []apiv1.ComponentHealthStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-
-			found := false
-			for _, comp := range componentStates {
-				if comp.Component != "info" {
-					continue
-				}
-				for _, state := range comp.States {
-					if len(state.ExtraInfo) == 0 {
-						continue
-					}
-					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
-						continue
-					}
-
-					found = true
-					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
-				}
-			}
-			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
 		})
 	})
 

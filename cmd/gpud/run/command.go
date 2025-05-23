@@ -3,7 +3,6 @@ package run
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -44,7 +43,6 @@ func Command(cliContext *cli.Context) error {
 	}
 
 	listenAddress := cliContext.String("listen-address")
-	annotations := cliContext.String("annotations")
 	pprof := cliContext.Bool("pprof")
 	retentionPeriod := cliContext.Duration("retention-period")
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
@@ -66,13 +64,6 @@ func Command(cliContext *cli.Context) error {
 		return err
 	}
 
-	if annotations != "" {
-		annot := make(map[string]string)
-		if err := json.Unmarshal([]byte(annotations), &annot); err != nil {
-			return err
-		}
-		cfg.Annotations = annot
-	}
 	if listenAddress != "" {
 		cfg.Address = listenAddress
 	}

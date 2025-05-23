@@ -11,7 +11,6 @@
 - [**`accelerator-nvidia-fabric-manager`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager): Tracks the fabric manager version and its activeness.
 - [**`accelerator-nvidia-gsp-firmware`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager): Tracks the GSP firmware mode.
 - [**`accelerator-nvidia-infiniband`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/infiniband): Monitors the infiniband status of the system and Mellanox kernel events. Optional, enabled if the host has NVIDIA GPUs.
-- [**`accelerator-nvidia-info`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/info): Serves relatively static information about the NVIDIA accelerators (e.g., GPU product names).
 - [**`accelerator-nvidia-memory`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/memory): Monitors the NVIDIA per-GPU memory usage.
 - [**`accelerator-nvidia-gpm`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/gpm): Monitors the NVIDIA per-GPU GPM metrics.
 - [**`accelerator-nvidia-nvlink`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/nvlink): Monitors the NVIDIA per-GPU nvlink devices.
@@ -34,7 +33,6 @@
 
 ## System components
 
-- [**`info`**](https://pkg.go.dev/github.com/leptonai/gpud/components/info): Provides static information about the host (e.g., labels, IDs).
 - [**`os`**](https://pkg.go.dev/github.com/leptonai/gpud/components/os): Queries the host OS information (e.g., kernel version, file descriptor usage).
 - [**`fuse`**](https://pkg.go.dev/github.com/leptonai/gpud/components/fuse): Tracks the number of file descriptors used on the host.
 - [**`kernel-module`**](https://pkg.go.dev/github.com/leptonai/gpud/components/kernel-module): Monitors the FUSE (Filesystem in Userspace).
