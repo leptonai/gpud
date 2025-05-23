@@ -28,26 +28,6 @@ func Command(cliContext *cli.Context) error {
 
 	log.Logger.Debugw("starting machine-info command")
 
-	nvmlInstance, err := nvidianvml.New()
-	if err != nil {
-		return err
-	}
-
-	machineInfo, err := pkgmachineinfo.GetMachineInfo(nvmlInstance)
-	if err != nil {
-		return err
-	}
-	machineInfo.RenderTable(os.Stdout)
-
-	pubIP, _ := netutil.PublicIP()
-	providerInfo := pkgmachineinfo.GetProvider(pubIP)
-	if providerInfo == nil {
-		fmt.Printf("%s failed to find provider (%v)\n", cmdcommon.WarningSign, err)
-	} else {
-		fmt.Printf("%s successfully found provider %s\n", cmdcommon.CheckMark, providerInfo.Provider)
-		providerInfo.RenderTable(os.Stdout)
-	}
-
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
@@ -72,8 +52,27 @@ func Command(cliContext *cli.Context) error {
 		return err
 	}
 
-	fmt.Print("\n")
-	fmt.Printf("GPUd machine ID: %q\n", machineID)
+	fmt.Printf("GPUd machine ID: %q\n\n", machineID)
+
+	nvmlInstance, err := nvidianvml.New()
+	if err != nil {
+		return err
+	}
+
+	machineInfo, err := pkgmachineinfo.GetMachineInfo(nvmlInstance)
+	if err != nil {
+		return err
+	}
+	machineInfo.RenderTable(os.Stdout)
+
+	pubIP, _ := netutil.PublicIP()
+	providerInfo := pkgmachineinfo.GetProvider(pubIP)
+	if providerInfo == nil {
+		fmt.Printf("%s failed to find provider (%v)\n", cmdcommon.WarningSign, err)
+	} else {
+		fmt.Printf("%s successfully found provider %s\n", cmdcommon.CheckMark, providerInfo.Provider)
+		providerInfo.RenderTable(os.Stdout)
+	}
 
 	return nil
 }
