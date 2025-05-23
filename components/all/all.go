@@ -32,7 +32,6 @@ import (
 	componentskernelmodule "github.com/leptonai/gpud/components/kernel-module"
 	componentskubeletpod "github.com/leptonai/gpud/components/kubelet/pod"
 	componentslibrary "github.com/leptonai/gpud/components/library"
-	componentsmachineinfo "github.com/leptonai/gpud/components/machine-info"
 	componentsmemory "github.com/leptonai/gpud/components/memory"
 	componentsnetworklatency "github.com/leptonai/gpud/components/network/latency"
 	componentsos "github.com/leptonai/gpud/components/os"
@@ -50,7 +49,6 @@ var componentInits = []components.InitFunc{
 	componentsdisk.New,
 	componentsdockercontainer.New,
 	componentsfuse.New,
-	componentsmachineinfo.New,
 	componentskernelmodule.New,
 	componentskubeletpod.New,
 	componentslibrary.New,
