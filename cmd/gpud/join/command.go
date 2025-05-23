@@ -18,7 +18,6 @@ import (
 	"github.com/urfave/cli"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/asn"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
@@ -120,13 +119,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 		region = cliContext.String("region")
 	}
 
-	detectProvider := "unknown"
-	asnResult, err := asn.GetASLookup(publicIP)
-	if err != nil {
-		log.Logger.Errorf("failed to get asn lookup: %v", err)
-	} else {
-		detectProvider = asnResult.AsnName
-	}
+	detectProvider := pkgmachineinfo.GetProviderName(publicIP)
 
 	if !cliContext.Bool("skip-interactive") {
 		reader := bufio.NewReader(os.Stdin)
