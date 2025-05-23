@@ -268,47 +268,41 @@ func (s *Session) serve() {
 			}
 
 		case "triggerComponentCheck":
+			checkResults := make([]components.CheckResult, 0)
 			if payload.ComponentName != "" {
-				switch payload.TagName {
-				case "":
-					comp := s.componentsRegistry.Get(payload.ComponentName)
-					if comp == nil {
-						log.Logger.Warnw("component not found", "name", payload.ComponentName)
-						response.ErrorCode = http.StatusNotFound
-						break
-					}
-
-					rs := comp.Check()
-					response.States = apiv1.GPUdComponentHealthStates{
-						{
-							Component: payload.ComponentName,
-							States:    rs.HealthStates(),
-						},
-					}
-
-				default:
-					components := s.componentsRegistry.All()
-					for _, comp := range components {
-						matched := false
-						for _, tag := range comp.Tags() {
-							if tag == payload.TagName {
-								matched = true
-								break
-							}
-						}
-						if !matched {
-							continue
-						}
-						rs := comp.Check()
-
-						compHealthStates := apiv1.ComponentHealthStates{
-							Component: payload.ComponentName,
-							States:    rs.HealthStates(),
-						}
-
-						response.States = append(response.States, compHealthStates)
-					}
+				// requesting a specific component, tag is ignored
+				comp := s.componentsRegistry.Get(payload.ComponentName)
+				if comp == nil {
+					log.Logger.Warnw("component not found", "name", payload.ComponentName)
+					response.ErrorCode = http.StatusNotFound
+					break
 				}
+
+				checkResults = append(checkResults, comp.Check())
+			} else if payload.TagName != "" {
+				components := s.componentsRegistry.All()
+				for _, comp := range components {
+					matched := false
+					for _, tag := range comp.Tags() {
+						if tag == payload.TagName {
+							matched = true
+							break
+						}
+					}
+					if !matched {
+						continue
+					}
+
+					checkResults = append(checkResults, comp.Check())
+				}
+			}
+
+			response.States = apiv1.GPUdComponentHealthStates{}
+			for _, checkResult := range checkResults {
+				response.States = append(response.States, apiv1.ComponentHealthStates{
+					Component: checkResult.ComponentName(),
+					States:    checkResult.HealthStates(),
+				})
 			}
 
 		case "deregisterComponent":
