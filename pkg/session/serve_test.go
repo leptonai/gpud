@@ -511,6 +511,7 @@ func TestTriggerComponentCheck(t *testing.T) {
 	registry.On("Get", "test-component").Return(comp)
 	comp.On("Check").Return(compResults)
 	compResults.On("HealthStates").Return(healthStates)
+	compResults.On("ComponentName").Return("test-component")
 
 	// Create the request
 	req := Request{
@@ -576,6 +577,7 @@ func TestTriggerComponentCheckByTag(t *testing.T) {
 
 	// Only comp1 should have its Check method called since only it has the matching tag
 	compResults.On("HealthStates").Return(healthStates)
+	compResults.On("ComponentName").Return("test-component")
 
 	// Set up registry to return both components
 	registry.On("All").Return([]components.Component{comp1, comp2})
