@@ -7,12 +7,22 @@ import (
 	"github.com/urfave/cli"
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/osutil"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
 )
 
 func Command(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, "")
+
+	log.Logger.Debugw("starting down command")
+
 	if err := osutil.RequireRoot(); err != nil {
 		return err
 	}

@@ -27,6 +27,8 @@ import (
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/providers"
+	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -184,15 +186,52 @@ func GetMachineNICInfo() *apiv1.MachineNICInfo {
 	}
 }
 
-func GetProvider(publicIP string) string {
-	if publicIP == "" {
-		return ""
+// GetProvider looks up the provider of the machine.
+// If the metadata service or other provider detection fails, it falls back to ASN lookup
+// using the public IP address.
+func GetProvider(publicIP string) *providers.Info {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	providerInfo, err := pkgprovidersall.Detect(ctx)
+	cancel()
+	log.Logger.Debugw("provider info", "provider", providerInfo, "error", err)
+
+	if providerInfo != nil && providerInfo.Provider != "" && providerInfo.Provider != "unknown" {
+		return providerInfo
 	}
+
+	// no fallback when there's no public IP
+	if publicIP == "" {
+		return &providers.Info{
+			Provider: "unknown",
+		}
+	}
+
+	// fallback to ASN lookup
+	log.Logger.Debugw("fallback to ASN lookup for provider", "publicIP", publicIP)
 	asnResult, err := asn.GetASLookup(publicIP)
 	if err != nil {
-		return ""
+		return &providers.Info{
+			Provider: "unknown",
+			PublicIP: publicIP,
+		}
 	}
-	return asnResult.AsnName
+
+	log.Logger.Debugw("ASN lookup result", "asnResult", asnResult)
+	return &providers.Info{
+		Provider: asn.NormalizeASNName(asnResult.AsnName),
+		PublicIP: publicIP,
+	}
+}
+
+// GetProviderName looks up the provider of the machine.
+// If the metadata service or other provider detection fails, it falls back to ASN lookup
+// using the public IP address.
+func GetProviderName(publicIP string) string {
+	info := GetProvider(publicIP)
+	if info != nil {
+		return info.Provider
+	}
+	return ""
 }
 
 func GetMachineLocation() *apiv1.MachineLocation {

@@ -15,8 +15,8 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/config"
-	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -27,6 +27,8 @@ func CommandStartup(cliContext *cli.Context) error {
 		return err
 	}
 	log.Logger = log.CreateLogger(zapLvl, "")
+
+	log.Logger.Debugw("starting notify startup command")
 
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
@@ -47,12 +49,12 @@ func CommandStartup(cliContext *cli.Context) error {
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
-	machineID, err := gpudstate.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+	machineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
 	if err != nil {
 		return err
 	}
 
-	endpoint, err := gpudstate.ReadMetadata(rootCtx, dbRO, gpudstate.MetadataKeyEndpoint)
+	endpoint, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyEndpoint)
 	if err != nil {
 		return fmt.Errorf("failed to read endpoint: %w", err)
 	}
@@ -77,6 +79,8 @@ func CommandShutdown(cliContext *cli.Context) error {
 	}
 	log.Logger = log.CreateLogger(zapLvl, "")
 
+	log.Logger.Debugw("starting notify shutdown command")
+
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
@@ -96,12 +100,12 @@ func CommandShutdown(cliContext *cli.Context) error {
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
-	machineID, err := gpudstate.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+	machineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
 	if err != nil {
 		return err
 	}
 
-	endpoint, err := gpudstate.ReadMetadata(rootCtx, dbRO, gpudstate.MetadataKeyEndpoint)
+	endpoint, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyEndpoint)
 	if err != nil {
 		return fmt.Errorf("failed to read endpoint: %w", err)
 	}

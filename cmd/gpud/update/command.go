@@ -9,11 +9,22 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/leptonai/gpud/pkg/log"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
 	"github.com/leptonai/gpud/version"
 )
 
 func Command(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	logFile := cliContext.String("log-file")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, logFile)
+
+	log.Logger.Debugw("starting update command")
+
 	ver := cliContext.String("next-version")
 	if ver == "" {
 		var err error
@@ -33,6 +44,16 @@ func Command(cliContext *cli.Context) error {
 }
 
 func CommandCheck(cliContext *cli.Context) error {
+	logLevel := cliContext.String("log-level")
+	logFile := cliContext.String("log-file")
+	zapLvl, err := log.ParseLogLevel(logLevel)
+	if err != nil {
+		return err
+	}
+	log.Logger = log.CreateLogger(zapLvl, logFile)
+
+	log.Logger.Debugw("starting update check command")
+
 	ver, err := version.DetectLatestVersion()
 	if err != nil {
 		fmt.Printf("failed to detect the latest version: %v\n", err)

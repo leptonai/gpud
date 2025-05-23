@@ -39,3 +39,26 @@ func GetASLookup(ip string) (*ASLookupResponse, error) {
 	}
 	return &result, nil
 }
+
+func NormalizeASNName(asnName string) string {
+	asnName = strings.TrimSpace(asnName)
+	asnName = strings.ToLower(asnName)
+	for keyword, normalizedName := range providerKeywords {
+		if strings.Contains(asnName, keyword) {
+			return normalizedName
+		}
+	}
+	return asnName
+}
+
+// providerKeywords is a map of provider keywords to their normalized names.
+// It is used to map provider names to their normalized names.
+var providerKeywords = map[string]string{
+	"aws":     "aws",
+	"azure":   "azure",
+	"gcp":     "gcp",
+	"google":  "gcp",
+	"yotta":   "yotta",
+	"nebius":  "nebius",  // e.g., "nebiuscloud" should be "nebius"
+	"hetzner": "hetzner", // e.g., "hetzner-cloud3-as" should be "hetzner"
+}

@@ -1,11 +1,15 @@
-package gpudstate
+// Package metadata provides the persistent storage layer for GPUd metadata.
+package metadata
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
 )
 
 const (
@@ -50,6 +54,7 @@ func SetMetadata(ctx context.Context, dbRW *sql.DB, key string, value string) er
 		return nil
 	}
 
+	start := time.Now()
 	if prev == "" {
 		// the "name" is not in the table, so we need to insert it
 		_, err = dbRW.ExecContext(ctx, fmt.Sprintf(`
@@ -59,6 +64,7 @@ INSERT INTO %s (%s, %s) VALUES (?, ?)`, tableNameGPUdMetadata, columnKey, column
 		_, err = dbRW.ExecContext(ctx, fmt.Sprintf(`
 UPDATE %s SET %s = ? WHERE %s = ?`, tableNameGPUdMetadata, columnValue, columnKey), value, key)
 	}
+	pkgmetricsrecorder.RecordSQLiteInsertUpdate(time.Since(start).Seconds())
 
 	return err
 }
@@ -67,8 +73,12 @@ UPDATE %s SET %s = ? WHERE %s = ?`, tableNameGPUdMetadata, columnValue, columnKe
 // Returns an empty string and no error, if the metadata entry is not found.
 func ReadMetadata(ctx context.Context, dbRO *sql.DB, key string) (string, error) {
 	var value string
+
+	start := time.Now()
 	err := dbRO.QueryRowContext(ctx, fmt.Sprintf(`
 SELECT %s FROM %s WHERE %s = ?`, columnValue, tableNameGPUdMetadata, columnKey), key).Scan(&value)
+	pkgmetricsrecorder.RecordSQLiteSelect(time.Since(start).Seconds())
+
 	if err == sql.ErrNoRows {
 		return "", nil
 	}

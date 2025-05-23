@@ -29,6 +29,8 @@ func Command(cliContext *cli.Context) error {
 	}
 	log.Logger = log.CreateLogger(zapLvl, "")
 
+	log.Logger.Debugw("starting custom-plugins command")
+
 	args := cliContext.Args()
 	var specs customplugins.Specs
 	if len(args) == 0 {

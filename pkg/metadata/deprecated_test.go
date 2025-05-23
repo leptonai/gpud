@@ -1,4 +1,4 @@
-package gpudstate
+package metadata
 
 import (
 	"context"
@@ -105,10 +105,6 @@ func TestRecordMetrics(t *testing.T) {
 
 	// Insert some data to have a non-empty database
 	insertTestMachineID(t, ctx, dbRW, testMachineID)
-
-	// Verify recording metrics doesn't error
-	err = RecordDBSize(ctx, dbRW)
-	require.NoError(t, err)
 }
 
 func TestReadMachineIDFromDeprecatedTable(t *testing.T) {

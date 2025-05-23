@@ -20,9 +20,9 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/asn"
 	"github.com/leptonai/gpud/pkg/config"
-	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	latencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/osutil"
@@ -30,10 +30,6 @@ import (
 )
 
 func Command(cliContext *cli.Context) (retErr error) {
-	if err := osutil.RequireRoot(); err != nil {
-		return err
-	}
-
 	logLevel := cliContext.String("log-level")
 	logFile := cliContext.String("log-file")
 	zapLvl, err := log.ParseLogLevel(logLevel)
@@ -41,6 +37,12 @@ func Command(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 	log.Logger = log.CreateLogger(zapLvl, logFile)
+
+	log.Logger.Debugw("starting join command")
+
+	if err := osutil.RequireRoot(); err != nil {
+		return err
+	}
 
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
@@ -61,13 +63,13 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
-	machineID, err := gpudstate.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+	machineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
 	if err != nil {
 		return err
 	}
 
 	// always read endpoint from state file
-	endpoint, err := gpudstate.ReadMetadata(rootCtx, dbRO, gpudstate.MetadataKeyEndpoint)
+	endpoint, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyEndpoint)
 	if err != nil {
 		return fmt.Errorf("failed to read endpoint: %w", err)
 	}
@@ -76,13 +78,13 @@ func Command(cliContext *cli.Context) (retErr error) {
 	}
 
 	// assume if not empty, it should have been persisted by the "gpud login" command
-	privateIP, err := gpudstate.ReadMetadata(rootCtx, dbRO, gpudstate.MetadataKeyPrivateIP)
+	privateIP, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyPrivateIP)
 	if err != nil {
 		return fmt.Errorf("failed to read private IP: %w", err)
 	}
 
 	// assume if not empty, it should have been persisted by the "gpud login" command
-	publicIP, err := gpudstate.ReadMetadata(rootCtx, dbRO, gpudstate.MetadataKeyPublicIP)
+	publicIP, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyPublicIP)
 	if err != nil {
 		return fmt.Errorf("failed to read public IP: %w", err)
 	}
@@ -227,19 +229,19 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	// persist on the successful join
 	// so that next gpud up/run doesn't need to specify the same parameters
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPublicIP, publicIP); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyPublicIP, publicIP); err != nil {
 		return fmt.Errorf("failed to record public IP: %w", err)
 	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyProvider, provider); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyProvider, provider); err != nil {
 		return fmt.Errorf("failed to record provider: %w", err)
 	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyNodeGroup, nodeGroup); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyNodeGroup, nodeGroup); err != nil {
 		return fmt.Errorf("failed to record node group: %w", err)
 	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyRegion, region); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyRegion, region); err != nil {
 		return fmt.Errorf("failed to record region: %w", err)
 	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyExtraInfo, extraInfo); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyExtraInfo, extraInfo); err != nil {
 		return fmt.Errorf("failed to record extra info: %w", err)
 	}
 

@@ -10,10 +10,10 @@ import (
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
-	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/osutil"
 	"github.com/leptonai/gpud/pkg/server"
@@ -25,16 +25,18 @@ var (
 )
 
 func Command(cliContext *cli.Context) error {
-	if err := osutil.RequireRoot(); err != nil {
-		return err
-	}
-
 	logLevel := cliContext.String("log-level")
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
 	log.Logger = log.CreateLogger(zapLvl, "")
+
+	log.Logger.Debugw("starting login command")
+
+	if err := osutil.RequireRoot(); err != nil {
+		return err
+	}
 
 	token := cliContext.String("token")
 	if token == "" {
@@ -68,11 +70,11 @@ func Command(cliContext *cli.Context) error {
 	defer dbRO.Close()
 
 	// in case the table has not been created
-	if err := gpudstate.CreateTableMetadata(rootCtx, dbRW); err != nil {
+	if err := pkgmetadata.CreateTableMetadata(rootCtx, dbRW); err != nil {
 		return fmt.Errorf("failed to create metadata table: %w", err)
 	}
 
-	prevMachineID, err := gpudstate.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+	prevMachineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
 	if err != nil {
 		return err
 	}
@@ -130,19 +132,19 @@ func Command(cliContext *cli.Context) error {
 	}
 
 	// persist only after the successful login
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyEndpoint, endpoint); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyEndpoint, endpoint); err != nil {
 		return fmt.Errorf("failed to record endpoint: %w", err)
 	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyMachineID, loginResp.MachineID); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyMachineID, loginResp.MachineID); err != nil {
 		return fmt.Errorf("failed to record machine ID: %w", err)
 	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyToken, loginResp.Token); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyToken, loginResp.Token); err != nil {
 		return fmt.Errorf("failed to record session token: %w", err)
 	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPublicIP, req.Network.PublicIP); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyPublicIP, req.Network.PublicIP); err != nil {
 		return fmt.Errorf("failed to record public IP: %w", err)
 	}
-	if err := gpudstate.SetMetadata(rootCtx, dbRW, gpudstate.MetadataKeyPrivateIP, req.Network.PrivateIP); err != nil {
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyPrivateIP, req.Network.PrivateIP); err != nil {
 		return fmt.Errorf("failed to record private IP: %w", err)
 	}
 

@@ -37,12 +37,13 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/gossip"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
-	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
 	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
@@ -116,7 +117,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
-	if err := gpudstate.CreateTableMetadata(ctx, dbRW); err != nil {
+	if err := pkgmetadata.CreateTableMetadata(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create metadata table: %w", err)
 	}
 
@@ -145,6 +146,9 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	}
 	syncer := pkgmetricssyncer.NewSyncer(ctx, promScraper, metricsSQLiteStore, time.Minute, time.Minute, 3*24*time.Hour)
 	syncer.Start()
+
+	promRecorder := pkgmetricsrecorder.NewPrometheusRecorder(ctx, 15*time.Minute, dbRO)
+	promRecorder.Start()
 
 	fifoPath, err := lepconfig.DefaultFifoFile()
 	if err != nil {
@@ -240,11 +244,9 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
 		}
 	}
-
-	go recordInternalMetrics(ctx, dbRW)
 	go doCompact(ctx, dbRW, config.CompactPeriod.Duration)
 
-	s.machineID, err = gpudstate.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
+	s.machineID, err = pkgmetadata.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
@@ -286,7 +288,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		adminGroup.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
 	}
 
-	epControlPlane, err := gpudstate.ReadMetadata(ctx, dbRO, gpudstate.MetadataKeyEndpoint)
+	epControlPlane, err := pkgmetadata.ReadMetadata(ctx, dbRO, pkgmetadata.MetadataKeyEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read endpoint: %w", err)
 	}
@@ -413,7 +415,7 @@ func (s *Server) WaitUntilMachineID(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		machineID, err := gpudstate.ReadMachineIDWithFallback(ctx, s.dbRW, s.dbRO)
+		machineID, err := pkgmetadata.ReadMachineIDWithFallback(ctx, s.dbRW, s.dbRO)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Logger.Errorw("failed to read machine uid", "error", err)
 			continue
@@ -439,7 +441,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := gpudstate.ReadTokenWithFallback(ctx, s.dbRW, s.dbRO, machineID); err == nil {
+	if dbToken, err := pkgmetadata.ReadTokenWithFallback(ctx, s.dbRW, s.dbRO, machineID); err == nil {
 		userToken = dbToken
 
 		token.mu.Lock()
@@ -553,24 +555,6 @@ func WriteToken(token string, fifoFile string) error {
 	return nil
 }
 
-func recordInternalMetrics(ctx context.Context, db *sql.DB) {
-	ticker := time.NewTicker(time.Hour)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			ticker.Reset(time.Hour)
-		}
-
-		if err := gpudstate.RecordDBSize(ctx, db); err != nil {
-			log.Logger.Errorw("failed to record metrics", "error", err)
-		}
-	}
-}
-
 func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 	if compactPeriod <= 0 {
 		log.Logger.Debugw("compact period is not set, skipping compacting")
@@ -587,7 +571,11 @@ func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 			ticker.Reset(compactPeriod)
 		}
 
-		if err := sqlite.Compact(ctx, db); err != nil {
+		start := time.Now()
+		err := sqlite.Compact(ctx, db)
+		pkgmetricsrecorder.RecordSQLiteVacuum(time.Since(start).Seconds())
+
+		if err != nil {
 			log.Logger.Errorw("failed to compact state database", "error", err)
 		}
 	}

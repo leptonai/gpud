@@ -1,13 +1,15 @@
-package gpudstate
+package metadata
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -91,15 +93,21 @@ func ReadTokenWithFallback(ctx context.Context, dbRW *sql.DB, dbRO *sql.DB, mach
 
 // DeleteAllMetadata purges all metadata entries.
 func DeleteAllMetadata(ctx context.Context, dbRW *sql.DB) error {
+	start := time.Now()
 	_, err := dbRW.ExecContext(ctx, fmt.Sprintf(`
 DELETE FROM %s`, tableNameGPUdMetadata))
+	pkgmetricsrecorder.RecordSQLiteDelete(time.Since(start).Seconds())
+
 	if err != nil {
 		return err
 	}
 
 	if ok, err := sqlite.TableExists(ctx, dbRW, deprecatedTableNameMachineMetadata); ok && err == nil {
+		start := time.Now()
 		_, err = dbRW.ExecContext(ctx, fmt.Sprintf(`
 DELETE FROM %s`, deprecatedTableNameMachineMetadata))
+		pkgmetricsrecorder.RecordSQLiteDelete(time.Since(start).Seconds())
+
 		if err != nil {
 			return err
 		}
