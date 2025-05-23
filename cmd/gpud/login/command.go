@@ -18,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/pkg/osutil"
 	"github.com/leptonai/gpud/pkg/server"
 	"github.com/leptonai/gpud/pkg/sqlite"
+	"github.com/leptonai/gpud/pkg/systemd"
 )
 
 var (
@@ -156,10 +157,25 @@ func Command(cliContext *cli.Context) error {
 	// for GPUd >= v0.5, we assume "gpud login" first
 	// and then "gpud up"
 	// we still need this in case "gpud up" and then "gpud login" afterwards
-	if err := server.WriteToken(token, fifoFile); err != nil {
-		log.Logger.Debugw("failed to write token -- login before first gpud run/up", "error", err)
+	if serverRunning() {
+		if err := server.WriteToken(loginResp.Token, fifoFile); err != nil {
+			log.Logger.Debugw("failed to write token -- login before first gpud run/up", "error", err)
+		}
 	}
 
 	fmt.Printf("%s successfully logged in with machine id %s\n", cmdcommon.CheckMark, loginResp.MachineID)
 	return nil
+}
+
+func serverRunning() bool {
+	if systemd.SystemctlExists() {
+		active, err := systemd.IsActive("gpud.service")
+		if err != nil {
+			return false
+		}
+		if active {
+			return true
+		}
+	}
+	return false
 }
