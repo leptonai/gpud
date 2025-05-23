@@ -39,42 +39,47 @@ import (
 	componentstailscale "github.com/leptonai/gpud/components/tailscale"
 )
 
-func InitFuncs() []components.InitFunc {
+type Component struct {
+	Name     string
+	InitFunc components.InitFunc
+}
+
+func All() []Component {
 	return componentInits
 }
 
-var componentInits = []components.InitFunc{
-	componentscpu.New,
-	componentscontainerdpod.New,
-	componentsdisk.New,
-	componentsdockercontainer.New,
-	componentsfuse.New,
-	componentskernelmodule.New,
-	componentskubeletpod.New,
-	componentslibrary.New,
-	componentsmemory.New,
-	componentsnetworklatency.New,
-	componentsos.New,
-	componentspci.New,
-	componentstailscale.New,
-	componentsacceleratornvidiabadenvs.New,
-	componentsacceleratornvidiaclockspeed.New,
-	componentsacceleratornvidiaecc.New,
-	componentsacceleratornvidiafabricmanager.New,
-	componentsacceleratornvidiagpm.New,
-	componentsacceleratornvidiagspfirmwaremode.New,
-	componentsacceleratornvidiahwslowdown.New,
-	componentsacceleratornvidiainfiniband.New,
-	componentsacceleratornvidiamemory.New,
-	componentsacceleratornvidianccl.New,
-	componentsacceleratornvidianvlink.New,
-	componentsacceleratornvidiapeermem.New,
-	componentsacceleratornvidiapersistencemode.New,
-	componentsacceleratornvidiapower.New,
-	componentsacceleratornvidiaprocesses.New,
-	componentsacceleratornvidiaremappedrows.New,
-	componentsacceleratornvidiasxid.New,
-	componentsacceleratornvidiatemperature.New,
-	componentsacceleratornvidiautilization.New,
-	componentsacceleratornvidiaxid.New,
+var componentInits = []Component{
+	{Name: componentscpu.Name, InitFunc: componentscpu.New},
+	{Name: componentscontainerdpod.Name, InitFunc: componentscontainerdpod.New},
+	{Name: componentsdisk.Name, InitFunc: componentsdisk.New},
+	{Name: componentsdockercontainer.Name, InitFunc: componentsdockercontainer.New},
+	{Name: componentsfuse.Name, InitFunc: componentsfuse.New},
+	{Name: componentskernelmodule.Name, InitFunc: componentskernelmodule.New},
+	{Name: componentskubeletpod.Name, InitFunc: componentskubeletpod.New},
+	{Name: componentslibrary.Name, InitFunc: componentslibrary.New},
+	{Name: componentsmemory.Name, InitFunc: componentsmemory.New},
+	{Name: componentsnetworklatency.Name, InitFunc: componentsnetworklatency.New},
+	{Name: componentsos.Name, InitFunc: componentsos.New},
+	{Name: componentspci.Name, InitFunc: componentspci.New},
+	{Name: componentstailscale.Name, InitFunc: componentstailscale.New},
+	{Name: componentsacceleratornvidiabadenvs.Name, InitFunc: componentsacceleratornvidiabadenvs.New},
+	{Name: componentsacceleratornvidiaclockspeed.Name, InitFunc: componentsacceleratornvidiaclockspeed.New},
+	{Name: componentsacceleratornvidiaecc.Name, InitFunc: componentsacceleratornvidiaecc.New},
+	{Name: componentsacceleratornvidiafabricmanager.Name, InitFunc: componentsacceleratornvidiafabricmanager.New},
+	{Name: componentsacceleratornvidiagpm.Name, InitFunc: componentsacceleratornvidiagpm.New},
+	{Name: componentsacceleratornvidiagspfirmwaremode.Name, InitFunc: componentsacceleratornvidiagspfirmwaremode.New},
+	{Name: componentsacceleratornvidiahwslowdown.Name, InitFunc: componentsacceleratornvidiahwslowdown.New},
+	{Name: componentsacceleratornvidiainfiniband.Name, InitFunc: componentsacceleratornvidiainfiniband.New},
+	{Name: componentsacceleratornvidiamemory.Name, InitFunc: componentsacceleratornvidiamemory.New},
+	{Name: componentsacceleratornvidianccl.Name, InitFunc: componentsacceleratornvidianccl.New},
+	{Name: componentsacceleratornvidianvlink.Name, InitFunc: componentsacceleratornvidianvlink.New},
+	{Name: componentsacceleratornvidiapeermem.Name, InitFunc: componentsacceleratornvidiapeermem.New},
+	{Name: componentsacceleratornvidiapersistencemode.Name, InitFunc: componentsacceleratornvidiapersistencemode.New},
+	{Name: componentsacceleratornvidiapower.Name, InitFunc: componentsacceleratornvidiapower.New},
+	{Name: componentsacceleratornvidiaprocesses.Name, InitFunc: componentsacceleratornvidiaprocesses.New},
+	{Name: componentsacceleratornvidiaremappedrows.Name, InitFunc: componentsacceleratornvidiaremappedrows.New},
+	{Name: componentsacceleratornvidiasxid.Name, InitFunc: componentsacceleratornvidiasxid.New},
+	{Name: componentsacceleratornvidiatemperature.Name, InitFunc: componentsacceleratornvidiatemperature.New},
+	{Name: componentsacceleratornvidiautilization.Name, InitFunc: componentsacceleratornvidiautilization.New},
+	{Name: componentsacceleratornvidiaxid.Name, InitFunc: componentsacceleratornvidiaxid.New},
 }

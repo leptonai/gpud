@@ -73,8 +73,8 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		MountTargets: []string{"/var/lib/kubelet"},
 	}
 
-	for _, initFunc := range all.InitFuncs() {
-		c, err := initFunc(gpudInstance)
+	for _, c := range all.All() {
+		c, err := c.InitFunc(gpudInstance)
 		if err != nil {
 			return err
 		}

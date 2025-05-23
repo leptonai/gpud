@@ -48,6 +48,10 @@ type Config struct {
 
 	// EnablePluginAPI enables the plugin API.
 	EnablePluginAPI bool `json:"enable_plugin_api"`
+
+	// EnableComponents specifies the components to enable.
+	// Leave empty to enable all components.
+	EnableComponents []string `json:"enable_components"`
 }
 
 var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")

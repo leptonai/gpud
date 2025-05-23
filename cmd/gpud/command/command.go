@@ -191,6 +191,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "sets the plugin specs file (leave empty for default, useful for testing)",
 					Hidden: true,
 				},
+				cli.StringFlag{
+					Name:  "enable-components",
+					Usage: "sets the components to enable (leave empty for default to enable all components, set 'none' or any other non-matching value to disable all components)",
+					Value: "",
+				},
 
 				// only for testing
 				cli.StringFlag{
