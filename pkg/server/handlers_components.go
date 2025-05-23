@@ -127,26 +127,25 @@ const URLPathComponentsTriggerCheck = "/components/trigger-check"
 // @Router /v1/components/trigger-check [get]
 func (g *globalHandler) triggerComponentCheck(c *gin.Context) {
 	componentName := c.Query("componentName")
-	if componentName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component name is required"})
+	tagName := c.Query("tagName")
+
+	if componentName == "" && tagName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component or tag name is required"})
 		return
 	}
 
-	tagName := c.Query("tagName")
-	switch tagName {
-	case "":
+	checkResults := make([]components.CheckResult, 0)
+	if componentName != "" {
+		// requesting a specific component, tag is ignored
 		comp := g.componentsRegistry.Get(componentName)
 		if comp == nil {
 			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
 			return
 		}
 
-		rs := comp.Check()
-		c.JSON(http.StatusOK, rs.HealthStates())
-
-	default:
+		checkResults = append(checkResults, comp.Check())
+	} else if tagName != "" {
 		components := g.componentsRegistry.All()
-		states := make([]apiv1.ComponentHealthStates, 0)
 		for _, comp := range components {
 			matched := false
 			for _, tag := range comp.Tags() {
@@ -158,17 +157,19 @@ func (g *globalHandler) triggerComponentCheck(c *gin.Context) {
 			if !matched {
 				continue
 			}
-			rs := comp.Check()
 
-			compHealthStates := apiv1.ComponentHealthStates{
-				Component: comp.Name(),
-				States:    rs.HealthStates(),
-			}
-
-			states = append(states, compHealthStates)
+			checkResults = append(checkResults, comp.Check())
 		}
-		c.JSON(http.StatusOK, states)
 	}
+
+	resp := apiv1.GPUdComponentHealthStates{}
+	for _, checkResult := range checkResults {
+		resp = append(resp, apiv1.ComponentHealthStates{
+			Component: checkResult.ComponentName(),
+			States:    checkResult.HealthStates(),
+		})
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 const URLPathComponentsCustomPlugins = "/components/custom-plugin"

@@ -22,6 +22,12 @@ func TestTriggerComponentCheck(t *testing.T) {
 			},
 		},
 	}
+	testGPUdHealthStates := v1.GPUdComponentHealthStates{
+		{
+			Component: "test-component",
+			States:    testHealthStates,
+		},
+	}
 
 	tests := []struct {
 		name           string
@@ -31,15 +37,15 @@ func TestTriggerComponentCheck(t *testing.T) {
 		acceptEncoding string
 		statusCode     int
 		expectedError  string
-		expectedResult v1.HealthStates
+		expectedResult v1.GPUdComponentHealthStates
 	}{
 		{
 			name:           "successful trigger check",
 			componentName:  "test-component",
-			serverResponse: mustMarshalJSON(t, testHealthStates),
+			serverResponse: mustMarshalJSON(t, testGPUdHealthStates),
 			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
-			expectedResult: testHealthStates,
+			expectedResult: testGPUdHealthStates,
 		},
 		{
 			name:          "empty component name",
