@@ -437,7 +437,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			Expect(len(resp)).To(Equal(1), "expected 1 response")
 			Expect(len(resp[0].States)).To(Equal(1), "expected 1 response")
-			Expect(string(resp[0].Component)).To(Equal(customComponentName), "expected component to be "+customComponentName)
+			Expect(resp[0].Component).To(Equal(customComponentName), "expected component to be "+customComponentName)
 			Expect(string(resp[0].States[0].ComponentType)).To(Equal(string(apiv1.ComponentTypeCustomPlugin)), "expected component type to be custom plugin")
 			Expect(string(resp[0].States[0].RunMode)).To(Equal(string(apiv1.RunModeTypeManual)), "expected manual mode")
 
