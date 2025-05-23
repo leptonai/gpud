@@ -9,7 +9,7 @@ After=network-pre.target NetworkManager.service systemd-resolved.service
 Slice=runtime.slice
 
 EnvironmentFile=/etc/default/gpud
-ExecStart=/usr/sbin/gpud run $FLAGS
+ExecStart=/usr/local/bin/gpud run $FLAGS
 
 StandardOutput=append:/var/log/gpud.log
 StandardError=append:/var/log/gpud.log
