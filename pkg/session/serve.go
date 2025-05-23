@@ -19,6 +19,7 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	pkdsystemd "github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
@@ -205,6 +206,10 @@ func (s *Session) serve() {
 				}
 
 				if systemdManaged {
+					if uerr := pkdsystemd.CreateDefaultEnvFile(""); uerr != nil {
+						response.Error = uerr.Error()
+						break
+					}
 					uerr := update.Update(nextVersion, update.DefaultUpdateURL)
 					if uerr != nil {
 						response.Error = uerr.Error()
