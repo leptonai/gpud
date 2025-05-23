@@ -154,13 +154,13 @@ func FetchAvailabilityZone(ctx context.Context) (string, error) {
 	return resp.Location, nil
 }
 
-// FetchAZEnvironment fetches Azure instance environment using IMDS, such as "AZUREPUBLICCLOUD".
+// FetchAZEnvironment fetches Azure instance environment using IMDS, such as "AZUREPUBLICCLOUD" or "AzurePublicCloud".
 func FetchAZEnvironment(ctx context.Context) (string, error) {
 	resp, err := fetchComputeResponse(ctx, imdsMetadataURL)
 	if err != nil {
 		return "", err
 	}
-	if resp.AZEnvironment != "" && resp.AZEnvironment != "AZUREPUBLICCLOUD" {
+	if resp.AZEnvironment != "" && !strings.Contains(strings.ToLower(resp.AZEnvironment), "azurepublic") {
 		log.Logger.Warnw("unexpected Azure AZ environment", "azEnvironment", resp.AZEnvironment)
 	}
 	return resp.AZEnvironment, nil
