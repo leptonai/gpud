@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/leptonai/gpud/version"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -25,7 +23,6 @@ func TestDefaultConfig(t *testing.T) {
 		assert.Equal(t, DefaultCompactPeriod, cfg.CompactPeriod)
 		assert.False(t, cfg.Pprof)
 		assert.True(t, cfg.EnableAutoUpdate)
-		assert.Equal(t, version.Version, cfg.Annotations["version"])
 
 		// We can't reliably test State path since it depends on environment
 		assert.NotEmpty(t, cfg.State, "State path should be set")

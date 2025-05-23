@@ -11,7 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/version"
 )
 
 const (
@@ -38,10 +37,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	}
 
 	cfg := &Config{
-		APIVersion: DefaultAPIVersion,
-		Annotations: map[string]string{
-			"version": version.Version,
-		},
+		APIVersion:       DefaultAPIVersion,
 		Address:          fmt.Sprintf(":%d", DefaultGPUdPort),
 		RetentionPeriod:  DefaultRetentionPeriod,
 		CompactPeriod:    DefaultCompactPeriod,

@@ -15,9 +15,6 @@ import (
 type Config struct {
 	APIVersion string `json:"api_version"`
 
-	// Basic server annotations (e.g., machine id, host name, etc.).
-	Annotations map[string]string `json:"annotations,omitempty"`
-
 	// Address for the server to listen on.
 	Address string `json:"address"`
 

@@ -28,8 +28,7 @@ type GPUdInstance struct {
 	NVMLInstance         nvidianvml.Instance
 	NVIDIAToolOverwrites nvidiacommon.ToolOverwrites
 
-	Annotations map[string]string
-	DBRO        *sql.DB
+	DBRO *sql.DB
 
 	EventStore       eventstore.Store
 	RebootEventStore pkghost.RebootEventStore
