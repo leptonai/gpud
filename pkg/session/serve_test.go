@@ -577,17 +577,16 @@ func TestTriggerComponentCheckByTag(t *testing.T) {
 
 	// Only comp1 should have its Check method called since only it has the matching tag
 	compResults.On("HealthStates").Return(healthStates)
-	compResults.On("ComponentName").Return("test-component")
+	compResults.On("ComponentName").Return("comp1")
 
-	// Set up registry to return both components
+	// For TagName functionality, we need to use All() to get all components and filter by tag
 	registry.On("All").Return([]components.Component{comp1, comp2})
 
-	// Note: This is NOT using "triggerComponentCheckByTag" method, but rather "triggerComponentCheck"
-	// with a non-empty TagName, as that's how the code is implemented
+	// Test the TagName functionality by NOT setting ComponentName
 	req := Request{
-		Method:        "triggerComponentCheck",
-		TagName:       "common-tag",
-		ComponentName: "test-component", // This will be used as identifier in the response
+		Method:  "triggerComponentCheck",
+		TagName: "common-tag",
+		// ComponentName is intentionally not set to test TagName functionality
 	}
 
 	reqData, _ := json.Marshal(req)
@@ -615,7 +614,7 @@ func TestTriggerComponentCheckByTag(t *testing.T) {
 	assert.Equal(t, "test-req-id", resp.ReqID)
 	assert.Empty(t, response.Error)
 	assert.Len(t, response.States, 1)
-	assert.Equal(t, "test-component", response.States[0].Component) // Should use ComponentName from request
+	assert.Equal(t, "comp1", response.States[0].Component) // Should use ComponentName from checkResult
 	assert.Equal(t, healthStates, response.States[0].States)
 
 	// Verify expectations
