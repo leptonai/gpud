@@ -197,7 +197,7 @@ func (s *Session) keepAlive() {
 			ctx, cancel := context.WithCancel(context.Background()) // create local context for each session
 			jar, _ := cookiejar.New(nil)
 
-			log.Logger.Infow("session keep alive: checking server health")
+			log.Logger.Debugw("session keep alive: checking server health")
 			if err := s.checkServerHealth(ctx, jar); err != nil {
 				log.Logger.Errorf("session keep alive: error checking server health: %v", err)
 				cancel()

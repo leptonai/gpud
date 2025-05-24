@@ -59,7 +59,7 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 		if err := p.Close(ctx); err != nil {
 			log.Logger.Errorw("failed to close process", "pid", p.PID(), "error", err)
 		}
-		log.Logger.Infow("closed running script", "pid", p.PID())
+		log.Logger.Debugw("closed running script", "pid", p.PID())
 		er.mu.Lock()
 		er.running = nil
 		er.mu.Unlock()
@@ -90,7 +90,7 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 
 			return output, p.ExitCode(), err
 		}
-		log.Logger.Infow("process exited", "pid", p.PID(), "exitCode", p.ExitCode())
+		log.Logger.Debugw("process exited", "pid", p.PID(), "exitCode", p.ExitCode())
 	}
 
 	output, err := os.ReadFile(tmpFile.Name())
