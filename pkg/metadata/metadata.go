@@ -29,15 +29,16 @@ CREATE TABLE IF NOT EXISTS %s (
 }
 
 const (
-	MetadataKeyMachineID = "machine_id"
-	MetadataKeyToken     = "token"
-	MetadataKeyEndpoint  = "endpoint"
-	MetadataKeyPublicIP  = "public_ip"
-	MetadataKeyPrivateIP = "private_ip"
-	MetadataKeyProvider  = "provider"
-	MetadataKeyNodeGroup = "node_group"
-	MetadataKeyRegion    = "region"
-	MetadataKeyExtraInfo = "extra_info"
+	MetadataKeyMachineID   = "machine_id"
+	MetadataKeyToken       = "token"
+	MetadataKeyEndpoint    = "endpoint"
+	MetadataKeyPublicIP    = "public_ip"
+	MetadataKeyPrivateIP   = "private_ip"
+	MetadataKeyProvider    = "provider"
+	MetadataKeyNodeGroup   = "node_group"
+	MetadataKeyRegion      = "region"
+	MetadataKeyExtraInfo   = "extra_info"
+	MetadataKeyPluginsSpec = "plugins_spec"
 )
 
 // SetMetadata sets the value of a metadata entry.
