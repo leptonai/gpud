@@ -20,6 +20,7 @@ import (
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
+	cmdwritekmsg "github.com/leptonai/gpud/cmd/gpud/write-kmsg"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/version"
 )
@@ -218,6 +219,10 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.BoolFlag{
 					Name:  "enable-plugin-api",
 					Usage: "enable plugin API (default: false)",
+				},
+				&cli.BoolFlag{
+					Name:  "enable-fault-injector",
+					Usage: "enable fault injector (default: false)",
 				},
 			},
 		},
@@ -597,6 +602,23 @@ sudo gpud join
 				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+			},
+		},
+		{
+			Name:      "write-kmsg",
+			Usage:     "write a kernel message to the kernel log",
+			UsageText: "gpud write-kmsg <message>",
+			Action:    cmdwritekmsg.Command,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+				&cli.StringFlag{
+					Name:  "kernel-log-level",
+					Usage: "set the kernel log level [KERN_EMERG, KERN_ALERT, KERN_CRIT, KERN_ERR, KERN_WARNING, KERN_NOTICE, KERN_INFO, KERN_DEBUG]",
+					Value: "KERN_INFO",
 				},
 			},
 		},
