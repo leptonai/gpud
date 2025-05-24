@@ -772,6 +772,14 @@
           "IPv4": "185.40.234.77",
           "IPv6": "2a00:dd80:20::bcf",
           "CanPort80": true
+        },
+        {
+          "Name": "4i",
+          "RegionID": 4,
+          "HostName": "derp4i.tailscale.com",
+          "IPv4": "185.40.234.53",
+          "IPv6": "2a00:dd80:20::8a6",
+          "CanPort80": true
         }
       ]
     },
