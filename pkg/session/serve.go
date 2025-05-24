@@ -54,8 +54,10 @@ type Request struct {
 	// that match this tag value.
 	TagName string `json:"tag_name,omitempty"`
 
-	// CustomPluginSpec is the spec for the custom plugin to register or update.
-	CustomPluginSpec *pkgcustomplugins.Spec `json:"custom_plugin_spec,omitempty"`
+	// PluginSpec is the spec for the custom plugin to register or update.
+	PluginSpec *pkgcustomplugins.Spec `json:"plugin_spec,omitempty"`
+	// PluginSpecs is the specs for the custom plugins to register or update.
+	PluginSpecs pkgcustomplugins.Specs `json:"plugin_specs,omitempty"`
 }
 
 type Response struct {
@@ -73,7 +75,8 @@ type Response struct {
 
 	Bootstrap *BootstrapResponse `json:"bootstrap,omitempty"`
 
-	Plugins map[string]pkgcustomplugins.Spec `json:"plugins,omitempty"`
+	Plugins     map[string]pkgcustomplugins.Spec `json:"plugins,omitempty"`
+	PluginSpecs pkgcustomplugins.Specs           `json:"plugin_specs,omitempty"`
 }
 
 type BootstrapRequest struct {
@@ -224,6 +227,7 @@ func (s *Session) serve() {
 					}
 					if response.Error == "" {
 						needExit = s.autoUpdateExitCode
+						log.Logger.Infow("scheduling auto exit for auto update", "code", needExit)
 					}
 				}
 			}
@@ -367,15 +371,15 @@ func (s *Session) serve() {
 			response.Plugins = cs
 
 		case "registerPlugin":
-			if payload.CustomPluginSpec != nil {
-				if err := payload.CustomPluginSpec.Validate(); err != nil {
+			if payload.PluginSpec != nil {
+				if err := payload.PluginSpec.Validate(); err != nil {
 					response.Error = err.Error()
 					break
 				}
 
-				initFunc := payload.CustomPluginSpec.NewInitFunc()
+				initFunc := payload.PluginSpec.NewInitFunc()
 				if initFunc == nil {
-					response.Error = fmt.Sprintf("failed to create init function for plugin %s", payload.CustomPluginSpec.ComponentName())
+					response.Error = fmt.Sprintf("failed to create init function for plugin %s", payload.PluginSpec.ComponentName())
 					break
 				}
 
@@ -396,22 +400,22 @@ func (s *Session) serve() {
 			}
 
 		case "updatePlugin":
-			if payload.CustomPluginSpec != nil {
-				if err := payload.CustomPluginSpec.Validate(); err != nil {
+			if payload.PluginSpec != nil {
+				if err := payload.PluginSpec.Validate(); err != nil {
 					response.Error = err.Error()
 					break
 				}
 
-				prevComp := s.componentsRegistry.Get(payload.CustomPluginSpec.ComponentName())
+				prevComp := s.componentsRegistry.Get(payload.PluginSpec.ComponentName())
 				if prevComp == nil {
 					response.ErrorCode = http.StatusNotFound
-					response.Error = fmt.Sprintf("plugin %s not found", payload.CustomPluginSpec.ComponentName())
+					response.Error = fmt.Sprintf("plugin %s not found", payload.PluginSpec.ComponentName())
 					break
 				}
 
-				initFunc := payload.CustomPluginSpec.NewInitFunc()
+				initFunc := payload.PluginSpec.NewInitFunc()
 				if initFunc == nil {
-					response.Error = fmt.Sprintf("failed to create init function for plugin %s", payload.CustomPluginSpec.ComponentName())
+					response.Error = fmt.Sprintf("failed to create init function for plugin %s", payload.PluginSpec.ComponentName())
 					break
 				}
 
@@ -432,6 +436,32 @@ func (s *Session) serve() {
 
 				log.Logger.Infow("registered and started custom plugin", "name", comp.Name())
 			}
+
+		case "setPluginSpecs":
+			if payload.PluginSpecs != nil {
+				updated, err := s.savePluginSpecsFunc(ctx, payload.PluginSpecs)
+				if err != nil {
+					response.Error = err.Error()
+					break
+				}
+				log.Logger.Infow("successfully saved plugin specs", "count", len(payload.PluginSpecs))
+
+				if updated {
+					needExit = 0
+					log.Logger.Infow("scheduling auto exit for plugins update", "code", needExit)
+				}
+			}
+
+		case "loadPluginSpecs":
+			if s.loadPluginSpecsFunc != nil {
+				specs, err := s.loadPluginSpecsFunc(ctx)
+				if err != nil {
+					response.Error = err.Error()
+					break
+				}
+				response.PluginSpecs = specs
+				log.Logger.Infow("successfully loaded plugin specs", "count", len(specs))
+			}
 		}
 
 		cancel()
@@ -443,8 +473,15 @@ func (s *Session) serve() {
 		}
 
 		if needExit != -1 {
-			log.Logger.Infow("exiting with code for auto update", "code", needExit)
-			os.Exit(s.autoUpdateExitCode)
+			go func() {
+				log.Logger.Infow("exiting with code", "code", needExit)
+				select {
+				case <-s.ctx.Done():
+				case <-time.After(10 * time.Second):
+					// enough time to send response back to control plane
+				}
+				os.Exit(s.autoUpdateExitCode)
+			}()
 		}
 	}
 }

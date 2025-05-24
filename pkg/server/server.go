@@ -33,7 +33,8 @@ import (
 	"github.com/leptonai/gpud/components/all"
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
-	customplugins "github.com/leptonai/gpud/pkg/custom-plugins"
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
+	pkgcustompluginsstore "github.com/leptonai/gpud/pkg/custom-plugins/store"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/gossip"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
@@ -207,24 +208,39 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 
 	// must be registered before starting the components
 	s.initRegistry = components.NewRegistry(gpudInstance)
-	if config.PluginSpecsFile != "" {
-		specs, err := customplugins.LoadSpecs(config.PluginSpecsFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load plugin specs: %w", err)
-		}
 
-		if err := specs.Validate(); err != nil {
+	// explicitly set plugin specs file always overwrites the one in the metadata store
+	// in case one need to quick test/fix the existing plugins
+	var customPluginSpecs pkgcustomplugins.Specs
+	if config.PluginSpecsFile != "" {
+		log.Logger.Infow("loading plugin specs from file", "file", config.PluginSpecsFile)
+		customPluginSpecs, err = pkgcustomplugins.LoadSpecs(config.PluginSpecsFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load plugin specs from file: %w", err)
+		}
+	} else {
+		log.Logger.Infow("loading plugin specs from metadata store")
+		customPluginSpecs, err = pkgcustompluginsstore.LoadSpecs(ctx, dbRO)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load plugin specs from metadata store: %w", err)
+		}
+	}
+
+	if len(customPluginSpecs) > 0 {
+		log.Logger.Infow("loaded plugin specs", "count", len(customPluginSpecs))
+
+		if err := customPluginSpecs.Validate(); err != nil {
 			return nil, fmt.Errorf("failed to validate plugin specs: %w", err)
 		}
 
-		for _, spec := range specs {
+		for _, spec := range customPluginSpecs {
 			initFunc := spec.NewInitFunc()
 			if initFunc == nil {
 				log.Logger.Errorw("failed to load plugin", "name", spec.ComponentName())
 				continue
 			}
 
-			if spec.Type == customplugins.SpecTypeInit {
+			if spec.Type == pkgcustomplugins.SpecTypeInit {
 				s.initRegistry.MustRegister(initFunc)
 				log.Logger.Infow("loaded init plugin", "name", spec.ComponentName())
 			} else {
@@ -473,6 +489,12 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithMetricsStore(metricsStore),
+			session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
+				return pkgcustompluginsstore.SaveSpecs(ctx, s.dbRW, specs)
+			}),
+			session.WithLoadPluginSpecsFunc(func(ctx context.Context) (pkgcustomplugins.Specs, error) {
+				return pkgcustompluginsstore.LoadSpecs(ctx, s.dbRO)
+			}),
 		)
 		if err != nil {
 			log.Logger.Errorw("error creating session", "error", err)
@@ -525,6 +547,12 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithMetricsStore(metricsStore),
+				session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
+					return pkgcustompluginsstore.SaveSpecs(ctx, s.dbRW, specs)
+				}),
+				session.WithLoadPluginSpecsFunc(func(ctx context.Context) (pkgcustomplugins.Specs, error) {
+					return pkgcustompluginsstore.LoadSpecs(ctx, s.dbRO)
+				}),
 			)
 			if err != nil {
 				log.Logger.Errorw("error creating session", "error", err)

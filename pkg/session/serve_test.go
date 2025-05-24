@@ -17,6 +17,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -109,6 +110,29 @@ type mockDeregisterableComponent struct {
 func (m *mockDeregisterableComponent) CanDeregister() bool {
 	args := m.Called()
 	return args.Bool(0)
+}
+
+type mockHealthSettableComponent struct {
+	mockComponent
+}
+
+func (m *mockHealthSettableComponent) SetHealthy() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+type mockCustomPluginRegistereeComponent struct {
+	mockComponent
+}
+
+func (m *mockCustomPluginRegistereeComponent) IsCustomPlugin() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+func (m *mockCustomPluginRegistereeComponent) Spec() pkgcustomplugins.Spec {
+	args := m.Called()
+	return args.Get(0).(pkgcustomplugins.Spec)
 }
 
 type mockCheckResult struct {
@@ -745,4 +769,959 @@ func TestMalformedRequest(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for serve to exit")
 	}
+}
+
+// Test metrics request handling
+func TestHandleMetricsRequest(t *testing.T) {
+	session, registry, metricsStore, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	comp := new(mockComponent)
+	storeData := metrics.Metrics{
+		{Name: "metric1", Value: 42, UnixMilliseconds: 1000, Labels: map[string]string{"label": "value"}},
+	}
+
+	registry.On("Get", "component1").Return(comp)
+	metricsStore.On("Read", mock.Anything, mock.Anything).Return(storeData, nil)
+
+	req := Request{
+		Method:     "metrics",
+		Components: []string{"component1"},
+		Since:      time.Hour,
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+	assert.Len(t, response.Metrics, 1)
+	assert.Equal(t, "component1", response.Metrics[0].Component)
+
+	registry.AssertExpectations(t)
+	metricsStore.AssertExpectations(t)
+}
+
+// Test states request handling
+func TestHandleStatesRequest(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	comp := new(mockComponent)
+	healthStates := apiv1.HealthStates{
+		{Health: apiv1.HealthStateTypeHealthy, Name: "test-state"},
+	}
+
+	registry.On("Get", "component1").Return(comp)
+	comp.On("LastHealthStates").Return(healthStates)
+
+	req := Request{
+		Method:     "states",
+		Components: []string{"component1"},
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+	assert.Len(t, response.States, 1)
+	assert.Equal(t, "component1", response.States[0].Component)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
+}
+
+// Test events request handling
+func TestHandleEventsRequest(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	comp := new(mockComponent)
+	events := apiv1.Events{
+		{Name: "event1", Message: "test event"},
+	}
+
+	registry.On("Get", "component1").Return(comp)
+	comp.On("Events", mock.Anything, mock.Anything).Return(events, nil)
+
+	req := Request{
+		Method:     "events",
+		Components: []string{"component1"},
+		StartTime:  time.Now().Add(-time.Hour),
+		EndTime:    time.Now(),
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+	assert.Len(t, response.Events, 1)
+	assert.Equal(t, "component1", response.Events[0].Component)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
+}
+
+// Test delete request handling
+func TestHandleDeleteRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method: "delete",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+}
+
+// Test setHealthy request handling
+func TestHandleSetHealthyRequest(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	comp := new(mockHealthSettableComponent)
+
+	registry.On("Get", "component1").Return(comp)
+	comp.On("SetHealthy").Return(nil)
+
+	req := Request{
+		Method:     "setHealthy",
+		Components: []string{"component1"},
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
+}
+
+// Test getPlugins request handling
+func TestHandleGetPluginsRequest(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	comp := new(mockCustomPluginRegistereeComponent)
+	pluginSpec := pkgcustomplugins.Spec{
+		PluginName: "test-plugin",
+		Type:       "component",
+	}
+
+	registry.On("All").Return([]components.Component{comp})
+	comp.On("IsCustomPlugin").Return(true)
+	comp.On("Name").Return("test-plugin")
+	comp.On("Spec").Return(pluginSpec)
+
+	req := Request{
+		Method: "getPlugins",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+	assert.NotEmpty(t, response.Plugins)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
+}
+
+// Test registerPlugin request handling
+func TestHandleRegisterPluginRequest(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	comp := new(mockComponent)
+	pluginSpec := &pkgcustomplugins.Spec{
+		PluginName: "test-plugin",
+		Type:       "component",
+		HealthStatePlugin: &pkgcustomplugins.Plugin{
+			Steps: []pkgcustomplugins.Step{
+				{
+					Name: "test-step",
+					RunBashScript: &pkgcustomplugins.RunBashScript{
+						ContentType: "plaintext",
+						Script:      "echo 'test'",
+					},
+				},
+			},
+		},
+	}
+
+	registry.On("Register", mock.Anything).Return(comp, nil)
+	comp.On("Start").Return(nil)
+	comp.On("Name").Return("test-plugin")
+
+	req := Request{
+		Method:     "registerPlugin",
+		PluginSpec: pluginSpec,
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
+}
+
+// Test updatePlugin request handling
+func TestHandleUpdatePluginRequest(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	oldComp := new(mockComponent)
+	newComp := new(mockComponent)
+	pluginSpec := &pkgcustomplugins.Spec{
+		PluginName: "test-plugin",
+		Type:       "component",
+		HealthStatePlugin: &pkgcustomplugins.Plugin{
+			Steps: []pkgcustomplugins.Step{
+				{
+					Name: "test-step",
+					RunBashScript: &pkgcustomplugins.RunBashScript{
+						ContentType: "plaintext",
+						Script:      "echo 'test updated'",
+					},
+				},
+			},
+		},
+	}
+
+	registry.On("Get", "test-plugin").Return(oldComp)
+	oldComp.On("Name").Return("test-plugin")
+	oldComp.On("Close").Return(nil)
+	registry.On("Deregister", "test-plugin").Return(oldComp)
+	registry.On("Register", mock.Anything).Return(newComp, nil)
+	newComp.On("Start").Return(nil)
+	newComp.On("Name").Return("test-plugin")
+
+	req := Request{
+		Method:     "updatePlugin",
+		PluginSpec: pluginSpec,
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+
+	registry.AssertExpectations(t)
+	oldComp.AssertExpectations(t)
+	newComp.AssertExpectations(t)
+}
+
+// Test setPluginSpecs request handling
+func TestHandleSetPluginSpecsRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSession()
+
+	// Set up the savePluginSpecsFunc
+	savePluginSpecsCalled := false
+	session.savePluginSpecsFunc = func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
+		savePluginSpecsCalled = true
+		return true, nil
+	}
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	pluginSpecs := pkgcustomplugins.Specs{
+		{
+			PluginName: "test-plugin",
+			Type:       "component",
+			HealthStatePlugin: &pkgcustomplugins.Plugin{
+				Steps: []pkgcustomplugins.Step{
+					{
+						Name: "test-step",
+						RunBashScript: &pkgcustomplugins.RunBashScript{
+							ContentType: "plaintext",
+							Script:      "echo 'test'",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	req := Request{
+		Method:      "setPluginSpecs",
+		PluginSpecs: pluginSpecs,
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+	assert.True(t, savePluginSpecsCalled)
+}
+
+// Test loadPluginSpecs request handling
+func TestHandleLoadPluginSpecsRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSession()
+
+	// Set up the loadPluginSpecsFunc
+	pluginSpecs := pkgcustomplugins.Specs{
+		{
+			PluginName: "test-plugin",
+			Type:       "component",
+			HealthStatePlugin: &pkgcustomplugins.Plugin{
+				Steps: []pkgcustomplugins.Step{
+					{
+						Name: "test-step",
+						RunBashScript: &pkgcustomplugins.RunBashScript{
+							ContentType: "plaintext",
+							Script:      "echo 'test'",
+						},
+					},
+				},
+			},
+		},
+	}
+	session.loadPluginSpecsFunc = func(ctx context.Context) (pkgcustomplugins.Specs, error) {
+		return pluginSpecs, nil
+	}
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method: "loadPluginSpecs",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+	assert.Len(t, response.PluginSpecs, 1)
+	assert.Equal(t, "test-plugin", response.PluginSpecs[0].PluginName)
+}
+
+// Test error cases for various requests
+func TestHandleRequestErrors(t *testing.T) {
+	t.Run("events method mismatch error", func(t *testing.T) {
+		session, registry, _, _, reader, writer := setupTestSession()
+		go session.serve()
+		defer close(reader)
+
+		// Set up expectation for the nonexistent component
+		registry.On("Get", "nonexistent").Return(nil)
+
+		req := Request{
+			Method:     "events",
+			Components: []string{"nonexistent"},
+		}
+
+		reqData, _ := json.Marshal(req)
+		reader <- Body{Data: reqData, ReqID: "test-req-id-1"}
+
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+		// Should get empty events for nonexistent component, but no error from the main function
+		assert.Empty(t, response.Error)
+		assert.Len(t, response.Events, 1)
+		assert.Equal(t, "nonexistent", response.Events[0].Component)
+
+		registry.AssertExpectations(t)
+	})
+
+	t.Run("states method mismatch error", func(t *testing.T) {
+		session, registry, _, _, reader, writer := setupTestSession()
+		go session.serve()
+		defer close(reader)
+
+		// Set up expectations for default components
+		registry.On("Get", "component1").Return(nil)
+		registry.On("Get", "component2").Return(nil)
+
+		req := Request{
+			Method: "events", // Wrong method for states
+		}
+
+		reqData, _ := json.Marshal(req)
+		reader <- Body{Data: reqData, ReqID: "test-req-id-2"}
+
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+		// Should get empty events but no error since this is a valid events request
+		assert.Empty(t, response.Error)
+
+		registry.AssertExpectations(t)
+	})
+}
+
+// Test reboot request handling
+func TestHandleRebootRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method: "reboot",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response - reboot will likely fail in test environment but that's expected
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	// Don't assert on error since reboot may fail in test environment
+}
+
+// Test logout request handling
+func TestHandleLogoutRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method: "logout",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response - logout will likely fail in test environment but that's expected
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	// Don't assert on error since logout may fail in test environment
+}
+
+// Test update request handling
+func TestHandleUpdateRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method:        "update",
+		UpdateVersion: "test-version",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response - update will likely fail in test environment but that's expected
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	// The update will fail because auto update is not enabled by default
+	assert.NotEmpty(t, response.Error)
+	assert.Contains(t, response.Error, "auto update is disabled")
+}
+
+// Test updateConfig request handling
+func TestHandleUpdateConfigRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method: "updateConfig",
+		UpdateConfig: map[string]string{
+			"unsupported-component": "test-config",
+		},
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+}
+
+// Test plugin error scenarios
+func TestHandlePluginErrors(t *testing.T) {
+	t.Run("registerPlugin validation error", func(t *testing.T) {
+		session, _, _, _, reader, writer := setupTestSession()
+		go session.serve()
+		defer close(reader)
+
+		// Invalid plugin spec without HealthStatePlugin
+		pluginSpec := &pkgcustomplugins.Spec{
+			PluginName: "test-plugin",
+			Type:       "component",
+			// Missing HealthStatePlugin
+		}
+
+		req := Request{
+			Method:     "registerPlugin",
+			PluginSpec: pluginSpec,
+		}
+
+		reqData, _ := json.Marshal(req)
+		reader <- Body{Data: reqData, ReqID: "test-req-id"}
+
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+		assert.NotEmpty(t, response.Error)
+		assert.Contains(t, response.Error, "state plugin is required")
+	})
+
+	t.Run("updatePlugin not found", func(t *testing.T) {
+		session, registry, _, _, reader, writer := setupTestSession()
+		go session.serve()
+		defer close(reader)
+
+		registry.On("Get", "nonexistent-plugin").Return(nil)
+
+		pluginSpec := &pkgcustomplugins.Spec{
+			PluginName: "nonexistent-plugin",
+			Type:       "component",
+			HealthStatePlugin: &pkgcustomplugins.Plugin{
+				Steps: []pkgcustomplugins.Step{
+					{
+						Name: "test-step",
+						RunBashScript: &pkgcustomplugins.RunBashScript{
+							ContentType: "plaintext",
+							Script:      "echo 'test'",
+						},
+					},
+				},
+			},
+		}
+
+		req := Request{
+			Method:     "updatePlugin",
+			PluginSpec: pluginSpec,
+		}
+
+		reqData, _ := json.Marshal(req)
+		reader <- Body{Data: reqData, ReqID: "test-req-id"}
+
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+		assert.Equal(t, int32(http.StatusNotFound), response.ErrorCode)
+		assert.NotEmpty(t, response.Error)
+
+		registry.AssertExpectations(t)
+	})
+
+	t.Run("getPlugins with specific component", func(t *testing.T) {
+		session, registry, _, _, reader, writer := setupTestSession()
+		go session.serve()
+		defer close(reader)
+
+		comp := new(mockCustomPluginRegistereeComponent)
+		pluginSpec := pkgcustomplugins.Spec{
+			PluginName: "specific-plugin",
+			Type:       "component",
+		}
+
+		registry.On("Get", "specific-plugin").Return(comp)
+		comp.On("IsCustomPlugin").Return(true)
+		comp.On("Name").Return("specific-plugin")
+		comp.On("Spec").Return(pluginSpec)
+
+		req := Request{
+			Method:        "getPlugins",
+			ComponentName: "specific-plugin",
+		}
+
+		reqData, _ := json.Marshal(req)
+		reader <- Body{Data: reqData, ReqID: "test-req-id"}
+
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+		assert.Empty(t, response.Error)
+		assert.NotEmpty(t, response.Plugins)
+
+		registry.AssertExpectations(t)
+		comp.AssertExpectations(t)
+	})
+}
+
+// Test setHealthy with component error
+func TestHandleSetHealthyWithError(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSession()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	comp := new(mockHealthSettableComponent)
+
+	registry.On("Get", "component1").Return(comp)
+	comp.On("SetHealthy").Return(errors.New("failed to set healthy"))
+
+	req := Request{
+		Method:     "setHealthy",
+		Components: []string{"component1"},
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-req-id",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response - error is logged but not returned in response
+	assert.Equal(t, "test-req-id", resp.ReqID)
+	assert.Empty(t, response.Error)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
 }

@@ -14,18 +14,21 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
 type Op struct {
-	machineID          string
-	pipeInterval       time.Duration
-	enableAutoUpdate   bool
-	autoUpdateExitCode int
-	componentsRegistry components.Registry
-	metricsStore       pkgmetrics.Store
+	machineID           string
+	pipeInterval        time.Duration
+	enableAutoUpdate    bool
+	autoUpdateExitCode  int
+	componentsRegistry  components.Registry
+	metricsStore        pkgmetrics.Store
+	savePluginSpecsFunc func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error)
+	loadPluginSpecsFunc func(ctx context.Context) (pkgcustomplugins.Specs, error)
 }
 
 type OpOption func(*Op)
@@ -85,6 +88,18 @@ func WithAutoUpdateExitCode(autoUpdateExitCode int) OpOption {
 	}
 }
 
+func WithSavePluginSpecsFunc(savePluginSpecsFunc func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error)) OpOption {
+	return func(op *Op) {
+		op.savePluginSpecsFunc = savePluginSpecsFunc
+	}
+}
+
+func WithLoadPluginSpecsFunc(loadPluginSpecsFunc func(ctx context.Context) (pkgcustomplugins.Specs, error)) OpOption {
+	return func(op *Op) {
+		op.loadPluginSpecsFunc = loadPluginSpecsFunc
+	}
+}
+
 type Session struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -113,6 +128,9 @@ type Session struct {
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+
+	savePluginSpecsFunc func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error)
+	loadPluginSpecsFunc func(ctx context.Context) (pkgcustomplugins.Specs, error)
 
 	lastPackageTimestampMu sync.RWMutex
 	lastPackageTimestamp   time.Time
@@ -166,6 +184,9 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 
 		enableAutoUpdate:   op.enableAutoUpdate,
 		autoUpdateExitCode: op.autoUpdateExitCode,
+
+		savePluginSpecsFunc: op.savePluginSpecsFunc,
+		loadPluginSpecsFunc: op.loadPluginSpecsFunc,
 	}
 
 	s.reader = make(chan Body, 20)

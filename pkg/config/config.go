@@ -44,6 +44,9 @@ type Config struct {
 	NvidiaToolOverwrites nvidia_common.ToolOverwrites `json:"nvidia_tool_overwrites"`
 
 	// PluginSpecsFile is the file that contains the plugin specs.
+	// When this is explicitly set, the plugin specs file always overwrites
+	// the one in the metadata store, in case one need to quick test/fix the
+	// existing plugins.
 	PluginSpecsFile string `json:"plugin_specs_file"`
 
 	// EnablePluginAPI enables the plugin API.
