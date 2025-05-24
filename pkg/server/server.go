@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/url"
+	"os"
 	stdos "os"
 	"sync"
 	"syscall"
@@ -35,10 +36,12 @@ import (
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	customplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/gossip"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/httputil"
+	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
@@ -82,6 +85,9 @@ type Server struct {
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+
+	faultInjector        pkgfaultinjector.Injector
+	faultInjectorWorkDir string
 }
 
 type UserToken struct {
@@ -168,6 +174,22 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 			s.Stop()
 		}
 	}()
+
+	if config.EnableFaultInjector {
+		workDir, err := os.MkdirTemp(os.TempDir(), "gpud-server-kmg-writer-")
+		if err != nil {
+			return nil, err
+		}
+		log.Logger.Infow("setting up fault injector", "workDir", workDir)
+
+		kmsgWriterModule := pkgkmsgwriter.NewGPUdKmsgWriterModule(ctx, workDir)
+		s.faultInjector = kmsgWriterModule
+		s.faultInjectorWorkDir = workDir
+
+		if err := kmsgWriterModule.BuildInstall(ctx); err != nil {
+			return nil, fmt.Errorf("failed to build and install fault injector: %w", err)
+		}
+	}
 
 	nvmlInstance, err := nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
 	if err != nil {
@@ -271,7 +293,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	installRootGinMiddlewares(router)
 	installCommonGinMiddlewares(router, log.Logger.Desugar())
 
-	globalHandler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore, gpudInstance)
+	globalHandler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore, gpudInstance, s.faultInjector)
 
 	// if the request header is set "Accept-Encoding: gzip",
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
@@ -287,6 +309,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
 	router.GET(URLPathHealthz, handleHealthz())
 	router.GET(URLPathMachineInfo, globalHandler.handleMachineInfo)
+	router.POST(URLPathInjectFault, globalHandler.handleInjectFault)
 
 	adminGroup := router.Group(urlPathAdmin)
 	adminGroup.GET(urlPathConfig, handleAdminConfig(config))
@@ -358,6 +381,21 @@ func (s *Server) Stop() {
 	if s.fifoPath != "" {
 		if err := stdos.Remove(s.fifoPath); err != nil {
 			log.Logger.Errorf("failed to remove fifo: %s", err)
+		}
+	}
+
+	if s.faultInjector != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := s.faultInjector.Uninstall(ctx); err != nil {
+			log.Logger.Errorw("failed to uninstall fault injector", "error", err)
+		}
+	}
+
+	if s.faultInjectorWorkDir != "" {
+		// call after uninstalling the module
+		if err := stdos.RemoveAll(s.faultInjectorWorkDir); err != nil {
+			log.Logger.Errorw("failed to remove fault injector work dir", "error", err)
 		}
 	}
 }
@@ -473,6 +511,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithMetricsStore(metricsStore),
+			session.WithFaultInjector(s.faultInjector),
 		)
 		if err != nil {
 			log.Logger.Errorw("error creating session", "error", err)
@@ -525,6 +564,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithMetricsStore(metricsStore),
+				session.WithFaultInjector(s.faultInjector),
 			)
 			if err != nil {
 				log.Logger.Errorw("error creating session", "error", err)
