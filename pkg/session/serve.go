@@ -19,6 +19,7 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkdsystemd "github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -72,6 +73,8 @@ type Response struct {
 	Metrics apiv1.GPUdComponentMetrics      `json:"metrics,omitempty"`
 
 	Bootstrap *BootstrapResponse `json:"bootstrap,omitempty"`
+
+	PackageStatus []apiv1.PackageStatus `json:"package_status,omitempty"`
 
 	Plugins map[string]pkgcustomplugins.Spec `json:"plugins,omitempty"`
 }
@@ -179,7 +182,31 @@ func (s *Session) serve() {
 					log.Logger.Warnw("component does not implement HealthSettable, dropping setHealthy request", "component", componentName)
 				}
 			}
-
+		case "packageStatus":
+			packageStatus, err := gpudmanager.GlobalController.Status(ctx)
+			if err != nil {
+				response.Error = err.Error()
+			}
+			var result []apiv1.PackageStatus
+			for _, currPackage := range packageStatus {
+				packagePhase := apiv1.UnknownPhase
+				if currPackage.IsInstalled {
+					packagePhase = apiv1.InstalledPhase
+				} else if currPackage.Installing {
+					packagePhase = apiv1.InstallingPhase
+				}
+				status := "Unhealthy"
+				if currPackage.Status {
+					status = "Healthy"
+				}
+				result = append(result, apiv1.PackageStatus{
+					Name:           currPackage.Name,
+					Phase:          packagePhase,
+					Status:         status,
+					CurrentVersion: currPackage.CurrentVersion,
+				})
+			}
+			response.PackageStatus = result
 		case "update":
 			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
 				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
