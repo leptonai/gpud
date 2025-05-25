@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
-	"net/http/cookiejar"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -195,17 +197,14 @@ func (s *Session) keepAlive() {
 			writerExit := make(chan any)
 			s.closer = &closeOnce{closer: make(chan any)}
 			ctx, cancel := context.WithCancel(context.Background()) // create local context for each session
-			jar, _ := cookiejar.New(nil)
-
-			log.Logger.Infow("session keep alive: checking server health")
-			if err := s.checkServerHealth(ctx, jar); err != nil {
-				log.Logger.Errorf("session keep alive: error checking server health: %v", err)
+			sessionAddr, err := resolveIPFromEndpoint(ctx, s.epControlPlane)
+			if err != nil {
+				log.Logger.Errorf("session keep alive: error resolving endpoint %s: %v", s.epControlPlane, err)
 				cancel()
 				continue
 			}
-
-			go s.startReader(ctx, readerExit, jar)
-			go s.startWriter(ctx, writerExit, jar)
+			go s.startReader(ctx, readerExit, sessionAddr)
+			go s.startWriter(ctx, writerExit, sessionAddr)
 			<-readerExit
 			log.Logger.Debug("session reader: reader exited")
 			cancel()
@@ -216,9 +215,8 @@ func (s *Session) keepAlive() {
 	}
 }
 
-func createHTTPClient(jar *cookiejar.Jar) *http.Client {
+func createHTTPClient() *http.Client {
 	return &http.Client{
-		Jar: jar,
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
@@ -231,6 +229,7 @@ func createHTTPClient(jar *cookiejar.Jar) *http.Client {
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 5 * time.Second,
 			DisableKeepAlives:     true,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		},
 	}
 }
@@ -246,7 +245,7 @@ func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessio
 	return req, nil
 }
 
-func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+func (s *Session) startWriter(ctx context.Context, writerExit chan any, addrOverride string) {
 	pipeFinishCh := make(chan any)
 	goroutineCloseCh := make(chan any)
 	defer func() {
@@ -258,13 +257,18 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *coo
 	reader, writer := io.Pipe()
 	go s.handleWriterPipe(writer, goroutineCloseCh, pipeFinishCh)
 
-	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "write", s.token, reader)
+	addr := s.epControlPlane
+	if addrOverride != "" {
+		addr = addrOverride
+	}
+	log.Logger.Infow("session keep alive: starting write session", "addr", addr)
+	req, err := createSessionRequest(ctx, addr, s.machineID, "write", s.token, reader)
 	if err != nil {
 		log.Logger.Debugf("session writer: error creating request: %v", err)
 		return
 	}
 
-	client := createHTTPClient(jar)
+	client := createHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Logger.Debugf("session writer: error making request: %v", err)
@@ -309,7 +313,7 @@ func (s *Session) writeBodyToPipe(writer *io.PipeWriter, body Body) error {
 	return nil
 }
 
-func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+func (s *Session) startReader(ctx context.Context, readerExit chan any, addrOverride string) {
 	goroutineCloseCh := make(chan any)
 	pipeFinishCh := make(chan any)
 	defer func() {
@@ -319,14 +323,19 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 		close(readerExit)
 	}()
 
-	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "read", s.token, nil)
+	addr := s.epControlPlane
+	if addrOverride != "" {
+		addr = addrOverride
+	}
+	log.Logger.Infow("session keep alive: starting read session", "addr", addr)
+	req, err := createSessionRequest(ctx, addr, s.machineID, "read", s.token, nil)
 	if err != nil {
 		log.Logger.Debugf("session reader: error creating request: %v", err)
 		close(pipeFinishCh)
 		return
 	}
 
-	client := createHTTPClient(jar)
+	client := createHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Logger.Debugf("session reader: error making request: %v, retrying", err)
@@ -340,28 +349,6 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	}
 
 	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
-}
-
-func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", s.epLocalGPUdServer+"/healthz", nil)
-	if err != nil {
-		return err
-	}
-
-	client := createHTTPClient(jar)
-	tr := client.Transport.(*http.Transport)
-	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server health check failed: %s", resp.Status)
-	}
-	return nil
 }
 
 func (s *Session) setLastPackageTimestamp(t time.Time) {
@@ -446,4 +433,57 @@ func (s *Session) Stop() {
 		close(s.reader)
 		close(s.writer)
 	}
+}
+
+func resolveIPFromEndpoint(ctx context.Context, origEndpoint string) (string, error) {
+	if origEndpoint == "" {
+		return "", nil
+	}
+	parsedURL, err := url.Parse(origEndpoint)
+	if err != nil || parsedURL.Host == "" {
+		if !strings.Contains(origEndpoint, "://") {
+			origEndpoint = "https://" + origEndpoint
+			parsedURL, err = url.Parse(origEndpoint)
+			if err != nil || parsedURL.Host == "" {
+				return "", fmt.Errorf("invalid endpoint: %s", origEndpoint)
+			}
+		}
+	}
+	if parsedURL == nil {
+		return "", fmt.Errorf("invalid endpoint: %s", origEndpoint)
+	}
+	scheme := parsedURL.Scheme
+	hostname := parsedURL.Hostname()
+	port := parsedURL.Port()
+
+	ipList, err := net.DefaultResolver.LookupHost(ctx, hostname)
+	if err != nil {
+		return "", fmt.Errorf("DNS resolution failed: %w", err)
+	}
+	rand.Shuffle(len(ipList), func(i, j int) {
+		ipList[i], ipList[j] = ipList[j], ipList[i]
+	})
+
+	for _, ip := range ipList {
+		ipURL := *parsedURL // shallow copy
+		if port != "" {
+			ipURL.Host = net.JoinHostPort(ip, port)
+		} else {
+			ipURL.Host = ip
+		}
+		ipURL.Scheme = scheme
+
+		client := http.Client{
+			Timeout: 2 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+		resp, err := client.Get(fmt.Sprintf("%s/healthz", ipURL.String()))
+		if err == nil && resp.StatusCode == 200 {
+			return ipURL.String(), nil
+		}
+	}
+
+	return "", fmt.Errorf("no reachable IP found from DNS resolution")
 }
