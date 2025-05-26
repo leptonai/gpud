@@ -457,7 +457,7 @@ func (s *Session) serve() {
 					break
 				}
 
-				log.Logger.Infow("registered and started custom plugin", "name", comp.Name())
+				log.Logger.Infow("updated and started custom plugin", "name", comp.Name())
 			}
 		}
 
