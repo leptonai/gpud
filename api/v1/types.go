@@ -157,6 +157,21 @@ type ComponentInfo struct {
 
 type GPUdComponentInfos []ComponentInfo
 
+type PackageStatus struct {
+	Name           string       `json:"name"`
+	Phase          PackagePhase `json:"phase"`
+	Status         string       `json:"status"`
+	CurrentVersion string       `json:"current_version"`
+}
+
+type PackagePhase string
+
+const (
+	InstalledPhase  PackagePhase = "Installed"
+	InstallingPhase PackagePhase = "Installing"
+	UnknownPhase    PackagePhase = "Unknown"
+)
+
 type RepairActionType string
 
 const (
