@@ -60,7 +60,7 @@ sudo gpud login --token <LEPTON_AI_TOKEN>
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for control plane",
-					Value: "mothership-machine.app.lepton.ai",
+					Value: "gpud-manager-prod01.dgxc-lepton.nvidia.com",
 				},
 				cli.StringFlag{
 					Name:   "machine-id",
@@ -123,7 +123,7 @@ nohup sudo gpud run &>> <your log file path> &
 				cli.StringFlag{
 					Name:  "endpoint",
 					Usage: "endpoint for checking in",
-					Value: "mothership-machine.app.lepton.ai",
+					Value: "gpud-manager-prod01.dgxc-lepton.nvidia.com",
 				},
 				cli.StringFlag{
 					Name:  "gpu-count",
