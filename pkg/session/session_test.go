@@ -633,7 +633,7 @@ func TestResolveIPFromEndpoint(t *testing.T) {
 		{"Empty input", "", false, false},
 		{"Invalid URL format", "::::", true, false},
 		{"Unresolvable domain", "http://nonexistent.domain.ai/", true, false},
-		{"Valid HTTPS no port", "https://gpud-manager-dev01.dgxc-lepton-dev.nvidia.com", false, true},
+		{"Valid HTTPS no port", "https://gpud-manager-prod01.dgxc-lepton.nvidia.com", false, true},
 	}
 
 	for _, tt := range tests {
