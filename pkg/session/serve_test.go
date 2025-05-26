@@ -17,6 +17,8 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
+	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -168,13 +170,33 @@ func (m *mockProcessRunner) RunUntilCompletion(ctx context.Context, command stri
 	return args.Get(0).([]byte), int32(args.Int(1)), args.Error(2)
 }
 
+type mockFaultInjector struct {
+	mock.Mock
+}
+
+func (m *mockFaultInjector) InjectKernelMessage(ctx context.Context, kernelMessage *pkgkmsgwriter.KernelMessage) error {
+	args := m.Called(ctx, kernelMessage)
+	return args.Error(0)
+}
+
+func (m *mockFaultInjector) BuildInstall(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *mockFaultInjector) Uninstall(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 // Helper functions for testing
-func setupTestSession() (*Session, *mockComponentRegistry, *mockMetricsStore, *mockProcessRunner, chan Body, chan Body) {
+func setupTestSession() (*Session, *mockComponentRegistry, *mockMetricsStore, *mockProcessRunner, *mockFaultInjector, chan Body, chan Body) {
 	reader := make(chan Body, 10)
 	writer := make(chan Body, 10)
 	componentsRegistry := new(mockComponentRegistry)
 	metricsStore := new(mockMetricsStore)
 	processRunner := new(mockProcessRunner)
+	faultInjector := new(mockFaultInjector)
 
 	session := &Session{
 		reader:             reader,
@@ -182,13 +204,19 @@ func setupTestSession() (*Session, *mockComponentRegistry, *mockMetricsStore, *m
 		componentsRegistry: componentsRegistry,
 		metricsStore:       metricsStore,
 		processRunner:      processRunner,
+		faultInjector:      faultInjector,
 		components:         []string{"component1", "component2"},
 		ctx:                context.Background(),
 		enableAutoUpdate:   false,
 		autoUpdateExitCode: -1,
 	}
 
-	return session, componentsRegistry, metricsStore, processRunner, reader, writer
+	return session, componentsRegistry, metricsStore, processRunner, faultInjector, reader, writer
+}
+
+func setupTestSessionWithoutFaultInjector() (*Session, *mockComponentRegistry, *mockMetricsStore, *mockProcessRunner, chan Body, chan Body) {
+	session, registry, store, runner, _, reader, writer := setupTestSession()
+	return session, registry, store, runner, reader, writer
 }
 
 func createMockSession(registry *mockComponentRegistry) *Session {
@@ -212,7 +240,7 @@ func createMockSession(registry *mockComponentRegistry) *Session {
 
 // Tests for getStatesFromComponent
 func TestGetStatesFromComponent(t *testing.T) {
-	session, registry, _, _, _, _ := setupTestSession()
+	session, registry, _, _, _, _ := setupTestSessionWithoutFaultInjector()
 
 	t.Run("component not found", func(t *testing.T) {
 		registry.On("Get", "nonexistent").Return(nil)
@@ -399,7 +427,7 @@ func TestCreateNeedDeleteFiles(t *testing.T) {
 
 // Test getHealthStates
 func TestGetHealthStates(t *testing.T) {
-	session, registry, _, _, _, _ := setupTestSession()
+	session, registry, _, _, _, _ := setupTestSessionWithoutFaultInjector()
 
 	t.Run("with specific components", func(t *testing.T) {
 		// Use a simpler implementation to avoid goroutine race conditions
@@ -440,7 +468,7 @@ func TestGetHealthStates(t *testing.T) {
 
 // Test handling bootstrap request
 func TestHandleBootstrapRequest(t *testing.T) {
-	session, _, _, processRunner, reader, writer := setupTestSession()
+	session, _, _, processRunner, reader, writer := setupTestSessionWithoutFaultInjector()
 
 	// Start the session in a separate goroutine
 	go session.serve()
@@ -495,7 +523,7 @@ func TestHandleBootstrapRequest(t *testing.T) {
 
 // Test triggerComponentCheck
 func TestTriggerComponentCheck(t *testing.T) {
-	session, registry, _, _, reader, writer := setupTestSession()
+	session, registry, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
 
 	// Start the session in a separate goroutine
 	go session.serve()
@@ -554,7 +582,7 @@ func TestTriggerComponentCheck(t *testing.T) {
 
 // Test triggerComponentCheckByTag with non-empty TagName
 func TestTriggerComponentCheckByTag(t *testing.T) {
-	session, registry, _, _, reader, writer := setupTestSession()
+	session, registry, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
 
 	// Start the session in a separate goroutine
 	go session.serve()
@@ -626,7 +654,7 @@ func TestTriggerComponentCheckByTag(t *testing.T) {
 
 // Test deregisterComponent
 func TestDeregisterComponent(t *testing.T) {
-	session, registry, _, _, reader, writer := setupTestSession()
+	session, registry, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
 
 	// Start the session in a separate goroutine
 	go session.serve()
@@ -721,7 +749,7 @@ func TestDeregisterComponent(t *testing.T) {
 
 // Test for handling malformed requests
 func TestMalformedRequest(t *testing.T) {
-	session, _, _, _, reader, _ := setupTestSession()
+	session, _, _, _, reader, _ := setupTestSessionWithoutFaultInjector()
 
 	// Use a channel with buffer to ensure we don't block
 	done := make(chan bool, 1)
@@ -745,4 +773,571 @@ func TestMalformedRequest(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for serve to exit")
 	}
+}
+
+// Test handling injectFault request
+func TestHandleInjectFaultRequest(t *testing.T) {
+	t.Run("successful kernel message injection", func(t *testing.T) {
+		session, _, _, _, faultInjector, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create an inject fault request
+		kernelMessage := &pkgkmsgwriter.KernelMessage{
+			Priority: "KERN_INFO",
+			Message:  "test kernel message",
+		}
+
+		req := Request{
+			Method: "injectFault",
+			InjectFaultRequest: &pkgfaultinjector.Request{
+				KernelMessage: kernelMessage,
+			},
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Mock the fault injector to succeed
+		faultInjector.On("InjectKernelMessage", mock.Anything, kernelMessage).Return(nil)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-inject-fault-success",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response
+		assert.Equal(t, "test-inject-fault-success", resp.ReqID)
+		assert.Empty(t, response.Error)
+
+		faultInjector.AssertExpectations(t)
+	})
+
+	t.Run("failed kernel message injection", func(t *testing.T) {
+		session, _, _, _, faultInjector, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create an inject fault request
+		kernelMessage := &pkgkmsgwriter.KernelMessage{
+			Priority: "KERN_ERR",
+			Message:  "test error message",
+		}
+
+		req := Request{
+			Method: "injectFault",
+			InjectFaultRequest: &pkgfaultinjector.Request{
+				KernelMessage: kernelMessage,
+			},
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Mock the fault injector to fail
+		expectedError := errors.New("fault injection failed")
+		faultInjector.On("InjectKernelMessage", mock.Anything, kernelMessage).Return(expectedError)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-inject-fault-error",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response
+		assert.Equal(t, "test-inject-fault-error", resp.ReqID)
+		assert.Equal(t, expectedError.Error(), response.Error)
+
+		faultInjector.AssertExpectations(t)
+	})
+
+	t.Run("nil fault inject request", func(t *testing.T) {
+		session, _, _, _, _, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create an inject fault request with nil FaultInjectRequest
+		req := Request{
+			Method:             "injectFault",
+			InjectFaultRequest: nil,
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-inject-fault-nil-request",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response - nil request doesn't trigger validation or injection
+		assert.Equal(t, "test-inject-fault-nil-request", resp.ReqID)
+		assert.Empty(t, response.Error) // Should not set error for nil request
+	})
+
+	t.Run("nil kernel message validation failure", func(t *testing.T) {
+		session, _, _, _, _, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create an inject fault request with nil KernelMessage
+		// According to fault-injector validation logic, this should fail validation
+		req := Request{
+			Method: "injectFault",
+			InjectFaultRequest: &pkgfaultinjector.Request{
+				KernelMessage: nil,
+			},
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-inject-fault-nil-kernel-message",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response - should fail validation
+		assert.Equal(t, "test-inject-fault-nil-kernel-message", resp.ReqID)
+		assert.Equal(t, "no fault injection entry found", response.Error)
+	})
+
+	t.Run("empty fault request validation failure", func(t *testing.T) {
+		session, _, _, _, _, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create an inject fault request with empty struct (no fields set)
+		// This should fail validation with "no fault injection entry found"
+		req := Request{
+			Method:             "injectFault",
+			InjectFaultRequest: &pkgfaultinjector.Request{
+				// No fields set - should hit default case in validation
+			},
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-inject-fault-empty-request",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response - should fail validation
+		assert.Equal(t, "test-inject-fault-empty-request", resp.ReqID)
+		assert.Equal(t, "no fault injection entry found", response.Error)
+	})
+}
+
+// Test handling injectFault request validation
+func TestHandleInjectFaultRequestValidation(t *testing.T) {
+	t.Run("valid fault inject request with valid kernel message", func(t *testing.T) {
+		session, _, _, _, faultInjector, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create a valid inject fault request
+		kernelMessage := &pkgkmsgwriter.KernelMessage{
+			Priority: "KERN_INFO",
+			Message:  "valid test kernel message",
+		}
+
+		req := Request{
+			Method: "injectFault",
+			InjectFaultRequest: &pkgfaultinjector.Request{
+				KernelMessage: kernelMessage,
+			},
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Mock the fault injector to succeed (since validation passes, injection will be attempted)
+		faultInjector.On("InjectKernelMessage", mock.Anything, kernelMessage).Return(nil)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-validate-success",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response - validation should pass, no error should be set
+		assert.Equal(t, "test-validate-success", resp.ReqID)
+		assert.Empty(t, response.Error, "validation should pass for valid kernel message")
+
+		faultInjector.AssertExpectations(t)
+	})
+
+	t.Run("invalid fault inject request with message too long", func(t *testing.T) {
+		session, _, _, _, _, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// MaxPrintkRecordLength is 1024 - 48 = 976 characters
+		maxLength := 976
+		// Create a kernel message with message exceeding MaxPrintkRecordLength
+		longMessage := make([]byte, maxLength+100) // Exceeds the limit
+		for i := range longMessage {
+			longMessage[i] = 'A'
+		}
+
+		kernelMessage := &pkgkmsgwriter.KernelMessage{
+			Priority: "KERN_ERR",
+			Message:  string(longMessage),
+		}
+
+		req := Request{
+			Method: "injectFault",
+			InjectFaultRequest: &pkgfaultinjector.Request{
+				KernelMessage: kernelMessage,
+			},
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-validate-error",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response - validation should fail
+		assert.Equal(t, "test-validate-error", resp.ReqID)
+		assert.NotEmpty(t, response.Error, "validation should fail for message too long")
+		assert.Contains(t, response.Error, "message length exceeds the maximum length", "error should mention message length limit")
+		assert.Contains(t, response.Error, "976", "error should mention the specific limit")
+	})
+
+	t.Run("invalid fault inject request with nil kernel message", func(t *testing.T) {
+		session, _, _, _, _, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create a fault inject request with nil KernelMessage (should fail validation)
+		req := Request{
+			Method: "injectFault",
+			InjectFaultRequest: &pkgfaultinjector.Request{
+				KernelMessage: nil,
+			},
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-validate-nil-failure",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response - validation should fail for nil kernel message
+		assert.Equal(t, "test-validate-nil-failure", resp.ReqID)
+		assert.Equal(t, "no fault injection entry found", response.Error, "validation should fail for nil kernel message")
+	})
+
+	t.Run("nil fault inject request", func(t *testing.T) {
+		session, _, _, _, _, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create a request with nil FaultInjectRequest (should not call Validate)
+		req := Request{
+			Method:             "injectFault",
+			InjectFaultRequest: nil,
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-validate-nil-request",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response - should not error since Validate is not called for nil request
+		assert.Equal(t, "test-validate-nil-request", resp.ReqID)
+		assert.Empty(t, response.Error, "nil fault inject request should not cause validation error")
+	})
+
+	t.Run("valid XID converts to kernel message", func(t *testing.T) {
+		session, _, _, _, faultInjector, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create a fault inject request with valid XID (should transform to kernel message)
+		req := Request{
+			Method: "injectFault",
+			InjectFaultRequest: &pkgfaultinjector.Request{
+				Xid: &pkgfaultinjector.XidToInject{
+					ID: 63, // Valid XID that should convert to kernel message
+				},
+			},
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Mock the fault injector - after XID validation, it converts to KernelMessage
+		// We need to mock with mock.Anything since we don't know the exact converted message
+		faultInjector.On("InjectKernelMessage", mock.Anything, mock.AnythingOfType("*writer.KernelMessage")).Return(nil)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-validate-xid-success",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response - validation should pass and XID should be converted
+		assert.Equal(t, "test-validate-xid-success", resp.ReqID)
+		assert.Empty(t, response.Error, "validation should pass for valid XID")
+
+		faultInjector.AssertExpectations(t)
+	})
+
+	t.Run("invalid XID with zero ID", func(t *testing.T) {
+		session, _, _, _, _, reader, writer := setupTestSession()
+
+		// Start the session in a separate goroutine
+		go session.serve()
+		defer close(reader) // Ensure the goroutine exits
+
+		// Create a fault inject request with invalid XID (ID = 0)
+		req := Request{
+			Method: "injectFault",
+			InjectFaultRequest: &pkgfaultinjector.Request{
+				Xid: &pkgfaultinjector.XidToInject{
+					ID: 0, // Invalid XID, should fail validation
+				},
+			},
+		}
+
+		reqData, _ := json.Marshal(req)
+
+		// Send the request
+		reader <- Body{
+			Data:  reqData,
+			ReqID: "test-validate-xid-failure",
+		}
+
+		// Read the response
+		var resp Body
+		select {
+		case resp = <-writer:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		// Parse the response
+		var response Response
+		err := json.Unmarshal(resp.Data, &response)
+		require.NoError(t, err)
+
+		// Check the response - validation should fail for invalid XID
+		assert.Equal(t, "test-validate-xid-failure", resp.ReqID)
+		assert.Equal(t, "no fault injection entry found", response.Error, "validation should fail for XID with ID 0")
+	})
+}
+
+// Test handling injectFault request with nil faultInjector
+func TestHandleInjectFaultRequest_NilFaultInjector(t *testing.T) {
+	// Create a session with nil faultInjector using createMockSession
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
+	// Ensure faultInjector is nil (it should be by default from createMockSession)
+	session.faultInjector = nil
+
+	reader := make(chan Body, 10)
+	writer := make(chan Body, 10)
+	session.reader = reader
+	session.writer = writer
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader) // Ensure the goroutine exits
+
+	// Create an inject fault request with valid InjectFaultRequest
+	kernelMessage := &pkgkmsgwriter.KernelMessage{
+		Priority: "KERN_INFO",
+		Message:  "test kernel message",
+	}
+
+	req := Request{
+		Method: "injectFault",
+		InjectFaultRequest: &pkgfaultinjector.Request{
+			KernelMessage: kernelMessage,
+		},
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-nil-fault-injector",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response - should contain the expected error message
+	assert.Equal(t, "test-nil-fault-injector", resp.ReqID)
+	assert.Equal(t, "fault injector is not initialized", response.Error)
+	assert.Equal(t, int32(0), response.ErrorCode) // Should be 0 as no specific error code is set
 }
