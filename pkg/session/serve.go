@@ -19,6 +19,7 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkdsystemd "github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	pkghost "github.com/leptonai/gpud/pkg/host"
@@ -45,7 +46,8 @@ type Request struct {
 	UpdateVersion string            `json:"update_version,omitempty"`
 	UpdateConfig  map[string]string `json:"update_config,omitempty"`
 
-	Bootstrap *BootstrapRequest `json:"bootstrap,omitempty"`
+	Bootstrap          *BootstrapRequest         `json:"bootstrap,omitempty"`
+	InjectFaultRequest *pkgfaultinjector.Request `json:"inject_fault_request,omitempty"`
 
 	// ComponentName is the name of the component to query or deregister.
 	ComponentName string `json:"component_name,omitempty"`
@@ -297,6 +299,35 @@ func (s *Session) serve() {
 				if err != nil {
 					response.Error = err.Error()
 				}
+			}
+
+		case "injectFault":
+			if payload.InjectFaultRequest != nil {
+				if s.faultInjector == nil {
+					response.Error = "fault injector is not initialized"
+					break
+				}
+
+				if err := payload.InjectFaultRequest.Validate(); err != nil {
+					response.Error = err.Error()
+					log.Logger.Errorw("invalid fault inject request", "error", err)
+					break
+				}
+
+				switch {
+				case payload.InjectFaultRequest.KernelMessage != nil:
+					if err := s.faultInjector.KmsgWriter().Write(payload.InjectFaultRequest.KernelMessage); err != nil {
+						response.Error = err.Error()
+						log.Logger.Errorw("failed to inject kernel message", "message", payload.InjectFaultRequest.KernelMessage.Message, "error", err)
+					} else {
+						log.Logger.Infow("successfully injected kernel message", "message", payload.InjectFaultRequest.KernelMessage.Message)
+					}
+
+				default:
+					log.Logger.Warnw("fault inject request is nil or kernel message is nil")
+				}
+			} else {
+				log.Logger.Warnw("fault inject request is nil")
 			}
 
 		case "triggerComponentCheck":
