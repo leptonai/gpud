@@ -33,26 +33,29 @@ func Command(cliContext *cli.Context) error {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
 
-	dbRW, err := sqlite.Open(stateFile)
-	if err != nil {
-		return fmt.Errorf("failed to open state file: %w", err)
-	}
-	defer dbRW.Close()
+	// only read the state file if it exists (existing gpud login)
+	if _, err := os.Stat(stateFile); err == nil {
+		dbRW, err := sqlite.Open(stateFile)
+		if err != nil {
+			return fmt.Errorf("failed to open state file: %w", err)
+		}
+		defer dbRW.Close()
 
-	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
-	if err != nil {
-		return fmt.Errorf("failed to open state file: %w", err)
-	}
-	defer dbRO.Close()
+		dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+		if err != nil {
+			return fmt.Errorf("failed to open state file: %w", err)
+		}
+		defer dbRO.Close()
 
-	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer rootCancel()
-	machineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
-	if err != nil {
-		return err
-	}
+		rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer rootCancel()
+		machineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+		if err != nil {
+			return err
+		}
 
-	fmt.Printf("GPUd machine ID: %q\n\n", machineID)
+		fmt.Printf("GPUd machine ID: %q\n\n", machineID)
+	}
 
 	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
