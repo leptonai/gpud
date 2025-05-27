@@ -56,6 +56,7 @@ func Command(cliContext *cli.Context) error {
 	enablePluginAPI := cliContext.Bool("enable-plugin-api")
 	enableFaultInjector := cliContext.Bool("enable-fault-injector")
 	enableComponents := cliContext.String("enable-components")
+	disableComponents := cliContext.String("disable-components")
 
 	configOpts := []config.OpOption{
 		config.WithIbstatCommand(ibstatCommand),
@@ -88,8 +89,11 @@ func Command(cliContext *cli.Context) error {
 	cfg.EnablePluginAPI = enablePluginAPI
 	cfg.EnableFaultInjector = enableFaultInjector
 
-	if enableComponents != "" && enableComponents != "*" && enableComponents != "all" {
+	if enableComponents != "" {
 		cfg.EnableComponents = strings.Split(enableComponents, ",")
+	}
+	if disableComponents != "" {
+		cfg.DisableComponents = strings.Split(disableComponents, ",")
 	}
 
 	if err := cfg.Validate(); err != nil {

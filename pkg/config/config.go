@@ -53,10 +53,19 @@ type Config struct {
 
 	// EnableComponents specifies the components to enable.
 	// Leave empty to enable all components.
-	EnableComponents []string `json:"enable_components"`
+	EnableComponents []string       `json:"enable_components"`
+	enableComponents map[string]any `json:"-"`
+
+	// DisableComponents specifies the components to disable.
+	// Leave empty to enable all components.
+	DisableComponents []string       `json:"disable_components"`
+	disableComponents map[string]any `json:"-"`
 }
 
-var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")
+var (
+	ErrInvalidAutoUpdateExitCode      = errors.New("auto_update_exit_code is only valid when auto_update is enabled")
+	ErrInvalidEnableDisableComponents = errors.New("enable_components and disable_components cannot be set at the same time")
+)
 
 func (config *Config) Validate() error {
 	if config.Address == "" {
@@ -68,5 +77,48 @@ func (config *Config) Validate() error {
 	if !config.EnableAutoUpdate && config.AutoUpdateExitCode != -1 {
 		return ErrInvalidAutoUpdateExitCode
 	}
+	if len(config.EnableComponents) > 0 && len(config.DisableComponents) > 0 {
+		return ErrInvalidEnableDisableComponents
+	}
 	return nil
+}
+
+// ShouldEnable returns true if the component should be enabled.
+// If the enable component sets are not specified, it will return true,
+// meaning it should be enabled by default.
+func (config *Config) ShouldEnable(componentName string) bool {
+	// not specified, thus enable all components
+	if len(config.EnableComponents) == 0 {
+		return true
+	}
+
+	if config.enableComponents == nil {
+		config.enableComponents = make(map[string]any)
+		for _, c := range config.EnableComponents {
+			config.enableComponents[c] = struct{}{}
+		}
+	}
+
+	_, shouldEnable := config.enableComponents[componentName]
+	return shouldEnable
+}
+
+// ShouldDisable returns true if the component should be disabled.
+// If the disable component sets are not specified, it will return false,
+// meaning it should not be disabled, instead enabled by default.
+func (config *Config) ShouldDisable(componentName string) bool {
+	// not specified, thus enable all components (meaning should NOT disable any component)
+	if len(config.DisableComponents) == 0 {
+		return false
+	}
+
+	if config.disableComponents == nil {
+		config.disableComponents = make(map[string]any)
+		for _, c := range config.DisableComponents {
+			config.disableComponents[c] = struct{}{}
+		}
+	}
+
+	_, shouldDisable := config.disableComponents[componentName]
+	return shouldDisable
 }

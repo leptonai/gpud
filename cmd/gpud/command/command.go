@@ -199,7 +199,12 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				cli.StringFlag{
 					Name:  "enable-components",
-					Usage: "sets the components to enable (leave empty for default to enable all components, set 'none' or any other non-matching value to disable all components)",
+					Usage: "sets the components to enable (comma-separated, leave empty for default to enable all components, set 'none' or any other non-matching value to disable all components)",
+					Value: "",
+				},
+				cli.StringFlag{
+					Name:  "disable-components",
+					Usage: "sets the components to disable (comma-separated, leave empty for default to enable all components)",
 					Value: "",
 				},
 
