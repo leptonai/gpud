@@ -3,6 +3,7 @@ package customplugins
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -211,6 +212,46 @@ Following text`))
 		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`))
 		assert.Nil(t, err)
 		assert.Nil(t, result)
+	})
+
+	t.Run("with log path", func(t *testing.T) {
+		// Create a temporary file for testing
+		tmpFile, err := os.CreateTemp("", "plugin-output-*.log")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		po := &PluginOutputParseConfig{
+			LogPath: tmpFile.Name(),
+			JSONPaths: []JSONPath{
+				{Field: "health", Query: "$.status"},
+			},
+		}
+
+		// Test data
+		testData := []byte(`{"status": "healthy"}`)
+
+		// First call
+		result, err := po.extractExtraInfo(testData)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, "healthy", result["health"].fieldValue)
+
+		// Second call
+		result, err = po.extractExtraInfo(testData)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, "healthy", result["health"].fieldValue)
+
+		// Read the log file
+		content, err := os.ReadFile(tmpFile.Name())
+		require.NoError(t, err)
+		logContent := string(content)
+
+		// Verify the log file contains both entries with timestamps
+		require.Contains(t, logContent, `{"status": "healthy"}`)
+		require.Contains(t, logContent, "[") // timestamp start
+		require.Contains(t, logContent, "]") // timestamp end
+		require.Equal(t, 2, strings.Count(logContent, `{"status": "healthy"}`))
 	})
 }
 

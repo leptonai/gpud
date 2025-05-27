@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/PaesslerAG/jsonpath"
 )
@@ -35,6 +37,24 @@ func (po *PluginOutputParseConfig) Validate() error {
 func (po *PluginOutputParseConfig) extractExtraInfo(input []byte) (map[string]extractedField, error) {
 	if po == nil {
 		return nil, nil
+	}
+
+	// If LogPath is set, append the input to the specified file
+	if po.LogPath != "" {
+		// Open file in append mode, create if it doesn't exist
+		f, err := os.OpenFile(po.LogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open log file %q: %w", po.LogPath, err)
+		}
+		defer f.Close()
+
+		// Add timestamp to the log entry
+		timestamp := time.Now().UTC().Format(time.RFC3339)
+		logEntry := fmt.Sprintf("[%s] %s\n", timestamp, string(input))
+
+		if _, err := f.WriteString(logEntry); err != nil {
+			return nil, fmt.Errorf("failed to write to log file %q: %w", po.LogPath, err)
+		}
 	}
 
 	if po.JSONPaths != nil {
