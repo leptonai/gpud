@@ -66,25 +66,22 @@ func (po *PluginOutputParseConfig) extractExtraInfo(input []byte, pluginName str
 		return nil, nil
 	}
 
-	// Handle logging if LogPath is set
-	if po.LogPath != "" {
-		// Substitute variables in the log path
-		substitutedPath := substituteLogPath(po.LogPath, triggerName, pluginName)
-		if substitutedPath != "" {
-			// Open the log file in append mode, create if it doesn't exist
-			f, err := os.OpenFile(substitutedPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				return nil, fmt.Errorf("failed to open log file: %w", err)
-			}
-			defer f.Close()
+	// Substitute variables in the log path
+	substitutedPath := substituteLogPath(po.LogPath, triggerName, pluginName)
+	if substitutedPath != "" {
+		// Open the log file in append mode, create if it doesn't exist
+		f, err := os.OpenFile(substitutedPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open log file: %w", err)
+		}
+		defer f.Close()
 
-			// Add timestamp to the log entry
-			timestamp := time.Now().UTC().Format(time.RFC3339)
-			logEntry := fmt.Sprintf("[%s] plugin=%s trigger=%s\noutput=%s\n", timestamp, pluginName, triggerName, string(input))
+		// Add timestamp to the log entry
+		timestamp := time.Now().UTC().Format(time.RFC3339)
+		logEntry := fmt.Sprintf("[%s] plugin=%s trigger=%s\noutput=%s\n", timestamp, pluginName, triggerName, string(input))
 
-			if _, err := f.WriteString(logEntry); err != nil {
-				return nil, fmt.Errorf("failed to write to log file: %w", err)
-			}
+		if _, err := f.WriteString(logEntry); err != nil {
+			return nil, fmt.Errorf("failed to write to log file: %w", err)
 		}
 	}
 
