@@ -17,7 +17,7 @@ func setupTestHandler(comps []components.Component) (*globalHandler, *mockRegist
 	cfg := &config.Config{}
 	store := &mockMetricsStore{}
 
-	handler := newGlobalHandler(cfg, registry, store, nil)
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
 	return handler, registry, store
 }
 
@@ -33,7 +33,7 @@ func setupTestHandlerWithPluginAPI(comps []components.Component) (*globalHandler
 	}
 	store := &mockMetricsStore{}
 
-	handler := newGlobalHandler(cfg, registry, store, nil)
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
 	return handler, registry, store
 }
 

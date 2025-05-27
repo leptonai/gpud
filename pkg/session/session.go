@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/components"
+	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/process"
@@ -28,6 +29,7 @@ type Op struct {
 	autoUpdateExitCode int
 	componentsRegistry components.Registry
 	metricsStore       pkgmetrics.Store
+	faultInjector      pkgfaultinjector.Injector
 }
 
 type OpOption func(*Op)
@@ -78,6 +80,12 @@ func WithMetricsStore(metricsStore pkgmetrics.Store) OpOption {
 	}
 }
 
+func WithFaultInjector(faultInjector pkgfaultinjector.Injector) OpOption {
+	return func(op *Op) {
+		op.faultInjector = faultInjector
+	}
+}
+
 // Triggers an auto update of GPUd itself by exiting the process with the given exit code.
 // Useful when the machine is managed by the Kubernetes daemonset and we want to
 // trigger an auto update when the daemonset restarts the machine.
@@ -115,6 +123,8 @@ type Session struct {
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+
+	faultInjector pkgfaultinjector.Injector
 
 	lastPackageTimestampMu sync.RWMutex
 	lastPackageTimestamp   time.Time
@@ -165,6 +175,8 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		processRunner:      process.NewExclusiveRunner(),
 
 		components: cps,
+
+		faultInjector: op.faultInjector,
 
 		enableAutoUpdate:   op.enableAutoUpdate,
 		autoUpdateExitCode: op.autoUpdateExitCode,

@@ -8,6 +8,7 @@ import (
 	cmdcompact "github.com/leptonai/gpud/cmd/gpud/compact"
 	cmdcustomplugins "github.com/leptonai/gpud/cmd/gpud/custom-plugins"
 	cmddown "github.com/leptonai/gpud/cmd/gpud/down"
+	cmdinjectfault "github.com/leptonai/gpud/cmd/gpud/inject-fault"
 	cmdjoin "github.com/leptonai/gpud/cmd/gpud/join"
 	cmdlistplugins "github.com/leptonai/gpud/cmd/gpud/list-plugins"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
@@ -218,6 +219,10 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.BoolFlag{
 					Name:  "enable-plugin-api",
 					Usage: "enable plugin API (default: false)",
+				},
+				&cli.BoolFlag{
+					Name:  "enable-fault-injector",
+					Usage: "enable fault injector (default: false)",
 				},
 			},
 		},
@@ -597,6 +602,26 @@ sudo gpud join
 				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+			},
+		},
+		{
+			Name:   "inject-fault",
+			Usage:  "injects a fault such as writing a kernel message to the kernel log",
+			Action: cmdinjectfault.Command,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+				&cli.StringFlag{
+					Name:  "kernel-log-level",
+					Usage: "set the kernel log level [KERN_EMERG, KERN_ALERT, KERN_CRIT, KERN_ERR, KERN_WARNING, KERN_NOTICE, KERN_INFO, KERN_DEBUG]",
+					Value: "KERN_INFO",
+				},
+				&cli.StringFlag{
+					Name:  "kernel-message",
+					Usage: "set the kernel message to inject",
 				},
 			},
 		},

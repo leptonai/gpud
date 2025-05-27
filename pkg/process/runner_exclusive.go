@@ -64,7 +64,7 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 		er.running = nil
 		er.mu.Unlock()
 	}()
-	log.Logger.Infow("started running script", "pid", p.PID())
+	log.Logger.Debugw("started running script", "pid", p.PID())
 
 	er.mu.Lock()
 	er.running = p
