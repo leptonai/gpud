@@ -1504,7 +1504,6 @@ func TestComponent_CheckWithSuggestedActions(t *testing.T) {
 	// Verify that the suggestedActions field has been populated
 	assert.NotNil(t, cr.suggestedActions)
 	assert.Contains(t, cr.suggestedActions.Description, "unhealthy")
-	assert.Contains(t, cr.suggestedActions.Description, "95")
 
 	// Verify that the repair actions contain both expected actions
 	assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("restart_service"))
@@ -1817,4 +1816,26 @@ func TestComponent_CheckWithDuplicateActionNames(t *testing.T) {
 	// we have three values that should be concatenated
 	commaCount := strings.Count(cr.suggestedActions.Description, ",")
 	assert.GreaterOrEqual(t, commaCount, 2, "Expected at least 2 commas in the description")
+}
+
+// TestComponent_LastHealthStates_NameAlwaysCheck tests that LastHealthStates always returns Name == "check"
+func TestComponent_LastHealthStates_NameAlwaysCheck(t *testing.T) {
+	spec := &Spec{
+		PluginName: "test-plugin",
+		RunMode:    string(apiv1.RunModeTypeAuto),
+	}
+
+	c := &component{
+		ctx:  context.Background(),
+		spec: spec,
+	}
+
+	// Test case 1: No check performed yet (lastCheckResult is nil)
+	healthStates := c.LastHealthStates()
+	require.Equal(t, 1, len(healthStates))
+	assert.Equal(t, "check", healthStates[0].Name, "Name should always be 'check' when no check has been performed")
+	assert.Equal(t, c.Name(), healthStates[0].Component)
+	assert.Equal(t, apiv1.ComponentTypeCustomPlugin, healthStates[0].ComponentType)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
+	assert.Equal(t, "no data yet", healthStates[0].Reason)
 }

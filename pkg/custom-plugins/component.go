@@ -231,10 +231,15 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 				Time:          metav1.NewTime(time.Now().UTC()),
 				Component:     c.Name(),
 				ComponentType: apiv1.ComponentTypeCustomPlugin,
-				Name:          c.spec.PluginName,
-				RunMode:       apiv1.RunModeType(c.spec.RunMode),
-				Health:        apiv1.HealthStateTypeHealthy,
-				Reason:        "no data yet",
+
+				// in case component/plugin name is too long
+				// component name and plugin name are always equivalent
+				// thus no need to redundantly display two here as [component name]/[plugin name]
+				Name: "check",
+
+				RunMode: apiv1.RunModeType(c.spec.RunMode),
+				Health:  apiv1.HealthStateTypeHealthy,
+				Reason:  "no data yet",
 			},
 		}
 	}
