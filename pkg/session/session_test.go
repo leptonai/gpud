@@ -3,9 +3,9 @@ package session
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -241,7 +241,8 @@ func TestReaderWriterServerError(t *testing.T) {
 	defer localCancel()
 	// start reader
 	readerExit := make(chan any)
-	go s.startReader(localCtx, readerExit, "")
+	jar, _ := cookiejar.New(nil)
+	go s.startReader(localCtx, readerExit, jar)
 
 	select {
 	case <-readerExit:
@@ -250,7 +251,7 @@ func TestReaderWriterServerError(t *testing.T) {
 	}
 	// start writer
 	writerExit := make(chan any)
-	go s.startWriter(localCtx, writerExit, "")
+	go s.startWriter(localCtx, writerExit, jar)
 
 	select {
 	case <-writerExit:
@@ -268,7 +269,8 @@ func TestReaderWriterServerError(t *testing.T) {
 }
 
 func TestCreateHTTPClient(t *testing.T) {
-	client := createHTTPClient()
+	jar, _ := cookiejar.New(nil)
+	client := createHTTPClient(jar)
 	if client == nil {
 		t.Fatal("Expected non-nil HTTP client")
 	}
@@ -621,50 +623,4 @@ func TestLastPackageTimestamp(t *testing.T) {
 	// Verify timestamp was updated during concurrent operations
 	finalTime := s.getLastPackageTimestamp()
 	assert.False(finalTime.Equal(now), "Expected timestamp to be updated during concurrent operations")
-}
-
-func TestResolveIPFromEndpoint(t *testing.T) {
-	tests := []struct {
-		name        string
-		endpoint    string
-		expectError bool
-		expectIP    bool
-	}{
-		{"Empty input", "", false, false},
-		{"Invalid URL format", "::::", true, false},
-		{"Unresolvable domain", "http://nonexistent.domain.ai/", true, false},
-		{"Valid HTTPS no port", "https://gpud-manager-prod01.dgxc-lepton.nvidia.com", false, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			resolved, err := resolveIPFromEndpoint(ctx, tt.endpoint)
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("expected error but got none")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
-
-			if tt.expectIP {
-				fmt.Println(resolved)
-				if resolved == "" {
-					t.Errorf("expected resolved URL but got empty")
-				}
-				if strings.Contains(resolved, "example.com") {
-					t.Errorf("hostname not replaced with IP: %s", resolved)
-				}
-				if strings.HasSuffix(tt.endpoint, "/") && !strings.HasSuffix(resolved, "/") {
-					t.Errorf("path formatting mismatch: %s", resolved)
-				}
-			}
-		})
-	}
 }
