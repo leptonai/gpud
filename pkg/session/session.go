@@ -12,10 +12,13 @@ import (
 	"sync"
 	"time"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -25,6 +28,7 @@ type Op struct {
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 	componentsRegistry components.Registry
+	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store
 	faultInjector      pkgfaultinjector.Injector
 }
@@ -71,6 +75,12 @@ func WithComponentsRegistry(componentsRegistry components.Registry) OpOption {
 	}
 }
 
+func WithNvidiaInstance(nvmlInstance nvidianvml.Instance) OpOption {
+	return func(op *Op) {
+		op.nvmlInstance = nvmlInstance
+	}
+}
+
 func WithMetricsStore(metricsStore pkgmetrics.Store) OpOption {
 	return func(op *Op) {
 		op.metricsStore = metricsStore
@@ -107,6 +117,9 @@ type Session struct {
 
 	token string
 
+	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
+
+	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store
 	componentsRegistry components.Registry
 	processRunner      process.Runner
@@ -167,6 +180,9 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		machineID: op.machineID,
 		token:     token,
 
+		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
+
+		nvmlInstance:       op.nvmlInstance,
 		metricsStore:       op.metricsStore,
 		componentsRegistry: op.componentsRegistry,
 		processRunner:      process.NewExclusiveRunner(),
