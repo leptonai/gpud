@@ -278,6 +278,8 @@ type MachineInfo struct {
 
 	// CPUInfo is the CPU info of the machine.
 	CPUInfo *MachineCPUInfo `json:"cpuInfo,omitempty"`
+	// MemoryInfo is the memory info of the machine.
+	MemoryInfo *MachineMemoryInfo `json:"memoryInfo,omitempty"`
 	// GPUInfo is the GPU info of the machine.
 	GPUInfo *MachineGPUInfo `json:"gpuInfo,omitempty"`
 	// DiskInfo is the Disk info of the machine.
@@ -298,6 +300,10 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 		table.Append([]string{"CPU Type", i.CPUInfo.Type})
 		table.Append([]string{"CPU Manufacturer", i.CPUInfo.Manufacturer})
 		table.Append([]string{"CPU Architecture", i.CPUInfo.Architecture})
+		table.Append([]string{"CPU Logical Cores", fmt.Sprintf("%d", i.CPUInfo.LogicalCores)})
+	}
+	if i.MemoryInfo != nil {
+		table.Append([]string{"Memory Total", humanize.Bytes(i.MemoryInfo.TotalBytes)})
 	}
 
 	table.Append([]string{"CUDA Version", i.CUDAVersion})
@@ -337,6 +343,11 @@ type MachineCPUInfo struct {
 	Type         string `json:"type,omitempty"`
 	Manufacturer string `json:"manufacturer,omitempty"`
 	Architecture string `json:"architecture,omitempty"`
+	LogicalCores int64  `json:"logicalCores,omitempty"`
+}
+
+type MachineMemoryInfo struct {
+	TotalBytes uint64 `json:"totalBytes"`
 }
 
 type MachineGPUInfo struct {
