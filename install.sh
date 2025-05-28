@@ -110,11 +110,10 @@ main() {
     exit 1
   fi
 
+  # same release always same contents
+  # thus safe to remove in case of previous installation failure
   DIR=/tmp/$FILEBASE
-  if [ -d "$DIR" ]; then
-    echo "temporal directory $DIR already exists"
-    exit 1
-  fi
+  rm -rf "$DIR"
 
   mkdir "$DIR"
   DLPATH=/tmp/"$FILENAME"
