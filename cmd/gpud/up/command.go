@@ -32,9 +32,12 @@ func Command(cliContext *cli.Context) (retErr error) {
 	}
 
 	if cliContext.String("token") != "" {
+		log.Logger.Debugw("non-empty --token provided, logging in")
 		if lerr := cmdlogin.Command(cliContext); lerr != nil {
 			return lerr
 		}
+		log.Logger.Debugw("successfully logged in")
+
 		fmt.Printf("%s successfully logged in\n", cmdcommon.CheckMark)
 	}
 
@@ -42,26 +45,37 @@ func Command(cliContext *cli.Context) (retErr error) {
 	if err != nil {
 		return err
 	}
+
+	log.Logger.Debugw("checking if systemd exists")
 	if !pkdsystemd.SystemctlExists() {
 		return fmt.Errorf("requires systemd, to run without systemd, '%s run'", bin)
 	}
+	log.Logger.Debugw("systemd exists")
 
+	log.Logger.Debugw("checking if gpud binary exists")
 	if !systemd.DefaultBinExists() {
 		return fmt.Errorf("gpud binary not found at %s (you may run 'cp %s %s' to fix the installation)", systemd.DefaultBinPath, bin, systemd.DefaultBinPath)
 	}
+	log.Logger.Debugw("gpud binary exists")
 
+	log.Logger.Debugw("starting systemd init")
 	endpoint := cliContext.String("endpoint")
 	if err := systemdInit(endpoint); err != nil {
 		return err
 	}
+	log.Logger.Debugw("successfully started systemd init")
 
+	log.Logger.Debugw("enabling systemd unit")
 	if err := pkgupdate.EnableGPUdSystemdUnit(); err != nil {
 		return err
 	}
+	log.Logger.Debugw("successfully enabled systemd unit")
 
+	log.Logger.Debugw("restarting systemd unit")
 	if err := pkgupdate.RestartGPUdSystemdUnit(); err != nil {
 		return err
 	}
+	log.Logger.Debugw("successfully restarted systemd unit")
 
 	log.Logger.Debugw("successfully started gpud (run 'gpud status' for checking status)")
 	return nil
