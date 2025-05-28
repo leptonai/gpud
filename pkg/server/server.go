@@ -37,13 +37,11 @@ import (
 	customplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
-	"github.com/leptonai/gpud/pkg/gossip"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/httputil"
 	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
@@ -81,7 +79,8 @@ type Server struct {
 	fifoPath string
 	fifo     *stdos.File
 
-	session *session.Session
+	gpudInstance *components.GPUdInstance
+	session      *session.Session
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
@@ -190,7 +189,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 	}
 
-	gpudInstance := &components.GPUdInstance{
+	s.gpudInstance = &components.GPUdInstance{
 		RootCtx: ctx,
 
 		NVMLInstance:         nvmlInstance,
@@ -205,7 +204,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		MountTargets: []string{"/var/lib/kubelet"},
 	}
 
-	s.componentsRegistry = components.NewRegistry(gpudInstance)
+	s.componentsRegistry = components.NewRegistry(s.gpudInstance)
 	for _, c := range all.All() {
 		name := c.Name
 
@@ -220,7 +219,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	}
 
 	// must be registered before starting the components
-	s.initRegistry = components.NewRegistry(gpudInstance)
+	s.initRegistry = components.NewRegistry(s.gpudInstance)
 	if config.PluginSpecsFile != "" {
 		specs, err := customplugins.LoadSpecs(config.PluginSpecsFile)
 		if err != nil {
@@ -285,7 +284,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	installRootGinMiddlewares(router)
 	installCommonGinMiddlewares(router, log.Logger.Desugar())
 
-	globalHandler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore, gpudInstance, s.faultInjector)
+	globalHandler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore, s.gpudInstance, s.faultInjector)
 
 	// if the request header is set "Accept-Encoding: gzip",
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
@@ -327,7 +326,6 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 
 	userToken := &UserToken{}
 	go s.updateToken(ctx, metricsSQLiteStore, userToken)
-	go s.sendGossip(ctx, nvmlInstance, userToken)
 	go s.startListener(nvmlInstance, syncer, config, router, cert)
 
 	return s, nil
@@ -487,6 +485,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 			session.WithComponentsRegistry(s.componentsRegistry),
+			session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 			session.WithMetricsStore(metricsStore),
 			session.WithFaultInjector(s.faultInjector),
 		)
@@ -540,6 +539,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 				session.WithComponentsRegistry(s.componentsRegistry),
+				session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 				session.WithMetricsStore(metricsStore),
 				session.WithFaultInjector(s.faultInjector),
 			)
@@ -605,45 +605,6 @@ func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 
 		if err != nil {
 			log.Logger.Errorw("failed to compact state database", "error", err)
-		}
-	}
-}
-
-func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instance, userToken *UserToken) {
-	// TODO
-	// s.WaitUntilMachineID(ctx)
-
-	s.machineIDMu.RLock()
-	machineID := s.machineID
-	s.machineIDMu.RUnlock()
-
-	ticker := time.NewTicker(2 * time.Minute)
-	defer ticker.Stop()
-
-	var token string
-	for {
-		userToken.mu.RLock()
-		token = userToken.userToken
-		userToken.mu.RUnlock()
-		if token == "" {
-			continue
-		}
-
-		gossipReq, err := pkgmachineinfo.CreateGossipRequest(machineID, nvmlInstance, token)
-		if err != nil {
-			log.Logger.Errorw("failed to create gossip request", "error", err)
-		} else {
-			if _, err = gossip.SendRequest(ctx, s.epControlPlane, *gossipReq); err != nil {
-				log.Logger.Errorw("failed to gossip", "error", err)
-			} else {
-				log.Logger.Debugw("successfully sent gossip")
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
 		}
 	}
 }

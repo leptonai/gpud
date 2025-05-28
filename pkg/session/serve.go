@@ -70,6 +70,8 @@ type Response struct {
 	// See: https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
 	ErrorCode int32 `json:"error_code,omitempty"`
 
+	GossipRequest *apiv1.GossipRequest `json:"gossip_request,omitempty"`
+
 	States  apiv1.GPUdComponentHealthStates `json:"states,omitempty"`
 	Events  apiv1.GPUdComponentEvents       `json:"events,omitempty"`
 	Metrics apiv1.GPUdComponentMetrics      `json:"metrics,omitempty"`
@@ -93,6 +95,22 @@ type BootstrapRequest struct {
 type BootstrapResponse struct {
 	Output   string `json:"output,omitempty"`
 	ExitCode int32  `json:"exit_code,omitempty"`
+}
+
+func (s *Session) processGossip(resp *Response) {
+	if s.createGossipRequestFunc == nil {
+		return
+	}
+
+	gossipReq, err := s.createGossipRequestFunc(s.machineID, s.nvmlInstance, s.token)
+	if err != nil {
+		log.Logger.Errorw("failed to create gossip request", "error", err)
+		resp.Error = err.Error()
+		return
+	}
+
+	resp.GossipRequest = gossipReq
+	log.Logger.Debugw("successfully set gossip request")
 }
 
 func (s *Session) serve() {
@@ -184,6 +202,10 @@ func (s *Session) serve() {
 					log.Logger.Warnw("component does not implement HealthSettable, dropping setHealthy request", "component", componentName)
 				}
 			}
+
+		case "gossip":
+			s.processGossip(response)
+
 		case "packageStatus":
 			packageStatus, err := gpudmanager.GlobalController.Status(ctx)
 			if err != nil {
@@ -209,6 +231,7 @@ func (s *Session) serve() {
 				})
 			}
 			response.PackageStatus = result
+
 		case "update":
 			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
 				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
