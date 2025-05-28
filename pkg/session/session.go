@@ -117,7 +117,7 @@ type Session struct {
 
 	token string
 
-	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance, token string) (*apiv1.GossipRequest, error)
+	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
 
 	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store

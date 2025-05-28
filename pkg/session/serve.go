@@ -102,7 +102,7 @@ func (s *Session) processGossip(resp *Response) {
 		return
 	}
 
-	gossipReq, err := s.createGossipRequestFunc(s.machineID, s.nvmlInstance, s.token)
+	gossipReq, err := s.createGossipRequestFunc(s.machineID, s.nvmlInstance)
 	if err != nil {
 		log.Logger.Errorw("failed to create gossip request", "error", err)
 		resp.Error = err.Error()

@@ -1383,12 +1383,10 @@ func TestProcessGossip(t *testing.T) {
 	t.Run("successful gossip request creation", func(t *testing.T) {
 		expectedGossipReq := &apiv1.GossipRequest{
 			MachineID: "test-machine-id",
-			Token:     "test-token",
 		}
 
-		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance, token string) (*apiv1.GossipRequest, error) {
+		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
 			assert.Equal(t, "test-machine-id", machineID)
-			assert.Equal(t, "test-token", token)
 			return expectedGossipReq, nil
 		}
 
@@ -1408,7 +1406,7 @@ func TestProcessGossip(t *testing.T) {
 	t.Run("error in gossip request creation", func(t *testing.T) {
 		expectedError := errors.New("failed to create gossip request")
 
-		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance, token string) (*apiv1.GossipRequest, error) {
+		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
 			return nil, expectedError
 		}
 
@@ -1429,13 +1427,11 @@ func TestProcessGossip(t *testing.T) {
 		mockNvmlInstance := &mockNvmlInstance{}
 		expectedGossipReq := &apiv1.GossipRequest{
 			MachineID: "test-machine-id",
-			Token:     "test-token",
 		}
 
-		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance, token string) (*apiv1.GossipRequest, error) {
+		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
 			assert.Equal(t, "test-machine-id", machineID)
 			assert.Equal(t, mockNvmlInstance, nvmlInstance)
-			assert.Equal(t, "test-token", token)
 			return expectedGossipReq, nil
 		}
 
@@ -1456,9 +1452,8 @@ func TestProcessGossip(t *testing.T) {
 	t.Run("empty machine ID and token", func(t *testing.T) {
 		expectedGossipReq := &apiv1.GossipRequest{}
 
-		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance, token string) (*apiv1.GossipRequest, error) {
+		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
 			assert.Empty(t, machineID)
-			assert.Empty(t, token)
 			return expectedGossipReq, nil
 		}
 

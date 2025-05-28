@@ -51,15 +51,13 @@ func TestCreateGossipRequest(t *testing.T) {
 
 	// Test with valid parameters
 	machineID := "test-machine-id"
-	token := "test-token"
-	req, err := CreateGossipRequest(machineID, nvmlInstance, token)
+	req, err := CreateGossipRequest(machineID, nvmlInstance)
 	if err != nil {
 		t.Skipf("Could not create gossip request: %v", err)
 	}
 
 	// Validate request fields
 	assert.Equal(t, machineID, req.MachineID)
-	assert.Equal(t, token, req.Token)
 	assert.NotNil(t, req.MachineInfo)
 	assert.NotEmpty(t, req.MachineInfo.Hostname)
 	assert.NotNil(t, req.MachineInfo.CPUInfo)
@@ -69,7 +67,6 @@ func TestCreateGossipRequest(t *testing.T) {
 func TestCreateGossipRequestMocked(t *testing.T) {
 	// Setup
 	machineID := "test-machine-id"
-	token := "test-token"
 	nvmlInstance := &mockNVMLInstance{}
 
 	// Test cases for the private function
@@ -104,7 +101,7 @@ func TestCreateGossipRequestMocked(t *testing.T) {
 	// Run all test cases
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := createGossipRequest(machineID, nvmlInstance, token, tc.getMachineInfoFunc)
+			req, err := createGossipRequest(machineID, nvmlInstance, tc.getMachineInfoFunc)
 
 			if tc.wantError {
 				assert.Error(t, err)
@@ -114,7 +111,6 @@ func TestCreateGossipRequestMocked(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, req)
 				assert.Equal(t, machineID, req.MachineID)
-				assert.Equal(t, token, req.Token)
 				assert.NotNil(t, req.MachineInfo)
 				assert.Equal(t, "test-host", req.MachineInfo.Hostname)
 				assert.Equal(t, "test-cpu", req.MachineInfo.CPUInfo.Type)
