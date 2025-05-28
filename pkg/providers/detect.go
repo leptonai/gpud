@@ -11,6 +11,7 @@ type detector struct {
 	detectProviderFunc     func(ctx context.Context) (string, error)
 	fetchPublicIPv4Func    func(ctx context.Context) (string, error)
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error)
+	fetchInstanceIDFunc    func(ctx context.Context) (string, error)
 }
 
 func New(
@@ -18,12 +19,14 @@ func New(
 	detectProviderFunc func(ctx context.Context) (string, error),
 	fetchPublicIPv4Func func(ctx context.Context) (string, error),
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error),
+	fetchInstanceIDFunc func(ctx context.Context) (string, error),
 ) Detector {
 	return &detector{
 		providerName:           name,
 		detectProviderFunc:     detectProviderFunc,
 		fetchPublicIPv4Func:    fetchPublicIPv4Func,
 		fetchVMEnvironmentFunc: fetchVMEnvironmentFunc,
+		fetchInstanceIDFunc:    fetchInstanceIDFunc,
 	}
 }
 
@@ -55,6 +58,13 @@ func (d *detector) PublicIPv4(ctx context.Context) (string, error) {
 func (d *detector) VMEnvironment(ctx context.Context) (string, error) {
 	if d.fetchVMEnvironmentFunc != nil {
 		return d.fetchVMEnvironmentFunc(ctx)
+	}
+	return "", nil
+}
+
+func (d *detector) InstanceID(ctx context.Context) (string, error) {
+	if d.fetchInstanceIDFunc != nil {
+		return d.fetchInstanceIDFunc(ctx)
 	}
 	return "", nil
 }

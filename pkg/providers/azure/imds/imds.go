@@ -143,6 +143,7 @@ type computeResponse struct {
 	AZEnvironment string `json:"azEnvironment"`
 	Location      string `json:"location"`
 	PhysicalZone  string `json:"physicalZone"`
+	ResourceID    string `json:"resourceId"`
 }
 
 // FetchAvailabilityZone fetches Azure instance environment using IMDS.
@@ -164,6 +165,14 @@ func FetchAZEnvironment(ctx context.Context) (string, error) {
 		log.Logger.Warnw("unexpected Azure AZ environment", "azEnvironment", resp.AZEnvironment)
 	}
 	return resp.AZEnvironment, nil
+}
+
+func FetchInstanceID(ctx context.Context) (string, error) {
+	resp, err := fetchComputeResponse(ctx, imdsMetadataURL)
+	if err != nil {
+		return "", err
+	}
+	return resp.ResourceID, nil
 }
 
 func fetchComputeResponse(ctx context.Context, metadataURL string) (*computeResponse, error) {

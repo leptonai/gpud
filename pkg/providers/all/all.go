@@ -63,5 +63,11 @@ func Detect(ctx context.Context) (*pkgproviders.Info, error) {
 	}
 	info.VMEnvironment = vmEnvironment
 
+	instanceID, err := detector.InstanceID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance ID: %w", err)
+	}
+	info.InstanceID = instanceID
+
 	return info, nil
 }

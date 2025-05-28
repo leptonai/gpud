@@ -125,3 +125,7 @@ func FetchPublicIPv4(ctx context.Context) (string, error) {
 func fetchPublicIPv4(ctx context.Context, tokenURL string, metadataURL string) (string, error) {
 	return fetchMetadataByPath(ctx, tokenURL, metadataURL+"/public-ipv4")
 }
+
+func FetchInstanceID(ctx context.Context) (string, error) {
+	return fetchMetadataByPath(ctx, imdsTokenURL, imdsMetadataURL+"/instance-id")
+}
