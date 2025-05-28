@@ -44,67 +44,95 @@ func Command(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
+	log.Logger.Debugw("getting state file")
 	stateFile, err := config.DefaultStateFile()
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
+	log.Logger.Debugw("successfully got state file")
 
+	log.Logger.Debugw("opening state file for writing")
 	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
 	defer dbRW.Close()
+	log.Logger.Debugw("successfully opened state file for writing")
 
+	log.Logger.Debugw("opening state file for reading")
 	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
 	defer dbRO.Close()
+	log.Logger.Debugw("successfully opened state file for reading")
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
+
+	log.Logger.Debugw("reading machine ID with fallback")
 	machineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
 	if err != nil {
 		return err
 	}
+	log.Logger.Debugw("successfully read machine ID with fallback")
 
 	// always read endpoint from state file
+	log.Logger.Debugw("reading endpoint from state file")
 	endpoint, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyEndpoint)
 	if err != nil {
 		return fmt.Errorf("failed to read endpoint: %w", err)
 	}
+	log.Logger.Debugw("successfully read endpoint from state file", "endpoint", endpoint)
 	if endpoint == "" {
 		return errors.New("endpoint not found in state file")
 	}
 
 	// assume if not empty, it should have been persisted by the "gpud login" command
+	log.Logger.Debugw("reading private IP from state file")
 	privateIP, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyPrivateIP)
 	if err != nil {
 		return fmt.Errorf("failed to read private IP: %w", err)
 	}
+	log.Logger.Debugw("successfully read private IP from state file", "privateIP", privateIP)
 
 	// assume if not empty, it should have been persisted by the "gpud login" command
+	log.Logger.Debugw("reading public IP from state file")
 	publicIP, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyPublicIP)
 	if err != nil {
 		return fmt.Errorf("failed to read public IP: %w", err)
 	}
+	log.Logger.Debugw("successfully read public IP from state file", "publicIP", publicIP)
 
+	log.Logger.Debugw("reading cluster name from command line")
 	clusterName := cliContext.String("cluster-name")
 	provider := cliContext.String("provider")
 	providerInstanceID := cliContext.String("provider-instance-id")
 	nodeGroup := cliContext.String("node-group")
 	extraInfo := cliContext.String("extra-info")
 
+	log.Logger.Debugw("creating nvml instance")
 	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
 		return err
 	}
+	log.Logger.Debugw("successfully created nvml instance")
+	defer func() {
+		log.Logger.Debugw("shutting down nvml instance")
+		if err := nvmlInstance.Shutdown(); err != nil {
+			log.Logger.Debugw("failed to shutdown nvml instance", "error", err)
+		} else {
+			log.Logger.Debugw("successfully shut down nvml instance")
+		}
+	}()
+
 	productName := nvmlInstance.ProductName()
 	if cliContext.String("gpu-product") != "" {
 		productName = cliContext.String("gpu-product")
 	}
 
 	// network section
+	measuredAt := time.Now()
 	log.Logger.Debugw("measuring latencies to public tailscale DERP nodes to determine region")
 	region := "unknown"
 	latencies, _ := latencyedge.Measure(rootCtx)
@@ -112,12 +140,17 @@ func Command(cliContext *cli.Context) (retErr error) {
 		closest := latencies.Closest()
 		region = closest.RegionCode
 	}
+	log.Logger.Debugw("successfully measured latencies to public tailscale DERP nodes to determine region", "region", region, "duration", time.Since(measuredAt))
+
 	if cliContext.String("region") != "" {
 		region = cliContext.String("region")
 	}
 
+	log.Logger.Debugw("getting provider from public IP")
 	detectedProvider := pkgmachineinfo.GetProvider(publicIP)
+	log.Logger.Debugw("successfully got provider from public IP", "provider", detectedProvider)
 
+	log.Logger.Debugw("reading provider from command line")
 	if !cliContext.Bool("skip-interactive") {
 		reader := bufio.NewReader(os.Stdin)
 		var input string
@@ -153,6 +186,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 				provider = detectedProvider.Provider
 			}
 		}
+
 		if providerInstanceID == "" {
 			fmt.Printf("Provider instance id not specified, we detected your provider instance id is %v, if correct, press Enter. If not, please enter your provider instance id below\n", detectedProvider.InstanceID)
 			input, err = reader.ReadString('\n')
@@ -188,10 +222,12 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	// counting the number of logical CPU cores available to the system
 	// same as "nproc --all"
+	log.Logger.Debugw("counting logical cores")
 	logicalCores, err := cpu.CountsWithContext(rootCtx, true)
 	if err != nil {
 		return fmt.Errorf("failed to get logical cores: %w", err)
 	}
+	log.Logger.Debugw("successfully counted logical cores", "logicalCores", logicalCores)
 
 	content := apiv1.JoinRequest{
 		ID:                 machineID,
@@ -222,6 +258,8 @@ func Command(cliContext *cli.Context) (retErr error) {
 		}
 	}
 
+	joinSentAt := time.Now()
+	log.Logger.Debugw("sending join request")
 	response, err := http.Post(createJoinURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
@@ -239,24 +277,39 @@ func Command(cliContext *cli.Context) (retErr error) {
 		}
 		return fmt.Errorf("failed to join: %v", errorResponse)
 	}
+	log.Logger.Debugw("successfully sent join request", "duration", time.Since(joinSentAt))
 
 	// persist on the successful join
 	// so that next gpud up/run doesn't need to specify the same parameters
+	log.Logger.Debugw("recording public IP")
 	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyPublicIP, publicIP); err != nil {
 		return fmt.Errorf("failed to record public IP: %w", err)
 	}
+	log.Logger.Debugw("successfully recorded public IP")
+
+	log.Logger.Debugw("recording provider")
 	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyProvider, provider); err != nil {
 		return fmt.Errorf("failed to record provider: %w", err)
 	}
+	log.Logger.Debugw("successfully recorded provider")
+
+	log.Logger.Debugw("recording node group")
 	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyNodeGroup, nodeGroup); err != nil {
 		return fmt.Errorf("failed to record node group: %w", err)
 	}
+	log.Logger.Debugw("successfully recorded node group")
+
+	log.Logger.Debugw("recording region")
 	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyRegion, region); err != nil {
 		return fmt.Errorf("failed to record region: %w", err)
 	}
+	log.Logger.Debugw("successfully recorded region")
+
+	log.Logger.Debugw("recording extra info")
 	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyExtraInfo, extraInfo); err != nil {
 		return fmt.Errorf("failed to record extra info: %w", err)
 	}
+	log.Logger.Debugw("successfully recorded extra info")
 
 	fmt.Println("Basic setup finished, GPUd is installing necessary components onto your machine, this may take 10 - 15 minutes.\nYou can run `gpud status` or `gpud status -w` to check the progress of each component.")
 	return nil
