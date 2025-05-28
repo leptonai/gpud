@@ -9,6 +9,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/providers"
 )
 
 func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineID string, gpuCount string) (*apiv1.LoginRequest, error) {
@@ -20,7 +21,7 @@ func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineI
 		netutil.PublicIP,
 		GetMachineLocation,
 		GetMachineInfo,
-		GetProviderName,
+		GetProvider,
 		GetSystemResourceLogicalCores,
 		GetSystemResourceMemoryTotal,
 		GetSystemResourceRootVolumeTotal,
@@ -36,7 +37,7 @@ func createLoginRequest(
 	getPublicIPFunc func() (string, error),
 	getMachineLocationFunc func() *apiv1.MachineLocation,
 	getMachineInfoFunc func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error),
-	getProviderFunc func(ip string) string,
+	getProviderFunc func(ip string) *providers.Info,
 	getSystemResourceLogicalCoresFunc func() (string, int64, error),
 	getSystemResourceMemoryTotalFunc func() (string, error),
 	getSystemResourceRootVolumeTotalFunc func() (string, error),
@@ -55,7 +56,10 @@ func createLoginRequest(
 	if err != nil {
 		log.Logger.Errorw("failed to get public ip", "error", err)
 	}
-	req.Provider = getProviderFunc(req.Network.PublicIP)
+	detectedProvider := getProviderFunc(req.Network.PublicIP)
+	req.Provider = detectedProvider.Provider
+	req.ProviderInstanceID = detectedProvider.InstanceID
+	req.Network.PublicIP = detectedProvider.PublicIP
 
 	req.MachineInfo, err = getMachineInfoFunc(nvmlInstance)
 	if err != nil {

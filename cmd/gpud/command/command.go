@@ -513,6 +513,10 @@ sudo gpud join
 					Usage: "provider of the machine",
 				},
 				cli.StringFlag{
+					Name:  "provider-instance-id",
+					Usage: "provider instance id of the machine",
+				},
+				cli.StringFlag{
 					Name:  "node-group",
 					Usage: "node group to join",
 				},

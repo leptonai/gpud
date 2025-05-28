@@ -131,3 +131,8 @@ type gcpAccessConfig struct {
 	ExternalIP string `json:"externalIp"`
 	Type       string `json:"type"`
 }
+
+func FetchInstanceID(ctx context.Context) (string, error) {
+	// ref. https://cloud.google.com/compute/docs/metadata/predefined-metadata-keys#instance-metadata
+	return fetchMetadataByPath(ctx, imdsMetadataURL+"/instance/id")
+}

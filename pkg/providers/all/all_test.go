@@ -6,20 +6,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/providers"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/leptonai/gpud/pkg/providers"
 )
 
 // mockDetector implements the providers.Detector interface for testing
 type mockDetector struct {
-	name      string
-	provider  string
-	publicIP  string
-	provErr   error
-	publicErr error
-	vmEnv     string
-	vmEnvErr  error
-	delay     time.Duration
+	name          string
+	provider      string
+	publicIP      string
+	provErr       error
+	publicErr     error
+	vmEnv         string
+	vmEnvErr      error
+	instanceID    string
+	instanceIDErr error
+	delay         time.Duration
 }
 
 func (m *mockDetector) Name() string {
@@ -43,6 +46,10 @@ func (m *mockDetector) PublicIPv4(ctx context.Context) (string, error) {
 
 func (m *mockDetector) VMEnvironment(ctx context.Context) (string, error) {
 	return m.vmEnv, m.vmEnvErr
+}
+
+func (m *mockDetector) InstanceID(ctx context.Context) (string, error) {
+	return m.instanceID, m.instanceIDErr
 }
 
 // withTemporaryDetectors runs the provided function with a temporary replacement for All

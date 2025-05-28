@@ -13,6 +13,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/providers"
 )
 
 // TestCreateLoginRequest tests the login request creation
@@ -115,7 +116,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 		getPublicIPFunc                      func() (string, error)
 		getMachineLocationFunc               func() *apiv1.MachineLocation
 		getMachineInfoFunc                   func(nvidianvml.Instance) (*apiv1.MachineInfo, error)
-		getProviderFunc                      func(string) string
+		getProviderFunc                      func(string) *providers.Info
 		getSystemResourceLogicalCoresFunc    func() (string, int64, error)
 		getSystemResourceMemoryTotalFunc     func() (string, error)
 		getSystemResourceRootVolumeTotalFunc func() (string, error)
@@ -147,8 +148,8 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 					},
 				}, nil
 			},
-			getProviderFunc: func(ip string) string {
-				return "aws"
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "aws", PublicIP: ip}
 			},
 			getSystemResourceLogicalCoresFunc: func() (string, int64, error) {
 				return "4", 4, nil
@@ -196,8 +197,8 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 					},
 				}, nil
 			},
-			getProviderFunc: func(ip string) string {
-				return ""
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "aws", PublicIP: ip}
 			},
 			getSystemResourceLogicalCoresFunc: func() (string, int64, error) {
 				return "8", 8, nil
@@ -235,8 +236,8 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 					},
 				}, nil
 			},
-			getProviderFunc: func(ip string) string {
-				return ""
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "aws", PublicIP: ip}
 			},
 			getSystemResourceLogicalCoresFunc: func() (string, int64, error) {
 				return "2", 2, nil
@@ -271,8 +272,8 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			getMachineInfoFunc: func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 				return nil, errors.New("machine info error")
 			},
-			getProviderFunc: func(ip string) string {
-				return ""
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "aws", PublicIP: ip}
 			},
 			getSystemResourceLogicalCoresFunc: func() (string, int64, error) {
 				return "", 0, nil
@@ -303,8 +304,8 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			getMachineInfoFunc: func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 				return &apiv1.MachineInfo{}, nil
 			},
-			getProviderFunc: func(ip string) string {
-				return ""
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "aws", PublicIP: ip}
 			},
 			getSystemResourceLogicalCoresFunc: func() (string, int64, error) {
 				return "", 0, errors.New("logical cores error")
@@ -335,8 +336,8 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			getMachineInfoFunc: func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 				return &apiv1.MachineInfo{}, nil
 			},
-			getProviderFunc: func(ip string) string {
-				return ""
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "aws", PublicIP: ip}
 			},
 			getSystemResourceLogicalCoresFunc: func() (string, int64, error) {
 				return "4", 4, nil
@@ -367,8 +368,8 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			getMachineInfoFunc: func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 				return &apiv1.MachineInfo{}, nil
 			},
-			getProviderFunc: func(ip string) string {
-				return ""
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "aws", PublicIP: ip}
 			},
 			getSystemResourceLogicalCoresFunc: func() (string, int64, error) {
 				return "4", 4, nil
@@ -399,8 +400,8 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			getMachineInfoFunc: func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 				return &apiv1.MachineInfo{}, nil
 			},
-			getProviderFunc: func(ip string) string {
-				return ""
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "aws", PublicIP: ip}
 			},
 			getSystemResourceLogicalCoresFunc: func() (string, int64, error) {
 				return "4", 4, nil
@@ -484,7 +485,9 @@ func TestCreateLoginRequest_NetworkBasics(t *testing.T) {
 		func() (string, error) { return "1.2.3.4", nil },
 		func() *apiv1.MachineLocation { return &apiv1.MachineLocation{} },
 		getMachineInfoFunc,
-		func(ip string) string { return fmt.Sprintf("provider-%s", ip) },
+		func(ip string) *providers.Info {
+			return &providers.Info{Provider: fmt.Sprintf("provider-%s", ip), PublicIP: ip}
+		},
 		func() (string, int64, error) { return "4", 4, nil },
 		func() (string, error) { return "16Gi", nil },
 		func() (string, error) { return "100Gi", nil },

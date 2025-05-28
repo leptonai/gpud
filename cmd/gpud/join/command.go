@@ -90,6 +90,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	clusterName := cliContext.String("cluster-name")
 	provider := cliContext.String("provider")
+	providerInstanceID := cliContext.String("provider-instance-id")
 	nodeGroup := cliContext.String("node-group")
 	extraInfo := cliContext.String("extra-info")
 
@@ -119,7 +120,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 		region = cliContext.String("region")
 	}
 
-	detectProvider := pkgmachineinfo.GetProviderName(publicIP)
+	detectedProvider := pkgmachineinfo.GetProvider(publicIP)
 
 	if !cliContext.Bool("skip-interactive") {
 		reader := bufio.NewReader(os.Stdin)
@@ -145,7 +146,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 		}
 
 		if provider == "" {
-			fmt.Printf("Provider name not specified, we detected your provider is %v, if correct, press Enter. If not, please enter your provider's name below\n", detectProvider)
+			fmt.Printf("Provider name not specified, we detected your provider is %v, if correct, press Enter. If not, please enter your provider's name below\n", detectedProvider.Provider)
 			input, err = reader.ReadString('\n')
 			if err != nil {
 				return err
@@ -153,7 +154,19 @@ func Command(cliContext *cli.Context) (retErr error) {
 			if input != "\n" {
 				provider = strings.TrimSpace(input)
 			} else {
-				provider = detectProvider
+				provider = detectedProvider.Provider
+			}
+		}
+		if providerInstanceID == "" {
+			fmt.Printf("Provider instance id not specified, we detected your provider instance id is %v, if correct, press Enter. If not, please enter your provider instance id below\n", detectedProvider.InstanceID)
+			input, err = reader.ReadString('\n')
+			if err != nil {
+				return err
+			}
+			if input != "\n" {
+				providerInstanceID = strings.TrimSpace(input)
+			} else {
+				providerInstanceID = detectedProvider.InstanceID
 			}
 		}
 
@@ -167,7 +180,10 @@ func Command(cliContext *cli.Context) (retErr error) {
 		}
 	} else {
 		if provider == "" {
-			provider = detectProvider
+			provider = detectedProvider.Provider
+		}
+		if providerInstanceID == "" {
+			providerInstanceID = detectedProvider.InstanceID
 		}
 	}
 
@@ -175,16 +191,17 @@ func Command(cliContext *cli.Context) (retErr error) {
 	fmt.Printf("%sWarning: GPUd will Reboot your machine to finish necessary setup%s\n", "\033[33m", "\033[0m")
 
 	content := apiv1.JoinRequest{
-		ID:               machineID,
-		ClusterName:      clusterName,
-		PublicIP:         publicIP,
-		Provider:         strings.Replace(provider, " ", "-", -1),
-		ProviderGPUShape: productName,
-		TotalCPU:         totalCPU,
-		NodeGroup:        nodeGroup,
-		ExtraInfo:        extraInfo,
-		Region:           region,
-		PrivateIP:        privateIP,
+		ID:                 machineID,
+		ClusterName:        clusterName,
+		PublicIP:           publicIP,
+		Provider:           strings.Replace(provider, " ", "-", -1),
+		ProviderInstanceID: providerInstanceID,
+		ProviderGPUShape:   productName,
+		TotalCPU:           totalCPU,
+		NodeGroup:          nodeGroup,
+		ExtraInfo:          extraInfo,
+		Region:             region,
+		PrivateIP:          privateIP,
 	}
 
 	rawPayload, _ := json.Marshal(&content)

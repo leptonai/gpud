@@ -193,45 +193,43 @@ func GetProvider(publicIP string) *providers.Info {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	providerInfo, err := pkgprovidersall.Detect(ctx)
 	cancel()
-	log.Logger.Debugw("provider info", "provider", providerInfo, "error", err)
+	if err != nil {
+		log.Logger.Warnw("failed to detect provider", "error", err)
+	} else {
+		log.Logger.Debugw("provider info", "provider", providerInfo, "error", err)
+	}
 
-	if providerInfo != nil && providerInfo.Provider != "" && providerInfo.Provider != "unknown" {
+	if providerInfo == nil {
+		providerInfo = &providers.Info{
+			Provider: "unknown",
+		}
+	}
+	if providerInfo.PublicIP == "" {
+		providerInfo.PublicIP = publicIP
+	}
+	if providerInfo.Provider == "" {
+		providerInfo.Provider = "unknown"
+	}
+
+	if providerInfo.Provider != "unknown" {
 		return providerInfo
 	}
 
 	// no fallback when there's no public IP
 	if publicIP == "" {
-		return &providers.Info{
-			Provider: "unknown",
-		}
+		return providerInfo
 	}
 
 	// fallback to ASN lookup
 	log.Logger.Debugw("fallback to ASN lookup for provider", "publicIP", publicIP)
 	asnResult, err := asn.GetASLookup(publicIP)
 	if err != nil {
-		return &providers.Info{
-			Provider: "unknown",
-			PublicIP: publicIP,
-		}
+		return providerInfo
 	}
 
 	log.Logger.Debugw("ASN lookup result", "asnResult", asnResult)
-	return &providers.Info{
-		Provider: asn.NormalizeASNName(asnResult.AsnName),
-		PublicIP: publicIP,
-	}
-}
-
-// GetProviderName looks up the provider of the machine.
-// If the metadata service or other provider detection fails, it falls back to ASN lookup
-// using the public IP address.
-func GetProviderName(publicIP string) string {
-	info := GetProvider(publicIP)
-	if info != nil {
-		return info.Provider
-	}
-	return ""
+	providerInfo.Provider = asn.NormalizeASNName(asnResult.AsnName)
+	return providerInfo
 }
 
 func GetMachineLocation() *apiv1.MachineLocation {

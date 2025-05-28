@@ -14,7 +14,7 @@ import (
 func TestDetector_Name(t *testing.T) {
 	testProviderName := "test-provider"
 	// Use the New function from the package, providing nil for functions not directly tested by Name()
-	d := New(testProviderName, nil, nil, nil)
+	d := New(testProviderName, nil, nil, nil, nil)
 	assert.Equal(t, testProviderName, d.Name())
 }
 
@@ -62,7 +62,7 @@ func TestDetector_Provider(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Use the New function from the package
 			// Provide nil for functions not relevant to Provider method testing
-			d := New(testProviderName, tc.fetchTokenFunc, nil, nil)
+			d := New(testProviderName, tc.fetchTokenFunc, nil, nil, nil)
 
 			result, err := d.Provider(context.Background())
 
@@ -111,7 +111,7 @@ func TestDetector_PublicIPv4(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Use the New function from the package
-			d := New(testProviderName, nil, tc.fetchPublicIPFunc, nil)
+			d := New(testProviderName, nil, tc.fetchPublicIPFunc, nil, nil)
 
 			result, err := d.PublicIPv4(context.Background())
 
@@ -160,7 +160,7 @@ func TestDetector_VMEnvironment(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Use the New function from the package
-			d := New(testProviderName, nil, nil, tc.fetchVMEnvironmentFunc)
+			d := New(testProviderName, nil, nil, tc.fetchVMEnvironmentFunc, nil)
 
 			result, err := d.VMEnvironment(context.Background())
 
@@ -180,7 +180,7 @@ func TestNew(t *testing.T) {
 	mockIPFunc := func(ctx context.Context) (string, error) { return "test-ip", nil }
 	mockVMEnvFunc := func(ctx context.Context) (string, error) { return "test-env", nil }
 
-	d := New(testName, mockTokenFunc, mockIPFunc, mockVMEnvFunc)
+	d := New(testName, mockTokenFunc, mockIPFunc, mockVMEnvFunc, nil)
 
 	// Check that detector is properly initialized
 	assert.NotNil(t, d)
@@ -203,7 +203,7 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, "test-env", vmEnv, "VMEnvironment() should use the provided fetchVMEnvironmentFunc")
 
 	// Test nil function cases for Provider, PublicIPv4, VMEnvironment
-	dNilFuncs := New("niltest", nil, nil, nil)
+	dNilFuncs := New("niltest", nil, nil, nil, nil)
 	provNil, errNil := dNilFuncs.Provider(context.Background())
 	assert.NoError(t, errNil)
 	assert.Equal(t, "", provNil)
