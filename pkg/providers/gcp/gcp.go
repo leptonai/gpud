@@ -10,7 +10,7 @@ import (
 const Name = "gcp"
 
 func New() providers.Detector {
-	return providers.New(Name, detectProvider, imds.FetchAvailabilityZone, imds.FetchPublicIPv4, imds.FetchInstanceID)
+	return providers.New(Name, detectProvider, imds.FetchPublicIPv4, nil, imds.FetchInstanceID)
 }
 
 func detectProvider(ctx context.Context) (string, error) {

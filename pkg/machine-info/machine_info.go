@@ -232,17 +232,6 @@ func GetProvider(publicIP string) *providers.Info {
 	return providerInfo
 }
 
-// GetProviderName looks up the provider of the machine.
-// If the metadata service or other provider detection fails, it falls back to ASN lookup
-// using the public IP address.
-func GetProviderName(publicIP string) string {
-	info := GetProvider(publicIP)
-	if info != nil {
-		return info.Provider
-	}
-	return ""
-}
-
 func GetMachineLocation() *apiv1.MachineLocation {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
