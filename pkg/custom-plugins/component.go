@@ -148,7 +148,7 @@ func (c *component) Check() components.CheckResult {
 	// parse before processing the error/command failures
 	// since we still want to process the output even if the plugin failed
 	if len(cr.out) > 0 && c.spec.HealthStatePlugin.Parser != nil {
-		extraInfo, exErr := c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
+		extraInfo, exErr := c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out, c.spec.PluginName, c.spec.RunMode)
 		if exErr != nil {
 			log.Logger.Errorw("error extracting extra info", "error", exErr)
 

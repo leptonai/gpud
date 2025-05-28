@@ -134,6 +134,10 @@ type PluginOutputParseConfig struct {
 	// Each entry has a FieldName (the output field name you want to assign e.g. "name")
 	// and a QueryPath (the JSON path you want to extract with e.g. "$.name").
 	JSONPaths []JSONPath `json:"json_paths,omitempty"`
+
+	// LogPath is an optional path to a file where the plugin output will be logged.
+	// If set, the raw plugin output will be appended to this file.
+	LogPath string `json:"log_path,omitempty"`
 }
 
 // JSONPath represents a JSON path to the output fields.

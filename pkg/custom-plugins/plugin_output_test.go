@@ -3,6 +3,8 @@ package customplugins
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -45,7 +47,7 @@ func TestPluginOutputParseConfig_Validate(t *testing.T) {
 func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 	t.Run("nil PluginOutputParseConfig should return nil, nil", func(t *testing.T) {
 		var po *PluginOutputParseConfig
-		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`))
+		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`), "test_plugin", "auto")
 		assert.Nil(t, err)
 		assert.Nil(t, result)
 	})
@@ -54,7 +56,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 		po := &PluginOutputParseConfig{
 			JSONPaths: []JSONPath{},
 		}
-		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`))
+		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`), "test_plugin", "auto")
 		assert.Nil(t, err)
 		assert.Nil(t, result)
 	})
@@ -65,7 +67,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 				{Field: "health", Query: "$.status"},
 			},
 		}
-		result, err := po.extractExtraInfo([]byte{})
+		result, err := po.extractExtraInfo([]byte{}, "test_plugin", "auto")
 		assert.Nil(t, err)
 		assert.Nil(t, result)
 	})
@@ -76,7 +78,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 				{Field: "health", Query: "$.status"},
 			},
 		}
-		result, err := po.extractExtraInfo([]byte(`{invalid json}`))
+		result, err := po.extractExtraInfo([]byte(`{invalid json}`), "test_plugin", "auto")
 		assert.Error(t, err)
 		assert.Nil(t, result)
 	})
@@ -88,7 +90,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 				{Field: "message", Query: "$.reason"},
 			},
 		}
-		result, err := po.extractExtraInfo([]byte(`{"status": "healthy", "reason": "all systems operational"}`))
+		result, err := po.extractExtraInfo([]byte(`{"status": "healthy", "reason": "all systems operational"}`), "test_plugin", "auto")
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(result))
 		assert.Equal(t, "healthy", result["health"].fieldValue)
@@ -103,7 +105,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 				{Field: "field", Query: "$.nonexistent"},
 			},
 		}
-		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`))
+		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`), "test_plugin", "auto")
 		assert.Nil(t, err)
 		assert.Empty(t, result)
 	})
@@ -117,7 +119,7 @@ func TestPluginOutputParseConfig_ExtractExtraInfo(t *testing.T) {
 		result, err := po.extractExtraInfo([]byte(`Some log output
 More logs
 {"status": "healthy"}
-Following text`))
+Following text`), "test_plugin", "auto")
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(result))
 		assert.Equal(t, "healthy", result["health"].fieldValue)
@@ -131,7 +133,7 @@ Following text`))
 				{Field: "array_val", Query: "$.array"},
 			},
 		}
-		result, err := po.extractExtraInfo([]byte(`{"nested": {"value": 42}, "array": [1, 2, 3]}`))
+		result, err := po.extractExtraInfo([]byte(`{"nested": {"value": 42}, "array": [1, 2, 3]}`), "test_plugin", "auto")
 		assert.NoError(t, err)
 		assert.Equal(t, "42", result["nested_val"].fieldValue)
 		assert.Equal(t, "[1,2,3]", result["array_val"].fieldValue)
@@ -158,7 +160,7 @@ Following text`))
 				},
 			},
 		}
-		result, err := po.extractExtraInfo([]byte(`{"status": "healthy", "count": 10}`))
+		result, err := po.extractExtraInfo([]byte(`{"status": "healthy", "count": 10}`), "test_plugin", "auto")
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(result))
 		assert.Equal(t, "healthy", result["status"].fieldValue)
@@ -179,7 +181,7 @@ Following text`))
 				},
 			},
 		}
-		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`))
+		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`), "test_plugin", "auto")
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(result))
 		assert.Equal(t, "healthy", result["status"].fieldValue)
@@ -199,7 +201,7 @@ Following text`))
 				},
 			},
 		}
-		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`))
+		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`), "test_plugin", "auto")
 		assert.Error(t, err)
 		assert.Nil(t, result)
 	})
@@ -208,9 +210,52 @@ Following text`))
 		po := &PluginOutputParseConfig{
 			// JSONPaths is nil here
 		}
-		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`))
+		result, err := po.extractExtraInfo([]byte(`{"status": "healthy"}`), "test_plugin", "auto")
 		assert.Nil(t, err)
 		assert.Nil(t, result)
+	})
+
+	t.Run("with log path", func(t *testing.T) {
+		// Create a temporary file for testing
+		tmpFile, err := os.CreateTemp("", "plugin-output-*.log")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		po := &PluginOutputParseConfig{
+			LogPath: tmpFile.Name(),
+			JSONPaths: []JSONPath{
+				{Field: "health", Query: "$.status"},
+			},
+		}
+
+		// Test data
+		testData := []byte(`{"status": "healthy"}`)
+
+		// First call
+		result, err := po.extractExtraInfo(testData, "health_check", "manual")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, "healthy", result["health"].fieldValue)
+
+		// Second call
+		result, err = po.extractExtraInfo(testData, "health_check", "auto")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, "healthy", result["health"].fieldValue)
+
+		// Read the log file
+		content, err := os.ReadFile(tmpFile.Name())
+		require.NoError(t, err)
+		logContent := string(content)
+
+		// Verify the log file contains both entries with timestamps, plugin names, and triggers
+		require.Contains(t, logContent, `{"status": "healthy"}`)
+		require.Contains(t, logContent, "[") // timestamp start
+		require.Contains(t, logContent, "]") // timestamp end
+		require.Contains(t, logContent, "plugin=health_check")
+		require.Contains(t, logContent, "trigger=manual")
+		require.Contains(t, logContent, "trigger=auto")
+		require.Equal(t, 2, strings.Count(logContent, `{"status": "healthy"}`))
 	})
 }
 
@@ -1482,4 +1527,170 @@ func TestApplyJSONPathsWithDuplicatedActionName(t *testing.T) {
 		}
 		assert.True(t, found, "Value %s should be in merged description", value)
 	}
+}
+
+func TestSubstituteLogPath(t *testing.T) {
+	tests := []struct {
+		name        string
+		logPath     string
+		triggerName string
+		pluginName  string
+		expected    string
+	}{
+		{
+			name:        "no substitutions needed",
+			logPath:     "/var/log/plugin.log",
+			triggerName: "auto",
+			pluginName:  "health_check",
+			expected:    "/var/log/plugin.log",
+		},
+		{
+			name:        "substitute trigger only",
+			logPath:     "/var/log/${TRIGGER}.log",
+			triggerName: "auto",
+			pluginName:  "health_check",
+			expected:    "/var/log/auto.log",
+		},
+		{
+			name:        "substitute plugin only",
+			logPath:     "/var/log/${PLUGIN}.log",
+			triggerName: "auto",
+			pluginName:  "health_check",
+			expected:    "/var/log/health_check.log",
+		},
+		{
+			name:        "substitute both",
+			logPath:     "/var/log/${PLUGIN}_${TRIGGER}.log",
+			triggerName: "auto",
+			pluginName:  "health_check",
+			expected:    "/var/log/health_check_auto.log",
+		},
+		{
+			name:        "missing trigger when required",
+			logPath:     "/var/log/${TRIGGER}.log",
+			triggerName: "",
+			pluginName:  "health_check",
+			expected:    "",
+		},
+		{
+			name:        "missing plugin when required",
+			logPath:     "/var/log/${PLUGIN}.log",
+			triggerName: "auto",
+			pluginName:  "",
+			expected:    "",
+		},
+		{
+			name:        "multiple substitutions",
+			logPath:     "/var/log/${PLUGIN}/${TRIGGER}/${PLUGIN}_${TRIGGER}.log",
+			triggerName: "auto",
+			pluginName:  "health_check",
+			expected:    "/var/log/health_check/auto/health_check_auto.log",
+		},
+		{
+			name:        "empty log path",
+			logPath:     "",
+			triggerName: "auto",
+			pluginName:  "health_check",
+			expected:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := substituteLogPath(tt.logPath, tt.triggerName, tt.pluginName)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestExtractExtraInfoWithLogPathSubstitution(t *testing.T) {
+	t.Run("with substituted log path", func(t *testing.T) {
+		// Create a temporary directory for testing
+		tmpDir, err := os.MkdirTemp("", "plugin-output-*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		po := &PluginOutputParseConfig{
+			LogPath: filepath.Join(tmpDir, "${PLUGIN}_${TRIGGER}.log"),
+			JSONPaths: []JSONPath{
+				{Field: "health", Query: "$.status"},
+			},
+		}
+
+		// Test data
+		testData := []byte(`{"status": "healthy"}`)
+
+		// First call with both plugin and trigger
+		result, err := po.extractExtraInfo(testData, "health_check", "auto")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, "healthy", result["health"].fieldValue)
+
+		// Verify the log file was created with substituted path
+		expectedLogPath := filepath.Join(tmpDir, "health_check_auto.log")
+		content, err := os.ReadFile(expectedLogPath)
+		require.NoError(t, err)
+		logContent := string(content)
+
+		// Verify the log content
+		require.Contains(t, logContent, `{"status": "healthy"}`)
+		require.Contains(t, logContent, "plugin=health_check")
+		require.Contains(t, logContent, "trigger=auto")
+	})
+
+	t.Run("skip logging when trigger is missing", func(t *testing.T) {
+		// Create a temporary directory for testing
+		tmpDir, err := os.MkdirTemp("", "plugin-output-*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		po := &PluginOutputParseConfig{
+			LogPath: filepath.Join(tmpDir, "${TRIGGER}.log"),
+			JSONPaths: []JSONPath{
+				{Field: "health", Query: "$.status"},
+			},
+		}
+
+		// Test data
+		testData := []byte(`{"status": "healthy"}`)
+
+		// Call with empty trigger
+		result, err := po.extractExtraInfo(testData, "health_check", "")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, "healthy", result["health"].fieldValue)
+
+		// Verify no log file was created
+		expectedLogPath := filepath.Join(tmpDir, ".log")
+		_, err = os.Stat(expectedLogPath)
+		require.True(t, os.IsNotExist(err))
+	})
+
+	t.Run("skip logging when plugin is missing", func(t *testing.T) {
+		// Create a temporary directory for testing
+		tmpDir, err := os.MkdirTemp("", "plugin-output-*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		po := &PluginOutputParseConfig{
+			LogPath: filepath.Join(tmpDir, "${PLUGIN}.log"),
+			JSONPaths: []JSONPath{
+				{Field: "health", Query: "$.status"},
+			},
+		}
+
+		// Test data
+		testData := []byte(`{"status": "healthy"}`)
+
+		// Call with empty plugin name
+		result, err := po.extractExtraInfo(testData, "", "auto")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, "healthy", result["health"].fieldValue)
+
+		// Verify no log file was created
+		expectedLogPath := filepath.Join(tmpDir, ".log")
+		_, err = os.Stat(expectedLogPath)
+		require.True(t, os.IsNotExist(err))
+	})
 }

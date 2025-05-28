@@ -268,6 +268,7 @@ parser:
       suggested_actions:       # Optional action triggers
         REBOOT_SYSTEM:         # Action name
           regex: ".*reboot.*"  # When to trigger
+  log_path: "/var/log/${TRIGGER}.log"  # Optional path to log plugin output
 ```
 
 #### Configuration Elements
@@ -297,6 +298,151 @@ parser:
    ```
    - Maps extracted values to system actions
    - Uses regex to match patterns in the output
+
+#### Expect Rule Behavior
+
+When an `expect` rule fails:
+
+1. **Health State Impact**:
+   - The component's health state is marked as unhealthy
+   - The failure is logged with details about the expected vs actual value
+   - The plugin's exit code is still considered in the overall health assessment
+
+2. **Error Handling**:
+   - The failure is logged in the component's error log
+   - The error message includes:
+     - The field that failed validation
+     - The expected pattern
+     - The actual value received
+   - Any suggested actions are still evaluated and may be triggered
+
+3. **Example Failure**:
+   ```yaml
+   - query: "$.result"
+     field: "result"
+     expect:
+       regex: "^success$"
+   ```
+   If the plugin outputs:
+   ```json
+   {
+     "result": "failed",
+     "error": "Operation timed out"
+   }
+   ```
+   The expect rule will fail because "failed" doesn't match "^success$", and:
+   - The component will be marked unhealthy
+   - The error will be logged: "Field 'result' failed validation: expected pattern '^success$', got 'failed'"
+   - The plugin's exit code will still be considered
+
+4. **Multiple Expect Rules**:
+   - Each field can have its own expect rule
+   - All expect rules are evaluated independently
+   - A single failed expect rule marks the component as unhealthy
+   - All failures are logged, not just the first one
+
+#### System Health Assessment
+
+The system considers both:
+- The plugin's exit code (0 for success, non-zero for failure)
+- The JSON output fields (result, error, passed, etc.)
+
+This dual approach allows for:
+- Quick failure detection via exit codes
+- Detailed error information via JSON
+- Structured error handling and remediation
+- Clear communication of issues and solutions
+
+For example, if a plugin:
+1. Returns exit code 1 (failure)
+2. Outputs JSON with `"result": "success"` and `"passed": true`
+3. Has an expect rule requiring `"result": "success"`
+
+The system will:
+- Mark the component as unhealthy due to the non-zero exit code
+- Log the JSON validation success
+- Include both pieces of information in the health assessment
+- Allow appropriate actions to be triggered based on the complete context
+
+#### Error Information
+
+Errors are captured in two ways:
+
+1. **Plugin Exit Code**:
+```bash
+#!/bin/bash
+if [ $? -eq 0 ]; then
+  # Success case
+  echo '{"result": "success", "error": null}'
+  exit 0
+else
+  # Error case
+  echo '{"result": "error", "error": "command failed"}'
+  exit 1
+fi
+```
+
+2. **JSON Error Information**:
+```json
+{
+  "result": "error",           // Overall result
+  "error": "GPU memory overflow", // Detailed error message
+  "passed": false,            // Quick status check
+  "action": "system needs reboot", // Suggested action
+  "suggestion": "GPU memory exceeded limits, reboot required" // Detailed suggestion
+}
+```
+
+The system considers both:
+- The plugin's exit code (0 for success, non-zero for failure)
+- The JSON output fields (result, error, passed, etc.)
+
+This dual approach allows for:
+- Quick failure detection via exit codes
+- Detailed error information via JSON
+- Structured error handling and remediation
+- Clear communication of issues and solutions
+
+#### Understanding Field Relationships
+
+##### JSON vs GPUd Fields
+- **JSON Fields**: The fields in your plugin's output JSON
+  ```json
+  {
+    "action": "system needs reboot"  // JSON field
+  }
+  ```
+- **GPUd Fields**: The internal names where GPUd stores extracted values
+  ```yaml
+  - query: "$.action"    # JSON field to extract
+    field: "action"      # GPUd field to store in
+  ```
+
+##### Multiple Action Triggers
+You can define multiple actions that trigger based on different conditions:
+
+```yaml
+- query: "$.action"
+  field: "action"
+  suggested_actions:
+    REBOOT_SYSTEM:
+      regex: "(?i).*reboot.*"
+    HARDWARE_INSPECTION:
+      regex: "(?i).*hardware.*"
+    CHECK_USER_APP_AND_GPU:
+      regex: "(?i).*application.*"
+```
+
+If the action field contains multiple matching terms, ALL matching actions will be triggered:
+```json
+{
+  "action": "application error requires hardware inspection and reboot"
+}
+```
+This would trigger:
+- `REBOOT_SYSTEM` (matches "reboot")
+- `HARDWARE_INSPECTION` (matches "hardware")
+- `CHECK_USER_APP_AND_GPU` (matches "application")
 
 ### Real-World Example
 
@@ -391,6 +537,54 @@ parser:
       suggested_actions:       # Action triggers
         REBOOT_SYSTEM:
           regex: "(?i).*reboot.*"
+  log_path: "/var/log/${PLUGIN}/${TRIGGER}.log"  # Optional path to log plugin output
+```
+
+Note: Currently, only JSON format is supported for plugin output. The parser will extract the first valid JSON object it finds in the output, even if it's embedded within other text.
+
+### Log Path Variable Substitution
+
+The `log_path` field in the parser configuration supports variable substitution to create dynamic log file paths. This is useful for organizing plugin output logs by plugin name and trigger type.
+
+#### Supported Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `${PLUGIN}` | Plugin name | Yes, if used in path |
+| `${TRIGGER}` | Trigger name (e.g., "auto", "manual") | Yes, if used in path |
+
+#### Behavior
+
+- If `${PLUGIN}` is present in the path and plugin name is empty, logging is skipped
+- If `${TRIGGER}` is present in the path and trigger name is empty, logging is skipped
+- Variables can be used multiple times in the same path
+- Variables can be used in any part of the path (directory or filename)
+
+#### Examples
+
+```yaml
+# Log to plugin-specific directory with trigger in filename
+log_path: "/var/log/${PLUGIN}/${TRIGGER}.log"
+
+# Log to trigger-specific directory with plugin in filename
+log_path: "/var/log/${TRIGGER}/${PLUGIN}.log"
+
+# Log to a single directory with both plugin and trigger in filename
+log_path: "/var/log/plugins/${PLUGIN}_${TRIGGER}.log"
+
+# Log to a nested structure
+log_path: "/var/log/${PLUGIN}/${TRIGGER}/${PLUGIN}_${TRIGGER}.log"
+```
+
+The log entries will include:
+- Timestamp in RFC3339 format
+- Plugin name
+- Trigger name
+- Raw plugin output
+
+Example log entry:
+```
+[2024-03-14T10:30:45Z] plugin=health_check trigger=auto output={"status": "healthy"}
 ```
 
 Note: Currently, only JSON format is supported for plugin output. The parser will extract the first valid JSON object it finds in the output, even if it's embedded within other text.
@@ -603,19 +797,19 @@ run_mode: "manual"
 timeout: "5m"
 component_list:
   # Prologue checks (run before job starts)
-  - "check-gpu-availability#auto[slurm.prologue]"
-  - "check-memory#auto[slurm.prologue]"
-  - "check-disk-space#auto[slurm.prologue]"
+  - "check-gpu-availability#auto[slurm-prologue]"
+  - "check-memory#auto[slurm-prologue]"
+  - "check-disk-space#auto[slurm-prologue]"
   
   # Epilogue checks (run after job ends)
-  - "cleanup-temp-files#auto[slurm.epilogue]"
-  - "archive-logs#auto[slurm.epilogue]"
-  - "release-resources#auto[slurm.epilogue]"
+  - "cleanup-temp-files#auto[slurm-epilogue]"
+  - "archive-logs#auto[slurm-epilogue]"
+  - "release-resources#auto[slurm-epilogue]"
   
   # Continuous monitoring
-  - "monitor-gpu-usage#auto[slurm.continuous]"
-  - "monitor-memory-usage#auto[slurm.continuous]"
-  - "monitor-disk-usage#auto[slurm.continuous]"
+  - "monitor-gpu-usage#auto[slurm-continuous]"
+  - "monitor-memory-usage#auto[slurm-continuous]"
+  - "monitor-disk-usage#auto[slurm-continuous]"
 
 health_state_plugin:
   steps:
@@ -659,26 +853,32 @@ health_state_plugin:
 
 You can integrate these checks with Slurm by adding the appropriate trigger commands to your Slurm configuration:
 
-1. **Prologue** (in `slurm.conf`):
+1. **Prolog** (in `slurm.conf`):
 ```bash
-Prolog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.prologue"'
+Prolog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm-prolog"'
 ```
 
-2. **Epilogue** (in `slurm.conf`):
+Alternatively, you can trigger with `gpud run-plugin-group slurm-prolog` which will return a return code of failure or success.
+
+2. **Epilog** (in `slurm.conf`):
 ```bash
-Epilog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.epilogue"'
+Epilog=/bin/bash -c 'curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm-epilog"'
 ```
+
+Alternatively, you can trigger with `gpud run-plugin-group slurm-epilog` which will return a return code of failure or success.
 
 3. **Continuous Monitoring** (in a separate script):
 ```bash
 #!/bin/bash
 while true; do
-  curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm.continuous"
+  curl -X GET "http://localhost:8080/v1/components/trigger-tag?tagName=slurm-continuous"
   sleep 300  # Check every 5 minutes
 done
 ```
 
-The REST API's response status can be used to implement conditional logic in your scripts:
+Alternatively, you can trigger with `gpud run-plugin-group slurm-continuous` which will return a return code of failure or success.
+
+The REST API's response status can be used to implement conditional logic in your scripts as follows:
 
 ```bash
 #!/bin/bash
@@ -701,97 +901,81 @@ This allows you to:
 3. Implement conditional logic based on the test results
 4. Maintain a clean separation of concerns between different types of checks 
 
+`gpud run-plugin-group <plugin_group_name>` sets the exit code automatically.
+
+
 ### Understanding Field Relationships and Error Handling
 
-#### JSON vs GPUd Fields
-- **JSON Fields**: The fields in your plugin's output JSON
-  ```json
-  {
-    "action": "system needs reboot"  // JSON field
-  }
-  ```
-- **GPUd Fields**: The internal names where GPUd stores extracted values
-  ```yaml
-  - query: "$.action"    # JSON field to extract
-    field: "action"      # GPUd field to store in
-  ```
+### SLURM Log File Configuration
 
-#### Multiple Action Triggers
-You can define multiple actions that trigger based on different conditions:
+To log SLURM prolog and epilog plugin outputs to separate files, configure the parser's `log_path` in your plugin configuration:
 
 ```yaml
-- query: "$.action"
-  field: "action"
-  suggested_actions:
-    REBOOT_SYSTEM:
-      regex: "(?i).*reboot.*"
-    HARDWARE_INSPECTION:
-      regex: "(?i).*hardware.*"
-    CHECK_USER_APP_AND_GPU:
-      regex: "(?i).*application.*"
+plugin_name: "slurm-checks"
+type: "component_list"
+run_mode: "manual"
+timeout: "5m"
+component_list:
+  # Prolog checks (run before job starts)
+  - "check-gpu-availability#auto[slurm-prolog]"
+  - "check-memory#auto[slurm-prolog]"
+  - "check-disk-space#auto[slurm-prolog]"
+  
+  # Epilog checks (run after job ends)
+  - "cleanup-temp-files#auto[slurm-epilog]"
+  - "archive-logs#auto[slurm-epilog]"
+  - "release-resources#auto[slurm-epilog]"
+
+health_state_plugin:
+  steps:
+    - name: "execute-check"
+      run_bash_script:
+        content_type: "plaintext"
+        script: |
+          #!/bin/bash
+          case "${NAME}" in
+            "check-gpu-availability")
+              nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | awk '{ if ($1 > 100) exit 1; exit 0 }'
+              ;;
+            "check-memory")
+              free -g | awk '/^Mem:/ { if ($3 > 90) exit 1; exit 0 }'
+              ;;
+            "check-disk-space")
+              df -h ${PAR} | awk 'NR==2 { if ($5 > 90) exit 1; exit 0 }'
+              ;;
+            "cleanup-temp-files")
+              rm -rf /tmp/job-${SLURM_JOB_ID}/*
+              ;;
+            "archive-logs")
+              tar -czf /var/log/slurm/job-${SLURM_JOB_ID}.tar.gz /tmp/job-${SLURM_JOB_ID}/logs
+              ;;
+            "release-resources")
+              # Release any held resources
+              ;;
+          esac
+  parser:
+    json_paths:
+      - query: "$.result"
+        field: "result"
+        expect:
+          regex: "^success$"
+    log_path: "/var/log/${TRIGGER}.log"  # Creates separate log files for prolog and epilog
 ```
 
-If the action field contains multiple matching terms, ALL matching actions will be triggered:
-```json
-{
-  "action": "application error requires hardware inspection and reboot"
-}
-```
-This would trigger:
-- `REBOOT_SYSTEM` (matches "reboot")
-- `HARDWARE_INSPECTION` (matches "hardware")
-- `CHECK_USER_APP_AND_GPU` (matches "application")
+This configuration will create two log files:
+- `/var/log/slurm-prolog.log` - Contains all prolog check outputs
+- `/var/log/slurm-epilog.log` - Contains all epilog check outputs
 
-#### Result and Expect Rules
-The `result` field is a string, not a boolean:
-```yaml
-- query: "$.result"
-  field: "result"
-  expect:
-    regex: "^success$"  # Must be exactly "success"
+Example log entries:
+```
+# In /var/log/slurm-prolog.log
+[2024-03-14T10:30:45Z] plugin=slurm-checks trigger=prolog output={"result": "success", "name": "check-gpu-availability"}
+[2024-03-14T10:30:46Z] plugin=slurm-checks trigger=prolog output={"result": "success", "name": "check-memory"}
+
+# In /var/log/slurm-epilog.log
+[2024-03-14T11:30:45Z] plugin=slurm-checks trigger=epilog output={"result": "success", "name": "cleanup-temp-files"}
+[2024-03-14T11:30:46Z] plugin=slurm-checks trigger=epilog output={"result": "success", "name": "archive-logs"}
 ```
 
-If the expect rule fails:
-- The check is marked as failed
-- The error is logged
-- The system may trigger appropriate actions
-- The plugin's exit code is still considered
-
-#### Error Code Handling
-Errors are captured in two ways:
-
-1. **Plugin Exit Code**:
-```bash
-#!/bin/bash
-if [ $? -eq 0 ]; then
-  # Success case
-  echo '{"result": "success", "error": null}'
-  exit 0
-else
-  # Error case
-  echo '{"result": "error", "error": "command failed"}'
-  exit 1
-fi
-```
-
-2. **JSON Error Information**:
-```json
-{
-  "result": "error",           // Overall result
-  "error": "GPU memory overflow", // Detailed error message
-  "passed": false,            // Quick status check
-  "action": "system needs reboot", // Suggested action
-  "suggestion": "GPU memory exceeded limits, reboot required" // Detailed suggestion
-}
-```
-
-The system considers both:
-- The plugin's exit code (0 for success, non-zero for failure)
-- The JSON output fields (result, error, passed, etc.)
-
-This dual approach allows for:
-- Quick failure detection via exit codes
-- Detailed error information via JSON
-- Structured error handling and remediation
-- Clear communication of issues and solutions
+The REST API's response status can be used to implement conditional logic in your scripts:
 
