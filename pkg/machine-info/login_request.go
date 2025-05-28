@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
@@ -22,8 +23,6 @@ func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineI
 		GetMachineLocation,
 		GetMachineInfo,
 		GetProvider,
-		GetSystemResourceLogicalCores,
-		GetSystemResourceMemoryTotal,
 		GetSystemResourceRootVolumeTotal,
 		GetSystemResourceGPUCount,
 	)
@@ -38,8 +37,6 @@ func createLoginRequest(
 	getMachineLocationFunc func() *apiv1.MachineLocation,
 	getMachineInfoFunc func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error),
 	getProviderFunc func(ip string) *providers.Info,
-	getSystemResourceLogicalCoresFunc func() (string, int64, error),
-	getSystemResourceMemoryTotalFunc func() (string, error),
 	getSystemResourceRootVolumeTotalFunc func() (string, error),
 	getSystemResourceGPUCountFunc func(nvmlInstance nvidianvml.Instance) (string, error),
 ) (*apiv1.LoginRequest, error) {
@@ -79,17 +76,13 @@ func createLoginRequest(
 		}
 	}
 
-	cpu, _, err := getSystemResourceLogicalCoresFunc()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get system resource logical cores: %w", err)
-	}
-	req.Resources[string(corev1.ResourceCPU)] = cpu
+	// represents the CPU, in cores (500m = .5 cores).
+	// Must be parsed using the "resource.ParseQuantity" function in https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource.
+	req.Resources[string(corev1.ResourceCPU)] = resource.NewQuantity(req.MachineInfo.CPUInfo.LogicalCores, resource.DecimalSI).String()
 
-	memory, err := getSystemResourceMemoryTotalFunc()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get system resource memory total: %w", err)
-	}
-	req.Resources[string(corev1.ResourceMemory)] = memory
+	// represents the Memory, in bytes (500Gi = 500GiB = 500 * 1024 * 1024 * 1024).
+	// Must be parsed using the "resource.ParseQuantity" function in https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource.
+	req.Resources[string(corev1.ResourceMemory)] = resource.NewQuantity(int64(req.MachineInfo.MemoryInfo.TotalBytes), resource.DecimalSI).String()
 
 	volumeSize, err := getSystemResourceRootVolumeTotalFunc()
 	if err != nil {

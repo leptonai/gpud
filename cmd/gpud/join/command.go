@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/urfave/cli"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -93,11 +94,6 @@ func Command(cliContext *cli.Context) (retErr error) {
 	providerInstanceID := cliContext.String("provider-instance-id")
 	nodeGroup := cliContext.String("node-group")
 	extraInfo := cliContext.String("extra-info")
-
-	_, totalCPU, err := pkgmachineinfo.GetSystemResourceLogicalCores()
-	if err != nil {
-		return fmt.Errorf("failed to get system resource logical cores: %w", err)
-	}
 
 	nvmlInstance, err := nvidianvml.New()
 	if err != nil {
@@ -190,6 +186,13 @@ func Command(cliContext *cli.Context) (retErr error) {
 	fmt.Printf("%sWarning: GPUd will upgrade your container runtime to containerd, will affect your current running containers (if any)%s\n", "\033[33m", "\033[0m")
 	fmt.Printf("%sWarning: GPUd will Reboot your machine to finish necessary setup%s\n", "\033[33m", "\033[0m")
 
+	// counting the number of logical CPU cores available to the system
+	// same as "nproc --all"
+	logicalCores, err := cpu.CountsWithContext(rootCtx, true)
+	if err != nil {
+		return fmt.Errorf("failed to get logical cores: %w", err)
+	}
+
 	content := apiv1.JoinRequest{
 		ID:                 machineID,
 		ClusterName:        clusterName,
@@ -197,7 +200,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 		Provider:           strings.Replace(provider, " ", "-", -1),
 		ProviderInstanceID: providerInstanceID,
 		ProviderGPUShape:   productName,
-		TotalCPU:           totalCPU,
+		TotalCPU:           int64(logicalCores),
 		NodeGroup:          nodeGroup,
 		ExtraInfo:          extraInfo,
 		Region:             region,
