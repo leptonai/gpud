@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,9 +52,12 @@ type Config struct {
 	// EnableFaultInjector enables the fault injector.
 	EnableFaultInjector bool `json:"enable_fault_injector"`
 
-	// EnableComponents specifies the components to enable.
-	// Leave empty to enable all components.
-	EnableComponents []string `json:"enable_components"`
+	// Components specifies the components to enable.
+	// Leave empty, "*", or "all" to enable all components.
+	// Or prefix component names with "-" to disable them.
+	Components         []string       `json:"components"`
+	selectedComponents map[string]any `json:"-"`
+	disabledComponents map[string]any `json:"-"`
 }
 
 var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")
@@ -68,5 +72,66 @@ func (config *Config) Validate() error {
 	if !config.EnableAutoUpdate && config.AutoUpdateExitCode != -1 {
 		return ErrInvalidAutoUpdateExitCode
 	}
+
 	return nil
+}
+
+// ShouldEnable returns true if the component should be enabled.
+// If the enable component sets are not specified, it will return true,
+// meaning it should be enabled by default.
+func (config *Config) ShouldEnable(componentName string) bool {
+	// not specified, thus enable all components
+	if len(config.Components) == 0 || config.Components[0] == "*" || config.Components[0] == "all" {
+		return true
+	}
+
+	if config.selectedComponents == nil {
+		config.selectedComponents = make(map[string]any)
+
+		for _, c := range config.Components {
+			if c == "*" || c == "all" {
+				// enable all components
+				return true
+			}
+
+			// prefix "-" is used to disable a component
+			if strings.HasPrefix(c, "-") {
+				continue
+			}
+			config.selectedComponents[c] = struct{}{}
+		}
+	}
+
+	_, shouldEnable := config.selectedComponents[componentName]
+	return shouldEnable
+}
+
+// ShouldDisable returns true if the component should be disabled.
+// If the disable component sets are not specified, it will return false,
+// meaning it should not be disabled, instead enabled by default.
+func (config *Config) ShouldDisable(componentName string) bool {
+	// not specified, thus enable all components (meaning should NOT disable any component)
+	if len(config.Components) == 0 || config.Components[0] == "*" || config.Components[0] == "all" {
+		return false
+	}
+
+	if config.disabledComponents == nil {
+		config.disabledComponents = make(map[string]any)
+
+		for _, c := range config.Components {
+			if c == "*" || c == "all" {
+				// enable all components
+				return false
+			}
+
+			// prefix "-" is used to disable a component
+			if !strings.HasPrefix(c, "-") {
+				continue
+			}
+			config.disabledComponents[c] = struct{}{}
+		}
+	}
+
+	_, shouldDisable := config.disabledComponents[componentName]
+	return shouldDisable
 }
