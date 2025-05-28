@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,21 +52,15 @@ type Config struct {
 	// EnableFaultInjector enables the fault injector.
 	EnableFaultInjector bool `json:"enable_fault_injector"`
 
-	// EnableComponents specifies the components to enable.
-	// Leave empty to enable all components.
-	EnableComponents []string       `json:"enable_components"`
-	enableComponents map[string]any `json:"-"`
-
-	// DisableComponents specifies the components to disable.
-	// Leave empty to enable all components.
-	DisableComponents []string       `json:"disable_components"`
-	disableComponents map[string]any `json:"-"`
+	// Components specifies the components to enable.
+	// Leave empty, "*", or "all" to enable all components.
+	// Or prefix component names with "-" to disable them.
+	Components         []string       `json:"components"`
+	selectedComponents map[string]any `json:"-"`
+	disabledComponents map[string]any `json:"-"`
 }
 
-var (
-	ErrInvalidAutoUpdateExitCode      = errors.New("auto_update_exit_code is only valid when auto_update is enabled")
-	ErrInvalidEnableDisableComponents = errors.New("enable_components and disable_components cannot be set at the same time")
-)
+var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")
 
 func (config *Config) Validate() error {
 	if config.Address == "" {
@@ -77,9 +72,7 @@ func (config *Config) Validate() error {
 	if !config.EnableAutoUpdate && config.AutoUpdateExitCode != -1 {
 		return ErrInvalidAutoUpdateExitCode
 	}
-	if len(config.EnableComponents) > 0 && len(config.DisableComponents) > 0 {
-		return ErrInvalidEnableDisableComponents
-	}
+
 	return nil
 }
 
@@ -88,18 +81,28 @@ func (config *Config) Validate() error {
 // meaning it should be enabled by default.
 func (config *Config) ShouldEnable(componentName string) bool {
 	// not specified, thus enable all components
-	if len(config.EnableComponents) == 0 {
+	if len(config.Components) == 0 || config.Components[0] == "*" || config.Components[0] == "all" {
 		return true
 	}
 
-	if config.enableComponents == nil {
-		config.enableComponents = make(map[string]any)
-		for _, c := range config.EnableComponents {
-			config.enableComponents[c] = struct{}{}
+	if config.selectedComponents == nil {
+		config.selectedComponents = make(map[string]any)
+
+		for _, c := range config.Components {
+			if c == "*" || c == "all" {
+				// enable all components
+				return true
+			}
+
+			// prefix "-" is used to disable a component
+			if strings.HasPrefix(c, "-") {
+				continue
+			}
+			config.selectedComponents[c] = struct{}{}
 		}
 	}
 
-	_, shouldEnable := config.enableComponents[componentName]
+	_, shouldEnable := config.selectedComponents[componentName]
 	return shouldEnable
 }
 
@@ -108,17 +111,27 @@ func (config *Config) ShouldEnable(componentName string) bool {
 // meaning it should not be disabled, instead enabled by default.
 func (config *Config) ShouldDisable(componentName string) bool {
 	// not specified, thus enable all components (meaning should NOT disable any component)
-	if len(config.DisableComponents) == 0 {
+	if len(config.Components) == 0 || config.Components[0] == "*" || config.Components[0] == "all" {
 		return false
 	}
 
-	if config.disableComponents == nil {
-		config.disableComponents = make(map[string]any)
-		for _, c := range config.DisableComponents {
-			config.disableComponents[c] = struct{}{}
+	if config.disabledComponents == nil {
+		config.disabledComponents = make(map[string]any)
+
+		for _, c := range config.Components {
+			if c == "*" || c == "all" {
+				// enable all components
+				return false
+			}
+
+			// prefix "-" is used to disable a component
+			if !strings.HasPrefix(c, "-") {
+				continue
+			}
+			config.disabledComponents[c] = struct{}{}
 		}
 	}
 
-	_, shouldDisable := config.disableComponents[componentName]
+	_, shouldDisable := config.disabledComponents[componentName]
 	return shouldDisable
 }
