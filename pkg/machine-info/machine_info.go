@@ -330,7 +330,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 			Name:       bd.Name,
 			Type:       bd.Type,
 			Size:       int64(bd.Size),
-			Usage:      int64(bd.FSUsed),
+			Used:       int64(bd.FSUsed),
 			Rota:       bd.Rota,
 			Serial:     bd.Serial,
 			WWN:        bd.WWN,
@@ -367,7 +367,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 			}
 			if part.Usage != nil {
 				dev.Size = int64(part.Usage.TotalBytes)
-				dev.Usage = int64(part.Usage.UsedBytes)
+				dev.Used = int64(part.Usage.UsedBytes)
 			}
 			rs = append(rs, dev)
 		}
