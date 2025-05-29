@@ -298,8 +298,8 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	})
 
 	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
-	router.GET(URLPathHealthz, handleHealthz())
-	router.GET(URLPathMachineInfo, globalHandler.handleMachineInfo)
+	router.GET(URLPathHealthz, healthz())
+	router.GET(URLPathMachineInfo, globalHandler.machineInfo)
 	router.POST(URLPathInjectFault, globalHandler.injectFault)
 
 	adminGroup := router.Group(urlPathAdmin)

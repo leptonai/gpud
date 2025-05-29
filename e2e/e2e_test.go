@@ -385,7 +385,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(errors.Is(err, os.ErrNotExist)).Should(BeTrue(), "expected file to not be created")
 		})
 		It("trigger the plugin that is in manual mode", func() {
-			resp, err := clientv1.TriggerComponentCheck(rootCtx, "https://"+ep, customComponentName)
+			resp, err := clientv1.TriggerComponent(rootCtx, "https://"+ep, customComponentName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			Expect(len(resp)).To(Equal(1), "expected 1 response")
 			Expect(len(resp[0].States)).To(Equal(1), "expected 1 response")
