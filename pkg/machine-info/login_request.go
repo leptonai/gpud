@@ -40,24 +40,45 @@ func createLoginRequest(
 	getSystemResourceRootVolumeTotalFunc func() (string, error),
 	getSystemResourceGPUCountFunc func(nvmlInstance nvidianvml.Instance) (string, error),
 ) (*apiv1.LoginRequest, error) {
+	donec := make(chan struct{})
+	defer close(donec)
+
+	// deciding machine location can take awhile
+	// depending on the network latency
+	// run async
+	machineLocationCh := make(chan *apiv1.MachineLocation, 1)
+	go func() {
+		select {
+		case <-donec:
+			return
+		case machineLocationCh <- getMachineLocationFunc():
+		}
+	}()
+
 	req := &apiv1.LoginRequest{
 		Token:     token,
 		MachineID: machineID,
 		Network:   &apiv1.MachineNetwork{},
-		Location:  getMachineLocationFunc(),
 		Resources: map[string]string{},
 	}
 
-	var err error
-	req.Network.PublicIP, err = getPublicIPFunc()
-	if err != nil {
-		log.Logger.Errorw("failed to get public ip", "error", err)
-	}
-	detectedProvider := getProviderFunc(req.Network.PublicIP)
-	req.Provider = detectedProvider.Provider
-	req.ProviderInstanceID = detectedProvider.InstanceID
-	req.Network.PublicIP = detectedProvider.PublicIP
+	// fetching public IP can take awhile
+	// depending on the network latency
+	// run async
+	publicIPCh := make(chan string, 1)
+	go func() {
+		pubIP, err := getPublicIPFunc()
+		if err != nil {
+			log.Logger.Errorw("failed to get public ip", "error", err)
+		}
+		select {
+		case <-donec:
+			return
+		case publicIPCh <- pubIP:
+		}
+	}()
 
+	var err error
 	req.MachineInfo, err = getMachineInfoFunc(nvmlInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine info: %w", err)
@@ -100,6 +121,15 @@ func createLoginRequest(
 	if gpuCnt != "0" {
 		req.Resources["nvidia.com/gpu"] = gpuCnt
 	}
+
+	req.Network.PublicIP = <-publicIPCh
+	detectedProvider := getProviderFunc(req.Network.PublicIP)
+	req.Provider = detectedProvider.Provider
+	req.ProviderInstanceID = detectedProvider.InstanceID
+	if req.Network.PublicIP == "" && detectedProvider.PublicIP != "" {
+		req.Network.PublicIP = detectedProvider.PublicIP
+	}
+	req.Location = <-machineLocationCh
 
 	return req, nil
 }
