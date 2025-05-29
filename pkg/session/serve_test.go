@@ -15,15 +15,11 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
-
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/metrics"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
 // Mock implementations
@@ -1365,126 +1361,401 @@ func TestHandleInjectFaultRequest_NilFaultInjector(t *testing.T) {
 	assert.Equal(t, int32(0), response.ErrorCode) // Should be 0 as no specific error code is set
 }
 
-// Tests for processGossip
-func TestProcessGossip(t *testing.T) {
-	t.Run("nil createGossipRequestFunc", func(t *testing.T) {
-		session := &Session{
-			createGossipRequestFunc: nil,
-		}
-		resp := &Response{}
+// Test getEvents function
+func TestGetEvents(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
 
-		session.processGossip(resp)
+	ctx := context.Background()
+	startTime := time.Now().Add(-time.Hour)
+	endTime := time.Now()
 
-		// Should return early without setting anything
-		assert.Nil(t, resp.GossipRequest)
-		assert.Empty(t, resp.Error)
-	})
+	// Create mock components with events
+	comp1 := new(mockComponent)
+	comp2 := new(mockComponent)
 
-	t.Run("successful gossip request creation", func(t *testing.T) {
-		expectedGossipReq := &apiv1.GossipRequest{
-			MachineID: "test-machine-id",
-		}
+	events1 := apiv1.Events{
+		{Name: "event1", Message: "test event 1"},
+	}
+	events2 := apiv1.Events{
+		{Name: "event2", Message: "test event 2"},
+	}
 
-		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
-			assert.Equal(t, "test-machine-id", machineID)
-			return expectedGossipReq, nil
-		}
+	comp1.On("Events", mock.Anything, mock.Anything).Return(events1, nil)
+	comp2.On("Events", mock.Anything, mock.Anything).Return(events2, nil)
 
-		session := &Session{
-			machineID:               "test-machine-id",
-			token:                   "test-token",
-			createGossipRequestFunc: mockCreateGossipFunc,
-		}
-		resp := &Response{}
+	registry.On("Get", "comp1").Return(comp1)
+	registry.On("Get", "comp2").Return(comp2)
 
-		session.processGossip(resp)
+	// Test with specific components
+	payload := Request{
+		Method:     "events",
+		Components: []string{"comp1", "comp2"},
+		StartTime:  startTime,
+		EndTime:    endTime,
+	}
 
-		assert.Equal(t, expectedGossipReq, resp.GossipRequest)
-		assert.Empty(t, resp.Error)
-	})
+	result, err := session.getEvents(ctx, payload)
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
 
-	t.Run("error in gossip request creation", func(t *testing.T) {
-		expectedError := errors.New("failed to create gossip request")
+	// Verify components are present
+	componentNames := make([]string, len(result))
+	for i, event := range result {
+		componentNames[i] = event.Component
+	}
+	assert.Contains(t, componentNames, "comp1")
+	assert.Contains(t, componentNames, "comp2")
 
-		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
-			return nil, expectedError
-		}
-
-		session := &Session{
-			machineID:               "test-machine-id",
-			token:                   "test-token",
-			createGossipRequestFunc: mockCreateGossipFunc,
-		}
-		resp := &Response{}
-
-		session.processGossip(resp)
-
-		assert.Nil(t, resp.GossipRequest)
-		assert.Equal(t, expectedError.Error(), resp.Error)
-	})
-
-	t.Run("with nvml instance", func(t *testing.T) {
-		mockNvmlInstance := &mockNvmlInstance{}
-		expectedGossipReq := &apiv1.GossipRequest{
-			MachineID: "test-machine-id",
-		}
-
-		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
-			assert.Equal(t, "test-machine-id", machineID)
-			assert.Equal(t, mockNvmlInstance, nvmlInstance)
-			return expectedGossipReq, nil
-		}
-
-		session := &Session{
-			machineID:               "test-machine-id",
-			nvmlInstance:            mockNvmlInstance,
-			token:                   "test-token",
-			createGossipRequestFunc: mockCreateGossipFunc,
-		}
-		resp := &Response{}
-
-		session.processGossip(resp)
-
-		assert.Equal(t, expectedGossipReq, resp.GossipRequest)
-		assert.Empty(t, resp.Error)
-	})
-
-	t.Run("empty machine ID and token", func(t *testing.T) {
-		expectedGossipReq := &apiv1.GossipRequest{}
-
-		mockCreateGossipFunc := func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
-			assert.Empty(t, machineID)
-			return expectedGossipReq, nil
-		}
-
-		session := &Session{
-			machineID:               "",
-			token:                   "",
-			createGossipRequestFunc: mockCreateGossipFunc,
-		}
-		resp := &Response{}
-
-		session.processGossip(resp)
-
-		assert.Equal(t, expectedGossipReq, resp.GossipRequest)
-		assert.Empty(t, resp.Error)
-	})
+	registry.AssertExpectations(t)
+	comp1.AssertExpectations(t)
+	comp2.AssertExpectations(t)
 }
 
-// Mock NVML instance for testing
-type mockNvmlInstance struct{}
+func TestGetEventsMethodMismatch(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
 
-func (m *mockNvmlInstance) NVMLExists() bool                  { return true }
-func (m *mockNvmlInstance) Library() nvmllib.Library          { return nil }
-func (m *mockNvmlInstance) Devices() map[string]device.Device { return nil }
-func (m *mockNvmlInstance) ProductName() string               { return "test-gpu" }
-func (m *mockNvmlInstance) Architecture() string              { return "test-arch" }
-func (m *mockNvmlInstance) Brand() string                     { return "test-brand" }
-func (m *mockNvmlInstance) DriverVersion() string             { return "test-version" }
-func (m *mockNvmlInstance) DriverMajor() int                  { return 1 }
-func (m *mockNvmlInstance) CUDAVersion() string               { return "test-cuda" }
-func (m *mockNvmlInstance) FabricManagerSupported() bool      { return false }
-func (m *mockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
-	return nvidianvml.MemoryErrorManagementCapabilities{}
+	ctx := context.Background()
+
+	payload := Request{
+		Method: "states", // Wrong method
+	}
+
+	result, err := session.getEvents(ctx, payload)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "mismatch method", err.Error())
 }
-func (m *mockNvmlInstance) Shutdown() error { return nil }
+
+func TestGetEventsDefaultComponents(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
+	session.components = []string{"default-comp1", "default-comp2"}
+
+	ctx := context.Background()
+
+	// Create mock component
+	comp := new(mockComponent)
+	events := apiv1.Events{
+		{Name: "default-event", Message: "default test event"},
+	}
+	comp.On("Events", mock.Anything, mock.Anything).Return(events, nil)
+
+	registry.On("Get", "default-comp1").Return(comp)
+	registry.On("Get", "default-comp2").Return(comp)
+
+	// Test without specifying components (should use session.components)
+	payload := Request{
+		Method: "events",
+		// Components not specified, should use session.components
+	}
+
+	result, err := session.getEvents(ctx, payload)
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
+}
+
+// Test getMetrics function
+func TestGetMetrics(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	metricsStore := new(mockMetricsStore)
+	session := createMockSession(registry)
+	session.metricsStore = metricsStore
+
+	ctx := context.Background()
+
+	// Create mock metrics data
+	metricsData := metrics.Metrics{
+		{Name: "metric1", Value: 42, UnixMilliseconds: 1000, Component: "comp1"},
+		{Name: "metric2", Value: 84, UnixMilliseconds: 2000, Component: "comp2"},
+	}
+
+	// Create mock components
+	comp1 := new(mockComponent)
+	comp2 := new(mockComponent)
+
+	registry.On("Get", "comp1").Return(comp1)
+	registry.On("Get", "comp2").Return(comp2)
+	metricsStore.On("Read", mock.Anything, mock.Anything).Return(metricsData, nil)
+
+	// Test with specific components
+	payload := Request{
+		Method:     "metrics",
+		Components: []string{"comp1", "comp2"},
+		Since:      time.Hour, // 1 hour
+	}
+
+	result, err := session.getMetrics(ctx, payload)
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+
+	// Verify components are present
+	componentNames := make([]string, len(result))
+	for i, metric := range result {
+		componentNames[i] = metric.Component
+	}
+	assert.Contains(t, componentNames, "comp1")
+	assert.Contains(t, componentNames, "comp2")
+
+	registry.AssertExpectations(t)
+	metricsStore.AssertExpectations(t)
+}
+
+func TestGetMetricsMethodMismatch(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
+
+	ctx := context.Background()
+
+	payload := Request{
+		Method: "events", // Wrong method
+	}
+
+	result, err := session.getMetrics(ctx, payload)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "mismatch method", err.Error())
+}
+
+func TestGetMetricsDefaultSince(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	metricsStore := new(mockMetricsStore)
+	session := createMockSession(registry)
+	session.metricsStore = metricsStore
+	session.components = []string{"comp1"}
+
+	ctx := context.Background()
+
+	// Create mock component
+	comp := new(mockComponent)
+	registry.On("Get", "comp1").Return(comp)
+
+	metricsData := metrics.Metrics{
+		{Name: "metric1", Value: 42, UnixMilliseconds: 1000, Component: "comp1"},
+	}
+	metricsStore.On("Read", mock.Anything, mock.Anything).Return(metricsData, nil)
+
+	// Test without specifying Since (should use default)
+	payload := Request{
+		Method: "metrics",
+		// Since not specified, should use DefaultQuerySince
+	}
+
+	result, err := session.getMetrics(ctx, payload)
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "comp1", result[0].Component)
+
+	registry.AssertExpectations(t)
+	metricsStore.AssertExpectations(t)
+}
+
+// Test handling updateConfig request
+func TestHandleUpdateConfigRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	updateConfig := map[string]string{
+		"unsupported-component": `{"key": "value"}`,
+	}
+
+	req := Request{
+		Method:       "updateConfig",
+		UpdateConfig: updateConfig,
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-update-config",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-update-config", resp.ReqID)
+	assert.Empty(t, response.Error)
+}
+
+// Test handling update request
+func TestHandleUpdateRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
+
+	// Disable auto update for this test
+	session.enableAutoUpdate = false
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method:        "update",
+		UpdateVersion: "v1.2.3",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-update",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-update", resp.ReqID)
+	assert.Equal(t, "auto update is disabled", response.Error)
+}
+
+// Test handling package request
+func TestHandlePackageRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method: "package",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-package",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-package", resp.ReqID)
+	assert.Empty(t, response.Error)
+	// PackageStatus should be nil since no packages are configured
+	assert.Nil(t, response.PackageStatus)
+}
+
+// Test delete function
+func TestSessionDelete(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tempDir, err := os.MkdirTemp("", "test-session-delete")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create subdirectories
+	subDir1 := filepath.Join(tempDir, "subdir1")
+	subDir2 := filepath.Join(tempDir, "subdir2")
+	require.NoError(t, os.Mkdir(subDir1, 0755))
+	require.NoError(t, os.Mkdir(subDir2, 0755))
+
+	// Test createNeedDeleteFiles function directly
+	err = createNeedDeleteFiles(tempDir)
+	require.NoError(t, err)
+
+	// Check that needDelete files were created
+	_, err = os.Stat(filepath.Join(subDir1, "needDelete"))
+	assert.NoError(t, err)
+
+	_, err = os.Stat(filepath.Join(subDir2, "needDelete"))
+	assert.NoError(t, err)
+
+	// No needDelete file should be created in the root directory
+	_, err = os.Stat(filepath.Join(tempDir, "needDelete"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+// Test error handling in getEventsFromComponent
+func TestGetEventsFromComponentError(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
+
+	ctx := context.Background()
+	startTime := time.Now().Add(-time.Hour)
+	endTime := time.Now()
+
+	// Create mock component that returns an error
+	comp := new(mockComponent)
+	comp.On("Events", mock.Anything, mock.Anything).Return(apiv1.Events{}, errors.New("component error"))
+
+	registry.On("Get", "error-comp").Return(comp)
+
+	result := session.getEventsFromComponent(ctx, "error-comp", startTime, endTime)
+
+	assert.Equal(t, "error-comp", result.Component)
+	assert.Empty(t, result.Events)
+	assert.Equal(t, startTime, result.StartTime)
+	assert.Equal(t, endTime, result.EndTime)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
+}
+
+// Test error handling in getMetricsFromComponent
+func TestGetMetricsFromComponentError(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	metricsStore := new(mockMetricsStore)
+	session := createMockSession(registry)
+	session.metricsStore = metricsStore
+
+	ctx := context.Background()
+	since := time.Now().Add(-time.Hour)
+
+	// Create mock component
+	comp := new(mockComponent)
+	registry.On("Get", "error-comp").Return(comp)
+
+	// Mock metrics store to return an error
+	metricsStore.On("Read", mock.Anything, mock.Anything).Return(metrics.Metrics{}, errors.New("store error"))
+
+	result := session.getMetricsFromComponent(ctx, "error-comp", since)
+
+	assert.Equal(t, "error-comp", result.Component)
+	assert.Empty(t, result.Metrics)
+
+	registry.AssertExpectations(t)
+	metricsStore.AssertExpectations(t)
+}

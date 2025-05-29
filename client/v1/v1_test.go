@@ -531,8 +531,8 @@ func TestDeregisterComponent(t *testing.T) {
 }
 
 func TestGetCustomPlugins(t *testing.T) {
-	testPlugins := map[string]pkgcustomplugins.Spec{
-		"test": {
+	testPlugins := pkgcustomplugins.Specs{
+		{
 			PluginName: "test",
 			Type:       pkgcustomplugins.SpecTypeComponent,
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
@@ -553,7 +553,7 @@ func TestGetCustomPlugins(t *testing.T) {
 		acceptEncoding string
 		statusCode     int
 		expectedError  string
-		expectedResult map[string]pkgcustomplugins.Spec
+		expectedResult pkgcustomplugins.Specs
 		useGzip        bool
 	}{
 		{
@@ -593,10 +593,10 @@ func TestGetCustomPlugins(t *testing.T) {
 		},
 		{
 			name:           "empty response",
-			serverResponse: []byte(`{}`),
+			serverResponse: []byte(`[]`),
 			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
-			expectedResult: map[string]pkgcustomplugins.Spec{},
+			expectedResult: pkgcustomplugins.Specs{},
 		},
 		{
 			name:           "invalid JSON response",
@@ -610,7 +610,7 @@ func TestGetCustomPlugins(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/v1/components/custom-plugin", r.URL.Path)
+				assert.Equal(t, "/v1/plugins", r.URL.Path)
 				assert.Equal(t, http.MethodGet, r.Method)
 
 				if tt.contentType != "" {
@@ -642,7 +642,7 @@ func TestGetCustomPlugins(t *testing.T) {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
-			result, err := GetCustomPlugins(context.Background(), srv.URL, opts...)
+			result, err := GetPluginSpecs(context.Background(), srv.URL, opts...)
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
@@ -656,8 +656,8 @@ func TestGetCustomPlugins(t *testing.T) {
 }
 
 func TestReadCustomPluginSpecs(t *testing.T) {
-	testPlugins := map[string]pkgcustomplugins.Spec{
-		"test": {
+	testPlugins := pkgcustomplugins.Specs{
+		{
 			PluginName: "test",
 			Type:       pkgcustomplugins.SpecTypeComponent,
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
@@ -679,7 +679,7 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 		contentType    string
 		acceptEncoding string
 		expectedError  string
-		expectedResult map[string]pkgcustomplugins.Spec
+		expectedResult pkgcustomplugins.Specs
 	}{
 		{
 			name:           "read JSON",
@@ -726,7 +726,7 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
-			result, err := ReadCustomPluginSpecs(tt.input, opts...)
+			result, err := ReadPluginSpecs(tt.input, opts...)
 			if tt.expectedError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
@@ -735,191 +735,6 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedResult, result)
-		})
-	}
-}
-
-func createValidPluginSpec() pkgcustomplugins.Spec {
-	return pkgcustomplugins.Spec{
-		PluginName: "test-plugin",
-		Type:       pkgcustomplugins.SpecTypeComponent,
-		HealthStatePlugin: &pkgcustomplugins.Plugin{
-			Steps: []pkgcustomplugins.Step{
-				{
-					RunBashScript: &pkgcustomplugins.RunBashScript{
-						Script:      "echo 'hello'",
-						ContentType: "plaintext",
-					},
-					Name: "test-step",
-				},
-			},
-		},
-		Timeout: metav1.Duration{Duration: time.Minute},
-	}
-}
-
-func TestRegisterCustomPlugin(t *testing.T) {
-	tests := []struct {
-		name          string
-		spec          pkgcustomplugins.Spec
-		method        string
-		statusCode    int
-		contentType   string
-		expectedError string
-		validateOnly  bool
-	}{
-		{
-			name:        "successful registration",
-			spec:        createValidPluginSpec(),
-			method:      http.MethodPost,
-			statusCode:  http.StatusOK,
-			contentType: httputil.RequestHeaderJSON,
-		},
-		{
-			name:          "invalid spec",
-			spec:          pkgcustomplugins.Spec{}, // Missing required fields
-			method:        http.MethodPost,
-			expectedError: "invalid spec",
-			validateOnly:  true,
-		},
-		{
-			name:          "server error",
-			spec:          createValidPluginSpec(),
-			method:        http.MethodPost,
-			statusCode:    http.StatusInternalServerError,
-			contentType:   httputil.RequestHeaderJSON,
-			expectedError: "server not ready, response not 200",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.validateOnly {
-				// Test validation error without creating a server
-				err := RegisterCustomPlugin(context.Background(), "http://localhost:8080", tt.spec)
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/v1/components/custom-plugin", r.URL.Path)
-				assert.Equal(t, tt.method, r.Method)
-
-				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
-				}
-
-				// Verify the request body contains the correct spec
-				var receivedSpec pkgcustomplugins.Spec
-				err := json.NewDecoder(r.Body).Decode(&receivedSpec)
-				require.NoError(t, err)
-				assert.Equal(t, tt.spec.PluginName, receivedSpec.PluginName)
-
-				w.WriteHeader(tt.statusCode)
-				_, err = w.Write([]byte("ok"))
-				require.NoError(t, err)
-			}))
-			defer srv.Close()
-
-			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
-				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
-				opts = append(opts, WithRequestContentTypeJSON())
-			}
-
-			err := RegisterCustomPlugin(context.Background(), srv.URL, tt.spec, opts...)
-			if tt.expectedError != "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			require.NoError(t, err)
-		})
-	}
-}
-
-func TestUpdateCustomPlugin(t *testing.T) {
-	tests := []struct {
-		name          string
-		spec          pkgcustomplugins.Spec
-		method        string
-		statusCode    int
-		contentType   string
-		expectedError string
-		validateOnly  bool
-	}{
-		{
-			name:        "successful update",
-			spec:        createValidPluginSpec(),
-			method:      http.MethodPut,
-			statusCode:  http.StatusOK,
-			contentType: httputil.RequestHeaderJSON,
-		},
-		{
-			name:          "invalid spec",
-			spec:          pkgcustomplugins.Spec{}, // Missing required fields
-			method:        http.MethodPut,
-			expectedError: "invalid spec",
-			validateOnly:  true,
-		},
-		{
-			name:          "server error",
-			spec:          createValidPluginSpec(),
-			method:        http.MethodPut,
-			statusCode:    http.StatusInternalServerError,
-			contentType:   httputil.RequestHeaderJSON,
-			expectedError: "server not ready, response not 200",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.validateOnly {
-				// Test validation error without creating a server
-				err := UpdateCustomPlugin(context.Background(), "http://localhost:8080", tt.spec)
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/v1/components/custom-plugin", r.URL.Path)
-				assert.Equal(t, tt.method, r.Method)
-
-				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
-				}
-
-				// Verify the request body contains the correct spec
-				var receivedSpec pkgcustomplugins.Spec
-				err := json.NewDecoder(r.Body).Decode(&receivedSpec)
-				require.NoError(t, err)
-				assert.Equal(t, tt.spec.PluginName, receivedSpec.PluginName)
-
-				w.WriteHeader(tt.statusCode)
-				_, err = w.Write([]byte("ok"))
-				require.NoError(t, err)
-			}))
-			defer srv.Close()
-
-			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
-				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
-				opts = append(opts, WithRequestContentTypeJSON())
-			}
-
-			err := UpdateCustomPlugin(context.Background(), srv.URL, tt.spec, opts...)
-			if tt.expectedError != "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			require.NoError(t, err)
 		})
 	}
 }
@@ -1492,4 +1307,462 @@ func TestTriggerComponentCheckByTag(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Additional comprehensive tests for edge cases and error conditions
+
+func TestGetComponents_EdgeCases(t *testing.T) {
+	t.Run("invalid URL", func(t *testing.T) {
+		_, err := GetComponents(context.Background(), "://invalid-url")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing protocol scheme")
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		_, err := GetComponents(ctx, "http://localhost:8080")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+
+	t.Run("network timeout", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		defer cancel()
+
+		_, err := GetComponents(ctx, "http://192.0.2.1:12345") // Non-routable IP
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to make request")
+	})
+}
+
+func TestGetInfo_EdgeCases(t *testing.T) {
+	t.Run("invalid URL", func(t *testing.T) {
+		_, err := GetInfo(context.Background(), "://invalid-url")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing protocol scheme")
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := GetInfo(ctx, "http://localhost:8080")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+
+	t.Run("network error", func(t *testing.T) {
+		_, err := GetInfo(context.Background(), "http://invalid-host:99999")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to make request")
+	})
+}
+
+func TestGetHealthStates_EdgeCases(t *testing.T) {
+	t.Run("invalid URL", func(t *testing.T) {
+		_, err := GetHealthStates(context.Background(), "://invalid-url")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing protocol scheme")
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := GetHealthStates(ctx, "http://localhost:8080")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+
+	t.Run("network error", func(t *testing.T) {
+		_, err := GetHealthStates(context.Background(), "http://invalid-host:99999")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to make request")
+	})
+}
+
+func TestGetEvents_EdgeCases(t *testing.T) {
+	t.Run("invalid URL", func(t *testing.T) {
+		_, err := GetEvents(context.Background(), "://invalid-url")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing protocol scheme")
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := GetEvents(ctx, "http://localhost:8080")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+
+	t.Run("network error", func(t *testing.T) {
+		_, err := GetEvents(context.Background(), "http://invalid-host:99999")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to make request")
+	})
+}
+
+func TestGetMetrics_EdgeCases(t *testing.T) {
+	t.Run("invalid URL", func(t *testing.T) {
+		_, err := GetMetrics(context.Background(), "://invalid-url")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing protocol scheme")
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := GetMetrics(ctx, "http://localhost:8080")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+
+	t.Run("network error", func(t *testing.T) {
+		_, err := GetMetrics(context.Background(), "http://invalid-host:99999")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to make request")
+	})
+}
+
+func TestDeregisterComponent_EdgeCases(t *testing.T) {
+	t.Run("invalid URL", func(t *testing.T) {
+		err := DeregisterComponent(context.Background(), "://invalid-url", "test")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing protocol scheme")
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := DeregisterComponent(ctx, "http://localhost:8080", "test")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context canceled")
+	})
+
+	t.Run("network error", func(t *testing.T) {
+		err := DeregisterComponent(context.Background(), "http://invalid-host:99999", "test")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to make request")
+	})
+
+	t.Run("read response body error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			// Close connection immediately to cause read error
+			hj, ok := w.(http.Hijacker)
+			if ok {
+				conn, _, _ := hj.Hijack()
+				conn.Close()
+			}
+		}))
+		defer srv.Close()
+
+		err := DeregisterComponent(context.Background(), srv.URL, "test")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read response body")
+	})
+}
+
+// Test read functions with gzip errors
+func TestReadFunctions_GzipErrors(t *testing.T) {
+	t.Run("ReadComponents gzip error", func(t *testing.T) {
+		invalidGzipData := []byte("not gzip data")
+		_, err := ReadComponents(bytes.NewReader(invalidGzipData), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create gzip reader")
+	})
+
+	t.Run("ReadInfo gzip error", func(t *testing.T) {
+		invalidGzipData := []byte("not gzip data")
+		_, err := ReadInfo(bytes.NewReader(invalidGzipData), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create gzip reader")
+	})
+
+	t.Run("ReadHealthStates gzip error", func(t *testing.T) {
+		invalidGzipData := []byte("not gzip data")
+		_, err := ReadHealthStates(bytes.NewReader(invalidGzipData), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create gzip reader")
+	})
+
+	t.Run("ReadEvents gzip error", func(t *testing.T) {
+		invalidGzipData := []byte("not gzip data")
+		_, err := ReadEvents(bytes.NewReader(invalidGzipData), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create gzip reader")
+	})
+
+	t.Run("ReadMetrics gzip error", func(t *testing.T) {
+		invalidGzipData := []byte("not gzip data")
+		_, err := ReadMetrics(bytes.NewReader(invalidGzipData), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create gzip reader")
+	})
+}
+
+// Test read functions with YAML read errors
+func TestReadFunctions_YAMLReadErrors(t *testing.T) {
+	errorReader := &errorReader{}
+
+	t.Run("ReadComponents YAML read error", func(t *testing.T) {
+		_, err := ReadComponents(errorReader, WithRequestContentTypeYAML())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+
+	t.Run("ReadInfo YAML read error", func(t *testing.T) {
+		_, err := ReadInfo(errorReader, WithRequestContentTypeYAML())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+
+	t.Run("ReadHealthStates YAML read error", func(t *testing.T) {
+		_, err := ReadHealthStates(errorReader, WithRequestContentTypeYAML())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+
+	t.Run("ReadEvents YAML read error", func(t *testing.T) {
+		_, err := ReadEvents(errorReader, WithRequestContentTypeYAML())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+
+	t.Run("ReadMetrics YAML read error", func(t *testing.T) {
+		_, err := ReadMetrics(errorReader, WithRequestContentTypeYAML())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+}
+
+// Test read functions with gzipped YAML read errors
+func TestReadFunctions_GzippedYAMLReadErrors(t *testing.T) {
+	// Create gzipped data that will cause a read error when trying to read all
+	gzippedData := gzipContent(t, []byte("test: value\nvery: long\ndata: here"))
+
+	t.Run("ReadComponents gzipped YAML read error", func(t *testing.T) {
+		// Use a limited reader to simulate read error
+		limitedReader := io.LimitReader(bytes.NewReader(gzippedData), int64(len(gzippedData)-5))
+		_, err := ReadComponents(limitedReader, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+
+	t.Run("ReadInfo gzipped YAML read error", func(t *testing.T) {
+		limitedReader := io.LimitReader(bytes.NewReader(gzippedData), int64(len(gzippedData)-5))
+		_, err := ReadInfo(limitedReader, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+
+	t.Run("ReadHealthStates gzipped YAML read error", func(t *testing.T) {
+		limitedReader := io.LimitReader(bytes.NewReader(gzippedData), int64(len(gzippedData)-5))
+		_, err := ReadHealthStates(limitedReader, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+
+	t.Run("ReadEvents gzipped YAML read error", func(t *testing.T) {
+		limitedReader := io.LimitReader(bytes.NewReader(gzippedData), int64(len(gzippedData)-5))
+		_, err := ReadEvents(limitedReader, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+
+	t.Run("ReadMetrics gzipped YAML read error", func(t *testing.T) {
+		limitedReader := io.LimitReader(bytes.NewReader(gzippedData), int64(len(gzippedData)-5))
+		_, err := ReadMetrics(limitedReader, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read yaml")
+	})
+}
+
+// Additional tests to increase coverage further
+
+func TestGetComponents_MoreEdgeCases(t *testing.T) {
+	t.Run("request creation with malformed URL", func(t *testing.T) {
+		// Test with URL that causes request creation to fail
+		_, err := GetComponents(context.Background(), "http://[::1]:invalid")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create request")
+	})
+
+	t.Run("gzipped JSON with decode error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			// Send invalid JSON in gzip format
+			_, err := w.Write(gzipContent(t, []byte(`{"invalid": json`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetComponents(context.Background(), srv.URL, WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decode json")
+	})
+
+	t.Run("gzipped YAML with unmarshal error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			// Send invalid YAML in gzip format
+			_, err := w.Write(gzipContent(t, []byte(`invalid: yaml:`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetComponents(context.Background(), srv.URL, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to unmarshal yaml")
+	})
+}
+
+func TestGetInfo_MoreEdgeCases(t *testing.T) {
+	t.Run("request creation with malformed URL", func(t *testing.T) {
+		_, err := GetInfo(context.Background(), "http://[::1]:invalid")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid port")
+	})
+
+	t.Run("gzipped JSON with decode error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(gzipContent(t, []byte(`{"invalid": json`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetInfo(context.Background(), srv.URL, WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decode json")
+	})
+
+	t.Run("gzipped YAML with unmarshal error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(gzipContent(t, []byte(`invalid: yaml:`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetInfo(context.Background(), srv.URL, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to unmarshal yaml")
+	})
+}
+
+func TestGetHealthStates_MoreEdgeCases(t *testing.T) {
+	t.Run("request creation with malformed URL", func(t *testing.T) {
+		_, err := GetHealthStates(context.Background(), "http://[::1]:invalid")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid port")
+	})
+
+	t.Run("gzipped JSON with decode error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(gzipContent(t, []byte(`{"invalid": json`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetHealthStates(context.Background(), srv.URL, WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decode json")
+	})
+
+	t.Run("gzipped YAML with unmarshal error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(gzipContent(t, []byte(`invalid: yaml:`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetHealthStates(context.Background(), srv.URL, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to unmarshal yaml")
+	})
+}
+
+func TestGetEvents_MoreEdgeCases(t *testing.T) {
+	t.Run("request creation with malformed URL", func(t *testing.T) {
+		_, err := GetEvents(context.Background(), "http://[::1]:invalid")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid port")
+	})
+
+	t.Run("gzipped JSON with decode error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(gzipContent(t, []byte(`{"invalid": json`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetEvents(context.Background(), srv.URL, WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decode json")
+	})
+
+	t.Run("gzipped YAML with unmarshal error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(gzipContent(t, []byte(`invalid: yaml:`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetEvents(context.Background(), srv.URL, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to unmarshal yaml")
+	})
+}
+
+func TestGetMetrics_MoreEdgeCases(t *testing.T) {
+	t.Run("request creation with malformed URL", func(t *testing.T) {
+		_, err := GetMetrics(context.Background(), "http://[::1]:invalid")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid port")
+	})
+
+	t.Run("gzipped JSON with decode error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(gzipContent(t, []byte(`{"invalid": json`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetMetrics(context.Background(), srv.URL, WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decode json")
+	})
+
+	t.Run("gzipped YAML with unmarshal error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write(gzipContent(t, []byte(`invalid: yaml:`)))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		_, err := GetMetrics(context.Background(), srv.URL, WithRequestContentTypeYAML(), WithAcceptEncodingGzip())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to unmarshal yaml")
+	})
+}
+
+func TestDeregisterComponent_MoreEdgeCases(t *testing.T) {
+	t.Run("request creation with malformed URL", func(t *testing.T) {
+		err := DeregisterComponent(context.Background(), "http://[::1]:invalid", "test")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid port")
+	})
 }

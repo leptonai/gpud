@@ -53,8 +53,6 @@ func Command(cliContext *cli.Context) error {
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
 	ibstatCommand := cliContext.String("ibstat-command")
 	ibstatusCommand := cliContext.String("ibstatus-command")
-	enablePluginAPI := cliContext.Bool("enable-plugin-api")
-	enableFaultInjector := cliContext.Bool("enable-fault-injector")
 	components := cliContext.String("components")
 
 	configOpts := []config.OpOption{
@@ -85,8 +83,6 @@ func Command(cliContext *cli.Context) error {
 	cfg.AutoUpdateExitCode = autoUpdateExitCode
 
 	cfg.PluginSpecsFile = pluginSpecsFile
-	cfg.EnablePluginAPI = enablePluginAPI
-	cfg.EnableFaultInjector = enableFaultInjector
 
 	if components != "" {
 		cfg.Components = strings.Split(components, ",")

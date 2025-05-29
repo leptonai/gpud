@@ -11,6 +11,16 @@ import (
 
 const URLPathMachineInfo = "/machine-info"
 
+// handleMachineInfo godoc
+// @Summary Get machine information
+// @Description Returns detailed information about the machine including hardware specifications
+// @ID getMachineInfo
+// @Tags machine
+// @Produce json
+// @Success 200 {object} pkgmachineinfo.MachineInfo "Machine information"
+// @Failure 404 {object} map[string]interface{} "GPUd instance not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /machine-info [get]
 func (g *globalHandler) handleMachineInfo(c *gin.Context) {
 	if g.gpudInstance == nil {
 		c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "gpud instance not found"})

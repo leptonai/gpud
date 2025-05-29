@@ -22,6 +22,7 @@ import (
 	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
 	"github.com/leptonai/gpud/pkg/config"
+	customplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -193,9 +194,9 @@ sudo rm /etc/systemd/system/gpud.service
 					Value: -1,
 				},
 				cli.StringFlag{
-					Name:   "plugin-specs-file",
-					Usage:  "sets the plugin specs file (leave empty for default, useful for testing)",
-					Hidden: true,
+					Name:  "plugin-specs-file",
+					Usage: "sets the plugin specs file (leave empty for default) -- if the file does not exist, gpud does not install/run any plugin, and updated configuration requires an gpud restart)",
+					Value: customplugins.DefaultPluginSpecsFile,
 				},
 				cli.StringFlag{
 					Name:  "components",
@@ -215,14 +216,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "sets the ibstatus command (leave empty for default, useful for testing)",
 					Value:  "ibstatus",
 					Hidden: true,
-				},
-				&cli.BoolFlag{
-					Name:  "enable-plugin-api",
-					Usage: "enable plugin API (default: false)",
-				},
-				&cli.BoolFlag{
-					Name:  "enable-fault-injector",
-					Usage: "enable fault injector (default: false)",
 				},
 			},
 		},

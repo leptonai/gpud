@@ -45,12 +45,10 @@ type Config struct {
 	NvidiaToolOverwrites nvidia_common.ToolOverwrites `json:"nvidia_tool_overwrites"`
 
 	// PluginSpecsFile is the file that contains the plugin specs.
+	// Whether the file exists or not, gpud will always try to load the file.
+	// If empty, gpud will not install/run any plugin.
+	// And any updated configuration requires an gpud restart.
 	PluginSpecsFile string `json:"plugin_specs_file"`
-
-	// EnablePluginAPI enables the plugin API.
-	EnablePluginAPI bool `json:"enable_plugin_api"`
-	// EnableFaultInjector enables the fault injector.
-	EnableFaultInjector bool `json:"enable_fault_injector"`
 
 	// Components specifies the components to enable.
 	// Leave empty, "*", or "all" to enable all components.

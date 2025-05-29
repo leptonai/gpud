@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/url"
-	"os"
 	stdos "os"
 	"sync"
 	"syscall"
@@ -35,6 +34,7 @@ import (
 	_ "github.com/leptonai/gpud/docs/apis"
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	customplugins "github.com/leptonai/gpud/pkg/custom-plugins"
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
@@ -85,7 +85,8 @@ type Server struct {
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 
-	faultInjector pkgfaultinjector.Injector
+	pluginSpecsFile string
+	faultInjector   pkgfaultinjector.Injector
 }
 
 type UserToken struct {
@@ -166,6 +167,8 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 
 		enableAutoUpdate:   config.EnableAutoUpdate,
 		autoUpdateExitCode: config.AutoUpdateExitCode,
+
+		pluginSpecsFile: config.PluginSpecsFile,
 	}
 	defer func() {
 		if retErr != nil {
@@ -173,16 +176,8 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		}
 	}()
 
-	if config.EnableFaultInjector {
-		workDir, err := os.MkdirTemp(os.TempDir(), "gpud-server-kmg-writer-")
-		if err != nil {
-			return nil, err
-		}
-		log.Logger.Infow("setting up fault injector", "workDir", workDir)
-
-		kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
-		s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
-	}
+	kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
+	s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
 
 	nvmlInstance, err := nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
 	if err != nil {
@@ -221,29 +216,36 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	// must be registered before starting the components
 	s.initRegistry = components.NewRegistry(s.gpudInstance)
 	if config.PluginSpecsFile != "" {
-		specs, err := customplugins.LoadSpecs(config.PluginSpecsFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load plugin specs: %w", err)
-		}
+		_, err := stdos.Stat(config.PluginSpecsFile)
+		exists := err == nil
 
-		if err := specs.Validate(); err != nil {
-			return nil, fmt.Errorf("failed to validate plugin specs: %w", err)
-		}
-
-		for _, spec := range specs {
-			initFunc := spec.NewInitFunc()
-			if initFunc == nil {
-				log.Logger.Errorw("failed to load plugin", "name", spec.ComponentName())
-				continue
+		if exists {
+			specs, err := customplugins.LoadSpecs(config.PluginSpecsFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load plugin specs: %w", err)
 			}
 
-			if spec.Type == customplugins.SpecTypeInit {
-				s.initRegistry.MustRegister(initFunc)
-				log.Logger.Infow("loaded init plugin", "name", spec.ComponentName())
-			} else {
-				s.componentsRegistry.MustRegister(initFunc)
-				log.Logger.Infow("loaded component plugin", "name", spec.ComponentName())
+			if err := specs.Validate(); err != nil {
+				return nil, fmt.Errorf("failed to validate plugin specs: %w", err)
 			}
+
+			for _, spec := range specs {
+				initFunc := spec.NewInitFunc()
+				if initFunc == nil {
+					log.Logger.Errorw("failed to load plugin", "name", spec.ComponentName())
+					continue
+				}
+
+				if spec.Type == customplugins.SpecTypeInit {
+					s.initRegistry.MustRegister(initFunc)
+					log.Logger.Infow("loaded init plugin", "name", spec.ComponentName())
+				} else {
+					s.componentsRegistry.MustRegister(initFunc)
+					log.Logger.Infow("loaded component plugin", "name", spec.ComponentName())
+				}
+			}
+		} else {
+			log.Logger.Warnw("plugin specs file does not exist, skipping", "path", config.PluginSpecsFile)
 		}
 	}
 
@@ -291,6 +293,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	v1Group := router.Group("/v1")
 	v1Group.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 	globalHandler.registerComponentRoutes(v1Group)
+	globalHandler.registerPluginRoutes(v1Group)
 
 	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
@@ -300,7 +303,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
 	router.GET(URLPathHealthz, handleHealthz())
 	router.GET(URLPathMachineInfo, globalHandler.handleMachineInfo)
-	router.POST(URLPathInjectFault, globalHandler.handleInjectFault)
+	router.POST(URLPathInjectFault, globalHandler.injectFault)
 
 	adminGroup := router.Group(urlPathAdmin)
 	adminGroup.GET(urlPathConfig, handleAdminConfig(config))
@@ -487,6 +490,9 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 			session.WithMetricsStore(metricsStore),
+			session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
+				return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)
+			}),
 			session.WithFaultInjector(s.faultInjector),
 		)
 		if err != nil {
@@ -541,6 +547,9 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 				session.WithMetricsStore(metricsStore),
+				session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
+					return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)
+				}),
 				session.WithFaultInjector(s.faultInjector),
 			)
 			if err != nil {

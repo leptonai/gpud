@@ -726,7 +726,7 @@ Plugins integrate with GPUd's component system:
 ## API Access
 
 Plugins can be accessed through GPUd's API:
-- List all plugins: `GET /v1/components/custom-plugin`
+- List all plugins: `GET /v1/plugins`
 - Get plugin status: `GET /v1/states?components=<plugin_name>`
 - Trigger manual check: `GET /v1/components/trigger-check?componentName=<plugin_name>` 
 

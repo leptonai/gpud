@@ -3,10 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -327,63 +327,6 @@ func TestTriggerComponentCheck(t *testing.T) {
 	assert.Equal(t, "Component is healthy", responseStates[0].States[0].Reason)
 }
 
-func TestGetComponentsCustomPlugins(t *testing.T) {
-	// Add a regular component
-	regularComp := &mockComponent{
-		name:           "regular-comp",
-		isSupported:    true,
-		isCustomPlugin: false,
-	}
-
-	// Add a custom plugin component with a valid Spec
-	spec := pkgcustomplugins.Spec{
-		PluginName: "custom-plugin",
-		Type:       pkgcustomplugins.SpecTypeComponent,
-		HealthStatePlugin: &pkgcustomplugins.Plugin{
-			Steps: []pkgcustomplugins.Step{
-				{
-					Name: "test-step",
-					RunBashScript: &pkgcustomplugins.RunBashScript{
-						ContentType: "plaintext",
-						Script:      "echo hello",
-					},
-				},
-			},
-		},
-		Timeout: metav1.Duration{Duration: 10 * time.Second},
-	}
-
-	customComp := &mockComponent{
-		name:           "custom-plugin",
-		isSupported:    true,
-		isCustomPlugin: true,
-		spec:           spec,
-	}
-
-	// Setup handler with both components
-	handler, _, _ := setupTestHandler([]components.Component{regularComp, customComp})
-	_, c, w := setupTestRouter()
-
-	// Set up request for the handler
-	c.Request = httptest.NewRequest("GET", "/v1/components/custom-plugin", nil)
-
-	// Call the handler
-	handler.getComponentsCustomPlugins(c)
-
-	// Verify the response
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	// Parse the response
-	var plugins map[string]pkgcustomplugins.Spec
-	err := json.Unmarshal(w.Body.Bytes(), &plugins)
-	require.NoError(t, err)
-
-	// Only the custom plugin should be in the response
-	assert.Len(t, plugins, 1)
-	assert.Contains(t, plugins, "custom-plugin")
-	assert.Equal(t, "custom-plugin", plugins["custom-plugin"].PluginName)
-}
-
 func TestDeregisterComponent(t *testing.T) {
 	// Add a deregisterable component
 	canDeregister := &mockComponent{
@@ -400,7 +343,7 @@ func TestDeregisterComponent(t *testing.T) {
 	}
 
 	// Setup handler with plugin API enabled
-	handler, registry, _ := setupTestHandlerWithPluginAPI([]components.Component{canDeregister, cannotDeregister})
+	handler, registry, _ := setupTestHandler([]components.Component{canDeregister, cannotDeregister})
 	_, c, w := setupTestRouter()
 
 	// Test deregistering a component that can be deregistered
@@ -699,7 +642,7 @@ func TestGetMetrics(t *testing.T) {
 
 func TestRegisterComponentRoutes(t *testing.T) {
 	// Setup handler with plugin API enabled
-	handler, _, _ := setupTestHandlerWithPluginAPI(nil)
+	handler, _, _ := setupTestHandler(nil)
 
 	// Setup router with "/v1" path
 	router, v1 := setupRouterWithPath("/v1")
@@ -718,7 +661,6 @@ func TestRegisterComponentRoutes(t *testing.T) {
 	}{
 		{"GET", "/v1/components"},
 		{"GET", "/v1/components/trigger-check?componentName=test"},
-		{"GET", "/v1/components/custom-plugin"},
 		{"GET", "/v1/states"},
 		{"GET", "/v1/events"},
 		{"GET", "/v1/info"},
@@ -736,89 +678,480 @@ func TestRegisterComponentRoutes(t *testing.T) {
 		require.NoError(t, err)
 
 		// We don't care about the response code, just that the routes were registered
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 }
 
-func TestRegisterComponentsCustomPlugin(t *testing.T) {
-	// Skip this test since we can't properly mock the custom plugins
-	t.Skip("Skipping custom plugin test that requires deep mocking of custom plugins")
+// Additional comprehensive tests for better coverage
 
-	// Create a mock registry that will handle the custom plugin registration
-	// registry := newMockRegistry()
+func TestGetComponentsInvalidContentType(t *testing.T) {
+	registry := newMockRegistry()
+	registry.AddMockComponent(&mockComponent{name: "comp1", isSupported: true})
 
-	// Create a mock implementation of customplugins.NewInitFunc
-	// that returns a mock component instead of a real one
-	// customPlugin := &mockComponent{
-	//	name:           "test-plugin",
-	//	isSupported:    true,
-	//	isCustomPlugin: true,
-	// }
+	cfg := &config.Config{}
+	store := &mockMetricsStore{}
 
-	// Create a mock global handler with our registry
-	// cfg := &config.Config{
-	//	EnablePluginAPI: true,
-	// }
-	// store := &mockMetricsStore{}
-
-	// Create a handler with our mocked registry
-	// handler := &globalHandler{
-	//	cfg:                cfg,
-	//	componentsRegistry: registry,
-	//	metricsStore:       store,
-	// }
-
-	// _, c, w := setupTestRouter()
-
-	// Create a spec for testing (simplify it to avoid dependency on real customplugins)
-	// specJSON := `{
-	//	"plugin_name": "test-plugin",
-	//	"type": "component",
-	//	"timeout": "10s"
-	// }`
-
-	// Create a request with the spec
-	// c.Request = httptest.NewRequest("POST", "/v1/components/custom-plugin", strings.NewReader(specJSON))
-	// c.Request.Header.Set("Content-Type", "application/json")
-
-	// Since we can't properly mock customplugins.Spec.NewInitFunc, we expect an error
-	// handler.registerComponentsCustomPlugin(c)
-	// assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestUpdateComponentsCustomPlugin(t *testing.T) {
-	// Setup handler with plugin API enabled
-	handler, _, _ := setupTestHandlerWithPluginAPI(nil)
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
 	_, c, w := setupTestRouter()
 
-	// Create a spec for testing
-	spec := pkgcustomplugins.Spec{
-		PluginName: "test-plugin",
-		Type:       pkgcustomplugins.SpecTypeComponent,
-		HealthStatePlugin: &pkgcustomplugins.Plugin{
-			Steps: []pkgcustomplugins.Step{
-				{
-					Name: "test-step",
-					RunBashScript: &pkgcustomplugins.RunBashScript{
-						ContentType: "plaintext",
-						Script:      "echo hello",
-					},
-				},
-			},
-		},
-		Timeout: metav1.Duration{Duration: 10 * time.Second},
+	// Test with invalid content type
+	c.Request = httptest.NewRequest("GET", "/v1/components", nil)
+	c.Request.Header.Set(httputil.RequestHeaderContentType, "application/xml")
+	handler.getComponents(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "invalid content type", response["message"])
+}
+
+func TestGetComponentsIndentedJSON(t *testing.T) {
+	registry := newMockRegistry()
+	registry.AddMockComponent(&mockComponent{name: "comp1", isSupported: true})
+
+	cfg := &config.Config{}
+	store := &mockMetricsStore{}
+
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
+	_, c, w := setupTestRouter()
+
+	// Test with JSON indent header
+	c.Request = httptest.NewRequest("GET", "/v1/components", nil)
+	c.Request.Header.Set(httputil.RequestHeaderJSONIndent, "true")
+	handler.getComponents(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Check that the response is indented
+	responseBody := w.Body.String()
+	assert.Contains(t, responseBody, "\n")
+	assert.Contains(t, responseBody, "  ")
+}
+
+func TestDeregisterComponentNotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler([]components.Component{})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("DELETE", "/v1/components?componentName=nonexistent", nil)
+	handler.deregisterComponent(c)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "component not found", response["message"])
+}
+
+func TestDeregisterComponentMissingName(t *testing.T) {
+	handler, _, _ := setupTestHandler([]components.Component{})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("DELETE", "/v1/components", nil)
+	handler.deregisterComponent(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "component name is required", response["message"])
+}
+
+func TestDeregisterComponentNotDeregisterable(t *testing.T) {
+	// Add a component that doesn't implement Deregisterable
+	comp := &mockComponent{
+		name:        "not-deregisterable",
+		isSupported: true,
 	}
 
-	specJSON, err := json.Marshal(spec)
+	handler, registry, _ := setupTestHandler([]components.Component{comp})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("DELETE", "/v1/components?componentName=not-deregisterable", nil)
+	handler.deregisterComponent(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "component is not deregisterable", response["message"])
+
+	// Component should still be in registry
+	assert.NotNil(t, registry.Get("not-deregisterable"))
+}
+
+func TestDeregisterComponentCloseError(t *testing.T) {
+	// Add a deregisterable component that fails to close
+	comp := &mockComponent{
+		name:            "close-error",
+		isSupported:     true,
+		canDeregister:   true,
+		deregisterError: errors.New("close failed"),
+	}
+
+	handler, registry, _ := setupTestHandler([]components.Component{comp})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("DELETE", "/v1/components?componentName=close-error", nil)
+	handler.deregisterComponent(c)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["message"], "failed to deregister component")
+
+	// Component should still be in registry since close failed
+	assert.NotNil(t, registry.Get("close-error"))
+}
+
+func TestTriggerComponentCheckMissingParams(t *testing.T) {
+	handler, _, _ := setupTestHandler([]components.Component{})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/components/trigger-check", nil)
+	handler.triggerComponentCheck(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "component or tag name is required", response["message"])
+}
+
+func TestTriggerComponentCheckNotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler([]components.Component{})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/components/trigger-check?componentName=nonexistent", nil)
+	handler.triggerComponentCheck(c)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "component not found", response["message"])
+}
+
+func TestTriggerComponentsByTagMissingTag(t *testing.T) {
+	handler, _, _ := setupTestHandler([]components.Component{})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/components/trigger-tag", nil)
+	handler.triggerComponentsByTag(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "tagName parameter is required", response["error"])
+}
+
+func TestTriggerComponentsByTagNoMatches(t *testing.T) {
+	comp := &mockComponent{
+		name:        "comp1",
+		tags:        []string{"tag1", "tag2"},
+		isSupported: true,
+		checkResult: &mockCheckResult{componentName: "comp1"},
+	}
+
+	handler, _, _ := setupTestHandler([]components.Component{comp})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/components/trigger-tag?tagName=nonexistent", nil)
+	handler.triggerComponentsByTag(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	// Create a request with the spec
-	c.Request = httptest.NewRequest("PUT", "/v1/components/custom-plugin", strings.NewReader(string(specJSON)))
-	c.Request.Header.Set("Content-Type", "application/json")
+	components := response["components"].([]interface{})
+	assert.Len(t, components, 0)
+	assert.Equal(t, float64(0), response["exit"])
+	assert.Equal(t, true, response["success"])
+}
 
-	// Currently this will fail because the component doesn't exist
-	handler.updateComponentsCustomPlugin(c)
+func TestGetHealthStatesYAML(t *testing.T) {
+	healthStates := apiv1.HealthStates{
+		{Health: apiv1.HealthStateTypeHealthy, Reason: "Component is healthy"},
+	}
 
-	// Since the component doesn't exist, we expect a not found error
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	comp := &mockComponent{
+		name:         "comp1",
+		isSupported:  true,
+		healthStates: healthStates,
+	}
+
+	handler, _, _ := setupTestHandler([]components.Component{comp})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/states", nil)
+	c.Request.Header.Set(httputil.RequestHeaderContentType, httputil.RequestHeaderYAML)
+	handler.getHealthStates(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var states apiv1.GPUdComponentHealthStates
+	err := yaml.Unmarshal(w.Body.Bytes(), &states)
+	require.NoError(t, err)
+
+	assert.Len(t, states, 1)
+	assert.Equal(t, "comp1", states[0].Component)
+}
+
+func TestGetHealthStatesInvalidContentType(t *testing.T) {
+	handler, _, _ := setupTestHandler([]components.Component{})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/states", nil)
+	c.Request.Header.Set(httputil.RequestHeaderContentType, "application/xml")
+	handler.getHealthStates(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "invalid content type", response["message"])
+}
+
+func TestGetEventsYAML(t *testing.T) {
+	now := time.Now()
+	events := apiv1.Events{
+		{
+			Time:    metav1.NewTime(now),
+			Message: "Test event",
+			Type:    apiv1.EventTypeInfo,
+		},
+	}
+
+	comp := &mockComponent{
+		name:        "comp1",
+		isSupported: true,
+		events:      events,
+	}
+
+	handler, _, _ := setupTestHandler([]components.Component{comp})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/events", nil)
+	c.Request.Header.Set(httputil.RequestHeaderContentType, httputil.RequestHeaderYAML)
+	handler.getEvents(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var eventsResponse apiv1.GPUdComponentEvents
+	err := yaml.Unmarshal(w.Body.Bytes(), &eventsResponse)
+	require.NoError(t, err)
+
+	assert.Len(t, eventsResponse, 1)
+	assert.Equal(t, "comp1", eventsResponse[0].Component)
+}
+
+func TestGetEventsWithTimeParams(t *testing.T) {
+	now := time.Now()
+	events := apiv1.Events{
+		{
+			Time:    metav1.NewTime(now),
+			Message: "Test event",
+			Type:    apiv1.EventTypeInfo,
+		},
+	}
+
+	comp := &mockComponent{
+		name:        "comp1",
+		isSupported: true,
+		events:      events,
+	}
+
+	handler, _, _ := setupTestHandler([]components.Component{comp})
+	_, c, w := setupTestRouter()
+
+	startTime := now.Add(-time.Hour).Unix()
+	endTime := now.Unix()
+	c.Request = httptest.NewRequest("GET", fmt.Sprintf("/v1/events?startTime=%d&endTime=%d", startTime, endTime), nil)
+	handler.getEvents(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var eventsResponse apiv1.GPUdComponentEvents
+	err := json.Unmarshal(w.Body.Bytes(), &eventsResponse)
+	require.NoError(t, err)
+
+	assert.Len(t, eventsResponse, 1)
+	assert.Equal(t, "comp1", eventsResponse[0].Component)
+}
+
+func TestGetInfoYAML(t *testing.T) {
+	healthStates := apiv1.HealthStates{
+		{Health: apiv1.HealthStateTypeHealthy, Reason: "Component is healthy"},
+	}
+
+	now := time.Now()
+	events := apiv1.Events{
+		{
+			Time:    metav1.NewTime(now),
+			Message: "Test event",
+			Type:    apiv1.EventTypeInfo,
+		},
+	}
+
+	comp := &mockComponent{
+		name:         "comp1",
+		isSupported:  true,
+		healthStates: healthStates,
+		events:       events,
+	}
+
+	metricsData := []metrics.Metric{
+		{
+			UnixMilliseconds: 1234567890000,
+			Component:        "comp1",
+			Name:             "test-metric",
+			Labels:           map[string]string{"label": "value"},
+			Value:            42.0,
+		},
+	}
+
+	registry := newMockRegistry()
+	registry.AddMockComponent(comp)
+
+	cfg := &config.Config{}
+	store := &mockMetricsStore{metrics: metricsData}
+
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/info", nil)
+	c.Request.Header.Set(httputil.RequestHeaderContentType, httputil.RequestHeaderYAML)
+	handler.getInfo(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var infos apiv1.GPUdComponentInfos
+	err := yaml.Unmarshal(w.Body.Bytes(), &infos)
+	require.NoError(t, err)
+
+	assert.Len(t, infos, 1)
+	assert.Equal(t, "comp1", infos[0].Component)
+}
+
+func TestGetMetricsYAML(t *testing.T) {
+	comp := &mockComponent{
+		name:        "comp1",
+		isSupported: true,
+	}
+
+	metricsData := []metrics.Metric{
+		{
+			UnixMilliseconds: 1234567890000,
+			Component:        "comp1",
+			Name:             "test-metric",
+			Labels:           map[string]string{"label": "value"},
+			Value:            42.0,
+		},
+	}
+
+	registry := newMockRegistry()
+	registry.AddMockComponent(comp)
+
+	cfg := &config.Config{}
+	store := &mockMetricsStore{metrics: metricsData}
+
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/metrics", nil)
+	c.Request.Header.Set(httputil.RequestHeaderContentType, httputil.RequestHeaderYAML)
+	handler.getMetrics(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Just verify we get a valid YAML response
+	assert.Greater(t, w.Body.Len(), 0)
+}
+
+func TestGetMetricsWithSinceParam(t *testing.T) {
+	comp := &mockComponent{
+		name:        "comp1",
+		isSupported: true,
+	}
+
+	metricsData := []metrics.Metric{
+		{
+			UnixMilliseconds: 1234567890000,
+			Component:        "comp1",
+			Name:             "test-metric",
+			Labels:           map[string]string{"label": "value"},
+			Value:            42.0,
+		},
+	}
+
+	registry := newMockRegistry()
+	registry.AddMockComponent(comp)
+
+	cfg := &config.Config{}
+	store := &mockMetricsStore{metrics: metricsData}
+
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/metrics?since=1h", nil)
+	handler.getMetrics(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Just verify we get a valid response
+	assert.Greater(t, w.Body.Len(), 0)
+}
+
+func TestGetMetricsInvalidSince(t *testing.T) {
+	handler, _, _ := setupTestHandler([]components.Component{})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/metrics?since=invalid", nil)
+	handler.getMetrics(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["message"], "failed to parse duration")
+}
+
+func TestGetMetricsStoreError(t *testing.T) {
+	comp := &mockComponent{
+		name:        "comp1",
+		isSupported: true,
+	}
+
+	registry := newMockRegistry()
+	registry.AddMockComponent(comp)
+
+	cfg := &config.Config{}
+	store := &mockMetricsStore{err: errors.New("store error")}
+
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("GET", "/v1/metrics", nil)
+	handler.getMetrics(c)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["message"], "failed to read metrics")
 }

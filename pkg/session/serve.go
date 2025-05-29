@@ -37,6 +37,7 @@ const (
 	initializeGracePeriod = 3 * time.Minute
 )
 
+// Request is the request from the control plane to GPUd.
 type Request struct {
 	Method        string            `json:"method,omitempty"`
 	Components    []string          `json:"components,omitempty"`
@@ -57,10 +58,11 @@ type Request struct {
 	// that match this tag value.
 	TagName string `json:"tag_name,omitempty"`
 
-	// CustomPluginSpec is the spec for the custom plugin to register or update.
-	CustomPluginSpec *pkgcustomplugins.Spec `json:"custom_plugin_spec,omitempty"`
+	// PluginSpecs is the specs for the custom plugins to register or overwrite.
+	PluginSpecs pkgcustomplugins.Specs `json:"plugin_specs,omitempty"`
 }
 
+// Response is the response from GPUd to the control plane.
 type Response struct {
 	// Error is the error message from session processor.
 	// don't use "error" type as it doesn't marshal/unmarshal well
@@ -80,7 +82,8 @@ type Response struct {
 
 	PackageStatus []apiv1.PackageStatus `json:"package_status,omitempty"`
 
-	Plugins map[string]pkgcustomplugins.Spec `json:"plugins,omitempty"`
+	// PluginSpecs lists the specs for the custom plugins.
+	PluginSpecs pkgcustomplugins.Specs `json:"plugin_specs,omitempty"`
 }
 
 type BootstrapRequest struct {
@@ -95,22 +98,6 @@ type BootstrapRequest struct {
 type BootstrapResponse struct {
 	Output   string `json:"output,omitempty"`
 	ExitCode int32  `json:"exit_code,omitempty"`
-}
-
-func (s *Session) processGossip(resp *Response) {
-	if s.createGossipRequestFunc == nil {
-		return
-	}
-
-	gossipReq, err := s.createGossipRequestFunc(s.machineID, s.nvmlInstance)
-	if err != nil {
-		log.Logger.Errorw("failed to create gossip request", "error", err)
-		resp.Error = err.Error()
-		return
-	}
-
-	resp.GossipRequest = gossipReq
-	log.Logger.Debugw("successfully set gossip request")
 }
 
 func (s *Session) serve() {
@@ -276,6 +263,7 @@ func (s *Session) serve() {
 					}
 					if response.Error == "" {
 						needExit = s.autoUpdateExitCode
+						log.Logger.Infow("scheduling auto exit for auto update", "code", needExit)
 					}
 				}
 			}
@@ -353,7 +341,44 @@ func (s *Session) serve() {
 				log.Logger.Warnw("fault inject request is nil")
 			}
 
-		case "triggerComponentCheck":
+		case "deregisterComponent":
+			if payload.ComponentName != "" {
+				comp := s.componentsRegistry.Get(payload.ComponentName)
+				if comp == nil {
+					log.Logger.Warnw("component not found", "name", payload.ComponentName)
+					response.ErrorCode = http.StatusNotFound
+					break
+				}
+
+				deregisterable, ok := comp.(components.Deregisterable)
+				if !ok {
+					log.Logger.Warnw("component is not deregisterable, not implementing Deregisterable interface", "name", comp.Name())
+					response.ErrorCode = http.StatusBadRequest
+					response.Error = "component is not deregisterable"
+					break
+				}
+
+				if !deregisterable.CanDeregister() {
+					log.Logger.Warnw("component is not deregisterable", "name", comp.Name())
+					response.ErrorCode = http.StatusBadRequest
+					response.Error = "component is not deregisterable"
+					break
+				}
+
+				cerr := comp.Close()
+				if cerr != nil {
+					log.Logger.Errorw("failed to close component", "error", cerr)
+					response.Error = cerr.Error()
+					break
+				}
+
+				// only deregister if the component is successfully closed
+				_ = s.componentsRegistry.Deregister(payload.ComponentName)
+			}
+
+		// TODO: deprecate "triggerComponentCheck" after control plane supports "triggerComponent"
+		case "triggerComponent",
+			"triggerComponentCheck":
 			checkResults := make([]components.CheckResult, 0)
 			if payload.ComponentName != "" {
 				// requesting a specific component, tag is ignored
@@ -391,128 +416,14 @@ func (s *Session) serve() {
 				})
 			}
 
-		case "deregisterComponent":
-			if payload.ComponentName != "" {
-				comp := s.componentsRegistry.Get(payload.ComponentName)
-				if comp == nil {
-					log.Logger.Warnw("component not found", "name", payload.ComponentName)
-					response.ErrorCode = http.StatusNotFound
-					break
-				}
-
-				deregisterable, ok := comp.(components.Deregisterable)
-				if !ok {
-					log.Logger.Warnw("component is not deregisterable, not implementing Deregisterable interface", "name", comp.Name())
-					response.ErrorCode = http.StatusBadRequest
-					response.Error = "component is not deregisterable"
-					break
-				}
-
-				if !deregisterable.CanDeregister() {
-					log.Logger.Warnw("component is not deregisterable", "name", comp.Name())
-					response.ErrorCode = http.StatusBadRequest
-					response.Error = "component is not deregisterable"
-					break
-				}
-
-				cerr := comp.Close()
-				if cerr != nil {
-					log.Logger.Errorw("failed to close component", "error", cerr)
-					response.Error = cerr.Error()
-					break
-				}
-
-				// only deregister if the component is successfully closed
-				_ = s.componentsRegistry.Deregister(payload.ComponentName)
+		case "setPluginSpecs":
+			exitCode := s.processSetPluginSpecs(ctx, response, payload.PluginSpecs)
+			if exitCode != nil {
+				needExit = *exitCode
 			}
 
-		case "getPlugins":
-			cs := make(map[string]pkgcustomplugins.Spec, 0)
-			if payload.ComponentName != "" {
-				c := s.componentsRegistry.Get(payload.ComponentName)
-				if c == nil {
-					response.ErrorCode = http.StatusNotFound
-					response.Error = fmt.Sprintf("component %s not found", payload.ComponentName)
-					break
-				}
-				if registeree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok && registeree.IsCustomPlugin() {
-					cs[c.Name()] = registeree.Spec()
-				}
-			} else {
-				for _, c := range s.componentsRegistry.All() {
-					if registeree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok && registeree.IsCustomPlugin() {
-						cs[c.Name()] = registeree.Spec()
-					}
-				}
-			}
-			response.Plugins = cs
-
-		case "registerPlugin":
-			if payload.CustomPluginSpec != nil {
-				if err := payload.CustomPluginSpec.Validate(); err != nil {
-					response.Error = err.Error()
-					break
-				}
-
-				initFunc := payload.CustomPluginSpec.NewInitFunc()
-				if initFunc == nil {
-					response.Error = fmt.Sprintf("failed to create init function for plugin %s", payload.CustomPluginSpec.ComponentName())
-					break
-				}
-
-				comp, err := s.componentsRegistry.Register(initFunc)
-				if err != nil {
-					if errors.Is(err, components.ErrAlreadyRegistered) {
-						response.ErrorCode = http.StatusConflict
-					}
-					response.Error = err.Error()
-					break
-				}
-
-				if err := comp.Start(); err != nil {
-					response.Error = err.Error()
-					break
-				}
-				log.Logger.Infow("registered and started custom plugin", "name", comp.Name())
-			}
-
-		case "updatePlugin":
-			if payload.CustomPluginSpec != nil {
-				if err := payload.CustomPluginSpec.Validate(); err != nil {
-					response.Error = err.Error()
-					break
-				}
-
-				prevComp := s.componentsRegistry.Get(payload.CustomPluginSpec.ComponentName())
-				if prevComp == nil {
-					response.ErrorCode = http.StatusNotFound
-					response.Error = fmt.Sprintf("plugin %s not found", payload.CustomPluginSpec.ComponentName())
-					break
-				}
-
-				initFunc := payload.CustomPluginSpec.NewInitFunc()
-				if initFunc == nil {
-					response.Error = fmt.Sprintf("failed to create init function for plugin %s", payload.CustomPluginSpec.ComponentName())
-					break
-				}
-
-				// now that we know the component is registered, we can deregister and register it
-				prevComp = s.componentsRegistry.Deregister(prevComp.Name())
-				_ = prevComp.Close()
-
-				comp, err := s.componentsRegistry.Register(initFunc)
-				if err != nil {
-					response.Error = err.Error()
-					break
-				}
-
-				if err := comp.Start(); err != nil {
-					response.Error = err.Error()
-					break
-				}
-
-				log.Logger.Infow("updated and started custom plugin", "name", comp.Name())
-			}
+		case "getPluginSpecs":
+			s.processGetPluginSpecs(response)
 		}
 
 		cancel()
@@ -524,8 +435,16 @@ func (s *Session) serve() {
 		}
 
 		if needExit != -1 {
-			log.Logger.Infow("exiting with code for auto update", "code", needExit)
-			os.Exit(s.autoUpdateExitCode)
+			go func() {
+				log.Logger.Infow("exiting with code", "code", needExit)
+				select {
+				case <-s.ctx.Done():
+				case <-time.After(10 * time.Second):
+					// enough time to send response back to control plane
+				}
+
+				os.Exit(s.autoUpdateExitCode)
+			}()
 		}
 	}
 }
