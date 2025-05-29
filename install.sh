@@ -135,12 +135,6 @@ main() {
   # ref. https://fedoraproject.org/wiki/Changes/Unify_bin_and_sbin
   $SUDO cp -f "$DIR"/gpud /usr/local/bin
 
-  # if "/usr/sbin/gpud" exists, remove it and make symlink to "/usr/local/bin/gpud"
-  if [ -e "/usr/sbin/gpud" ]; then
-    $SUDO rm -f "/usr/sbin/gpud"
-    $SUDO ln -s "/usr/local/bin/gpud" "/usr/sbin/gpud"
-  fi
-
   echo "installed gpud version $VERSION"
   rm /tmp/"$FILENAME"
   rm -rf "$DIR"
