@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/url"
-	"os"
 	stdos "os"
 	"sync"
 	"syscall"
@@ -173,16 +172,8 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		}
 	}()
 
-	if config.EnableFaultInjector {
-		workDir, err := os.MkdirTemp(os.TempDir(), "gpud-server-kmg-writer-")
-		if err != nil {
-			return nil, err
-		}
-		log.Logger.Infow("setting up fault injector", "workDir", workDir)
-
-		kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
-		s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
-	}
+	kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
+	s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
 
 	nvmlInstance, err := nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
 	if err != nil {
