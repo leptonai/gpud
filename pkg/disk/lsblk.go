@@ -53,6 +53,7 @@ type BlockDevice struct {
 	Rev              string        `json:"rev,omitempty"`
 	MountPoint       string        `json:"mountpoint,omitempty"`
 	FSType           string        `json:"fstype,omitempty"`
+	FSUsed           CustomUint64  `json:"fsused,omitempty"`
 	PartUUID         string        `json:"partuuid,omitempty"`
 	PKName           string        `json:"-"`
 	Children         []BlockDevice `json:"children,omitempty"`
@@ -107,7 +108,7 @@ func getBlockDevicesWithLsblk(
 const (
 	lsblkVersionFlags = "--version"
 	// lsblkFlags adds device name, if add empty string - command will print info about all devices
-	lsblkFlags = "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID"
+	lsblkFlags = "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,FSUSED,PARTUUID"
 	// lsblkJsonFlag lsblk from version 2.37 support json response
 	lsblkJsonFlag = "--json"
 	// lsblkMinSupportJsonVersion lsblk from version 2.37 support json response
@@ -312,6 +313,8 @@ func parseLineToDisk(line string) (BlockDevice, error) {
 			disk.MountPoint = value
 		case "FSTYPE":
 			disk.FSType = value
+		case "FSUSED":
+			disk.FSUsed = toCustomUint64(value)
 		case "PARTUUID":
 			disk.PartUUID = value
 		case "PKNAME":
