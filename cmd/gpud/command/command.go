@@ -139,7 +139,7 @@ nohup sudo gpud run &>> <your log file path> &
 sudo gpud down
 
 # to uninstall gpud
-sudo rm /usr/sbin/gpud
+sudo rm /usr/local/bin
 sudo rm /etc/systemd/system/gpud.service
 `,
 			Action: cmddown.Command,

@@ -131,7 +131,9 @@ main() {
 
   tar xzf "$DLPATH" -C "$DIR"
 
-  $SUDO cp -f "$DIR"/gpud /usr/sbin
+  # some os distros have "/usr/sbin" as read-only
+  # ref. https://fedoraproject.org/wiki/Changes/Unify_bin_and_sbin
+  $SUDO cp -f "$DIR"/gpud /usr/local/bin
 
   echo "installed gpud version $VERSION"
   rm /tmp/"$FILENAME"

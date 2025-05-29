@@ -4,6 +4,7 @@ package systemd
 import (
 	"bufio"
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -12,16 +13,33 @@ import (
 )
 
 //go:embed gpud.service
-var GPUDService string
+var gpudService string
+
+func GPUdServiceUnitFileContents() string {
+	_, err := os.Stat(DefaultBinPath)
+	if errors.Is(err, os.ErrNotExist) {
+		// fallback to the old GPUd binary path
+		// until this machines its bin path
+		gpudService = strings.ReplaceAll(gpudService, DefaultBinPath, DeprecatedDefaultBinPathSbin)
+	}
+	return gpudService
+}
 
 const (
 	DefaultEnvFile  = "/etc/default/gpud"
 	DefaultUnitFile = "/etc/systemd/system/gpud.service"
-	DefaultBinPath  = "/usr/sbin/gpud"
+
+	DeprecatedDefaultBinPathSbin = "/usr/sbin/gpud"
+	DefaultBinPath               = "/usr/local/bin/gpud"
 )
 
 func DefaultBinExists() bool {
 	_, err := os.Stat(DefaultBinPath)
+	if errors.Is(err, os.ErrNotExist) {
+		// fallback to the old GPUd binary path
+		// until this machines its bin path
+		_, err = os.Stat(DeprecatedDefaultBinPathSbin)
+	}
 	return err == nil
 }
 
