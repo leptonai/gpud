@@ -1,3 +1,4 @@
+// Package scraper scrapes internal GPUd metrics from Prometheus.
 package scraper
 
 import (
@@ -12,6 +13,8 @@ import (
 
 var _ pkgmetrics.Scraper = &promScraper{}
 
+// NewPrometheusScraper creates a new Prometheus scraper.
+// It uses the given prometheus.Gatherer to scrape metrics.
 func NewPrometheusScraper(gatherer prometheus.Gatherer) (pkgmetrics.Scraper, error) {
 	return &promScraper{
 		gatherer: gatherer,

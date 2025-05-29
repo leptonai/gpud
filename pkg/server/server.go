@@ -17,8 +17,8 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/url"
+	"os"
 	stdos "os"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -36,13 +36,15 @@ import (
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	customplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/gossip"
+	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
-	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/httputil"
+	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/log"
-	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
 	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
@@ -77,10 +79,13 @@ type Server struct {
 	fifoPath string
 	fifo     *stdos.File
 
-	session *session.Session
+	gpudInstance *components.GPUdInstance
+	session      *session.Session
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+
+	faultInjector pkgfaultinjector.Injector
 }
 
 type UserToken struct {
@@ -116,7 +121,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
 	}
 
-	if err := gpudstate.CreateTableMetadata(ctx, dbRW); err != nil {
+	if err := pkgmetadata.CreateTableMetadata(ctx, dbRW); err != nil {
 		return nil, fmt.Errorf("failed to create metadata table: %w", err)
 	}
 
@@ -146,6 +151,9 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	syncer := pkgmetricssyncer.NewSyncer(ctx, promScraper, metricsSQLiteStore, time.Minute, time.Minute, 3*24*time.Hour)
 	syncer.Start()
 
+	promRecorder := pkgmetricsrecorder.NewPrometheusRecorder(ctx, 15*time.Minute, dbRO)
+	promRecorder.Start()
+
 	fifoPath, err := lepconfig.DefaultFifoFile()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get fifo path: %w", err)
@@ -165,19 +173,29 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		}
 	}()
 
+	if config.EnableFaultInjector {
+		workDir, err := os.MkdirTemp(os.TempDir(), "gpud-server-kmg-writer-")
+		if err != nil {
+			return nil, err
+		}
+		log.Logger.Infow("setting up fault injector", "workDir", workDir)
+
+		kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
+		s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
+	}
+
 	nvmlInstance, err := nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 	}
 
-	gpudInstance := &components.GPUdInstance{
+	s.gpudInstance = &components.GPUdInstance{
 		RootCtx: ctx,
 
 		NVMLInstance:         nvmlInstance,
 		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
 
-		Annotations: config.Annotations,
-		DBRO:        dbRO,
+		DBRO: dbRO,
 
 		EventStore:       eventStore,
 		RebootEventStore: rebootEventStore,
@@ -186,13 +204,22 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		MountTargets: []string{"/var/lib/kubelet"},
 	}
 
-	s.componentsRegistry = components.NewRegistry(gpudInstance)
-	for _, initFunc := range all.InitFuncs() {
-		s.componentsRegistry.MustRegister(initFunc)
+	s.componentsRegistry = components.NewRegistry(s.gpudInstance)
+	for _, c := range all.All() {
+		name := c.Name
+
+		shouldEnable := config.ShouldEnable(name)
+		if config.ShouldDisable(name) {
+			shouldEnable = false
+		}
+
+		if shouldEnable {
+			s.componentsRegistry.MustRegister(c.InitFunc)
+		}
 	}
 
 	// must be registered before starting the components
-	s.initRegistry = components.NewRegistry(gpudInstance)
+	s.initRegistry = components.NewRegistry(s.gpudInstance)
 	if config.PluginSpecsFile != "" {
 		specs, err := customplugins.LoadSpecs(config.PluginSpecsFile)
 		if err != nil {
@@ -241,11 +268,9 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 			return nil, fmt.Errorf("failed to start component %s: %w", c.Name(), err)
 		}
 	}
-
-	go recordInternalMetrics(ctx, dbRW)
 	go doCompact(ctx, dbRW, config.CompactPeriod.Duration)
 
-	s.machineID, err = gpudstate.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
+	s.machineID, err = pkgmetadata.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
@@ -259,7 +284,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	installRootGinMiddlewares(router)
 	installCommonGinMiddlewares(router, log.Logger.Desugar())
 
-	globalHandler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore, gpudInstance)
+	globalHandler := newGlobalHandler(config, s.componentsRegistry, metricsSQLiteStore, s.gpudInstance, s.faultInjector)
 
 	// if the request header is set "Accept-Encoding: gzip",
 	// the middleware automatically gzip-compresses the response with the response header "Content-Encoding: gzip"
@@ -275,6 +300,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
 	router.GET(URLPathHealthz, handleHealthz())
 	router.GET(URLPathMachineInfo, globalHandler.handleMachineInfo)
+	router.POST(URLPathInjectFault, globalHandler.handleInjectFault)
 
 	adminGroup := router.Group(urlPathAdmin)
 	adminGroup.GET(urlPathConfig, handleAdminConfig(config))
@@ -287,20 +313,19 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		adminGroup.GET("/pprof/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
 	}
 
-	epControlPlane, err := gpudstate.ReadMetadata(ctx, dbRO, gpudstate.MetadataKeyEndpoint)
+	epControlPlane, err := pkgmetadata.ReadMetadata(ctx, dbRO, pkgmetadata.MetadataKeyEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read endpoint: %w", err)
 	}
 	s.epControlPlane = createURL(epControlPlane)
 
-	if strings.HasPrefix(config.Address, ":") { // e.g., ":12345"
-		s.epLocalGPUdServer = fmt.Sprintf("https://localhost%s", config.Address)
-	} else { // e.g., "0.0.0.0:12345"
-		s.epLocalGPUdServer = fmt.Sprintf("https://%s", config.Address)
+	s.epLocalGPUdServer, err = httputil.CreateURL("https", config.Address, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create local GPUd server endpoint: %w", err)
 	}
+
 	userToken := &UserToken{}
 	go s.updateToken(ctx, metricsSQLiteStore, userToken)
-	go s.sendGossip(ctx, nvmlInstance, userToken)
 	go s.startListener(nvmlInstance, syncer, config, router, cert)
 
 	return s, nil
@@ -414,7 +439,7 @@ func (s *Server) WaitUntilMachineID(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		machineID, err := gpudstate.ReadMachineIDWithFallback(ctx, s.dbRW, s.dbRO)
+		machineID, err := pkgmetadata.ReadMachineIDWithFallback(ctx, s.dbRW, s.dbRO)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Logger.Errorw("failed to read machine uid", "error", err)
 			continue
@@ -440,7 +465,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := gpudstate.ReadTokenWithFallback(ctx, s.dbRW, s.dbRO, machineID); err == nil {
+	if dbToken, err := pkgmetadata.ReadTokenWithFallback(ctx, s.dbRW, s.dbRO, machineID); err == nil {
 		userToken = dbToken
 
 		token.mu.Lock()
@@ -460,7 +485,9 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 			session.WithComponentsRegistry(s.componentsRegistry),
+			session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 			session.WithMetricsStore(metricsStore),
+			session.WithFaultInjector(s.faultInjector),
 		)
 		if err != nil {
 			log.Logger.Errorw("error creating session", "error", err)
@@ -512,7 +539,9 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 				session.WithComponentsRegistry(s.componentsRegistry),
+				session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 				session.WithMetricsStore(metricsStore),
+				session.WithFaultInjector(s.faultInjector),
 			)
 			if err != nil {
 				log.Logger.Errorw("error creating session", "error", err)
@@ -554,24 +583,6 @@ func WriteToken(token string, fifoFile string) error {
 	return nil
 }
 
-func recordInternalMetrics(ctx context.Context, db *sql.DB) {
-	ticker := time.NewTicker(time.Hour)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			ticker.Reset(time.Hour)
-		}
-
-		if err := gpudstate.RecordDBSize(ctx, db); err != nil {
-			log.Logger.Errorw("failed to record metrics", "error", err)
-		}
-	}
-}
-
 func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 	if compactPeriod <= 0 {
 		log.Logger.Debugw("compact period is not set, skipping compacting")
@@ -588,47 +599,12 @@ func doCompact(ctx context.Context, db *sql.DB, compactPeriod time.Duration) {
 			ticker.Reset(compactPeriod)
 		}
 
-		if err := sqlite.Compact(ctx, db); err != nil {
-			log.Logger.Errorw("failed to compact state database", "error", err)
-		}
-	}
-}
+		start := time.Now()
+		err := sqlite.Compact(ctx, db)
+		pkgmetricsrecorder.RecordSQLiteVacuum(time.Since(start).Seconds())
 
-func (s *Server) sendGossip(ctx context.Context, nvmlInstance nvidianvml.Instance, userToken *UserToken) {
-	// TODO
-	// s.WaitUntilMachineID(ctx)
-
-	s.machineIDMu.RLock()
-	machineID := s.machineID
-	s.machineIDMu.RUnlock()
-
-	ticker := time.NewTicker(2 * time.Minute)
-	defer ticker.Stop()
-
-	var token string
-	for {
-		userToken.mu.RLock()
-		token = userToken.userToken
-		userToken.mu.RUnlock()
-		if token == "" {
-			continue
-		}
-
-		gossipReq, err := pkgmachineinfo.CreateGossipRequest(machineID, nvmlInstance, token)
 		if err != nil {
-			log.Logger.Errorw("failed to create gossip request", "error", err)
-		} else {
-			if _, err = gossip.SendRequest(ctx, s.epControlPlane, *gossipReq); err != nil {
-				log.Logger.Errorw("failed to gossip", "error", err)
-			} else {
-				log.Logger.Debugw("successfully sent gossip")
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
+			log.Logger.Errorw("failed to compact state database", "error", err)
 		}
 	}
 }

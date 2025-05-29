@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/PaesslerAG/jsonpath"
 )
@@ -32,9 +34,55 @@ func (po *PluginOutputParseConfig) Validate() error {
 	}
 }
 
-func (po *PluginOutputParseConfig) extractExtraInfo(input []byte) (map[string]extractedField, error) {
+// substituteLogPath replaces ${TRIGGER} and ${PLUGIN} in the log path with their values.
+// Returns empty string if required variables are missing.
+func substituteLogPath(logPath, triggerName, pluginName string) string {
+	if logPath == "" {
+		return ""
+	}
+
+	// Check if ${TRIGGER} is present and triggerName is empty
+	if strings.Contains(logPath, "${TRIGGER}") && triggerName == "" {
+		return ""
+	}
+
+	// Check if ${PLUGIN} is present and pluginName is empty
+	if strings.Contains(logPath, "${PLUGIN}") && pluginName == "" {
+		return ""
+	}
+
+	// Perform substitutions
+	result := logPath
+	result = strings.ReplaceAll(result, "${TRIGGER}", triggerName)
+	result = strings.ReplaceAll(result, "${PLUGIN}", pluginName)
+
+	return result
+}
+
+// extractExtraInfo extracts extra information from the plugin output using JSON paths.
+// If LogPath is set, it will append the output to the specified file.
+func (po *PluginOutputParseConfig) extractExtraInfo(input []byte, pluginName string, triggerName string) (map[string]extractedField, error) {
 	if po == nil {
 		return nil, nil
+	}
+
+	// Substitute variables in the log path
+	substitutedPath := substituteLogPath(po.LogPath, triggerName, pluginName)
+	if substitutedPath != "" {
+		// Open the log file in append mode, create if it doesn't exist
+		f, err := os.OpenFile(substitutedPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open log file: %w", err)
+		}
+		defer f.Close()
+
+		// Add timestamp to the log entry
+		timestamp := time.Now().UTC().Format(time.RFC3339)
+		logEntry := fmt.Sprintf("[%s] plugin=%s trigger=%s\noutput=%s\n", timestamp, pluginName, triggerName, string(input))
+
+		if _, err := f.WriteString(logEntry); err != nil {
+			return nil, fmt.Errorf("failed to write to log file: %w", err)
+		}
 	}
 
 	if po.JSONPaths != nil {

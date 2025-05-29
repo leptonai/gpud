@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -51,7 +50,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getRemappedRowsFunc: nvml.GetRemappedRows,
 	}
 
-	if gpudInstance.EventStore != nil && runtime.GOOS == "linux" {
+	if gpudInstance.EventStore != nil {
 		var err error
 		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
 		if err != nil {
@@ -196,6 +195,12 @@ func (c *component) Check() components.CheckResult {
 
 		if c.eventBucket != nil && remappedRows.RemappingPending {
 			log.Logger.Warnw("inserting event for remapping pending", "uuid", uuid)
+			cr.suggestedActions = &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			}
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
 			cr.err = c.eventBucket.Insert(
@@ -217,6 +222,12 @@ func (c *component) Check() components.CheckResult {
 
 		if c.eventBucket != nil && remappedRows.RemappingFailed {
 			log.Logger.Warnw("inserting event for remapping failed", "uuid", uuid)
+			cr.suggestedActions = &apiv1.SuggestedActions{
+				Description: "row remapping failure requires hardware inspection",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			}
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
 			cr.err = c.eventBucket.Insert(
@@ -274,6 +285,9 @@ type checkResult struct {
 	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+
+	// suggested actions
+	suggestedActions *apiv1.SuggestedActions
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -341,12 +355,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.suggestedActions,
 	}
 
 	if len(cr.RemappedRows) > 0 {

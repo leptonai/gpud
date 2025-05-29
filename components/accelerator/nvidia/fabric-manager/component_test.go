@@ -2,6 +2,7 @@ package fabricmanager
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func TestComponentEvents(t *testing.T) {
 		ctx:    ctx,
 		cancel: cancel,
 
-		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 
@@ -190,7 +191,7 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 		ctx:    context.Background(),
 		cancel: func() {},
 
-		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 		checkFMExistsFunc: func() bool { return false },
 		checkFMActiveFunc: func() bool { return false },
 	}
@@ -243,19 +244,19 @@ func TestIsSupported(t *testing.T) {
 
 	// Test when NVMLExists returns false
 	comp = &component{
-		nvmlInstance: &mockNVMLInstance{exists: false, productName: ""},
+		nvmlInstance: &mockNVMLInstance{exists: false, productName: "", deviceCount: 0},
 	}
 	assert.False(t, comp.IsSupported())
 
 	// Test when ProductName returns empty string
 	comp = &component{
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: ""},
+		nvmlInstance: &mockNVMLInstance{exists: true, productName: "", deviceCount: 0},
 	}
 	assert.False(t, comp.IsSupported())
 
 	// Test when all conditions are met
 	comp = &component{
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100", deviceCount: 1},
 	}
 	assert.True(t, comp.IsSupported())
 }
@@ -319,7 +320,7 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	comp := &component{
 		ctx:               context.Background(),
 		cancel:            func() {},
-		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return false },
 	}
@@ -448,7 +449,7 @@ func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
 		ctx:    context.Background(),
 		cancel: func() {},
 
-		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 	}
@@ -514,7 +515,7 @@ func TestCheckAllBranches(t *testing.T) {
 			comp := &component{
 				ctx:               context.Background(),
 				cancel:            func() {},
-				nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+				nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 				checkFMExistsFunc: func() bool { return tc.fmExists },
 				checkFMActiveFunc: func() bool { return tc.fmActive },
 			}
@@ -540,6 +541,7 @@ type mockNVMLInstance struct {
 	exists      bool
 	supportsFM  bool
 	productName string
+	deviceCount int // Add device count field
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -551,7 +553,16 @@ func (m *mockNVMLInstance) Library() nvmllib.Library {
 }
 
 func (m *mockNVMLInstance) Devices() map[string]device.Device {
-	return nil
+	// Return a map with the specified number of mock devices
+	if m.deviceCount <= 0 {
+		return make(map[string]device.Device)
+	}
+
+	devices := make(map[string]device.Device)
+	for i := 0; i < m.deviceCount; i++ {
+		devices[fmt.Sprintf("device-%d", i)] = nil // Using nil for simplicity since we only need the count
+	}
+	return devices
 }
 
 func (m *mockNVMLInstance) ProductName() string {
@@ -609,7 +620,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		},
 		{
 			name:              "nvml does not exist",
-			nvmlInstance:      &mockNVMLInstance{exists: false, supportsFM: true, productName: "Test GPU"},
+			nvmlInstance:      &mockNVMLInstance{exists: false, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 			expectedHealth:    apiv1.HealthStateTypeHealthy,
 			expectedReason:    "NVIDIA NVML library is not loaded",
 			checkFMExistsFunc: func() bool { return false },
@@ -617,7 +628,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		},
 		{
 			name:              "fabric manager not supported",
-			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: false, productName: "Test GPU"},
+			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: false, productName: "Test GPU", deviceCount: 2},
 			expectedHealth:    apiv1.HealthStateTypeHealthy,
 			expectedReason:    "Test GPU does not support fabric manager",
 			checkFMExistsFunc: func() bool { return false },
@@ -625,7 +636,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		},
 		{
 			name:              "nvml exists but FM executable not found",
-			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 			expectedHealth:    apiv1.HealthStateTypeHealthy,
 			expectedReason:    "nv-fabricmanager executable not found",
 			checkFMExistsFunc: func() bool { return false },
@@ -633,7 +644,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		},
 		{
 			name:              "nvml exists, FM executable found but not active",
-			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
 			expectedReason:    "nv-fabricmanager found but fabric manager service is not active",
 			checkFMExistsFunc: func() bool { return true },
@@ -641,7 +652,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		},
 		{
 			name:              "nvml exists, FM executable found and active",
-			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU"},
+			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 			expectedHealth:    apiv1.HealthStateTypeHealthy,
 			expectedReason:    "fabric manager found and active",
 			checkFMExistsFunc: func() bool { return true },
@@ -693,6 +704,7 @@ func TestCheck_FabricManagerNotSupported(t *testing.T) {
 		exists:      true,
 		supportsFM:  false,
 		productName: "Test GPU",
+		deviceCount: 2,
 	}
 
 	// Create the component with our mock instance
@@ -730,6 +742,7 @@ func TestCheckWithEmptyProductName(t *testing.T) {
 		exists:      true,
 		supportsFM:  false,
 		productName: "", // empty product name
+		deviceCount: 2,
 	}
 
 	// Create component with mock
@@ -746,4 +759,114 @@ func TestCheckWithEmptyProductName(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
 	assert.Equal(t, "NVIDIA NVML is loaded but GPU is not detected (missing product name)", checkResult.reason)
+}
+
+func TestCheckDeviceCountLogic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		deviceCount    int
+		expectedHealth apiv1.HealthStateType
+		expectedReason string
+	}{
+		{
+			name:           "no devices detected",
+			deviceCount:    0,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "only 0 GPU(s) detected, skipping fabric manager check",
+		},
+		{
+			name:           "one device detected",
+			deviceCount:    1,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "only 1 GPU(s) detected, skipping fabric manager check",
+		},
+		{
+			name:           "two devices detected",
+			deviceCount:    2,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "nv-fabricmanager found but fabric manager service is not active",
+		},
+		{
+			name:           "multiple devices detected",
+			deviceCount:    4,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "nv-fabricmanager found but fabric manager service is not active",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create mock NVML instance with specified device count
+			mockNVML := &mockNVMLInstance{
+				exists:      true,
+				supportsFM:  true,
+				productName: "Test GPU",
+				deviceCount: tc.deviceCount,
+			}
+
+			// Create component where fabric manager exists but is not active
+			comp := &component{
+				ctx:               context.Background(),
+				cancel:            func() {},
+				nvmlInstance:      mockNVML,
+				checkFMExistsFunc: func() bool { return true },  // FM exists
+				checkFMActiveFunc: func() bool { return false }, // FM not active
+			}
+
+			// Call Check method
+			result := comp.Check()
+
+			// Verify the result
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok, "Expected result to be of type *checkResult")
+
+			// Verify health and reason
+			assert.Equal(t, tc.expectedHealth, checkResult.health, "Health state mismatch for %d devices", tc.deviceCount)
+			assert.Equal(t, tc.expectedReason, checkResult.reason, "Reason mismatch for %d devices", tc.deviceCount)
+
+			// Verify FabricManagerActive is always false when FM is not active
+			assert.False(t, checkResult.FabricManagerActive, "FabricManagerActive should be false when FM is not active")
+
+			// Also verify through LastHealthStates()
+			states := comp.LastHealthStates()
+			assert.Len(t, states, 1)
+			assert.Equal(t, Name, states[0].Name)
+			assert.Equal(t, tc.expectedHealth, states[0].Health)
+			assert.Equal(t, tc.expectedReason, states[0].Reason)
+		})
+	}
+}
+
+func TestCheckDeviceCountWithActiveManager(t *testing.T) {
+	t.Parallel()
+
+	// Test that device count logic is NOT applied when fabric manager is active
+	mockNVML := &mockNVMLInstance{
+		exists:      true,
+		supportsFM:  true,
+		productName: "Test GPU",
+		deviceCount: 1, // Single device
+	}
+
+	comp := &component{
+		ctx:               context.Background(),
+		cancel:            func() {},
+		nvmlInstance:      mockNVML,
+		checkFMExistsFunc: func() bool { return true }, // FM exists
+		checkFMActiveFunc: func() bool { return true }, // FM is active
+	}
+
+	result := comp.Check()
+	checkResult, ok := result.(*checkResult)
+	assert.True(t, ok)
+
+	// When FM is active, device count logic should NOT be applied
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
+	assert.Equal(t, "fabric manager found and active", checkResult.reason)
+	assert.True(t, checkResult.FabricManagerActive)
 }

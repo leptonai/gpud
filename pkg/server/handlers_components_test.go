@@ -20,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -228,7 +229,7 @@ func TestGetComponents(t *testing.T) {
 	cfg := &config.Config{}
 	store := &mockMetricsStore{}
 
-	handler := newGlobalHandler(cfg, registry, store, nil)
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
 	_, c, w := setupTestRouter()
 
 	// Test with default JSON content type
@@ -258,12 +259,12 @@ func TestGetComponentsYAML(t *testing.T) {
 	cfg := &config.Config{}
 	store := &mockMetricsStore{}
 
-	handler := newGlobalHandler(cfg, registry, store, nil)
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
 	_, c, w := setupTestRouter()
 
 	// Set up a new request with YAML content type
 	c.Request = httptest.NewRequest("GET", "/v1/components", nil)
-	c.Request.Header.Set(RequestHeaderContentType, RequestHeaderYAML)
+	c.Request.Header.Set(httputil.RequestHeaderContentType, httputil.RequestHeaderYAML)
 
 	handler.getComponents(c)
 
@@ -316,14 +317,14 @@ func TestTriggerComponentCheck(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Parse the response
-	var responseStates []apiv1.HealthState
+	var responseStates apiv1.GPUdComponentHealthStates
 	err := json.Unmarshal(w.Body.Bytes(), &responseStates)
 	require.NoError(t, err)
 
 	// Verify the health states
 	assert.Len(t, responseStates, 1)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, responseStates[0].Health)
-	assert.Equal(t, "Component is healthy", responseStates[0].Reason)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, responseStates[0].States[0].Health)
+	assert.Equal(t, "Component is healthy", responseStates[0].States[0].Reason)
 }
 
 func TestGetComponentsCustomPlugins(t *testing.T) {
@@ -606,7 +607,7 @@ func TestGetInfo(t *testing.T) {
 	cfg := &config.Config{}
 	store := &mockMetricsStore{metrics: metricsData}
 
-	handler := newGlobalHandler(cfg, registry, store, nil)
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
 	_, c, w := setupTestRouter()
 
 	// Test getting info for a specific component
@@ -677,7 +678,7 @@ func TestGetMetrics(t *testing.T) {
 	cfg := &config.Config{}
 	store := &mockMetricsStore{metrics: metricsData}
 
-	handler := newGlobalHandler(cfg, registry, store, nil)
+	handler := newGlobalHandler(cfg, registry, store, nil, nil)
 	_, c, w := setupTestRouter()
 
 	// Test getting metrics for a specific component

@@ -12,6 +12,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
@@ -52,8 +53,8 @@ func (g *globalHandler) getComponents(c *gin.Context) {
 	}
 	sort.Strings(components)
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(components)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal components " + err.Error()})
@@ -61,8 +62,8 @@ func (g *globalHandler) getComponents(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, components)
 			return
 		}
@@ -126,19 +127,49 @@ const URLPathComponentsTriggerCheck = "/components/trigger-check"
 // @Router /v1/components/trigger-check [get]
 func (g *globalHandler) triggerComponentCheck(c *gin.Context) {
 	componentName := c.Query("componentName")
-	if componentName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component name is required"})
+	tagName := c.Query("tagName")
+
+	if componentName == "" && tagName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "component or tag name is required"})
 		return
 	}
 
-	comp := g.componentsRegistry.Get(componentName)
-	if comp == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
-		return
+	checkResults := make([]components.CheckResult, 0)
+	if componentName != "" {
+		// requesting a specific component, tag is ignored
+		comp := g.componentsRegistry.Get(componentName)
+		if comp == nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
+			return
+		}
+
+		checkResults = append(checkResults, comp.Check())
+	} else if tagName != "" {
+		components := g.componentsRegistry.All()
+		for _, comp := range components {
+			matched := false
+			for _, tag := range comp.Tags() {
+				if tag == tagName {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+
+			checkResults = append(checkResults, comp.Check())
+		}
 	}
 
-	rs := comp.Check()
-	c.JSON(http.StatusOK, rs.HealthStates())
+	resp := apiv1.GPUdComponentHealthStates{}
+	for _, checkResult := range checkResults {
+		resp = append(resp, apiv1.ComponentHealthStates{
+			Component: checkResult.ComponentName(),
+			States:    checkResult.HealthStates(),
+		})
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 const URLPathComponentsCustomPlugins = "/components/custom-plugin"
@@ -160,8 +191,8 @@ func (g *globalHandler) getComponentsCustomPlugins(c *gin.Context) {
 		}
 	}
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(cs)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal custom plugins " + err.Error()})
@@ -169,8 +200,8 @@ func (g *globalHandler) getComponentsCustomPlugins(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, cs)
 			return
 		}
@@ -215,6 +246,19 @@ func (g *globalHandler) registerComponentsCustomPlugin(c *gin.Context) {
 	if err := comp.Start(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": errdefs.ErrUnknown, "message": "failed to start component: " + err.Error()})
 		return
+	}
+
+	g.componentNamesMu.Lock()
+	defer g.componentNamesMu.Unlock()
+	found := false
+	for _, name := range g.componentNames {
+		if name == comp.Name() {
+			found = true
+			break
+		}
+	}
+	if !found {
+		g.componentNames = append(g.componentNames, comp.Name())
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "component registered and started", "component": comp.Name()})
@@ -321,8 +365,8 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 		states = append(states, currState)
 	}
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(states)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal states " + err.Error()})
@@ -330,8 +374,8 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, states)
 			return
 		}
@@ -405,8 +449,8 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		events = append(events, currEvent)
 	}
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(events)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal events " + err.Error()})
@@ -414,8 +458,8 @@ func (g *globalHandler) getEvents(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, events)
 			return
 		}
@@ -533,8 +577,8 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		infos = append(infos, currInfo)
 	}
 
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(infos)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal infos " + err.Error()})
@@ -542,8 +586,8 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, infos)
 			return
 		}
@@ -595,8 +639,8 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 	}
 
 	metrics := pkgmetrics.ConvertToLeptonMetrics(metricsData)
-	switch c.GetHeader(RequestHeaderContentType) {
-	case RequestHeaderYAML:
+	switch c.GetHeader(httputil.RequestHeaderContentType) {
+	case httputil.RequestHeaderYAML:
 		yb, err := yaml.Marshal(metrics)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal metrics " + err.Error()})
@@ -604,8 +648,8 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 		}
 		c.String(http.StatusOK, string(yb))
 
-	case RequestHeaderJSON, "":
-		if c.GetHeader(RequestHeaderJSONIndent) == "true" {
+	case httputil.RequestHeaderJSON, "":
+		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
 			c.IndentedJSON(http.StatusOK, metrics)
 			return
 		}

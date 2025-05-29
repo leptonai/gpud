@@ -157,6 +157,21 @@ type ComponentInfo struct {
 
 type GPUdComponentInfos []ComponentInfo
 
+type PackageStatus struct {
+	Name           string       `json:"name"`
+	Phase          PackagePhase `json:"phase"`
+	Status         string       `json:"status"`
+	CurrentVersion string       `json:"current_version"`
+}
+
+type PackagePhase string
+
+const (
+	InstalledPhase  PackagePhase = "Installed"
+	InstallingPhase PackagePhase = "Installing"
+	UnknownPhase    PackagePhase = "Unknown"
+)
+
 type RepairActionType string
 
 const (
@@ -263,6 +278,8 @@ type MachineInfo struct {
 
 	// CPUInfo is the CPU info of the machine.
 	CPUInfo *MachineCPUInfo `json:"cpuInfo,omitempty"`
+	// MemoryInfo is the memory info of the machine.
+	MemoryInfo *MachineMemoryInfo `json:"memoryInfo,omitempty"`
 	// GPUInfo is the GPU info of the machine.
 	GPUInfo *MachineGPUInfo `json:"gpuInfo,omitempty"`
 	// DiskInfo is the Disk info of the machine.
@@ -275,21 +292,37 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.Append([]string{"GPUd Version", i.GPUdVersion})
-	table.Append([]string{"CUDA Version", i.CUDAVersion})
 	table.Append([]string{"Container Runtime Version", i.ContainerRuntimeVersion})
-	table.Append([]string{"Kernel Version", i.KernelVersion})
 	table.Append([]string{"OS Image", i.OSImage})
+	table.Append([]string{"Kernel Version", i.KernelVersion})
 
-	if i.DiskInfo != nil {
-		table.Append([]string{"Container Root Disk", i.DiskInfo.ContainerRootDisk})
+	if i.CPUInfo != nil {
+		table.Append([]string{"CPU Type", i.CPUInfo.Type})
+		table.Append([]string{"CPU Manufacturer", i.CPUInfo.Manufacturer})
+		table.Append([]string{"CPU Architecture", i.CPUInfo.Architecture})
+		table.Append([]string{"CPU Logical Cores", fmt.Sprintf("%d", i.CPUInfo.LogicalCores)})
+	}
+	if i.MemoryInfo != nil {
+		table.Append([]string{"Memory Total", humanize.Bytes(i.MemoryInfo.TotalBytes)})
 	}
 
+	table.Append([]string{"CUDA Version", i.CUDAVersion})
 	if i.GPUInfo != nil {
 		table.Append([]string{"GPU Driver Version", i.GPUDriverVersion})
 		table.Append([]string{"GPU Product", i.GPUInfo.Product})
 		table.Append([]string{"GPU Manufacturer", i.GPUInfo.Manufacturer})
 		table.Append([]string{"GPU Architecture", i.GPUInfo.Architecture})
 		table.Append([]string{"GPU Memory", i.GPUInfo.Memory})
+	}
+
+	if i.NICInfo != nil {
+		for idx, nic := range i.NICInfo.PrivateIPInterfaces {
+			table.Append([]string{fmt.Sprintf("Private IP Interface %d", idx+1), fmt.Sprintf("%s (%s, %s)", nic.Interface, nic.MAC, nic.IP)})
+		}
+	}
+
+	if i.DiskInfo != nil {
+		table.Append([]string{"Container Root Disk", i.DiskInfo.ContainerRootDisk})
 	}
 
 	table.Render()
@@ -310,6 +343,11 @@ type MachineCPUInfo struct {
 	Type         string `json:"type,omitempty"`
 	Manufacturer string `json:"manufacturer,omitempty"`
 	Architecture string `json:"architecture,omitempty"`
+	LogicalCores int64  `json:"logicalCores,omitempty"`
+}
+
+type MachineMemoryInfo struct {
+	TotalBytes uint64 `json:"totalBytes"`
 }
 
 type MachineGPUInfo struct {

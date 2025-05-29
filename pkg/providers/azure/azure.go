@@ -1,0 +1,25 @@
+package azure
+
+import (
+	"context"
+
+	"github.com/leptonai/gpud/pkg/providers"
+	"github.com/leptonai/gpud/pkg/providers/azure/imds"
+)
+
+const Name = "azure"
+
+func New() providers.Detector {
+	return providers.New(Name, detectProvider, imds.FetchPublicIPv4, imds.FetchAZEnvironment, imds.FetchInstanceID)
+}
+
+func detectProvider(ctx context.Context) (string, error) {
+	zone, err := imds.FetchAvailabilityZone(ctx)
+	if err != nil {
+		return "", err
+	}
+	if zone != "" {
+		return Name, nil
+	}
+	return "", nil
+}

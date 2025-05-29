@@ -12,6 +12,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 // NewInitFunc creates a new component initializer for the given plugin spec.
@@ -20,11 +21,17 @@ func (spec *Spec) NewInitFunc() components.InitFunc {
 		return nil
 	}
 	return func(gpudInstance *components.GPUdInstance) (components.Component, error) {
+		healthStateSetter, err := pkgmetrics.RegisterHealthStateMetrics(spec.ComponentName())
+		if err != nil {
+			return nil, err
+		}
+
 		cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 		c := &component{
-			ctx:    cctx,
-			cancel: ccancel,
-			spec:   spec,
+			ctx:               cctx,
+			cancel:            ccancel,
+			spec:              spec,
+			healthStateSetter: healthStateSetter,
 		}
 		return c, nil
 	}
@@ -40,6 +47,8 @@ type component struct {
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
+
+	healthStateSetter pkgmetrics.HealthStateSetter
 }
 
 var _ CustomPluginRegisteree = &component{}
@@ -118,6 +127,9 @@ func (c *component) Check() components.CheckResult {
 	defer func() {
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
+		if c.healthStateSetter != nil {
+			c.healthStateSetter.Set(cr.health)
+		}
 		c.lastMu.Unlock()
 	}()
 
@@ -136,7 +148,7 @@ func (c *component) Check() components.CheckResult {
 	// parse before processing the error/command failures
 	// since we still want to process the output even if the plugin failed
 	if len(cr.out) > 0 && c.spec.HealthStatePlugin.Parser != nil {
-		extraInfo, exErr := c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out)
+		extraInfo, exErr := c.spec.HealthStatePlugin.Parser.extractExtraInfo(cr.out, c.spec.PluginName, c.spec.RunMode)
 		if exErr != nil {
 			log.Logger.Errorw("error extracting extra info", "error", exErr)
 
@@ -219,10 +231,15 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 				Time:          metav1.NewTime(time.Now().UTC()),
 				Component:     c.Name(),
 				ComponentType: apiv1.ComponentTypeCustomPlugin,
-				Name:          c.spec.PluginName,
-				RunMode:       apiv1.RunModeType(c.spec.RunMode),
-				Health:        apiv1.HealthStateTypeHealthy,
-				Reason:        "no data yet",
+
+				// in case component/plugin name is too long
+				// component name and plugin name are always equivalent
+				// thus no need to redundantly display two here as [component name]/[plugin name]
+				Name: "check",
+
+				RunMode: apiv1.RunModeType(c.spec.RunMode),
+				Health:  apiv1.HealthStateTypeHealthy,
+				Reason:  "no data yet",
 			},
 		}
 	}

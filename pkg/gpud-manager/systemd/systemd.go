@@ -4,6 +4,7 @@ package systemd
 import (
 	"bufio"
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -12,23 +13,40 @@ import (
 )
 
 //go:embed gpud.service
-var GPUDService string
+var gpudService string
+
+func GPUdServiceUnitFileContents() string {
+	_, err := os.Stat(DefaultBinPath)
+	if errors.Is(err, os.ErrNotExist) {
+		// fallback to the old GPUd binary path
+		// until this machines its bin path
+		gpudService = strings.ReplaceAll(gpudService, DefaultBinPath, DeprecatedDefaultBinPathSbin)
+	}
+	return gpudService
+}
 
 const (
 	DefaultEnvFile  = "/etc/default/gpud"
 	DefaultUnitFile = "/etc/systemd/system/gpud.service"
-	DefaultBinPath  = "/usr/sbin/gpud"
+
+	DeprecatedDefaultBinPathSbin = "/usr/sbin/gpud"
+	DefaultBinPath               = "/usr/local/bin/gpud"
 )
 
 func DefaultBinExists() bool {
 	_, err := os.Stat(DefaultBinPath)
+	if errors.Is(err, os.ErrNotExist) {
+		// fallback to the old GPUd binary path
+		// until this machines its bin path
+		_, err = os.Stat(DeprecatedDefaultBinPathSbin)
+	}
 	return err == nil
 }
 
 // CreateDefaultEnvFile creates the default environment file for gpud systemd service.
 // Assume systemdctl is already installed, and runs on the linux system.
 func CreateDefaultEnvFile(endpoint string) error {
-	return writeEnvFile(DefaultEnvFile, endpoint)
+	return writeEnvFile(DefaultEnvFile, "")
 }
 
 const defaultEnvFileContent = `# gpud environment variables are set here
@@ -45,9 +63,6 @@ FLAGS="--log-level=info --log-file=/var/log/gpud.log --endpoint=%s"
 }
 
 func writeEnvFile(file string, endpoint string) error {
-	if _, err := os.Stat(file); err == nil {
-		return updateFlagsFromExistingEnvFile(file, endpoint)
-	}
 	return atomicfile.WriteFile(file, []byte(createDefaultEnvFileContent(endpoint)), 0644)
 }
 

@@ -1,6 +1,7 @@
 package systemd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGPUdServiceUnitFileContents(t *testing.T) {
+	t.Run("without endpoint", func(t *testing.T) {
+		content := GPUdServiceUnitFileContents()
+
+		_, err := os.Stat(DefaultBinPath)
+		if errors.Is(err, os.ErrNotExist) {
+			assert.Contains(t, content, DeprecatedDefaultBinPathSbin)
+		}
+	})
+}
 
 func TestCreateDefaultEnvFileContent(t *testing.T) {
 	t.Run("without endpoint", func(t *testing.T) {
@@ -178,19 +190,22 @@ func TestWriteEnvFile(t *testing.T) {
 
 		// Create a file with existing flags but without log file flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
-		err = os.WriteFile(testFile, []byte(`# gpud environment variables
+		initialFileContent := `# gpud environment variables
 FLAGS="--log-level=debug"
-`), 0644)
+`
+		err = os.WriteFile(testFile, []byte(initialFileContent), 0644)
 		require.NoError(t, err)
 
-		// Call the function to update the file
+		// Call the function to overwrite the file
 		err = writeEnvFile(testFile, "")
 		require.NoError(t, err)
 
-		// Check if the file was updated with the log file flag
+		// Check if the file was overwritten with default content
 		content, err := os.ReadFile(testFile)
 		require.NoError(t, err)
-		assert.Contains(t, string(content), "--log-level=debug --log-file=/var/log/gpud.log")
+		expectedContent := createDefaultEnvFileContent("")
+		assert.Equal(t, expectedContent, string(content))
+		assert.NotContains(t, string(content), "--log-level=debug") // Ensure original custom flag is gone
 	})
 
 	t.Run("file exists with log file flag", func(t *testing.T) {
@@ -201,22 +216,120 @@ FLAGS="--log-level=debug"
 
 		// Create a file with existing flags including log file flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
-		content := "# gpud environment variables\nFLAGS=\"--log-level=debug --log-file=/custom/path.log\""
-		err = os.WriteFile(testFile, []byte(content), 0644)
+		initialFileContent := "# gpud environment variables\nFLAGS=\"--log-level=debug --log-file=/custom/path.log\""
+		err = os.WriteFile(testFile, []byte(initialFileContent), 0644)
 		require.NoError(t, err)
 
-		// Call the function to update the file
+		// Call the function to overwrite the file
 		err = writeEnvFile(testFile, "")
 		require.NoError(t, err)
 
-		// Check if the file was not modified (we check for the important parts)
+		// Check if the file was overwritten with default content
 		updatedContent, err := os.ReadFile(testFile)
 		require.NoError(t, err)
 		updatedContentStr := string(updatedContent)
+		expectedContent := createDefaultEnvFileContent("")
+		assert.Equal(t, expectedContent, updatedContentStr)
+		assert.NotContains(t, updatedContentStr, "--log-level=debug")
+		assert.NotContains(t, updatedContentStr, "--log-file=/custom/path.log")
+	})
 
-		assert.Contains(t, updatedContentStr, "--log-level=debug")
-		assert.Contains(t, updatedContentStr, "--log-file=/custom/path.log")
-		assert.NotContains(t, updatedContentStr, "--endpoint=")
+	t.Run("file exists without endpoint, new endpoint provided", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		testFile := filepath.Join(tmpDir, "gpud-env")
+		initialContent := "FLAGS=\"--log-level=warn --log-file=/var/log/mygpud.log\""
+		err = os.WriteFile(testFile, []byte(initialContent), 0644)
+		require.NoError(t, err)
+
+		newEndpoint := "https://new.example.com"
+		err = writeEnvFile(testFile, newEndpoint)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+		contentStr := string(content)
+		expectedContent := createDefaultEnvFileContent(newEndpoint)
+
+		assert.Equal(t, expectedContent, contentStr)
+		assert.NotContains(t, contentStr, "--log-level=warn")
+		assert.NotContains(t, contentStr, "--log-file=/var/log/mygpud.log")
+	})
+
+	t.Run("file exists with endpoint, different endpoint provided", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		testFile := filepath.Join(tmpDir, "gpud-env")
+		initialContent := "FLAGS=\"--log-level=debug --log-file=/custom/path.log --endpoint=https://old.example.com\""
+		err = os.WriteFile(testFile, []byte(initialContent), 0644)
+		require.NoError(t, err)
+
+		newEndpoint := "https://new.example.com"
+		err = writeEnvFile(testFile, newEndpoint)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+		contentStr := string(content)
+		expectedContent := createDefaultEnvFileContent(newEndpoint)
+
+		assert.Equal(t, expectedContent, contentStr)
+		assert.NotContains(t, contentStr, "--log-level=debug")
+		assert.NotContains(t, contentStr, "--log-file=/custom/path.log")
+		assert.NotContains(t, contentStr, "--endpoint=https://old.example.com")
+	})
+
+	t.Run("file exists with endpoint, empty endpoint provided", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		testFile := filepath.Join(tmpDir, "gpud-env")
+		initialContent := "FLAGS=\"--log-level=info --log-file=/another/path.log --endpoint=https://remove.me.com\""
+		err = os.WriteFile(testFile, []byte(initialContent), 0644)
+		require.NoError(t, err)
+
+		err = writeEnvFile(testFile, "") // Empty endpoint
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+		contentStr := string(content)
+		expectedContent := createDefaultEnvFileContent("")
+
+		assert.Equal(t, expectedContent, contentStr)
+		assert.NotContains(t, contentStr, "--log-file=/another/path.log")
+		assert.NotContains(t, contentStr, "--endpoint=https://remove.me.com")
+	})
+
+	t.Run("file exists with endpoint, same endpoint provided", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		testFile := filepath.Join(tmpDir, "gpud-env")
+		originalEndpoint := "https://keep.this.com"
+		initialContent := "FLAGS=\"--log-level=fatal --log-file=/log.txt --endpoint=" + originalEndpoint + "\""
+		err = os.WriteFile(testFile, []byte(initialContent), 0644)
+		require.NoError(t, err)
+
+		err = writeEnvFile(testFile, originalEndpoint) // Same endpoint
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+		contentStr := string(content)
+		expectedContent := createDefaultEnvFileContent(originalEndpoint)
+
+		assert.Equal(t, expectedContent, contentStr)
+		assert.NotContains(t, contentStr, "--log-level=fatal")
+		assert.NotContains(t, contentStr, "--log-file=/log.txt")
+		// Ensure the endpoint is present exactly once (implicitly covered by Equal if format is strict)
+		assert.Equal(t, 1, strings.Count(contentStr, "--endpoint="+originalEndpoint))
 	})
 }
 

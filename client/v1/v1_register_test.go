@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
-	"github.com/leptonai/gpud/pkg/server"
+	"github.com/leptonai/gpud/pkg/httputil"
 )
 
 func TestRegisterOrUpdateCustomPlugin(t *testing.T) {
@@ -50,7 +50,7 @@ func TestRegisterOrUpdateCustomPlugin(t *testing.T) {
 			name:        "register with POST method",
 			method:      http.MethodPost,
 			spec:        validSpec,
-			contentType: server.RequestHeaderJSON,
+			contentType: httputil.RequestHeaderJSON,
 			serverResp:  "ok",
 			statusCode:  http.StatusOK,
 		},
@@ -58,7 +58,7 @@ func TestRegisterOrUpdateCustomPlugin(t *testing.T) {
 			name:        "update with PUT method",
 			method:      http.MethodPut,
 			spec:        validSpec,
-			contentType: server.RequestHeaderJSON,
+			contentType: httputil.RequestHeaderJSON,
 			serverResp:  "ok",
 			statusCode:  http.StatusOK,
 		},
@@ -66,8 +66,8 @@ func TestRegisterOrUpdateCustomPlugin(t *testing.T) {
 			name:           "with YAML content type",
 			method:         http.MethodPost,
 			spec:           validSpec,
-			contentType:    server.RequestHeaderYAML,
-			acceptEncoding: server.RequestHeaderEncodingGzip,
+			contentType:    httputil.RequestHeaderYAML,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
 			serverResp:     "ok",
 			statusCode:     http.StatusOK,
 		},
@@ -82,7 +82,7 @@ func TestRegisterOrUpdateCustomPlugin(t *testing.T) {
 			name:          "server error",
 			method:        http.MethodPost,
 			spec:          validSpec,
-			contentType:   server.RequestHeaderJSON,
+			contentType:   httputil.RequestHeaderJSON,
 			statusCode:    http.StatusInternalServerError,
 			expectedError: "server not ready, response not 200",
 		},
@@ -90,7 +90,7 @@ func TestRegisterOrUpdateCustomPlugin(t *testing.T) {
 			name:          "unsupported method",
 			method:        http.MethodDelete,
 			spec:          validSpec,
-			contentType:   server.RequestHeaderJSON,
+			contentType:   httputil.RequestHeaderJSON,
 			expectedError: "unsupported method",
 			validateOnly:  true,
 		},
@@ -112,10 +112,10 @@ func TestRegisterOrUpdateCustomPlugin(t *testing.T) {
 
 				// Verify request headers
 				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(server.RequestHeaderContentType))
+					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
 				}
 				if tt.acceptEncoding != "" {
-					assert.Equal(t, tt.acceptEncoding, r.Header.Get(server.RequestHeaderAcceptEncoding))
+					assert.Equal(t, tt.acceptEncoding, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 				}
 
 				// Verify the request body contains the correct spec
@@ -135,9 +135,9 @@ func TestRegisterOrUpdateCustomPlugin(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == server.RequestHeaderYAML {
+			if tt.contentType == httputil.RequestHeaderYAML {
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == server.RequestHeaderJSON {
+			} else if tt.contentType == httputil.RequestHeaderJSON {
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 			if tt.acceptEncoding != "" {

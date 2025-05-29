@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -19,7 +19,10 @@ var ErrEmptyMachineID = errors.New("login request failed with empty machine ID")
 // SendRequest sends a login request and blocks until the login request is processed.
 // It also validates the response field to ensure the login request is processed successfully.
 func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
-	url := createURL(endpoint)
+	url, err := httputil.CreateURL("https", endpoint, "/api/v1/login")
+	if err != nil {
+		return nil, fmt.Errorf("error creating URL: %w", err)
+	}
 	return sendRequest(ctx, url, req)
 }
 
@@ -55,7 +58,7 @@ func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
-		return &resp, fmt.Errorf("login request failed with status code %d (%+v)", httpResp.StatusCode, resp)
+		return &resp, fmt.Errorf("unexpected status code %d (%s)", httpResp.StatusCode, string(body))
 	}
 
 	if resp.MachineID == "" {
@@ -64,14 +67,4 @@ func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv
 
 	log.Logger.Debugw("login request processed", "data", string(b), "url", url, "machineID", resp.MachineID)
 	return &resp, nil
-}
-
-// createURL creates a URL for the login endpoint
-func createURL(endpoint string) string {
-	host := endpoint
-	url, _ := url.Parse(endpoint)
-	if url.Host != "" {
-		host = url.Host
-	}
-	return fmt.Sprintf("https://%s/api/v1/login", host)
 }

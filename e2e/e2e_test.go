@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -29,8 +28,8 @@ import (
 	mocklspci "github.com/leptonai/gpud/e2e/mock/lspci"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/httputil"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
-	"github.com/leptonai/gpud/pkg/server"
 )
 
 func TestE2E(t *testing.T) {
@@ -134,7 +133,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			`--log-file=""`, // stdout/stderr
 			"--log-level=debug",
 			"--enable-auto-update=false",
-			"--annotations", fmt.Sprintf("{%q:%q}", randKey, randVal),
 			fmt.Sprintf("--listen-address=%s", ep),
 
 			// to run e2e test with api plugin registration
@@ -151,34 +149,14 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 		By("waiting for gpud started")
 		Eventually(func() error {
-			req1NoCompress, err := http.NewRequest("GET", fmt.Sprintf("https://%s/healthz", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			resp1, err := client.Do(req1NoCompress)
-			if err != nil {
-				return fmt.Errorf("request failed: %w", err)
-			}
-
-			defer resp1.Body.Close()
-			if resp1.StatusCode != http.StatusOK {
-				return fmt.Errorf("unexpected healthz status: %s", resp1.Status)
-			}
-
-			b1, err := io.ReadAll(resp1.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-
-			expectedBody := `{"status":"ok","version":"v1"}`
-			if string(b1) != expectedBody {
-				return fmt.Errorf("unexpected response body: %s", string(b1))
-			}
-			GinkgoLogr.Info("success health check", "response", string(b1), "ep", ep)
-			fmt.Println("/healthz RESPONSE:", string(b1))
-
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
+
+			err = clientv1.BlockUntilServerReady(ctx, "https://"+ep)
+			Expect(err).NotTo(HaveOccurred(), "failed to wait for gpud started")
+
 			err = clientv1.CheckHealthz(ctx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to check health")
-			fmt.Println("/healthz RESPONSE (with clientv1):", string(b1))
 
 			return nil
 		}).WithTimeout(15*time.Second).WithPolling(3*time.Second).ShouldNot(HaveOccurred(), "failed to wait for gpud started")
@@ -189,7 +167,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		By("stop gpud command")
 		gCancel()
 		err := cmd.Process.Kill()
-		Expect(err).NotTo(HaveOccurred(), "failed to kill gpud process")
+		if err != nil && err.Error() != "os: process already finished" {
+			Expect(err).NotTo(HaveOccurred(), "failed to kill gpud process")
+		}
 	})
 
 	var rootCtx context.Context
@@ -202,7 +182,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("/machine-info requests", func() {
-
 		It("request without compress", func() {
 			info, err := clientv1.GetMachineInfo(rootCtx, "https://"+ep)
 
@@ -217,7 +196,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("/v1/states requests", func() {
-
 		It("request without compress", func() {
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
@@ -239,33 +217,13 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			var componentStates []apiv1.ComponentHealthStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-
-			found := false
-			for _, comp := range componentStates {
-				if comp.Component != "info" {
-					continue
-				}
-				for _, state := range comp.States {
-					if len(state.ExtraInfo) == 0 {
-						continue
-					}
-					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
-						continue
-					}
-
-					found = true
-					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
-				}
-			}
-			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
 		})
-
 		It("request with compress", func() {
 			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/states", ep), nil)
 			Expect(err).NotTo(HaveOccurred(), "failed to create request")
 
-			req.Header.Set(server.RequestHeaderContentType, server.RequestHeaderJSON)
-			req.Header.Set(server.RequestHeaderAcceptEncoding, server.RequestHeaderEncodingGzip)
+			req.Header.Set(httputil.RequestHeaderContentType, httputil.RequestHeaderJSON)
+			req.Header.Set(httputil.RequestHeaderAcceptEncoding, httputil.RequestHeaderEncodingGzip)
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
@@ -280,115 +238,10 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			var componentStates []apiv1.ComponentHealthStates
 			err = json.Unmarshal(body, &componentStates)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-
-			found := false
-			for _, comp := range componentStates {
-				if comp.Component != "info" {
-					continue
-				}
-				for _, state := range comp.States {
-					if len(state.ExtraInfo) == 0 {
-						continue
-					}
-					if !strings.Contains(state.ExtraInfo["data"], "annotations") {
-						continue
-					}
-
-					found = true
-					Expect(state.ExtraInfo["data"]).To(ContainSubstring(randVal), fmt.Sprintf("unexpected annotations from %q", string(body)))
-				}
-			}
-			Expect(found).To(BeTrue(), fmt.Sprintf("expected to find annotation state, got %v (%s)", componentStates, string(body)))
 		})
-	})
-
-	Describe("/v1/metrics requests", func() {
-		It("request without compress", func() {
-			// enough time for metrics to be collected
-			time.Sleep(time.Minute + 30*time.Second)
-
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			req.Header.Set("Content-Type", "application/json")
-
-			resp, err := client.Do(req)
-			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			body, err := io.ReadAll(resp.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-			fmt.Println("/v1/metrics RESPONSE SIZE:", len(body))
-			GinkgoLogr.Info("/v1/metrics response size", "size", string(body))
-			fmt.Println("/v1/metrics RESPONSE BODY:", string(body))
-			GinkgoLogr.Info("/v1/metrics response", "response", string(body))
-
-			var metrics apiv1.GPUdComponentMetrics
-			err = json.Unmarshal(body, &metrics)
-			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-
-			// should not be empty
-			Expect(metrics).ToNot(BeEmpty(), "expected metrics to not be empty")
-
-			// make sure default components are present (enabled by default)
-			found := make(map[string]bool)
-			for _, m := range metrics {
-				found[m.Component] = true
-			}
-			Expect(found["cpu"]).To(BeTrue(), "expected cpu component to be present")
-			Expect(found["memory"]).To(BeTrue(), "expected memory component to be present")
-			Expect(found["disk"]).To(BeTrue(), "expected disk component to be present")
-			Expect(found["network-latency"]).To(BeTrue(), "expected network-latency component to be present")
-		})
-
-		It("request with compress", func() {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Accept-Encoding", "gzip")
-
-			resp, err := client.Do(req)
-			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			gr, err := gzip.NewReader(resp.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to create gzip reader")
-			body, err := io.ReadAll(gr)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-
-			var metrics apiv1.GPUdComponentMetrics
-			err = json.Unmarshal(body, &metrics)
-			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-		})
-	})
-
-	Describe("/metrics requests", func() {
-
-		It("request prometheus metrics without compress", func() {
-			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics", ep), nil)
-			Expect(err).NotTo(HaveOccurred(), "failed to create request")
-
-			resp, err := client.Do(req)
-			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-			body, err := io.ReadAll(resp.Body)
-			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
-
-			fmt.Println("/metrics RESPONSE SIZE:", len(body))
-			GinkgoLogr.Info("/metrics response size", "size", string(body))
-			fmt.Println("/metrics RESPONSE BODY:", string(body))
-			GinkgoLogr.Info("/metrics response", "response", string(body))
-		})
-
 	})
 
 	Describe("states with client/v1", func() {
-
 		It("get disk states", func() {
 			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent("disk"))
 			Expect(err).NotTo(HaveOccurred(), "failed to get disk states")
@@ -435,13 +288,11 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	})
 
 	Describe("register custom plugin with client/v1", func() {
-
 		It("make sure init plugin has run", func() {
 			b, err := os.ReadFile(initPluginWriteFile)
 			Expect(err).NotTo(HaveOccurred(), "failed to read init plugin file")
 			Expect(string(b)).To(ContainSubstring(initPluginWriteFileContents), "expected init plugin to have run")
 		})
-
 		It("list custom plugins", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
@@ -459,7 +310,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
 		fileToWrite1 := filepath.Join(os.TempDir(), "testplugin"+randSfx1)
 		defer os.Remove(fileToWrite1)
-
 		It("register a custom plugin with manual mode", func() {
 			testPluginSpec := pkgcustomplugins.Spec{
 				PluginName: pluginName,
@@ -511,7 +361,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			rerr = clientv1.RegisterCustomPlugin(rootCtx, "https://"+ep, testPluginSpec)
 			Expect(rerr).To(HaveOccurred(), "expected to fail with redundant registration")
 		})
-
 		It("list custom plugins and make sure the plugin is registered even with manual mode", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
@@ -528,7 +377,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			}
 			Expect(csPlugins[customComponentName]).NotTo(BeNil(), "expected to be registered")
 		})
-
 		It("make sure the plugin has been not run as it's manual mode", func() {
 			// wait for the plugin to run
 			time.Sleep(3 * time.Second)
@@ -536,22 +384,21 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			_, err := os.Stat(fileToWrite1)
 			Expect(errors.Is(err, os.ErrNotExist)).Should(BeTrue(), "expected file to not be created")
 		})
-
 		It("trigger the plugin that is in manual mode", func() {
 			resp, err := clientv1.TriggerComponentCheck(rootCtx, "https://"+ep, customComponentName)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			Expect(len(resp)).To(Equal(1), "expected 1 response")
-			Expect(string(resp[0].ComponentType)).To(Equal(string(apiv1.ComponentTypeCustomPlugin)), "expected component type to be custom plugin")
-			Expect(string(resp[0].RunMode)).To(Equal(string(apiv1.RunModeTypeManual)), "expected manual mode")
+			Expect(len(resp[0].States)).To(Equal(1), "expected 1 response")
+			Expect(resp[0].Component).To(Equal(customComponentName), "expected component to be "+customComponentName)
+			Expect(string(resp[0].States[0].ComponentType)).To(Equal(string(apiv1.ComponentTypeCustomPlugin)), "expected component type to be custom plugin")
+			Expect(string(resp[0].States[0].RunMode)).To(Equal(string(apiv1.RunModeTypeManual)), "expected manual mode")
 
 			fmt.Printf("%+v\n", resp)
 		})
-
 		It("make sure the plugin has been run manually", func() {
 			_, err := os.Stat(fileToWrite1)
 			Expect(err).NotTo(HaveOccurred(), "expected file to be created")
 		})
-
 		It("make sure the plugin has been failed as configured", func() {
 			states, err := clientv1.GetHealthStates(rootCtx, "https://"+ep, clientv1.WithComponent(customComponentName))
 			Expect(err).NotTo(HaveOccurred(), "failed to get states")
@@ -570,7 +417,6 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 		randStrToEcho, err := randStr(100)
 		Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
-
 		It("updates the custom plugin with non-manual mode", func() {
 			testPluginSpec := pkgcustomplugins.Spec{
 				PluginName: pluginName,
@@ -685,17 +531,118 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(states[0].States[0].Time.IsZero()).Should(BeFalse(), "expected time to be set")
 			Expect(states[0].States[0].RunMode).Should(BeEmpty(), "expected run mode to be empty")
 		})
-
 		It("deregister the custom plugin", func() {
 			derr := clientv1.DeregisterComponent(rootCtx, "https://"+ep, customComponentName)
 			Expect(derr).NotTo(HaveOccurred(), "failed to deregister custom plugin")
 		})
-
 		It("list custom plugins and make sure the plugin has been de-registered", func() {
 			csPlugins, err := clientv1.GetCustomPlugins(rootCtx, "https://"+ep)
 			Expect(err).NotTo(HaveOccurred(), "failed to get custom plugins")
 			GinkgoLogr.Info("got custom plugins", "custom plugins", csPlugins)
 			Expect(csPlugins).To(BeEmpty(), "expected no custom plugins")
+		})
+	})
+
+	// enough time for metrics syncer to be triggers
+	time.Sleep(time.Minute + 30*time.Second)
+
+	Describe("/v1/metrics requests", func() {
+		It("request without compress", func() {
+			// enough time for metrics to be collected
+			time.Sleep(time.Minute + 30*time.Second)
+
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+			fmt.Println("/v1/metrics RESPONSE SIZE:", len(body))
+			GinkgoLogr.Info("/v1/metrics response size", "size", string(body))
+
+			var metrics apiv1.GPUdComponentMetrics
+			err = json.Unmarshal(body, &metrics)
+			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
+
+			indentB, err := json.MarshalIndent(metrics, "", "  ")
+			Expect(err).NotTo(HaveOccurred(), "failed to marshal response body")
+			fmt.Println("/v1/metrics RESPONSE BODY:", string(indentB))
+			GinkgoLogr.Info("/v1/metrics response", "response", string(indentB))
+
+			// should not be empty
+			Expect(metrics).ToNot(BeEmpty(), "expected metrics to not be empty")
+
+			// make sure default components are present (enabled by default)
+			found := make(map[string]bool)
+			for _, m := range metrics {
+				found[m.Component] = true
+			}
+			Expect(found["cpu"]).To(BeTrue(), "expected cpu component to be present")
+			Expect(found["memory"]).To(BeTrue(), "expected memory component to be present")
+			Expect(found["disk"]).To(BeTrue(), "expected disk component to be present")
+			Expect(found["network-latency"]).To(BeTrue(), "expected network-latency component to be present")
+		})
+		It("request with compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/v1/metrics", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept-Encoding", "gzip")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			gr, err := gzip.NewReader(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to create gzip reader")
+			body, err := io.ReadAll(gr)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+
+			var metrics apiv1.GPUdComponentMetrics
+			err = json.Unmarshal(body, &metrics)
+			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
+		})
+	})
+
+	Describe("/metrics requests", func() {
+		It("request prometheus metrics without compress", func() {
+			req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/metrics", ep), nil)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+
+			fmt.Println("/metrics RESPONSE SIZE:", len(body))
+			GinkgoLogr.Info("/metrics response size", "size", string(body))
+			fmt.Println("/metrics RESPONSE BODY:", string(body))
+			GinkgoLogr.Info("/metrics response", "response", string(body))
+
+			Expect(string(body)).To(ContainSubstring("health_state_healthy"))
+			Expect(string(body)).To(ContainSubstring("health_state_unhealthy"))
+			Expect(string(body)).To(ContainSubstring("health_state_degraded"))
+		})
+	})
+
+	Describe("machine-info command", func() {
+		It("should print machine info", func() {
+			By("start gpud machine-info")
+			cmd = exec.CommandContext(gCtx, os.Getenv("GPUD_BIN"), "machine-info", "--log-level", "debug")
+			b, err := cmd.CombinedOutput()
+			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("failed to run gpud machine-info:\n%s", string(b)))
+			GinkgoLogr.Info("gpud machine-info successfully", "output", string(b))
+			fmt.Println("'gpud machine-info' OUTPUT:", string(b))
 		})
 	})
 })

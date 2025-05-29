@@ -3,19 +3,11 @@ package update
 import (
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
-	pkd_systemd "github.com/leptonai/gpud/pkg/systemd"
+	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
 )
-
-func RequireRoot() error {
-	if os.Geteuid() == 0 {
-		return nil
-	}
-	return errors.New("this command needs to be run as root")
-}
 
 func detectUbuntuVersion() string {
 	outputBytes, err := exec.Command("lsb_release", "-i", "-s").Output()
@@ -38,7 +30,7 @@ func detectUbuntuVersion() string {
 }
 
 func EnableGPUdSystemdUnit() error {
-	if !pkd_systemd.SystemctlExists() {
+	if !pkdsystemd.SystemctlExists() {
 		return errors.ErrUnsupported
 	}
 	if out, err := exec.Command("systemctl", "enable", "gpud.service").CombinedOutput(); err != nil {
@@ -48,7 +40,7 @@ func EnableGPUdSystemdUnit() error {
 }
 
 func DisableGPUdSystemdUnit() error {
-	if !pkd_systemd.SystemctlExists() {
+	if !pkdsystemd.SystemctlExists() {
 		return errors.ErrUnsupported
 	}
 	if out, err := exec.Command("systemctl", "disable", "gpud.service").CombinedOutput(); err != nil {
@@ -58,7 +50,7 @@ func DisableGPUdSystemdUnit() error {
 }
 
 func RestartGPUdSystemdUnit() error {
-	if !pkd_systemd.SystemctlExists() {
+	if !pkdsystemd.SystemctlExists() {
 		return errors.ErrUnsupported
 	}
 	if out, err := exec.Command("systemctl", "daemon-reload").CombinedOutput(); err != nil {
@@ -71,7 +63,7 @@ func RestartGPUdSystemdUnit() error {
 }
 
 func StopSystemdUnit() error {
-	if !pkd_systemd.SystemctlExists() {
+	if !pkdsystemd.SystemctlExists() {
 		return errors.ErrUnsupported
 	}
 	if out, err := exec.Command("systemctl", "stop", "gpud.service").CombinedOutput(); err != nil {

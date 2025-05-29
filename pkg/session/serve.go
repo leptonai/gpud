@@ -19,9 +19,12 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
-	gpudstate "github.com/leptonai/gpud/pkg/gpud-state"
+	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
+	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
+	pkdsystemd "github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -43,10 +46,16 @@ type Request struct {
 	UpdateVersion string            `json:"update_version,omitempty"`
 	UpdateConfig  map[string]string `json:"update_config,omitempty"`
 
-	Bootstrap *BootstrapRequest `json:"bootstrap,omitempty"`
+	Bootstrap          *BootstrapRequest         `json:"bootstrap,omitempty"`
+	InjectFaultRequest *pkgfaultinjector.Request `json:"inject_fault_request,omitempty"`
 
 	// ComponentName is the name of the component to query or deregister.
 	ComponentName string `json:"component_name,omitempty"`
+
+	// TagName is the tag of the component to trigger check.
+	// Optional. If set, it triggers all the component checks
+	// that match this tag value.
+	TagName string `json:"tag_name,omitempty"`
 
 	// CustomPluginSpec is the spec for the custom plugin to register or update.
 	CustomPluginSpec *pkgcustomplugins.Spec `json:"custom_plugin_spec,omitempty"`
@@ -61,11 +70,15 @@ type Response struct {
 	// See: https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
 	ErrorCode int32 `json:"error_code,omitempty"`
 
+	GossipRequest *apiv1.GossipRequest `json:"gossip_request,omitempty"`
+
 	States  apiv1.GPUdComponentHealthStates `json:"states,omitempty"`
 	Events  apiv1.GPUdComponentEvents       `json:"events,omitempty"`
 	Metrics apiv1.GPUdComponentMetrics      `json:"metrics,omitempty"`
 
 	Bootstrap *BootstrapResponse `json:"bootstrap,omitempty"`
+
+	PackageStatus []apiv1.PackageStatus `json:"package_status,omitempty"`
 
 	Plugins map[string]pkgcustomplugins.Spec `json:"plugins,omitempty"`
 }
@@ -82,6 +95,22 @@ type BootstrapRequest struct {
 type BootstrapResponse struct {
 	Output   string `json:"output,omitempty"`
 	ExitCode int32  `json:"exit_code,omitempty"`
+}
+
+func (s *Session) processGossip(resp *Response) {
+	if s.createGossipRequestFunc == nil {
+		return
+	}
+
+	gossipReq, err := s.createGossipRequestFunc(s.machineID, s.nvmlInstance)
+	if err != nil {
+		log.Logger.Errorw("failed to create gossip request", "error", err)
+		resp.Error = err.Error()
+		return
+	}
+
+	resp.GossipRequest = gossipReq
+	log.Logger.Debugw("successfully set gossip request")
 }
 
 func (s *Session) serve() {
@@ -144,7 +173,7 @@ func (s *Session) serve() {
 				dbRW.Close()
 				break
 			}
-			if err = gpudstate.DeleteAllMetadata(ctx, dbRW); err != nil {
+			if err = pkgmetadata.DeleteAllMetadata(ctx, dbRW); err != nil {
 				log.Logger.Errorw("failed to purge metadata", "error", err)
 				response.Error = err.Error()
 				dbRW.Close()
@@ -174,6 +203,35 @@ func (s *Session) serve() {
 				}
 			}
 
+		case "gossip":
+			s.processGossip(response)
+
+		case "packageStatus":
+			packageStatus, err := gpudmanager.GlobalController.Status(ctx)
+			if err != nil {
+				response.Error = err.Error()
+			}
+			var result []apiv1.PackageStatus
+			for _, currPackage := range packageStatus {
+				packagePhase := apiv1.UnknownPhase
+				if currPackage.IsInstalled {
+					packagePhase = apiv1.InstalledPhase
+				} else if currPackage.Installing {
+					packagePhase = apiv1.InstallingPhase
+				}
+				status := "Unhealthy"
+				if currPackage.Status {
+					status = "Healthy"
+				}
+				result = append(result, apiv1.PackageStatus{
+					Name:           currPackage.Name,
+					Phase:          packagePhase,
+					Status:         status,
+					CurrentVersion: currPackage.CurrentVersion,
+				})
+			}
+			response.PackageStatus = result
+
 		case "update":
 			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
 				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
@@ -200,6 +258,10 @@ func (s *Session) serve() {
 				}
 
 				if systemdManaged {
+					if uerr := pkdsystemd.CreateDefaultEnvFile(""); uerr != nil {
+						response.Error = uerr.Error()
+						break
+					}
 					uerr := update.Update(nextVersion, update.DefaultUpdateURL)
 					if uerr != nil {
 						response.Error = uerr.Error()
@@ -262,8 +324,39 @@ func (s *Session) serve() {
 				}
 			}
 
+		case "injectFault":
+			if payload.InjectFaultRequest != nil {
+				if s.faultInjector == nil {
+					response.Error = "fault injector is not initialized"
+					break
+				}
+
+				if err := payload.InjectFaultRequest.Validate(); err != nil {
+					response.Error = err.Error()
+					log.Logger.Errorw("invalid fault inject request", "error", err)
+					break
+				}
+
+				switch {
+				case payload.InjectFaultRequest.KernelMessage != nil:
+					if err := s.faultInjector.KmsgWriter().Write(payload.InjectFaultRequest.KernelMessage); err != nil {
+						response.Error = err.Error()
+						log.Logger.Errorw("failed to inject kernel message", "message", payload.InjectFaultRequest.KernelMessage.Message, "error", err)
+					} else {
+						log.Logger.Infow("successfully injected kernel message", "message", payload.InjectFaultRequest.KernelMessage.Message)
+					}
+
+				default:
+					log.Logger.Warnw("fault inject request is nil or kernel message is nil")
+				}
+			} else {
+				log.Logger.Warnw("fault inject request is nil")
+			}
+
 		case "triggerComponentCheck":
+			checkResults := make([]components.CheckResult, 0)
 			if payload.ComponentName != "" {
+				// requesting a specific component, tag is ignored
 				comp := s.componentsRegistry.Get(payload.ComponentName)
 				if comp == nil {
 					log.Logger.Warnw("component not found", "name", payload.ComponentName)
@@ -271,13 +364,31 @@ func (s *Session) serve() {
 					break
 				}
 
-				rs := comp.Check()
-				response.States = apiv1.GPUdComponentHealthStates{
-					{
-						Component: payload.ComponentName,
-						States:    rs.HealthStates(),
-					},
+				checkResults = append(checkResults, comp.Check())
+			} else if payload.TagName != "" {
+				components := s.componentsRegistry.All()
+				for _, comp := range components {
+					matched := false
+					for _, tag := range comp.Tags() {
+						if tag == payload.TagName {
+							matched = true
+							break
+						}
+					}
+					if !matched {
+						continue
+					}
+
+					checkResults = append(checkResults, comp.Check())
 				}
+			}
+
+			response.States = apiv1.GPUdComponentHealthStates{}
+			for _, checkResult := range checkResults {
+				response.States = append(response.States, apiv1.ComponentHealthStates{
+					Component: checkResult.ComponentName(),
+					States:    checkResult.HealthStates(),
+				})
 			}
 
 		case "deregisterComponent":
@@ -400,7 +511,7 @@ func (s *Session) serve() {
 					break
 				}
 
-				log.Logger.Infow("registered and started custom plugin", "name", comp.Name())
+				log.Logger.Infow("updated and started custom plugin", "name", comp.Name())
 			}
 		}
 

@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,9 +12,13 @@ import (
 	"sync"
 	"time"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
 )
 
@@ -25,7 +28,9 @@ type Op struct {
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 	componentsRegistry components.Registry
+	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store
+	faultInjector      pkgfaultinjector.Injector
 }
 
 type OpOption func(*Op)
@@ -70,9 +75,21 @@ func WithComponentsRegistry(componentsRegistry components.Registry) OpOption {
 	}
 }
 
+func WithNvidiaInstance(nvmlInstance nvidianvml.Instance) OpOption {
+	return func(op *Op) {
+		op.nvmlInstance = nvmlInstance
+	}
+}
+
 func WithMetricsStore(metricsStore pkgmetrics.Store) OpOption {
 	return func(op *Op) {
 		op.metricsStore = metricsStore
+	}
+}
+
+func WithFaultInjector(faultInjector pkgfaultinjector.Injector) OpOption {
+	return func(op *Op) {
+		op.faultInjector = faultInjector
 	}
 }
 
@@ -100,6 +117,9 @@ type Session struct {
 
 	token string
 
+	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
+
+	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store
 	componentsRegistry components.Registry
 	processRunner      process.Runner
@@ -113,6 +133,8 @@ type Session struct {
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+
+	faultInjector pkgfaultinjector.Injector
 
 	lastPackageTimestampMu sync.RWMutex
 	lastPackageTimestamp   time.Time
@@ -158,11 +180,16 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		machineID: op.machineID,
 		token:     token,
 
+		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
+
+		nvmlInstance:       op.nvmlInstance,
 		metricsStore:       op.metricsStore,
 		componentsRegistry: op.componentsRegistry,
 		processRunner:      process.NewExclusiveRunner(),
 
 		components: cps,
+
+		faultInjector: op.faultInjector,
 
 		enableAutoUpdate:   op.enableAutoUpdate,
 		autoUpdateExitCode: op.autoUpdateExitCode,
@@ -195,9 +222,11 @@ func (s *Session) keepAlive() {
 			writerExit := make(chan any)
 			s.closer = &closeOnce{closer: make(chan any)}
 			ctx, cancel := context.WithCancel(context.Background()) // create local context for each session
+			// DO NOT CHANGE OR REMOVE THIS COOKIE JAR, DEPEND ON IT FOR STICKY SESSION
 			jar, _ := cookiejar.New(nil)
 
 			log.Logger.Infow("session keep alive: checking server health")
+			// DO NOT CHANGE OR REMOVE THIS SERVER HEALTH CHECK, DEPEND ON IT FOR STICKY SESSION
 			if err := s.checkServerHealth(ctx, jar); err != nil {
 				log.Logger.Errorf("session keep alive: error checking server health: %v", err)
 				cancel()
@@ -343,15 +372,12 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 }
 
 func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", s.epLocalGPUdServer+"/healthz", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", s.epControlPlane+"/healthz", nil)
 	if err != nil {
 		return err
 	}
 
 	client := createHTTPClient(jar)
-	tr := client.Transport.(*http.Transport)
-	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

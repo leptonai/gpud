@@ -27,6 +27,8 @@ import (
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/providers"
+	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -47,8 +49,9 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		Hostname:                hostname,
 		Uptime:                  metav1.NewTime(time.Unix(int64(pkghost.BootTimeUnixSeconds()), 0)),
 
-		CPUInfo: GetMachineCPUInfo(),
-		NICInfo: GetMachineNICInfo(),
+		CPUInfo:    GetMachineCPUInfo(),
+		MemoryInfo: GetMachineMemoryInfo(),
+		NICInfo:    GetMachineNICInfo(),
 	}
 
 	var err error
@@ -82,24 +85,6 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 	return info, nil
 }
 
-// GetSystemResourceMemoryTotal returns the system memory resource of the machine
-// for the total memory size, using the type defined in "corev1.ResourceName"
-// in https://pkg.go.dev/k8s.io/api/core/v1#ResourceName.
-// It represents the Memory, in bytes (500Gi = 500GiB = 500 * 1024 * 1024 * 1024).
-// Must be parsed using the "resource.ParseQuantity" function in https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource.
-func GetSystemResourceMemoryTotal() (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	vm, err := mem.VirtualMemoryWithContext(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get memory: %w", err)
-	}
-
-	qty := resource.NewQuantity(int64(vm.Total), resource.DecimalSI)
-	return qty.String(), nil
-}
-
 // GetSystemResourceRootVolumeTotal returns the system root disk resource of the machine
 // for the total disk size, using the type defined in "corev1.ResourceName"
 // in https://pkg.go.dev/k8s.io/api/core/v1#ResourceName.
@@ -118,12 +103,13 @@ func GetSystemResourceRootVolumeTotal() (string, error) {
 	return qty.String(), nil
 }
 
-// GetSystemResourceLogicalCores returns the system CPU resource of the machine
-// with the logical core counts, using the type defined in "corev1.ResourceName"
-// in https://pkg.go.dev/k8s.io/api/core/v1#ResourceName.
-// It represents the CPU, in cores (500m = .5 cores).
-// Must be parsed using the "resource.ParseQuantity" function in https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource.
-func GetSystemResourceLogicalCores() (string, int64, error) {
+func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
+	info := &apiv1.MachineCPUInfo{
+		Type:         pkghost.CPUModelName(),
+		Manufacturer: pkghost.CPUVendorID(),
+		Architecture: runtime.GOARCH,
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -131,18 +117,27 @@ func GetSystemResourceLogicalCores() (string, int64, error) {
 	// same as "nproc --all"
 	cnt, err := cpu.CountsWithContext(ctx, true)
 	if err != nil {
-		return "", 0, fmt.Errorf("failed to get CPU cores count: %w", err)
+		log.Logger.Errorw("failed to get logical CPU cores count", "error", err)
 	}
+	info.LogicalCores = int64(cnt)
 
-	qty := resource.NewQuantity(int64(cnt), resource.DecimalSI)
-	return qty.String(), int64(cnt), nil
+	return info
 }
 
-func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
-	return &apiv1.MachineCPUInfo{
-		Type:         pkghost.CPUModelName(),
-		Manufacturer: pkghost.CPUVendorID(),
-		Architecture: runtime.GOARCH,
+func GetMachineMemoryInfo() *apiv1.MachineMemoryInfo {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	vm, err := mem.VirtualMemoryWithContext(ctx)
+	if err != nil {
+		log.Logger.Errorw("failed to get memory info", "error", err)
+		return &apiv1.MachineMemoryInfo{
+			TotalBytes: 0,
+		}
+	}
+
+	return &apiv1.MachineMemoryInfo{
+		TotalBytes: vm.Total,
 	}
 }
 
@@ -184,15 +179,50 @@ func GetMachineNICInfo() *apiv1.MachineNICInfo {
 	}
 }
 
-func GetProvider(publicIP string) string {
-	if publicIP == "" {
-		return ""
+// GetProvider looks up the provider of the machine.
+// If the metadata service or other provider detection fails, it falls back to ASN lookup
+// using the public IP address.
+func GetProvider(publicIP string) *providers.Info {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	providerInfo, err := pkgprovidersall.Detect(ctx)
+	cancel()
+	if err != nil {
+		log.Logger.Warnw("failed to detect provider", "error", err)
+	} else {
+		log.Logger.Debugw("provider info", "provider", providerInfo, "error", err)
 	}
+
+	if providerInfo == nil {
+		providerInfo = &providers.Info{
+			Provider: "unknown",
+		}
+	}
+	if providerInfo.PublicIP == "" {
+		providerInfo.PublicIP = publicIP
+	}
+	if providerInfo.Provider == "" {
+		providerInfo.Provider = "unknown"
+	}
+
+	if providerInfo.Provider != "unknown" {
+		return providerInfo
+	}
+
+	// no fallback when there's no public IP
+	if publicIP == "" {
+		return providerInfo
+	}
+
+	// fallback to ASN lookup
+	log.Logger.Debugw("fallback to ASN lookup for provider", "publicIP", publicIP)
 	asnResult, err := asn.GetASLookup(publicIP)
 	if err != nil {
-		return ""
+		return providerInfo
 	}
-	return asnResult.AsnName
+
+	log.Logger.Debugw("ASN lookup result", "asnResult", asnResult)
+	providerInfo.Provider = asn.NormalizeASNName(asnResult.AsnName)
+	return providerInfo
 }
 
 func GetMachineLocation() *apiv1.MachineLocation {

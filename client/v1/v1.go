@@ -18,8 +18,8 @@ import (
 	v1 "github.com/leptonai/gpud/api/v1"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/server"
 )
 
 func GetComponents(ctx context.Context, addr string, opts ...OpOption) ([]string, error) {
@@ -33,10 +33,10 @@ func GetComponents(ctx context.Context, addr string, opts ...OpOption) ([]string
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	resp, err := createDefaultHTTPClient().Do(req)
@@ -59,7 +59,7 @@ func ReadComponents(rd io.Reader, opts ...OpOption) ([]string, error) {
 
 	var components []string
 	switch op.requestAcceptEncoding {
-	case server.RequestHeaderEncodingGzip:
+	case httputil.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
@@ -67,11 +67,11 @@ func ReadComponents(rd io.Reader, opts ...OpOption) ([]string, error) {
 		defer gr.Close()
 
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(gr).Decode(&components); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(gr)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -85,11 +85,11 @@ func ReadComponents(rd io.Reader, opts ...OpOption) ([]string, error) {
 
 	default:
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(rd).Decode(&components); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(rd)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -132,10 +132,10 @@ func DeregisterComponent(ctx context.Context, addr string, componentName string,
 	}
 
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	resp, err := createDefaultHTTPClient().Do(req)
@@ -159,7 +159,7 @@ func DeregisterComponent(ctx context.Context, addr string, componentName string,
 }
 
 // TriggerComponentCheck manually triggers a component check.
-func TriggerComponentCheck(ctx context.Context, addr string, componentName string, opts ...OpOption) (v1.HealthStates, error) {
+func TriggerComponentCheck(ctx context.Context, addr string, componentName string, opts ...OpOption) (v1.GPUdComponentHealthStates, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
 		return nil, err
@@ -184,10 +184,10 @@ func TriggerComponentCheck(ctx context.Context, addr string, componentName strin
 	}
 
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	resp, err := createDefaultHTTPClient().Do(req)
@@ -200,7 +200,7 @@ func TriggerComponentCheck(ctx context.Context, addr string, componentName strin
 		return nil, errors.New("server not ready, response not 200")
 	}
 
-	var healthStates v1.HealthStates
+	var healthStates v1.GPUdComponentHealthStates
 	if err := json.NewDecoder(resp.Body).Decode(&healthStates); err != nil {
 		return nil, fmt.Errorf("failed to decode json: %w", err)
 	}
@@ -235,10 +235,10 @@ func TriggerComponentCheckByTag(ctx context.Context, addr string, tagName string
 	}
 
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	resp, err := createDefaultHTTPClient().Do(req)
@@ -320,10 +320,10 @@ func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdCompone
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	resp, err := createDefaultHTTPClient().Do(req)
@@ -346,7 +346,7 @@ func ReadInfo(rd io.Reader, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 
 	var info v1.GPUdComponentInfos
 	switch op.requestAcceptEncoding {
-	case server.RequestHeaderEncodingGzip:
+	case httputil.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
@@ -354,11 +354,11 @@ func ReadInfo(rd io.Reader, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 		defer gr.Close()
 
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(gr).Decode(&info); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(gr)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -372,11 +372,11 @@ func ReadInfo(rd io.Reader, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 
 	default:
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(rd).Decode(&info); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(rd)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -443,10 +443,10 @@ func GetHealthStates(ctx context.Context, addr string, opts ...OpOption) (v1.GPU
 	}
 
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	resp, err := createDefaultHTTPClient().Do(req)
@@ -473,7 +473,7 @@ func ReadHealthStates(rd io.Reader, opts ...OpOption) (v1.GPUdComponentHealthSta
 
 	var states v1.GPUdComponentHealthStates
 	switch op.requestAcceptEncoding {
-	case server.RequestHeaderEncodingGzip:
+	case httputil.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
@@ -481,11 +481,11 @@ func ReadHealthStates(rd io.Reader, opts ...OpOption) (v1.GPUdComponentHealthSta
 		defer gr.Close()
 
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(gr).Decode(&states); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(gr)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -499,11 +499,11 @@ func ReadHealthStates(rd io.Reader, opts ...OpOption) (v1.GPUdComponentHealthSta
 
 	default:
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(rd).Decode(&states); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(rd)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -530,10 +530,10 @@ func GetEvents(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdCompo
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	resp, err := createDefaultHTTPClient().Do(req)
@@ -556,7 +556,7 @@ func ReadEvents(rd io.Reader, opts ...OpOption) (v1.GPUdComponentEvents, error) 
 
 	var evs v1.GPUdComponentEvents
 	switch op.requestAcceptEncoding {
-	case server.RequestHeaderEncodingGzip:
+	case httputil.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
@@ -564,11 +564,11 @@ func ReadEvents(rd io.Reader, opts ...OpOption) (v1.GPUdComponentEvents, error) 
 		defer gr.Close()
 
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(gr).Decode(&evs); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(gr)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -582,11 +582,11 @@ func ReadEvents(rd io.Reader, opts ...OpOption) (v1.GPUdComponentEvents, error) 
 
 	default:
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(rd).Decode(&evs); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(rd)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -613,10 +613,10 @@ func GetMetrics(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComp
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	resp, err := createDefaultHTTPClient().Do(req)
@@ -639,7 +639,7 @@ func ReadMetrics(rd io.Reader, opts ...OpOption) (v1.GPUdComponentMetrics, error
 
 	var metrics v1.GPUdComponentMetrics
 	switch op.requestAcceptEncoding {
-	case server.RequestHeaderEncodingGzip:
+	case httputil.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
@@ -647,11 +647,11 @@ func ReadMetrics(rd io.Reader, opts ...OpOption) (v1.GPUdComponentMetrics, error
 		defer gr.Close()
 
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(gr).Decode(&metrics); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(gr)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -665,11 +665,11 @@ func ReadMetrics(rd io.Reader, opts ...OpOption) (v1.GPUdComponentMetrics, error
 
 	default:
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(rd).Decode(&metrics); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(rd)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -703,10 +703,10 @@ func GetCustomPlugins(ctx context.Context, addr string, opts ...OpOption) (map[s
 	}
 
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	resp, err := createDefaultHTTPClient().Do(req)
@@ -734,7 +734,7 @@ func ReadCustomPluginSpecs(rd io.Reader, opts ...OpOption) (map[string]pkgcustom
 
 	var csPlugins map[string]pkgcustomplugins.Spec
 	switch op.requestAcceptEncoding {
-	case server.RequestHeaderEncodingGzip:
+	case httputil.RequestHeaderEncodingGzip:
 		gr, err := gzip.NewReader(rd)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
@@ -742,11 +742,11 @@ func ReadCustomPluginSpecs(rd io.Reader, opts ...OpOption) (map[string]pkgcustom
 		defer gr.Close()
 
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(gr).Decode(&csPlugins); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(gr)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -760,11 +760,11 @@ func ReadCustomPluginSpecs(rd io.Reader, opts ...OpOption) (map[string]pkgcustom
 
 	default:
 		switch op.requestContentType {
-		case server.RequestHeaderJSON, "":
+		case httputil.RequestHeaderJSON, "":
 			if err := json.NewDecoder(rd).Decode(&csPlugins); err != nil {
 				return nil, fmt.Errorf("failed to decode json: %w", err)
 			}
-		case server.RequestHeaderYAML:
+		case httputil.RequestHeaderYAML:
 			b, err := io.ReadAll(rd)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read yaml: %w", err)
@@ -819,10 +819,10 @@ func registerOrUpdateCustomPlugin(ctx context.Context, addr string, spec pkgcust
 	}
 
 	if op.requestContentType != "" {
-		req.Header.Set(server.RequestHeaderContentType, op.requestContentType)
+		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
 	}
 	if op.requestAcceptEncoding != "" {
-		req.Header.Set(server.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
+		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
 	}
 
 	switch method {

@@ -58,9 +58,11 @@ func Open(file string, opts ...OpOption) (*sql.DB, error) {
 	return db, nil
 }
 
-func ReadDBSize(ctx context.Context, db *sql.DB) (uint64, error) {
+// ReadDBSize reads the size of the database in bytes.
+// It fails if the database file does not exist.
+func ReadDBSize(ctx context.Context, dbRO *sql.DB) (uint64, error) {
 	var pageCount uint64
-	err := db.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pageCount)
+	err := dbRO.QueryRowContext(ctx, "PRAGMA page_count").Scan(&pageCount)
 	if err == sql.ErrNoRows {
 		return 0, errors.New("no page count")
 	}
@@ -69,7 +71,7 @@ func ReadDBSize(ctx context.Context, db *sql.DB) (uint64, error) {
 	}
 
 	var pageSize uint64
-	err = db.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize)
+	err = dbRO.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize)
 	if err == sql.ErrNoRows {
 		return 0, errors.New("no page size")
 	}

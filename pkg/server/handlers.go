@@ -13,22 +13,13 @@ import (
 	"github.com/leptonai/gpud/components"
 	gpudconfig "github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/errdefs"
+	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
 const (
 	URLPathSwagger     = "/swagger/*any"
 	URLPathSwaggerDesc = "Swagger endpoint for docs"
-)
-
-const (
-	RequestHeaderContentType = "Content-Type"
-	RequestHeaderJSON        = "application/json"
-	RequestHeaderYAML        = "application/yaml"
-	RequestHeaderJSONIndent  = "json-indent"
-
-	RequestHeaderAcceptEncoding = "Accept-Encoding"
-	RequestHeaderEncodingGzip   = "gzip"
 )
 
 type globalHandler struct {
@@ -42,9 +33,11 @@ type globalHandler struct {
 	metricsStore pkgmetrics.Store
 
 	gpudInstance *components.GPUdInstance
+
+	faultInjector pkgfaultinjector.Injector
 }
 
-func newGlobalHandler(cfg *gpudconfig.Config, componentsRegistry components.Registry, metricsStore pkgmetrics.Store, gpudInstance *components.GPUdInstance) *globalHandler {
+func newGlobalHandler(cfg *gpudconfig.Config, componentsRegistry components.Registry, metricsStore pkgmetrics.Store, gpudInstance *components.GPUdInstance, faultInjector pkgfaultinjector.Injector) *globalHandler {
 	var componentNames []string
 	for _, c := range componentsRegistry.All() {
 		componentNames = append(componentNames, c.Name())
@@ -57,6 +50,7 @@ func newGlobalHandler(cfg *gpudconfig.Config, componentsRegistry components.Regi
 		componentNames:     componentNames,
 		metricsStore:       metricsStore,
 		gpudInstance:       gpudInstance,
+		faultInjector:      faultInjector,
 	}
 }
 
