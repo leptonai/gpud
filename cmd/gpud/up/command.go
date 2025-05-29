@@ -85,6 +85,6 @@ func systemdInit(endpoint string) error {
 	if err := systemd.CreateDefaultEnvFile(endpoint); err != nil {
 		return err
 	}
-	systemdUnitFileData := systemd.GPUDService
+	systemdUnitFileData := systemd.GPUdServiceUnitFileContents()
 	return os.WriteFile(systemd.DefaultUnitFile, []byte(systemdUnitFileData), 0644)
 }

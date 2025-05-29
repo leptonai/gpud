@@ -83,14 +83,14 @@ gpud run
 Or
 
 ```bash
-nohup sudo /usr/sbin/gpud run &>> <your log file path> &
+nohup sudo /usr/local/bin run &>> <your log file path> &
 ```
 
 ### Stop and uninstall
 
 ```bash
 sudo gpud down
-sudo rm /usr/sbin/gpud
+sudo rm /usr/local/bin
 sudo rm /etc/systemd/system/gpud.service
 ```
 
