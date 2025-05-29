@@ -19,6 +19,17 @@ var DefaultHealthz = Healthz{
 	Version: "v1",
 }
 
+// handleHealthz godoc
+// @Summary Health check endpoint
+// @Description Returns the health status of the gpud service
+// @ID healthz
+// @Tags health
+// @Accept json,yaml
+// @Produce json,yaml
+// @Header 200 {string} Content-Type "application/json or application/yaml"
+// @Success 200 {object} Healthz "Health status"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /healthz [get]
 func handleHealthz() func(ctx *gin.Context) {
 	return func(c *gin.Context) {
 		if c.GetHeader("Content-Type") == "application/yaml" {

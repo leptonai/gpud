@@ -58,7 +58,7 @@ func TestHandleInjectFault_NilFaultInjector(t *testing.T) {
 	}
 
 	// Register the handler
-	router.POST(URLPathInjectFault, handler.handleInjectFault)
+	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create request with valid JSON
 	request := pkgfaultinjector.Request{
@@ -99,7 +99,7 @@ func TestHandleInjectFault_InvalidJSON(t *testing.T) {
 	}
 
 	// Register the handler
-	router.POST(URLPathInjectFault, handler.handleInjectFault)
+	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create HTTP request with invalid JSON
 	invalidJSON := `{"invalid": json}`
@@ -136,7 +136,7 @@ func TestHandleInjectFault_SuccessfulKernelMessageInjection(t *testing.T) {
 	}
 
 	// Register the handler
-	router.POST(URLPathInjectFault, handler.handleInjectFault)
+	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create valid request
 	kernelMessage := &pkgkmsgwriter.KernelMessage{
@@ -185,7 +185,7 @@ func TestHandleInjectFault_FailedKernelMessageInjection(t *testing.T) {
 	}
 
 	// Register the handler
-	router.POST(URLPathInjectFault, handler.handleInjectFault)
+	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create valid request
 	kernelMessage := &pkgkmsgwriter.KernelMessage{
@@ -236,7 +236,7 @@ func TestHandleInjectFault_NilKernelMessage_DefaultCase(t *testing.T) {
 	}
 
 	// Register the handler
-	router.POST(URLPathInjectFault, handler.handleInjectFault)
+	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create request with nil KernelMessage (validation fails before reaching switch)
 	request := pkgfaultinjector.Request{
@@ -277,7 +277,7 @@ func TestHandleInjectFault_EmptyRequest_DefaultCase(t *testing.T) {
 	}
 
 	// Register the handler
-	router.POST(URLPathInjectFault, handler.handleInjectFault)
+	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create empty request (no fields set, validation fails before reaching switch)
 	request := pkgfaultinjector.Request{}
@@ -317,7 +317,7 @@ func TestHandleInjectFault_ContextPropagation(t *testing.T) {
 	}
 
 	// Register the handler
-	router.POST(URLPathInjectFault, handler.handleInjectFault)
+	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create valid request
 	kernelMessage := &pkgkmsgwriter.KernelMessage{
@@ -362,7 +362,7 @@ func TestHandleInjectFault_Validation(t *testing.T) {
 		}
 
 		// Register the handler
-		router.POST(URLPathInjectFault, handler.handleInjectFault)
+		router.POST(URLPathInjectFault, handler.injectFault)
 
 		// Create request with valid kernel message
 		kernelMessage := &pkgkmsgwriter.KernelMessage{
@@ -410,7 +410,7 @@ func TestHandleInjectFault_Validation(t *testing.T) {
 		}
 
 		// Register the handler
-		router.POST(URLPathInjectFault, handler.handleInjectFault)
+		router.POST(URLPathInjectFault, handler.injectFault)
 
 		// Create request with message exceeding MaxPrintkRecordLength (976 characters)
 		maxLength := 976
@@ -463,7 +463,7 @@ func TestHandleInjectFault_Validation(t *testing.T) {
 		}
 
 		// Register the handler
-		router.POST(URLPathInjectFault, handler.handleInjectFault)
+		router.POST(URLPathInjectFault, handler.injectFault)
 
 		// Create request with nil KernelMessage (validation fails before reaching switch)
 		request := pkgfaultinjector.Request{
@@ -505,7 +505,7 @@ func TestHandleInjectFault_XidToKernelMessageTransformation(t *testing.T) {
 	}
 
 	// Register the handler
-	router.POST(URLPathInjectFault, handler.handleInjectFault)
+	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create request with XID (will be transformed to KernelMessage during validation)
 	request := pkgfaultinjector.Request{
@@ -552,7 +552,7 @@ func TestHandleInjectFault_InvalidXid(t *testing.T) {
 	}
 
 	// Register the handler
-	router.POST(URLPathInjectFault, handler.handleInjectFault)
+	router.POST(URLPathInjectFault, handler.injectFault)
 
 	// Create request with invalid XID (ID = 0, should fail validation)
 	request := pkgfaultinjector.Request{
