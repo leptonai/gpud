@@ -37,6 +37,7 @@ const (
 	initializeGracePeriod = 3 * time.Minute
 )
 
+// Request is the request from the control plane to GPUd.
 type Request struct {
 	Method        string            `json:"method,omitempty"`
 	Components    []string          `json:"components,omitempty"`
@@ -57,10 +58,11 @@ type Request struct {
 	// that match this tag value.
 	TagName string `json:"tag_name,omitempty"`
 
-	// CustomPluginSpec is the spec for the custom plugin to register or update.
-	CustomPluginSpec *pkgcustomplugins.Spec `json:"custom_plugin_spec,omitempty"`
+	// PluginSpecs is the specs for the custom plugins to register or overwrite.
+	PluginSpecs pkgcustomplugins.Specs `json:"plugin_specs,omitempty"`
 }
 
+// Response is the response from GPUd to the control plane.
 type Response struct {
 	// Error is the error message from session processor.
 	// don't use "error" type as it doesn't marshal/unmarshal well
@@ -80,7 +82,8 @@ type Response struct {
 
 	PackageStatus []apiv1.PackageStatus `json:"package_status,omitempty"`
 
-	Plugins map[string]pkgcustomplugins.Spec `json:"plugins,omitempty"`
+	// PluginSpecs lists the specs for the custom plugins.
+	PluginSpecs pkgcustomplugins.Specs `json:"plugin_specs,omitempty"`
 }
 
 type BootstrapRequest struct {
@@ -260,6 +263,7 @@ func (s *Session) serve() {
 					}
 					if response.Error == "" {
 						needExit = s.autoUpdateExitCode
+						log.Logger.Infow("scheduling auto exit for auto update", "code", needExit)
 					}
 				}
 			}
@@ -337,7 +341,9 @@ func (s *Session) serve() {
 				log.Logger.Warnw("fault inject request is nil")
 			}
 
-		case "triggerComponentCheck":
+			// TODO: deprecate "triggerComponentCheck" after control plane supports "triggerComponent"
+		case "triggerComponent",
+			"triggerComponentCheck":
 			checkResults := make([]components.CheckResult, 0)
 			if payload.ComponentName != "" {
 				// requesting a specific component, tag is ignored
@@ -410,26 +416,14 @@ func (s *Session) serve() {
 				_ = s.componentsRegistry.Deregister(payload.ComponentName)
 			}
 
-		case "getPlugins":
-			cs := make(map[string]pkgcustomplugins.Spec, 0)
-			if payload.ComponentName != "" {
-				c := s.componentsRegistry.Get(payload.ComponentName)
-				if c == nil {
-					response.ErrorCode = http.StatusNotFound
-					response.Error = fmt.Sprintf("component %s not found", payload.ComponentName)
-					break
-				}
-				if registeree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok && registeree.IsCustomPlugin() {
-					cs[c.Name()] = registeree.Spec()
-				}
-			} else {
-				for _, c := range s.componentsRegistry.All() {
-					if registeree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok && registeree.IsCustomPlugin() {
-						cs[c.Name()] = registeree.Spec()
-					}
-				}
+		case "setPluginSpecs":
+			exitCode := s.processSetPluginSpecs(ctx, response, payload.PluginSpecs)
+			if exitCode != nil {
+				needExit = *exitCode
 			}
-			response.Plugins = cs
+
+		case "getPluginSpecs":
+			s.processGetPluginSpecs(response)
 		}
 
 		cancel()
@@ -441,8 +435,16 @@ func (s *Session) serve() {
 		}
 
 		if needExit != -1 {
-			log.Logger.Infow("exiting with code for auto update", "code", needExit)
-			os.Exit(s.autoUpdateExitCode)
+			go func() {
+				log.Logger.Infow("exiting with code", "code", needExit)
+				select {
+				case <-s.ctx.Done():
+				case <-time.After(10 * time.Second):
+					// enough time to send response back to control plane
+				}
+
+				os.Exit(s.autoUpdateExitCode)
+			}()
 		}
 	}
 }
