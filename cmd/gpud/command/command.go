@@ -220,10 +220,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "enable-plugin-api",
 					Usage: "enable plugin API (default: false)",
 				},
-				&cli.BoolFlag{
-					Name:  "enable-fault-injector",
-					Usage: "enable fault injector (default: false)",
-				},
 			},
 		},
 

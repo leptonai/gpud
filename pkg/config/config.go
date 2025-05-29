@@ -49,8 +49,6 @@ type Config struct {
 
 	// EnablePluginAPI enables the plugin API.
 	EnablePluginAPI bool `json:"enable_plugin_api"`
-	// EnableFaultInjector enables the fault injector.
-	EnableFaultInjector bool `json:"enable_fault_injector"`
 
 	// Components specifies the components to enable.
 	// Leave empty, "*", or "all" to enable all components.
