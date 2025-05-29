@@ -531,8 +531,8 @@ func TestDeregisterComponent(t *testing.T) {
 }
 
 func TestGetCustomPlugins(t *testing.T) {
-	testPlugins := map[string]pkgcustomplugins.Spec{
-		"test": {
+	testPlugins := pkgcustomplugins.Specs{
+		{
 			PluginName: "test",
 			Type:       pkgcustomplugins.SpecTypeComponent,
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
@@ -553,7 +553,7 @@ func TestGetCustomPlugins(t *testing.T) {
 		acceptEncoding string
 		statusCode     int
 		expectedError  string
-		expectedResult map[string]pkgcustomplugins.Spec
+		expectedResult pkgcustomplugins.Specs
 		useGzip        bool
 	}{
 		{
@@ -593,10 +593,10 @@ func TestGetCustomPlugins(t *testing.T) {
 		},
 		{
 			name:           "empty response",
-			serverResponse: []byte(`{}`),
+			serverResponse: []byte(`[]`),
 			contentType:    httputil.RequestHeaderJSON,
 			statusCode:     http.StatusOK,
-			expectedResult: map[string]pkgcustomplugins.Spec{},
+			expectedResult: pkgcustomplugins.Specs{},
 		},
 		{
 			name:           "invalid JSON response",
@@ -610,7 +610,7 @@ func TestGetCustomPlugins(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/v1/components/custom-plugin", r.URL.Path)
+				assert.Equal(t, "/v1/plugins", r.URL.Path)
 				assert.Equal(t, http.MethodGet, r.Method)
 
 				if tt.contentType != "" {
@@ -642,7 +642,7 @@ func TestGetCustomPlugins(t *testing.T) {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
-			result, err := GetCustomPlugins(context.Background(), srv.URL, opts...)
+			result, err := GetPluginSpecs(context.Background(), srv.URL, opts...)
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
@@ -656,8 +656,8 @@ func TestGetCustomPlugins(t *testing.T) {
 }
 
 func TestReadCustomPluginSpecs(t *testing.T) {
-	testPlugins := map[string]pkgcustomplugins.Spec{
-		"test": {
+	testPlugins := pkgcustomplugins.Specs{
+		{
 			PluginName: "test",
 			Type:       pkgcustomplugins.SpecTypeComponent,
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
@@ -679,7 +679,7 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 		contentType    string
 		acceptEncoding string
 		expectedError  string
-		expectedResult map[string]pkgcustomplugins.Spec
+		expectedResult pkgcustomplugins.Specs
 	}{
 		{
 			name:           "read JSON",
@@ -726,7 +726,7 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
-			result, err := ReadCustomPluginSpecs(tt.input, opts...)
+			result, err := ReadPluginSpecs(tt.input, opts...)
 			if tt.expectedError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
@@ -735,191 +735,6 @@ func TestReadCustomPluginSpecs(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedResult, result)
-		})
-	}
-}
-
-func createValidPluginSpec() pkgcustomplugins.Spec {
-	return pkgcustomplugins.Spec{
-		PluginName: "test-plugin",
-		Type:       pkgcustomplugins.SpecTypeComponent,
-		HealthStatePlugin: &pkgcustomplugins.Plugin{
-			Steps: []pkgcustomplugins.Step{
-				{
-					RunBashScript: &pkgcustomplugins.RunBashScript{
-						Script:      "echo 'hello'",
-						ContentType: "plaintext",
-					},
-					Name: "test-step",
-				},
-			},
-		},
-		Timeout: metav1.Duration{Duration: time.Minute},
-	}
-}
-
-func TestRegisterCustomPlugin(t *testing.T) {
-	tests := []struct {
-		name          string
-		spec          pkgcustomplugins.Spec
-		method        string
-		statusCode    int
-		contentType   string
-		expectedError string
-		validateOnly  bool
-	}{
-		{
-			name:        "successful registration",
-			spec:        createValidPluginSpec(),
-			method:      http.MethodPost,
-			statusCode:  http.StatusOK,
-			contentType: httputil.RequestHeaderJSON,
-		},
-		{
-			name:          "invalid spec",
-			spec:          pkgcustomplugins.Spec{}, // Missing required fields
-			method:        http.MethodPost,
-			expectedError: "invalid spec",
-			validateOnly:  true,
-		},
-		{
-			name:          "server error",
-			spec:          createValidPluginSpec(),
-			method:        http.MethodPost,
-			statusCode:    http.StatusInternalServerError,
-			contentType:   httputil.RequestHeaderJSON,
-			expectedError: "server not ready, response not 200",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.validateOnly {
-				// Test validation error without creating a server
-				err := RegisterCustomPlugin(context.Background(), "http://localhost:8080", tt.spec)
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/v1/components/custom-plugin", r.URL.Path)
-				assert.Equal(t, tt.method, r.Method)
-
-				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
-				}
-
-				// Verify the request body contains the correct spec
-				var receivedSpec pkgcustomplugins.Spec
-				err := json.NewDecoder(r.Body).Decode(&receivedSpec)
-				require.NoError(t, err)
-				assert.Equal(t, tt.spec.PluginName, receivedSpec.PluginName)
-
-				w.WriteHeader(tt.statusCode)
-				_, err = w.Write([]byte("ok"))
-				require.NoError(t, err)
-			}))
-			defer srv.Close()
-
-			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
-				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
-				opts = append(opts, WithRequestContentTypeJSON())
-			}
-
-			err := RegisterCustomPlugin(context.Background(), srv.URL, tt.spec, opts...)
-			if tt.expectedError != "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			require.NoError(t, err)
-		})
-	}
-}
-
-func TestUpdateCustomPlugin(t *testing.T) {
-	tests := []struct {
-		name          string
-		spec          pkgcustomplugins.Spec
-		method        string
-		statusCode    int
-		contentType   string
-		expectedError string
-		validateOnly  bool
-	}{
-		{
-			name:        "successful update",
-			spec:        createValidPluginSpec(),
-			method:      http.MethodPut,
-			statusCode:  http.StatusOK,
-			contentType: httputil.RequestHeaderJSON,
-		},
-		{
-			name:          "invalid spec",
-			spec:          pkgcustomplugins.Spec{}, // Missing required fields
-			method:        http.MethodPut,
-			expectedError: "invalid spec",
-			validateOnly:  true,
-		},
-		{
-			name:          "server error",
-			spec:          createValidPluginSpec(),
-			method:        http.MethodPut,
-			statusCode:    http.StatusInternalServerError,
-			contentType:   httputil.RequestHeaderJSON,
-			expectedError: "server not ready, response not 200",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.validateOnly {
-				// Test validation error without creating a server
-				err := UpdateCustomPlugin(context.Background(), "http://localhost:8080", tt.spec)
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "/v1/components/custom-plugin", r.URL.Path)
-				assert.Equal(t, tt.method, r.Method)
-
-				if tt.contentType != "" {
-					assert.Equal(t, tt.contentType, r.Header.Get(httputil.RequestHeaderContentType))
-				}
-
-				// Verify the request body contains the correct spec
-				var receivedSpec pkgcustomplugins.Spec
-				err := json.NewDecoder(r.Body).Decode(&receivedSpec)
-				require.NoError(t, err)
-				assert.Equal(t, tt.spec.PluginName, receivedSpec.PluginName)
-
-				w.WriteHeader(tt.statusCode)
-				_, err = w.Write([]byte("ok"))
-				require.NoError(t, err)
-			}))
-			defer srv.Close()
-
-			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
-				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
-				opts = append(opts, WithRequestContentTypeJSON())
-			}
-
-			err := UpdateCustomPlugin(context.Background(), srv.URL, tt.spec, opts...)
-			if tt.expectedError != "" {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
-				return
-			}
-
-			require.NoError(t, err)
 		})
 	}
 }

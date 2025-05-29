@@ -16,8 +16,8 @@ import (
 )
 
 func TestReadCustomPluginSpecs_Comprehensive(t *testing.T) {
-	testPlugins := map[string]pkgcustomplugins.Spec{
-		"test": {
+	testPlugins := pkgcustomplugins.Specs{
+		{
 			PluginName: "test",
 			Type:       pkgcustomplugins.SpecTypeComponent,
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
@@ -61,7 +61,7 @@ func TestReadCustomPluginSpecs_Comprehensive(t *testing.T) {
 		contentType    string
 		acceptEncoding string
 		expectedError  string
-		expectedResult map[string]pkgcustomplugins.Spec
+		expectedResult pkgcustomplugins.Specs
 	}{
 		{
 			name:           "read JSON with default content type",
@@ -139,7 +139,7 @@ func TestReadCustomPluginSpecs_Comprehensive(t *testing.T) {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
-			result, err := ReadCustomPluginSpecs(tt.input, opts...)
+			result, err := ReadPluginSpecs(tt.input, opts...)
 			if tt.expectedError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)

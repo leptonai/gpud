@@ -34,7 +34,7 @@ func Command(cliContext *cli.Context) error {
 	}
 
 	// Get custom plugins
-	plugins, err := clientv1.GetCustomPlugins(ctx, serverAddr)
+	plugins, err := clientv1.GetPluginSpecs(ctx, serverAddr)
 	if err != nil {
 		return fmt.Errorf("failed to get custom plugins: %w", err)
 	}
@@ -46,7 +46,8 @@ func Command(cliContext *cli.Context) error {
 	}
 
 	fmt.Println("Registered custom plugins:")
-	for name, spec := range plugins {
+	for _, spec := range plugins {
+		name := spec.ComponentName()
 		fmt.Printf("- %s (Type: %s, Run Mode: %s)\n", name, spec.Type, spec.RunMode)
 	}
 
