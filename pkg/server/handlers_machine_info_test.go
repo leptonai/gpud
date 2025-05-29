@@ -23,7 +23,7 @@ func TestHandleMachineInfoWithNilGPUdInstance(t *testing.T) {
 	}
 
 	// Register the handler
-	router.GET("/machine-info", handler.handleMachineInfo)
+	router.GET("/machine-info", handler.machineInfo)
 
 	// Create a test request
 	req, _ := http.NewRequest(http.MethodGet, "/machine-info", nil)

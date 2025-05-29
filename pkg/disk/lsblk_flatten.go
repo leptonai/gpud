@@ -25,6 +25,7 @@ type FlattenedBlockDevice struct {
 	Rev        string `json:"rev,omitempty"`
 	MountPoint string `json:"mountpoint,omitempty"`
 	FSType     string `json:"fstype,omitempty"`
+	FSUsed     uint64 `json:"fsused,omitempty"`
 	PartUUID   string `json:"partuuid,omitempty"`
 
 	Parents  []string `json:"parents,omitempty"`
@@ -65,6 +66,7 @@ func flattenBlockDevice(blk BlockDevice, parentName string, depth int, all map[s
 		Rev:        blk.Rev,
 		MountPoint: blk.MountPoint,
 		FSType:     blk.FSType,
+		FSUsed:     blk.FSUsed.Uint64,
 		PartUUID:   blk.PartUUID,
 	}
 
@@ -103,13 +105,14 @@ func flattenBlockDevice(blk BlockDevice, parentName string, depth int, all map[s
 
 func (blks FlattenedBlockDevices) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
-	table.SetHeader([]string{"Name", "Type", "FSType", "Size", "Mount Point", "Parents", "Children"})
+	table.SetHeader([]string{"Name", "Type", "FSType", "Usage", "Size", "Mount Point", "Parents", "Children"})
 
 	for _, blk := range blks {
 		table.Append([]string{
 			blk.Name,
 			blk.Type,
 			blk.FSType,
+			humanize.Bytes(blk.FSUsed),
 			humanize.Bytes(blk.Size),
 			blk.MountPoint,
 			strings.Join(blk.Parents, "\n"),

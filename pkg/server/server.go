@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/url"
-	"os"
 	stdos "os"
 	"sync"
 	"syscall"
@@ -173,16 +172,8 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		}
 	}()
 
-	if config.EnableFaultInjector {
-		workDir, err := os.MkdirTemp(os.TempDir(), "gpud-server-kmg-writer-")
-		if err != nil {
-			return nil, err
-		}
-		log.Logger.Infow("setting up fault injector", "workDir", workDir)
-
-		kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
-		s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
-	}
+	kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
+	s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
 
 	nvmlInstance, err := nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
 	if err != nil {
@@ -291,6 +282,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	v1Group := router.Group("/v1")
 	v1Group.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 	globalHandler.registerComponentRoutes(v1Group)
+	globalHandler.registerPluginRoutes(v1Group)
 
 	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
@@ -298,9 +290,9 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	})
 
 	router.GET(URLPathSwagger, ginswagger.WrapHandler(swaggerfiles.Handler))
-	router.GET(URLPathHealthz, handleHealthz())
-	router.GET(URLPathMachineInfo, globalHandler.handleMachineInfo)
-	router.POST(URLPathInjectFault, globalHandler.handleInjectFault)
+	router.GET(URLPathHealthz, healthz())
+	router.GET(URLPathMachineInfo, globalHandler.machineInfo)
+	router.POST(URLPathInjectFault, globalHandler.injectFault)
 
 	adminGroup := router.Group(urlPathAdmin)
 	adminGroup.GET(urlPathConfig, handleAdminConfig(config))

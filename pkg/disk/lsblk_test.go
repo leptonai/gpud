@@ -125,19 +125,19 @@ func TestCheckVersion(t *testing.T) {
 		{
 			name:          "Chinese locale version 2.23.2",
 			input:         "lsblk，来自 util-linux 2.23.2",
-			expectedFlags: "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --pairs",
+			expectedFlags: "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,FSUSED,PARTUUID --pairs",
 			expectError:   false,
 		},
 		{
 			name:          "English locale version 2.37.2",
 			input:         "lsblk from util-linux 2.37.2",
-			expectedFlags: "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --json",
+			expectedFlags: "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,FSUSED,PARTUUID --json",
 			expectError:   false,
 		},
 		{
 			name:          "English locale version 2.37.4",
 			input:         "lsblk from util-linux 2.37.4",
-			expectedFlags: "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,PARTUUID --json",
+			expectedFlags: "--paths --bytes --fs --output NAME,TYPE,SIZE,ROTA,SERIAL,WWN,VENDOR,MODEL,REV,MOUNTPOINT,FSTYPE,FSUSED,PARTUUID --json",
 			expectError:   false,
 		},
 		{

@@ -12,7 +12,20 @@ import (
 
 const URLPathInjectFault = "/inject-fault"
 
-func (g *globalHandler) handleInjectFault(c *gin.Context) {
+// injectFault godoc
+// @Summary Inject fault into the system
+// @Description Injects a fault (such as kernel messages) into the system for testing purposes
+// @ID injectFault
+// @Tags fault-injection
+// @Accept json
+// @Produce json
+// @Param request body pkgfaultinjector.Request true "Fault injection request"
+// @Success 200 {object} map[string]string "Fault injected successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - invalid request body or validation error"
+// @Failure 404 {object} map[string]interface{} "Fault injector not set up"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /inject-fault [post]
+func (g *globalHandler) injectFault(c *gin.Context) {
 	if g.faultInjector == nil {
 		c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "fault injector not set up"})
 		return

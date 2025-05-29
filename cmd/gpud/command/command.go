@@ -216,14 +216,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Value:  "ibstatus",
 					Hidden: true,
 				},
-				&cli.BoolFlag{
-					Name:  "enable-plugin-api",
-					Usage: "enable plugin API (default: false)",
-				},
-				&cli.BoolFlag{
-					Name:  "enable-fault-injector",
-					Usage: "enable fault injector (default: false)",
-				},
 			},
 		},
 

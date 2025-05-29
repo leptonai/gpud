@@ -10,7 +10,6 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
@@ -19,16 +18,10 @@ import (
 
 func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponents, g.getComponents)
+	r.DELETE(URLPathComponents, g.deregisterComponent)
+
 	r.GET(URLPathComponentsTriggerCheck, g.triggerComponentCheck)
-	r.GET(URLPathComponentsCustomPlugins, g.getComponentsCustomPlugins)
 	r.GET(URLPathComponentsTriggerTag, g.triggerComponentsByTag)
-
-	if g.cfg.EnablePluginAPI {
-		r.DELETE(URLPathComponents, g.deregisterComponent)
-
-		r.POST(URLPathComponentsCustomPlugins, g.registerComponentsCustomPlugin)
-		r.PUT(URLPathComponentsCustomPlugins, g.updateComponentsCustomPlugin)
-	}
 
 	r.GET(URLPathStates, g.getHealthStates)
 	r.GET(URLPathEvents, g.getEvents)
@@ -40,11 +33,18 @@ func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 const URLPathComponents = "/components"
 
 // getComponents godoc
-// @Summary Fetch all components in gpud
-// @Description get gpud components
+// @Summary Get list of registered components
+// @Description Returns a list of all currently registered gpud components in the system
 // @ID getComponents
-// @Produce  json
-// @Success 200 {object} []string
+// @Tags components
+// @Accept json,yaml
+// @Produce json,yaml
+// @Header 200 {string} Content-Type "application/json or application/yaml"
+// @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
+// @Param json-indent header string false "Set to 'true' for indented JSON output"
+// @Success 200 {array} string "List of component names"
+// @Failure 400 {object} map[string]interface{} "Bad request - invalid content type"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /v1/components [get]
 func (g *globalHandler) getComponents(c *gin.Context) {
 	components := make([]string, 0)
@@ -75,11 +75,17 @@ func (g *globalHandler) getComponents(c *gin.Context) {
 }
 
 // deregisterComponent godoc
-// @Summary Deregisters a component in gpud
-// @Description deregister a component in gpud
+// @Summary Deregister a component
+// @Description Deregisters a component from the system if it supports deregistration. Only components that implement the Deregisterable interface can be deregistered.
 // @ID deregisterComponent
-// @Produce  json
-// @Success 200 {object}
+// @Tags components
+// @Accept json
+// @Produce json
+// @Param componentName query string true "Name of the component to deregister"
+// @Success 200 {object} map[string]interface{} "Component deregistered successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request - component name required or component not deregisterable"
+// @Failure 404 {object} map[string]interface{} "Component not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error - failed to close component"
 // @Router /v1/components [delete]
 func (g *globalHandler) deregisterComponent(c *gin.Context) {
 	componentName := c.Query("componentName")
@@ -119,11 +125,17 @@ func (g *globalHandler) deregisterComponent(c *gin.Context) {
 const URLPathComponentsTriggerCheck = "/components/trigger-check"
 
 // triggerComponentCheck godoc
-// @Summary Manually trigger a component check in gpud
-// @Description Manually trigger a component check in gpud
+// @Summary Trigger component health check
+// @Description Triggers a health check for a specific component or all components with a specific tag. Either componentName or tagName must be provided, but not both.
 // @ID triggerComponentCheck
-// @Produce  json
-// @Success 200 {object}
+// @Tags components
+// @Accept json
+// @Produce json
+// @Param componentName query string false "Name of the specific component to check (mutually exclusive with tagName)"
+// @Param tagName query string false "Tag name to check all components with this tag (mutually exclusive with componentName)"
+// @Success 200 {object} apiv1.GPUdComponentHealthStates "Health check results with component states"
+// @Failure 400 {object} map[string]interface{} "Bad request - component or tag name required (but not both)"
+// @Failure 404 {object} map[string]interface{} "Component not found"
 // @Router /v1/components/trigger-check [get]
 func (g *globalHandler) triggerComponentCheck(c *gin.Context) {
 	componentName := c.Query("componentName")
@@ -172,157 +184,75 @@ func (g *globalHandler) triggerComponentCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-const URLPathComponentsCustomPlugins = "/components/custom-plugin"
+// URLPathComponentsTriggerTag is for triggering components by tag
+const URLPathComponentsTriggerTag = "/components/trigger-tag"
 
-// getComponentsCustomPlugins godoc
-// @Summary Lists all custom plugins in gpud
-// @Description list all custom plugins in gpud
-// @ID getComponentsCustomPlugins
-// @Produce  json
-// @Success 200 {object} map[string]pkgcustomplugins.Spec
-// @Router /v1/components/custom-plugin [get]
-func (g *globalHandler) getComponentsCustomPlugins(c *gin.Context) {
-	cs := make(map[string]pkgcustomplugins.Spec, 0)
-	for _, c := range g.componentsRegistry.All() {
-		if customPluginRegisteree, ok := c.(pkgcustomplugins.CustomPluginRegisteree); ok {
-			if customPluginRegisteree.IsCustomPlugin() {
-				cs[c.Name()] = customPluginRegisteree.Spec()
+// triggerComponentsByTag godoc
+// @Summary Trigger components by tag
+// @Description Triggers health checks for all components that have the specified tag. Returns a summary of triggered components and their overall status.
+// @ID triggerComponentsByTag
+// @Tags components
+// @Accept json
+// @Produce json
+// @Param tagName query string true "Tag name to trigger all components with this tag"
+// @Success 200 {object} map[string]interface{} "Trigger results with components list, exit status, and success flag"
+// @Failure 400 {object} map[string]interface{} "Bad request - tag name required"
+// @Router /v1/components/trigger-tag [get]
+func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
+	tagName := c.Query("tagName")
+	if tagName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tagName parameter is required"})
+		return
+	}
+
+	// TODO: Consider implementing a tag-based index structure to avoid linear scan
+	// This could be a map[tag][]Component or similar structure that's maintained
+	// when components are registered/deregistered
+	components := g.componentsRegistry.All()
+	success := true
+	triggeredComponents := make([]string, 0)
+	exitStatus := 0
+
+	for _, comp := range components {
+		// Check if component has the specified tag using the Tags() method
+		tags := comp.Tags()
+		for _, tag := range tags {
+			if tag == tagName {
+				triggeredComponents = append(triggeredComponents, comp.Name())
+				if err := comp.Check(); err != nil {
+					success = false
+					exitStatus = 1
+				}
+				break
 			}
 		}
 	}
 
-	switch c.GetHeader(httputil.RequestHeaderContentType) {
-	case httputil.RequestHeaderYAML:
-		yb, err := yaml.Marshal(cs)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "failed to marshal custom plugins " + err.Error()})
-			return
-		}
-		c.String(http.StatusOK, string(yb))
-
-	case httputil.RequestHeaderJSON, "":
-		if c.GetHeader(httputil.RequestHeaderJSONIndent) == "true" {
-			c.IndentedJSON(http.StatusOK, cs)
-			return
-		}
-		c.JSON(http.StatusOK, cs)
-
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "invalid content type"})
-	}
-}
-
-// registerComponentsCustomPlugin godoc
-// @Summary Registers a new component in gpud
-// @Description register a new component in gpud
-// @ID registerComponentsCustomPlugin
-// @Produce  json
-// @Success 200 {object}
-// @Router /v1/components [post]
-func (g *globalHandler) registerComponentsCustomPlugin(c *gin.Context) {
-	var spec pkgcustomplugins.Spec
-	if err := c.BindJSON(&spec); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
-		return
-	}
-
-	if err := spec.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to validate custom plugin: " + err.Error()})
-		return
-	}
-
-	initFunc := spec.NewInitFunc()
-	if initFunc == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to create init function"})
-		return
-	}
-
-	comp, err := g.componentsRegistry.Register(initFunc)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": errdefs.ErrUnknown, "message": "failed to register component: " + err.Error()})
-		return
-	}
-
-	if err := comp.Start(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": errdefs.ErrUnknown, "message": "failed to start component: " + err.Error()})
-		return
-	}
-
-	g.componentNamesMu.Lock()
-	defer g.componentNamesMu.Unlock()
-	found := false
-	for _, name := range g.componentNames {
-		if name == comp.Name() {
-			found = true
-			break
-		}
-	}
-	if !found {
-		g.componentNames = append(g.componentNames, comp.Name())
-	}
-
-	c.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "component registered and started", "component": comp.Name()})
-}
-
-// updateComponentsCustomPlugin godoc
-// @Summary Registers a new component in gpud
-// @Description register a new component in gpud
-// @ID updateComponentsCustomPlugin
-// @Produce  json
-// @Success 200 {object}
-// @Router /v1/components [put]
-func (g *globalHandler) updateComponentsCustomPlugin(c *gin.Context) {
-	var spec pkgcustomplugins.Spec
-	if err := c.BindJSON(&spec); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
-		return
-	}
-
-	if err := spec.Validate(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to validate custom plugin: " + err.Error()})
-		return
-	}
-
-	initFunc := spec.NewInitFunc()
-	if initFunc == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to create init function"})
-		return
-	}
-
-	prevComp := g.componentsRegistry.Get(spec.ComponentName())
-	if prevComp == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found"})
-		return
-	}
-
-	// now that we know the component is registered, we can deregister and register it
-	prevComp = g.componentsRegistry.Deregister(prevComp.Name())
-	_ = prevComp.Close()
-
-	comp, err := g.componentsRegistry.Register(initFunc)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": errdefs.ErrUnknown, "message": "failed to register component: " + err.Error()})
-		return
-	}
-
-	if err := comp.Start(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to start component: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "component updated and started", "component": comp.Name()})
+	c.JSON(http.StatusOK, gin.H{
+		"components": triggeredComponents,
+		"exit":       exitStatus,
+		"success":    success,
+	})
 }
 
 // URLPathStates is for getting the states of all gpud components
 const URLPathStates = "/states"
 
 // getHealthStates godoc
-// @Summary Query component States interface in gpud
-// @Description get component States interface by component name
+// @Summary Get component health states
+// @Description Returns the current health states of specified components or all components if none specified. Only supported components are included in the response.
 // @ID getHealthStates
-// @Param   component     query    string     false        "Component Name, leave empty to query all components"
-// @Produce  json
-// @Success 200 {object} v1.LeptonStates
+// @Tags components
+// @Accept json,yaml
+// @Produce json,yaml
+// @Header 200 {string} Content-Type "application/json or application/yaml"
+// @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
+// @Param components query string false "Comma-separated list of component names to query (if empty, returns all components)"
+// @Param json-indent header string false "Set to 'true' for indented JSON output"
+// @Success 200 {object} apiv1.GPUdComponentHealthStates "Component health states"
+// @Failure 400 {object} map[string]interface{} "Bad request - invalid content type or component parsing error"
+// @Failure 404 {object} map[string]interface{} "Component not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /v1/states [get]
 func (g *globalHandler) getHealthStates(c *gin.Context) {
 	var states apiv1.GPUdComponentHealthStates
@@ -390,12 +320,22 @@ func (g *globalHandler) getHealthStates(c *gin.Context) {
 const URLPathEvents = "/events"
 
 // getEvents godoc
-// @Summary Query component Events interface in gpud
-// @Description get component Events interface by component name
+// @Summary Get component events
+// @Description Returns events from specified components within a time range. If no components specified, returns events from all components. Only supported components are queried.
 // @ID getEvents
-// @Param   component     query    string     false        "Component Name, leave empty to query all components"
-// @Produce  json
-// @Success 200 {object} v1.LeptonEvents
+// @Tags components
+// @Accept json,yaml
+// @Produce json,yaml
+// @Header 200 {string} Content-Type "application/json or application/yaml"
+// @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
+// @Param components query string false "Comma-separated list of component names to query (if empty, queries all components)"
+// @Param startTime query string false "Start time for event query (RFC3339 format, defaults to current time)"
+// @Param endTime query string false "End time for event query (RFC3339 format, defaults to current time)"
+// @Param json-indent header string false "Set to 'true' for indented JSON output"
+// @Success 200 {object} apiv1.GPUdComponentEvents "Component events within the specified time range"
+// @Failure 400 {object} map[string]interface{} "Bad request - invalid content type, component parsing error, or time parsing error"
+// @Failure 404 {object} map[string]interface{} "Component not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /v1/events [get]
 func (g *globalHandler) getEvents(c *gin.Context) {
 	var events apiv1.GPUdComponentEvents
@@ -476,12 +416,23 @@ const DefaultQuerySince = 30 * time.Minute
 const URLPathInfo = "/info"
 
 // getInfo godoc
-// @Summary Query component Events/Metrics/States interface in gpud
-// @Description get component Events/Metrics/States interface by component name
+// @Summary Get comprehensive component information
+// @Description Returns comprehensive information including events, states, and metrics for specified components. If no components specified, returns information for all components. Only supported components are included.
 // @ID getInfo
-// @Param   component     query    string     false        "Component Name, leave empty to query all components"
-// @Produce  json
-// @Success 200 {object} v1.LeptonInfo
+// @Tags components
+// @Accept json,yaml
+// @Produce json,yaml
+// @Header 200 {string} Content-Type "application/json or application/yaml"
+// @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
+// @Param components query string false "Comma-separated list of component names to query (if empty, queries all components)"
+// @Param startTime query string false "Start time for query (RFC3339 format, defaults to current time)"
+// @Param endTime query string false "End time for query (RFC3339 format, defaults to current time)"
+// @Param since query string false "Duration string for metrics query (e.g., '30m', '1h') - defaults to 30 minutes"
+// @Param json-indent header string false "Set to 'true' for indented JSON output"
+// @Success 200 {object} apiv1.GPUdComponentInfos "Component information including events, states, and metrics"
+// @Failure 400 {object} map[string]interface{} "Bad request - invalid content type, component parsing error, time parsing error, or duration parsing error"
+// @Failure 404 {object} map[string]interface{} "Component not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /v1/info [get]
 func (g *globalHandler) getInfo(c *gin.Context) {
 	var infos apiv1.GPUdComponentInfos
@@ -602,12 +553,21 @@ func (g *globalHandler) getInfo(c *gin.Context) {
 const URLPathMetrics = "/metrics"
 
 // getMetrics godoc
-// @Summary Query component Metrics interface in gpud
-// @Description get component Metrics interface by component name
+// @Summary Get component metrics
+// @Description Returns metrics data for specified components within a time range. If no components specified, returns metrics for all components. Metrics are queried from the last 30 minutes by default.
 // @ID getMetrics
-// @Param   component     query    string     false        "Component Name, leave empty to query all components"
-// @Produce  json
-// @Success 200 {object} v1.LeptonMetrics
+// @Tags components
+// @Accept json,yaml
+// @Produce json,yaml
+// @Header 200 {string} Content-Type "application/json or application/yaml"
+// @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
+// @Param components query string false "Comma-separated list of component names to query (if empty, queries all components)"
+// @Param since query string false "Duration string for metrics query (e.g., '30m', '1h') - defaults to 30 minutes"
+// @Param json-indent header string false "Set to 'true' for indented JSON output"
+// @Success 200 {object} apiv1.GPUdComponentMetrics "Component metrics data within the specified time range"
+// @Failure 400 {object} map[string]interface{} "Bad request - invalid content type, component parsing error, or duration parsing error"
+// @Failure 404 {object} map[string]interface{} "Component not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error - failed to read metrics"
 // @Router /v1/metrics [get]
 func (g *globalHandler) getMetrics(c *gin.Context) {
 	components, err := g.getReqComponents(c)
@@ -658,45 +618,4 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "invalid content type"})
 	}
-}
-
-// URLPathComponentsTriggerTag is for triggering components by tag
-const URLPathComponentsTriggerTag = "/components/trigger-tag"
-
-// triggerComponentsByTag triggers all components that have the specified tag
-func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
-	tagName := c.Query("tagName")
-	if tagName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tagName parameter is required"})
-		return
-	}
-
-	// TODO: Consider implementing a tag-based index structure to avoid linear scan
-	// This could be a map[tag][]Component or similar structure that's maintained
-	// when components are registered/deregistered
-	components := g.componentsRegistry.All()
-	success := true
-	triggeredComponents := make([]string, 0)
-	exitStatus := 0
-
-	for _, comp := range components {
-		// Check if component has the specified tag using the Tags() method
-		tags := comp.Tags()
-		for _, tag := range tags {
-			if tag == tagName {
-				triggeredComponents = append(triggeredComponents, comp.Name())
-				if err := comp.Check(); err != nil {
-					success = false
-					exitStatus = 1
-				}
-				break
-			}
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"components": triggeredComponents,
-		"exit":       exitStatus,
-		"success":    success,
-	})
 }

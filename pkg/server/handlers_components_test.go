@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -368,20 +367,19 @@ func TestGetComponentsCustomPlugins(t *testing.T) {
 	c.Request = httptest.NewRequest("GET", "/v1/components/custom-plugin", nil)
 
 	// Call the handler
-	handler.getComponentsCustomPlugins(c)
+	handler.getPluginSpecs(c)
 
 	// Verify the response
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Parse the response
-	var plugins map[string]pkgcustomplugins.Spec
+	// Parse the responses
+	var plugins pkgcustomplugins.Specs
 	err := json.Unmarshal(w.Body.Bytes(), &plugins)
 	require.NoError(t, err)
 
 	// Only the custom plugin should be in the response
 	assert.Len(t, plugins, 1)
-	assert.Contains(t, plugins, "custom-plugin")
-	assert.Equal(t, "custom-plugin", plugins["custom-plugin"].PluginName)
+	assert.Equal(t, "custom-plugin", plugins[0].PluginName)
 }
 
 func TestDeregisterComponent(t *testing.T) {
@@ -400,7 +398,7 @@ func TestDeregisterComponent(t *testing.T) {
 	}
 
 	// Setup handler with plugin API enabled
-	handler, registry, _ := setupTestHandlerWithPluginAPI([]components.Component{canDeregister, cannotDeregister})
+	handler, registry, _ := setupTestHandler([]components.Component{canDeregister, cannotDeregister})
 	_, c, w := setupTestRouter()
 
 	// Test deregistering a component that can be deregistered
@@ -699,7 +697,7 @@ func TestGetMetrics(t *testing.T) {
 
 func TestRegisterComponentRoutes(t *testing.T) {
 	// Setup handler with plugin API enabled
-	handler, _, _ := setupTestHandlerWithPluginAPI(nil)
+	handler, _, _ := setupTestHandler(nil)
 
 	// Setup router with "/v1" path
 	router, v1 := setupRouterWithPath("/v1")
@@ -738,87 +736,4 @@ func TestRegisterComponentRoutes(t *testing.T) {
 		// We don't care about the response code, just that the routes were registered
 		resp.Body.Close()
 	}
-}
-
-func TestRegisterComponentsCustomPlugin(t *testing.T) {
-	// Skip this test since we can't properly mock the custom plugins
-	t.Skip("Skipping custom plugin test that requires deep mocking of custom plugins")
-
-	// Create a mock registry that will handle the custom plugin registration
-	// registry := newMockRegistry()
-
-	// Create a mock implementation of customplugins.NewInitFunc
-	// that returns a mock component instead of a real one
-	// customPlugin := &mockComponent{
-	//	name:           "test-plugin",
-	//	isSupported:    true,
-	//	isCustomPlugin: true,
-	// }
-
-	// Create a mock global handler with our registry
-	// cfg := &config.Config{
-	//	EnablePluginAPI: true,
-	// }
-	// store := &mockMetricsStore{}
-
-	// Create a handler with our mocked registry
-	// handler := &globalHandler{
-	//	cfg:                cfg,
-	//	componentsRegistry: registry,
-	//	metricsStore:       store,
-	// }
-
-	// _, c, w := setupTestRouter()
-
-	// Create a spec for testing (simplify it to avoid dependency on real customplugins)
-	// specJSON := `{
-	//	"plugin_name": "test-plugin",
-	//	"type": "component",
-	//	"timeout": "10s"
-	// }`
-
-	// Create a request with the spec
-	// c.Request = httptest.NewRequest("POST", "/v1/components/custom-plugin", strings.NewReader(specJSON))
-	// c.Request.Header.Set("Content-Type", "application/json")
-
-	// Since we can't properly mock customplugins.Spec.NewInitFunc, we expect an error
-	// handler.registerComponentsCustomPlugin(c)
-	// assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestUpdateComponentsCustomPlugin(t *testing.T) {
-	// Setup handler with plugin API enabled
-	handler, _, _ := setupTestHandlerWithPluginAPI(nil)
-	_, c, w := setupTestRouter()
-
-	// Create a spec for testing
-	spec := pkgcustomplugins.Spec{
-		PluginName: "test-plugin",
-		Type:       pkgcustomplugins.SpecTypeComponent,
-		HealthStatePlugin: &pkgcustomplugins.Plugin{
-			Steps: []pkgcustomplugins.Step{
-				{
-					Name: "test-step",
-					RunBashScript: &pkgcustomplugins.RunBashScript{
-						ContentType: "plaintext",
-						Script:      "echo hello",
-					},
-				},
-			},
-		},
-		Timeout: metav1.Duration{Duration: 10 * time.Second},
-	}
-
-	specJSON, err := json.Marshal(spec)
-	require.NoError(t, err)
-
-	// Create a request with the spec
-	c.Request = httptest.NewRequest("PUT", "/v1/components/custom-plugin", strings.NewReader(string(specJSON)))
-	c.Request.Header.Set("Content-Type", "application/json")
-
-	// Currently this will fail because the component doesn't exist
-	handler.updateComponentsCustomPlugin(c)
-
-	// Since the component doesn't exist, we expect a not found error
-	assert.Equal(t, http.StatusNotFound, w.Code)
 }

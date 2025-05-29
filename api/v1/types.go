@@ -401,6 +401,7 @@ type MachineDiskDevice struct {
 	Name       string   `json:"name,omitempty"`
 	Type       string   `json:"type,omitempty"`
 	Size       int64    `json:"size,omitempty"`
+	Used       int64    `json:"used,omitempty"`
 	Rota       bool     `json:"rota,omitempty"`
 	Serial     string   `json:"serial,omitempty"`
 	WWN        string   `json:"wwn,omitempty"`
@@ -418,13 +419,14 @@ func (di *MachineDiskInfo) RenderTable(wr io.Writer) {
 	if len(di.BlockDevices) > 0 {
 		table := tablewriter.NewWriter(wr)
 		table.SetAlignment(tablewriter.ALIGN_CENTER)
-		table.SetHeader([]string{"Name", "Type", "FSType", "Size", "Mount Point", "Parents", "Children"})
+		table.SetHeader([]string{"Name", "Type", "FSType", "Used", "Size", "Mount Point", "Parents", "Children"})
 
 		for _, blk := range di.BlockDevices {
 			table.Append([]string{
 				blk.Name,
 				blk.Type,
 				blk.FSType,
+				humanize.Bytes(uint64(blk.Used)),
 				humanize.Bytes(uint64(blk.Size)),
 				blk.MountPoint,
 				strings.Join(blk.Parents, "\n"),

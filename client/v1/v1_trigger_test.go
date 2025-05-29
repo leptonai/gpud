@@ -72,7 +72,7 @@ func TestTriggerComponentCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.componentName == "" {
 				// Test validation error without creating a server
-				result, err := TriggerComponentCheck(context.Background(), "http://localhost:8080", tt.componentName)
+				result, err := TriggerComponent(context.Background(), "http://localhost:8080", tt.componentName)
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
 				assert.Nil(t, result)
@@ -109,7 +109,7 @@ func TestTriggerComponentCheck(t *testing.T) {
 				opts = append(opts, WithAcceptEncodingGzip())
 			}
 
-			result, err := TriggerComponentCheck(context.Background(), srv.URL, tt.componentName, opts...)
+			result, err := TriggerComponent(context.Background(), srv.URL, tt.componentName, opts...)
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
