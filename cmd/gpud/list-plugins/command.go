@@ -48,7 +48,7 @@ func Command(cliContext *cli.Context) error {
 	fmt.Println("Registered custom plugins:")
 	for _, spec := range plugins {
 		name := spec.ComponentName()
-		fmt.Printf("- %s (Type: %s, Run Mode: %s)\n", name, spec.Type, spec.RunMode)
+		fmt.Printf("- %s (Type: %s, Run Mode: %s)\n", name, spec.PluginType, spec.RunMode)
 	}
 
 	return nil

@@ -235,7 +235,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 					continue
 				}
 
-				if spec.Type == pkgcustomplugins.SpecTypeInit {
+				if spec.PluginType == pkgcustomplugins.SpecTypeInit {
 					s.initRegistry.MustRegister(initFunc)
 					log.Logger.Infow("loaded init plugin", "name", spec.ComponentName())
 				} else {

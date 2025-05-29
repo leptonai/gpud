@@ -115,7 +115,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		testPluginSpecs := pkgcustomplugins.Specs{
 			{
 				PluginName: "init-plugin",
-				Type:       pkgcustomplugins.SpecTypeInit,
+				PluginType: pkgcustomplugins.SpecTypeInit,
 				HealthStatePlugin: &pkgcustomplugins.Plugin{
 					Steps: []pkgcustomplugins.Step{
 						{
@@ -138,7 +138,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			},
 			{
 				PluginName: testPluginName1,
-				Type:       pkgcustomplugins.SpecTypeComponent,
+				PluginType: pkgcustomplugins.SpecTypeComponent,
 
 				// should not run, only registers
 				RunMode: string(apiv1.RunModeTypeManual),
@@ -180,7 +180,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			},
 			{
 				PluginName: testPluginName2,
-				Type:       pkgcustomplugins.SpecTypeComponent,
+				PluginType: pkgcustomplugins.SpecTypeComponent,
 
 				RunMode: "",
 

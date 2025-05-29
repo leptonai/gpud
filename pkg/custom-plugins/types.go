@@ -38,9 +38,10 @@ type Spec struct {
 	// It is used for generating the component name.
 	PluginName string `json:"plugin_name"`
 
-	// Type defines the plugin type.
+	// PluginType defines the plugin type.
 	// Possible values: "init", "component".
-	Type string `json:"type"`
+	PluginType     string `json:"plugin_type"`
+	DeprecatedType string `json:"type,omitempty"`
 
 	// ComponentList is a list of component names for SpecTypeComponentList.
 	// Each item can be a simple name or "name:param" format.

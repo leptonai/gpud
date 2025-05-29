@@ -23,7 +23,7 @@ func TestReadCustomPluginSpecs_Comprehensive(t *testing.T) {
 	testPlugins := pkgcustomplugins.Specs{
 		{
 			PluginName: "test",
-			Type:       pkgcustomplugins.SpecTypeComponent,
+			PluginType: pkgcustomplugins.SpecTypeComponent,
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
 					{
@@ -160,7 +160,7 @@ func TestGetCustomPlugins(t *testing.T) {
 	testPlugins := pkgcustomplugins.Specs{
 		{
 			PluginName: "test",
-			Type:       pkgcustomplugins.SpecTypeComponent,
+			PluginType: pkgcustomplugins.SpecTypeComponent,
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
 					{

@@ -31,7 +31,7 @@ func TestHandleSetPluginSpecsRequest(t *testing.T) {
 	specs := pkgcustomplugins.Specs{
 		{
 			PluginName: "test-plugin",
-			Type:       pkgcustomplugins.SpecTypeComponent,
+			PluginType: pkgcustomplugins.SpecTypeComponent,
 		},
 	}
 
@@ -82,7 +82,7 @@ func TestHandleSetPluginSpecsRequestNilSaveFunc(t *testing.T) {
 	specs := pkgcustomplugins.Specs{
 		{
 			PluginName: "test-plugin",
-			Type:       pkgcustomplugins.SpecTypeComponent,
+			PluginType: pkgcustomplugins.SpecTypeComponent,
 		},
 	}
 
@@ -125,7 +125,7 @@ func TestHandleGetPluginSpecsRequest(t *testing.T) {
 	comp := new(mockComponent)
 	spec := pkgcustomplugins.Spec{
 		PluginName: "test-plugin",
-		Type:       pkgcustomplugins.SpecTypeComponent,
+		PluginType: pkgcustomplugins.SpecTypeComponent,
 	}
 
 	// Mock the component to implement CustomPluginRegisteree

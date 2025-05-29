@@ -43,7 +43,7 @@ func (pluginSpecs Specs) PrintValidateResults(wr io.Writer, checkMark string, wa
 		if verr != nil {
 			s = warningSign + " invalid"
 		}
-		table.Append([]string{spec.ComponentName(), spec.Type, spec.RunMode, spec.Timeout.Duration.String(), spec.Interval.Duration.String(), s})
+		table.Append([]string{spec.ComponentName(), spec.PluginType, spec.RunMode, spec.Timeout.Duration.String(), spec.Interval.Duration.String(), s})
 	}
 	table.Render()
 }
@@ -203,7 +203,7 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 	expandedSpecs := make([]Spec, 0)
 
 	for _, spec := range pluginSpecs {
-		if spec.Type != SpecTypeComponentList {
+		if spec.PluginType != SpecTypeComponentList {
 			expandedSpecs = append(expandedSpecs, spec)
 			continue
 		}
@@ -267,7 +267,7 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 			// Create a new plugin with substituted parameters
 			expandedPlugin := Spec{
 				PluginName: name,
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				RunMode:    runMode,
 				Tags:       tags,
 				HealthStatePlugin: &Plugin{
@@ -305,7 +305,13 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 
 // Validate validates the plugin spec.
 func (spec *Spec) Validate() error {
-	switch spec.Type {
+	// for compatibility with the old spec format
+	// which uses "type" instead of "plugin_type"
+	if spec.DeprecatedType != "" && spec.PluginType == "" {
+		spec.PluginType = spec.DeprecatedType
+	}
+
+	switch spec.PluginType {
 	// Allow only init and component types, not component list which should have been expanded by this point.
 	case SpecTypeInit, SpecTypeComponent:
 	default:
@@ -335,7 +341,7 @@ func (spec *Spec) Validate() error {
 	}
 
 	// Validate component list
-	if spec.Type == SpecTypeComponentList {
+	if spec.PluginType == SpecTypeComponentList {
 		return ErrComponentListNotExpanded
 	}
 

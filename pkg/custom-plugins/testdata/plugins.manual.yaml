@@ -1,7 +1,7 @@
 ########################################
 # demonstrates a plugin that fails with an exit code 1 ONLY when triggered manually
 - plugin_name: manual-exit-1
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     parser:

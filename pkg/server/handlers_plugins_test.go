@@ -27,7 +27,7 @@ func TestGetPluginSpecs(t *testing.T) {
 	// Add a custom plugin component with a valid Spec
 	spec := pkgcustomplugins.Spec{
 		PluginName: "custom-plugin",
-		Type:       pkgcustomplugins.SpecTypeComponent,
+		PluginType: pkgcustomplugins.SpecTypeComponent,
 		HealthStatePlugin: &pkgcustomplugins.Plugin{
 			Steps: []pkgcustomplugins.Step{
 				{
@@ -70,14 +70,14 @@ func TestGetPluginSpecs(t *testing.T) {
 	// Only the custom plugin should be in the response
 	assert.Len(t, plugins, 1)
 	assert.Equal(t, "custom-plugin", plugins[0].PluginName)
-	assert.Equal(t, pkgcustomplugins.SpecTypeComponent, plugins[0].Type)
+	assert.Equal(t, pkgcustomplugins.SpecTypeComponent, plugins[0].PluginType)
 }
 
 func TestGetPluginSpecsYAML(t *testing.T) {
 	// Add a custom plugin component
 	spec := pkgcustomplugins.Spec{
 		PluginName: "yaml-plugin",
-		Type:       pkgcustomplugins.SpecTypeComponent,
+		PluginType: pkgcustomplugins.SpecTypeComponent,
 		HealthStatePlugin: &pkgcustomplugins.Plugin{
 			Steps: []pkgcustomplugins.Step{
 				{
@@ -126,7 +126,7 @@ func TestGetPluginSpecsIndentedJSON(t *testing.T) {
 	// Add a custom plugin component
 	spec := pkgcustomplugins.Spec{
 		PluginName: "indent-plugin",
-		Type:       pkgcustomplugins.SpecTypeComponent,
+		PluginType: pkgcustomplugins.SpecTypeComponent,
 		HealthStatePlugin: &pkgcustomplugins.Plugin{
 			Steps: []pkgcustomplugins.Step{
 				{
@@ -237,7 +237,7 @@ func TestGetPluginSpecsMultipleCustomPlugins(t *testing.T) {
 	// Add multiple custom plugin components
 	spec1 := pkgcustomplugins.Spec{
 		PluginName: "plugin-1",
-		Type:       pkgcustomplugins.SpecTypeComponent,
+		PluginType: pkgcustomplugins.SpecTypeComponent,
 		HealthStatePlugin: &pkgcustomplugins.Plugin{
 			Steps: []pkgcustomplugins.Step{
 				{
@@ -254,7 +254,7 @@ func TestGetPluginSpecsMultipleCustomPlugins(t *testing.T) {
 
 	spec2 := pkgcustomplugins.Spec{
 		PluginName: "plugin-2",
-		Type:       pkgcustomplugins.SpecTypeComponent,
+		PluginType: pkgcustomplugins.SpecTypeComponent,
 		HealthStatePlugin: &pkgcustomplugins.Plugin{
 			Steps: []pkgcustomplugins.Step{
 				{

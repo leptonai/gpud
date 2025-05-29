@@ -728,7 +728,7 @@ func TestComponent_Check_SuccessfulPlugin(t *testing.T) {
 
 	spec := &Spec{
 		PluginName: "test-plugin",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 		Timeout: metav1.Duration{
 			Duration: time.Second * 10,
 		},
@@ -808,7 +808,7 @@ func TestCheckResultDebugMethod(t *testing.T) {
 func TestDebugMethodViaComponentFlow(t *testing.T) {
 	// Create a spec with minimal configuration
 	spec := &Spec{
-		Type:       "test",
+		PluginType: "test",
 		PluginName: "debug-test",
 	}
 
@@ -856,7 +856,7 @@ func TestDebugMethodWithModifiedOutput(t *testing.T) {
 		ctx:    cctx,
 		cancel: ccancel,
 		spec: &Spec{
-			Type:       "test",
+			PluginType: "test",
 			PluginName: "debug-test",
 		},
 	}
@@ -1001,7 +1001,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 	t.Run("test-healthy", func(t *testing.T) {
 		spec := specs[0]
 		assert.Equal(t, "test-healthy", spec.PluginName)
-		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, SpecTypeComponent, spec.PluginType)
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
 		assert.Equal(t, 6, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
@@ -1040,7 +1040,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 	t.Run("test-unhealthy", func(t *testing.T) {
 		spec := specs[1]
 		assert.Equal(t, "test-unhealthy", spec.PluginName)
-		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, SpecTypeComponent, spec.PluginType)
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
 		assert.Equal(t, 6, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
@@ -1079,7 +1079,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 	t.Run("test-unhealthy-with-missing-field", func(t *testing.T) {
 		spec := specs[2]
 		assert.Equal(t, "test-unhealthy-with-missing-field", spec.PluginName)
-		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, SpecTypeComponent, spec.PluginType)
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
 		assert.Equal(t, 5, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
@@ -1111,7 +1111,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 	t.Run("test-exit-0", func(t *testing.T) {
 		spec := specs[3]
 		assert.Equal(t, "exit-0", spec.PluginName)
-		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, SpecTypeComponent, spec.PluginType)
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
@@ -1139,7 +1139,7 @@ func TestComponentCheckOutputWithRegex(t *testing.T) {
 	t.Run("test-exit-1", func(t *testing.T) {
 		spec := specs[4]
 		assert.Equal(t, "exit-1", spec.PluginName)
-		assert.Equal(t, SpecTypeComponent, spec.Type)
+		assert.Equal(t, SpecTypeComponent, spec.PluginType)
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
 		assert.Equal(t, 1, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
@@ -1173,7 +1173,7 @@ func TestComponentCheckManualExit(t *testing.T) {
 
 	spec := specs[0]
 	assert.Equal(t, "manual-exit-1", spec.PluginName)
-	assert.Equal(t, SpecTypeComponent, spec.Type)
+	assert.Equal(t, SpecTypeComponent, spec.PluginType)
 	assert.Equal(t, 1, len(spec.HealthStatePlugin.Steps))
 	assert.Equal(t, 1, len(spec.HealthStatePlugin.Parser.JSONPaths))
 
@@ -1204,7 +1204,7 @@ func TestComponent_StartWithManualRunMode(t *testing.T) {
 	// Create a component with manual run mode
 	spec := &Spec{
 		PluginName: "test-plugin",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 		RunMode:    string(apiv1.RunModeTypeManual),
 		Timeout: metav1.Duration{
 			Duration: time.Second,
@@ -1243,7 +1243,7 @@ func TestComponent_ManualRunModeInHealthStates(t *testing.T) {
 	// Create component with RunMode=manual
 	spec := &Spec{
 		PluginName: "test-plugin",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 		RunMode:    string(apiv1.RunModeTypeManual),
 	}
 
@@ -1311,7 +1311,7 @@ func TestComponent_Check_SetsRunMode(t *testing.T) {
 	// Test with manual run mode
 	spec := &Spec{
 		PluginName: "test-plugin",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 		RunMode:    string(apiv1.RunModeTypeManual),
 	}
 
@@ -1328,7 +1328,7 @@ func TestComponent_Check_SetsRunMode(t *testing.T) {
 	// Test with empty run mode
 	spec = &Spec{
 		PluginName: "test-plugin",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 	}
 
 	c = &component{
@@ -1347,7 +1347,7 @@ func TestComponent_LastHealthStates_DefaultRunMode(t *testing.T) {
 	// Test with manual run mode
 	spec := &Spec{
 		PluginName: "test-plugin",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 		RunMode:    string(apiv1.RunModeTypeManual),
 	}
 
@@ -1364,7 +1364,7 @@ func TestComponent_LastHealthStates_DefaultRunMode(t *testing.T) {
 	// Test with empty run mode
 	spec = &Spec{
 		PluginName: "test-plugin",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 	}
 
 	c = &component{
@@ -1404,7 +1404,7 @@ func TestComponent_CheckWithParserError(t *testing.T) {
 
 	spec := &Spec{
 		PluginName:        "test-parser-error",
-		Type:              SpecTypeComponent,
+		PluginType:        SpecTypeComponent,
 		HealthStatePlugin: statePlugin,
 		Timeout: metav1.Duration{
 			Duration: time.Second * 10,

@@ -40,7 +40,7 @@
 ########################################
 # demonstrates a plugin that fails with an exit code 1
 - plugin_name: nv-plugin-fail-me
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     steps:
@@ -64,7 +64,7 @@
 # demonstrates a plugin that installs python and runs a simple script using "uv run"
 # checks if there is any "Active" hw slowdown using "nvidia-smi"
 - plugin_name: nv-plugin-simple-script-gpu-throttle
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     steps:
@@ -137,7 +137,7 @@
 # demonstrates a plugin that installs python and runs a simple script using "uv run"
 # checks if there is any "GPU requires reset" using "nvidia-smi"
 - plugin_name: nv-plugin-simple-script-gpu-power-state
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     steps:
