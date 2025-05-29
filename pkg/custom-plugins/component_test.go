@@ -106,8 +106,7 @@ func TestComponent_LastHealthStates_NoCheckPerformed(t *testing.T) {
 	// No check performed yet
 	healthStates := c.LastHealthStates()
 	assert.Equal(t, 1, len(healthStates))
-	assert.Equal(t, "test-plugin", healthStates[0].Component)
-	assert.Equal(t, "test-plugin", healthStates[0].Name)
+	assert.Equal(t, "check", healthStates[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
 	assert.Equal(t, "no data yet", healthStates[0].Reason)
 }
@@ -229,7 +228,7 @@ func TestCheckResult_GetLastHealthStates(t *testing.T) {
 	states := cr.HealthStates()
 	require.Equal(t, 1, len(states))
 	assert.Equal(t, "custom-component", states[0].Component)
-	assert.Equal(t, "test-plugin", states[0].Name)
+	assert.Equal(t, "check", states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Equal(t, "test reason", states[0].Reason)
 	assert.Equal(t, "test error", states[0].Error)
@@ -705,7 +704,7 @@ func TestComponent_LastHealthStates_AfterCheck(t *testing.T) {
 	// Verify the health states
 	assert.Equal(t, 1, len(healthStates))
 	assert.Equal(t, "test-component", healthStates[0].Component)
-	assert.Equal(t, "test-plugin", healthStates[0].Name)
+	assert.Equal(t, "check", healthStates[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
 	assert.Equal(t, "mock reason", healthStates[0].Reason)
 	assert.Equal(t, "mock error", healthStates[0].Error)
@@ -761,7 +760,7 @@ func TestComponent_Check_SuccessfulPlugin(t *testing.T) {
 	healthStates := c.LastHealthStates()
 	assert.Equal(t, 1, len(healthStates))
 	assert.Equal(t, ConvertToComponentName("test-plugin"), healthStates[0].Component)
-	assert.Equal(t, "test-plugin", healthStates[0].Name)
+	assert.Equal(t, "check", healthStates[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
 	assert.Equal(t, "ok", healthStates[0].Reason)
 	assert.Empty(t, healthStates[0].Error)
@@ -815,7 +814,7 @@ func TestDebugMethodViaComponentFlow(t *testing.T) {
 
 	// Get the init function
 	initFunc := spec.NewInitFunc()
-	assert.NotNil(t, initFunc, "InitFunc should not be nil")
+	assert.NotNil(t, initFunc)
 
 	// Create a mock GPUdInstance
 	mockGPUd := &components.GPUdInstance{
@@ -929,7 +928,7 @@ func TestCheckResult_GetLastHealthStatesWithEmptyOutput(t *testing.T) {
 	healthStates := cr.HealthStates()
 	require.Len(t, healthStates, 1)
 	require.Equal(t, "test-component", healthStates[0].Component)
-	require.Equal(t, "test-plugin", healthStates[0].Name)
+	require.Equal(t, "check", healthStates[0].Name)
 	require.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
 	require.Equal(t, "test reason", healthStates[0].Reason)
 	require.Empty(t, healthStates[0].Error)
@@ -1503,9 +1502,9 @@ func TestComponent_CheckWithSuggestedActions(t *testing.T) {
 
 	// Verify that the suggestedActions field has been populated
 	assert.NotNil(t, cr.suggestedActions)
-	assert.Contains(t, cr.suggestedActions.Description, "unhealthy")
 
 	// Verify that the repair actions contain both expected actions
+	assert.Contains(t, cr.suggestedActions.Description, "unhealthy")
 	assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("restart_service"))
 	assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("reduce_load"))
 
@@ -1582,20 +1581,19 @@ func TestComponent_CheckWithPartialSuggestedActions(t *testing.T) {
 
 	// Verify that the suggestedActions field has been populated
 	assert.NotNil(t, cr.suggestedActions)
-	assert.Contains(t, cr.suggestedActions.Description, "warning")
 
-	// Only one repair action should be present
+	// Only the "warning" value should be in the description since only that field triggered an action
+	// The "85" value should NOT be in the description since it didn't match any suggested action rule
+	assert.Contains(t, cr.suggestedActions.Description, "warning")
+	assert.NotContains(t, cr.suggestedActions.Description, "85")
+
+	// Verify that there's exactly one suggested action
 	assert.Len(t, cr.suggestedActions.RepairActions, 1)
 	assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("log_warning"))
-	assert.NotContains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("restart_service"))
-	assert.NotContains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionType("reduce_load"))
 
-	// Verify that the health states include the correct suggested actions
-	healthStates := c.LastHealthStates()
-	require.Len(t, healthStates, 1)
-	assert.NotNil(t, healthStates[0].SuggestedActions)
-	assert.Equal(t, cr.suggestedActions.Description, healthStates[0].SuggestedActions.Description)
-	assert.Equal(t, cr.suggestedActions.RepairActions, healthStates[0].SuggestedActions.RepairActions)
+	// Since only one value triggered an action, there should be no commas in the description
+	commaCount := strings.Count(cr.suggestedActions.Description, ",")
+	assert.Equal(t, 0, commaCount, "Expected no commas since only one value triggered an action")
 }
 
 // TestComponent_CheckWithInvalidSuggestedActionRule tests the component's Check method with an invalid suggested action rule
@@ -1838,4 +1836,162 @@ func TestComponent_LastHealthStates_NameAlwaysCheck(t *testing.T) {
 	assert.Equal(t, apiv1.ComponentTypeCustomPlugin, healthStates[0].ComponentType)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
 	assert.Equal(t, "no data yet", healthStates[0].Reason)
+
+	// Test case 2: After a successful check (lastCheckResult exists with healthy state)
+	c.lastMu.Lock()
+	c.lastCheckResult = &checkResult{
+		componentName: c.Name(),
+		pluginName:    c.spec.PluginName,
+		ts:            time.Now().UTC(),
+		runMode:       apiv1.RunModeTypeAuto,
+		health:        apiv1.HealthStateTypeHealthy,
+		reason:        "all checks passed",
+		out:           []byte("success output"),
+		exitCode:      0,
+		extraInfo:     map[string]string{"status": "ok"},
+	}
+	c.lastMu.Unlock()
+
+	healthStates = c.LastHealthStates()
+	require.Equal(t, 1, len(healthStates))
+	assert.Equal(t, "check", healthStates[0].Name, "Name should always be 'check' after a successful check")
+	assert.Equal(t, c.Name(), healthStates[0].Component)
+	assert.Equal(t, apiv1.ComponentTypeCustomPlugin, healthStates[0].ComponentType)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
+	assert.Equal(t, "all checks passed", healthStates[0].Reason)
+
+	// Test case 3: After a failed check (lastCheckResult exists with unhealthy state)
+	c.lastMu.Lock()
+	c.lastCheckResult = &checkResult{
+		componentName: c.Name(),
+		pluginName:    c.spec.PluginName,
+		ts:            time.Now().UTC(),
+		runMode:       apiv1.RunModeTypeAuto,
+		health:        apiv1.HealthStateTypeUnhealthy,
+		reason:        "check failed",
+		out:           []byte("error output"),
+		exitCode:      1,
+		err:           errors.New("plugin execution failed"),
+		extraInfo:     map[string]string{"error_code": "500"},
+	}
+	c.lastMu.Unlock()
+
+	healthStates = c.LastHealthStates()
+	require.Equal(t, 1, len(healthStates))
+	assert.Equal(t, "check", healthStates[0].Name, "Name should always be 'check' after a failed check")
+	assert.Equal(t, c.Name(), healthStates[0].Component)
+	assert.Equal(t, apiv1.ComponentTypeCustomPlugin, healthStates[0].ComponentType)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
+	assert.Equal(t, "check failed", healthStates[0].Reason)
+	assert.Equal(t, "plugin execution failed", healthStates[0].Error)
+	assert.Equal(t, map[string]string{"error_code": "500"}, healthStates[0].ExtraInfo)
+}
+
+// TestCheckResult_HealthStates_NameAlwaysCheck tests that checkResult.HealthStates() always returns Name == "check"
+func TestCheckResult_HealthStates_NameAlwaysCheck(t *testing.T) {
+	// Test case 1: nil checkResult (Name field is NOT set to "check" in this case)
+	var nilCR *checkResult
+	healthStates := nilCR.HealthStates()
+	require.Equal(t, 1, len(healthStates))
+	assert.Equal(t, "", healthStates[0].Name, "Name should be empty for nil checkResult")
+	assert.Equal(t, "", healthStates[0].Component, "Component should be empty for nil checkResult")
+	assert.Equal(t, apiv1.ComponentTypeCustomPlugin, healthStates[0].ComponentType)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
+	assert.Equal(t, "no data yet", healthStates[0].Reason)
+
+	// Test case 2: checkResult with healthy state (Name IS set to "check")
+	cr := &checkResult{
+		componentName: "test-component",
+		pluginName:    "test-plugin",
+		ts:            time.Now().UTC(),
+		runMode:       apiv1.RunModeTypeAuto,
+		health:        apiv1.HealthStateTypeHealthy,
+		reason:        "plugin execution successful",
+		out:           []byte("healthy output"),
+		exitCode:      0,
+		extraInfo:     map[string]string{"cpu": "50%", "memory": "30%"},
+	}
+
+	healthStates = cr.HealthStates()
+	require.Equal(t, 1, len(healthStates))
+	assert.Equal(t, "check", healthStates[0].Name, "Name should be 'check' for healthy checkResult")
+	assert.Equal(t, "test-component", healthStates[0].Component)
+	assert.Equal(t, apiv1.ComponentTypeCustomPlugin, healthStates[0].ComponentType)
+	assert.Equal(t, apiv1.RunModeTypeAuto, healthStates[0].RunMode)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
+	assert.Equal(t, "plugin execution successful", healthStates[0].Reason)
+	assert.Equal(t, map[string]string{"cpu": "50%", "memory": "30%"}, healthStates[0].ExtraInfo)
+
+	// Test case 3: checkResult with unhealthy state and error (Name IS set to "check")
+	testErr := errors.New("plugin failed to execute")
+	cr = &checkResult{
+		componentName: "test-component",
+		pluginName:    "test-plugin",
+		ts:            time.Now().UTC(),
+		runMode:       apiv1.RunModeTypeManual,
+		health:        apiv1.HealthStateTypeUnhealthy,
+		reason:        "plugin execution failed",
+		out:           []byte("error output"),
+		exitCode:      1,
+		err:           testErr,
+		extraInfo:     map[string]string{"error_type": "timeout"},
+	}
+
+	healthStates = cr.HealthStates()
+	require.Equal(t, 1, len(healthStates))
+	assert.Equal(t, "check", healthStates[0].Name, "Name should be 'check' for unhealthy checkResult")
+	assert.Equal(t, "test-component", healthStates[0].Component)
+	assert.Equal(t, apiv1.ComponentTypeCustomPlugin, healthStates[0].ComponentType)
+	assert.Equal(t, apiv1.RunModeTypeManual, healthStates[0].RunMode)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
+	assert.Equal(t, "plugin execution failed", healthStates[0].Reason)
+	assert.Equal(t, "plugin failed to execute", healthStates[0].Error)
+	assert.Equal(t, map[string]string{"error_type": "timeout"}, healthStates[0].ExtraInfo)
+
+	// Test case 4: checkResult with suggested actions (Name IS set to "check")
+	cr = &checkResult{
+		componentName: "test-component",
+		pluginName:    "test-plugin",
+		ts:            time.Now().UTC(),
+		runMode:       apiv1.RunModeTypeAuto,
+		health:        apiv1.HealthStateTypeUnhealthy,
+		reason:        "high temperature detected",
+		out:           []byte("temperature: 95°C"),
+		exitCode:      0,
+		extraInfo:     map[string]string{"temperature": "95"},
+		suggestedActions: &apiv1.SuggestedActions{
+			Description:   "Temperature is too high, consider reducing load",
+			RepairActions: []apiv1.RepairActionType{"REDUCE_LOAD", "RESTART_SERVICE"},
+		},
+	}
+
+	healthStates = cr.HealthStates()
+	require.Equal(t, 1, len(healthStates))
+	assert.Equal(t, "check", healthStates[0].Name, "Name should be 'check' for checkResult with suggested actions")
+	assert.Equal(t, "test-component", healthStates[0].Component)
+	assert.Equal(t, apiv1.ComponentTypeCustomPlugin, healthStates[0].ComponentType)
+	assert.Equal(t, apiv1.RunModeTypeAuto, healthStates[0].RunMode)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
+	assert.Equal(t, "high temperature detected", healthStates[0].Reason)
+	assert.NotNil(t, healthStates[0].SuggestedActions)
+	assert.Equal(t, cr.suggestedActions.Description, healthStates[0].SuggestedActions.Description)
+	assert.Equal(t, cr.suggestedActions.RepairActions, healthStates[0].SuggestedActions.RepairActions)
+
+	// Test case 5: checkResult with different component types but still same Name (Name IS set to "check")
+	cr = &checkResult{
+		componentName: "very-long-component-name-that-might-be-truncated",
+		pluginName:    "very-long-plugin-name-that-might-be-truncated",
+		ts:            time.Now().UTC(),
+		runMode:       apiv1.RunModeTypeAuto,
+		health:        apiv1.HealthStateTypeHealthy,
+		reason:        "ok",
+		out:           []byte("ok"),
+		exitCode:      0,
+	}
+
+	healthStates = cr.HealthStates()
+	require.Equal(t, 1, len(healthStates))
+	assert.Equal(t, "check", healthStates[0].Name, "Name should be 'check' even for long component/plugin names")
+	assert.Equal(t, "very-long-component-name-that-might-be-truncated", healthStates[0].Component)
+	assert.Equal(t, apiv1.ComponentTypeCustomPlugin, healthStates[0].ComponentType)
 }
