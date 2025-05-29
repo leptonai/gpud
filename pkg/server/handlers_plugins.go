@@ -1,6 +1,18 @@
 package server
 
-/*
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"sigs.k8s.io/yaml"
+
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
+	"github.com/leptonai/gpud/pkg/errdefs"
+	"github.com/leptonai/gpud/pkg/httputil"
+)
+
+const URLPathComponentsCustomPlugins = "/plugins"
+
 func (g *globalHandler) registerPluginRoutes(r gin.IRoutes) {
 	r.GET(URLPathComponentsCustomPlugins, g.getPluginSpecs)
 }
@@ -48,4 +60,3 @@ func (g *globalHandler) getPluginSpecs(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "invalid content type"})
 	}
 }
-*/

@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/tls"
@@ -16,7 +15,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	v1 "github.com/leptonai/gpud/api/v1"
-	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
@@ -574,182 +572,6 @@ func ReadMetrics(rd io.Reader, opts ...OpOption) (v1.GPUdComponentMetrics, error
 	}
 
 	return metrics, nil
-}
-
-// GetCustomPlugins returns the custom plugins registered in the server.
-func GetCustomPlugins(ctx context.Context, addr string, opts ...OpOption) (map[string]pkgcustomplugins.Spec, error) {
-	op := &Op{}
-	if err := op.applyOpts(opts); err != nil {
-		return nil, err
-	}
-
-	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/components/custom-plugin", addr))
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	if op.requestContentType != "" {
-		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
-	}
-	if op.requestAcceptEncoding != "" {
-		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
-	}
-
-	resp, err := createDefaultHTTPClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusNotFound {
-			return nil, errdefs.ErrNotFound
-		}
-		return nil, errors.New("server not ready, response not 200")
-	}
-
-	return ReadCustomPluginSpecs(resp.Body, opts...)
-}
-
-// ReadCustomPluginSpecs reads the custom plugin specs from the server.
-func ReadCustomPluginSpecs(rd io.Reader, opts ...OpOption) (map[string]pkgcustomplugins.Spec, error) {
-	op := &Op{}
-	if err := op.applyOpts(opts); err != nil {
-		return nil, err
-	}
-
-	var csPlugins map[string]pkgcustomplugins.Spec
-	switch op.requestAcceptEncoding {
-	case httputil.RequestHeaderEncodingGzip:
-		gr, err := gzip.NewReader(rd)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
-		}
-		defer gr.Close()
-
-		switch op.requestContentType {
-		case httputil.RequestHeaderJSON, "":
-			if err := json.NewDecoder(gr).Decode(&csPlugins); err != nil {
-				return nil, fmt.Errorf("failed to decode json: %w", err)
-			}
-		case httputil.RequestHeaderYAML:
-			b, err := io.ReadAll(gr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read yaml: %w", err)
-			}
-			if err := yaml.Unmarshal(b, &csPlugins); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal yaml: %w", err)
-			}
-		default:
-			return nil, fmt.Errorf("unsupported content type: %s", op.requestContentType)
-		}
-
-	default:
-		switch op.requestContentType {
-		case httputil.RequestHeaderJSON, "":
-			if err := json.NewDecoder(rd).Decode(&csPlugins); err != nil {
-				return nil, fmt.Errorf("failed to decode json: %w", err)
-			}
-		case httputil.RequestHeaderYAML:
-			b, err := io.ReadAll(rd)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read yaml: %w", err)
-			}
-			if err := yaml.Unmarshal(b, &csPlugins); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal yaml: %w", err)
-			}
-		default:
-			return nil, fmt.Errorf("unsupported content type: %s", op.requestContentType)
-		}
-	}
-
-	return csPlugins, nil
-}
-
-// RegisterCustomPlugin registers a new custom plugin.
-// It fails if the custom plugin has already been registered.
-func RegisterCustomPlugin(ctx context.Context, addr string, spec pkgcustomplugins.Spec, opts ...OpOption) error {
-	return registerOrUpdateCustomPlugin(ctx, addr, spec, http.MethodPost, opts...)
-}
-
-// UpdateCustomPlugin updates a custom plugin.
-// It fails if the custom plugin has not been registered yet.
-func UpdateCustomPlugin(ctx context.Context, addr string, spec pkgcustomplugins.Spec, opts ...OpOption) error {
-	return registerOrUpdateCustomPlugin(ctx, addr, spec, http.MethodPut, opts...)
-}
-
-// registerOrUpdateCustomPlugin is a helper function to register or update a custom plugin.
-func registerOrUpdateCustomPlugin(ctx context.Context, addr string, spec pkgcustomplugins.Spec, method string, opts ...OpOption) error {
-	op := &Op{}
-	if err := op.applyOpts(opts); err != nil {
-		return err
-	}
-
-	if err := spec.Validate(); err != nil {
-		return fmt.Errorf("invalid spec: %w", err)
-	}
-
-	b, err := json.Marshal(spec)
-	if err != nil {
-		return fmt.Errorf("failed to marshal spec: %w", err)
-	}
-
-	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/components/custom-plugin", addr))
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, reqURL.String(), bytes.NewReader(b))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	if op.requestContentType != "" {
-		req.Header.Set(httputil.RequestHeaderContentType, op.requestContentType)
-	}
-	if op.requestAcceptEncoding != "" {
-		req.Header.Set(httputil.RequestHeaderAcceptEncoding, op.requestAcceptEncoding)
-	}
-
-	switch method {
-	case http.MethodPost:
-		log.Logger.Infow("registering custom plugin", "component", spec.ComponentName())
-	case http.MethodPut:
-		log.Logger.Infow("updating custom plugin", "component", spec.ComponentName())
-	default:
-		return fmt.Errorf("unsupported method: %s", method)
-	}
-
-	resp, err := createDefaultHTTPClient().Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return errors.New("server not ready, response not 200")
-	}
-
-	rb, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	switch method {
-	case http.MethodPost:
-		log.Logger.Infow("registered custom plugin", "component", spec.ComponentName(), "response", string(rb))
-	case http.MethodPut:
-		log.Logger.Infow("updated custom plugin", "component", spec.ComponentName(), "response", string(rb))
-	default:
-		return fmt.Errorf("unsupported method: %s", method)
-	}
-
-	return nil
 }
 
 func createDefaultHTTPClient() *http.Client {

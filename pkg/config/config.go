@@ -47,9 +47,6 @@ type Config struct {
 	// PluginSpecsFile is the file that contains the plugin specs.
 	PluginSpecsFile string `json:"plugin_specs_file"`
 
-	// EnablePluginAPI enables the plugin API.
-	EnablePluginAPI bool `json:"enable_plugin_api"`
-
 	// Components specifies the components to enable.
 	// Leave empty, "*", or "all" to enable all components.
 	// Or prefix component names with "-" to disable them.

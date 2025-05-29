@@ -216,10 +216,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Value:  "ibstatus",
 					Hidden: true,
 				},
-				&cli.BoolFlag{
-					Name:  "enable-plugin-api",
-					Usage: "enable plugin API (default: false)",
-				},
 			},
 		},
 

@@ -282,6 +282,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	v1Group := router.Group("/v1")
 	v1Group.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/update/"})))
 	globalHandler.registerComponentRoutes(v1Group)
+	globalHandler.registerPluginRoutes(v1Group)
 
 	promHandler := promhttp.HandlerFor(pkgmetrics.DefaultGatherer(), promhttp.HandlerOpts{})
 	router.GET("/metrics", func(ctx *gin.Context) {
