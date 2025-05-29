@@ -64,15 +64,15 @@ main() {
 
   TRACK="${TRACK:-unstable}"
   if [ -n "$1" ]; then
-    VERSION="$1"
+    APP_VERSION="$1"
   else
-    VERSION=$(curl -fsSL https://pkg.gpud.dev/"$TRACK"_latest.txt)
+    APP_VERSION=$(curl -fsSL https://pkg.gpud.dev/"$TRACK"_latest.txt)
   fi
 
   if ! type lsb_release >/dev/null 2>&1; then
     . /etc/os-release
     OS_NAME=$(echo "$ID" | tr '[:upper:]' '[:lower:]')
-    OS_VERSION=$(echo "$VERSION" | tr -d '"')
+    OS_VERSION=$(echo "$APP_VERSION" | tr -d '"')
   else
     # e.g., ubuntu22.04, ubuntu24.04
     OS_NAME=$(lsb_release -i -s | tr '[:upper:]' '[:lower:]' 2>/dev/null)
@@ -103,7 +103,7 @@ main() {
     OS_DISTRO=""
   fi
 
-  FILEBASE=gpud_"$VERSION"_"$OS"_"$ARCH""$OS_DISTRO"
+  FILEBASE=gpud_"$APP_VERSION"_"$OS"_"$ARCH""$OS_DISTRO"
   FILENAME=$FILEBASE.tgz
   if [ -e "$FILENAME" ]; then
     echo "file '$FILENAME' already exists"
@@ -135,7 +135,7 @@ main() {
   # ref. https://fedoraproject.org/wiki/Changes/Unify_bin_and_sbin
   $SUDO cp -f "$DIR"/gpud /usr/local/bin
 
-  echo "installed gpud version $VERSION"
+  echo "installed gpud version $APP_VERSION"
   rm /tmp/"$FILENAME"
   rm -rf "$DIR"
 }
