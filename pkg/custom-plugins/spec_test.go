@@ -1,6 +1,7 @@
 package customplugins
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -9,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"bytes"
-
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 func TestLoad(t *testing.T) {
@@ -2927,4 +2928,890 @@ func TestPrintValidateResults(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSpecsEqual(t *testing.T) {
+	tests := []struct {
+		name     string
+		a        Specs
+		b        Specs
+		expected bool
+	}{
+		{
+			name:     "empty specs are equal",
+			a:        Specs{},
+			b:        Specs{},
+			expected: true,
+		},
+		{
+			name:     "nil and empty specs are equal",
+			a:        nil,
+			b:        Specs{},
+			expected: false, // JSON marshaling of nil vs empty slice produces different results
+		},
+		{
+			name: "identical single spec",
+			a: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			b: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					Interval:   metav1.Duration{Duration: 5 * time.Minute},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "different plugin names",
+			a: Specs{
+				{
+					PluginName: "test-plugin-1",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			b: Specs{
+				{
+					PluginName: "test-plugin-2",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "different lengths",
+			a: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			b: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "test-plugin-2",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'world'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "different script content",
+			a: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			b: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'world'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "different timeout",
+			a: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			b: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 60 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "multiple identical specs",
+			a: Specs{
+				{
+					PluginName: "test-plugin-1",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "test-plugin-2",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Timeout:    metav1.Duration{Duration: 60 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step-2",
+								RunBashScript: &RunBashScript{
+									ContentType: "base64",
+									Script:      "ZWNobyAnd29ybGQn",
+								},
+							},
+						},
+					},
+				},
+			},
+			b: Specs{
+				{
+					PluginName: "test-plugin-1",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "test-plugin-2",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Timeout:    metav1.Duration{Duration: 60 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step-2",
+								RunBashScript: &RunBashScript{
+									ContentType: "base64",
+									Script:      "ZWNobyAnd29ybGQn",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "specs with nil plugin",
+			a: Specs{
+				{
+					PluginName:        "test-plugin",
+					Type:              SpecTypeComponent,
+					RunMode:           "auto",
+					Timeout:           metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: nil,
+				},
+			},
+			b: Specs{
+				{
+					PluginName:        "test-plugin",
+					Type:              SpecTypeComponent,
+					RunMode:           "auto",
+					Timeout:           metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: nil,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "one nil plugin one non-nil",
+			a: Specs{
+				{
+					PluginName:        "test-plugin",
+					Type:              SpecTypeComponent,
+					RunMode:           "auto",
+					Timeout:           metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: nil,
+				},
+			},
+			b: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "specs with tags",
+			a: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{"tag1", "tag2"},
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			b: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{"tag1", "tag2"},
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "specs with different tags",
+			a: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{"tag1", "tag2"},
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			b: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Tags:       []string{"tag1", "tag3"},
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tc.a.Equal(tc.b)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestSaveSpecs(t *testing.T) {
+	// Create a temporary directory for test files
+	tempDir := t.TempDir()
+
+	tests := []struct {
+		name           string
+		setupFile      func(string) error
+		path           string
+		newSpecs       Specs
+		expectedResult bool
+		expectError    bool
+		verifyFile     func(t *testing.T, path string)
+	}{
+		{
+			name: "create new file",
+			path: filepath.Join(tempDir, "new-specs.yaml"),
+			newSpecs: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: true,
+			expectError:    false,
+			verifyFile: func(t *testing.T, path string) {
+				// Verify file was created
+				_, err := os.Stat(path)
+				assert.NoError(t, err)
+
+				// Verify content
+				content, err := os.ReadFile(path)
+				assert.NoError(t, err)
+
+				var savedSpecs Specs
+				err = yaml.Unmarshal(content, &savedSpecs)
+				assert.NoError(t, err)
+				assert.Len(t, savedSpecs, 1)
+				assert.Equal(t, "test-plugin", savedSpecs[0].PluginName)
+			},
+		},
+
+		{
+			name: "overwrite existing file with different content",
+			setupFile: func(path string) error {
+				existingSpecs := Specs{
+					{
+						PluginName: "old-plugin",
+						Type:       SpecTypeComponent,
+						RunMode:    "manual",
+						Timeout:    metav1.Duration{Duration: 10 * time.Second},
+						HealthStatePlugin: &Plugin{
+							Steps: []Step{
+								{
+									Name: "old-step",
+									RunBashScript: &RunBashScript{
+										ContentType: "plaintext",
+										Script:      "echo 'old'",
+									},
+								},
+							},
+						},
+					},
+				}
+				data, err := yaml.Marshal(existingSpecs)
+				if err != nil {
+					return err
+				}
+				return os.WriteFile(path, data, 0644)
+			},
+			path: filepath.Join(tempDir, "existing-specs.yaml"),
+			newSpecs: Specs{
+				{
+					PluginName: "new-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "new-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'new'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: true,
+			expectError:    false,
+			verifyFile: func(t *testing.T, path string) {
+				content, err := os.ReadFile(path)
+				assert.NoError(t, err)
+
+				var savedSpecs Specs
+				err = yaml.Unmarshal(content, &savedSpecs)
+				assert.NoError(t, err)
+				assert.Len(t, savedSpecs, 1)
+				assert.Equal(t, "new-plugin", savedSpecs[0].PluginName)
+			},
+		},
+		{
+			name: "skip update when content is identical",
+			setupFile: func(path string) error {
+				existingSpecs := Specs{
+					{
+						PluginName: "same-plugin",
+						Type:       SpecTypeComponent,
+						RunMode:    "auto",
+						Timeout:    metav1.Duration{Duration: 30 * time.Second},
+						HealthStatePlugin: &Plugin{
+							Steps: []Step{
+								{
+									Name: "same-step",
+									RunBashScript: &RunBashScript{
+										ContentType: "plaintext",
+										Script:      "echo 'same'",
+									},
+								},
+							},
+						},
+					},
+				}
+				data, err := yaml.Marshal(existingSpecs)
+				if err != nil {
+					return err
+				}
+				return os.WriteFile(path, data, 0644)
+			},
+			path: filepath.Join(tempDir, "same-specs.yaml"),
+			newSpecs: Specs{
+				{
+					PluginName: "same-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "same-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'same'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: false, // Now correctly returns false when content is identical
+			expectError:    false,
+			verifyFile: func(t *testing.T, path string) {
+				content, err := os.ReadFile(path)
+				assert.NoError(t, err)
+
+				var savedSpecs Specs
+				err = yaml.Unmarshal(content, &savedSpecs)
+				assert.NoError(t, err)
+				assert.Len(t, savedSpecs, 1)
+				assert.Equal(t, "same-plugin", savedSpecs[0].PluginName)
+			},
+		},
+		{
+			name: "write to non-existent directory",
+			path: filepath.Join(tempDir, "non-existent-dir", "specs.yaml"),
+			newSpecs: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: false,
+			expectError:    true,
+		},
+		{
+			name:           "empty specs",
+			path:           filepath.Join(tempDir, "empty-specs.yaml"),
+			newSpecs:       Specs{},
+			expectedResult: true,
+			expectError:    false,
+			verifyFile: func(t *testing.T, path string) {
+				content, err := os.ReadFile(path)
+				assert.NoError(t, err)
+
+				var savedSpecs Specs
+				err = yaml.Unmarshal(content, &savedSpecs)
+				assert.NoError(t, err)
+				assert.Len(t, savedSpecs, 0)
+			},
+		},
+		{
+			name: "multiple specs",
+			path: filepath.Join(tempDir, "multiple-specs.yaml"),
+			newSpecs: Specs{
+				{
+					PluginName: "plugin-1",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "step-1",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'plugin 1'",
+								},
+							},
+						},
+					},
+				},
+				{
+					PluginName: "plugin-2",
+					Type:       SpecTypeComponent,
+					RunMode:    "manual",
+					Timeout:    metav1.Duration{Duration: 60 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "step-2",
+								RunBashScript: &RunBashScript{
+									ContentType: "base64",
+									Script:      "ZWNobyAncGx1Z2luIDIn",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: true,
+			expectError:    false,
+			verifyFile: func(t *testing.T, path string) {
+				content, err := os.ReadFile(path)
+				assert.NoError(t, err)
+
+				var savedSpecs Specs
+				err = yaml.Unmarshal(content, &savedSpecs)
+				assert.NoError(t, err)
+				assert.Len(t, savedSpecs, 2)
+				assert.Equal(t, "plugin-1", savedSpecs[0].PluginName)
+				assert.Equal(t, "plugin-2", savedSpecs[1].PluginName)
+			},
+		},
+		{
+			name: "file with invalid yaml",
+			setupFile: func(path string) error {
+				return os.WriteFile(path, []byte("invalid: yaml: content:\n  - bad indentation"), 0644)
+			},
+			path: filepath.Join(tempDir, "invalid-yaml.yaml"),
+			newSpecs: Specs{
+				{
+					PluginName: "test-plugin",
+					Type:       SpecTypeComponent,
+					RunMode:    "auto",
+					Timeout:    metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo 'hello'",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: false,
+			expectError:    true, // Now correctly fails when trying to parse invalid YAML
+		},
+		{
+			name: "specs with component list",
+			path: filepath.Join(tempDir, "component-list-specs.yaml"),
+			newSpecs: Specs{
+				{
+					PluginName:    "component-list-plugin",
+					Type:          SpecTypeComponentList,
+					RunMode:       "auto",
+					ComponentList: []string{"comp1", "comp2", "comp3"},
+					Timeout:       metav1.Duration{Duration: 30 * time.Second},
+					HealthStatePlugin: &Plugin{
+						Steps: []Step{
+							{
+								Name: "test-step",
+								RunBashScript: &RunBashScript{
+									ContentType: "plaintext",
+									Script:      "echo ${NAME}",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedResult: true,
+			expectError:    false,
+			verifyFile: func(t *testing.T, path string) {
+				content, err := os.ReadFile(path)
+				assert.NoError(t, err)
+
+				var savedSpecs Specs
+				err = yaml.Unmarshal(content, &savedSpecs)
+				assert.NoError(t, err)
+				assert.Len(t, savedSpecs, 1)
+				assert.Equal(t, "component-list-plugin", savedSpecs[0].PluginName)
+				assert.Equal(t, SpecTypeComponentList, savedSpecs[0].Type)
+				assert.Equal(t, []string{"comp1", "comp2", "comp3"}, savedSpecs[0].ComponentList)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup file if needed
+			if tc.setupFile != nil {
+				err := tc.setupFile(tc.path)
+				assert.NoError(t, err)
+			}
+
+			// Call SaveSpecs
+			result, err := SaveSpecs(tc.path, tc.newSpecs)
+
+			// Check error
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Check result
+			assert.Equal(t, tc.expectedResult, result)
+
+			// Verify file if provided
+			if tc.verifyFile != nil && !tc.expectError {
+				tc.verifyFile(t, tc.path)
+			}
+		})
+	}
+}
+
+func TestSaveSpecsEdgeCases(t *testing.T) {
+	tempDir := t.TempDir()
+
+	t.Run("file permissions issue", func(t *testing.T) {
+		// Create a read-only directory
+		readOnlyDir := filepath.Join(tempDir, "readonly")
+		err := os.Mkdir(readOnlyDir, 0444)
+		assert.NoError(t, err)
+
+		specs := Specs{
+			{
+				PluginName: "test-plugin",
+				Type:       SpecTypeComponent,
+				RunMode:    "auto",
+				Timeout:    metav1.Duration{Duration: 30 * time.Second},
+				HealthStatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'hello'",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		result, err := SaveSpecs(filepath.Join(readOnlyDir, "specs.yaml"), specs)
+		assert.Error(t, err)
+		assert.False(t, result)
+	})
+
+	t.Run("nil specs", func(t *testing.T) {
+		path := filepath.Join(tempDir, "nil-specs.yaml")
+		result, err := SaveSpecs(path, nil)
+		assert.NoError(t, err)
+		assert.True(t, result)
+
+		// Verify the file contains an empty array
+		content, err := os.ReadFile(path)
+		assert.NoError(t, err)
+
+		var savedSpecs Specs
+		err = yaml.Unmarshal(content, &savedSpecs)
+		assert.NoError(t, err)
+		assert.Len(t, savedSpecs, 0)
+	})
 }

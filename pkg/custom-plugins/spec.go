@@ -1,6 +1,8 @@
 package customplugins
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -59,6 +61,54 @@ func LoadSpecs(path string) (Specs, error) {
 	}
 
 	return pluginSpecs.ExpandedValidate()
+}
+
+func (a Specs) Equal(b Specs) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	aD, _ := json.Marshal(a)
+	bD, _ := json.Marshal(b)
+	return bytes.Equal(aD, bD)
+}
+
+// SaveSpecs loads the plugin specs from the given path.
+// It returns true, if the specs are created or updated.
+// It returns false, if the specs are not updated,
+// because the specs are the same as the existing ones.
+func SaveSpecs(path string, newSpecs Specs) (bool, error) {
+	_, err := os.Stat(path)
+	alreadyExists := err == nil
+
+	if !alreadyExists && !os.IsNotExist(err) {
+		return false, err
+	}
+
+	if alreadyExists {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return false, err
+		}
+		var existingSpecs Specs
+		if err := yaml.Unmarshal(b, &existingSpecs); err != nil {
+			return false, err
+		}
+		if existingSpecs.Equal(newSpecs) {
+			return false, nil
+		}
+		// already exists, but not the same as the new specs
+		// still need to overwrite the file
+	}
+
+	b, err := yaml.Marshal(newSpecs)
+	if err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(path, b, 0644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 var (

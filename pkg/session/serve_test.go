@@ -1360,3 +1360,402 @@ func TestHandleInjectFaultRequest_NilFaultInjector(t *testing.T) {
 	assert.Equal(t, "fault injector is not initialized", response.Error)
 	assert.Equal(t, int32(0), response.ErrorCode) // Should be 0 as no specific error code is set
 }
+
+// Test getEvents function
+func TestGetEvents(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
+
+	ctx := context.Background()
+	startTime := time.Now().Add(-time.Hour)
+	endTime := time.Now()
+
+	// Create mock components with events
+	comp1 := new(mockComponent)
+	comp2 := new(mockComponent)
+
+	events1 := apiv1.Events{
+		{Name: "event1", Message: "test event 1"},
+	}
+	events2 := apiv1.Events{
+		{Name: "event2", Message: "test event 2"},
+	}
+
+	comp1.On("Events", mock.Anything, mock.Anything).Return(events1, nil)
+	comp2.On("Events", mock.Anything, mock.Anything).Return(events2, nil)
+
+	registry.On("Get", "comp1").Return(comp1)
+	registry.On("Get", "comp2").Return(comp2)
+
+	// Test with specific components
+	payload := Request{
+		Method:     "events",
+		Components: []string{"comp1", "comp2"},
+		StartTime:  startTime,
+		EndTime:    endTime,
+	}
+
+	result, err := session.getEvents(ctx, payload)
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+
+	// Verify components are present
+	componentNames := make([]string, len(result))
+	for i, event := range result {
+		componentNames[i] = event.Component
+	}
+	assert.Contains(t, componentNames, "comp1")
+	assert.Contains(t, componentNames, "comp2")
+
+	registry.AssertExpectations(t)
+	comp1.AssertExpectations(t)
+	comp2.AssertExpectations(t)
+}
+
+func TestGetEventsMethodMismatch(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
+
+	ctx := context.Background()
+
+	payload := Request{
+		Method: "states", // Wrong method
+	}
+
+	result, err := session.getEvents(ctx, payload)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "mismatch method", err.Error())
+}
+
+func TestGetEventsDefaultComponents(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
+	session.components = []string{"default-comp1", "default-comp2"}
+
+	ctx := context.Background()
+
+	// Create mock component
+	comp := new(mockComponent)
+	events := apiv1.Events{
+		{Name: "default-event", Message: "default test event"},
+	}
+	comp.On("Events", mock.Anything, mock.Anything).Return(events, nil)
+
+	registry.On("Get", "default-comp1").Return(comp)
+	registry.On("Get", "default-comp2").Return(comp)
+
+	// Test without specifying components (should use session.components)
+	payload := Request{
+		Method: "events",
+		// Components not specified, should use session.components
+	}
+
+	result, err := session.getEvents(ctx, payload)
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
+}
+
+// Test getMetrics function
+func TestGetMetrics(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	metricsStore := new(mockMetricsStore)
+	session := createMockSession(registry)
+	session.metricsStore = metricsStore
+
+	ctx := context.Background()
+
+	// Create mock metrics data
+	metricsData := metrics.Metrics{
+		{Name: "metric1", Value: 42, UnixMilliseconds: 1000, Component: "comp1"},
+		{Name: "metric2", Value: 84, UnixMilliseconds: 2000, Component: "comp2"},
+	}
+
+	// Create mock components
+	comp1 := new(mockComponent)
+	comp2 := new(mockComponent)
+
+	registry.On("Get", "comp1").Return(comp1)
+	registry.On("Get", "comp2").Return(comp2)
+	metricsStore.On("Read", mock.Anything, mock.Anything).Return(metricsData, nil)
+
+	// Test with specific components
+	payload := Request{
+		Method:     "metrics",
+		Components: []string{"comp1", "comp2"},
+		Since:      time.Hour, // 1 hour
+	}
+
+	result, err := session.getMetrics(ctx, payload)
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+
+	// Verify components are present
+	componentNames := make([]string, len(result))
+	for i, metric := range result {
+		componentNames[i] = metric.Component
+	}
+	assert.Contains(t, componentNames, "comp1")
+	assert.Contains(t, componentNames, "comp2")
+
+	registry.AssertExpectations(t)
+	metricsStore.AssertExpectations(t)
+}
+
+func TestGetMetricsMethodMismatch(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
+
+	ctx := context.Background()
+
+	payload := Request{
+		Method: "events", // Wrong method
+	}
+
+	result, err := session.getMetrics(ctx, payload)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "mismatch method", err.Error())
+}
+
+func TestGetMetricsDefaultSince(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	metricsStore := new(mockMetricsStore)
+	session := createMockSession(registry)
+	session.metricsStore = metricsStore
+	session.components = []string{"comp1"}
+
+	ctx := context.Background()
+
+	// Create mock component
+	comp := new(mockComponent)
+	registry.On("Get", "comp1").Return(comp)
+
+	metricsData := metrics.Metrics{
+		{Name: "metric1", Value: 42, UnixMilliseconds: 1000, Component: "comp1"},
+	}
+	metricsStore.On("Read", mock.Anything, mock.Anything).Return(metricsData, nil)
+
+	// Test without specifying Since (should use default)
+	payload := Request{
+		Method: "metrics",
+		// Since not specified, should use DefaultQuerySince
+	}
+
+	result, err := session.getMetrics(ctx, payload)
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "comp1", result[0].Component)
+
+	registry.AssertExpectations(t)
+	metricsStore.AssertExpectations(t)
+}
+
+// Test handling updateConfig request
+func TestHandleUpdateConfigRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	updateConfig := map[string]string{
+		"unsupported-component": `{"key": "value"}`,
+	}
+
+	req := Request{
+		Method:       "updateConfig",
+		UpdateConfig: updateConfig,
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-update-config",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-update-config", resp.ReqID)
+	assert.Empty(t, response.Error)
+}
+
+// Test handling update request
+func TestHandleUpdateRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
+
+	// Disable auto update for this test
+	session.enableAutoUpdate = false
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method:        "update",
+		UpdateVersion: "v1.2.3",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-update",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-update", resp.ReqID)
+	assert.Equal(t, "auto update is disabled", response.Error)
+}
+
+// Test handling package request
+func TestHandlePackageRequest(t *testing.T) {
+	session, _, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
+
+	// Start the session in a separate goroutine
+	go session.serve()
+	defer close(reader)
+
+	req := Request{
+		Method: "package",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	// Send the request
+	reader <- Body{
+		Data:  reqData,
+		ReqID: "test-package",
+	}
+
+	// Read the response
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	// Parse the response
+	var response Response
+	err := json.Unmarshal(resp.Data, &response)
+	require.NoError(t, err)
+
+	// Check the response
+	assert.Equal(t, "test-package", resp.ReqID)
+	assert.Empty(t, response.Error)
+	// PackageStatus should be nil since no packages are configured
+	assert.Nil(t, response.PackageStatus)
+}
+
+// Test delete function
+func TestSessionDelete(t *testing.T) {
+	// Create a temporary directory structure for testing
+	tempDir, err := os.MkdirTemp("", "test-session-delete")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create subdirectories
+	subDir1 := filepath.Join(tempDir, "subdir1")
+	subDir2 := filepath.Join(tempDir, "subdir2")
+	require.NoError(t, os.Mkdir(subDir1, 0755))
+	require.NoError(t, os.Mkdir(subDir2, 0755))
+
+	// Test createNeedDeleteFiles function directly
+	err = createNeedDeleteFiles(tempDir)
+	require.NoError(t, err)
+
+	// Check that needDelete files were created
+	_, err = os.Stat(filepath.Join(subDir1, "needDelete"))
+	assert.NoError(t, err)
+
+	_, err = os.Stat(filepath.Join(subDir2, "needDelete"))
+	assert.NoError(t, err)
+
+	// No needDelete file should be created in the root directory
+	_, err = os.Stat(filepath.Join(tempDir, "needDelete"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+// Test error handling in getEventsFromComponent
+func TestGetEventsFromComponentError(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	session := createMockSession(registry)
+
+	ctx := context.Background()
+	startTime := time.Now().Add(-time.Hour)
+	endTime := time.Now()
+
+	// Create mock component that returns an error
+	comp := new(mockComponent)
+	comp.On("Events", mock.Anything, mock.Anything).Return(apiv1.Events{}, errors.New("component error"))
+
+	registry.On("Get", "error-comp").Return(comp)
+
+	result := session.getEventsFromComponent(ctx, "error-comp", startTime, endTime)
+
+	assert.Equal(t, "error-comp", result.Component)
+	assert.Empty(t, result.Events)
+	assert.Equal(t, startTime, result.StartTime)
+	assert.Equal(t, endTime, result.EndTime)
+
+	registry.AssertExpectations(t)
+	comp.AssertExpectations(t)
+}
+
+// Test error handling in getMetricsFromComponent
+func TestGetMetricsFromComponentError(t *testing.T) {
+	registry := new(mockComponentRegistry)
+	metricsStore := new(mockMetricsStore)
+	session := createMockSession(registry)
+	session.metricsStore = metricsStore
+
+	ctx := context.Background()
+	since := time.Now().Add(-time.Hour)
+
+	// Create mock component
+	comp := new(mockComponent)
+	registry.On("Get", "error-comp").Return(comp)
+
+	// Mock metrics store to return an error
+	metricsStore.On("Read", mock.Anything, mock.Anything).Return(metrics.Metrics{}, errors.New("store error"))
+
+	result := session.getMetricsFromComponent(ctx, "error-comp", since)
+
+	assert.Equal(t, "error-comp", result.Component)
+	assert.Empty(t, result.Metrics)
+
+	registry.AssertExpectations(t)
+	metricsStore.AssertExpectations(t)
+}

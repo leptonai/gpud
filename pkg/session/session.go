@@ -14,6 +14,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
@@ -23,14 +24,15 @@ import (
 )
 
 type Op struct {
-	machineID          string
-	pipeInterval       time.Duration
-	enableAutoUpdate   bool
-	autoUpdateExitCode int
-	componentsRegistry components.Registry
-	nvmlInstance       nvidianvml.Instance
-	metricsStore       pkgmetrics.Store
-	faultInjector      pkgfaultinjector.Injector
+	machineID           string
+	pipeInterval        time.Duration
+	enableAutoUpdate    bool
+	autoUpdateExitCode  int
+	componentsRegistry  components.Registry
+	nvmlInstance        nvidianvml.Instance
+	metricsStore        pkgmetrics.Store
+	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
+	faultInjector       pkgfaultinjector.Injector
 }
 
 type OpOption func(*Op)
@@ -87,6 +89,12 @@ func WithMetricsStore(metricsStore pkgmetrics.Store) OpOption {
 	}
 }
 
+func WithSavePluginSpecsFunc(savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)) OpOption {
+	return func(op *Op) {
+		op.savePluginSpecsFunc = savePluginSpecsFunc
+	}
+}
+
 func WithFaultInjector(faultInjector pkgfaultinjector.Injector) OpOption {
 	return func(op *Op) {
 		op.faultInjector = faultInjector
@@ -134,7 +142,8 @@ type Session struct {
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 
-	faultInjector pkgfaultinjector.Injector
+	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
+	faultInjector       pkgfaultinjector.Injector
 
 	lastPackageTimestampMu sync.RWMutex
 	lastPackageTimestamp   time.Time
@@ -189,7 +198,8 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 
 		components: cps,
 
-		faultInjector: op.faultInjector,
+		savePluginSpecsFunc: op.savePluginSpecsFunc,
+		faultInjector:       op.faultInjector,
 
 		enableAutoUpdate:   op.enableAutoUpdate,
 		autoUpdateExitCode: op.autoUpdateExitCode,
