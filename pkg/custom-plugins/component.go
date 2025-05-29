@@ -331,10 +331,15 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:             metav1.NewTime(cr.ts),
-		Component:        cr.componentName,
-		ComponentType:    apiv1.ComponentTypeCustomPlugin,
-		Name:             cr.pluginName,
+		Time:          metav1.NewTime(cr.ts),
+		Component:     cr.componentName,
+		ComponentType: apiv1.ComponentTypeCustomPlugin,
+
+		// in case component/plugin name is too long
+		// component name and plugin name are always equivalent
+		// thus no need to redundantly display two here as [component name]/[plugin name]
+		Name: "check",
+
 		Reason:           cr.reason,
 		Error:            cr.getError(),
 		RunMode:          cr.runMode,
