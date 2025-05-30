@@ -3815,3 +3815,288 @@ func TestSaveSpecsEdgeCases(t *testing.T) {
 		assert.Len(t, savedSpecs, 0)
 	})
 }
+
+func TestDefaultTimeoutSetting(t *testing.T) {
+	// Test case for default timeout setting when timeout is zero
+	spec := Spec{
+		PluginName: "test-plugin",
+		PluginType: SpecTypeComponent,
+		HealthStatePlugin: &Plugin{
+			Steps: []Step{
+				{
+					Name: "test-step",
+					RunBashScript: &RunBashScript{
+						ContentType: "plaintext",
+						Script:      "echo 'test'",
+					},
+				},
+			},
+		},
+		// Timeout intentionally left as zero value
+		Timeout: metav1.Duration{Duration: 0},
+	}
+
+	err := spec.Validate()
+	assert.NoError(t, err)
+
+	// After validation, timeout should be set to DefaultTimeout
+	assert.Equal(t, DefaultTimeout, spec.Timeout.Duration)
+}
+
+func TestLoadSpecsWithDeprecatedTypeField(t *testing.T) {
+	// Create a temporary file with deprecated 'type' field
+	testFile := filepath.Join("testdata", "plugins.deprecated-type.yaml")
+
+	// YAML content using deprecated 'type' field instead of 'plugin_type'
+	yamlContent := `
+- plugin_name: "test-plugin-deprecated"
+  type: "component"  # Using deprecated 'type' field
+  run_mode: manual
+  health_state_plugin:
+    steps:
+      - name: "test-step"
+        run_bash_script:
+          content_type: plaintext
+          script: "echo 'test with deprecated type field'"
+  timeout: 10s
+  interval: 1m
+
+- plugin_name: "test-plugin-new"
+  plugin_type: "component"  # Using new 'plugin_type' field
+  run_mode: manual
+  health_state_plugin:
+    steps:
+      - name: "test-step"
+        run_bash_script:
+          content_type: plaintext
+          script: "echo 'test with new plugin_type field'"
+  timeout: 10s
+  interval: 1m
+`
+
+	err := os.WriteFile(testFile, []byte(yamlContent), 0644)
+	assert.NoError(t, err)
+	defer os.Remove(testFile)
+
+	// Load the specs
+	specs, err := LoadSpecs(testFile)
+	assert.NoError(t, err)
+	assert.Len(t, specs, 2)
+
+	// Verify that deprecated 'type' field was converted to 'plugin_type'
+	assert.Equal(t, "test-plugin-deprecated", specs[0].PluginName)
+	assert.Equal(t, SpecTypeComponent, specs[0].PluginType)
+
+	assert.Equal(t, "test-plugin-new", specs[1].PluginName)
+	assert.Equal(t, SpecTypeComponent, specs[1].PluginType)
+}
+
+func TestLoadSpecsWithBothDeprecatedAndNewTypeFields(t *testing.T) {
+	// Test case where both deprecated 'type' and new 'plugin_type' fields are present
+	// The new 'plugin_type' field should take precedence
+	testFile := filepath.Join("testdata", "plugins.both-type-fields.yaml")
+
+	yamlContent := `
+- plugin_name: "test-plugin-both-fields"
+  type: "init"           # Deprecated field
+  plugin_type: "component"  # New field should take precedence
+  run_mode: manual
+  health_state_plugin:
+    steps:
+      - name: "test-step"
+        run_bash_script:
+          content_type: plaintext
+          script: "echo 'test with both type fields'"
+  timeout: 10s
+  interval: 1m
+`
+
+	err := os.WriteFile(testFile, []byte(yamlContent), 0644)
+	assert.NoError(t, err)
+	defer os.Remove(testFile)
+
+	// Load the specs
+	specs, err := LoadSpecs(testFile)
+	assert.NoError(t, err)
+	assert.Len(t, specs, 1)
+
+	// Verify that new 'plugin_type' field takes precedence over deprecated 'type'
+	assert.Equal(t, "test-plugin-both-fields", specs[0].PluginName)
+	assert.Equal(t, SpecTypeComponent, specs[0].PluginType) // Should be 'component', not 'init'
+}
+
+func TestLoadSpecsFileNotFound(t *testing.T) {
+	// Test LoadSpecs with a non-existent file
+	_, err := LoadSpecs("non-existent-file.yaml")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no such file or directory")
+}
+
+func TestLoadSpecsInvalidYAML(t *testing.T) {
+	// Test LoadSpecs with invalid YAML content
+	testFile := filepath.Join("testdata", "plugins.invalid-yaml.yaml")
+
+	invalidYAML := `
+- plugin_name: "test-plugin"
+  this is not valid yaml: [
+  missing closing bracket
+`
+
+	err := os.WriteFile(testFile, []byte(invalidYAML), 0644)
+	assert.NoError(t, err)
+	defer os.Remove(testFile)
+
+	// Load the specs
+	_, err = LoadSpecs(testFile)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "yaml")
+}
+
+func TestLoadSpecsExpandedValidateFailure(t *testing.T) {
+	// Test LoadSpecs where ExpandedValidate fails
+	testFile := filepath.Join("testdata", "plugins.expand-validate-fail.yaml")
+
+	// Create a spec that will fail validation after expansion
+	yamlContent := `
+- plugin_name: "test-plugin"
+  plugin_type: "component"
+  run_mode: manual
+  # Missing health_state_plugin - this should cause validation to fail
+  timeout: 10s
+  interval: 1m
+`
+
+	err := os.WriteFile(testFile, []byte(yamlContent), 0644)
+	assert.NoError(t, err)
+	defer os.Remove(testFile)
+
+	// Load the specs - should fail during validation
+	_, err = LoadSpecs(testFile)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrMissingStatePlugin)
+}
+
+func TestValidateWithEmptyPluginName(t *testing.T) {
+	// Test case for empty plugin name (should trigger ErrComponentNameRequired)
+	spec := Spec{
+		PluginName: "", // Empty plugin name
+		PluginType: SpecTypeComponent,
+		HealthStatePlugin: &Plugin{
+			Steps: []Step{
+				{
+					Name: "test-step",
+					RunBashScript: &RunBashScript{
+						ContentType: "plaintext",
+						Script:      "echo 'test'",
+					},
+				},
+			},
+		},
+		Timeout: metav1.Duration{Duration: 10 * time.Second},
+	}
+
+	err := spec.Validate()
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrComponentNameRequired)
+}
+
+func TestValidatePluginNameExactlyMaxLength(t *testing.T) {
+	// Test case for plugin name exactly at max length (should pass)
+	spec := Spec{
+		PluginName: strings.Repeat("a", MaxPluginNameLength), // Exactly 128 characters
+		PluginType: SpecTypeComponent,
+		HealthStatePlugin: &Plugin{
+			Steps: []Step{
+				{
+					Name: "test-step",
+					RunBashScript: &RunBashScript{
+						ContentType: "plaintext",
+						Script:      "echo 'test'",
+					},
+				},
+			},
+		},
+		Timeout: metav1.Duration{Duration: 10 * time.Second},
+	}
+
+	err := spec.Validate()
+	assert.NoError(t, err)
+}
+
+func TestValidateWithHealthStatePluginValidationError(t *testing.T) {
+	// Test case where HealthStatePlugin.Validate() returns an error
+	spec := Spec{
+		PluginName: "test-plugin",
+		PluginType: SpecTypeComponent,
+		HealthStatePlugin: &Plugin{
+			Steps: []Step{
+				{
+					Name: "", // Empty step name should cause validation error
+					RunBashScript: &RunBashScript{
+						ContentType: "plaintext",
+						Script:      "echo 'test'",
+					},
+				},
+			},
+		},
+		Timeout: metav1.Duration{Duration: 10 * time.Second},
+	}
+
+	err := spec.Validate()
+	assert.Error(t, err)
+	// The error should be from the HealthStatePlugin validation
+	assert.ErrorIs(t, err, ErrStepNameRequired)
+}
+
+func TestValidateInitPluginType(t *testing.T) {
+	// Test case for SpecTypeInit (the other valid plugin type besides SpecTypeComponent)
+	spec := Spec{
+		PluginName: "test-init-plugin",
+		PluginType: SpecTypeInit, // Test init type specifically
+		HealthStatePlugin: &Plugin{
+			Steps: []Step{
+				{
+					Name: "init-step",
+					RunBashScript: &RunBashScript{
+						ContentType: "plaintext",
+						Script:      "echo 'initialization script'",
+					},
+				},
+			},
+		},
+		Timeout:  metav1.Duration{Duration: 30 * time.Second},
+		Interval: metav1.Duration{Duration: 2 * time.Minute},
+	}
+
+	err := spec.Validate()
+	assert.NoError(t, err)
+	assert.Equal(t, "test-init-plugin", spec.PluginName)
+	assert.Equal(t, SpecTypeInit, spec.PluginType)
+}
+
+func TestValidateComponentListTypeWithoutExpansion(t *testing.T) {
+	// Test case specifically for SpecTypeComponentList reaching validation (should fail with ErrInvalidPluginType)
+	spec := Spec{
+		PluginName: "test-component-list",
+		PluginType: SpecTypeComponentList, // This should trigger ErrInvalidPluginType (not ErrComponentListNotExpanded)
+		HealthStatePlugin: &Plugin{
+			Steps: []Step{
+				{
+					Name: "test-step",
+					RunBashScript: &RunBashScript{
+						ContentType: "plaintext",
+						Script:      "echo 'test'",
+					},
+				},
+			},
+		},
+		ComponentList: []string{"component1", "component2"},
+		Timeout:       metav1.Duration{Duration: 10 * time.Second},
+	}
+
+	// Direct call to Validate() should fail because SpecTypeComponentList is not allowed in validation
+	// (it should be expanded before reaching validation)
+	err := spec.Validate()
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidPluginType)
+}
