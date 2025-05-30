@@ -224,10 +224,6 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 				return nil, fmt.Errorf("failed to load plugin specs: %w", err)
 			}
 
-			if err := specs.Validate(); err != nil {
-				return nil, fmt.Errorf("failed to validate plugin specs: %w", err)
-			}
-
 			for _, spec := range specs {
 				initFunc := spec.NewInitFunc()
 				if initFunc == nil {

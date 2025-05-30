@@ -60,6 +60,14 @@ func LoadSpecs(path string) (Specs, error) {
 		return nil, err
 	}
 
+	// handle deprecated "type" field before expanding/validating
+	// for old formats
+	for i := range pluginSpecs {
+		if pluginSpecs[i].DeprecatedType != "" && pluginSpecs[i].PluginType == "" {
+			pluginSpecs[i].PluginType = pluginSpecs[i].DeprecatedType
+		}
+	}
+
 	return pluginSpecs.ExpandedValidate()
 }
 
@@ -128,19 +136,19 @@ const (
 )
 
 // ExpandedValidate expands the component list and validates all specs.
-func (pluginSpecs Specs) ExpandedValidate() (Specs, error) {
-	pluginSpecs, err := pluginSpecs.ExpandComponentList()
+func (expanded Specs) ExpandedValidate() (Specs, error) {
+	expanded, err := expanded.ExpandComponentList()
 	if err != nil {
 		return nil, err
 	}
 
-	for i := range pluginSpecs {
-		if err := pluginSpecs[i].Validate(); err != nil {
+	for i := range expanded {
+		if err := expanded[i].Validate(); err != nil {
 			return nil, err
 		}
 	}
 
-	return pluginSpecs, nil
+	return expanded, nil
 }
 
 // parseComponentListEntry parses a component list entry.
@@ -249,7 +257,6 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 
 		// Create a new plugin for each component in the list
 		for _, component := range spec.ComponentList {
-
 			name, param, runMode, tags, err := parseComponentListEntry(component)
 			if err != nil {
 				return nil, err
@@ -305,12 +312,6 @@ func (pluginSpecs Specs) ExpandComponentList() (Specs, error) {
 
 // Validate validates the plugin spec.
 func (spec *Spec) Validate() error {
-	// for compatibility with the old spec format
-	// which uses "type" instead of "plugin_type"
-	if spec.DeprecatedType != "" && spec.PluginType == "" {
-		spec.PluginType = spec.DeprecatedType
-	}
-
 	switch spec.PluginType {
 	// Allow only init and component types, not component list which should have been expanded by this point.
 	case SpecTypeInit, SpecTypeComponent:
