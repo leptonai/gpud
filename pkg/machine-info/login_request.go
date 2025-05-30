@@ -40,11 +40,25 @@ func createLoginRequest(
 	getSystemResourceRootVolumeTotalFunc func() (string, error),
 	getSystemResourceGPUCountFunc func(nvmlInstance nvidianvml.Instance) (string, error),
 ) (*apiv1.LoginRequest, error) {
+	donec := make(chan struct{})
+	defer close(donec)
+
+	// deciding machine location can take awhile
+	// depending on the network latency
+	// run async
+	machineLocationCh := make(chan *apiv1.MachineLocation, 1)
+	go func() {
+		select {
+		case <-donec:
+			return
+		case machineLocationCh <- getMachineLocationFunc():
+		}
+	}()
+
 	req := &apiv1.LoginRequest{
 		Token:     token,
 		MachineID: machineID,
 		Network:   &apiv1.MachineNetwork{},
-		Location:  getMachineLocationFunc(),
 		Resources: map[string]string{},
 	}
 
@@ -100,6 +114,8 @@ func createLoginRequest(
 	if gpuCnt != "0" {
 		req.Resources["nvidia.com/gpu"] = gpuCnt
 	}
+
+	req.Location = <-machineLocationCh
 
 	return req, nil
 }
