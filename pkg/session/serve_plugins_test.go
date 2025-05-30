@@ -36,8 +36,8 @@ func TestHandleSetPluginSpecsRequest(t *testing.T) {
 	}
 
 	req := Request{
-		Method:      "setPluginSpecs",
-		PluginSpecs: specs,
+		Method:            "setPluginSpecs",
+		CustomPluginSpecs: specs,
 	}
 
 	reqData, _ := json.Marshal(req)
@@ -87,8 +87,8 @@ func TestHandleSetPluginSpecsRequestNilSaveFunc(t *testing.T) {
 	}
 
 	req := Request{
-		Method:      "setPluginSpecs",
-		PluginSpecs: specs,
+		Method:            "setPluginSpecs",
+		CustomPluginSpecs: specs,
 	}
 
 	reqData, _ := json.Marshal(req)
@@ -174,7 +174,7 @@ func TestHandleGetPluginSpecsRequest(t *testing.T) {
 	assert.Equal(t, "test-get-plugin-specs", resp.ReqID)
 	assert.Empty(t, response.Error)
 	// Since our mock doesn't properly implement CustomPluginRegisteree, we expect nil specs
-	assert.Nil(t, response.PluginSpecs)
+	assert.Nil(t, response.CustomPluginSpecs)
 
 	registry.AssertExpectations(t)
 }
