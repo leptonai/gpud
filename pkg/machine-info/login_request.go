@@ -61,24 +61,16 @@ func createLoginRequest(
 		Network:   &apiv1.MachineNetwork{},
 		Resources: map[string]string{},
 	}
-
-	// fetching public IP can take awhile
-	// depending on the network latency
-	// run async
-	publicIPCh := make(chan string, 1)
-	go func() {
-		pubIP, err := getPublicIPFunc()
-		if err != nil {
-			log.Logger.Errorw("failed to get public ip", "error", err)
-		}
-		select {
-		case <-donec:
-			return
-		case publicIPCh <- pubIP:
-		}
-	}()
-
 	var err error
+	req.Network.PublicIP, err = getPublicIPFunc()
+	if err != nil {
+		log.Logger.Errorw("failed to get public ip", "error", err)
+	}
+	detectedProvider := getProviderFunc(req.Network.PublicIP)
+	req.Provider = detectedProvider.Provider
+	req.ProviderInstanceID = detectedProvider.InstanceID
+	req.Network.PublicIP = detectedProvider.PublicIP
+
 	req.MachineInfo, err = getMachineInfoFunc(nvmlInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine info: %w", err)
@@ -122,13 +114,6 @@ func createLoginRequest(
 		req.Resources["nvidia.com/gpu"] = gpuCnt
 	}
 
-	req.Network.PublicIP = <-publicIPCh
-	detectedProvider := getProviderFunc(req.Network.PublicIP)
-	req.Provider = detectedProvider.Provider
-	req.ProviderInstanceID = detectedProvider.InstanceID
-	if req.Network.PublicIP == "" && detectedProvider.PublicIP != "" {
-		req.Network.PublicIP = detectedProvider.PublicIP
-	}
 	req.Location = <-machineLocationCh
 
 	return req, nil
