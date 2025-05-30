@@ -98,7 +98,7 @@ func TestCmdListPluginsServerResponses(t *testing.T) {
 	testPlugins := pkgcustomplugins.Specs{
 		{
 			PluginName: "test-plugin-1",
-			Type:       pkgcustomplugins.SpecTypeComponent,
+			PluginType: pkgcustomplugins.SpecTypeComponent,
 			RunMode:    "auto",
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{
@@ -115,7 +115,7 @@ func TestCmdListPluginsServerResponses(t *testing.T) {
 		},
 		{
 			PluginName: "test-plugin-2",
-			Type:       pkgcustomplugins.SpecTypeComponent,
+			PluginType: pkgcustomplugins.SpecTypeComponent,
 			RunMode:    "manual",
 			HealthStatePlugin: &pkgcustomplugins.Plugin{
 				Steps: []pkgcustomplugins.Step{

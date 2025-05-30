@@ -1,5 +1,5 @@
 - plugin_name: test-healthy
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     parser:
@@ -43,7 +43,7 @@
 
 
 - plugin_name: test-unhealthy
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     parser:
@@ -87,7 +87,7 @@
 
 
 - plugin_name: test-unhealthy-with-missing-field
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     parser:
@@ -125,7 +125,7 @@
 
 ########################################
 - plugin_name: exit-0
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     parser:
@@ -148,7 +148,7 @@
 
 ########################################
 - plugin_name: exit-1
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     parser:

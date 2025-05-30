@@ -1,5 +1,5 @@
 - plugin_name: test plugin 1
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     steps:
@@ -21,7 +21,7 @@
   interval: 1m
 
 - plugin_name: test plugin 2
-  type: component
+  plugin_type: component
 
   health_state_plugin:
     steps:

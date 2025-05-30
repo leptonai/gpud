@@ -60,7 +60,7 @@ func TestValidate(t *testing.T) {
 			name: "valid plugin",
 			plugin: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -80,7 +80,7 @@ func TestValidate(t *testing.T) {
 			name: "missing component name",
 			plugin: Spec{
 				PluginName: "",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -101,7 +101,7 @@ func TestValidate(t *testing.T) {
 			name: "missing state script",
 			plugin: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				Timeout:    metav1.Duration{Duration: 10 * time.Second},
 			},
 			expectError: true,
@@ -111,7 +111,7 @@ func TestValidate(t *testing.T) {
 			name: "missing timeout",
 			plugin: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -130,7 +130,7 @@ func TestValidate(t *testing.T) {
 			name: "invalid base64 in state script",
 			plugin: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -150,7 +150,7 @@ func TestValidate(t *testing.T) {
 			name: "interval too short",
 			plugin: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -172,7 +172,7 @@ func TestValidate(t *testing.T) {
 			name: "valid interval exactly 1 minute",
 			plugin: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -193,7 +193,7 @@ func TestValidate(t *testing.T) {
 			name: "valid interval greater than 1 minute",
 			plugin: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -214,7 +214,7 @@ func TestValidate(t *testing.T) {
 			name: "interval zero (runs once)",
 			plugin: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -235,7 +235,7 @@ func TestValidate(t *testing.T) {
 			name: "long timeout with short interval",
 			plugin: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -358,7 +358,7 @@ func TestValidatePlaintext(t *testing.T) {
 			name: "valid plaintext plugin",
 			plugin: Spec{
 				PluginName: "plaintext-test",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -378,7 +378,7 @@ func TestValidatePlaintext(t *testing.T) {
 			name: "empty plaintext script",
 			plugin: Spec{
 				PluginName: "plaintext-test",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -399,7 +399,7 @@ func TestValidatePlaintext(t *testing.T) {
 			name: "unsupported content type",
 			plugin: Spec{
 				PluginName: "plaintext-test",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -438,7 +438,7 @@ func TestMixedContentTypes(t *testing.T) {
 	// Create a plugin with mixed content types
 	plugin := Spec{
 		PluginName: "mixed-content",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 		HealthStatePlugin: &Plugin{
 			Steps: []Step{
 				{
@@ -467,7 +467,7 @@ func TestMultiStepPlugins(t *testing.T) {
 	// Create a plugin with multiple steps using different content types
 	plugin := Spec{
 		PluginName: "multi-step-plugin",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 		HealthStatePlugin: &Plugin{
 			Steps: []Step{
 				{
@@ -712,7 +712,7 @@ func TestSpecsValidate(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "test-plugin-1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -728,7 +728,7 @@ func TestSpecsValidate(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin-2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -750,7 +750,7 @@ func TestSpecsValidate(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -766,7 +766,7 @@ func TestSpecsValidate(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin", // Duplicate name
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -788,7 +788,7 @@ func TestSpecsValidate(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "test-plugin-1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -804,7 +804,7 @@ func TestSpecsValidate(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin-2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					// Missing StatePlugin
 					Timeout: metav1.Duration{Duration: 10 * time.Second},
 				},
@@ -832,7 +832,7 @@ func TestMissingStatePlugin(t *testing.T) {
 	// Test case specifically for ErrMissingStatePlugin
 	spec := Spec{
 		PluginName: "test-plugin",
-		Type:       SpecTypeComponent,
+		PluginType: SpecTypeComponent,
 		Timeout:    metav1.Duration{Duration: 10 * time.Second},
 		// StatePlugin is intentionally nil
 	}
@@ -845,7 +845,7 @@ func TestMissingStatePlugin(t *testing.T) {
 	specs := Specs{
 		{
 			PluginName: "valid-plugin",
-			Type:       SpecTypeComponent,
+			PluginType: SpecTypeComponent,
 			HealthStatePlugin: &Plugin{
 				Steps: []Step{
 					{
@@ -973,7 +973,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "test plugin 1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -989,7 +989,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin-1", // Different raw name but same normalized component name
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -1011,7 +1011,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "plugin-1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -1027,7 +1027,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				},
 				{
 					PluginName: "plugin-2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -1043,7 +1043,7 @@ func TestSpecsValidateWithDuplicateNames(t *testing.T) {
 				},
 				{
 					PluginName: "plugin-3",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					HealthStatePlugin: &Plugin{
 						Steps: []Step{
 							{
@@ -1145,7 +1145,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "zero timeout",
 			plugin: Spec{
 				PluginName: "zero-timeout",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1165,7 +1165,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "negative timeout",
 			plugin: Spec{
 				PluginName: "negative-timeout",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1185,7 +1185,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "negative interval",
 			plugin: Spec{
 				PluginName: "negative-interval",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1206,7 +1206,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "interval exactly 1 minute",
 			plugin: Spec{
 				PluginName: "one-minute-interval",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1227,7 +1227,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "interval slightly less than 1 minute",
 			plugin: Spec{
 				PluginName: "almost-one-minute-interval",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1249,7 +1249,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "interval slightly more than 1 minute",
 			plugin: Spec{
 				PluginName: "just-over-one-minute-interval",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1270,7 +1270,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "multiple validations failing - missing component name and state plugin",
 			plugin: Spec{
 				PluginName: "", // Empty name
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				// Missing state plugin
 				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
@@ -1281,7 +1281,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "plugin with empty steps but otherwise valid",
 			plugin: Spec{
 				PluginName: "empty-steps",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{}, // Empty steps
 				},
@@ -1293,7 +1293,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "plugin with state plugin but nil steps",
 			plugin: Spec{
 				PluginName: "nil-steps",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: nil, // Nil steps
 				},
@@ -1305,7 +1305,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "extremely short interval but zero",
 			plugin: Spec{
 				PluginName: "short-interval",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1327,7 +1327,7 @@ func TestValidateComprehensive(t *testing.T) {
 			name: "multiple steps with one having empty name",
 			plugin: Spec{
 				PluginName: "mixed-steps",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1381,7 +1381,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			name: "empty name",
 			plugin: Spec{
 				PluginName: "", // Empty name
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1403,7 +1403,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			name: "name at max length",
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength), // 128 characters
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1423,7 +1423,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			name: "name one character over max length",
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength+1), // 129 characters
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1444,7 +1444,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			name: "name significantly over max length",
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength*2), // 256 characters
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1465,7 +1465,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			name: "name with special characters but within length",
 			plugin: Spec{
 				PluginName: "plugin-name-with-special-characters!@#$%^&*()_+", // Valid name
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1485,7 +1485,7 @@ func TestMaxPluginNameLength(t *testing.T) {
 			name: "name just below max length",
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength-1), // 127 characters
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1533,7 +1533,7 @@ func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
 			name: "too long name and missing state plugin",
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength+1), // 129 characters
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				// Missing state plugin
 				Timeout: metav1.Duration{Duration: 10 * time.Second},
 			},
@@ -1544,7 +1544,7 @@ func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
 			name: "too long name and interval too short",
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength+1), // 129 characters
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1566,7 +1566,7 @@ func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
 			name: "valid name and interval too short",
 			plugin: Spec{
 				PluginName: "valid-name",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1588,7 +1588,7 @@ func TestMaxPluginNameLengthWithOtherValidations(t *testing.T) {
 			name: "valid name with max length and valid interval",
 			plugin: Spec{
 				PluginName: strings.Repeat("a", MaxPluginNameLength), // 128 characters
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1659,7 +1659,7 @@ func TestValidateSpecType(t *testing.T) {
 			// Create a valid plugin spec with all required fields
 			spec := Spec{
 				PluginName: "test-plugin",
-				Type:       tc.specType,
+				PluginType: tc.specType,
 				HealthStatePlugin: &Plugin{
 					Steps: []Step{
 						{
@@ -1701,7 +1701,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			parentSpec: []Spec{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponentList,
+					PluginType: SpecTypeComponentList,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1722,7 +1722,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			expectedSpecs: []Spec{
 				{
 					PluginName: "root",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1740,7 +1740,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 				},
 				{
 					PluginName: "home",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1758,7 +1758,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 				},
 				{
 					PluginName: "var",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1782,7 +1782,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			parentSpec: []Spec{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponentList,
+					PluginType: SpecTypeComponentList,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1803,7 +1803,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			expectedSpecs: []Spec{
 				{
 					PluginName: "root",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1821,7 +1821,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 				},
 				{
 					PluginName: "home",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "manual",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1839,7 +1839,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 				},
 				{
 					PluginName: "var",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1863,7 +1863,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			parentSpec: []Spec{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponentList,
+					PluginType: SpecTypeComponentList,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1888,7 +1888,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			parentSpec: []Spec{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponentList,
+					PluginType: SpecTypeComponentList,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1913,7 +1913,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			parentSpec: []Spec{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponentList,
+					PluginType: SpecTypeComponentList,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1938,7 +1938,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			parentSpec: []Spec{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponentList,
+					PluginType: SpecTypeComponentList,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -1963,7 +1963,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			parentSpec: []Spec{
 				{
 					PluginName: "",
-					Type:       SpecTypeComponentList,
+					PluginType: SpecTypeComponentList,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2027,7 +2027,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
-					Type:              SpecTypeComponentList,
+					PluginType:        SpecTypeComponentList,
 					RunMode:           "auto",
 					Timeout:           metav1.Duration{Duration: 30 * time.Second},
 					Interval:          metav1.Duration{Duration: 5 * time.Minute},
@@ -2060,7 +2060,7 @@ func TestComponentListParameterInheritance(t *testing.T) {
 			// For each component in the list, verify its parameters
 			for i, spec := range expandedSpecs {
 				assert.Equal(t, tc.expectedSpecs[i].PluginName, spec.PluginName)
-				assert.Equal(t, tc.expectedSpecs[i].Type, spec.Type)
+				assert.Equal(t, tc.expectedSpecs[i].PluginType, spec.PluginType)
 				assert.Equal(t, tc.expectedSpecs[i].RunMode, spec.RunMode)
 				assert.Equal(t, tc.expectedSpecs[i].Timeout, spec.Timeout)
 				assert.Equal(t, tc.expectedSpecs[i].Interval, spec.Interval)
@@ -2115,7 +2115,7 @@ backup
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
-					Type:              SpecTypeComponentList,
+					PluginType:        SpecTypeComponentList,
 					ComponentListFile: tmpFile.Name(),
 					RunMode:           "auto",
 					Timeout:           metav1.Duration{Duration: 30 * time.Second},
@@ -2136,7 +2136,7 @@ backup
 			expectedSpecs: []Spec{
 				{
 					PluginName: "root",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2154,7 +2154,7 @@ backup
 				},
 				{
 					PluginName: "home",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "manual",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2172,7 +2172,7 @@ backup
 				},
 				{
 					PluginName: "var",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2190,7 +2190,7 @@ backup
 				},
 				{
 					PluginName: "data",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2208,7 +2208,7 @@ backup
 				},
 				{
 					PluginName: "backup",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2232,7 +2232,7 @@ backup
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
-					Type:              SpecTypeComponentList,
+					PluginType:        SpecTypeComponentList,
 					ComponentListFile: "",
 					RunMode:           "auto",
 					Timeout:           metav1.Duration{Duration: 30 * time.Second},
@@ -2258,7 +2258,7 @@ backup
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
-					Type:              SpecTypeComponentList,
+					PluginType:        SpecTypeComponentList,
 					ComponentListFile: "non-existing-file:like-really-NOT.txt",
 					RunMode:           "auto",
 					Timeout:           metav1.Duration{Duration: 30 * time.Second},
@@ -2284,7 +2284,7 @@ backup
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
-					Type:              SpecTypeComponentList,
+					PluginType:        SpecTypeComponentList,
 					ComponentListFile: emptyFile.Name(),
 					RunMode:           "auto",
 					Timeout:           metav1.Duration{Duration: 30 * time.Second},
@@ -2310,7 +2310,7 @@ backup
 			parentSpec: []Spec{
 				{
 					PluginName:        "test-plugin",
-					Type:              SpecTypeComponentList,
+					PluginType:        SpecTypeComponentList,
 					ComponentListFile: tmpFile.Name(),
 					ComponentList:     []string{"component1", "component2"},
 					RunMode:           "auto",
@@ -2349,7 +2349,7 @@ backup
 			// For each component in the list, verify its parameters
 			for i, spec := range expandedSpecs {
 				assert.Equal(t, tc.expectedSpecs[i].PluginName, spec.PluginName)
-				assert.Equal(t, tc.expectedSpecs[i].Type, spec.Type)
+				assert.Equal(t, tc.expectedSpecs[i].PluginType, spec.PluginType)
 				assert.Equal(t, tc.expectedSpecs[i].RunMode, spec.RunMode)
 				assert.Equal(t, tc.expectedSpecs[i].Timeout, spec.Timeout)
 				assert.Equal(t, tc.expectedSpecs[i].Interval, spec.Interval)
@@ -2373,7 +2373,7 @@ func TestComponentListWithRunMode(t *testing.T) {
 			parentSpec: []Spec{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponentList,
+					PluginType: SpecTypeComponentList,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2400,7 +2400,7 @@ func TestComponentListWithRunMode(t *testing.T) {
 			expectedSpecs: []Spec{
 				{
 					PluginName: "component1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "manual",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2418,7 +2418,7 @@ func TestComponentListWithRunMode(t *testing.T) {
 				},
 				{
 					PluginName: "component2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2436,7 +2436,7 @@ func TestComponentListWithRunMode(t *testing.T) {
 				},
 				{
 					PluginName: "component3",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "once",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2454,7 +2454,7 @@ func TestComponentListWithRunMode(t *testing.T) {
 				},
 				{
 					PluginName: "component4",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2472,7 +2472,7 @@ func TestComponentListWithRunMode(t *testing.T) {
 				},
 				{
 					PluginName: "component5",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "manual",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2514,7 +2514,7 @@ func TestComponentListWithRunMode(t *testing.T) {
 			// For each component in the list, verify its parameters
 			for i, spec := range expandedSpecs {
 				assert.Equal(t, tc.expectedSpecs[i].PluginName, spec.PluginName)
-				assert.Equal(t, tc.expectedSpecs[i].Type, spec.Type)
+				assert.Equal(t, tc.expectedSpecs[i].PluginType, spec.PluginType)
 				assert.Equal(t, tc.expectedSpecs[i].RunMode, spec.RunMode)
 				assert.Equal(t, tc.expectedSpecs[i].Timeout, spec.Timeout)
 				assert.Equal(t, tc.expectedSpecs[i].Interval, spec.Interval)
@@ -2673,7 +2673,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 			name: "component list with tags in run mode",
 			spec: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponentList,
+				PluginType: SpecTypeComponentList,
 				RunMode:    "auto",
 				Tags:       []string{"parent-tag"},
 				ComponentList: []string{
@@ -2696,7 +2696,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 			expectedSpecs: []Spec{
 				{
 					PluginName: "comp1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Tags:       []string{"tag1", "tag2"},
 					HealthStatePlugin: &Plugin{
@@ -2713,7 +2713,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 				},
 				{
 					PluginName: "comp2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "manual",
 					Tags:       []string{"tag3"},
 					HealthStatePlugin: &Plugin{
@@ -2730,7 +2730,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 				},
 				{
 					PluginName: "comp3",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Tags:       []string{"parent-tag"},
 					HealthStatePlugin: &Plugin{
@@ -2752,7 +2752,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 			name: "component list with empty tags",
 			spec: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponentList,
+				PluginType: SpecTypeComponentList,
 				RunMode:    "auto",
 				ComponentList: []string{
 					"comp1#auto[]",
@@ -2772,7 +2772,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 			expectedSpecs: []Spec{
 				{
 					PluginName: "comp1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Tags:       []string{},
 					HealthStatePlugin: &Plugin{
@@ -2794,7 +2794,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 			name: "component list with invalid tag format",
 			spec: Spec{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponentList,
+				PluginType: SpecTypeComponentList,
 				RunMode:    "auto",
 				ComponentList: []string{
 					"comp1#auto[tag1,tag2", // Missing closing bracket
@@ -2831,7 +2831,7 @@ func TestExpandComponentListWithTags(t *testing.T) {
 			for i, expected := range tt.expectedSpecs {
 				actual := expandedSpecs[i]
 				assert.Equal(t, expected.PluginName, actual.PluginName)
-				assert.Equal(t, expected.Type, actual.Type)
+				assert.Equal(t, expected.PluginType, actual.PluginType)
 				assert.Equal(t, expected.RunMode, actual.RunMode)
 				assert.Equal(t, expected.Tags, actual.Tags)
 				assert.Equal(t, expected.HealthStatePlugin.Steps[0].RunBashScript.Script, actual.HealthStatePlugin.Steps[0].RunBashScript.Script)
@@ -2858,7 +2858,7 @@ func TestPrintValidateResults(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName: "valid-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "daemon",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2876,7 +2876,7 @@ func TestPrintValidateResults(t *testing.T) {
 				{
 					// Invalid spec with no state plugin
 					PluginName: "invalid-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "oneshot",
 					Timeout:    metav1.Duration{Duration: 1 * time.Minute},
 					Interval:   metav1.Duration{Duration: 10 * time.Minute},
@@ -2893,7 +2893,7 @@ func TestPrintValidateResults(t *testing.T) {
 			specs: Specs{
 				{
 					PluginName:    "component-list",
-					Type:          SpecTypeComponentList,
+					PluginType:    SpecTypeComponentList,
 					RunMode:       "daemon",
 					Timeout:       metav1.Duration{Duration: 1 * time.Minute},
 					Interval:      metav1.Duration{Duration: 2 * time.Minute},
@@ -2954,7 +2954,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2974,7 +2974,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					Interval:   metav1.Duration{Duration: 5 * time.Minute},
@@ -2998,7 +2998,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName: "test-plugin-1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3017,7 +3017,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName: "test-plugin-2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3040,7 +3040,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3059,7 +3059,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3076,7 +3076,7 @@ func TestSpecsEqual(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin-2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3099,7 +3099,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3118,7 +3118,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3141,7 +3141,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3160,7 +3160,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 60 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3183,7 +3183,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName: "test-plugin-1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3200,7 +3200,7 @@ func TestSpecsEqual(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin-2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "manual",
 					Timeout:    metav1.Duration{Duration: 60 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3219,7 +3219,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName: "test-plugin-1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3236,7 +3236,7 @@ func TestSpecsEqual(t *testing.T) {
 				},
 				{
 					PluginName: "test-plugin-2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "manual",
 					Timeout:    metav1.Duration{Duration: 60 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3259,7 +3259,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName:        "test-plugin",
-					Type:              SpecTypeComponent,
+					PluginType:        SpecTypeComponent,
 					RunMode:           "auto",
 					Timeout:           metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: nil,
@@ -3268,7 +3268,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName:        "test-plugin",
-					Type:              SpecTypeComponent,
+					PluginType:        SpecTypeComponent,
 					RunMode:           "auto",
 					Timeout:           metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: nil,
@@ -3281,7 +3281,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName:        "test-plugin",
-					Type:              SpecTypeComponent,
+					PluginType:        SpecTypeComponent,
 					RunMode:           "auto",
 					Timeout:           metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: nil,
@@ -3290,7 +3290,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3305,7 +3305,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Tags:       []string{"tag1", "tag2"},
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
@@ -3325,7 +3325,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Tags:       []string{"tag1", "tag2"},
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
@@ -3349,7 +3349,7 @@ func TestSpecsEqual(t *testing.T) {
 			a: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Tags:       []string{"tag1", "tag2"},
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
@@ -3369,7 +3369,7 @@ func TestSpecsEqual(t *testing.T) {
 			b: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Tags:       []string{"tag1", "tag3"},
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
@@ -3417,7 +3417,7 @@ func TestSaveSpecs(t *testing.T) {
 			newSpecs: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3458,7 +3458,7 @@ func TestSaveSpecs(t *testing.T) {
 				existingSpecs := Specs{
 					{
 						PluginName: "old-plugin",
-						Type:       SpecTypeComponent,
+						PluginType: SpecTypeComponent,
 						RunMode:    "manual",
 						Timeout:    metav1.Duration{Duration: 10 * time.Second},
 						HealthStatePlugin: &Plugin{
@@ -3484,7 +3484,7 @@ func TestSaveSpecs(t *testing.T) {
 			newSpecs: Specs{
 				{
 					PluginName: "new-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3519,7 +3519,7 @@ func TestSaveSpecs(t *testing.T) {
 				existingSpecs := Specs{
 					{
 						PluginName: "same-plugin",
-						Type:       SpecTypeComponent,
+						PluginType: SpecTypeComponent,
 						RunMode:    "auto",
 						Timeout:    metav1.Duration{Duration: 30 * time.Second},
 						HealthStatePlugin: &Plugin{
@@ -3545,7 +3545,7 @@ func TestSaveSpecs(t *testing.T) {
 			newSpecs: Specs{
 				{
 					PluginName: "same-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3580,7 +3580,7 @@ func TestSaveSpecs(t *testing.T) {
 			newSpecs: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3621,7 +3621,7 @@ func TestSaveSpecs(t *testing.T) {
 			newSpecs: Specs{
 				{
 					PluginName: "plugin-1",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3638,7 +3638,7 @@ func TestSaveSpecs(t *testing.T) {
 				},
 				{
 					PluginName: "plugin-2",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "manual",
 					Timeout:    metav1.Duration{Duration: 60 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3677,7 +3677,7 @@ func TestSaveSpecs(t *testing.T) {
 			newSpecs: Specs{
 				{
 					PluginName: "test-plugin",
-					Type:       SpecTypeComponent,
+					PluginType: SpecTypeComponent,
 					RunMode:    "auto",
 					Timeout:    metav1.Duration{Duration: 30 * time.Second},
 					HealthStatePlugin: &Plugin{
@@ -3702,7 +3702,7 @@ func TestSaveSpecs(t *testing.T) {
 			newSpecs: Specs{
 				{
 					PluginName:    "component-list-plugin",
-					Type:          SpecTypeComponentList,
+					PluginType:    SpecTypeComponentList,
 					RunMode:       "auto",
 					ComponentList: []string{"comp1", "comp2", "comp3"},
 					Timeout:       metav1.Duration{Duration: 30 * time.Second},
@@ -3730,7 +3730,7 @@ func TestSaveSpecs(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Len(t, savedSpecs, 1)
 				assert.Equal(t, "component-list-plugin", savedSpecs[0].PluginName)
-				assert.Equal(t, SpecTypeComponentList, savedSpecs[0].Type)
+				assert.Equal(t, SpecTypeComponentList, savedSpecs[0].PluginType)
 				assert.Equal(t, []string{"comp1", "comp2", "comp3"}, savedSpecs[0].ComponentList)
 			},
 		},
@@ -3777,7 +3777,7 @@ func TestSaveSpecsEdgeCases(t *testing.T) {
 		specs := Specs{
 			{
 				PluginName: "test-plugin",
-				Type:       SpecTypeComponent,
+				PluginType: SpecTypeComponent,
 				RunMode:    "auto",
 				Timeout:    metav1.Duration{Duration: 30 * time.Second},
 				HealthStatePlugin: &Plugin{

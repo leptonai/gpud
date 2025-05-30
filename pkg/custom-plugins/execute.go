@@ -16,10 +16,10 @@ func (specs Specs) ExecuteInOrder(gpudInstance *components.GPUdInstance, failFas
 	// execute "init" type plugins first
 	sort.Slice(specs, func(i, j int) bool {
 		// "init" type first
-		if specs[i].Type == "init" && specs[j].Type == "init" {
+		if specs[i].PluginType == "init" && specs[j].PluginType == "init" {
 			return i < j
 		}
-		return specs[i].Type == "init"
+		return specs[i].PluginType == "init"
 	})
 
 	results := make([]components.CheckResult, 0, len(specs))
