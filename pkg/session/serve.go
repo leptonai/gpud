@@ -58,8 +58,8 @@ type Request struct {
 	// that match this tag value.
 	TagName string `json:"tag_name,omitempty"`
 
-	// PluginSpecs is the specs for the custom plugins to register or overwrite.
-	PluginSpecs pkgcustomplugins.Specs `json:"plugin_specs,omitempty"`
+	// CustomPluginSpecs is the specs for the custom plugins to register or overwrite.
+	CustomPluginSpecs pkgcustomplugins.Specs `json:"custom_plugin_specs,omitempty"`
 }
 
 // Response is the response from GPUd to the control plane.
@@ -82,8 +82,8 @@ type Response struct {
 
 	PackageStatus []apiv1.PackageStatus `json:"package_status,omitempty"`
 
-	// PluginSpecs lists the specs for the custom plugins.
-	PluginSpecs pkgcustomplugins.Specs `json:"plugin_specs,omitempty"`
+	// CustomPluginSpecs lists the specs for the custom plugins.
+	CustomPluginSpecs pkgcustomplugins.Specs `json:"custom_plugin_specs,omitempty"`
 }
 
 type BootstrapRequest struct {
@@ -417,7 +417,7 @@ func (s *Session) serve() {
 			}
 
 		case "setPluginSpecs":
-			exitCode := s.processSetPluginSpecs(ctx, response, payload.PluginSpecs)
+			exitCode := s.processSetPluginSpecs(ctx, response, payload.CustomPluginSpecs)
 			if exitCode != nil {
 				needExit = *exitCode
 			}

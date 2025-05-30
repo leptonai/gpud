@@ -36,5 +36,5 @@ func (s *Session) processGetPluginSpecs(resp *Response) {
 			specs = append(specs, registeree.Spec())
 		}
 	}
-	resp.PluginSpecs = specs
+	resp.CustomPluginSpecs = specs
 }
