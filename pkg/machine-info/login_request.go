@@ -61,6 +61,7 @@ func createLoginRequest(
 		Network:   &apiv1.MachineNetwork{},
 		Resources: map[string]string{},
 	}
+
 	var err error
 	req.Network.PublicIP, err = getPublicIPFunc()
 	if err != nil {
