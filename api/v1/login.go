@@ -27,4 +27,10 @@ type LoginResponse struct {
 
 	// Token is the token used to report data from the machine.
 	Token string `json:"token,omitempty"`
+
+	// ValidationResults is the validation results for the login request.
+	// The validation results are done by the control plane.
+	// e.g., "kernel-version": "ok" means the kernel version is valid.
+	// e.g., "kernel-version": "invalid ..." means the kernel version is invalid.
+	ValidationResults map[string]string `json:"validationResults,omitempty"`
 }

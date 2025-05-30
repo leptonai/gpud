@@ -204,6 +204,17 @@ func Command(cliContext *cli.Context) error {
 		}
 	}
 
+	if len(loginResp.ValidationResults) > 0 {
+		fmt.Printf("validation results:\n")
+		for k, v := range loginResp.ValidationResults {
+			if v == "ok" {
+				fmt.Printf("%s %s: %s (valid)\n", cmdcommon.CheckMark, k, v)
+			} else {
+				fmt.Printf("%s %s: %s (invalid)\n", cmdcommon.WarningSign, k, v)
+			}
+		}
+	}
+
 	fmt.Printf("%s successfully logged in with machine id %s\n", cmdcommon.CheckMark, loginResp.MachineID)
 	return nil
 }
