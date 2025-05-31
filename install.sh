@@ -7,6 +7,58 @@
 
 set -e
 
+# Function to compare semantic versions
+# Returns: -1 if version1 < version2, 0 if equal, 1 if version1 > version2
+version_compare() {
+  local version1="$1"
+  local version2="$2"
+  
+  # Remove 'v' prefix if present
+  version1=$(echo "$version1" | sed 's/^v//')
+  version2=$(echo "$version2" | sed 's/^v//')
+  
+  # Handle release candidates
+  local v1_base v1_rc v2_base v2_rc
+  if echo "$version1" | grep -q -- "-rc-"; then
+    v1_base=$(echo "$version1" | cut -d'-' -f1)
+    v1_rc=$(echo "$version1" | cut -d'-' -f3)
+  else
+    v1_base="$version1"
+    v1_rc="9999"  # Treat non-rc as higher than any rc
+  fi
+  
+  if echo "$version2" | grep -q -- "-rc-"; then
+    v2_base=$(echo "$version2" | cut -d'-' -f1)
+    v2_rc=$(echo "$version2" | cut -d'-' -f3)
+  else
+    v2_base="$version2"
+    v2_rc="9999"  # Treat non-rc as higher than any rc
+  fi
+  
+  # Compare base versions using sort -V (version sort)
+  local base_cmp
+  if [ "$v1_base" = "$v2_base" ]; then
+    base_cmp="0"
+  elif printf '%s\n%s\n' "$v1_base" "$v2_base" | sort -V | head -n1 | grep -q "^$v1_base$"; then
+    base_cmp="-1"  # v1_base < v2_base
+  else
+    base_cmp="1"   # v1_base > v2_base
+  fi
+  
+  # If base versions are equal, compare RC numbers
+  if [ "$base_cmp" = "0" ]; then
+    if [ "$v1_rc" -lt "$v2_rc" ]; then
+      echo "-1"
+    elif [ "$v1_rc" -gt "$v2_rc" ]; then
+      echo "1"
+    else
+      echo "0"
+    fi
+  else
+    echo "$base_cmp"
+  fi
+}
+
 main() {
   OS=
   if type uname >/dev/null 2>&1; then
@@ -66,6 +118,7 @@ main() {
   if [ -n "$1" ]; then
     APP_VERSION="$1"
   else
+    # e.g., https://pkg.gpud.dev/unstable_latest.txt
     APP_VERSION=$(curl -fsSL https://pkg.gpud.dev/"$TRACK"_latest.txt)
   fi
 
@@ -132,10 +185,24 @@ main() {
   tar xzf "$DLPATH" -C "$DIR"
 
   # some os distros have "/usr/sbin" as read-only
+  # we want to use "/usr/local/bin" instead
   # ref. https://fedoraproject.org/wiki/Changes/Unify_bin_and_sbin
-  $SUDO cp -f "$DIR"/gpud /usr/local/bin
+  BIN_PATH="/usr/local/bin"
 
-  echo "installed gpud version $APP_VERSION"
+  # only "$APP_VERSION" after >= v0.5.0-rc-34, >= v0.5 supports "/usr/local/bin/gpud"
+  # "v0.5.0-rc-33" does not support "/usr/local/bin/gpud", thus we need to use "/usr/sbin/gpud"
+  # ref. https://github.com/leptonai/gpud/pull/846
+
+  # check if version supports /usr/local/bin
+  # Supported: >= v0.5.0-rc-34
+  if [ "$(version_compare "$APP_VERSION" "0.5.0-rc-34")" -ge 0 ]; then
+    BIN_PATH="/usr/local/bin"
+  else
+    BIN_PATH="/usr/sbin"
+  fi
+  $SUDO cp -f "$DIR"/gpud $BIN_PATH
+
+  echo "installed gpud version $APP_VERSION in the path $BIN_PATH/gpud"
   rm /tmp/"$FILENAME"
   rm -rf "$DIR"
 }
