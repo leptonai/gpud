@@ -23,6 +23,11 @@ var (
 type GPUdInstance struct {
 	RootCtx context.Context
 
+	// MachineID is either the machine ID assigned from the control plane
+	// or the unique UUID of the machine.
+	// For example, it is used to identify itself for the NFS checker.
+	MachineID string
+
 	KernelModulesToCheck []string
 
 	NVMLInstance         nvidianvml.Instance
