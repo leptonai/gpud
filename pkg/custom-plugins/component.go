@@ -346,7 +346,14 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Health:           cr.health,
 		ExtraInfo:        cr.extraInfo,
 		SuggestedActions: cr.suggestedActions,
+		RawOutput:        string(cr.out),
 	}
+
+	// maximum length of the raw output is 4096 bytes
+	if len(state.RawOutput) > 4096 {
+		state.RawOutput = state.RawOutput[:4096]
+	}
+
 	return apiv1.HealthStates{state}
 }
 

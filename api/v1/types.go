@@ -84,6 +84,12 @@ type HealthState struct {
 
 	// ExtraInfo represents the extra information of the state.
 	ExtraInfo map[string]string `json:"extra_info,omitempty"`
+
+	// RawOutput represents the raw output of the health checker.
+	// e.g., If a custom plugin runs a Python script, the raw output
+	// is the stdout/stderr of the script.
+	// The maximum length of the raw output is 4096 bytes.
+	RawOutput string `json:"raw_output,omitempty"`
 }
 
 type HealthStates []HealthState
