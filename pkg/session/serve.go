@@ -15,7 +15,6 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
@@ -26,7 +25,6 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/pkg/update"
@@ -269,23 +267,7 @@ func (s *Session) serve() {
 			}
 
 		case "updateConfig":
-			if payload.UpdateConfig != nil {
-				for componentName, value := range payload.UpdateConfig {
-					log.Logger.Infow("Update config received for component", "component", componentName, "config", value)
-
-					switch componentName {
-					case componentsnvidiainfiniband.Name:
-						var updateCfg infiniband.ExpectedPortStates
-						if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
-							log.Logger.Warnw("failed to unmarshal update config", "error", err)
-						} else {
-							componentsnvidiainfiniband.SetDefaultExpectedPortStates(updateCfg)
-						}
-					default:
-						log.Logger.Warnw("unsupported component for updateConfig", "component", componentName)
-					}
-				}
-			}
+			s.processUpdateConfig(payload.UpdateConfig, response)
 
 		case "bootstrap":
 			if payload.Bootstrap != nil {
