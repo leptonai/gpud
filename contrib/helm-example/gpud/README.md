@@ -11,7 +11,6 @@ helm install gpud charts/gpud \
 --set gpud.GPUD_NO_USAGE_STATS=true \
 --set gpud.listen_address=0.0.0.0:15132 \
 --set gpud.log_level=info \
---set gpud.web_enable=false \
 --set gpud.endpoint=mothership-machine.app.lepton.ai \
 --set gpud.enable_auto_update=true \
 --set gpud.auto_update_exit_code=0 \
