@@ -73,10 +73,16 @@ func (c *component) CanDeregister() bool {
 func (c *component) Name() string { return c.spec.ComponentName() }
 
 func (c *component) Tags() []string {
-	return []string{
+	tags := []string{
 		"custom-plugin",
 		c.spec.ComponentName(),
 	}
+
+	if len(c.spec.Tags) > 0 {
+		tags = append(tags, c.spec.Tags...)
+	}
+
+	return tags
 }
 
 func (c *component) IsSupported() bool {
