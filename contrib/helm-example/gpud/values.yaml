@@ -3,15 +3,12 @@ dsName: gpud-run
 gpud:
   GPUD_NO_USAGE_STATS: true
   
-  version: "v0.0.5" 
+  version: "v0.5.0-rc-34" 
 
   listen_address: 0.0.0.0:15132
 
   # debug, info, warn, error, fatal, panic, dpanic
   log_level: info
-
-  # set true enable local web dashboard
-  web_enable: false
 
   # endpoint for control plane
   endpoint: mothership-machine.app.lepton.ai

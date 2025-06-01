@@ -7,6 +7,12 @@ curl -fsSL https://pkg.gpud.dev/install.sh | sh
 gpud up
 ```
 
+To specify a version
+
+```bash
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.5.0-rc-34
+```
+
 Then open [localhost:15132](https://localhost:15132) for the local web UI.
 
 ## Build

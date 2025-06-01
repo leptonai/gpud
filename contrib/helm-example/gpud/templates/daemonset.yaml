@@ -93,7 +93,6 @@ spec:
               gpud run \
               --listen-address={{ .Values.gpud.listen_address | quote }} \
               --log-level={{ .Values.gpud.log_level | quote }} \
-              --web-enable={{ .Values.gpud.web_enable }} \
               --endpoint={{ .Values.gpud.endpoint | quote }} \
               --enable-auto-update={{ .Values.gpud.enable_auto_update }} \
               --auto-update-exit-code={{ .Values.gpud.auto_update_exit_code }}
