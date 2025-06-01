@@ -37,8 +37,8 @@ const URLPathComponents = "/components"
 // @Description Returns a list of all currently registered gpud components in the system
 // @ID getComponents
 // @Tags components
-// @Accept json,yaml
-// @Produce json,yaml
+// @Accept json
+// @Produce json
 // @Header 200 {string} Content-Type "application/json or application/yaml"
 // @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
 // @Param json-indent header string false "Set to 'true' for indented JSON output"
@@ -243,8 +243,8 @@ const URLPathStates = "/states"
 // @Description Returns the current health states of specified components or all components if none specified. Only supported components are included in the response.
 // @ID getHealthStates
 // @Tags components
-// @Accept json,yaml
-// @Produce json,yaml
+// @Accept json
+// @Produce json
 // @Header 200 {string} Content-Type "application/json or application/yaml"
 // @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
 // @Param components query string false "Comma-separated list of component names to query (if empty, returns all components)"
@@ -324,8 +324,8 @@ const URLPathEvents = "/events"
 // @Description Returns events from specified components within a time range. If no components specified, returns events from all components. Only supported components are queried.
 // @ID getEvents
 // @Tags components
-// @Accept json,yaml
-// @Produce json,yaml
+// @Accept json
+// @Produce json
 // @Header 200 {string} Content-Type "application/json or application/yaml"
 // @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
 // @Param components query string false "Comma-separated list of component names to query (if empty, queries all components)"
@@ -420,8 +420,8 @@ const URLPathInfo = "/info"
 // @Description Returns comprehensive information including events, states, and metrics for specified components. If no components specified, returns information for all components. Only supported components are included.
 // @ID getInfo
 // @Tags components
-// @Accept json,yaml
-// @Produce json,yaml
+// @Accept json
+// @Produce json
 // @Header 200 {string} Content-Type "application/json or application/yaml"
 // @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
 // @Param components query string false "Comma-separated list of component names to query (if empty, queries all components)"
@@ -557,8 +557,8 @@ const URLPathMetrics = "/metrics"
 // @Description Returns metrics data for specified components within a time range. If no components specified, returns metrics for all components. Metrics are queried from the last 30 minutes by default.
 // @ID getMetrics
 // @Tags components
-// @Accept json,yaml
-// @Produce json,yaml
+// @Accept json
+// @Produce json
 // @Header 200 {string} Content-Type "application/json or application/yaml"
 // @Param Accept header string false "Content type preference" Enums(application/json,application/yaml)
 // @Param components query string false "Comma-separated list of component names to query (if empty, queries all components)"

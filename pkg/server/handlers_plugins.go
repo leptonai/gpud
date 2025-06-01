@@ -22,8 +22,8 @@ func (g *globalHandler) registerPluginRoutes(r gin.IRoutes) {
 // @Description Returns a list of all custom plugin specifications registered in the system
 // @ID getPluginSpecs
 // @Tags plugins
-// @Accept json,yaml
-// @Produce json,yaml
+// @Accept json
+// @Produce json
 // @Header 200 {string} Content-Type "application/json or application/yaml"
 // @Param json-indent header string false "Set to 'true' for indented JSON output"
 // @Success 200 {array} pkgcustomplugins.Spec "List of custom plugin specifications"
