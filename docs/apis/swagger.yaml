@@ -1,70 +1,6 @@
+basePath: /
 definitions:
-  apiv1.Event:
-    properties:
-      extra_info:
-        additionalProperties:
-          type: string
-        description: any extra information the component may want to expose
-        type: object
-      message:
-        description: detailed message of the event
-        type: string
-      name:
-        type: string
-      time:
-        type: string
-      type:
-        description: 'optional: ErrCritical, ErrWarning, Info, Resolution, ...'
-        type: string
-    type: object
-  components.Info:
-    properties:
-      events:
-        items:
-          $ref: '#/definitions/apiv1.Event'
-        type: array
-      metrics:
-        items:
-          $ref: '#/definitions/components.Metric'
-        type: array
-      states:
-        items:
-          $ref: '#/definitions/apiv1.State'
-        type: array
-    type: object
-  components.Metric:
-    additionalProperties: true
-    type: object
-  apiv1.State:
-    properties:
-      error:
-        description: the unprocessed error returned from the component
-      extra_info:
-        additionalProperties:
-          type: string
-        description: any extra information the component may want to expose
-        type: object
-      healthy:
-        type: boolean
-      name:
-        type: string
-      reason:
-        description: a detailed and processed reason on why the component is not healthy
-        type: string
-    type: object
-  server.UpdateStatus:
-    enum:
-    - 0
-    - 1
-    - 2
-    - 3
-    type: integer
-    x-enum-varnames:
-    - updateStatusInit
-    - updateStatusInProgress
-    - updateStatusFailed
-    - updateStatusFinished
-  v1.LeptonComponentEvents:
+  github_com_leptonai_gpud_api_v1.ComponentEvents:
     properties:
       component:
         type: string
@@ -72,161 +8,1171 @@ definitions:
         type: string
       events:
         items:
-          $ref: '#/definitions/apiv1.Event'
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.Event'
         type: array
       startTime:
         type: string
     type: object
-  v1.LeptonComponentInfo:
+  github_com_leptonai_gpud_api_v1.ComponentHealthStates:
+    properties:
+      component:
+        type: string
+      states:
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.HealthState'
+        type: array
+    type: object
+  github_com_leptonai_gpud_api_v1.ComponentInfo:
     properties:
       component:
         type: string
       endTime:
         type: string
       info:
-        $ref: '#/definitions/components.Info'
+        $ref: '#/definitions/github_com_leptonai_gpud_api_v1.Info'
       startTime:
         type: string
     type: object
-  v1.LeptonComponentMetrics:
+  github_com_leptonai_gpud_api_v1.ComponentMetrics:
     properties:
       component:
         type: string
       metrics:
         items:
-          $ref: '#/definitions/components.Metric'
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.Metric'
         type: array
     type: object
-  v1.LeptonComponentStates:
+  github_com_leptonai_gpud_api_v1.ComponentType:
+    enum:
+    - custom-plugin
+    type: string
+    x-enum-varnames:
+    - ComponentTypeCustomPlugin
+  github_com_leptonai_gpud_api_v1.Event:
     properties:
       component:
+        description: Component represents which component generated the event.
         type: string
+      message:
+        description: Message represents the detailed message of the event.
+        type: string
+      name:
+        description: Name represents the name of the event.
+        type: string
+      time:
+        description: Time represents when the event happened.
+        type: string
+      type:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.EventType'
+        description: Type represents the type of the event.
+    type: object
+  github_com_leptonai_gpud_api_v1.EventType:
+    enum:
+    - Unknown
+    - Info
+    - Warning
+    - Critical
+    - Fatal
+    type: string
+    x-enum-varnames:
+    - EventTypeUnknown
+    - EventTypeInfo
+    - EventTypeWarning
+    - EventTypeCritical
+    - EventTypeFatal
+  github_com_leptonai_gpud_api_v1.HealthState:
+    properties:
+      component:
+        description: Component represents the component name.
+        type: string
+      component_type:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.ComponentType'
+        description: |-
+          ComponentType represents the type of the component.
+          It is either "" (just 'component') or "custom-plugin".
+      error:
+        description: |-
+          Error represents the detailed error information, which will be shown
+          as More Information to help analyze why it isn’t healthy.
+        type: string
+      extra_info:
+        additionalProperties:
+          type: string
+        description: ExtraInfo represents the extra information of the state.
+        type: object
+      health:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.HealthStateType'
+        description: |-
+          Health represents the health level of the state,
+          including StateHealthy, StateUnhealthy and StateDegraded.
+          StateDegraded is similar to Unhealthy which also can trigger alerts
+          for users or operators, but what StateDegraded means is that the
+          issue detected does not affect users’ workload.
+      name:
+        description: |-
+          Name is the name of the state,
+          can be different from the component name.
+        type: string
+      raw_output:
+        description: |-
+          RawOutput represents the raw output of the health checker.
+          e.g., If a custom plugin runs a Python script, the raw output
+          is the stdout/stderr of the script.
+          The maximum length of the raw output is 4096 bytes.
+        type: string
+      reason:
+        description: Reason represents what happened or detected by GPUd if it isn’t
+          healthy.
+        type: string
+      run_mode:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.RunModeType'
+        description: |-
+          RunMode is the run mode of the state.
+          It can be "manual" that requires manual trigger to run the check.
+          Or it can be empty that runs the check periodically.
+      suggested_actions:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.SuggestedActions'
+        description: SuggestedActions represents the suggested actions to mitigate
+          the issue.
+      time:
+        description: Time represents when the event happened.
+        type: string
+    type: object
+  github_com_leptonai_gpud_api_v1.HealthStateType:
+    enum:
+    - Healthy
+    - Unhealthy
+    - Degraded
+    - Initializing
+    type: string
+    x-enum-varnames:
+    - HealthStateTypeHealthy
+    - HealthStateTypeUnhealthy
+    - HealthStateTypeDegraded
+    - HealthStateTypeInitializing
+  github_com_leptonai_gpud_api_v1.Info:
+    properties:
+      events:
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.Event'
+        type: array
+      metrics:
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.Metric'
+        type: array
       states:
         items:
-          $ref: '#/definitions/apiv1.State'
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.HealthState'
         type: array
     type: object
+  github_com_leptonai_gpud_api_v1.MachineCPUInfo:
+    properties:
+      architecture:
+        type: string
+      logicalCores:
+        type: integer
+      manufacturer:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_leptonai_gpud_api_v1.MachineDiskDevice:
+    properties:
+      children:
+        items:
+          type: string
+        type: array
+      fsType:
+        type: string
+      model:
+        type: string
+      mountPoint:
+        type: string
+      name:
+        type: string
+      parents:
+        items:
+          type: string
+        type: array
+      partUUID:
+        type: string
+      rev:
+        type: string
+      rota:
+        type: boolean
+      serial:
+        type: string
+      size:
+        type: integer
+      type:
+        type: string
+      used:
+        type: integer
+      vendor:
+        type: string
+      wwn:
+        type: string
+    type: object
+  github_com_leptonai_gpud_api_v1.MachineDiskInfo:
+    properties:
+      blockDevices:
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineDiskDevice'
+        type: array
+      containerRootDisk:
+        description: ContainerRootDisk is the disk device name that mounts the container
+          root (such as "/var/lib/kubelet" mount point).
+        type: string
+    type: object
+  github_com_leptonai_gpud_api_v1.MachineGPUInfo:
+    properties:
+      architecture:
+        description: Architecture is "blackwell" for NVIDIA GB200.
+        type: string
+      gpus:
+        description: GPUs is the GPU info of the machine.
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineGPUInstance'
+        type: array
+      manufacturer:
+        description: Manufacturer is "NVIDIA" for NVIDIA GPUs (same as Brand).
+        type: string
+      memory:
+        type: string
+      product:
+        description: Product may be "NVIDIA-Graphics-Device" for NVIDIA GB200.
+        type: string
+    type: object
+  github_com_leptonai_gpud_api_v1.MachineGPUInstance:
+    properties:
+      boardID:
+        type: integer
+      minorID:
+        type: string
+      sn:
+        type: string
+      uuid:
+        type: string
+    type: object
+  github_com_leptonai_gpud_api_v1.MachineInfo:
+    properties:
+      bootID:
+        description: BootID is collected by GPUd.
+        type: string
+      containerRuntimeVersion:
+        description: ContainerRuntime Version reported by the node through runtime
+          remote API (e.g. containerd://1.4.2).
+        type: string
+      cpuInfo:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineCPUInfo'
+        description: CPUInfo is the CPU info of the machine.
+      cudaVersion:
+        description: CUDAVersion represents the current version of cuda library.
+        type: string
+      diskInfo:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineDiskInfo'
+        description: DiskInfo is the Disk info of the machine.
+      gpuDriverVersion:
+        description: GPUDriverVersion represents the current version of GPU driver
+          installed
+        type: string
+      gpuInfo:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineGPUInfo'
+        description: GPUInfo is the GPU info of the machine.
+      gpudVersion:
+        description: GPUdVersion represents the current version of GPUd
+        type: string
+      hostname:
+        description: Hostname is the current host of machine
+        type: string
+      kernelVersion:
+        description: Kernel Version reported by the node from 'uname -r' (e.g. 3.16.0-0.bpo.4-amd64).
+        type: string
+      machineID:
+        description: MachineID is collected by GPUd. It comes from /etc/machine-id
+          or /var/lib/dbus/machine-id
+        type: string
+      memoryInfo:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineMemoryInfo'
+        description: MemoryInfo is the memory info of the machine.
+      nicInfo:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineNICInfo'
+        description: NICInfo is the network info of the machine.
+      operatingSystem:
+        description: The Operating System reported by the node
+        type: string
+      osImage:
+        description: OS Image reported by the node from /etc/os-release (e.g. Debian
+          GNU/Linux 7 (wheezy)).
+        type: string
+      systemUUID:
+        description: SystemUUID comes from https://github.com/google/cadvisor/blob/master/utils/sysfs/sysfs.go#L442
+        type: string
+      uptime:
+        description: Uptime represents when the machine up
+        type: string
+    type: object
+  github_com_leptonai_gpud_api_v1.MachineMemoryInfo:
+    properties:
+      totalBytes:
+        type: integer
+    type: object
+  github_com_leptonai_gpud_api_v1.MachineNICInfo:
+    properties:
+      privateIPInterfaces:
+        description: PrivateIPInterfaces is the private network interface info of
+          the machine.
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineNetworkInterface'
+        type: array
+    type: object
+  github_com_leptonai_gpud_api_v1.MachineNetworkInterface:
+    properties:
+      interface:
+        description: Interface is the network interface name of the machine.
+        type: string
+      ip:
+        description: IP is the string representation of the netip.Addr of the machine.
+        type: string
+      mac:
+        description: MAC is the MAC address of the machine.
+        type: string
+    type: object
+  github_com_leptonai_gpud_api_v1.Metric:
+    properties:
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      unix_seconds:
+        type: integer
+      value:
+        type: number
+    type: object
+  github_com_leptonai_gpud_api_v1.RepairActionType:
+    enum:
+    - IGNORE_NO_ACTION_REQUIRED
+    - REBOOT_SYSTEM
+    - HARDWARE_INSPECTION
+    - CHECK_USER_APP_AND_GPU
+    type: string
+    x-enum-varnames:
+    - RepairActionTypeIgnoreNoActionRequired
+    - RepairActionTypeRebootSystem
+    - RepairActionTypeHardwareInspection
+    - RepairActionTypeCheckUserAppAndGPU
+  github_com_leptonai_gpud_api_v1.RunModeType:
+    enum:
+    - auto
+    - manual
+    type: string
+    x-enum-varnames:
+    - RunModeTypeAuto
+    - RunModeTypeManual
+  github_com_leptonai_gpud_api_v1.SuggestedActions:
+    properties:
+      description:
+        description: Description describes the issue in detail.
+        type: string
+      repair_actions:
+        description: A list of repair actions to mitigate the issue.
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.RepairActionType'
+        type: array
+    type: object
+  github_com_leptonai_gpud_pkg_custom-plugins.JSONPath:
+    properties:
+      expect:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_pkg_custom-plugins.MatchRule'
+        description: |-
+          Expect defines the expected field "value" match rule.
+
+          It not set, the field value is not checked,
+          which means "missing field" for this query does not
+          make the health state to be "Unhealthy".
+
+          If set, the field value must be matched for this rule.
+          In such case, the "missing field" or "mismatch" make
+          the health state to be "Unhealthy".
+      field:
+        description: |-
+          Field defines the field name to use in the extra_info data
+          for this JSON path query output.
+        type: string
+      query:
+        description: |-
+          Query defines the JSONPath query path to extract with.
+          ref. https://pkg.go.dev/github.com/PaesslerAG/jsonpath#section-readme
+          ref. https://en.wikipedia.org/wiki/JSONPath
+          ref. https://goessner.net/articles/JsonPath/
+        type: string
+      suggested_actions:
+        additionalProperties:
+          $ref: '#/definitions/github_com_leptonai_gpud_pkg_custom-plugins.MatchRule'
+        description: |-
+          SuggestedActions maps from the suggested action name,
+          to the match rule for the field value.
+
+          If the field value matches the rule,
+          the health state reports the corresponding
+          suggested action (the key of the matching rule).
+        type: object
+    type: object
+  github_com_leptonai_gpud_pkg_custom-plugins.MatchRule:
+    properties:
+      regex:
+        description: Regex is the regex to match the output.
+        type: string
+    type: object
+  github_com_leptonai_gpud_pkg_custom-plugins.Plugin:
+    properties:
+      parser:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_pkg_custom-plugins.PluginOutputParseConfig'
+        description: |-
+          Parser is the parser for the plugin output.
+          If not set, the default prefix parser is used.
+      steps:
+        description: |-
+          Steps is a sequence of steps to run for this plugin.
+          Multiple steps are executed in order.
+          If a step fails, the execution stops and the error is returned.
+          Which means, the final success requires all steps to succeed.
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_pkg_custom-plugins.Step'
+        type: array
+    type: object
+  github_com_leptonai_gpud_pkg_custom-plugins.PluginOutputParseConfig:
+    properties:
+      json_paths:
+        description: |-
+          JSONPaths is a list of JSON paths to the output fields.
+          Each entry has a FieldName (the output field name you want to assign e.g. "name")
+          and a QueryPath (the JSON path you want to extract with e.g. "$.name").
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_pkg_custom-plugins.JSONPath'
+        type: array
+      log_path:
+        description: |-
+          LogPath is an optional path to a file where the plugin output will be logged.
+          If set, the raw plugin output will be appended to this file.
+        type: string
+    type: object
+  github_com_leptonai_gpud_pkg_custom-plugins.RunBashScript:
+    properties:
+      content_type:
+        description: |-
+          ContentType is the content encode type of the script.
+          Possible values: "plaintext", "base64".
+        type: string
+      script:
+        description: |-
+          Script is the script to run for this job.
+          Assumed to be base64 encoded.
+        type: string
+    type: object
+  github_com_leptonai_gpud_pkg_custom-plugins.Spec:
+    properties:
+      component_list:
+        description: |-
+          ComponentList is a list of component names for SpecTypeComponentList.
+          Each item can be a simple name or "name:param" format.
+          For component list, tags can be specified in the format "name#run_mode[tag1,tag2]:param"
+        items:
+          type: string
+        type: array
+      component_list_file:
+        description: |-
+          ComponentListFile is a path to a file containing component names for SpecTypeComponentList.
+          Each line can be a simple name or "name:param" format.
+          For component list file, tags can be specified in the format "name#run_mode[tag1,tag2]:param"
+        type: string
+      health_state_plugin:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_pkg_custom-plugins.Plugin'
+        description: |-
+          HealthStatePlugin defines the plugin instructions
+          to evaluate the health state of this plugin,
+          which is translated into an GPUd /states API response.
+      interval:
+        allOf:
+        - $ref: '#/definitions/v1.Duration'
+        description: |-
+          Interval is the interval for the script execution.
+          For init plugin that only runs once at the server start,
+          this value is ignored.
+          Similarly, if set to zero, it runs only once.
+      plugin_name:
+        description: |-
+          PluginName describes the plugin.
+          It is used for generating the component name.
+        type: string
+      plugin_type:
+        description: |-
+          PluginType defines the plugin type.
+          Possible values: "init", "component".
+        type: string
+      run_mode:
+        description: |-
+          RunMode defines the run mode of the plugin.
+          Possible values: "auto", "manual".
+
+          RunMode is set to "auto" to run the plugin periodically, with the specified interval.
+
+          RunMode is set to "manual" to run the plugin only when explicitly triggered.
+          The manual mode plugin is only registered but not run periodically.
+          - GPUd does not run this even once.
+          - GPUd does not run this periodically.
+
+          This "auto" mode is only applicable to "component" type plugins.
+          This "auto" mode is not applicable to "init" type plugins.
+
+          The "init" type plugins are always run only once.
+          This "manual" mode is only applicable to "component" type plugins.
+          This "manual" mode is not applicable to "init" type plugins.
+        type: string
+      tags:
+        description: |-
+          Tags is a list of tags associated with this component.
+          Tags can be used to group and trigger components together.
+          For component list type, tags can also be specified in the run mode format.
+        items:
+          type: string
+        type: array
+      timeout:
+        allOf:
+        - $ref: '#/definitions/v1.Duration'
+        description: |-
+          Timeout is the timeout for the script execution.
+          If zero, it uses the default timeout (1-minute).
+      type:
+        type: string
+    type: object
+  github_com_leptonai_gpud_pkg_custom-plugins.Step:
+    properties:
+      name:
+        description: Name is the name of the step.
+        type: string
+      run_bash_script:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_pkg_custom-plugins.RunBashScript'
+        description: RunBashScript is the bash script to run for this step.
+    type: object
+  github_com_leptonai_gpud_pkg_fault-injector.Request:
+    properties:
+      kernel_message:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_pkg_kmsg_writer.KernelMessage'
+        description: KernelMessage is the kernel message to inject.
+      xid:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_pkg_fault-injector.XIDToInject'
+        description: XID is the XID to inject.
+    type: object
+  github_com_leptonai_gpud_pkg_fault-injector.XIDToInject:
+    properties:
+      id:
+        type: integer
+    type: object
+  github_com_leptonai_gpud_pkg_kmsg_writer.KernelMessage:
+    properties:
+      message:
+        description: Message is the message of the kernel message.
+        type: string
+      priority:
+        allOf:
+        - $ref: '#/definitions/github_com_leptonai_gpud_pkg_kmsg_writer.KernelMessagePriority'
+        description: |-
+          Priority is the priority of the kernel message.
+          ref. https://github.com/torvalds/linux/blob/master/tools/include/linux/kern_levels.h#L8-L15
+    type: object
+  github_com_leptonai_gpud_pkg_kmsg_writer.KernelMessagePriority:
+    enum:
+    - KERN_EMERG
+    - KERN_ALERT
+    - KERN_CRIT
+    - KERN_ERR
+    - KERN_WARNING
+    - KERN_NOTICE
+    - KERN_INFO
+    - KERN_DEBUG
+    - KERN_DEFAULT
+    type: string
+    x-enum-varnames:
+    - KernelMessagePriorityEmerg
+    - KernelMessagePriorityAlert
+    - KernelMessagePriorityCrit
+    - KernelMessagePriorityError
+    - KernelMessagePriorityWarning
+    - KernelMessagePriorityNotice
+    - KernelMessagePriorityInfo
+    - KernelMessagePriorityDebug
+    - KernelMessagePriorityDefault
+  pkg_server.Healthz:
+    properties:
+      status:
+        type: string
+      version:
+        type: string
+    type: object
+  v1.Duration:
+    properties:
+      time.Duration:
+        enum:
+        - -9223372036854775808
+        - 9223372036854775807
+        - 1
+        - 1000
+        - 1000000
+        - 1000000000
+        - 60000000000
+        - 3600000000000
+        type: integer
+        x-enum-varnames:
+        - minDuration
+        - maxDuration
+        - Nanosecond
+        - Microsecond
+        - Millisecond
+        - Second
+        - Minute
+        - Hour
+    type: object
+host: localhost:15132
 info:
-  contact: {}
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: GPU monitoring and management daemon API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: GPUd API
+  version: "1.0"
 paths:
-  /v1/components:
+  /healthz:
     get:
-      description: get gpud components
-      operationId: getComponents
+      consumes:
+      - application/json
+      description: Returns the health status of the gpud service
+      operationId: healthz
       produces:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Health status
           schema:
-            items:
-              type: string
-            type: array
-      summary: Fetch all components in gpud
-  /v1/events:
-    get:
-      description: get component Events interface by component name
-      operationId: getEvents
-      parameters:
-      - description: Component Name, leave empty to query all components
-        in: query
-        name: component
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
+            $ref: '#/definitions/pkg_server.Healthz'
+        "500":
+          description: Internal server error
           schema:
-            items:
-              $ref: '#/definitions/v1.LeptonComponentEvents'
-            type: array
-      summary: Query component Events interface in gpud
-  /v1/info:
-    get:
-      description: get component Events/Metrics/States interface by component name
-      operationId: getInfo
-      parameters:
-      - description: Component Name, leave empty to query all components
-        in: query
-        name: component
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/v1.LeptonComponentInfo'
-            type: array
-      summary: Query component Events/Metrics/States interface in gpud
-  /v1/metrics:
-    get:
-      description: get component Metrics interface by component name
-      operationId: getMetrics
-      parameters:
-      - description: Component Name, leave empty to query all components
-        in: query
-        name: component
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/v1.LeptonComponentMetrics'
-            type: array
-      summary: Query component Metrics interface in gpud
-  /v1/states:
-    get:
-      description: get component States interface by component name
-      operationId: getStates
-      parameters:
-      - description: Component Name, leave empty to query all components
-        in: query
-        name: component
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/v1.LeptonComponentStates'
-            type: array
-      summary: Query component States interface in gpud
-  /v1/update/install:
+            additionalProperties: true
+            type: object
+      summary: Health check endpoint
+      tags:
+      - health
+  /inject-fault:
     post:
-      description: get current update progress
-      operationId: updateInstall
+      consumes:
+      - application/json
+      description: Injects a fault (such as kernel messages) into the system for testing
+        purposes
+      operationId: injectFault
       parameters:
-      - description: next version to update
+      - description: Fault injection request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_leptonai_gpud_pkg_fault-injector.Request'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Fault injected successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad request - invalid request body or validation error
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Fault injector not set up
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Inject fault into the system
+      tags:
+      - fault-injection
+  /machine-info:
+    get:
+      description: Returns detailed information about the machine including hardware
+        specifications
+      operationId: getMachineInfo
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Machine information
+          schema:
+            $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineInfo'
+        "404":
+          description: GPUd instance not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get machine information
+      tags:
+      - machine
+  /v1/components:
+    delete:
+      consumes:
+      - application/json
+      description: Deregisters a component from the system if it supports deregistration.
+        Only components that implement the Deregisterable interface can be deregistered.
+      operationId: deregisterComponent
+      parameters:
+      - description: Name of the component to deregister
         in: query
-        name: version
+        name: componentName
         required: true
         type: string
       produces:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Component deregistered successfully
           schema:
-            $ref: '#/definitions/server.UpdateStatus'
-      summary: Get current update progress
-  /v1/update/progress:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request - component name required or component not deregisterable
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Component not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error - failed to close component
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Deregister a component
+      tags:
+      - components
     get:
-      description: get current update progress
-      operationId: updateProgress
+      consumes:
+      - application/json
+      description: Returns a list of all currently registered gpud components in the
+        system
+      operationId: getComponents
+      parameters:
+      - description: Content type preference
+        enum:
+        - application/json
+        - application/yaml
+        in: header
+        name: Accept
+        type: string
+      - description: Set to 'true' for indented JSON output
+        in: header
+        name: json-indent
+        type: string
       produces:
       - application/json
       responses:
         "200":
-          description: OK
+          description: List of component names
           schema:
-            $ref: '#/definitions/server.UpdateStatus'
-      summary: Get current update progress
+            items:
+              type: string
+            type: array
+        "400":
+          description: Bad request - invalid content type
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get list of registered components
+      tags:
+      - components
+  /v1/components/trigger-check:
+    get:
+      consumes:
+      - application/json
+      description: Triggers a health check for a specific component or all components
+        with a specific tag. Either componentName or tagName must be provided, but
+        not both.
+      operationId: triggerComponentCheck
+      parameters:
+      - description: Name of the specific component to check (mutually exclusive with
+          tagName)
+        in: query
+        name: componentName
+        type: string
+      - description: Tag name to check all components with this tag (mutually exclusive
+          with componentName)
+        in: query
+        name: tagName
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Health check results with component states
+          schema:
+            items:
+              $ref: '#/definitions/github_com_leptonai_gpud_api_v1.ComponentHealthStates'
+            type: array
+        "400":
+          description: Bad request - component or tag name required (but not both)
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Component not found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Trigger component health check
+      tags:
+      - components
+  /v1/components/trigger-tag:
+    get:
+      consumes:
+      - application/json
+      description: Triggers health checks for all components that have the specified
+        tag. Returns a summary of triggered components and their overall status.
+      operationId: triggerComponentsByTag
+      parameters:
+      - description: Tag name to trigger all components with this tag
+        in: query
+        name: tagName
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Trigger results with components list, exit status, and success
+            flag
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request - tag name required
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Trigger components by tag
+      tags:
+      - components
+  /v1/events:
+    get:
+      consumes:
+      - application/json
+      description: Returns events from specified components within a time range. If
+        no components specified, returns events from all components. Only supported
+        components are queried.
+      operationId: getEvents
+      parameters:
+      - description: Content type preference
+        enum:
+        - application/json
+        - application/yaml
+        in: header
+        name: Accept
+        type: string
+      - description: Comma-separated list of component names to query (if empty, queries
+          all components)
+        in: query
+        name: components
+        type: string
+      - description: Start time for event query (RFC3339 format, defaults to current
+          time)
+        in: query
+        name: startTime
+        type: string
+      - description: End time for event query (RFC3339 format, defaults to current
+          time)
+        in: query
+        name: endTime
+        type: string
+      - description: Set to 'true' for indented JSON output
+        in: header
+        name: json-indent
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Component events within the specified time range
+          schema:
+            items:
+              $ref: '#/definitions/github_com_leptonai_gpud_api_v1.ComponentEvents'
+            type: array
+        "400":
+          description: Bad request - invalid content type, component parsing error,
+            or time parsing error
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Component not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get component events
+      tags:
+      - components
+  /v1/info:
+    get:
+      consumes:
+      - application/json
+      description: Returns comprehensive information including events, states, and
+        metrics for specified components. If no components specified, returns information
+        for all components. Only supported components are included.
+      operationId: getInfo
+      parameters:
+      - description: Content type preference
+        enum:
+        - application/json
+        - application/yaml
+        in: header
+        name: Accept
+        type: string
+      - description: Comma-separated list of component names to query (if empty, queries
+          all components)
+        in: query
+        name: components
+        type: string
+      - description: Start time for query (RFC3339 format, defaults to current time)
+        in: query
+        name: startTime
+        type: string
+      - description: End time for query (RFC3339 format, defaults to current time)
+        in: query
+        name: endTime
+        type: string
+      - description: Duration string for metrics query (e.g., '30m', '1h') - defaults
+          to 30 minutes
+        in: query
+        name: since
+        type: string
+      - description: Set to 'true' for indented JSON output
+        in: header
+        name: json-indent
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Component information including events, states, and metrics
+          schema:
+            items:
+              $ref: '#/definitions/github_com_leptonai_gpud_api_v1.ComponentInfo'
+            type: array
+        "400":
+          description: Bad request - invalid content type, component parsing error,
+            time parsing error, or duration parsing error
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Component not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get comprehensive component information
+      tags:
+      - components
+  /v1/metrics:
+    get:
+      consumes:
+      - application/json
+      description: Returns metrics data for specified components within a time range.
+        If no components specified, returns metrics for all components. Metrics are
+        queried from the last 30 minutes by default.
+      operationId: getMetrics
+      parameters:
+      - description: Content type preference
+        enum:
+        - application/json
+        - application/yaml
+        in: header
+        name: Accept
+        type: string
+      - description: Comma-separated list of component names to query (if empty, queries
+          all components)
+        in: query
+        name: components
+        type: string
+      - description: Duration string for metrics query (e.g., '30m', '1h') - defaults
+          to 30 minutes
+        in: query
+        name: since
+        type: string
+      - description: Set to 'true' for indented JSON output
+        in: header
+        name: json-indent
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Component metrics data within the specified time range
+          schema:
+            items:
+              $ref: '#/definitions/github_com_leptonai_gpud_api_v1.ComponentMetrics'
+            type: array
+        "400":
+          description: Bad request - invalid content type, component parsing error,
+            or duration parsing error
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Component not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error - failed to read metrics
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get component metrics
+      tags:
+      - components
+  /v1/plugins:
+    get:
+      consumes:
+      - application/json
+      description: Returns a list of all custom plugin specifications registered in
+        the system
+      operationId: getPluginSpecs
+      parameters:
+      - description: Set to 'true' for indented JSON output
+        in: header
+        name: json-indent
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of custom plugin specifications
+          schema:
+            items:
+              $ref: '#/definitions/github_com_leptonai_gpud_pkg_custom-plugins.Spec'
+            type: array
+        "400":
+          description: Bad request - invalid content type
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get custom plugin specifications
+      tags:
+      - plugins
+  /v1/states:
+    get:
+      consumes:
+      - application/json
+      description: Returns the current health states of specified components or all
+        components if none specified. Only supported components are included in the
+        response.
+      operationId: getHealthStates
+      parameters:
+      - description: Content type preference
+        enum:
+        - application/json
+        - application/yaml
+        in: header
+        name: Accept
+        type: string
+      - description: Comma-separated list of component names to query (if empty, returns
+          all components)
+        in: query
+        name: components
+        type: string
+      - description: Set to 'true' for indented JSON output
+        in: header
+        name: json-indent
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Component health states
+          schema:
+            items:
+              $ref: '#/definitions/github_com_leptonai_gpud_api_v1.ComponentHealthStates'
+            type: array
+        "400":
+          description: Bad request - invalid content type or component parsing error
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Component not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get component health states
+      tags:
+      - components
 swagger: "2.0"

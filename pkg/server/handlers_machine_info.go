@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	_ "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 )
@@ -17,7 +18,7 @@ const URLPathMachineInfo = "/machine-info"
 // @ID getMachineInfo
 // @Tags machine
 // @Produce json
-// @Success 200 {object} pkgmachineinfo.MachineInfo "Machine information"
+// @Success 200 {object} v1.MachineInfo "Machine information"
 // @Failure 404 {object} map[string]interface{} "GPUd instance not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /machine-info [get]

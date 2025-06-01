@@ -24,8 +24,8 @@ var DefaultHealthz = Healthz{
 // @Description Returns the health status of the gpud service
 // @ID healthz
 // @Tags health
-// @Accept json,yaml
-// @Produce json,yaml
+// @Accept json
+// @Produce json
 // @Header 200 {string} Content-Type "application/json or application/yaml"
 // @Success 200 {object} Healthz "Health status"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
