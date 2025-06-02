@@ -499,7 +499,6 @@ func TestComponent_CanDeregister(t *testing.T) {
 		},
 	}
 
-	// Verify the component can be deregistered
 	assert.True(t, c.CanDeregister())
 }
 
@@ -2326,4 +2325,181 @@ func TestComponent_Check_RawOutput4096BytesLimitIntegration(t *testing.T) {
 	// Verify the truncated output is a valid prefix of the original
 	originalJSONStr := string(jsonBytes) + "\n" // echo adds newline
 	assert.Equal(t, originalJSONStr[:4096], healthStatesJSON[0].RawOutput, "Truncated JSON should match first 4096 bytes")
+}
+
+// TestComponent_Tags tests the Tags method for various scenarios
+func TestComponent_Tags(t *testing.T) {
+	tests := []struct {
+		name         string
+		spec         *Spec
+		expectedTags []string
+		description  string
+	}{
+		{
+			name: "basic tags without additional spec tags",
+			spec: &Spec{
+				PluginName: "test-plugin",
+				Tags:       nil,
+			},
+			expectedTags: []string{"custom-plugin", "test-plugin"},
+			description:  "Should return base tags when spec has no additional tags",
+		},
+		{
+			name: "tags with additional spec tags",
+			spec: &Spec{
+				PluginName: "my-plugin",
+				Tags:       []string{"tag1", "tag2", "custom-tag"},
+			},
+			expectedTags: []string{"custom-plugin", "my-plugin", "tag1", "tag2", "custom-tag"},
+			description:  "Should return base tags plus additional spec tags",
+		},
+		{
+			name: "tags with empty spec tags slice",
+			spec: &Spec{
+				PluginName: "empty-tags-plugin",
+				Tags:       []string{},
+			},
+			expectedTags: []string{"custom-plugin", "empty-tags-plugin"},
+			description:  "Should return only base tags when spec.Tags is empty slice",
+		},
+		{
+			name: "tags with single additional tag",
+			spec: &Spec{
+				PluginName: "single-tag-plugin",
+				Tags:       []string{"monitoring"},
+			},
+			expectedTags: []string{"custom-plugin", "single-tag-plugin", "monitoring"},
+			description:  "Should handle single additional tag correctly",
+		},
+		{
+			name: "tags with plugin name containing special characters",
+			spec: &Spec{
+				PluginName: "plugin-with-dashes_and_underscores",
+				Tags:       []string{"special", "characters"},
+			},
+			expectedTags: []string{"custom-plugin", "plugin-with-dashes_and_underscores", "special", "characters"},
+			description:  "Should handle plugin names with special characters",
+		},
+		{
+			name: "tags with mixed case plugin name",
+			spec: &Spec{
+				PluginName: "Mixed-Case Plugin",
+				Tags:       []string{"normalize"},
+			},
+			expectedTags: []string{"custom-plugin", "mixed-case-plugin", "normalize"},
+			description:  "Should normalize plugin name to lowercase with dashes",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &component{
+				spec: tt.spec,
+			}
+
+			actualTags := c.Tags()
+
+			// Verify the correct number of tags
+			assert.Equal(t, len(tt.expectedTags), len(actualTags),
+				"Number of tags should match expected count. %s", tt.description)
+
+			// Verify all expected tags are present in correct order
+			assert.Equal(t, tt.expectedTags, actualTags,
+				"Tags should match expected values in correct order. %s", tt.description)
+
+			// Verify base tags are always present
+			assert.Contains(t, actualTags, "custom-plugin",
+				"Tags should always contain 'custom-plugin'")
+			assert.Contains(t, actualTags, c.spec.ComponentName(),
+				"Tags should always contain the component name")
+
+			// If spec has additional tags, verify they are all included
+			if len(tt.spec.Tags) > 0 {
+				for _, specTag := range tt.spec.Tags {
+					assert.Contains(t, actualTags, specTag,
+						"All spec tags should be included in component tags")
+				}
+			}
+		})
+	}
+}
+
+// TestComponent_Tags_NilSpec tests Tags method with nil spec (edge case)
+func TestComponent_Tags_NilSpec(t *testing.T) {
+	c := &component{
+		spec: nil,
+	}
+
+	// This should panic or handle gracefully depending on implementation
+	// Currently, the implementation will panic on nil spec, which is expected behavior
+	assert.Panics(t, func() {
+		c.Tags()
+	}, "Tags() should panic when spec is nil")
+}
+
+// TestComponent_Tags_EmptyPluginName tests Tags method with empty plugin name
+func TestComponent_Tags_EmptyPluginName(t *testing.T) {
+	c := &component{
+		spec: &Spec{
+			PluginName: "",
+			Tags:       []string{"additional-tag"},
+		},
+	}
+
+	actualTags := c.Tags()
+
+	// Should have base tags plus additional tags
+	expectedTags := []string{"custom-plugin", "", "additional-tag"}
+	assert.Equal(t, expectedTags, actualTags,
+		"Tags should handle empty plugin name gracefully")
+}
+
+// TestComponent_Tags_LargeNumberOfAdditionalTags tests Tags method with many additional tags
+func TestComponent_Tags_LargeNumberOfAdditionalTags(t *testing.T) {
+	// Create a large number of additional tags
+	additionalTags := make([]string, 100)
+	for i := 0; i < 100; i++ {
+		additionalTags[i] = fmt.Sprintf("tag-%d", i)
+	}
+
+	c := &component{
+		spec: &Spec{
+			PluginName: "large-tag-plugin",
+			Tags:       additionalTags,
+		},
+	}
+
+	actualTags := c.Tags()
+
+	// Should have 2 base tags + 100 additional tags = 102 total
+	assert.Equal(t, 102, len(actualTags),
+		"Should handle large number of additional tags")
+
+	// Verify base tags are still present
+	assert.Equal(t, "custom-plugin", actualTags[0])
+	assert.Equal(t, "large-tag-plugin", actualTags[1])
+
+	// Verify all additional tags are present
+	for i, expectedTag := range additionalTags {
+		assert.Equal(t, expectedTag, actualTags[i+2],
+			"Additional tag at position %d should match", i)
+	}
+}
+
+// TestComponent_Tags_Consistency tests that Tags method returns consistent results
+func TestComponent_Tags_Consistency(t *testing.T) {
+	c := &component{
+		spec: &Spec{
+			PluginName: "consistency-test-plugin",
+			Tags:       []string{"tag1", "tag2"},
+		},
+	}
+
+	// Call Tags multiple times and verify results are consistent
+	firstCall := c.Tags()
+	secondCall := c.Tags()
+	thirdCall := c.Tags()
+
+	assert.Equal(t, firstCall, secondCall, "Tags should return consistent results")
+	assert.Equal(t, secondCall, thirdCall, "Tags should return consistent results")
 }
