@@ -443,9 +443,10 @@ func (cr *checkResult) getError() string {
 	if cr.err != nil {
 		return cr.err.Error()
 	}
-	if cr.errIbstatus != nil {
-		return cr.errIbstatus.Error()
-	}
+
+	// "cr.errIbstatus" is only used for fallback
+	// thus do not return it as the error
+
 	return ""
 }
 
