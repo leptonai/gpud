@@ -2600,9 +2600,9 @@ Extract the hex strings from the XID error message. eg: (0x12345678, 0x12345678,
 
 Bits 4 or 5: Likely HW issue with ECC/Parity --> If seen more than 2 times on the same link, report a bug.
 
-Bits 21 or 22: Marginal channel SI issue. Check link mechanical connecetions. If other errors accompany, follow the resolution for those.
+Bits 21 or 22: Marginal channel SI issue. Check link mechanical connections. If other errors accompany, follow the resolution for those.
 
-Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanical connecetions and re-seat if a field resolution is required. Run diags if issue persists.
+Bits 8, 9, 12, 16, 17, 24, 28: Could possibly be a HW issue: Check link mechanical connections and re-seat if a field resolution is required. Run diags if issue persists.
 
 
 
