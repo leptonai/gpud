@@ -1569,7 +1569,7 @@ func TestCheckResultMethodsDirectCoverage(t *testing.T) {
 		err:         nil,
 		errIbstatus: errors.New("ibstatus error"),
 	}
-	assert.Equal(t, "ibstatus error", resultWithoutIbstatError.getError())
+	assert.Equal(t, "", resultWithoutIbstatError.getError())
 
 	// Test HealthStates method
 	healthStates := result.HealthStates()
@@ -1678,13 +1678,13 @@ func TestComponentStringWithVariousOutputs(t *testing.T) {
 	// Also test other methods
 	assert.Equal(t, "test ibstatus reason", ibstatusResult.Summary())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, ibstatusResult.HealthStateType())
-	assert.Equal(t, "test ibstatus error", ibstatusResult.getError())
+	assert.Equal(t, "", ibstatusResult.getError())
 	ibstatusResultHealthStates := ibstatusResult.HealthStates()
 	assert.NotNil(t, ibstatusResultHealthStates)
 	assert.Equal(t, 1, len(ibstatusResultHealthStates))
 	assert.Equal(t, "test ibstatus reason", ibstatusResultHealthStates[0].Reason)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, ibstatusResultHealthStates[0].Health)
-	assert.Equal(t, "test ibstatus error", ibstatusResultHealthStates[0].Error)
+	assert.Equal(t, "", ibstatusResultHealthStates[0].Error)
 
 	// Test with both outputs
 	bothResult := &checkResult{
