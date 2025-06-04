@@ -1157,11 +1157,12 @@ func mockGetIbstatusOutput(ctx context.Context, ibstatusCommands []string) (*inf
 
 func TestEvaluateIbstatusOutput(t *testing.T) {
 	tests := []struct {
-		name       string
-		output     *infiniband.IbstatusOutput
-		config     infiniband.ExpectedPortStates
-		wantReason string
-		wantHealth apiv1.HealthStateType
+		name                 string
+		output               *infiniband.IbstatusOutput
+		config               infiniband.ExpectedPortStates
+		wantReason           string
+		wantHealth           apiv1.HealthStateType
+		wantSuggestedActions *apiv1.SuggestedActions
 	}{
 		{
 			name:   "thresholds not set",
@@ -1170,8 +1171,9 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 				AtLeastPorts: 0,
 				AtLeastRate:  0,
 			},
-			wantReason: reasonThresholdNotSetSkipped,
-			wantHealth: apiv1.HealthStateTypeHealthy,
+			wantReason:           reasonThresholdNotSetSkipped,
+			wantHealth:           apiv1.HealthStateTypeHealthy,
+			wantSuggestedActions: nil,
 		},
 		{
 			name: "healthy state with matching ports and rate",
@@ -1198,8 +1200,9 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: reasonNoIbIssueFoundFromIbstatus,
-			wantHealth: apiv1.HealthStateTypeHealthy,
+			wantReason:           reasonNoIbIssueFoundFromIbstatus,
+			wantHealth:           apiv1.HealthStateTypeHealthy,
+			wantSuggestedActions: nil,
 		},
 		{
 			name: "unhealthy state - not enough ports",
@@ -1221,6 +1224,9 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 			},
 			wantReason: "only 1 ports (>= 200 Gb/s) are active, expect at least 2",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
+			wantSuggestedActions: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
 		},
 		{
 			name: "unhealthy state - rate too low",
@@ -1249,6 +1255,9 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 			},
 			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
+			wantSuggestedActions: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
 		},
 		{
 			name: "empty ibstatus devices",
@@ -1262,6 +1271,9 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 			},
 			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
+			wantSuggestedActions: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
 		},
 	}
 
@@ -1273,9 +1285,10 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 				return
 			}
 
-			reason, health := evaluateIbstatusOutputAgainstThresholds(tt.output, tt.config)
+			health, suggestedActions, reason := evaluateIbstatusOutputAgainstThresholds(tt.output, tt.config)
 			assert.Equal(t, tt.wantReason, reason)
 			assert.Equal(t, tt.wantHealth, health)
+			assert.Equal(t, tt.wantSuggestedActions, suggestedActions)
 		})
 	}
 }
@@ -1591,6 +1604,22 @@ func TestCheckResultMethodsDirectCoverage(t *testing.T) {
 	assert.Equal(t, 1, len(healthStatesWithoutOutput))
 	assert.Equal(t, "test reason without output", healthStatesWithoutOutput[0].Reason)
 	assert.Nil(t, healthStatesWithoutOutput[0].ExtraInfo)
+
+	// Test HealthStates with suggested actions
+	resultWithSuggestedActions := &checkResult{
+		reason: "test reason with suggested actions",
+		health: apiv1.HealthStateTypeUnhealthy,
+		suggestedActions: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+		},
+		ts: time.Now().UTC(),
+	}
+	healthStatesWithActions := resultWithSuggestedActions.HealthStates()
+	assert.Equal(t, 1, len(healthStatesWithActions))
+	assert.Equal(t, "test reason with suggested actions", healthStatesWithActions[0].Reason)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStatesWithActions[0].Health)
+	assert.NotNil(t, healthStatesWithActions[0].SuggestedActions)
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, healthStatesWithActions[0].SuggestedActions.RepairActions)
 }
 
 // Test complete coverage of the component.String method with various combinations of outputs
@@ -1951,11 +1980,67 @@ func TestCheckFallbackToIbstatusUnhealthy(t *testing.T) {
 	assert.NoError(t, data.err)         // ibstat func itself didn't error
 	assert.NoError(t, data.errIbstatus) // ibstatus func didn't error
 
+	// Verify suggested actions are set for unhealthy state from ibstatus
+	assert.NotNil(t, data.suggestedActions, "Expected suggested actions to be set for unhealthy state")
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, data.suggestedActions.RepairActions)
+
 	// Verify event was inserted based on ibstatus evaluation
 	events := mockBucket.GetAPIEvents()
 	assert.Equal(t, 1, len(events), "Event should have been inserted based on ibstatus")
 	assert.Equal(t, "ibstat", events[0].Name) // Event name is still 'ibstat'
 	assert.Equal(t, unhealthyReason, events[0].Message)
+}
+
+// Test Check when ibstat fails but ibstatus returns healthy (no suggested actions)
+func TestCheckFallbackToIbstatusHealthy(t *testing.T) {
+	t.Parallel()
+
+	cctx, ccancel := context.WithCancel(context.Background())
+	defer ccancel()
+
+	mockBucket := createMockEventBucket()
+
+	c := &component{
+		ctx:         cctx,
+		cancel:      ccancel,
+		eventBucket: mockBucket,
+		nvmlInstance: &mockNVMLInstance{
+			exists:      true,
+			productName: "Tesla V100",
+		},
+		getIbstatOutputFunc: func(ctx context.Context, ibstatCommands []string) (*infiniband.IbstatOutput, error) {
+			// Return nil output with error (simulating complete ibstat failure)
+			return nil, errors.New("ibstat command failed")
+		},
+		getIbstatusOutputFunc: func(ctx context.Context, ibstatusCommands []string) (*infiniband.IbstatusOutput, error) {
+			// Return healthy ibstatus output
+			return &infiniband.IbstatusOutput{
+				Parsed: infiniband.IBStatuses{
+					{Device: "mlx5_0", State: "4: ACTIVE", PhysicalState: "5: LinkUp", Rate: "200 Gb/sec"},
+					{Device: "mlx5_1", State: "4: ACTIVE", PhysicalState: "5: LinkUp", Rate: "200 Gb/sec"},
+				},
+			}, nil
+		},
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			// Thresholds that the ibstatus output meets
+			return infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 200}
+		},
+	}
+
+	result := c.Check()
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, reasonNoIbIssueFoundFromIbstatus, data.reason)
+	assert.Error(t, data.err, "Expected ibstat error to remain")
+	assert.NoError(t, data.errIbstatus) // ibstatus func didn't error
+
+	// Verify suggested actions are nil for healthy state
+	assert.Nil(t, data.suggestedActions, "Expected no suggested actions for healthy state")
+
+	// Verify no event was inserted for healthy state
+	events := mockBucket.GetAPIEvents()
+	assert.Empty(t, events, "No event should have been inserted for healthy state")
 }
 
 // Test Check when NVML does not exist
