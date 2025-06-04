@@ -256,7 +256,7 @@ func (c *component) Check() components.CheckResult {
 	} else if cr.IbstatusOutput != nil {
 		// ibstat command failed and no output
 		// then we need fallback to the second data source "ibstatus"
-		cr.reason, cr.health = evaluateIbstatusOutputAgainstThresholds(cr.IbstatusOutput, thresholds)
+		cr.health, cr.suggestedActions, cr.reason = evaluateIbstatusOutputAgainstThresholds(cr.IbstatusOutput, thresholds)
 	}
 
 	// we only care about unhealthy events, no need to persist healthy events
@@ -335,18 +335,22 @@ func evaluateIbstatOutputAgainstThresholds(ibstatOut *infiniband.IbstatOutput, t
 
 // Returns the output evaluation reason and its health state.
 // We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
-func evaluateIbstatusOutputAgainstThresholds(ibstatusOut *infiniband.IbstatusOutput, thresholds infiniband.ExpectedPortStates) (string, apiv1.HealthStateType) {
+func evaluateIbstatusOutputAgainstThresholds(ibstatusOut *infiniband.IbstatusOutput, thresholds infiniband.ExpectedPortStates) (apiv1.HealthStateType, *apiv1.SuggestedActions, string) {
 	if thresholds.IsZero() {
-		return reasonThresholdNotSetSkipped, apiv1.HealthStateTypeHealthy
+		return apiv1.HealthStateTypeHealthy, nil, reasonThresholdNotSetSkipped
 	}
 
 	atLeastPorts := thresholds.AtLeastPorts
 	atLeastRate := thresholds.AtLeastRate
 	if err := ibstatusOut.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-		return err.Error(), apiv1.HealthStateTypeUnhealthy
+		return apiv1.HealthStateTypeUnhealthy,
+			&apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
+			err.Error()
 	}
 
-	return reasonNoIbIssueFoundFromIbstatus, apiv1.HealthStateTypeHealthy
+	return apiv1.HealthStateTypeHealthy, nil, reasonNoIbIssueFoundFromIbstatus
 }
 
 var _ components.CheckResult = &checkResult{}
@@ -364,6 +368,8 @@ type checkResult struct {
 
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
+	// tracks the suggested actions for the last check
+	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
 }
@@ -436,6 +442,13 @@ func (cr *checkResult) HealthStateType() apiv1.HealthStateType {
 	return cr.health
 }
 
+func (cr *checkResult) getSuggestedActions() *apiv1.SuggestedActions {
+	if cr == nil {
+		return nil
+	}
+	return cr.suggestedActions
+}
+
 func (cr *checkResult) getError() string {
 	if cr == nil {
 		return ""
@@ -464,12 +477,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		SuggestedActions: cr.getSuggestedActions(),
+		Error:            cr.getError(),
+		Health:           cr.health,
 	}
 
 	if cr.IbstatOutput != nil {
