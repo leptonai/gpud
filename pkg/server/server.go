@@ -175,6 +175,11 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		}
 	}()
 
+	s.machineID, err = pkgmetadata.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to read machine uid: %w", err)
+	}
+
 	kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
 	s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
 
@@ -186,6 +191,8 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	s.gpudInstance = &components.GPUdInstance{
 		RootCtx: ctx,
 
+		MachineID: s.machineID,
+
 		NVMLInstance:         nvmlInstance,
 		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
 
@@ -196,6 +203,10 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 
 		MountPoints:  []string{"/"},
 		MountTargets: []string{"/var/lib/kubelet"},
+	}
+	if s.gpudInstance.MachineID == "" {
+		s.gpudInstance.MachineID = pkghost.MachineID()
+		log.Logger.Infow("assigned machine id not found, using host level machine ID", "machineID", s.gpudInstance.MachineID)
 	}
 
 	s.componentsRegistry = components.NewRegistry(s.gpudInstance)
@@ -266,11 +277,6 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		}
 	}
 	go doCompact(ctx, dbRW, config.CompactPeriod.Duration)
-
-	s.machineID, err = pkgmetadata.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("failed to read machine uid: %w", err)
-	}
 
 	cert, err := s.generateSelfSignedCert()
 	if err != nil {
