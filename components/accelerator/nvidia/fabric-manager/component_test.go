@@ -320,7 +320,7 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	comp := &component{
 		ctx:               context.Background(),
 		cancel:            func() {},
-		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+		nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 4},
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return false },
 	}
@@ -515,7 +515,7 @@ func TestCheckAllBranches(t *testing.T) {
 			comp := &component{
 				ctx:               context.Background(),
 				cancel:            func() {},
-				nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+				nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 4},
 				checkFMExistsFunc: func() bool { return tc.fmExists },
 				checkFMActiveFunc: func() bool { return tc.fmActive },
 			}
@@ -644,7 +644,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		},
 		{
 			name:              "nvml exists, FM executable found but not active",
-			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 4},
 			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
 			expectedReason:    "nv-fabricmanager found but fabric manager service is not active",
 			checkFMExistsFunc: func() bool { return true },
@@ -785,8 +785,8 @@ func TestCheckDeviceCountLogic(t *testing.T) {
 		{
 			name:           "two devices detected",
 			deviceCount:    2,
-			expectedHealth: apiv1.HealthStateTypeUnhealthy,
-			expectedReason: "nv-fabricmanager found but fabric manager service is not active",
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "only 2 GPU(s) detected, skipping fabric manager check",
 		},
 		{
 			name:           "multiple devices detected",
@@ -869,4 +869,324 @@ func TestCheckDeviceCountWithActiveManager(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
 	assert.Equal(t, "fabric manager found and active", checkResult.reason)
 	assert.True(t, checkResult.FabricManagerActive)
+}
+
+// TestDeviceCountThresholdLogic tests the specific "deviceCnt <= 2" logic thoroughly
+func TestDeviceCountThresholdLogic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                   string
+		deviceCount            int
+		expectedHealth         apiv1.HealthStateType
+		expectedReason         string
+		expectedFMActive       bool
+		fabricManagerExists    bool
+		fabricManagerActive    bool
+		shouldTriggerThreshold bool // whether the <= 2 logic should be triggered
+	}{
+		{
+			name:                   "zero devices - threshold applies",
+			deviceCount:            0,
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReason:         "only 0 GPU(s) detected, skipping fabric manager check",
+			expectedFMActive:       false,
+			fabricManagerExists:    true,
+			fabricManagerActive:    false,
+			shouldTriggerThreshold: true,
+		},
+		{
+			name:                   "one device - threshold applies",
+			deviceCount:            1,
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReason:         "only 1 GPU(s) detected, skipping fabric manager check",
+			expectedFMActive:       false,
+			fabricManagerExists:    true,
+			fabricManagerActive:    false,
+			shouldTriggerThreshold: true,
+		},
+		{
+			name:                   "two devices - threshold applies (boundary case)",
+			deviceCount:            2,
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReason:         "only 2 GPU(s) detected, skipping fabric manager check",
+			expectedFMActive:       false,
+			fabricManagerExists:    true,
+			fabricManagerActive:    false,
+			shouldTriggerThreshold: true,
+		},
+		{
+			name:                   "three devices - threshold does not apply",
+			deviceCount:            3,
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReason:         "nv-fabricmanager found but fabric manager service is not active",
+			expectedFMActive:       false,
+			fabricManagerExists:    true,
+			fabricManagerActive:    false,
+			shouldTriggerThreshold: false,
+		},
+		{
+			name:                   "four devices - threshold does not apply",
+			deviceCount:            4,
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReason:         "nv-fabricmanager found but fabric manager service is not active",
+			expectedFMActive:       false,
+			fabricManagerExists:    true,
+			fabricManagerActive:    false,
+			shouldTriggerThreshold: false,
+		},
+		{
+			name:                   "eight devices - threshold does not apply",
+			deviceCount:            8,
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReason:         "nv-fabricmanager found but fabric manager service is not active",
+			expectedFMActive:       false,
+			fabricManagerExists:    true,
+			fabricManagerActive:    false,
+			shouldTriggerThreshold: false,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create mock NVML instance with specified device count
+			mockNVML := &mockNVMLInstance{
+				exists:      true,
+				supportsFM:  true,
+				productName: "Test GPU",
+				deviceCount: tc.deviceCount,
+			}
+
+			// Create component where fabric manager exists but is not active
+			// This is the specific scenario where the deviceCnt <= 2 logic is evaluated
+			comp := &component{
+				ctx:               context.Background(),
+				cancel:            func() {},
+				nvmlInstance:      mockNVML,
+				checkFMExistsFunc: func() bool { return tc.fabricManagerExists },
+				checkFMActiveFunc: func() bool { return tc.fabricManagerActive },
+			}
+
+			// Call Check method
+			result := comp.Check()
+
+			// Verify the result
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok, "Expected result to be of type *checkResult")
+
+			// Verify health and reason
+			assert.Equal(t, tc.expectedHealth, checkResult.health,
+				"Health state mismatch for %d devices", tc.deviceCount)
+			assert.Equal(t, tc.expectedReason, checkResult.reason,
+				"Reason mismatch for %d devices", tc.deviceCount)
+
+			// Verify FabricManagerActive state
+			assert.Equal(t, tc.expectedFMActive, checkResult.FabricManagerActive,
+				"FabricManagerActive mismatch for %d devices", tc.deviceCount)
+
+			// Additional verification: check that the threshold logic is applied correctly
+			if tc.shouldTriggerThreshold {
+				assert.Contains(t, checkResult.reason, "skipping fabric manager check",
+					"Should contain 'skipping' message when threshold applies")
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health,
+					"Should be healthy when threshold applies")
+			} else {
+				assert.NotContains(t, checkResult.reason, "skipping fabric manager check",
+					"Should not contain 'skipping' message when threshold does not apply")
+				// Only verify unhealthy if FM is not active and exists
+				if tc.fabricManagerExists && !tc.fabricManagerActive {
+					assert.Equal(t, apiv1.HealthStateTypeUnhealthy, checkResult.health,
+						"Should be unhealthy when FM exists but is not active and threshold does not apply")
+				}
+			}
+
+			// Also verify through LastHealthStates()
+			states := comp.LastHealthStates()
+			assert.Len(t, states, 1)
+			assert.Equal(t, Name, states[0].Name)
+			assert.Equal(t, tc.expectedHealth, states[0].Health)
+			assert.Equal(t, tc.expectedReason, states[0].Reason)
+		})
+	}
+}
+
+// TestDeviceCountBoundaryConditions tests specific boundary conditions around the <= 2 logic
+func TestDeviceCountBoundaryConditions(t *testing.T) {
+	t.Parallel()
+
+	// Test the exact boundary: 2 vs 3 devices
+	testCases := []struct {
+		deviceCount    int
+		expectedResult string
+	}{
+		{2, "only 2 GPU(s) detected, skipping fabric manager check"},
+		{3, "nv-fabricmanager found but fabric manager service is not active"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("boundary_%d_devices", tc.deviceCount), func(t *testing.T) {
+			mockNVML := &mockNVMLInstance{
+				exists:      true,
+				supportsFM:  true,
+				productName: "Test GPU",
+				deviceCount: tc.deviceCount,
+			}
+
+			comp := &component{
+				ctx:               context.Background(),
+				cancel:            func() {},
+				nvmlInstance:      mockNVML,
+				checkFMExistsFunc: func() bool { return true },  // FM exists
+				checkFMActiveFunc: func() bool { return false }, // FM not active
+			}
+
+			result := comp.Check()
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok)
+			assert.Equal(t, tc.expectedResult, checkResult.reason)
+		})
+	}
+}
+
+// TestDeviceCountWithVariousStates tests the device count logic with different states
+func TestDeviceCountWithVariousStates(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		deviceCount         int
+		nvmlExists          bool
+		fabricManagerExists bool
+		fabricManagerActive bool
+		productName         string
+		expectedHealth      apiv1.HealthStateType
+		shouldCheckDevices  bool // whether device count logic should even be evaluated
+	}{
+		{
+			name:                "device count logic skipped when NVML doesn't exist",
+			deviceCount:         1,
+			nvmlExists:          false,
+			fabricManagerExists: true,
+			fabricManagerActive: false,
+			productName:         "Test GPU",
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			shouldCheckDevices:  false,
+		},
+		{
+			name:                "device count logic skipped when product name is empty",
+			deviceCount:         1,
+			nvmlExists:          true,
+			fabricManagerExists: true,
+			fabricManagerActive: false,
+			productName:         "",
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			shouldCheckDevices:  false,
+		},
+		{
+			name:                "device count logic skipped when FM doesn't exist",
+			deviceCount:         1,
+			nvmlExists:          true,
+			fabricManagerExists: false,
+			fabricManagerActive: false,
+			productName:         "Test GPU",
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			shouldCheckDevices:  false,
+		},
+		{
+			name:                "device count logic applied when FM exists but not active",
+			deviceCount:         1,
+			nvmlExists:          true,
+			fabricManagerExists: true,
+			fabricManagerActive: false,
+			productName:         "Test GPU",
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			shouldCheckDevices:  true,
+		},
+		{
+			name:                "device count logic skipped when FM is active",
+			deviceCount:         1,
+			nvmlExists:          true,
+			fabricManagerExists: true,
+			fabricManagerActive: true,
+			productName:         "Test GPU",
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			shouldCheckDevices:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockNVML := &mockNVMLInstance{
+				exists:      tc.nvmlExists,
+				supportsFM:  true,
+				productName: tc.productName,
+				deviceCount: tc.deviceCount,
+			}
+
+			comp := &component{
+				ctx:               context.Background(),
+				cancel:            func() {},
+				nvmlInstance:      mockNVML,
+				checkFMExistsFunc: func() bool { return tc.fabricManagerExists },
+				checkFMActiveFunc: func() bool { return tc.fabricManagerActive },
+			}
+
+			result := comp.Check()
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok)
+
+			assert.Equal(t, tc.expectedHealth, checkResult.health)
+
+			if tc.shouldCheckDevices && tc.deviceCount <= 2 {
+				assert.Contains(t, checkResult.reason, "skipping fabric manager check",
+					"Should contain 'skipping' message when device count logic is applied")
+			}
+		})
+	}
+}
+
+// TestDeviceCountFormattingConsistency tests that the message formatting is consistent
+func TestDeviceCountFormattingConsistency(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		deviceCount int
+		expected    string
+	}{
+		{0, "only 0 GPU(s) detected, skipping fabric manager check"},
+		{1, "only 1 GPU(s) detected, skipping fabric manager check"},
+		{2, "only 2 GPU(s) detected, skipping fabric manager check"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("format_%d_devices", tc.deviceCount), func(t *testing.T) {
+			mockNVML := &mockNVMLInstance{
+				exists:      true,
+				supportsFM:  true,
+				productName: "Test GPU",
+				deviceCount: tc.deviceCount,
+			}
+
+			comp := &component{
+				ctx:               context.Background(),
+				cancel:            func() {},
+				nvmlInstance:      mockNVML,
+				checkFMExistsFunc: func() bool { return true },  // FM exists
+				checkFMActiveFunc: func() bool { return false }, // FM not active
+			}
+
+			result := comp.Check()
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok)
+
+			assert.Equal(t, tc.expected, checkResult.reason,
+				"Message format should be consistent for %d devices", tc.deviceCount)
+		})
+	}
 }

@@ -188,7 +188,7 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = "nv-fabricmanager found but fabric manager service is not active"
 
 		deviceCnt := len(c.nvmlInstance.Devices())
-		if deviceCnt <= 1 {
+		if deviceCnt <= 2 {
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = fmt.Sprintf("only %d GPU(s) detected, skipping fabric manager check", deviceCnt)
 		}
