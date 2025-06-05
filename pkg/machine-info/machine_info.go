@@ -255,7 +255,8 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 		// fallback to pci in case nvml/nvidia driver has not been loaded
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		devs, err := nvidiaquery.ListNVIDIAPCIs(ctx)
+
+		devs, err := nvidiaquery.ListPCIGPUs(ctx)
 		if err != nil {
 			log.Logger.Errorw("failed to list nvidia pci devices", "error", err)
 		}
