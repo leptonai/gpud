@@ -204,6 +204,23 @@ func Command(cliContext *cli.Context) error {
 		}
 	}
 
+	if len(loginResp.ValidationResults) > 0 {
+		fmt.Printf("validation results:\n")
+		invalids := 0
+		for _, result := range loginResp.ValidationResults {
+			if result.Valid {
+				continue // only print invalid results
+			}
+			invalids++
+			fmt.Printf("%s %s: %s (%s)\n", cmdcommon.WarningSign, result.Name, result.Reason, result.Suggestion)
+		}
+		if invalids > 0 {
+			fmt.Printf("please fix the above issues and try again\n")
+		} else {
+			fmt.Printf("all checks passed\n")
+		}
+	}
+
 	fmt.Printf("%s successfully logged in with machine id %s\n", cmdcommon.CheckMark, loginResp.MachineID)
 	return nil
 }

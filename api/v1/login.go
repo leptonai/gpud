@@ -27,4 +27,16 @@ type LoginResponse struct {
 
 	// Token is the token used to report data from the machine.
 	Token string `json:"token,omitempty"`
+
+	// ValidationResults is the validation results for the login request.
+	// The validation results are done by the control plane.
+	ValidationResults []ValidationResult `json:"validationResults,omitempty"`
+}
+
+// ValidationResult is the validation result for the login request.
+type ValidationResult struct {
+	Name       string `json:"name"`
+	Valid      bool   `json:"valid"`
+	Reason     string `json:"reason"`
+	Suggestion string `json:"suggestion"`
 }
