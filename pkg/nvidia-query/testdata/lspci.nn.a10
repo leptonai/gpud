@@ -1,6 +1,3 @@
-package lspci
-
-var NormalOutput = `
 00:00.0 Host bridge [0600]: Intel Corporation 82G33/G31/P35/P31 Express DRAM Controller [8086:29c0]
 00:01.0 VGA compatible controller [0300]: Red Hat, Inc. Virtio GPU [1af4:1050] (rev 01)
 00:02.0 PCI bridge [0604]: Red Hat, Inc. QEMU PCIe Root port [1b36:000c]
@@ -21,4 +18,3 @@ var NormalOutput = `
 05:00.0 Ethernet controller [0200]: Mellanox Technologies ConnectX Family mlx5Gen Virtual Function [15b3:101e]
 06:00.0 3D controller [0302]: NVIDIA Corporation GA102GL [A10] [10de:2236] (rev a1)
 07:00.0 Communication controller [0780]: Red Hat, Inc. Virtio socket [1af4:1053] (rev 01)
-`

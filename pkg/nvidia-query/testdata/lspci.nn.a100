@@ -1,0 +1,31 @@
+0001:00:00.0 3D controller [0302]: NVIDIA Corporation GA100 [A100 SXM4 80GB] [10de:20b2] (rev a1)
+0002:00:00.0 3D controller [0302]: NVIDIA Corporation GA100 [A100 SXM4 80GB] [10de:20b2] (rev a1)
+0003:00:00.0 3D controller [0302]: NVIDIA Corporation GA100 [A100 SXM4 80GB] [10de:20b2] (rev a1)
+0004:00:00.0 3D controller [0302]: NVIDIA Corporation GA100 [A100 SXM4 80GB] [10de:20b2] (rev a1)
+0005:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)
+0006:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)
+0007:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)
+0008:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)
+0009:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)
+000a:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)
+000b:00:00.0 3D controller [0302]: NVIDIA Corporation GA100 [A100 SXM4 80GB] [10de:20b2] (rev a1)
+000c:00:00.0 3D controller [0302]: NVIDIA Corporation GA100 [A100 SXM4 80GB] [10de:20b2] (rev a1)
+000d:00:00.0 3D controller [0302]: NVIDIA Corporation GA100 [A100 SXM4 80GB] [10de:20b2] (rev a1)
+000e:00:00.0 3D controller [0302]: NVIDIA Corporation GA100 [A100 SXM4 80GB] [10de:20b2] (rev a1)
+0101:00:00.0 Infiniband controller [0207]: Mellanox Technologies MT28908 Family [ConnectX-6 Virtual Function] [15b3:101c]
+0102:00:00.0 Infiniband controller [0207]: Mellanox Technologies MT28908 Family [ConnectX-6 Virtual Function] [15b3:101c]
+0103:00:00.0 Infiniband controller [0207]: Mellanox Technologies MT28908 Family [ConnectX-6 Virtual Function] [15b3:101c]
+0104:00:00.0 Infiniband controller [0207]: Mellanox Technologies MT28908 Family [ConnectX-6 Virtual Function] [15b3:101c]
+0105:00:00.0 Infiniband controller [0207]: Mellanox Technologies MT28908 Family [ConnectX-6 Virtual Function] [15b3:101c]
+0106:00:00.0 Infiniband controller [0207]: Mellanox Technologies MT28908 Family [ConnectX-6 Virtual Function] [15b3:101c]
+0107:00:00.0 Infiniband controller [0207]: Mellanox Technologies MT28908 Family [ConnectX-6 Virtual Function] [15b3:101c]
+0108:00:00.0 Infiniband controller [0207]: Mellanox Technologies MT28908 Family [ConnectX-6 Virtual Function] [15b3:101c]
+30c3:00:00.0 Non-Volatile memory controller [0108]: Microsoft Corporation Device [1414:b111]
+60e0:00:00.0 Non-Volatile memory controller [0108]: Microsoft Corporation Device [1414:b111]
+7367:00:00.0 Non-Volatile memory controller [0108]: Microsoft Corporation Device [1414:b111]
+8565:00:00.0 Non-Volatile memory controller [0108]: Microsoft Corporation Device [1414:b111]
+9144:00:00.0 Non-Volatile memory controller [0108]: Microsoft Corporation Device [1414:b111]
+b717:00:00.0 Non-Volatile memory controller [0108]: Microsoft Corporation Device [1414:b111]
+c941:00:02.0 Ethernet controller [0200]: Mellanox Technologies MT27710 Family [ConnectX-4 Lx Virtual Function] [15b3:1016] (rev 80)
+d7ed:00:00.0 Non-Volatile memory controller [0108]: Microsoft Corporation Device [1414:b111]
+f392:00:00.0 Non-Volatile memory controller [0108]: Microsoft Corporation Device [1414:b111]

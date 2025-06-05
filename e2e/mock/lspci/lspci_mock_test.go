@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	e2emock "github.com/leptonai/gpud/e2e/mock"
-	query "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 )
 
 func TestMock(t *testing.T) {
@@ -45,7 +45,7 @@ func TestMock(t *testing.T) {
 	var lastErr error
 
 	for i := 0; i < maxRetries; i++ {
-		deviceNames, err = query.ListNVIDIAPCIs(ctx)
+		deviceNames, err = nvidiaquery.ListPCIGPUs(ctx)
 		if err == nil && len(deviceNames) > 0 {
 			break
 		}
@@ -59,6 +59,6 @@ func TestMock(t *testing.T) {
 	}
 
 	require.NotEmpty(t, deviceNames, "Device names should not be empty")
-	assert.Contains(t, deviceNames, "06:00.0 3D controller: NVIDIA Corporation GA102GL [A10] (rev a1)",
+	assert.Contains(t, deviceNames, "06:00.0 3D controller [0302]: NVIDIA Corporation GA102GL [A10] [10de:2236] (rev a1)",
 		"Expected NVIDIA device not found in output")
 }
