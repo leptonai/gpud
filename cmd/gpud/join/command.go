@@ -89,12 +89,15 @@ func Command(cliContext *cli.Context) (retErr error) {
 	}
 
 	// assume if not empty, it should have been persisted by the "gpud login" command
-	log.Logger.Debugw("reading private IP from state file")
-	privateIP, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyPrivateIP)
-	if err != nil {
-		return fmt.Errorf("failed to read private IP: %w", err)
+	privateIP := cliContext.String("private-ip")
+	if privateIP == "" {
+		log.Logger.Debugw("reading private IP from state file")
+		privateIP, err = pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyPrivateIP)
+		if err != nil {
+			return fmt.Errorf("failed to read private IP: %w", err)
+		}
+		log.Logger.Debugw("successfully read private IP from state file", "privateIP", privateIP)
 	}
-	log.Logger.Debugw("successfully read private IP from state file", "privateIP", privateIP)
 
 	// assume if not empty, it should have been persisted by the "gpud login" command
 	log.Logger.Debugw("reading public IP from state file")
