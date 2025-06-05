@@ -453,6 +453,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
+				&cli.StringFlag{
+					Name:  "nfs-checker-configs",
+					Usage: "set the NFS checker group configs in JSON (leave empty for default, useful for testing)",
+				},
 
 				// only for testing
 				cli.StringFlag{

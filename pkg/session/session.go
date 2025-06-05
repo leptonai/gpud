@@ -14,11 +14,15 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
+	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -127,6 +131,9 @@ type Session struct {
 
 	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
 
+	setDefaultIbExpectedPortStatesFunc func(states infiniband.ExpectedPortStates)
+	setDefaultNFSGroupConfigsFunc      func(cfgs pkgnfschecker.Configs)
+
 	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store
 	componentsRegistry components.Registry
@@ -190,6 +197,9 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		token:     token,
 
 		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
+
+		setDefaultIbExpectedPortStatesFunc: componentsnvidiainfiniband.SetDefaultExpectedPortStates,
+		setDefaultNFSGroupConfigsFunc:      componentsnfs.SetDefaultConfigs,
 
 		nvmlInstance:       op.nvmlInstance,
 		metricsStore:       op.metricsStore,

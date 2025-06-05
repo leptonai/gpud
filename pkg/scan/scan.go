@@ -60,6 +60,8 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,
 
+		MachineID: mi.MachineID,
+
 		NVMLInstance: nvmlInstance,
 		NVIDIAToolOverwrites: nvidiacommon.ToolOverwrites{
 			IbstatCommand:   op.ibstatCommand,
