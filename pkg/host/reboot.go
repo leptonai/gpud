@@ -45,6 +45,8 @@ func WithSystemctl(b bool) OpOption {
 
 var ErrNotRoot = errors.New("must be run as sudo/root")
 
+var defaultRebootCmd = "sudo reboot"
+
 // Reboot reboots the system.
 func Reboot(ctx context.Context, opts ...OpOption) error {
 	options := &Op{}
@@ -58,7 +60,7 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 	}
 
 	// "sudo shutdown -r +1" does not work
-	cmd := "sudo reboot"
+	cmd := defaultRebootCmd
 	if options.useSystemctl {
 		cmd = "sudo systemctl reboot"
 	}
@@ -81,6 +83,22 @@ func Reboot(ctx context.Context, opts ...OpOption) error {
 
 		// actually, this should not print if reboot worked
 		log.Logger.Warnw("successfully rebooted", "command", cmd, "error", rerr)
+
+		// by now, the process has not exited...
+		// meaning reboot did not work!
+
+		for range 10 {
+			select {
+			case <-time.After(5 * time.Second):
+				log.Logger.Warnw("reboot did not work, rebooting again", "command", defaultRebootCmd)
+				rerr := runReboot(ctx, defaultRebootCmd)
+				log.Logger.Warnw("triggered fallback reboot", "command", defaultRebootCmd, "error", rerr)
+
+			case <-ctx.Done():
+				log.Logger.Warnw("context done, aborting reboot", "command", cmd)
+				return
+			}
+		}
 	}()
 
 	log.Logger.Infow(
