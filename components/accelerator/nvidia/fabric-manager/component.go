@@ -187,12 +187,12 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	if !c.nvmlInstance.FabricManagerSupported() {
-		cr.FabricManagerActive = false
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = c.nvmlInstance.ProductName() + " does not support fabric manager"
-		return cr
-	}
+	// if !c.nvmlInstance.FabricManagerSupported() {
+	// 	cr.FabricManagerActive = false
+	// 	cr.health = apiv1.HealthStateTypeHealthy
+	// 	cr.reason = c.nvmlInstance.ProductName() + " does not support fabric manager"
+	// 	return cr
+	// }
 
 	if c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
 		cr.health = apiv1.HealthStateTypeHealthy
