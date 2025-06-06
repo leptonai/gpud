@@ -50,15 +50,6 @@ func WithSkipUsage() OpOption {
 	}
 }
 
-func DefaultMatchFuncFstype(fs string) bool {
-	return strings.HasPrefix(fs, "ext4") ||
-		strings.HasPrefix(fs, "apfs") ||
-		strings.HasPrefix(fs, "xfs") ||
-		strings.HasPrefix(fs, "btrfs") ||
-		strings.HasPrefix(fs, "zfs") ||
-		(strings.HasPrefix(fs, "fuse.") && !strings.HasPrefix(fs, "fuse.lxcfs")) // e.g., "fuse.juicefs"
-}
-
 func DefaultMatchFuncDeviceType(deviceType string) bool {
 	return deviceType == "disk" // not "part" partitions
 }
@@ -68,7 +59,8 @@ func DefaultFsTypeFunc(fsType string) bool {
 		fsType == "ext4" ||
 		fsType == "LVM2_member" ||
 		fsType == "linux_raid_member" ||
-		fsType == "raid0"
+		fsType == "raid0" ||
+		strings.HasPrefix(fsType, "nfs") // e.g., "nfs4"
 }
 
 func DefaultExt4FsTypeFunc(fsType string) bool {
@@ -77,7 +69,7 @@ func DefaultExt4FsTypeFunc(fsType string) bool {
 
 func DefaultNFSFsTypeFunc(fsType string) bool {
 	// ref. https://www.weka.io/
-	return fsType == "wekafs" || fsType == "nfs"
+	return fsType == "wekafs" || strings.HasPrefix(fsType, "nfs")
 }
 
 func DefaultDeviceTypeFunc(dt string) bool {
