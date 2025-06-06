@@ -14,7 +14,7 @@ func TestGetPartitions(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	partitions, err := GetPartitions(ctx, WithFstype(DefaultMatchFuncFstype))
+	partitions, err := GetPartitions(ctx, WithFstype(DefaultFsTypeFunc))
 	if err != nil {
 		t.Fatalf("failed to get partitions: %v", err)
 	}
@@ -259,32 +259,6 @@ func TestOpApplyOpts(t *testing.T) {
 	}
 }
 
-func TestDefaultMatchFuncFstype(t *testing.T) {
-	tests := []struct {
-		fs   string
-		want bool
-	}{
-		{"ext4", true},
-		{"apfs", true},
-		{"xfs", true},
-		{"btrfs", true},
-		{"zfs", true},
-		{"fuse.juicefs", true},
-		{"fuse.lxcfs", false},
-		{"tmpfs", false},
-		{"proc", false},
-		{"sysfs", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.fs, func(t *testing.T) {
-			if got := DefaultMatchFuncFstype(tt.fs); got != tt.want {
-				t.Errorf("DefaultMatchFuncFstype(%s) = %v, want %v", tt.fs, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestDefaultMatchFuncDeviceType(t *testing.T) {
 	tests := []struct {
 		deviceType string
@@ -310,7 +284,7 @@ func TestGetPartitionsWithSkipUsage(t *testing.T) {
 	defer cancel()
 
 	// Get partitions with skipUsage set to true
-	partitions, err := GetPartitions(ctx, WithSkipUsage(), WithFstype(DefaultMatchFuncFstype))
+	partitions, err := GetPartitions(ctx, WithSkipUsage(), WithFstype(DefaultFsTypeFunc))
 	if err != nil {
 		t.Fatalf("failed to get partitions with skipUsage: %v", err)
 	}
@@ -324,7 +298,7 @@ func TestGetPartitionsWithSkipUsage(t *testing.T) {
 	}
 
 	// Now get partitions without skipUsage for comparison
-	partitionsWithUsage, err := GetPartitions(ctx, WithFstype(DefaultMatchFuncFstype))
+	partitionsWithUsage, err := GetPartitions(ctx, WithFstype(DefaultFsTypeFunc))
 	if err != nil {
 		t.Fatalf("failed to get partitions without skipUsage: %v", err)
 	}
