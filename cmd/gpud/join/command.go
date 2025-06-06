@@ -101,11 +101,14 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	// assume if not empty, it should have been persisted by the "gpud login" command
 	log.Logger.Debugw("reading public IP from state file")
-	publicIP, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyPublicIP)
-	if err != nil {
-		return fmt.Errorf("failed to read public IP: %w", err)
+	publicIP := cliContext.String("public-ip")
+	if publicIP == "" {
+		publicIP, err = pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyPublicIP)
+		if err != nil {
+			return fmt.Errorf("failed to read public IP: %w", err)
+		}
+		log.Logger.Debugw("successfully read public IP from state file", "publicIP", publicIP)
 	}
-	log.Logger.Debugw("successfully read public IP from state file", "publicIP", publicIP)
 
 	log.Logger.Debugw("reading cluster name from command line")
 	clusterName := cliContext.String("cluster-name")
