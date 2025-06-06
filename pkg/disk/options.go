@@ -69,7 +69,7 @@ func DefaultExt4FsTypeFunc(fsType string) bool {
 
 func DefaultNFSFsTypeFunc(fsType string) bool {
 	// ref. https://www.weka.io/
-	return fsType == "wekafs" || fsType == "nfs"
+	return fsType == "wekafs" || strings.HasPrefix(fsType, "nfs")
 }
 
 func DefaultDeviceTypeFunc(dt string) bool {
