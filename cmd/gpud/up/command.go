@@ -7,6 +7,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	cmdjoin "github.com/leptonai/gpud/cmd/gpud/join"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
@@ -30,14 +31,33 @@ func Command(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
+	// step 1.
+	// perform "login" if and only if configured
 	if cliContext.String("token") != "" {
 		log.Logger.Debugw("non-empty --token provided, logging in")
 		if lerr := cmdlogin.Command(cliContext); lerr != nil {
 			return lerr
 		}
 		log.Logger.Debugw("successfully logged in")
+	} else {
+		log.Logger.Infow("no --token provided, skipping login")
 	}
 
+	// step 2.
+	// perform "join" if and only if configured
+	nodeGroup := cliContext.String("node-group")
+	if nodeGroup != "" {
+		log.Logger.Debugw("non-empty --node-group provided, joining")
+		if jerr := cmdjoin.Command(cliContext); jerr != nil {
+			return jerr
+		}
+		log.Logger.Debugw("successfully joined")
+	} else {
+		log.Logger.Infow("no --token provided, skipping join")
+	}
+
+	// step 3.
+	// perform "run" to start the daemon in systemd service
 	bin, err := os.Executable()
 	if err != nil {
 		return err
