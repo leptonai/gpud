@@ -37,9 +37,14 @@ const (
 
 	// DefaultThresholdRunningPIDs is some high number, in case fd-max is unlimited
 	DefaultThresholdRunningPIDs = 900000
+)
 
-	WarningFileHandlesAllocationPercent    = 80.0
-	ErrFileHandlesAllocationExceedsWarning = "file handles allocation exceeds its threshold (80%)"
+const (
+	defaultThresholdAllocatedFileHandlesPercentDegraded  = 80.0
+	defaultThresholdAllocatedFileHandlesPercentUnhealthy = 95.0
+
+	defaultThresholdRunningPIDsPercentDegraded  = 80.0
+	defaultThresholdRunningPIDsPercentUnhealthy = 95.0
 )
 
 var _ components.Component = &component{}
@@ -52,9 +57,11 @@ type component struct {
 	eventBucket      eventstore.Bucket
 	kmsgSyncer       *kmsg.Syncer
 
-	countProcessesByStatusFunc  func(ctx context.Context) (map[string][]process.ProcessStatus, error)
-	zombieProcessCountThreshold int
+	countProcessesByStatusFunc           func(ctx context.Context) (map[string][]process.ProcessStatus, error)
+	zombieProcessCountThresholdDegraded  int
+	zombieProcessCountThresholdUnhealthy int
 
+	getHostUptimeFunc             func(ctx context.Context) (uint64, error)
 	getFileHandlesFunc            func() (uint64, uint64, error)
 	countRunningPIDsFunc          func() (uint64, error)
 	getUsageFunc                  func() (uint64, error)
@@ -64,12 +71,17 @@ type component struct {
 
 	// thresholdAllocatedFileHandles is the number of file descriptors that are currently allocated,
 	// at which we consider the system to be under high file descriptor usage.
-	thresholdAllocatedFileHandles uint64
+	thresholdAllocatedFileHandles                 uint64
+	thresholdAllocatedFileHandlesPercentDegraded  float64
+	thresholdAllocatedFileHandlesPercentUnhealthy float64
+
 	// thresholdRunningPIDs is the number of running pids at which
 	// we consider the system to be under high file descriptor usage.
 	// This is useful for triggering alerts when the system is under high load.
 	// And useful when the actual system fd-max is set to unlimited.
-	thresholdRunningPIDs uint64
+	thresholdRunningPIDs                 uint64
+	thresholdRunningPIDsPercentDegraded  float64
+	thresholdRunningPIDsPercentUnhealthy float64
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -83,9 +95,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		rebootEventStore: gpudInstance.RebootEventStore,
 
-		countProcessesByStatusFunc:  process.CountProcessesByStatus,
-		zombieProcessCountThreshold: defaultZombieProcessCountThreshold,
+		countProcessesByStatusFunc:           process.CountProcessesByStatus,
+		zombieProcessCountThresholdDegraded:  defaultZombieProcessCountThresholdDegraded,
+		zombieProcessCountThresholdUnhealthy: defaultZombieProcessCountThresholdUnhealthy,
 
+		getHostUptimeFunc:             host.UptimeWithContext,
 		getFileHandlesFunc:            file.GetFileHandles,
 		countRunningPIDsFunc:          process.CountRunningPids,
 		getUsageFunc:                  file.GetUsage,
@@ -93,8 +107,13 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		checkFileHandlesSupportedFunc: file.CheckFileHandlesSupported,
 		checkFDLimitSupportedFunc:     file.CheckFDLimitSupported,
 
-		thresholdAllocatedFileHandles: DefaultThresholdAllocatedFileHandles,
-		thresholdRunningPIDs:          DefaultThresholdRunningPIDs,
+		thresholdAllocatedFileHandles:                 DefaultThresholdAllocatedFileHandles,
+		thresholdAllocatedFileHandlesPercentDegraded:  defaultThresholdAllocatedFileHandlesPercentDegraded,
+		thresholdAllocatedFileHandlesPercentUnhealthy: defaultThresholdAllocatedFileHandlesPercentUnhealthy,
+
+		thresholdRunningPIDs:                 DefaultThresholdRunningPIDs,
+		thresholdRunningPIDsPercentDegraded:  defaultThresholdRunningPIDsPercentDegraded,
+		thresholdRunningPIDsPercentUnhealthy: defaultThresholdRunningPIDsPercentUnhealthy,
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -229,7 +248,7 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	uptime, err := host.UptimeWithContext(cctx)
+	uptime, err := c.getHostUptimeFunc(cctx)
 	ccancel()
 	if err != nil {
 		cr.err = err
@@ -261,10 +280,22 @@ func (c *component) Check() components.CheckResult {
 			break
 		}
 	}
+
 	metricZombieProcesses.With(prometheus.Labels{}).Set(float64(cr.ZombieProcesses))
-	if cr.ZombieProcesses > c.zombieProcessCountThreshold {
+
+	if cr.ZombieProcesses > c.zombieProcessCountThresholdUnhealthy {
+		// exceeded high threshold, mark unhealthy
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("too many zombie processes (threshold: %d)", c.zombieProcessCountThreshold)
+		cr.reason = fmt.Sprintf("too many zombie processes (unhealthy state threshold: %d)", c.zombieProcessCountThresholdUnhealthy)
+		cr.suggestedActions = defaultSuggestedActionsForFd
+		log.Logger.Errorw(cr.reason, "count", cr.ZombieProcesses)
+		return cr
+	}
+	if cr.ZombieProcesses > c.zombieProcessCountThresholdDegraded {
+		// only lower threshold is reached, mark degraded first
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = fmt.Sprintf("too many zombie processes (degraded state threshold: %d)", c.zombieProcessCountThresholdDegraded)
+		cr.suggestedActions = defaultSuggestedActionsForFd
 		log.Logger.Errorw(cr.reason, "count", cr.ZombieProcesses)
 		return cr
 	}
@@ -329,29 +360,69 @@ func (c *component) Check() components.CheckResult {
 	if fdLimitSupported && c.thresholdRunningPIDs > 0 {
 		thresholdRunningPIDsPct = calcUsagePct(cr.FileDescriptors.Usage, c.thresholdRunningPIDs)
 	}
+
 	cr.FileDescriptors.ThresholdRunningPIDs = c.thresholdRunningPIDs
-	cr.FileDescriptors.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
 	metricThresholdRunningPIDs.With(prometheus.Labels{}).Set(float64(c.thresholdRunningPIDs))
+
+	cr.FileDescriptors.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
 	metricThresholdRunningPIDsPercent.With(prometheus.Labels{}).Set(thresholdRunningPIDsPct)
+
+	if c.thresholdRunningPIDsPercentDegraded > 0 {
+		if thresholdRunningPIDsPct > c.thresholdRunningPIDsPercentUnhealthy {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("too many running pids (unhealthy state percent threshold: %.2f %%)", c.thresholdRunningPIDsPercentUnhealthy)
+			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.RunningPIDs)
+			cr.suggestedActions = defaultSuggestedActionsForFd
+			return cr
+		}
+		if thresholdRunningPIDsPct > c.thresholdRunningPIDsPercentDegraded {
+			cr.health = apiv1.HealthStateTypeDegraded
+			cr.reason = fmt.Sprintf("too many running pids (degraded state percent threshold: %.2f %%)", c.thresholdRunningPIDsPercentDegraded)
+			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.RunningPIDs)
+			cr.suggestedActions = defaultSuggestedActionsForFd
+			return cr
+		}
+	}
 
 	var thresholdAllocatedFileHandlesPct float64
 	if c.thresholdAllocatedFileHandles > 0 {
 		thresholdAllocatedFileHandlesPct = calcUsagePct(cr.FileDescriptors.Usage, min(c.thresholdAllocatedFileHandles, cr.FileDescriptors.Limit))
 	}
+
 	cr.FileDescriptors.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
-	cr.FileDescriptors.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
 	metricThresholdAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(c.thresholdAllocatedFileHandles))
+
+	cr.FileDescriptors.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
 	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(thresholdAllocatedFileHandlesPct)
 
-	if thresholdAllocatedFileHandlesPct > WarningFileHandlesAllocationPercent {
-		cr.health = apiv1.HealthStateTypeDegraded
-		cr.reason = ErrFileHandlesAllocationExceedsWarning
-	} else {
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = "ok"
+	if c.thresholdAllocatedFileHandlesPercentDegraded > 0 {
+		if thresholdAllocatedFileHandlesPct > c.thresholdAllocatedFileHandlesPercentUnhealthy {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("too many allocated file handles (unhealthy state percent threshold: %.2f %%)", c.thresholdAllocatedFileHandlesPercentUnhealthy)
+			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.AllocatedFileHandles)
+			cr.suggestedActions = defaultSuggestedActionsForFd
+			return cr
+		}
+		if thresholdAllocatedFileHandlesPct > c.thresholdAllocatedFileHandlesPercentDegraded {
+			cr.health = apiv1.HealthStateTypeDegraded
+			cr.reason = fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", c.thresholdAllocatedFileHandlesPercentDegraded)
+			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.AllocatedFileHandles)
+			cr.suggestedActions = defaultSuggestedActionsForFd
+			return cr
+		}
 	}
 
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = "ok"
+
 	return cr
+}
+
+var defaultSuggestedActionsForFd = &apiv1.SuggestedActions{
+	Description: "check/restart user applications for leaky file descriptors",
+	RepairActions: []apiv1.RepairActionType{
+		apiv1.RepairActionTypeCheckUserAppAndGPU,
+	},
 }
 
 var _ components.CheckResult = &checkResult{}
@@ -376,6 +447,8 @@ type checkResult struct {
 	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+	// suggested actions
+	suggestedActions *apiv1.SuggestedActions
 }
 
 type MachineMetadata struct {
@@ -479,12 +552,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Health:           cr.health,
+		Reason:           cr.reason,
+		SuggestedActions: cr.suggestedActions,
+		Error:            cr.getError(),
 	}
 
 	b, _ := json.Marshal(cr)
@@ -492,7 +566,10 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{state}
 }
 
-var defaultZombieProcessCountThreshold = 1000
+var (
+	defaultZombieProcessCountThresholdDegraded  = 1000
+	defaultZombieProcessCountThresholdUnhealthy = 2000
+)
 
 func init() {
 	// Linux-specific operations
@@ -505,7 +582,10 @@ func init() {
 		limit, err := file.GetLimit()
 		if limit > 0 && err == nil {
 			// set to 20% of system limit
-			defaultZombieProcessCountThreshold = int(float64(limit) * 0.20)
+			defaultZombieProcessCountThresholdDegraded = int(float64(limit) * 0.20)
+
+			// set to 80% of system limit
+			defaultZombieProcessCountThresholdUnhealthy = int(float64(limit) * 0.80)
 		}
 	}
 }
