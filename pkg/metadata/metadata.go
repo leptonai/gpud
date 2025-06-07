@@ -38,6 +38,14 @@ const (
 	MetadataKeyNodeGroup = "node_group"
 	MetadataKeyRegion    = "region"
 	MetadataKeyExtraInfo = "extra_info"
+
+	// MetadataKeyControlPlaneLoginSuccess represents the timestamp in unix seconds
+	// when the control plane login was successful.
+	MetadataKeyControlPlaneLoginSuccess = "control_plane_login_success"
+
+	// MetadataKeyControlPlaneJoinSuccess represents the timestamp in unix seconds
+	// when the control plane join was successful.
+	MetadataKeyControlPlaneJoinSuccess = "control_plane_join_success"
 )
 
 // SetMetadata sets the value of a metadata entry.

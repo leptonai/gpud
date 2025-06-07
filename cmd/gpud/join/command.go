@@ -266,13 +266,13 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	joinSentAt := time.Now()
 	log.Logger.Debugw("sending join request")
-	response, err := http.Post(createJoinURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
+	joinResp, err := http.Post(createJoinURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(response.Body)
+	defer joinResp.Body.Close()
+	if joinResp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(joinResp.Body)
 		if err != nil {
 			return fmt.Errorf("error reading response body: %w", err)
 		}
@@ -316,6 +316,12 @@ func Command(cliContext *cli.Context) (retErr error) {
 		return fmt.Errorf("failed to record extra info: %w", err)
 	}
 	log.Logger.Debugw("successfully recorded extra info")
+
+	log.Logger.Debugw("recording control plane join success")
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyControlPlaneJoinSuccess, fmt.Sprintf("%d", time.Now().UTC().Unix())); err != nil {
+		return fmt.Errorf("failed to record control plane join success: %w", err)
+	}
+	log.Logger.Debugw("successfully recorded control plane join success")
 
 	fmt.Println("Basic setup finished, GPUd is installing necessary components onto your machine, this may take 10 - 15 minutes.\nYou can run `gpud status` or `gpud status -w` to check the progress of each component.")
 	return nil
