@@ -52,9 +52,11 @@ type component struct {
 	eventBucket      eventstore.Bucket
 	kmsgSyncer       *kmsg.Syncer
 
-	countProcessesByStatusFunc  func(ctx context.Context) (map[string][]process.ProcessStatus, error)
-	zombieProcessCountThreshold int
+	countProcessesByStatusFunc           func(ctx context.Context) (map[string][]process.ProcessStatus, error)
+	zombieProcessCountThresholdDegraded  int
+	zombieProcessCountThresholdUnhealthy int
 
+	getHostUptimeFunc             func(ctx context.Context) (uint64, error)
 	getFileHandlesFunc            func() (uint64, uint64, error)
 	countRunningPIDsFunc          func() (uint64, error)
 	getUsageFunc                  func() (uint64, error)
@@ -83,9 +85,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		rebootEventStore: gpudInstance.RebootEventStore,
 
-		countProcessesByStatusFunc:  process.CountProcessesByStatus,
-		zombieProcessCountThreshold: defaultZombieProcessCountThreshold,
+		countProcessesByStatusFunc:           process.CountProcessesByStatus,
+		zombieProcessCountThresholdDegraded:  defaultZombieProcessCountThresholdDegraded,
+		zombieProcessCountThresholdUnhealthy: defaultZombieProcessCountThresholdUnhealthy,
 
+		getHostUptimeFunc:             host.UptimeWithContext,
 		getFileHandlesFunc:            file.GetFileHandles,
 		countRunningPIDsFunc:          process.CountRunningPids,
 		getUsageFunc:                  file.GetUsage,
@@ -229,7 +233,7 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	uptime, err := host.UptimeWithContext(cctx)
+	uptime, err := c.getHostUptimeFunc(cctx)
 	ccancel()
 	if err != nil {
 		cr.err = err
@@ -261,10 +265,33 @@ func (c *component) Check() components.CheckResult {
 			break
 		}
 	}
+
 	metricZombieProcesses.With(prometheus.Labels{}).Set(float64(cr.ZombieProcesses))
-	if cr.ZombieProcesses > c.zombieProcessCountThreshold {
+
+	if cr.ZombieProcesses > c.zombieProcessCountThresholdDegraded && cr.ZombieProcesses < c.zombieProcessCountThresholdUnhealthy {
+		// only lower threshold is reached, mark degraded first
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = fmt.Sprintf("too many zombie processes (degraded state threshold: %d)", c.zombieProcessCountThresholdDegraded)
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			Description: "check/restart user applications for leaky file descriptors",
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeCheckUserAppAndGPU,
+			},
+		}
+		log.Logger.Errorw(cr.reason, "count", cr.ZombieProcesses)
+		return cr
+	}
+
+	if cr.ZombieProcesses > c.zombieProcessCountThresholdUnhealthy {
+		// exceeded high threshold, mark unhealthy
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("too many zombie processes (threshold: %d)", c.zombieProcessCountThreshold)
+		cr.reason = fmt.Sprintf("too many zombie processes (unhealthy state threshold: %d)", c.zombieProcessCountThresholdUnhealthy)
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			Description: "check/restart user applications for leaky file descriptors",
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeCheckUserAppAndGPU,
+			},
+		}
 		log.Logger.Errorw(cr.reason, "count", cr.ZombieProcesses)
 		return cr
 	}
@@ -376,6 +403,8 @@ type checkResult struct {
 	health apiv1.HealthStateType
 	// tracks the reason of the last check
 	reason string
+	// suggested actions
+	suggestedActions *apiv1.SuggestedActions
 }
 
 type MachineMetadata struct {
@@ -479,12 +508,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Health:           cr.health,
+		Reason:           cr.reason,
+		SuggestedActions: cr.suggestedActions,
+		Error:            cr.getError(),
 	}
 
 	b, _ := json.Marshal(cr)
@@ -492,7 +522,10 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{state}
 }
 
-var defaultZombieProcessCountThreshold = 1000
+var (
+	defaultZombieProcessCountThresholdDegraded  = 1000
+	defaultZombieProcessCountThresholdUnhealthy = 2000
+)
 
 func init() {
 	// Linux-specific operations
@@ -505,7 +538,10 @@ func init() {
 		limit, err := file.GetLimit()
 		if limit > 0 && err == nil {
 			// set to 20% of system limit
-			defaultZombieProcessCountThreshold = int(float64(limit) * 0.20)
+			defaultZombieProcessCountThresholdDegraded = int(float64(limit) * 0.20)
+
+			// set to 80% of system limit
+			defaultZombieProcessCountThresholdUnhealthy = int(float64(limit) * 0.80)
 		}
 	}
 }
