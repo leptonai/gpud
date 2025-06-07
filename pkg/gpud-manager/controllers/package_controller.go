@@ -186,6 +186,7 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				log.Logger.Infof("[package controller]: %v installing...", pkg.Name)
 				continue
 			}
+
 			// if installing, then skip
 			err := runCommand(ctx, pkg.ScriptPath, "isInstalled", nil)
 			if err == nil {
@@ -193,10 +194,11 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				c.packageStatus[pkg.Name].Progress = 100
 				c.packageStatus[pkg.Name].IsInstalled = true
 				c.Unlock()
-				log.Logger.Infof("[package controller]: %v already installed", pkg.Name)
+				log.Logger.Debugf("[package controller]: %v already installed", pkg.Name)
 				continue
 			}
-			log.Logger.Errorf("[package controller]: %v not installed, installing", pkg.Name)
+
+			log.Logger.Warnf("[package controller]: %v not installed, installing", pkg.Name, "error", err)
 			go func() {
 				var eta time.Duration
 				c.Lock()
