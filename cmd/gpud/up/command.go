@@ -7,7 +7,6 @@ import (
 
 	"github.com/urfave/cli"
 
-	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
@@ -37,8 +36,6 @@ func Command(cliContext *cli.Context) (retErr error) {
 			return lerr
 		}
 		log.Logger.Debugw("successfully logged in")
-
-		fmt.Printf("%s successfully logged in\n", cmdcommon.CheckMark)
 	}
 
 	bin, err := os.Executable()

@@ -221,7 +221,7 @@ func Command(cliContext *cli.Context) error {
 		}
 	}
 
-	fmt.Printf("%s successfully logged in with machine id %s\n", cmdcommon.CheckMark, loginResp.MachineID)
+	fmt.Printf("%s successfully logged in and assigned machine id %s\n", cmdcommon.CheckMark, loginResp.MachineID)
 	return nil
 }
 
