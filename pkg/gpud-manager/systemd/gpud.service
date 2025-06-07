@@ -2,8 +2,7 @@
 Description=gpud
 
 # https://www.freedesktop.org/software/systemd/man/latest/systemd.unit.html#
-Wants=network-pre.target
-After=network-pre.target NetworkManager.service systemd-resolved.service
+After=network.target local-fs.target
 
 [Service]
 Slice=runtime.slice
