@@ -102,13 +102,15 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 				log.Logger.Errorf("[package controller]: %v unexpected version failure: %v, version: %s", pkg.Name, err, version)
 				continue
 			}
-			log.Logger.Infof("[package controller]: %v version is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
 			c.Lock()
 			c.packageStatus[pkg.Name].CurrentVersion = version
 			c.Unlock()
 			if version == pkg.TargetVersion {
+				log.Logger.Debugf("[package controller]: %v version is %v (same as target, no-op)", pkg.Name, version)
 				continue
 			}
+
+			log.Logger.Infof("[package controller]: %v version is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
 			var eta time.Duration
 			c.Lock()
 			c.packageStatus[pkg.Name].Installing = true
@@ -184,6 +186,7 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				log.Logger.Infof("[package controller]: %v installing...", pkg.Name)
 				continue
 			}
+
 			// if installing, then skip
 			err := runCommand(ctx, pkg.ScriptPath, "isInstalled", nil)
 			if err == nil {
@@ -191,10 +194,11 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				c.packageStatus[pkg.Name].Progress = 100
 				c.packageStatus[pkg.Name].IsInstalled = true
 				c.Unlock()
-				log.Logger.Infof("[package controller]: %v already installed", pkg.Name)
+				log.Logger.Debugf("[package controller]: %v already installed", pkg.Name)
 				continue
 			}
-			log.Logger.Errorf("[package controller]: %v not installed, installing", pkg.Name)
+
+			log.Logger.Warnf("[package controller]: %v not installed, installing", pkg.Name, "error", err)
 			go func() {
 				var eta time.Duration
 				c.Lock()
@@ -281,7 +285,7 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 				c.Lock()
 				c.packageStatus[pkg.Name].Status = true
 				c.Unlock()
-				log.Logger.Infof("[package controller]: %v status ok", pkg.Name)
+				log.Logger.Debugf("[package controller]: %v status ok", pkg.Name)
 				continue
 			}
 			log.Logger.Errorf("[package controller]: %v status not ok, restarting", pkg.Name)
