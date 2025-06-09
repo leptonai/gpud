@@ -3,6 +3,8 @@ package nfs
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -160,7 +162,7 @@ func TestCheckWithInvalidConfigs(t *testing.T) {
 	}
 
 	result := c.Check()
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "invalid nfs group configs")
 }
 
@@ -290,9 +292,9 @@ func TestCheckResultHealthStateType(t *testing.T) {
 		{
 			name: "unhealthy",
 			cr: &checkResult{
-				health: apiv1.HealthStateTypeUnhealthy,
+				health: apiv1.HealthStateTypeDegraded,
 			},
-			expected: apiv1.HealthStateTypeUnhealthy,
+			expected: apiv1.HealthStateTypeDegraded,
 		},
 	}
 
@@ -353,7 +355,7 @@ func TestCheckResultHealthStates(t *testing.T) {
 		cr := &checkResult{
 			ts:     testTime,
 			err:    testError,
-			health: apiv1.HealthStateTypeUnhealthy,
+			health: apiv1.HealthStateTypeDegraded,
 			reason: "test reason",
 		}
 
@@ -361,7 +363,7 @@ func TestCheckResultHealthStates(t *testing.T) {
 		require.Len(t, states, 1)
 		assert.Equal(t, Name, states[0].Name)
 		assert.Equal(t, Name, states[0].Component)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, states[0].Health)
 		assert.Equal(t, "test reason", states[0].Reason)
 		assert.Equal(t, "test error", states[0].Error)
 		assert.Equal(t, testTime, states[0].Time.Time)
@@ -389,8 +391,131 @@ func TestCheckWithNFSCheckerError(t *testing.T) {
 	result := c.Check()
 
 	// The check should fail because we expect 10 files but only have 1
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "failed to check nfs checker")
+}
+
+func TestCheckWithNewCheckerError(t *testing.T) {
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					Dir:              "", // Invalid empty dir will cause NewChecker to fail
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "invalid nfs group configs")
+	assert.NotNil(t, cr.err)
+}
+
+func TestCheckWithWriteError(t *testing.T) {
+	// Create a directory that we'll make read-only
+	tempDir := t.TempDir()
+	readOnlyDir := filepath.Join(tempDir, "readonly")
+	err := os.MkdirAll(readOnlyDir, 0755)
+	require.NoError(t, err)
+
+	// Make the directory read-only to cause write to fail
+	require.NoError(t, os.Chmod(readOnlyDir, 0555))
+	defer os.RemoveAll(readOnlyDir)
+
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					Dir:              readOnlyDir,
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "failed to write to nfs checker")
+	assert.NotNil(t, cr.err)
+}
+
+func TestCheckWithMultipleMemberConfigs(t *testing.T) {
+	// Create two temporary directories
+	tmpDir1 := t.TempDir()
+	tmpDir2 := t.TempDir()
+
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					Dir:              tmpDir1,
+					FileContents:     "test content 1",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+				{
+					Dir:              tmpDir2,
+					FileContents:     "test content 2",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Both checks should succeed
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Len(t, cr.NFSCheckResults, 2)
+	assert.Equal(t, tmpDir1, cr.NFSCheckResults[0].Dir)
+	assert.Equal(t, tmpDir2, cr.NFSCheckResults[1].Dir)
+	assert.Contains(t, result.Summary(), cr.NFSCheckResults[0].Message)
+	assert.Contains(t, result.Summary(), cr.NFSCheckResults[1].Message)
+}
+
+func TestCheckWithCheckerError(t *testing.T) {
+	// Create a temporary directory
+	tmpDir := t.TempDir()
+
+	// Write a file with wrong content to trigger check error
+	wrongFile := filepath.Join(tmpDir, "wrong-machine")
+	err := os.WriteFile(wrongFile, []byte("wrong content"), 0644)
+	require.NoError(t, err)
+
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					Dir:              tmpDir,
+					FileContents:     "expected content", // Different from what we wrote
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+	}
+
+	result := c.Check()
+
+	// Should fail due to wrong file contents
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "failed to check nfs checker for "+tmpDir)
 }
 
 func TestCheckResultInterface(t *testing.T) {
