@@ -3,7 +3,7 @@ module github.com/leptonai/gpud
 go 1.24.2
 
 require (
-	github.com/NVIDIA/go-nvlib v0.7.1
+	github.com/NVIDIA/go-nvlib v0.7.2
 	github.com/NVIDIA/go-nvml v0.12.4-1
 	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/coreos/go-systemd/v22 v22.5.0
