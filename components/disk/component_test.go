@@ -1083,12 +1083,29 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		}
+
+		var contextCanceled bool
 		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
-			ctxCancel()
+			if !contextCanceled {
+				ctxCancel()
+				contextCanceled = true
+			}
 			return nil, context.Canceled
 		}
 
-		c.Check()
+		checkDone := make(chan struct{})
+		go func() {
+			c.Check()
+			close(checkDone)
+		}()
+		select {
+		case <-checkDone:
+		case <-time.After(time.Second):
+			assert.Fail(t, "Check() did not complete within timeout")
+		}
+
+		// Ensure context cancellation was detected
+		assert.True(t, contextCanceled, "getNFSPartitionsFunc should have been called")
 
 		c.lastMu.RLock()
 		lastCheckResult := c.lastCheckResult
@@ -1555,12 +1572,10 @@ func TestNew_EventStoreHandling(t *testing.T) {
 		mockEventStore := new(mockEventStore)
 		mockBucket := new(mockEventBucket)
 
-		// This expectation is only relevant if runtime.GOOS == "linux"
-		if runtime.GOOS == "linux" {
-			mockEventStore.On("Bucket", Name).Return(mockBucket, nil)
-			// If Bucket is called and eventBucket is set, its Close might be called.
-			mockBucket.On("Close").Return().Maybe()
-		}
+		// Set up the mock for Bucket method - this is called regardless of OS
+		mockEventStore.On("Bucket", Name).Return(mockBucket, nil)
+		// The bucket's Close method will be called when the component is closed
+		mockBucket.On("Close").Return()
 
 		gpudInstance := &components.GPUdInstance{
 			RootCtx:    ctx,
@@ -1569,27 +1584,23 @@ func TestNew_EventStoreHandling(t *testing.T) {
 
 		comp, err := New(gpudInstance)
 		require.NoError(t, err)
-		// comp.Close() might be called on a nil comp if New fails, so guard it.
-		if comp != nil {
-			defer comp.Close()
-		}
+		require.NotNil(t, comp)
+		defer comp.Close()
 
 		diskComp, ok := comp.(*component)
 		require.True(t, ok)
 
-		if runtime.GOOS == "linux" {
-			// Further check if euid is 0 for kmsgSyncer, though eventBucket depends only on linux
-			if gpudInstance.EventStore != nil { // Ensure eventStore was provided
-				assert.Equal(t, mockBucket, diskComp.eventBucket, "eventBucket should be initialized on Linux")
-				mockEventStore.AssertCalled(t, "Bucket", Name)
-				if os.Geteuid() != 0 { // if not root, kmsgSyncer should be nil even if eventBucket is set
-					assert.Nil(t, diskComp.kmsgSyncer, "kmsgSyncer should be nil if not on Linux as root, even if eventBucket is set")
-				}
-			}
+		// Event bucket should be created when EventStore is provided
+		assert.NotNil(t, diskComp.eventBucket, "eventBucket should be initialized when EventStore is provided")
+		assert.Equal(t, mockBucket, diskComp.eventBucket)
+		mockEventStore.AssertCalled(t, "Bucket", Name)
+
+		// kmsgSyncer is only created on Linux when running as root
+		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+			// kmsgSyncer might be set on Linux as root
+			// We can't easily test this without mocking kmsg.NewSyncer
 		} else {
-			assert.Nil(t, diskComp.eventBucket, "eventBucket should be nil if not on Linux")
-			mockEventStore.AssertNotCalled(t, "Bucket", Name)
-			assert.Nil(t, diskComp.kmsgSyncer, "kmsgSyncer should be nil if not on Linux")
+			assert.Nil(t, diskComp.kmsgSyncer, "kmsgSyncer should be nil when not on Linux as root")
 		}
 	})
 
@@ -1597,30 +1608,19 @@ func TestNew_EventStoreHandling(t *testing.T) {
 		mockEventStore := new(mockEventStore)
 		expectedErr := errors.New("bucket error")
 
+		// Set up the mock to return an error
+		mockEventStore.On("Bucket", Name).Return(nil, expectedErr)
+
 		gpudInstance := &components.GPUdInstance{
 			RootCtx:    ctx,
 			EventStore: mockEventStore,
 		}
 
-		if runtime.GOOS == "linux" {
-			mockEventStore.On("Bucket", Name).Return(nil, expectedErr)
-			// No need to setup mockBucket.On("Close") as bucket creation fails.
-
-			comp, err := New(gpudInstance)
-			assert.Error(t, err)
-			assert.Equal(t, expectedErr, err)
-			assert.Nil(t, comp)
-			mockEventStore.AssertCalled(t, "Bucket", Name)
-		} else {
-			// On non-Linux, Bucket is not called, so New should succeed without this error.
-			comp, err := New(gpudInstance)
-			assert.NoError(t, err)
-			assert.NotNil(t, comp)
-			if comp != nil {
-				defer comp.Close() // comp.eventBucket will be nil, so no mock call to bucket.Close()
-			}
-			mockEventStore.AssertNotCalled(t, "Bucket", Name)
-		}
+		comp, err := New(gpudInstance)
+		assert.Error(t, err)
+		assert.Equal(t, expectedErr, err)
+		assert.Nil(t, comp)
+		mockEventStore.AssertCalled(t, "Bucket", Name)
 	})
 
 	// Note: Testing kmsg.NewSyncer success/failure path requires runtime.GOOS == "linux"
