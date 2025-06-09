@@ -70,6 +70,10 @@ sudo gpud login --token <LEPTON_AI_TOKEN>
 					Usage:  "for override default machine id",
 				},
 				cli.StringFlag{
+					Name:  "node-group",
+					Usage: "node group to join",
+				},
+				cli.StringFlag{
 					Name:  "gpu-count",
 					Usage: "specify count of gpu",
 				},

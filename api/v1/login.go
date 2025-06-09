@@ -4,6 +4,7 @@ package v1
 type LoginRequest struct {
 	Token              string            `json:"token"`
 	MachineID          string            `json:"machineID"`
+	NodeGroup          string            `json:"nodeGroup,omitempty"`
 	Network            *MachineNetwork   `json:"network,omitempty"`
 	Location           *MachineLocation  `json:"location,omitempty"`
 	Provider           string            `json:"provider"`
