@@ -13,12 +13,13 @@ import (
 	"github.com/leptonai/gpud/pkg/providers"
 )
 
-func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineID string, gpuCount string) (*apiv1.LoginRequest, error) {
+func CreateLoginRequest(token string, machineID string, nodeGroup string, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 	return createLoginRequest(
 		token,
-		nvmlInstance,
 		machineID,
+		nodeGroup,
 		gpuCount,
+		nvmlInstance,
 		netutil.PublicIP,
 		GetMachineLocation,
 		GetMachineInfo,
@@ -30,9 +31,10 @@ func CreateLoginRequest(token string, nvmlInstance nvidianvml.Instance, machineI
 
 func createLoginRequest(
 	token string,
-	nvmlInstance nvidianvml.Instance,
 	machineID string,
+	nodeGroup string,
 	gpuCount string,
+	nvmlInstance nvidianvml.Instance,
 	getPublicIPFunc func() (string, error),
 	getMachineLocationFunc func() *apiv1.MachineLocation,
 	getMachineInfoFunc func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error),
@@ -58,6 +60,7 @@ func createLoginRequest(
 	req := &apiv1.LoginRequest{
 		Token:     token,
 		MachineID: machineID,
+		NodeGroup: nodeGroup,
 		Network:   &apiv1.MachineNetwork{},
 		Resources: map[string]string{},
 	}

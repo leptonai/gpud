@@ -40,7 +40,7 @@ func TestCreateLoginRequest(t *testing.T) {
 	machineID := "test-machine-id"
 
 	// Test with GPU count specified
-	req1, err := CreateLoginRequest(token, nvmlInstance, machineID, "2")
+	req1, err := CreateLoginRequest(token, machineID, "", "2", nvmlInstance)
 	if err != nil {
 		t.Skipf("Could not create login request with GPU count: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestCreateLoginRequest(t *testing.T) {
 	assert.Equal(t, "2", req1.Resources["nvidia.com/gpu"])
 
 	// Test without GPU count specified (auto-detect)
-	req2, err := CreateLoginRequest(token, nvmlInstance, machineID, "")
+	req2, err := CreateLoginRequest(token, machineID, "", "", nvmlInstance)
 	if err != nil {
 		t.Skipf("Could not create login request without GPU count: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestCreateLoginRequest(t *testing.T) {
 	}
 
 	// Test with no IPs specified
-	req3, err := CreateLoginRequest(token, nvmlInstance, machineID, "0")
+	req3, err := CreateLoginRequest(token, machineID, "", "0", nvmlInstance)
 	if err != nil {
 		t.Skipf("Could not create login request without IPs: %v", err)
 	}
@@ -430,9 +430,10 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 
 			req, err := createLoginRequest(
 				tt.token,
-				&mockNvmlInstance{},
 				tt.machineID,
+				"",
 				tt.gpuCount,
+				&mockNvmlInstance{},
 				tt.getPublicIPFunc,
 				tt.getMachineLocationFunc,
 				tt.getMachineInfoFunc,
@@ -485,9 +486,10 @@ func TestCreateLoginRequest_NetworkBasics(t *testing.T) {
 
 	req, err := createLoginRequest(
 		"token",
-		&mockNvmlInstance{},
 		"machine-id",
+		"",
 		"1",
+		&mockNvmlInstance{},
 		func() (string, error) { return "1.2.3.4", nil },
 		func() *apiv1.MachineLocation { return &apiv1.MachineLocation{} },
 		getMachineInfoFunc,
@@ -578,9 +580,10 @@ func TestCreateLoginRequest_PrivateIPDetection(t *testing.T) {
 
 			req, err := createLoginRequest(
 				"token",
-				&mockNvmlInstance{},
 				"machine-id",
+				"",
 				"1",
+				&mockNvmlInstance{},
 				func() (string, error) { return "1.2.3.4", nil },
 				func() *apiv1.MachineLocation { return &apiv1.MachineLocation{} },
 				getMachineInfoFunc,
@@ -643,9 +646,10 @@ func TestCreateLoginRequest_ResourceCalculation(t *testing.T) {
 
 			req, err := createLoginRequest(
 				"token",
-				&mockNvmlInstance{},
 				"machine-id",
+				"",
 				"0",
+				&mockNvmlInstance{},
 				func() (string, error) { return "", nil },
 				func() *apiv1.MachineLocation { return &apiv1.MachineLocation{} },
 				getMachineInfoFunc,

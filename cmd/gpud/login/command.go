@@ -116,10 +116,11 @@ func Command(cliContext *cli.Context) error {
 	machineID := cliContext.String("machine-id") // can be empty
 
 	gpuCount := cliContext.String("gpu-count")
+	nodeGroup := cliContext.String("node-group")
 
 	loginCreatedAt := time.Now()
 	log.Logger.Debugw("creating login request")
-	req, err := pkgmachineinfo.CreateLoginRequest(token, nvmlInstance, machineID, gpuCount)
+	req, err := pkgmachineinfo.CreateLoginRequest(token, machineID, nodeGroup, gpuCount, nvmlInstance)
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}
