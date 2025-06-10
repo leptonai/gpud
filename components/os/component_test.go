@@ -2,6 +2,7 @@ package os
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -156,19 +157,19 @@ func TestData_GetStates(t *testing.T) {
 		{
 			name: "with too many zombie processes",
 			data: &checkResult{
-				ZombieProcesses: defaultZombieProcessCountThreshold + 1,
+				ZombieProcesses: defaultZombieProcessCountThresholdDegraded + 1,
 				Kernel: Kernel{
 					Version: "5.15.0",
 				},
 				health: apiv1.HealthStateTypeUnhealthy,
-				reason: fmt.Sprintf("too many zombie processes (threshold: %d)", defaultZombieProcessCountThreshold),
+				reason: fmt.Sprintf("too many zombie processes (threshold: %d)", defaultZombieProcessCountThresholdDegraded),
 				ts:     time.Now().UTC(),
 			},
 			validate: func(t *testing.T, states []apiv1.HealthState) {
 				assert.Len(t, states, 1)
 				assert.Equal(t, Name, states[0].Name)
 				assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
-				expected := fmt.Sprintf("too many zombie processes (threshold: %d)", defaultZombieProcessCountThreshold)
+				expected := fmt.Sprintf("too many zombie processes (threshold: %d)", defaultZombieProcessCountThresholdDegraded)
 				assert.Equal(t, expected, states[0].Reason)
 				assert.Empty(t, states[0].Error)
 				assert.Contains(t, states[0].ExtraInfo, "data")
@@ -377,13 +378,13 @@ func TestComponent_States(t *testing.T) {
 	t.Run("component states with too many zombie processes", func(t *testing.T) {
 		// Inject zombie process data
 		c := comp.(*component)
-		expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThreshold+1, defaultZombieProcessCountThreshold)
+		expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThresholdDegraded+1, defaultZombieProcessCountThresholdDegraded)
 		c.lastMu.Lock()
 		c.lastCheckResult = &checkResult{
 			Kernel: Kernel{
 				Version: "5.15.0",
 			},
-			ZombieProcesses: defaultZombieProcessCountThreshold + 1,
+			ZombieProcesses: defaultZombieProcessCountThresholdDegraded + 1,
 			health:          apiv1.HealthStateTypeUnhealthy,
 			reason:          expected,
 			ts:              time.Now().UTC(),
@@ -580,7 +581,7 @@ func TestComponent_EventsWithNilStore(t *testing.T) {
 func TestZombieProcessCountThreshold(t *testing.T) {
 	// Just verify that the zombie process count threshold is set to a reasonable value
 	// This is primarily to increase the test coverage of the init function
-	assert.GreaterOrEqual(t, defaultZombieProcessCountThreshold, 1000)
+	assert.GreaterOrEqual(t, defaultZombieProcessCountThresholdDegraded, 1000)
 }
 
 // TestData_String tests the String method of Data struct
@@ -791,6 +792,232 @@ func TestComponent_CheckWithUptimeError(t *testing.T) {
 	assert.Equal(t, "mock uptime error", states[0].Error)
 }
 
+// TestComponent_GetHostUptimeFunc tests the getHostUptimeFunc field with various scenarios
+func TestComponent_GetHostUptimeFunc(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tests := []struct {
+		name           string
+		uptimeFunc     func(ctx context.Context) (uint64, error)
+		expectedUptime uint64
+		expectedHealth apiv1.HealthStateType
+		expectedReason string
+		expectError    bool
+	}{
+		{
+			name: "successful uptime retrieval",
+			uptimeFunc: func(ctx context.Context) (uint64, error) {
+				return 3600, nil // 1 hour uptime
+			},
+			expectedUptime: 3600,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+			expectError:    false,
+		},
+		{
+			name: "uptime function returns error",
+			uptimeFunc: func(ctx context.Context) (uint64, error) {
+				return 0, errors.New("failed to get uptime")
+			},
+			expectedUptime: 0,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "error getting uptime",
+			expectError:    true,
+		},
+		{
+			name: "uptime function with context cancellation",
+			uptimeFunc: func(ctx context.Context) (uint64, error) {
+				select {
+				case <-ctx.Done():
+					return 0, ctx.Err()
+				case <-time.After(100 * time.Millisecond):
+					return 3600, nil
+				}
+			},
+			expectedUptime: 3600,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+			expectError:    false,
+		},
+		{
+			name: "zero uptime",
+			uptimeFunc: func(ctx context.Context) (uint64, error) {
+				return 0, nil
+			},
+			expectedUptime: 0,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+			expectError:    false,
+		},
+		{
+			name: "very large uptime",
+			uptimeFunc: func(ctx context.Context) (uint64, error) {
+				return 365 * 24 * 60 * 60, nil // 1 year uptime
+			},
+			expectedUptime: 365 * 24 * 60 * 60,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+			expectError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := New(&components.GPUdInstance{
+				RootCtx: ctx,
+			})
+			assert.NoError(t, err)
+			defer c.Close()
+
+			comp := c.(*component)
+
+			// Mock the uptime function
+			comp.getHostUptimeFunc = tt.uptimeFunc
+
+			// Mock other functions to prevent errors
+			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+				return map[string][]process.ProcessStatus{
+					procs.Running: make([]process.ProcessStatus, 10),
+				}, nil
+			}
+			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+				return 1000, 0, nil
+			}
+			comp.countRunningPIDsFunc = func() (uint64, error) {
+				return 500, nil
+			}
+			comp.getUsageFunc = func() (uint64, error) {
+				return 1000, nil
+			}
+			comp.getLimitFunc = func() (uint64, error) {
+				return 10000, nil
+			}
+
+			// Call Check
+			result := comp.Check()
+			data := result.(*checkResult)
+
+			// Verify results
+			if tt.expectError {
+				assert.NotNil(t, data.err)
+				assert.Equal(t, tt.expectedHealth, data.health)
+				assert.Equal(t, tt.expectedReason, data.reason)
+			} else {
+				assert.Nil(t, data.err)
+				assert.Equal(t, tt.expectedUptime, data.Uptimes.Seconds)
+				assert.Equal(t, tt.expectedHealth, data.health)
+				assert.Equal(t, tt.expectedReason, data.reason)
+			}
+		})
+	}
+}
+
+// TestComponent_GetHostUptimeFuncTimeout tests that uptime function respects context timeout
+func TestComponent_GetHostUptimeFuncTimeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Mock uptime function that takes longer than the context timeout
+	comp.getHostUptimeFunc = func(ctx context.Context) (uint64, error) {
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(20 * time.Second):
+			return 3600, nil
+		}
+	}
+
+	// Mock other functions to prevent errors
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Running: make([]process.ProcessStatus, 10),
+		}, nil
+	}
+	comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+		return 1000, 0, nil
+	}
+	comp.countRunningPIDsFunc = func() (uint64, error) {
+		return 500, nil
+	}
+	comp.getUsageFunc = func() (uint64, error) {
+		return 1000, nil
+	}
+	comp.getLimitFunc = func() (uint64, error) {
+		return 10000, nil
+	}
+
+	// Call Check
+	result := comp.Check()
+	data := result.(*checkResult)
+
+	// Verify that the timeout was handled
+	assert.NotNil(t, data.err)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.Equal(t, "error getting uptime", data.reason)
+	assert.Contains(t, data.err.Error(), "context deadline exceeded")
+}
+
+// TestComponent_GetHostUptimeFuncHealthStates tests that health states are properly set for uptime errors
+func TestComponent_GetHostUptimeFuncHealthStates(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Mock uptime function that returns an error
+	comp.getHostUptimeFunc = func(ctx context.Context) (uint64, error) {
+		return 0, errors.New("uptime retrieval failed")
+	}
+
+	// Mock other functions to prevent errors
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Running: make([]process.ProcessStatus, 10),
+		}, nil
+	}
+	comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+		return 1000, 0, nil
+	}
+	comp.countRunningPIDsFunc = func() (uint64, error) {
+		return 500, nil
+	}
+	comp.getUsageFunc = func() (uint64, error) {
+		return 1000, nil
+	}
+	comp.getLimitFunc = func() (uint64, error) {
+		return 10000, nil
+	}
+
+	// Call Check
+	_ = comp.Check()
+
+	// Get health states
+	healthStates := comp.LastHealthStates()
+	assert.Len(t, healthStates, 1)
+
+	state := healthStates[0]
+	assert.Equal(t, Name, state.Component)
+	assert.Equal(t, Name, state.Name)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
+	assert.Equal(t, "error getting uptime", state.Reason)
+	assert.Equal(t, "uptime retrieval failed", state.Error)
+}
+
 // TestComponent_CheckWithProcessError tests the Check method with mocked process error
 func TestComponent_CheckWithProcessError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -836,7 +1063,9 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 	threshold := 10
 
 	// Override the process counting function to return many zombie processes
-	comp.zombieProcessCountThreshold = threshold
+	comp.zombieProcessCountThresholdDegraded = threshold
+	// Set high threshold to be very high so we only test low threshold behavior
+	comp.zombieProcessCountThresholdUnhealthy = threshold + 10000
 	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
 		return map[string][]process.ProcessStatus{
 			procs.Running: make([]process.ProcessStatus, 15),
@@ -850,8 +1079,8 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 	// Verify zombie process detection
 	data := result.(*checkResult)
 	assert.Equal(t, threshold+1, data.ZombieProcesses)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	expectedReason := fmt.Sprintf("too many zombie processes (threshold: %d)", threshold)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, data.health)
+	expectedReason := fmt.Sprintf("too many zombie processes (degraded state threshold: %d)", threshold)
 	assert.Equal(t, expectedReason, data.reason)
 }
 
@@ -1371,6 +1600,9 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 	defer c.Close()
 
 	comp := c.(*component)
+	// Set the default thresholds
+	comp.maxAllocatedFileHandlesPctDegraded = defaultMaxAllocatedFileHandlesPctDegraded
+	comp.maxAllocatedFileHandlesPctUnhealthy = defaultMaxAllocatedFileHandlesPctUnhealthy
 
 	// Setup tests with different allocation percentages
 	tests := []struct {
@@ -1407,7 +1639,7 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 			usage:                8100,
 			limit:                10000,
 			expectedHealth:       apiv1.HealthStateTypeDegraded,
-			expectedReason:       ErrFileHandlesAllocationExceedsWarning,
+			expectedReason:       fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", defaultMaxAllocatedFileHandlesPctDegraded),
 		},
 		{
 			name:                 "high usage but limited by threshold",
@@ -1415,8 +1647,8 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 			allocatedFileHandles: 4900,
 			usage:                4900,
 			limit:                10000,
-			expectedHealth:       apiv1.HealthStateTypeDegraded,
-			expectedReason:       ErrFileHandlesAllocationExceedsWarning,
+			expectedHealth:       apiv1.HealthStateTypeUnhealthy,
+			expectedReason:       fmt.Sprintf("too many allocated file handles (unhealthy state percent threshold: %.2f %%)", defaultMaxAllocatedFileHandlesPctUnhealthy),
 		},
 		{
 			name:                 "threshold higher than limit",
@@ -1425,7 +1657,7 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 			usage:                9000,
 			limit:                10000,
 			expectedHealth:       apiv1.HealthStateTypeDegraded,
-			expectedReason:       ErrFileHandlesAllocationExceedsWarning,
+			expectedReason:       fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", defaultMaxAllocatedFileHandlesPctDegraded),
 		},
 	}
 
@@ -1439,7 +1671,7 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 			}
 
 			// Override file descriptor functions
-			comp.thresholdAllocatedFileHandles = tt.thresholdAllocatedFH
+			comp.maxAllocatedFileHandles = tt.thresholdAllocatedFH
 			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
 				return tt.allocatedFileHandles, 0, nil
 			}
@@ -1628,56 +1860,56 @@ func TestComponent_ThresholdRunningPIDs(t *testing.T) {
 
 	// Test different threshold and limit combinations
 	tests := []struct {
-		name                 string
-		thresholdRunningPIDs uint64
-		runningPIDs          uint64
-		usage                uint64
-		limit                uint64
-		fdLimitSupported     bool
-		expectedPIDsPercent  string
+		name                string
+		maxRunningPIDs      uint64
+		runningPIDs         uint64
+		usage               uint64
+		limit               uint64
+		fdLimitSupported    bool
+		expectedPIDsPercent string
 	}{
 		{
-			name:                 "zero threshold",
-			thresholdRunningPIDs: 0,
-			runningPIDs:          1000,
-			usage:                1000,
-			limit:                10000,
-			fdLimitSupported:     true,
-			expectedPIDsPercent:  "0.00",
+			name:                "zero threshold",
+			maxRunningPIDs:      0,
+			runningPIDs:         1000,
+			usage:               1000,
+			limit:               10000,
+			fdLimitSupported:    true,
+			expectedPIDsPercent: "0.00",
 		},
 		{
-			name:                 "threshold with supported FD limit",
-			thresholdRunningPIDs: 5000,
-			runningPIDs:          1000,
-			usage:                1000,
-			limit:                10000,
-			fdLimitSupported:     true,
-			expectedPIDsPercent:  "20.00", // 1000/5000 * 100
+			name:                "threshold with supported FD limit",
+			maxRunningPIDs:      5000,
+			runningPIDs:         1000,
+			usage:               1000,
+			limit:               10000,
+			fdLimitSupported:    true,
+			expectedPIDsPercent: "20.00", // 1000/5000 * 100
 		},
 		{
-			name:                 "threshold without supported FD limit",
-			thresholdRunningPIDs: 5000,
-			runningPIDs:          1000,
-			usage:                1000,
-			limit:                10000,
-			fdLimitSupported:     false,
-			expectedPIDsPercent:  "0.00", // Should be 0 when fd limit not supported
+			name:                "threshold without supported FD limit",
+			maxRunningPIDs:      5000,
+			runningPIDs:         1000,
+			usage:               1000,
+			limit:               10000,
+			fdLimitSupported:    false,
+			expectedPIDsPercent: "0.00", // Should be 0 when fd limit not supported
 		},
 		{
-			name:                 "high usage with threshold",
-			thresholdRunningPIDs: 5000,
-			runningPIDs:          4000,
-			usage:                4000,
-			limit:                10000,
-			fdLimitSupported:     true,
-			expectedPIDsPercent:  "80.00", // 4000/5000 * 100
+			name:                "high usage with threshold",
+			maxRunningPIDs:      5000,
+			runningPIDs:         4000,
+			usage:               4000,
+			limit:               10000,
+			fdLimitSupported:    true,
+			expectedPIDsPercent: "80.00", // 4000/5000 * 100
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set mocks for test case
-			comp.thresholdRunningPIDs = tt.thresholdRunningPIDs
+			comp.maxRunningPIDs = tt.maxRunningPIDs
 			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
 				return 1000, 0, nil
 			}
@@ -1704,7 +1936,7 @@ func TestComponent_ThresholdRunningPIDs(t *testing.T) {
 			// Verify threshold calculation
 			assert.Equal(t, tt.expectedPIDsPercent, data.FileDescriptors.ThresholdRunningPIDsPercent,
 				"Threshold running PIDs percentage should be calculated correctly")
-			assert.Equal(t, tt.thresholdRunningPIDs, data.FileDescriptors.ThresholdRunningPIDs,
+			assert.Equal(t, tt.maxRunningPIDs, data.FileDescriptors.ThresholdRunningPIDs,
 				"Threshold running PIDs should be set correctly")
 		})
 	}
@@ -1853,7 +2085,7 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	fdSupported := true
 	fileHandlesSupported := true
 	thresholdAllocFH := uint64(8000)
-	thresholdRunningPIDs := uint64(9000)
+	maxRunningPIDs := uint64(9000)
 
 	// Override all the functions to return controlled values
 	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -1879,8 +2111,8 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	comp.checkFDLimitSupportedFunc = func() bool {
 		return fdSupported
 	}
-	comp.thresholdAllocatedFileHandles = thresholdAllocFH
-	comp.thresholdRunningPIDs = thresholdRunningPIDs
+	comp.maxAllocatedFileHandles = thresholdAllocFH
+	comp.maxRunningPIDs = maxRunningPIDs
 
 	// Run the check
 	result := comp.Check()
@@ -1890,7 +2122,7 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	allocatedFHPct := calcUsagePct(allocatedFH, limit)
 	usedPct := calcUsagePct(usage, limit)
 	thresholdAllocFHPct := calcUsagePct(usage, min(thresholdAllocFH, limit))
-	thresholdRunningPIDsPct := calcUsagePct(usage, thresholdRunningPIDs)
+	maxRunningPIDsPct := calcUsagePct(usage, maxRunningPIDs)
 
 	// Verify all fields are populated correctly
 	fd := data.FileDescriptors
@@ -1902,8 +2134,8 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%.2f", usedPct), fd.UsedPercent, "UsedPercent should match")
 	assert.Equal(t, thresholdAllocFH, fd.ThresholdAllocatedFileHandles, "ThresholdAllocatedFileHandles should match")
 	assert.Equal(t, fmt.Sprintf("%.2f", thresholdAllocFHPct), fd.ThresholdAllocatedFileHandlesPercent, "ThresholdAllocatedFileHandlesPercent should match")
-	assert.Equal(t, thresholdRunningPIDs, fd.ThresholdRunningPIDs, "ThresholdRunningPIDs should match")
-	assert.Equal(t, fmt.Sprintf("%.2f", thresholdRunningPIDsPct), fd.ThresholdRunningPIDsPercent, "ThresholdRunningPIDsPercent should match")
+	assert.Equal(t, maxRunningPIDs, fd.ThresholdRunningPIDs, "ThresholdRunningPIDs should match")
+	assert.Equal(t, fmt.Sprintf("%.2f", maxRunningPIDsPct), fd.ThresholdRunningPIDsPercent, "ThresholdRunningPIDsPercent should match")
 	assert.Equal(t, fileHandlesSupported, fd.FileHandlesSupported, "FileHandlesSupported should match")
 	assert.Equal(t, fdSupported, fd.FDLimitSupported, "FDLimitSupported should match")
 }
@@ -2067,4 +2299,1358 @@ func TestComponent_MacOSSpecificHandling(t *testing.T) {
 	// Also verify support flags are correctly set
 	assert.False(t, data.FileDescriptors.FileHandlesSupported)
 	assert.True(t, data.FileDescriptors.FDLimitSupported)
+}
+
+// TestComponent_ZombieProcessThresholdEdgeCases tests edge cases for zombie process threshold
+func TestComponent_ZombieProcessThresholdEdgeCases(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tests := []struct {
+		name                   string
+		zombieCount            int
+		threshold              int
+		expectedHealth         apiv1.HealthStateType
+		expectedReason         string
+		expectSuggestedActions bool
+	}{
+		{
+			name:                   "zombie processes exactly at threshold",
+			zombieCount:            10,
+			threshold:              10,
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReason:         "ok",
+			expectSuggestedActions: false,
+		},
+		{
+			name:                   "zombie processes below threshold",
+			zombieCount:            5,
+			threshold:              10,
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReason:         "ok",
+			expectSuggestedActions: false,
+		},
+		{
+			name:                   "zombie processes above threshold",
+			zombieCount:            15,
+			threshold:              10,
+			expectedHealth:         apiv1.HealthStateTypeDegraded,
+			expectedReason:         "too many zombie processes (degraded state threshold: 10)",
+			expectSuggestedActions: true,
+		},
+		{
+			name:                   "zero zombie processes",
+			zombieCount:            0,
+			threshold:              10,
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReason:         "ok",
+			expectSuggestedActions: false,
+		},
+		{
+			name:                   "single zombie process with low threshold",
+			zombieCount:            1,
+			threshold:              0,
+			expectedHealth:         apiv1.HealthStateTypeDegraded,
+			expectedReason:         "too many zombie processes (degraded state threshold: 0)",
+			expectSuggestedActions: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := New(&components.GPUdInstance{
+				RootCtx: ctx,
+			})
+			assert.NoError(t, err)
+			defer c.Close()
+
+			comp := c.(*component)
+			comp.zombieProcessCountThresholdDegraded = tt.threshold
+			// Set high threshold to be very high so we only test low threshold behavior
+			comp.zombieProcessCountThresholdUnhealthy = tt.threshold + 10000
+
+			// Override the process counting function
+			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+				return map[string][]process.ProcessStatus{
+					procs.Running: make([]process.ProcessStatus, 10),
+					procs.Zombie:  make([]process.ProcessStatus, tt.zombieCount),
+				}, nil
+			}
+
+			// Override file descriptor functions to prevent errors
+			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+				return 1000, 0, nil
+			}
+			comp.countRunningPIDsFunc = func() (uint64, error) {
+				return 500, nil
+			}
+			comp.getUsageFunc = func() (uint64, error) {
+				return 1000, nil
+			}
+			comp.getLimitFunc = func() (uint64, error) {
+				return 10000, nil
+			}
+
+			// Call Check
+			result := comp.Check()
+			data := result.(*checkResult)
+
+			// Verify results
+			assert.Equal(t, tt.zombieCount, data.ZombieProcesses)
+			assert.Equal(t, tt.expectedHealth, data.health)
+			assert.Equal(t, tt.expectedReason, data.reason)
+
+			// Verify suggested actions
+			if tt.expectSuggestedActions {
+				assert.NotNil(t, data.suggestedActions)
+				assert.Equal(t, "check/restart user applications for leaky file descriptors", data.suggestedActions.Description)
+				assert.Len(t, data.suggestedActions.RepairActions, 1)
+				assert.Equal(t, apiv1.RepairActionTypeCheckUserAppAndGPU, data.suggestedActions.RepairActions[0])
+			} else {
+				assert.Nil(t, data.suggestedActions)
+			}
+		})
+	}
+}
+
+// TestComponent_ZombieProcessMetrics tests that zombie process metrics are set correctly
+func TestComponent_ZombieProcessMetrics(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Test different zombie counts
+	zombieCounts := []int{0, 5, 10, 100, 1000}
+
+	for _, count := range zombieCounts {
+		t.Run(fmt.Sprintf("zombie_count_%d", count), func(t *testing.T) {
+			// Override the process counting function
+			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+				return map[string][]process.ProcessStatus{
+					procs.Zombie: make([]process.ProcessStatus, count),
+				}, nil
+			}
+
+			// Override file descriptor functions to prevent errors
+			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+				return 1000, 0, nil
+			}
+			comp.countRunningPIDsFunc = func() (uint64, error) {
+				return 500, nil
+			}
+			comp.getUsageFunc = func() (uint64, error) {
+				return 1000, nil
+			}
+			comp.getLimitFunc = func() (uint64, error) {
+				return 10000, nil
+			}
+
+			// Call Check
+			_ = comp.Check()
+
+			// Verify metric is set
+			// Get the actual gauge metric with empty labels
+			gauge, err := metricZombieProcesses.GetMetricWith(prometheus.Labels{})
+			assert.NoError(t, err)
+
+			// Write the metric to a DTO to check its value
+			dto := &prometheusdto.Metric{}
+			err = gauge.Write(dto)
+			assert.NoError(t, err)
+			assert.NotNil(t, dto.Gauge)
+			assert.Equal(t, float64(count), *dto.Gauge.Value)
+		})
+	}
+}
+
+// TestComponent_ProcessStatusMap tests different process status combinations
+func TestComponent_ProcessStatusMap(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tests := []struct {
+		name            string
+		processMap      map[string][]process.ProcessStatus
+		expectedZombies int
+	}{
+		{
+			name: "only zombie processes",
+			processMap: map[string][]process.ProcessStatus{
+				procs.Zombie: make([]process.ProcessStatus, 5),
+			},
+			expectedZombies: 5,
+		},
+		{
+			name: "mixed process statuses",
+			processMap: map[string][]process.ProcessStatus{
+				procs.Running: make([]process.ProcessStatus, 10),
+				procs.Zombie:  make([]process.ProcessStatus, 3),
+				procs.Sleep:   make([]process.ProcessStatus, 20),
+				procs.Stop:    make([]process.ProcessStatus, 2),
+			},
+			expectedZombies: 3,
+		},
+		{
+			name: "no zombie processes",
+			processMap: map[string][]process.ProcessStatus{
+				procs.Running: make([]process.ProcessStatus, 10),
+				procs.Sleep:   make([]process.ProcessStatus, 20),
+			},
+			expectedZombies: 0,
+		},
+		{
+			name:            "empty process map",
+			processMap:      map[string][]process.ProcessStatus{},
+			expectedZombies: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := New(&components.GPUdInstance{
+				RootCtx: ctx,
+			})
+			assert.NoError(t, err)
+			defer c.Close()
+
+			comp := c.(*component)
+
+			// Override the process counting function
+			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+				return tt.processMap, nil
+			}
+
+			// Override file descriptor functions to prevent errors
+			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+				return 1000, 0, nil
+			}
+			comp.countRunningPIDsFunc = func() (uint64, error) {
+				return 500, nil
+			}
+			comp.getUsageFunc = func() (uint64, error) {
+				return 1000, nil
+			}
+			comp.getLimitFunc = func() (uint64, error) {
+				return 10000, nil
+			}
+
+			// Call Check
+			result := comp.Check()
+			data := result.(*checkResult)
+
+			// Verify zombie count
+			assert.Equal(t, tt.expectedZombies, data.ZombieProcesses)
+		})
+	}
+}
+
+// TestComponent_ZombieProcessHealthStates tests that health states are properly set for zombie processes
+func TestComponent_ZombieProcessHealthStates(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+	comp.zombieProcessCountThresholdDegraded = 10
+	// Set high threshold to be very high so we only test low threshold behavior
+	comp.zombieProcessCountThresholdUnhealthy = 10000
+
+	// Override the process counting function to return too many zombies
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Zombie: make([]process.ProcessStatus, 15),
+		}, nil
+	}
+
+	// Call Check
+	_ = comp.Check()
+
+	// Get health states
+	healthStates := comp.LastHealthStates()
+	assert.Len(t, healthStates, 1)
+
+	state := healthStates[0]
+	assert.Equal(t, Name, state.Component)
+	assert.Equal(t, Name, state.Name)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
+	assert.Equal(t, "too many zombie processes (degraded state threshold: 10)", state.Reason)
+	assert.Empty(t, state.Error)
+
+	// Verify extra info contains the data
+	assert.Contains(t, state.ExtraInfo, "data")
+	var checkData checkResult
+	err = json.Unmarshal([]byte(state.ExtraInfo["data"]), &checkData)
+	assert.NoError(t, err)
+	assert.Equal(t, 15, checkData.ZombieProcesses)
+}
+
+// TestComponent_ZombieProcessLowHighThresholds tests the zombie process thresholds logic
+// that handles both low and high thresholds with different health states
+func TestComponent_ZombieProcessLowHighThresholds(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tests := []struct {
+		name                   string
+		zombieCount            int
+		lowThreshold           int
+		highThreshold          int
+		expectedHealth         apiv1.HealthStateType
+		expectedReason         string
+		expectSuggestedActions bool
+	}{
+		{
+			name:                   "below low threshold",
+			zombieCount:            50,
+			lowThreshold:           100,
+			highThreshold:          200,
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReason:         "ok",
+			expectSuggestedActions: false,
+		},
+		{
+			name:                   "exactly at low threshold",
+			zombieCount:            100,
+			lowThreshold:           100,
+			highThreshold:          200,
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReason:         "ok",
+			expectSuggestedActions: false,
+		},
+		{
+			name:                   "between low and high thresholds",
+			zombieCount:            150,
+			lowThreshold:           100,
+			highThreshold:          200,
+			expectedHealth:         apiv1.HealthStateTypeDegraded,
+			expectedReason:         "too many zombie processes (degraded state threshold: 100)",
+			expectSuggestedActions: true,
+		},
+		{
+			name:                   "just above low threshold",
+			zombieCount:            101,
+			lowThreshold:           100,
+			highThreshold:          200,
+			expectedHealth:         apiv1.HealthStateTypeDegraded,
+			expectedReason:         "too many zombie processes (degraded state threshold: 100)",
+			expectSuggestedActions: true,
+		},
+		{
+			name:                   "just below high threshold",
+			zombieCount:            199,
+			lowThreshold:           100,
+			highThreshold:          200,
+			expectedHealth:         apiv1.HealthStateTypeDegraded,
+			expectedReason:         "too many zombie processes (degraded state threshold: 100)",
+			expectSuggestedActions: true,
+		},
+		{
+			name:                   "exactly at high threshold",
+			zombieCount:            200,
+			lowThreshold:           100,
+			highThreshold:          200,
+			expectedHealth:         apiv1.HealthStateTypeDegraded,
+			expectedReason:         "too many zombie processes (degraded state threshold: 100)",
+			expectSuggestedActions: true,
+		},
+		{
+			name:                   "above high threshold",
+			zombieCount:            250,
+			lowThreshold:           100,
+			highThreshold:          200,
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReason:         "too many zombie processes (unhealthy state threshold: 200)",
+			expectSuggestedActions: true,
+		},
+		{
+			name:                   "just above high threshold",
+			zombieCount:            201,
+			lowThreshold:           100,
+			highThreshold:          200,
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReason:         "too many zombie processes (unhealthy state threshold: 200)",
+			expectSuggestedActions: true,
+		},
+		{
+			name:                   "very high zombie count",
+			zombieCount:            1000,
+			lowThreshold:           100,
+			highThreshold:          200,
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReason:         "too many zombie processes (unhealthy state threshold: 200)",
+			expectSuggestedActions: true,
+		},
+		{
+			name:                   "zero zombie processes with zero thresholds",
+			zombieCount:            0,
+			lowThreshold:           0,
+			highThreshold:          0,
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReason:         "ok",
+			expectSuggestedActions: false,
+		},
+		{
+			name:                   "one zombie with zero low threshold and high threshold",
+			zombieCount:            1,
+			lowThreshold:           0,
+			highThreshold:          10,
+			expectedHealth:         apiv1.HealthStateTypeDegraded,
+			expectedReason:         "too many zombie processes (degraded state threshold: 0)",
+			expectSuggestedActions: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := New(&components.GPUdInstance{
+				RootCtx: ctx,
+			})
+			assert.NoError(t, err)
+			defer c.Close()
+
+			comp := c.(*component)
+			comp.zombieProcessCountThresholdDegraded = tt.lowThreshold
+			comp.zombieProcessCountThresholdUnhealthy = tt.highThreshold
+
+			// Override the process counting function
+			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+				return map[string][]process.ProcessStatus{
+					procs.Running: make([]process.ProcessStatus, 10),
+					procs.Zombie:  make([]process.ProcessStatus, tt.zombieCount),
+				}, nil
+			}
+
+			// Override file descriptor functions to prevent errors
+			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+				return 1000, 0, nil
+			}
+			comp.countRunningPIDsFunc = func() (uint64, error) {
+				return 500, nil
+			}
+			comp.getUsageFunc = func() (uint64, error) {
+				return 1000, nil
+			}
+			comp.getLimitFunc = func() (uint64, error) {
+				return 10000, nil
+			}
+			comp.checkFileHandlesSupportedFunc = func() bool {
+				return true
+			}
+			comp.checkFDLimitSupportedFunc = func() bool {
+				return true
+			}
+
+			// Call Check
+			result := comp.Check()
+			data := result.(*checkResult)
+
+			// Verify results
+			assert.Equal(t, tt.zombieCount, data.ZombieProcesses, "Zombie count should match")
+			assert.Equal(t, tt.expectedHealth, data.health, "Health state should match")
+			assert.Equal(t, tt.expectedReason, data.reason, "Reason should match")
+
+			// Verify suggested actions
+			if tt.expectSuggestedActions {
+				assert.NotNil(t, data.suggestedActions, "Suggested actions should be present")
+				assert.Equal(t, "check/restart user applications for leaky file descriptors", data.suggestedActions.Description)
+				assert.Len(t, data.suggestedActions.RepairActions, 1)
+				assert.Equal(t, apiv1.RepairActionTypeCheckUserAppAndGPU, data.suggestedActions.RepairActions[0])
+			} else {
+				assert.Nil(t, data.suggestedActions, "Suggested actions should be nil")
+			}
+
+			// Verify health states through the component
+			healthStates := comp.LastHealthStates()
+			assert.Len(t, healthStates, 1)
+			state := healthStates[0]
+			assert.Equal(t, tt.expectedHealth, state.Health, "Health state in HealthStates should match")
+			assert.Equal(t, tt.expectedReason, state.Reason, "Reason in HealthStates should match")
+		})
+	}
+}
+
+// TestComponent_ZombieProcessThresholdsWithErrors tests zombie process threshold logic when there are errors
+func TestComponent_ZombieProcessThresholdsWithErrors(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+	comp.zombieProcessCountThresholdDegraded = 100
+	comp.zombieProcessCountThresholdUnhealthy = 200
+
+	// Test case 1: Process counting returns error before zombie check
+	t.Run("process count error", func(t *testing.T) {
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return nil, errors.New("failed to count processes")
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.NotNil(t, data.err)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+		assert.Equal(t, "error getting process count", data.reason)
+		assert.Contains(t, data.err.Error(), "failed to count processes")
+	})
+
+	// Test case 2: Zombie processes in degraded range but file handle error occurs
+	t.Run("zombie degraded but file handle error", func(t *testing.T) {
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return map[string][]process.ProcessStatus{
+				procs.Zombie: make([]process.ProcessStatus, 150), // Between low and high
+			}, nil
+		}
+
+		// This should return early with degraded state before reaching file handle check
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.Equal(t, 150, data.ZombieProcesses)
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, data.health)
+		assert.Equal(t, "too many zombie processes (degraded state threshold: 100)", data.reason)
+		assert.NotNil(t, data.suggestedActions)
+	})
+
+	// Test case 3: Zombie processes in unhealthy range
+	t.Run("zombie unhealthy", func(t *testing.T) {
+		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+			return map[string][]process.ProcessStatus{
+				procs.Zombie: make([]process.ProcessStatus, 250), // Above high threshold
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		assert.Equal(t, 250, data.ZombieProcesses)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+		assert.Equal(t, "too many zombie processes (unhealthy state threshold: 200)", data.reason)
+		assert.NotNil(t, data.suggestedActions)
+	})
+}
+
+// TestComponent_ZombieProcessMetricsWithThresholds tests that metrics are correctly set
+// for different zombie process scenarios with both thresholds
+func TestComponent_ZombieProcessMetricsWithThresholds(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	testCases := []struct {
+		name          string
+		zombieCount   int
+		lowThreshold  int
+		highThreshold int
+	}{
+		{
+			name:          "below thresholds",
+			zombieCount:   50,
+			lowThreshold:  100,
+			highThreshold: 200,
+		},
+		{
+			name:          "between thresholds",
+			zombieCount:   150,
+			lowThreshold:  100,
+			highThreshold: 200,
+		},
+		{
+			name:          "above high threshold",
+			zombieCount:   250,
+			lowThreshold:  100,
+			highThreshold: 200,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := New(&components.GPUdInstance{
+				RootCtx: ctx,
+			})
+			assert.NoError(t, err)
+			defer c.Close()
+
+			comp := c.(*component)
+			comp.zombieProcessCountThresholdDegraded = tc.lowThreshold
+			comp.zombieProcessCountThresholdUnhealthy = tc.highThreshold
+
+			// Override functions
+			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+				return map[string][]process.ProcessStatus{
+					procs.Zombie: make([]process.ProcessStatus, tc.zombieCount),
+				}, nil
+			}
+			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+				return 1000, 0, nil
+			}
+			comp.countRunningPIDsFunc = func() (uint64, error) {
+				return 500, nil
+			}
+			comp.getUsageFunc = func() (uint64, error) {
+				return 1000, nil
+			}
+			comp.getLimitFunc = func() (uint64, error) {
+				return 10000, nil
+			}
+
+			// Call Check
+			_ = comp.Check()
+
+			// Verify metric is set correctly
+			gauge, err := metricZombieProcesses.GetMetricWith(prometheus.Labels{})
+			assert.NoError(t, err)
+
+			dto := &prometheusdto.Metric{}
+			err = gauge.Write(dto)
+			assert.NoError(t, err)
+			assert.NotNil(t, dto.Gauge)
+			assert.Equal(t, float64(tc.zombieCount), *dto.Gauge.Value)
+		})
+	}
+}
+
+// TestComponent_HealthStatesSuggestedActions tests that SuggestedActions is properly set in health states
+func TestComponent_HealthStatesSuggestedActions(t *testing.T) {
+	tests := []struct {
+		name                     string
+		setupCheckResult         func() *checkResult
+		expectedHealth           apiv1.HealthStateType
+		expectedReason           string
+		expectedSuggestedActions *apiv1.SuggestedActions
+		expectedError            string
+	}{
+		{
+			name: "healthy state with no suggested actions",
+			setupCheckResult: func() *checkResult {
+				return &checkResult{
+					health: apiv1.HealthStateTypeHealthy,
+					reason: "ok",
+					ts:     time.Now().UTC(),
+					Kernel: Kernel{Version: "5.15.0"},
+				}
+			},
+			expectedHealth:           apiv1.HealthStateTypeHealthy,
+			expectedReason:           "ok",
+			expectedSuggestedActions: nil,
+			expectedError:            "",
+		},
+		{
+			name: "degraded state with zombie process suggested actions",
+			setupCheckResult: func() *checkResult {
+				return &checkResult{
+					health:          apiv1.HealthStateTypeDegraded,
+					reason:          "too many zombie processes (degraded state threshold: 100)",
+					ts:              time.Now().UTC(),
+					ZombieProcesses: 150,
+					suggestedActions: &apiv1.SuggestedActions{
+						Description: "check/restart user applications for leaky file descriptors",
+						RepairActions: []apiv1.RepairActionType{
+							apiv1.RepairActionTypeCheckUserAppAndGPU,
+						},
+					},
+				}
+			},
+			expectedHealth: apiv1.HealthStateTypeDegraded,
+			expectedReason: "too many zombie processes (degraded state threshold: 100)",
+			expectedSuggestedActions: &apiv1.SuggestedActions{
+				Description: "check/restart user applications for leaky file descriptors",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeCheckUserAppAndGPU,
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name: "unhealthy state with zombie process suggested actions",
+			setupCheckResult: func() *checkResult {
+				return &checkResult{
+					health:          apiv1.HealthStateTypeUnhealthy,
+					reason:          "too many zombie processes (unhealthy state threshold: 200)",
+					ts:              time.Now().UTC(),
+					ZombieProcesses: 250,
+					suggestedActions: &apiv1.SuggestedActions{
+						Description: "check/restart user applications for leaky file descriptors",
+						RepairActions: []apiv1.RepairActionType{
+							apiv1.RepairActionTypeCheckUserAppAndGPU,
+						},
+					},
+				}
+			},
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "too many zombie processes (unhealthy state threshold: 200)",
+			expectedSuggestedActions: &apiv1.SuggestedActions{
+				Description: "check/restart user applications for leaky file descriptors",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeCheckUserAppAndGPU,
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name: "error state with no suggested actions",
+			setupCheckResult: func() *checkResult {
+				return &checkResult{
+					health: apiv1.HealthStateTypeUnhealthy,
+					reason: "error getting process count",
+					ts:     time.Now().UTC(),
+					err:    errors.New("process count error"),
+				}
+			},
+			expectedHealth:           apiv1.HealthStateTypeUnhealthy,
+			expectedReason:           "error getting process count",
+			expectedSuggestedActions: nil,
+			expectedError:            "process count error",
+		},
+		{
+			name: "nil check result returns default health state",
+			setupCheckResult: func() *checkResult {
+				return nil
+			},
+			expectedHealth:           apiv1.HealthStateTypeHealthy,
+			expectedReason:           "no data yet",
+			expectedSuggestedActions: nil,
+			expectedError:            "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			checkResult := tt.setupCheckResult()
+
+			// Get health states from the check result
+			healthStates := checkResult.HealthStates()
+			assert.Len(t, healthStates, 1, "Should return exactly one health state")
+
+			state := healthStates[0]
+
+			// Verify all fields
+			assert.Equal(t, Name, state.Component, "Component name should match")
+			assert.Equal(t, Name, state.Name, "Name should match")
+			assert.Equal(t, tt.expectedHealth, state.Health, "Health state should match")
+			assert.Equal(t, tt.expectedReason, state.Reason, "Reason should match")
+			assert.Equal(t, tt.expectedError, state.Error, "Error should match")
+
+			// Verify SuggestedActions field specifically
+			if tt.expectedSuggestedActions == nil {
+				assert.Nil(t, state.SuggestedActions, "SuggestedActions should be nil when no actions are needed")
+			} else {
+				assert.NotNil(t, state.SuggestedActions, "SuggestedActions should not be nil when actions are needed")
+				assert.Equal(t, tt.expectedSuggestedActions.Description, state.SuggestedActions.Description,
+					"SuggestedActions description should match")
+				assert.Equal(t, tt.expectedSuggestedActions.RepairActions, state.SuggestedActions.RepairActions,
+					"SuggestedActions repair actions should match")
+			}
+
+			// Verify ExtraInfo contains data (except for nil check result)
+			if checkResult != nil {
+				assert.Contains(t, state.ExtraInfo, "data", "ExtraInfo should contain data")
+			}
+		})
+	}
+}
+
+// TestComponent_SuggestedActionsIntegration tests the full integration of suggested actions
+// from Check() through LastHealthStates()
+func TestComponent_SuggestedActionsIntegration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tests := []struct {
+		name                        string
+		zombieCount                 int
+		degradedThreshold           int
+		unhealthyThreshold          int
+		expectedHealth              apiv1.HealthStateType
+		expectedHasSuggestedActions bool
+	}{
+		{
+			name:                        "no zombie processes - no suggested actions",
+			zombieCount:                 0,
+			degradedThreshold:           100,
+			unhealthyThreshold:          200,
+			expectedHealth:              apiv1.HealthStateTypeHealthy,
+			expectedHasSuggestedActions: false,
+		},
+		{
+			name:                        "degraded state - has suggested actions",
+			zombieCount:                 150,
+			degradedThreshold:           100,
+			unhealthyThreshold:          200,
+			expectedHealth:              apiv1.HealthStateTypeDegraded,
+			expectedHasSuggestedActions: true,
+		},
+		{
+			name:                        "unhealthy state - has suggested actions",
+			zombieCount:                 250,
+			degradedThreshold:           100,
+			unhealthyThreshold:          200,
+			expectedHealth:              apiv1.HealthStateTypeUnhealthy,
+			expectedHasSuggestedActions: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := New(&components.GPUdInstance{
+				RootCtx: ctx,
+			})
+			assert.NoError(t, err)
+			defer c.Close()
+
+			comp := c.(*component)
+			comp.zombieProcessCountThresholdDegraded = tt.degradedThreshold
+			comp.zombieProcessCountThresholdUnhealthy = tt.unhealthyThreshold
+
+			// Override the process counting function
+			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+				return map[string][]process.ProcessStatus{
+					procs.Zombie: make([]process.ProcessStatus, tt.zombieCount),
+				}, nil
+			}
+
+			// Override file descriptor functions to prevent errors
+			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+				return 1000, 0, nil
+			}
+			comp.countRunningPIDsFunc = func() (uint64, error) {
+				return 500, nil
+			}
+			comp.getUsageFunc = func() (uint64, error) {
+				return 1000, nil
+			}
+			comp.getLimitFunc = func() (uint64, error) {
+				return 10000, nil
+			}
+			comp.checkFileHandlesSupportedFunc = func() bool {
+				return true
+			}
+			comp.checkFDLimitSupportedFunc = func() bool {
+				return true
+			}
+
+			// Call Check to populate the component state
+			_ = comp.Check()
+
+			// Get health states through the component's LastHealthStates method
+			healthStates := comp.LastHealthStates()
+			assert.Len(t, healthStates, 1, "Should return exactly one health state")
+
+			state := healthStates[0]
+
+			// Verify health state
+			assert.Equal(t, tt.expectedHealth, state.Health, "Health state should match expected")
+
+			// Verify SuggestedActions field
+			if tt.expectedHasSuggestedActions {
+				assert.NotNil(t, state.SuggestedActions, "SuggestedActions should be present")
+				assert.Equal(t, "check/restart user applications for leaky file descriptors",
+					state.SuggestedActions.Description, "SuggestedActions description should match")
+				assert.Len(t, state.SuggestedActions.RepairActions, 1, "Should have one repair action")
+				assert.Equal(t, apiv1.RepairActionTypeCheckUserAppAndGPU,
+					state.SuggestedActions.RepairActions[0], "Repair action type should match")
+			} else {
+				assert.Nil(t, state.SuggestedActions, "SuggestedActions should be nil")
+			}
+		})
+	}
+}
+
+// TestComponent_RunningPIDsThresholdPercentageChecks tests the running PIDs threshold percentage logic
+// that determines degraded and unhealthy states based on configured percentage thresholds
+func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tests := []struct {
+		name                       string
+		maxRunningPIDs             uint64
+		maxRunningPIDsPctDegraded  float64
+		maxRunningPIDsPctUnhealthy float64
+		usage                      uint64
+		limit                      uint64
+		fdLimitSupported           bool
+		expectedHealth             apiv1.HealthStateType
+		expectedReason             string
+	}{
+		{
+			name:                       "below degraded threshold",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      7000,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
+		},
+		{
+			name:                       "exactly at degraded threshold",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      8000,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
+		},
+		{
+			name:                       "above degraded but below unhealthy",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      8500,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeDegraded,
+			expectedReason:             "too many running pids (degraded state percent threshold: 80.00 %)",
+		},
+		{
+			name:                       "above unhealthy threshold",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      9600,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeUnhealthy,
+			expectedReason:             "too many running pids (unhealthy state percent threshold: 95.00 %)",
+		},
+		{
+			name:                       "fd limit not supported",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      9600,
+			limit:                      100000,
+			fdLimitSupported:           false,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
+		},
+		{
+			name:                       "zero threshold running PIDs",
+			maxRunningPIDs:             0,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      9600,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
+		},
+		{
+			name:                       "zero degraded threshold",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      9600,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := New(&components.GPUdInstance{
+				RootCtx: ctx,
+			})
+			assert.NoError(t, err)
+			defer c.Close()
+
+			comp := c.(*component)
+
+			// Set threshold values
+			comp.maxRunningPIDs = tt.maxRunningPIDs
+			comp.maxRunningPIDsPctDegraded = tt.maxRunningPIDsPctDegraded
+			comp.maxRunningPIDsPctUnhealthy = tt.maxRunningPIDsPctUnhealthy
+
+			// Override mock functions
+			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+				return map[string][]process.ProcessStatus{
+					procs.Running: make([]process.ProcessStatus, 10),
+				}, nil
+			}
+			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+				return 1000, 0, nil
+			}
+			comp.countRunningPIDsFunc = func() (uint64, error) {
+				return 500, nil
+			}
+			comp.getUsageFunc = func() (uint64, error) {
+				return tt.usage, nil
+			}
+			comp.getLimitFunc = func() (uint64, error) {
+				return tt.limit, nil
+			}
+			comp.checkFileHandlesSupportedFunc = func() bool {
+				return true
+			}
+			comp.checkFDLimitSupportedFunc = func() bool {
+				return tt.fdLimitSupported
+			}
+
+			// Run check
+			result := comp.Check()
+			data := result.(*checkResult)
+
+			// Verify results
+			assert.Equal(t, tt.expectedHealth, data.health, "Health state should match")
+			assert.Equal(t, tt.expectedReason, data.reason, "Reason should match")
+		})
+	}
+}
+
+// TestComponent_AllocatedFileHandlesThresholdPercentageChecks tests the allocated file handles threshold percentage logic
+func TestComponent_AllocatedFileHandlesThresholdPercentageChecks(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tests := []struct {
+		name                                string
+		maxAllocatedFileHandles             uint64
+		usage                               uint64
+		limit                               uint64
+		maxAllocatedFileHandlesPctDegraded  float64
+		maxAllocatedFileHandlesPctUnhealthy float64
+		expectedHealth                      apiv1.HealthStateType
+		expectedReason                      string
+	}{
+		{
+			name:                                "below degraded threshold",
+			maxAllocatedFileHandles:             10000,
+			usage:                               7000,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeHealthy,
+			expectedReason:                      "ok",
+		},
+		{
+			name:                                "exactly at degraded threshold",
+			maxAllocatedFileHandles:             10000,
+			usage:                               8000,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeHealthy,
+			expectedReason:                      "ok",
+		},
+		{
+			name:                                "above degraded but below unhealthy",
+			maxAllocatedFileHandles:             10000,
+			usage:                               8500,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeDegraded,
+			expectedReason:                      "too many allocated file handles (degraded state percent threshold: 80.00 %)",
+		},
+		{
+			name:                                "above unhealthy threshold",
+			maxAllocatedFileHandles:             10000,
+			usage:                               9600,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeUnhealthy,
+			expectedReason:                      "too many allocated file handles (unhealthy state percent threshold: 95.00 %)",
+		},
+		{
+			name:                                "threshold higher than limit",
+			maxAllocatedFileHandles:             20000,
+			usage:                               8500,
+			limit:                               10000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeDegraded,
+			expectedReason:                      "too many allocated file handles (degraded state percent threshold: 80.00 %)",
+		},
+		{
+			name:                                "zero threshold",
+			maxAllocatedFileHandles:             0,
+			usage:                               9600,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeHealthy,
+			expectedReason:                      "ok",
+		},
+		{
+			name:                                "zero degraded threshold",
+			maxAllocatedFileHandles:             10000,
+			usage:                               9600,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeHealthy,
+			expectedReason:                      "ok",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := New(&components.GPUdInstance{
+				RootCtx: ctx,
+			})
+			assert.NoError(t, err)
+			defer c.Close()
+
+			comp := c.(*component)
+
+			// Set threshold values
+			comp.maxAllocatedFileHandles = tt.maxAllocatedFileHandles
+			comp.maxAllocatedFileHandlesPctDegraded = tt.maxAllocatedFileHandlesPctDegraded
+			comp.maxAllocatedFileHandlesPctUnhealthy = tt.maxAllocatedFileHandlesPctUnhealthy
+
+			// Override mock functions
+			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+				return map[string][]process.ProcessStatus{
+					procs.Running: make([]process.ProcessStatus, 10),
+				}, nil
+			}
+			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+				return 1000, 0, nil
+			}
+			comp.countRunningPIDsFunc = func() (uint64, error) {
+				return 500, nil
+			}
+			comp.getUsageFunc = func() (uint64, error) {
+				return tt.usage, nil
+			}
+			comp.getLimitFunc = func() (uint64, error) {
+				return tt.limit, nil
+			}
+			comp.checkFileHandlesSupportedFunc = func() bool {
+				return true
+			}
+			comp.checkFDLimitSupportedFunc = func() bool {
+				return true
+			}
+
+			// Run check
+			result := comp.Check()
+			data := result.(*checkResult)
+
+			// Verify results
+			assert.Equal(t, tt.expectedHealth, data.health, "Health state should match")
+			assert.Equal(t, tt.expectedReason, data.reason, "Reason should match")
+		})
+	}
+}
+
+// TestComponent_ThresholdPercentageChecksPriority tests the priority of different threshold checks
+// Verifies that running PIDs threshold is checked before allocated file handles threshold
+func TestComponent_ThresholdPercentageChecksPriority(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Set both thresholds to trigger degraded state
+	comp.maxRunningPIDs = 10000
+	comp.maxRunningPIDsPctDegraded = 80.0
+	comp.maxRunningPIDsPctUnhealthy = 95.0
+	comp.maxAllocatedFileHandles = 10000
+	comp.maxAllocatedFileHandlesPctDegraded = 80.0
+	comp.maxAllocatedFileHandlesPctUnhealthy = 95.0
+
+	// Override mock functions - both thresholds would trigger degraded state
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Running: make([]process.ProcessStatus, 10),
+		}, nil
+	}
+	comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+		return 1000, 0, nil
+	}
+	comp.countRunningPIDsFunc = func() (uint64, error) {
+		return 500, nil
+	}
+	comp.getUsageFunc = func() (uint64, error) {
+		return 8500, nil // This would trigger both thresholds
+	}
+	comp.getLimitFunc = func() (uint64, error) {
+		return 100000, nil
+	}
+	comp.checkFileHandlesSupportedFunc = func() bool {
+		return true
+	}
+	comp.checkFDLimitSupportedFunc = func() bool {
+		return true
+	}
+
+	// Run check
+	result := comp.Check()
+	data := result.(*checkResult)
+
+	// Verify that running PIDs threshold is checked first
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, data.health)
+	assert.Equal(t, "too many running pids (degraded state percent threshold: 80.00 %)", data.reason)
+}
+
+// TestComponent_ThresholdPercentageChecksWithAllHealthyConditions tests that health state is healthy
+// when all threshold checks pass
+func TestComponent_ThresholdPercentageChecksWithAllHealthyConditions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Set thresholds
+	comp.maxRunningPIDs = 10000
+	comp.maxRunningPIDsPctDegraded = 80.0
+	comp.maxRunningPIDsPctUnhealthy = 95.0
+	comp.maxAllocatedFileHandles = 10000
+	comp.maxAllocatedFileHandlesPctDegraded = 80.0
+	comp.maxAllocatedFileHandlesPctUnhealthy = 95.0
+
+	// Override mock functions - all values below thresholds
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Running: make([]process.ProcessStatus, 10),
+		}, nil
+	}
+	comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+		return 1000, 0, nil
+	}
+	comp.countRunningPIDsFunc = func() (uint64, error) {
+		return 500, nil
+	}
+	comp.getUsageFunc = func() (uint64, error) {
+		return 5000, nil // Well below thresholds
+	}
+	comp.getLimitFunc = func() (uint64, error) {
+		return 100000, nil
+	}
+	comp.checkFileHandlesSupportedFunc = func() bool {
+		return true
+	}
+	comp.checkFDLimitSupportedFunc = func() bool {
+		return true
+	}
+
+	// Run check
+	result := comp.Check()
+	data := result.(*checkResult)
+
+	// Verify healthy state
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "ok", data.reason)
+}
+
+// TestComponent_ThresholdPercentageMetricsUpdates tests that metrics are properly updated
+// for threshold percentage calculations
+func TestComponent_ThresholdPercentageMetricsUpdates(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Set values for testing
+	maxRunningPIDs := uint64(10000)
+	thresholdAllocatedFH := uint64(8000)
+	usage := uint64(5000)
+	limit := uint64(100000)
+
+	comp.maxRunningPIDs = maxRunningPIDs
+	comp.maxAllocatedFileHandles = thresholdAllocatedFH
+
+	// Override mock functions
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Running: make([]process.ProcessStatus, 10),
+		}, nil
+	}
+	comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+		return 1000, 0, nil
+	}
+	comp.countRunningPIDsFunc = func() (uint64, error) {
+		return 500, nil
+	}
+	comp.getUsageFunc = func() (uint64, error) {
+		return usage, nil
+	}
+	comp.getLimitFunc = func() (uint64, error) {
+		return limit, nil
+	}
+	comp.checkFileHandlesSupportedFunc = func() bool {
+		return true
+	}
+	comp.checkFDLimitSupportedFunc = func() bool {
+		return true
+	}
+
+	// Run check
+	_ = comp.Check()
+
+	// Verify threshold running PIDs metrics
+	gauge, err := metricThresholdRunningPIDs.GetMetricWith(prometheus.Labels{})
+	assert.NoError(t, err)
+	dto := &prometheusdto.Metric{}
+	err = gauge.Write(dto)
+	assert.NoError(t, err)
+	assert.Equal(t, float64(maxRunningPIDs), *dto.Gauge.Value)
+
+	// Verify threshold running PIDs percent metric
+	expectedPIDsPct := calcUsagePct(usage, maxRunningPIDs)
+	gauge, err = metricThresholdRunningPIDsPercent.GetMetricWith(prometheus.Labels{})
+	assert.NoError(t, err)
+	dto = &prometheusdto.Metric{}
+	err = gauge.Write(dto)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedPIDsPct, *dto.Gauge.Value)
+
+	// Verify threshold allocated file handles metrics
+	gauge, err = metricThresholdAllocatedFileHandles.GetMetricWith(prometheus.Labels{})
+	assert.NoError(t, err)
+	dto = &prometheusdto.Metric{}
+	err = gauge.Write(dto)
+	assert.NoError(t, err)
+	assert.Equal(t, float64(thresholdAllocatedFH), *dto.Gauge.Value)
+
+	// Verify threshold allocated file handles percent metric
+	expectedAllocFHPct := calcUsagePct(usage, min(thresholdAllocatedFH, limit))
+	gauge, err = metricThresholdAllocatedFileHandlesPercent.GetMetricWith(prometheus.Labels{})
+	assert.NoError(t, err)
+	dto = &prometheusdto.Metric{}
+	err = gauge.Write(dto)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedAllocFHPct, *dto.Gauge.Value)
 }
