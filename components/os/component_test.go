@@ -1601,8 +1601,8 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 
 	comp := c.(*component)
 	// Set the default thresholds
-	comp.thresholdAllocatedFileHandlesPercentDegraded = defaultThresholdAllocatedFileHandlesPercentDegraded
-	comp.thresholdAllocatedFileHandlesPercentUnhealthy = defaultThresholdAllocatedFileHandlesPercentUnhealthy
+	comp.maxAllocatedFileHandlesPctDegraded = defaultThresholdAllocatedFileHandlesPercentDegraded
+	comp.maxAllocatedFileHandlesPctUnhealthy = defaultThresholdAllocatedFileHandlesPercentUnhealthy
 
 	// Setup tests with different allocation percentages
 	tests := []struct {
@@ -1671,7 +1671,7 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 			}
 
 			// Override file descriptor functions
-			comp.thresholdAllocatedFileHandles = tt.thresholdAllocatedFH
+			comp.maxAllocatedFileHandles = tt.thresholdAllocatedFH
 			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
 				return tt.allocatedFileHandles, 0, nil
 			}
@@ -1860,56 +1860,56 @@ func TestComponent_ThresholdRunningPIDs(t *testing.T) {
 
 	// Test different threshold and limit combinations
 	tests := []struct {
-		name                 string
-		thresholdRunningPIDs uint64
-		runningPIDs          uint64
-		usage                uint64
-		limit                uint64
-		fdLimitSupported     bool
-		expectedPIDsPercent  string
+		name                string
+		maxRunningPIDs      uint64
+		runningPIDs         uint64
+		usage               uint64
+		limit               uint64
+		fdLimitSupported    bool
+		expectedPIDsPercent string
 	}{
 		{
-			name:                 "zero threshold",
-			thresholdRunningPIDs: 0,
-			runningPIDs:          1000,
-			usage:                1000,
-			limit:                10000,
-			fdLimitSupported:     true,
-			expectedPIDsPercent:  "0.00",
+			name:                "zero threshold",
+			maxRunningPIDs:      0,
+			runningPIDs:         1000,
+			usage:               1000,
+			limit:               10000,
+			fdLimitSupported:    true,
+			expectedPIDsPercent: "0.00",
 		},
 		{
-			name:                 "threshold with supported FD limit",
-			thresholdRunningPIDs: 5000,
-			runningPIDs:          1000,
-			usage:                1000,
-			limit:                10000,
-			fdLimitSupported:     true,
-			expectedPIDsPercent:  "20.00", // 1000/5000 * 100
+			name:                "threshold with supported FD limit",
+			maxRunningPIDs:      5000,
+			runningPIDs:         1000,
+			usage:               1000,
+			limit:               10000,
+			fdLimitSupported:    true,
+			expectedPIDsPercent: "20.00", // 1000/5000 * 100
 		},
 		{
-			name:                 "threshold without supported FD limit",
-			thresholdRunningPIDs: 5000,
-			runningPIDs:          1000,
-			usage:                1000,
-			limit:                10000,
-			fdLimitSupported:     false,
-			expectedPIDsPercent:  "0.00", // Should be 0 when fd limit not supported
+			name:                "threshold without supported FD limit",
+			maxRunningPIDs:      5000,
+			runningPIDs:         1000,
+			usage:               1000,
+			limit:               10000,
+			fdLimitSupported:    false,
+			expectedPIDsPercent: "0.00", // Should be 0 when fd limit not supported
 		},
 		{
-			name:                 "high usage with threshold",
-			thresholdRunningPIDs: 5000,
-			runningPIDs:          4000,
-			usage:                4000,
-			limit:                10000,
-			fdLimitSupported:     true,
-			expectedPIDsPercent:  "80.00", // 4000/5000 * 100
+			name:                "high usage with threshold",
+			maxRunningPIDs:      5000,
+			runningPIDs:         4000,
+			usage:               4000,
+			limit:               10000,
+			fdLimitSupported:    true,
+			expectedPIDsPercent: "80.00", // 4000/5000 * 100
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set mocks for test case
-			comp.thresholdRunningPIDs = tt.thresholdRunningPIDs
+			comp.maxRunningPIDs = tt.maxRunningPIDs
 			comp.getFileHandlesFunc = func() (uint64, uint64, error) {
 				return 1000, 0, nil
 			}
@@ -1936,7 +1936,7 @@ func TestComponent_ThresholdRunningPIDs(t *testing.T) {
 			// Verify threshold calculation
 			assert.Equal(t, tt.expectedPIDsPercent, data.FileDescriptors.ThresholdRunningPIDsPercent,
 				"Threshold running PIDs percentage should be calculated correctly")
-			assert.Equal(t, tt.thresholdRunningPIDs, data.FileDescriptors.ThresholdRunningPIDs,
+			assert.Equal(t, tt.maxRunningPIDs, data.FileDescriptors.ThresholdRunningPIDs,
 				"Threshold running PIDs should be set correctly")
 		})
 	}
@@ -2085,7 +2085,7 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	fdSupported := true
 	fileHandlesSupported := true
 	thresholdAllocFH := uint64(8000)
-	thresholdRunningPIDs := uint64(9000)
+	maxRunningPIDs := uint64(9000)
 
 	// Override all the functions to return controlled values
 	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -2111,8 +2111,8 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	comp.checkFDLimitSupportedFunc = func() bool {
 		return fdSupported
 	}
-	comp.thresholdAllocatedFileHandles = thresholdAllocFH
-	comp.thresholdRunningPIDs = thresholdRunningPIDs
+	comp.maxAllocatedFileHandles = thresholdAllocFH
+	comp.maxRunningPIDs = maxRunningPIDs
 
 	// Run the check
 	result := comp.Check()
@@ -2122,7 +2122,7 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	allocatedFHPct := calcUsagePct(allocatedFH, limit)
 	usedPct := calcUsagePct(usage, limit)
 	thresholdAllocFHPct := calcUsagePct(usage, min(thresholdAllocFH, limit))
-	thresholdRunningPIDsPct := calcUsagePct(usage, thresholdRunningPIDs)
+	maxRunningPIDsPct := calcUsagePct(usage, maxRunningPIDs)
 
 	// Verify all fields are populated correctly
 	fd := data.FileDescriptors
@@ -2134,8 +2134,8 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%.2f", usedPct), fd.UsedPercent, "UsedPercent should match")
 	assert.Equal(t, thresholdAllocFH, fd.ThresholdAllocatedFileHandles, "ThresholdAllocatedFileHandles should match")
 	assert.Equal(t, fmt.Sprintf("%.2f", thresholdAllocFHPct), fd.ThresholdAllocatedFileHandlesPercent, "ThresholdAllocatedFileHandlesPercent should match")
-	assert.Equal(t, thresholdRunningPIDs, fd.ThresholdRunningPIDs, "ThresholdRunningPIDs should match")
-	assert.Equal(t, fmt.Sprintf("%.2f", thresholdRunningPIDsPct), fd.ThresholdRunningPIDsPercent, "ThresholdRunningPIDsPercent should match")
+	assert.Equal(t, maxRunningPIDs, fd.ThresholdRunningPIDs, "ThresholdRunningPIDs should match")
+	assert.Equal(t, fmt.Sprintf("%.2f", maxRunningPIDsPct), fd.ThresholdRunningPIDsPercent, "ThresholdRunningPIDsPercent should match")
 	assert.Equal(t, fileHandlesSupported, fd.FileHandlesSupported, "FileHandlesSupported should match")
 	assert.Equal(t, fdSupported, fd.FDLimitSupported, "FDLimitSupported should match")
 }
@@ -3179,92 +3179,92 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 	defer cancel()
 
 	tests := []struct {
-		name                                 string
-		thresholdRunningPIDs                 uint64
-		usage                                uint64
-		limit                                uint64
-		fdLimitSupported                     bool
-		thresholdRunningPIDsPercentDegraded  float64
-		thresholdRunningPIDsPercentUnhealthy float64
-		expectedHealth                       apiv1.HealthStateType
-		expectedReason                       string
+		name                       string
+		maxRunningPIDs             uint64
+		maxRunningPIDsPctDegraded  float64
+		maxRunningPIDsPctUnhealthy float64
+		usage                      uint64
+		limit                      uint64
+		fdLimitSupported           bool
+		expectedHealth             apiv1.HealthStateType
+		expectedReason             string
 	}{
 		{
-			name:                                 "below degraded threshold",
-			thresholdRunningPIDs:                 10000,
-			usage:                                7000,
-			limit:                                100000,
-			fdLimitSupported:                     true,
-			thresholdRunningPIDsPercentDegraded:  80.0,
-			thresholdRunningPIDsPercentUnhealthy: 95.0,
-			expectedHealth:                       apiv1.HealthStateTypeHealthy,
-			expectedReason:                       "ok",
+			name:                       "below degraded threshold",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      7000,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
 		},
 		{
-			name:                                 "exactly at degraded threshold",
-			thresholdRunningPIDs:                 10000,
-			usage:                                8000,
-			limit:                                100000,
-			fdLimitSupported:                     true,
-			thresholdRunningPIDsPercentDegraded:  80.0,
-			thresholdRunningPIDsPercentUnhealthy: 95.0,
-			expectedHealth:                       apiv1.HealthStateTypeHealthy,
-			expectedReason:                       "ok",
+			name:                       "exactly at degraded threshold",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      8000,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
 		},
 		{
-			name:                                 "above degraded but below unhealthy",
-			thresholdRunningPIDs:                 10000,
-			usage:                                8500,
-			limit:                                100000,
-			fdLimitSupported:                     true,
-			thresholdRunningPIDsPercentDegraded:  80.0,
-			thresholdRunningPIDsPercentUnhealthy: 95.0,
-			expectedHealth:                       apiv1.HealthStateTypeDegraded,
-			expectedReason:                       "too many running pids (degraded state percent threshold: 80.00 %)",
+			name:                       "above degraded but below unhealthy",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      8500,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeDegraded,
+			expectedReason:             "too many running pids (degraded state percent threshold: 80.00 %)",
 		},
 		{
-			name:                                 "above unhealthy threshold",
-			thresholdRunningPIDs:                 10000,
-			usage:                                9600,
-			limit:                                100000,
-			fdLimitSupported:                     true,
-			thresholdRunningPIDsPercentDegraded:  80.0,
-			thresholdRunningPIDsPercentUnhealthy: 95.0,
-			expectedHealth:                       apiv1.HealthStateTypeUnhealthy,
-			expectedReason:                       "too many running pids (unhealthy state percent threshold: 95.00 %)",
+			name:                       "above unhealthy threshold",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      9600,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeUnhealthy,
+			expectedReason:             "too many running pids (unhealthy state percent threshold: 95.00 %)",
 		},
 		{
-			name:                                 "fd limit not supported",
-			thresholdRunningPIDs:                 10000,
-			usage:                                9600,
-			limit:                                100000,
-			fdLimitSupported:                     false,
-			thresholdRunningPIDsPercentDegraded:  80.0,
-			thresholdRunningPIDsPercentUnhealthy: 95.0,
-			expectedHealth:                       apiv1.HealthStateTypeHealthy,
-			expectedReason:                       "ok",
+			name:                       "fd limit not supported",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      9600,
+			limit:                      100000,
+			fdLimitSupported:           false,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
 		},
 		{
-			name:                                 "zero threshold running PIDs",
-			thresholdRunningPIDs:                 0,
-			usage:                                9600,
-			limit:                                100000,
-			fdLimitSupported:                     true,
-			thresholdRunningPIDsPercentDegraded:  80.0,
-			thresholdRunningPIDsPercentUnhealthy: 95.0,
-			expectedHealth:                       apiv1.HealthStateTypeHealthy,
-			expectedReason:                       "ok",
+			name:                       "zero threshold running PIDs",
+			maxRunningPIDs:             0,
+			maxRunningPIDsPctDegraded:  80.0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      9600,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
 		},
 		{
-			name:                                 "zero degraded threshold",
-			thresholdRunningPIDs:                 10000,
-			usage:                                9600,
-			limit:                                100000,
-			fdLimitSupported:                     true,
-			thresholdRunningPIDsPercentDegraded:  0,
-			thresholdRunningPIDsPercentUnhealthy: 95.0,
-			expectedHealth:                       apiv1.HealthStateTypeHealthy,
-			expectedReason:                       "ok",
+			name:                       "zero degraded threshold",
+			maxRunningPIDs:             10000,
+			maxRunningPIDsPctDegraded:  0,
+			maxRunningPIDsPctUnhealthy: 95.0,
+			usage:                      9600,
+			limit:                      100000,
+			fdLimitSupported:           true,
+			expectedHealth:             apiv1.HealthStateTypeHealthy,
+			expectedReason:             "ok",
 		},
 	}
 
@@ -3279,9 +3279,9 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 			comp := c.(*component)
 
 			// Set threshold values
-			comp.thresholdRunningPIDs = tt.thresholdRunningPIDs
-			comp.thresholdRunningPIDsPercentDegraded = tt.thresholdRunningPIDsPercentDegraded
-			comp.thresholdRunningPIDsPercentUnhealthy = tt.thresholdRunningPIDsPercentUnhealthy
+			comp.maxRunningPIDs = tt.maxRunningPIDs
+			comp.maxRunningPIDsPctDegraded = tt.maxRunningPIDsPctDegraded
+			comp.maxRunningPIDsPctUnhealthy = tt.maxRunningPIDsPctUnhealthy
 
 			// Override mock functions
 			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -3325,84 +3325,84 @@ func TestComponent_AllocatedFileHandlesThresholdPercentageChecks(t *testing.T) {
 	defer cancel()
 
 	tests := []struct {
-		name                                          string
-		thresholdAllocatedFileHandles                 uint64
-		usage                                         uint64
-		limit                                         uint64
-		thresholdAllocatedFileHandlesPercentDegraded  float64
-		thresholdAllocatedFileHandlesPercentUnhealthy float64
-		expectedHealth                                apiv1.HealthStateType
-		expectedReason                                string
+		name                                string
+		maxAllocatedFileHandles             uint64
+		usage                               uint64
+		limit                               uint64
+		maxAllocatedFileHandlesPctDegraded  float64
+		maxAllocatedFileHandlesPctUnhealthy float64
+		expectedHealth                      apiv1.HealthStateType
+		expectedReason                      string
 	}{
 		{
-			name:                          "below degraded threshold",
-			thresholdAllocatedFileHandles: 10000,
-			usage:                         7000,
-			limit:                         100000,
-			thresholdAllocatedFileHandlesPercentDegraded:  80.0,
-			thresholdAllocatedFileHandlesPercentUnhealthy: 95.0,
-			expectedHealth: apiv1.HealthStateTypeHealthy,
-			expectedReason: "ok",
+			name:                                "below degraded threshold",
+			maxAllocatedFileHandles:             10000,
+			usage:                               7000,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeHealthy,
+			expectedReason:                      "ok",
 		},
 		{
-			name:                          "exactly at degraded threshold",
-			thresholdAllocatedFileHandles: 10000,
-			usage:                         8000,
-			limit:                         100000,
-			thresholdAllocatedFileHandlesPercentDegraded:  80.0,
-			thresholdAllocatedFileHandlesPercentUnhealthy: 95.0,
-			expectedHealth: apiv1.HealthStateTypeHealthy,
-			expectedReason: "ok",
+			name:                                "exactly at degraded threshold",
+			maxAllocatedFileHandles:             10000,
+			usage:                               8000,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeHealthy,
+			expectedReason:                      "ok",
 		},
 		{
-			name:                          "above degraded but below unhealthy",
-			thresholdAllocatedFileHandles: 10000,
-			usage:                         8500,
-			limit:                         100000,
-			thresholdAllocatedFileHandlesPercentDegraded:  80.0,
-			thresholdAllocatedFileHandlesPercentUnhealthy: 95.0,
-			expectedHealth: apiv1.HealthStateTypeDegraded,
-			expectedReason: "too many allocated file handles (degraded state percent threshold: 80.00 %)",
+			name:                                "above degraded but below unhealthy",
+			maxAllocatedFileHandles:             10000,
+			usage:                               8500,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeDegraded,
+			expectedReason:                      "too many allocated file handles (degraded state percent threshold: 80.00 %)",
 		},
 		{
-			name:                          "above unhealthy threshold",
-			thresholdAllocatedFileHandles: 10000,
-			usage:                         9600,
-			limit:                         100000,
-			thresholdAllocatedFileHandlesPercentDegraded:  80.0,
-			thresholdAllocatedFileHandlesPercentUnhealthy: 95.0,
-			expectedHealth: apiv1.HealthStateTypeUnhealthy,
-			expectedReason: "too many allocated file handles (unhealthy state percent threshold: 95.00 %)",
+			name:                                "above unhealthy threshold",
+			maxAllocatedFileHandles:             10000,
+			usage:                               9600,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeUnhealthy,
+			expectedReason:                      "too many allocated file handles (unhealthy state percent threshold: 95.00 %)",
 		},
 		{
-			name:                          "threshold higher than limit",
-			thresholdAllocatedFileHandles: 20000,
-			usage:                         8500,
-			limit:                         10000,
-			thresholdAllocatedFileHandlesPercentDegraded:  80.0,
-			thresholdAllocatedFileHandlesPercentUnhealthy: 95.0,
-			expectedHealth: apiv1.HealthStateTypeDegraded,
-			expectedReason: "too many allocated file handles (degraded state percent threshold: 80.00 %)",
+			name:                                "threshold higher than limit",
+			maxAllocatedFileHandles:             20000,
+			usage:                               8500,
+			limit:                               10000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeDegraded,
+			expectedReason:                      "too many allocated file handles (degraded state percent threshold: 80.00 %)",
 		},
 		{
-			name:                          "zero threshold",
-			thresholdAllocatedFileHandles: 0,
-			usage:                         9600,
-			limit:                         100000,
-			thresholdAllocatedFileHandlesPercentDegraded:  80.0,
-			thresholdAllocatedFileHandlesPercentUnhealthy: 95.0,
-			expectedHealth: apiv1.HealthStateTypeHealthy,
-			expectedReason: "ok",
+			name:                                "zero threshold",
+			maxAllocatedFileHandles:             0,
+			usage:                               9600,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  80.0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeHealthy,
+			expectedReason:                      "ok",
 		},
 		{
-			name:                          "zero degraded threshold",
-			thresholdAllocatedFileHandles: 10000,
-			usage:                         9600,
-			limit:                         100000,
-			thresholdAllocatedFileHandlesPercentDegraded:  0,
-			thresholdAllocatedFileHandlesPercentUnhealthy: 95.0,
-			expectedHealth: apiv1.HealthStateTypeHealthy,
-			expectedReason: "ok",
+			name:                                "zero degraded threshold",
+			maxAllocatedFileHandles:             10000,
+			usage:                               9600,
+			limit:                               100000,
+			maxAllocatedFileHandlesPctDegraded:  0,
+			maxAllocatedFileHandlesPctUnhealthy: 95.0,
+			expectedHealth:                      apiv1.HealthStateTypeHealthy,
+			expectedReason:                      "ok",
 		},
 	}
 
@@ -3417,9 +3417,9 @@ func TestComponent_AllocatedFileHandlesThresholdPercentageChecks(t *testing.T) {
 			comp := c.(*component)
 
 			// Set threshold values
-			comp.thresholdAllocatedFileHandles = tt.thresholdAllocatedFileHandles
-			comp.thresholdAllocatedFileHandlesPercentDegraded = tt.thresholdAllocatedFileHandlesPercentDegraded
-			comp.thresholdAllocatedFileHandlesPercentUnhealthy = tt.thresholdAllocatedFileHandlesPercentUnhealthy
+			comp.maxAllocatedFileHandles = tt.maxAllocatedFileHandles
+			comp.maxAllocatedFileHandlesPctDegraded = tt.maxAllocatedFileHandlesPctDegraded
+			comp.maxAllocatedFileHandlesPctUnhealthy = tt.maxAllocatedFileHandlesPctUnhealthy
 
 			// Override mock functions
 			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -3472,12 +3472,12 @@ func TestComponent_ThresholdPercentageChecksPriority(t *testing.T) {
 	comp := c.(*component)
 
 	// Set both thresholds to trigger degraded state
-	comp.thresholdRunningPIDs = 10000
-	comp.thresholdRunningPIDsPercentDegraded = 80.0
-	comp.thresholdRunningPIDsPercentUnhealthy = 95.0
-	comp.thresholdAllocatedFileHandles = 10000
-	comp.thresholdAllocatedFileHandlesPercentDegraded = 80.0
-	comp.thresholdAllocatedFileHandlesPercentUnhealthy = 95.0
+	comp.maxRunningPIDs = 10000
+	comp.maxRunningPIDsPctDegraded = 80.0
+	comp.maxRunningPIDsPctUnhealthy = 95.0
+	comp.maxAllocatedFileHandles = 10000
+	comp.maxAllocatedFileHandlesPctDegraded = 80.0
+	comp.maxAllocatedFileHandlesPctUnhealthy = 95.0
 
 	// Override mock functions - both thresholds would trigger degraded state
 	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -3528,12 +3528,12 @@ func TestComponent_ThresholdPercentageChecksWithAllHealthyConditions(t *testing.
 	comp := c.(*component)
 
 	// Set thresholds
-	comp.thresholdRunningPIDs = 10000
-	comp.thresholdRunningPIDsPercentDegraded = 80.0
-	comp.thresholdRunningPIDsPercentUnhealthy = 95.0
-	comp.thresholdAllocatedFileHandles = 10000
-	comp.thresholdAllocatedFileHandlesPercentDegraded = 80.0
-	comp.thresholdAllocatedFileHandlesPercentUnhealthy = 95.0
+	comp.maxRunningPIDs = 10000
+	comp.maxRunningPIDsPctDegraded = 80.0
+	comp.maxRunningPIDsPctUnhealthy = 95.0
+	comp.maxAllocatedFileHandles = 10000
+	comp.maxAllocatedFileHandlesPctDegraded = 80.0
+	comp.maxAllocatedFileHandlesPctUnhealthy = 95.0
 
 	// Override mock functions - all values below thresholds
 	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -3584,13 +3584,13 @@ func TestComponent_ThresholdPercentageMetricsUpdates(t *testing.T) {
 	comp := c.(*component)
 
 	// Set values for testing
-	thresholdRunningPIDs := uint64(10000)
+	maxRunningPIDs := uint64(10000)
 	thresholdAllocatedFH := uint64(8000)
 	usage := uint64(5000)
 	limit := uint64(100000)
 
-	comp.thresholdRunningPIDs = thresholdRunningPIDs
-	comp.thresholdAllocatedFileHandles = thresholdAllocatedFH
+	comp.maxRunningPIDs = maxRunningPIDs
+	comp.maxAllocatedFileHandles = thresholdAllocatedFH
 
 	// Override mock functions
 	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -3626,10 +3626,10 @@ func TestComponent_ThresholdPercentageMetricsUpdates(t *testing.T) {
 	dto := &prometheusdto.Metric{}
 	err = gauge.Write(dto)
 	assert.NoError(t, err)
-	assert.Equal(t, float64(thresholdRunningPIDs), *dto.Gauge.Value)
+	assert.Equal(t, float64(maxRunningPIDs), *dto.Gauge.Value)
 
 	// Verify threshold running PIDs percent metric
-	expectedPIDsPct := calcUsagePct(usage, thresholdRunningPIDs)
+	expectedPIDsPct := calcUsagePct(usage, maxRunningPIDs)
 	gauge, err = metricThresholdRunningPIDsPercent.GetMetricWith(prometheus.Labels{})
 	assert.NoError(t, err)
 	dto = &prometheusdto.Metric{}

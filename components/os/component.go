@@ -69,19 +69,19 @@ type component struct {
 	checkFileHandlesSupportedFunc func() bool
 	checkFDLimitSupportedFunc     func() bool
 
-	// thresholdAllocatedFileHandles is the number of file descriptors that are currently allocated,
+	// maxAllocatedFileHandles is the number of file descriptors that are currently allocated,
 	// at which we consider the system to be under high file descriptor usage.
-	thresholdAllocatedFileHandles                 uint64
-	thresholdAllocatedFileHandlesPercentDegraded  float64
-	thresholdAllocatedFileHandlesPercentUnhealthy float64
+	maxAllocatedFileHandles             uint64
+	maxAllocatedFileHandlesPctDegraded  float64
+	maxAllocatedFileHandlesPctUnhealthy float64
 
-	// thresholdRunningPIDs is the number of running pids at which
+	// maxRunningPIDs is the number of running pids at which
 	// we consider the system to be under high file descriptor usage.
 	// This is useful for triggering alerts when the system is under high load.
 	// And useful when the actual system fd-max is set to unlimited.
-	thresholdRunningPIDs                 uint64
-	thresholdRunningPIDsPercentDegraded  float64
-	thresholdRunningPIDsPercentUnhealthy float64
+	maxRunningPIDs             uint64
+	maxRunningPIDsPctDegraded  float64
+	maxRunningPIDsPctUnhealthy float64
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -107,13 +107,13 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		checkFileHandlesSupportedFunc: file.CheckFileHandlesSupported,
 		checkFDLimitSupportedFunc:     file.CheckFDLimitSupported,
 
-		thresholdAllocatedFileHandles:                 DefaultThresholdAllocatedFileHandles,
-		thresholdAllocatedFileHandlesPercentDegraded:  defaultThresholdAllocatedFileHandlesPercentDegraded,
-		thresholdAllocatedFileHandlesPercentUnhealthy: defaultThresholdAllocatedFileHandlesPercentUnhealthy,
+		maxAllocatedFileHandles:             DefaultThresholdAllocatedFileHandles,
+		maxAllocatedFileHandlesPctDegraded:  defaultThresholdAllocatedFileHandlesPercentDegraded,
+		maxAllocatedFileHandlesPctUnhealthy: defaultThresholdAllocatedFileHandlesPercentUnhealthy,
 
-		thresholdRunningPIDs:                 DefaultThresholdRunningPIDs,
-		thresholdRunningPIDsPercentDegraded:  defaultThresholdRunningPIDsPercentDegraded,
-		thresholdRunningPIDsPercentUnhealthy: defaultThresholdRunningPIDsPercentUnhealthy,
+		maxRunningPIDs:             DefaultThresholdRunningPIDs,
+		maxRunningPIDsPctDegraded:  defaultThresholdRunningPIDsPercentDegraded,
+		maxRunningPIDsPctUnhealthy: defaultThresholdRunningPIDsPercentUnhealthy,
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -356,56 +356,56 @@ func (c *component) Check() components.CheckResult {
 	fdLimitSupported := c.checkFDLimitSupportedFunc()
 	cr.FileDescriptors.FDLimitSupported = fdLimitSupported
 
-	var thresholdRunningPIDsPct float64
-	if fdLimitSupported && c.thresholdRunningPIDs > 0 {
-		thresholdRunningPIDsPct = calcUsagePct(cr.FileDescriptors.Usage, c.thresholdRunningPIDs)
+	var maxRunningPIDsPct float64
+	if fdLimitSupported && c.maxRunningPIDs > 0 {
+		maxRunningPIDsPct = calcUsagePct(cr.FileDescriptors.Usage, c.maxRunningPIDs)
 	}
 
-	cr.FileDescriptors.ThresholdRunningPIDs = c.thresholdRunningPIDs
-	metricThresholdRunningPIDs.With(prometheus.Labels{}).Set(float64(c.thresholdRunningPIDs))
+	cr.FileDescriptors.ThresholdRunningPIDs = c.maxRunningPIDs
+	metricThresholdRunningPIDs.With(prometheus.Labels{}).Set(float64(c.maxRunningPIDs))
 
-	cr.FileDescriptors.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", thresholdRunningPIDsPct)
-	metricThresholdRunningPIDsPercent.With(prometheus.Labels{}).Set(thresholdRunningPIDsPct)
+	cr.FileDescriptors.ThresholdRunningPIDsPercent = fmt.Sprintf("%.2f", maxRunningPIDsPct)
+	metricThresholdRunningPIDsPercent.With(prometheus.Labels{}).Set(maxRunningPIDsPct)
 
-	if c.thresholdRunningPIDsPercentDegraded > 0 {
-		if thresholdRunningPIDsPct > c.thresholdRunningPIDsPercentUnhealthy {
+	if c.maxRunningPIDsPctDegraded > 0 {
+		if maxRunningPIDsPct > c.maxRunningPIDsPctUnhealthy {
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("too many running pids (unhealthy state percent threshold: %.2f %%)", c.thresholdRunningPIDsPercentUnhealthy)
+			cr.reason = fmt.Sprintf("too many running pids (unhealthy state percent threshold: %.2f %%)", c.maxRunningPIDsPctUnhealthy)
 			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.RunningPIDs)
 			cr.suggestedActions = defaultSuggestedActionsForFd
 			return cr
 		}
-		if thresholdRunningPIDsPct > c.thresholdRunningPIDsPercentDegraded {
+		if maxRunningPIDsPct > c.maxRunningPIDsPctDegraded {
 			cr.health = apiv1.HealthStateTypeDegraded
-			cr.reason = fmt.Sprintf("too many running pids (degraded state percent threshold: %.2f %%)", c.thresholdRunningPIDsPercentDegraded)
+			cr.reason = fmt.Sprintf("too many running pids (degraded state percent threshold: %.2f %%)", c.maxRunningPIDsPctDegraded)
 			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.RunningPIDs)
 			cr.suggestedActions = defaultSuggestedActionsForFd
 			return cr
 		}
 	}
 
-	var thresholdAllocatedFileHandlesPct float64
-	if c.thresholdAllocatedFileHandles > 0 {
-		thresholdAllocatedFileHandlesPct = calcUsagePct(cr.FileDescriptors.Usage, min(c.thresholdAllocatedFileHandles, cr.FileDescriptors.Limit))
+	var maxAllocatedFileHandlesPct float64
+	if c.maxAllocatedFileHandles > 0 {
+		maxAllocatedFileHandlesPct = calcUsagePct(cr.FileDescriptors.Usage, min(c.maxAllocatedFileHandles, cr.FileDescriptors.Limit))
 	}
 
-	cr.FileDescriptors.ThresholdAllocatedFileHandles = c.thresholdAllocatedFileHandles
-	metricThresholdAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(c.thresholdAllocatedFileHandles))
+	cr.FileDescriptors.ThresholdAllocatedFileHandles = c.maxAllocatedFileHandles
+	metricThresholdAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(c.maxAllocatedFileHandles))
 
-	cr.FileDescriptors.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", thresholdAllocatedFileHandlesPct)
-	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(thresholdAllocatedFileHandlesPct)
+	cr.FileDescriptors.ThresholdAllocatedFileHandlesPercent = fmt.Sprintf("%.2f", maxAllocatedFileHandlesPct)
+	metricThresholdAllocatedFileHandlesPercent.With(prometheus.Labels{}).Set(maxAllocatedFileHandlesPct)
 
-	if c.thresholdAllocatedFileHandlesPercentDegraded > 0 {
-		if thresholdAllocatedFileHandlesPct > c.thresholdAllocatedFileHandlesPercentUnhealthy {
+	if c.maxAllocatedFileHandlesPctDegraded > 0 {
+		if maxAllocatedFileHandlesPct > c.maxAllocatedFileHandlesPctUnhealthy {
 			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("too many allocated file handles (unhealthy state percent threshold: %.2f %%)", c.thresholdAllocatedFileHandlesPercentUnhealthy)
+			cr.reason = fmt.Sprintf("too many allocated file handles (unhealthy state percent threshold: %.2f %%)", c.maxAllocatedFileHandlesPctUnhealthy)
 			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.AllocatedFileHandles)
 			cr.suggestedActions = defaultSuggestedActionsForFd
 			return cr
 		}
-		if thresholdAllocatedFileHandlesPct > c.thresholdAllocatedFileHandlesPercentDegraded {
+		if maxAllocatedFileHandlesPct > c.maxAllocatedFileHandlesPctDegraded {
 			cr.health = apiv1.HealthStateTypeDegraded
-			cr.reason = fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", c.thresholdAllocatedFileHandlesPercentDegraded)
+			cr.reason = fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", c.maxAllocatedFileHandlesPctDegraded)
 			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.AllocatedFileHandles)
 			cr.suggestedActions = defaultSuggestedActionsForFd
 			return cr
