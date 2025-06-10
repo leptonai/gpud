@@ -121,7 +121,7 @@ func (c *component) Check() components.CheckResult {
 	memberConfigs := groupConfigs.GetMemberConfigs(c.machineID)
 	if err := memberConfigs.Validate(); err != nil {
 		cr.err = err
-		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.health = apiv1.HealthStateTypeDegraded
 		cr.reason = "invalid nfs group configs"
 		log.Logger.Debugw(cr.reason)
 		return cr
@@ -132,7 +132,7 @@ func (c *component) Check() components.CheckResult {
 		checker, err := pkgnfschecker.NewChecker(&memberConfig)
 		if err != nil {
 			cr.err = err
-			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = "failed to create nfs checker for " + memberConfig.Dir
 			log.Logger.Debugw(cr.reason)
 			return cr
@@ -140,7 +140,7 @@ func (c *component) Check() components.CheckResult {
 
 		if err := checker.Write(); err != nil {
 			cr.err = err
-			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = "failed to write to nfs checker for " + memberConfig.Dir
 			log.Logger.Debugw(cr.reason)
 			return cr
@@ -149,7 +149,7 @@ func (c *component) Check() components.CheckResult {
 		nfsResult := checker.Check()
 		if len(nfsResult.Error) > 0 {
 			cr.err = errors.New(nfsResult.Error)
-			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = "failed to check nfs checker for " + memberConfig.Dir
 			log.Logger.Debugw(cr.reason)
 			return cr
