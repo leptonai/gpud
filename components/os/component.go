@@ -32,19 +32,19 @@ import (
 const Name = "os"
 
 const (
-	// DefaultThresholdAllocatedFileHandles is some high number, in case the system is under high file descriptor usage.
-	DefaultThresholdAllocatedFileHandles = 10000000
+	// DefaultMaxAllocatedFileHandles is some high number, in case the system is under high file descriptor usage.
+	DefaultMaxAllocatedFileHandles = 10000000
 
-	// DefaultThresholdRunningPIDs is some high number, in case fd-max is unlimited
-	DefaultThresholdRunningPIDs = 900000
+	// DefaultMaxRunningPIDs is some high number, in case fd-max is unlimited
+	DefaultMaxRunningPIDs = 900000
 )
 
 const (
-	defaultThresholdAllocatedFileHandlesPercentDegraded  = 80.0
-	defaultThresholdAllocatedFileHandlesPercentUnhealthy = 95.0
+	defaultMaxAllocatedFileHandlesPctDegraded  = 80.0
+	defaultMaxAllocatedFileHandlesPctUnhealthy = 95.0
 
-	defaultThresholdRunningPIDsPercentDegraded  = 80.0
-	defaultThresholdRunningPIDsPercentUnhealthy = 95.0
+	defaultMaxRunningPIDsPctDegraded  = 80.0
+	defaultMaxRunningPIDsPctUnhealthy = 95.0
 )
 
 var _ components.Component = &component{}
@@ -107,13 +107,13 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		checkFileHandlesSupportedFunc: file.CheckFileHandlesSupported,
 		checkFDLimitSupportedFunc:     file.CheckFDLimitSupported,
 
-		maxAllocatedFileHandles:             DefaultThresholdAllocatedFileHandles,
-		maxAllocatedFileHandlesPctDegraded:  defaultThresholdAllocatedFileHandlesPercentDegraded,
-		maxAllocatedFileHandlesPctUnhealthy: defaultThresholdAllocatedFileHandlesPercentUnhealthy,
+		maxAllocatedFileHandles:             DefaultMaxAllocatedFileHandles,
+		maxAllocatedFileHandlesPctDegraded:  defaultMaxAllocatedFileHandlesPctDegraded,
+		maxAllocatedFileHandlesPctUnhealthy: defaultMaxAllocatedFileHandlesPctUnhealthy,
 
-		maxRunningPIDs:             DefaultThresholdRunningPIDs,
-		maxRunningPIDsPctDegraded:  defaultThresholdRunningPIDsPercentDegraded,
-		maxRunningPIDsPctUnhealthy: defaultThresholdRunningPIDsPercentUnhealthy,
+		maxRunningPIDs:             DefaultMaxRunningPIDs,
+		maxRunningPIDsPctDegraded:  defaultMaxRunningPIDsPctDegraded,
+		maxRunningPIDsPctUnhealthy: defaultMaxRunningPIDsPctUnhealthy,
 	}
 
 	if gpudInstance.EventStore != nil {

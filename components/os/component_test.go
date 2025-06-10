@@ -1601,8 +1601,8 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 
 	comp := c.(*component)
 	// Set the default thresholds
-	comp.maxAllocatedFileHandlesPctDegraded = defaultThresholdAllocatedFileHandlesPercentDegraded
-	comp.maxAllocatedFileHandlesPctUnhealthy = defaultThresholdAllocatedFileHandlesPercentUnhealthy
+	comp.maxAllocatedFileHandlesPctDegraded = defaultMaxAllocatedFileHandlesPctDegraded
+	comp.maxAllocatedFileHandlesPctUnhealthy = defaultMaxAllocatedFileHandlesPctUnhealthy
 
 	// Setup tests with different allocation percentages
 	tests := []struct {
@@ -1639,7 +1639,7 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 			usage:                8100,
 			limit:                10000,
 			expectedHealth:       apiv1.HealthStateTypeDegraded,
-			expectedReason:       fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", defaultThresholdAllocatedFileHandlesPercentDegraded),
+			expectedReason:       fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", defaultMaxAllocatedFileHandlesPctDegraded),
 		},
 		{
 			name:                 "high usage but limited by threshold",
@@ -1648,7 +1648,7 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 			usage:                4900,
 			limit:                10000,
 			expectedHealth:       apiv1.HealthStateTypeUnhealthy,
-			expectedReason:       fmt.Sprintf("too many allocated file handles (unhealthy state percent threshold: %.2f %%)", defaultThresholdAllocatedFileHandlesPercentUnhealthy),
+			expectedReason:       fmt.Sprintf("too many allocated file handles (unhealthy state percent threshold: %.2f %%)", defaultMaxAllocatedFileHandlesPctUnhealthy),
 		},
 		{
 			name:                 "threshold higher than limit",
@@ -1657,7 +1657,7 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 			usage:                9000,
 			limit:                10000,
 			expectedHealth:       apiv1.HealthStateTypeDegraded,
-			expectedReason:       fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", defaultThresholdAllocatedFileHandlesPercentDegraded),
+			expectedReason:       fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", defaultMaxAllocatedFileHandlesPctDegraded),
 		},
 	}
 
