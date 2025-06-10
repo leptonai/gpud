@@ -18,10 +18,31 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
+	"github.com/leptonai/gpud/pkg/sqlite"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 )
+
+func EndpointCommand(cliContext *cli.Context) error {
+	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer rootCancel()
+	stateFile, err := config.DefaultStateFile()
+	if err != nil {
+		return fmt.Errorf("failed to get state file: %w", err)
+	}
+	dbRW, err := sqlite.Open(stateFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRW.Close()
+	endpoint := cliContext.String("endpoint")
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyEndpoint, endpoint); err != nil {
+		return fmt.Errorf("failed to record endpoint: %w", err)
+	}
+	return nil
+}
 
 func Command(cliContext *cli.Context) error {
 	logLevel := cliContext.String("log-level")

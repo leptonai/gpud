@@ -151,6 +151,17 @@ sudo rm /etc/systemd/system/gpud.service
 			},
 		},
 		{
+			Name:   "setendpoint",
+			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux)",
+			Action: cmdrun.EndpointCommand,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "endpoint",
+					Usage: "endpoint for control plane",
+				},
+			},
+		},
+		{
 			Name:   "run",
 			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux)",
 			Action: cmdrun.Command,
