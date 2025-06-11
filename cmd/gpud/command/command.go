@@ -12,6 +12,7 @@ import (
 	cmdjoin "github.com/leptonai/gpud/cmd/gpud/join"
 	cmdlistplugins "github.com/leptonai/gpud/cmd/gpud/list-plugins"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
+	cmdlogout "github.com/leptonai/gpud/cmd/gpud/logout"
 	cmdmachineinfo "github.com/leptonai/gpud/cmd/gpud/machine-info"
 	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
 	cmdrelease "github.com/leptonai/gpud/cmd/gpud/release"
@@ -627,6 +628,17 @@ sudo gpud join
 				&cli.StringFlag{
 					Name:  "kernel-message",
 					Usage: "set the kernel message to inject",
+				},
+			},
+		},
+		{
+			Name:   "logout",
+			Usage:  "log out gpud from lepton control plane",
+			Action: cmdlogout.Command,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 			},
 		},

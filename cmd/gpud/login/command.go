@@ -193,6 +193,12 @@ func Command(cliContext *cli.Context) error {
 	}
 	log.Logger.Debugw("successfully got fifo file")
 
+	log.Logger.Debugw("recording login success")
+	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, pkgmetadata.MetadataKeyControlPlaneLoginSuccess, fmt.Sprintf("%d", time.Now().Unix())); err != nil {
+		return fmt.Errorf("failed to record login success: %w", err)
+	}
+	log.Logger.Debugw("successfully recorded login success")
+
 	// for GPUd >= v0.5, we assume "gpud login" first
 	// and then "gpud up"
 	// we still need this in case "gpud up" and then "gpud login" afterwards

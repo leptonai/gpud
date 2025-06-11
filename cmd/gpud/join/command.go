@@ -266,13 +266,13 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	joinSentAt := time.Now()
 	log.Logger.Debugw("sending join request")
-	response, err := http.Post(createJoinURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
+	joinResp, err := http.Post(createJoinURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(response.Body)
+	defer joinResp.Body.Close()
+	if joinResp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(joinResp.Body)
 		if err != nil {
 			return fmt.Errorf("error reading response body: %w", err)
 		}
