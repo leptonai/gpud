@@ -2,19 +2,21 @@ package status
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/urfave/cli"
 
 	clientv1 "github.com/leptonai/gpud/client/v1"
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
-	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/server"
+	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 
@@ -30,6 +32,48 @@ func Command(cliContext *cli.Context) error {
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer rootCancel()
+
+	log.Logger.Debugw("getting state file")
+	stateFile, err := config.DefaultStateFile()
+	if err != nil {
+		return fmt.Errorf("failed to get state file: %w", err)
+	}
+	log.Logger.Debugw("successfully got state file")
+
+	log.Logger.Debugw("opening state file for reading")
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRO.Close()
+	log.Logger.Debugw("successfully opened state file for reading")
+
+	log.Logger.Debugw("reading machine id")
+	machineID, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyMachineID)
+	if err != nil {
+		return fmt.Errorf("failed to read machine id: %w", err)
+	}
+	log.Logger.Debugw("successfully read machine id")
+
+	log.Logger.Debugw("reading login success")
+	loginSuccess, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyControlPlaneLoginSuccess)
+	if err != nil {
+		return fmt.Errorf("failed to read login success: %w", err)
+	}
+	log.Logger.Debugw("successfully read login success")
+
+	if loginSuccess == "" {
+		ts, err := strconv.ParseInt(loginSuccess, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse login success: %w", err)
+		}
+		loginTimeUTC := time.Unix(ts, 0)
+		nowUTC := time.Now().UTC()
+		loginTimeHumanized := humanize.RelTime(loginTimeUTC, nowUTC, "ago", "from now")
+		fmt.Printf("%s login success at %s (machine id: %s)\n", cmdcommon.CheckMark, loginTimeHumanized, machineID)
+	} else {
+		fmt.Printf("%s login information not found\n", cmdcommon.CheckMark)
+	}
 
 	var active bool
 	if systemd.SystemctlExists() {
@@ -58,16 +102,6 @@ func Command(cliContext *cli.Context) error {
 		fmt.Printf("%s gpud process is running (PID %d)\n", cmdcommon.CheckMark, proc.PID())
 	}
 	fmt.Printf("%s successfully checked gpud status\n", cmdcommon.CheckMark)
-
-	if err := checkDiskComponent(); err != nil {
-		return err
-	}
-	fmt.Printf("%s successfully checked whether disk component is running\n", cmdcommon.CheckMark)
-
-	if err := checkNvidiaInfoComponent(); err != nil {
-		return err
-	}
-	fmt.Printf("%s successfully checked whether accelerator-nvidia-info component is running\n", cmdcommon.CheckMark)
 
 	if err := clientv1.BlockUntilServerReady(
 		rootCtx,
@@ -110,59 +144,6 @@ func Command(cliContext *cli.Context) error {
 			break
 		}
 		time.Sleep(3 * time.Second)
-	}
-
-	return nil
-}
-
-func checkDiskComponent() error {
-	baseURL := fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
-	componentName := "disk"
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	states, err := clientv1.GetHealthStates(ctx, baseURL, clientv1.WithComponent(componentName))
-	if err != nil {
-		// assume disk component is enabled for all platforms
-		return err
-	}
-	if len(states) == 0 {
-		log.Logger.Warnw("empty state returned", "component", componentName)
-		return errors.New("empty state returned")
-	}
-
-	for _, ss := range states {
-		for _, s := range ss.States {
-			log.Logger.Infof("state: %q, health: %s, extra info: %q\n", s.Name, s.Health, s.ExtraInfo)
-		}
-	}
-
-	return nil
-}
-
-func checkNvidiaInfoComponent() error {
-	baseURL := fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
-	componentName := "accelerator-nvidia-info"
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	states, err := clientv1.GetHealthStates(ctx, baseURL, clientv1.WithComponent(componentName))
-	if err != nil {
-		if errdefs.IsNotFound(err) {
-			log.Logger.Warnw("component not found", "component", componentName)
-			return nil
-		}
-		return err
-	}
-	if len(states) == 0 {
-		log.Logger.Warnw("empty state returned", "component", componentName)
-		return errors.New("empty state returned")
-	}
-
-	for _, ss := range states {
-		for _, s := range ss.States {
-			log.Logger.Infof("state: %q, health: %v, extra info: %q\n", s.Name, s.Health, s.ExtraInfo)
-		}
 	}
 
 	return nil
