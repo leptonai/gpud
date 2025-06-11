@@ -14,6 +14,7 @@ import (
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	cmdlogout "github.com/leptonai/gpud/cmd/gpud/logout"
 	cmdmachineinfo "github.com/leptonai/gpud/cmd/gpud/machine-info"
+	cmdmetadata "github.com/leptonai/gpud/cmd/gpud/metadata"
 	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
 	cmdrelease "github.com/leptonai/gpud/cmd/gpud/release"
 	cmdrun "github.com/leptonai/gpud/cmd/gpud/run"
@@ -515,6 +516,25 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "kernel-message",
 					Usage: "set the kernel message to inject",
+				},
+			},
+		},
+		{
+			Name:   "metadata",
+			Usage:  "inspects/updates metadata table",
+			Action: cmdmetadata.Command,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+				&cli.StringFlag{
+					Name:  "set-key",
+					Usage: "metadata key to set/update",
+				},
+				&cli.StringFlag{
+					Name:  "set-value",
+					Usage: "value to set for the metadata key",
 				},
 			},
 		},

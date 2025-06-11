@@ -4,6 +4,7 @@ package metadata
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -87,4 +88,33 @@ SELECT %s FROM %s WHERE %s = ?`, columnValue, tableNameGPUdMetadata, columnKey),
 		return "", nil
 	}
 	return value, err
+}
+
+// ReadAllMetadata reads all the metadata entries.
+// Returns an empty string and no error, if the metadata entry is not found.
+func ReadAllMetadata(ctx context.Context, dbRO *sql.DB) (map[string]string, error) {
+	selectQuery := fmt.Sprintf("SELECT %s, %s FROM %s", columnKey, columnValue, tableNameGPUdMetadata)
+
+	start := time.Now()
+	rows, err := dbRO.QueryContext(ctx, selectQuery)
+	defer func() {
+		pkgmetricsrecorder.RecordSQLiteSelect(time.Since(start).Seconds())
+	}()
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer rows.Close()
+
+	metadata := make(map[string]string)
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, err
+		}
+		metadata[key] = value
+	}
+	return metadata, nil
 }
