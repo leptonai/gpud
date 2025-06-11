@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -114,4 +115,23 @@ DELETE FROM %s`, deprecatedTableNameMachineMetadata))
 	}
 
 	return err
+}
+
+func MaskToken(token string) string {
+	trimmed := token
+	prefix := ""
+	if strings.HasPrefix(token, "nvapi-stg-") {
+		prefix = token[:10]
+		trimmed = token[10:]
+	} else if strings.HasPrefix(token, "nvapi-") {
+		prefix = token[:6]
+		trimmed = token[6:]
+	}
+
+	if len(trimmed) < 10 {
+		// should never happen
+		return prefix + "..."
+	}
+
+	return prefix + trimmed[:4] + "..." + token[len(token)-4:]
 }
