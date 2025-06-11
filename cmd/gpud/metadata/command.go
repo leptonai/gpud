@@ -55,7 +55,7 @@ func Command(cliContext *cli.Context) error {
 
 	for k, v := range metadata {
 		if k == pkgmetadata.MetadataKeyToken {
-			v = "[hidden]"
+			v = pkgmetadata.MaskToken(v)
 		}
 		fmt.Printf("%s: %s\n", k, v)
 	}
