@@ -54,6 +54,9 @@ func Command(cliContext *cli.Context) error {
 	log.Logger.Debugw("successfully read metadata")
 
 	for k, v := range metadata {
+		if k == pkgmetadata.MetadataKeyToken {
+			v = "[hidden]"
+		}
 		fmt.Printf("%s: %s\n", k, v)
 	}
 
