@@ -151,6 +151,7 @@ func GetMachineNICInfo() *apiv1.MachineNICInfo {
 			"docker",
 			"lepton",
 			"tailscale",
+			"ib", // e.g., "ibp24s0" infiniband links
 		),
 		netutil.WithSuffixesToSkip(".calico"),
 	)
