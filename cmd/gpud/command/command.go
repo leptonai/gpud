@@ -45,50 +45,6 @@ func App() *cli.App {
 
 	app.Commands = []cli.Command{
 		{
-			Name:  "login",
-			Usage: "login gpud to lepton.ai (called automatically in gpud up with non-empty --token)",
-			UsageText: `# to login gpud to lepton.ai with an existing, running gpud
-sudo gpud login --token <LEPTON_AI_TOKEN>
-`,
-			Action: cmdlogin.Command,
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:  "log-level,l",
-					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-				},
-				cli.StringFlag{
-					Name:  "token",
-					Usage: "lepton.ai workspace token for checking in",
-				},
-				cli.StringFlag{
-					Name:  "endpoint",
-					Usage: "endpoint for control plane",
-					Value: "gpud-manager-prod01.dgxc-lepton.nvidia.com",
-				},
-				cli.StringFlag{
-					Name:   "machine-id",
-					Hidden: true,
-					Usage:  "for override default machine id",
-				},
-				cli.StringFlag{
-					Name:  "node-group",
-					Usage: "node group to join",
-				},
-				cli.StringFlag{
-					Name:  "gpu-count",
-					Usage: "specify count of gpu",
-				},
-				cli.StringFlag{
-					Name:  "private-ip",
-					Usage: "can specify private ip for internal network",
-				},
-				cli.StringFlag{
-					Name:  "public-ip",
-					Usage: "can specify public ip for machine",
-				},
-			},
-		},
-		{
 			Name:  "up",
 			Usage: "initialize and start gpud in a daemon mode (systemd)",
 			UsageText: `# to start gpud as a systemd unit (recommended)
@@ -110,31 +66,37 @@ nohup sudo gpud run &>> <your log file path> &
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
+
+				// optional, only required for logging into platform/control plane
 				cli.StringFlag{
 					Name:  "token",
-					Usage: "lepton.ai workspace token for checking in",
+					Usage: "(optional) lepton.ai workspace token for checking in",
 				},
 				cli.StringFlag{
 					Name:  "private-ip",
-					Usage: "can specify private ip for internal network",
+					Usage: "(optional) can specify private ip for internal network",
 				},
 				cli.StringFlag{
 					Name:  "public-ip",
-					Usage: "can specify public ip for machine",
+					Usage: "(optional) can specify public ip for machine",
 				},
 				cli.StringFlag{
 					Name:   "machine-id",
 					Hidden: true,
-					Usage:  "for override default machine id",
+					Usage:  "(optional) for override default machine id",
+				},
+				cli.StringFlag{
+					Name:  "node-group",
+					Usage: "(optional) node group to join",
 				},
 				cli.StringFlag{
 					Name:  "endpoint",
-					Usage: "endpoint for checking in",
+					Usage: "(optional) endpoint for checking in",
 					Value: "gpud-manager-prod01.dgxc-lepton.nvidia.com",
 				},
 				cli.StringFlag{
 					Name:  "gpu-count",
-					Usage: "specify count of gpu",
+					Usage: "(optional) specify count of gpu (leave empty to auto-detect)",
 				},
 			},
 		},
@@ -445,8 +407,6 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 			},
 		},
-
-		// for diagnose + quick scanning
 		{
 			Name:    "scan",
 			Aliases: []string{"check", "s"},
@@ -492,64 +452,6 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 			},
 		},
-		{
-			Name:  "join",
-			Usage: "join gpud machine into a lepton cluster",
-			UsageText: `# to join gpud into a lepton cluster
-sudo gpud join
-`,
-			Action: cmdjoin.Command,
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:  "log-level,l",
-					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-				},
-				cli.StringFlag{
-					Name:   "cluster-name",
-					Usage:  "[DEPRECATED] cluster name for control plane (e.g.: lepton-prod-0)",
-					Value:  "",
-					Hidden: true,
-				},
-				cli.StringFlag{
-					Name:  "provider",
-					Usage: "provider of the machine",
-				},
-				cli.StringFlag{
-					Name:  "provider-instance-id",
-					Usage: "provider instance id of the machine",
-				},
-				cli.StringFlag{
-					Name:  "node-group",
-					Usage: "node group to join",
-				},
-				cli.StringFlag{
-					Name:  "public-ip",
-					Usage: "can specify public ip for machine",
-				},
-				cli.StringFlag{
-					Name:  "private-ip",
-					Usage: "can specify private ip for internal network",
-				},
-				cli.BoolFlag{
-					Name:  "skip-interactive",
-					Usage: "use detected value instead of prompting for user input",
-				},
-				cli.StringFlag{
-					Name:  "extra-info",
-					Usage: "base64 encoded extra info to pass to control plane",
-				},
-				cli.StringFlag{
-					Name:  "region",
-					Usage: "specify the region of the machine",
-				},
-				cli.StringFlag{
-					Name:  "gpu-product",
-					Usage: "specify the GPU shape of the machine",
-				},
-			},
-		},
-
-		// for diagnose + quick scanning
 		{
 			Name:    "custom-plugins",
 			Aliases: []string{"cs", "plugin", "plugins"},
@@ -639,6 +541,113 @@ sudo gpud join
 				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+			},
+		},
+
+		//
+		//
+		//
+		// DEPRECATED, TO REMOVE
+		{
+			// DEPRECATED: use "gpud up" instead
+			Name:  "login",
+			Usage: "login gpud to lepton.ai (called automatically in gpud up with non-empty --token)",
+			UsageText: `# to login gpud to lepton.ai with an existing, running gpud
+sudo gpud login --token <LEPTON_AI_TOKEN>
+`,
+			Action: cmdlogin.Command,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+				cli.StringFlag{
+					Name:  "token",
+					Usage: "lepton.ai workspace token for checking in",
+				},
+				cli.StringFlag{
+					Name:  "endpoint",
+					Usage: "endpoint for control plane",
+					Value: "gpud-manager-prod01.dgxc-lepton.nvidia.com",
+				},
+				cli.StringFlag{
+					Name:   "machine-id",
+					Hidden: true,
+					Usage:  "for override default machine id",
+				},
+				cli.StringFlag{
+					Name:  "node-group",
+					Usage: "node group to join",
+				},
+				cli.StringFlag{
+					Name:  "gpu-count",
+					Usage: "specify count of gpu",
+				},
+				cli.StringFlag{
+					Name:  "private-ip",
+					Usage: "can specify private ip for internal network",
+				},
+				cli.StringFlag{
+					Name:  "public-ip",
+					Usage: "can specify public ip for machine",
+				},
+			},
+		},
+		{
+			// DEPRECATED: use "gpud up" instead
+			Name:  "join",
+			Usage: "join gpud machine into a lepton cluster",
+			UsageText: `# to join gpud into a lepton cluster
+sudo gpud join
+`,
+			Action: cmdjoin.Command,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+				cli.StringFlag{
+					Name:   "cluster-name",
+					Usage:  "[DEPRECATED] cluster name for control plane (e.g.: lepton-prod-0)",
+					Value:  "",
+					Hidden: true,
+				},
+				cli.StringFlag{
+					Name:  "provider",
+					Usage: "provider of the machine",
+				},
+				cli.StringFlag{
+					Name:  "provider-instance-id",
+					Usage: "provider instance id of the machine",
+				},
+				cli.StringFlag{
+					Name:  "node-group",
+					Usage: "node group to join",
+				},
+				cli.StringFlag{
+					Name:  "public-ip",
+					Usage: "can specify public ip for machine",
+				},
+				cli.StringFlag{
+					Name:  "private-ip",
+					Usage: "can specify private ip for internal network",
+				},
+				cli.BoolTFlag{
+					Name:  "skip-interactive",
+					Usage: "use detected value instead of prompting for user input",
+				},
+				cli.StringFlag{
+					Name:  "extra-info",
+					Usage: "base64 encoded extra info to pass to control plane",
+				},
+				cli.StringFlag{
+					Name:  "region",
+					Usage: "specify the region of the machine",
+				},
+				cli.StringFlag{
+					Name:  "gpu-product",
+					Usage: "specify the GPU shape of the machine",
 				},
 			},
 		},

@@ -30,14 +30,20 @@ func Command(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
+	// step 1.
+	// perform "login" if and only if configured
 	if cliContext.String("token") != "" {
 		log.Logger.Debugw("non-empty --token provided, logging in")
 		if lerr := cmdlogin.Command(cliContext); lerr != nil {
 			return lerr
 		}
 		log.Logger.Debugw("successfully logged in")
+	} else {
+		log.Logger.Infow("no --token provided, skipping login")
 	}
 
+	// step 2.
+	// perform "run" to start the daemon in systemd service
 	bin, err := os.Executable()
 	if err != nil {
 		return err
