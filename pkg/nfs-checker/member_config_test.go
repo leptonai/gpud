@@ -43,6 +43,19 @@ func TestMemberConfig_Validate(t *testing.T) {
 			wantErr: ErrDirEmpty,
 		},
 		{
+			name: "relative directory path",
+			config: MemberConfig{
+				Config: Config{
+					Dir:              "relative/path",
+					FileContents:     "test-content",
+					TTLToDelete:      metav1.Duration{Duration: time.Minute},
+					NumExpectedFiles: 1,
+				},
+				ID: "test-id",
+			},
+			wantErr: ErrAbsDir,
+		},
+		{
 			name: "directory does not exist",
 			config: MemberConfig{
 				Config: Config{

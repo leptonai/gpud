@@ -41,6 +41,16 @@ func TestGroupConfig_Validate(t *testing.T) {
 			wantErr: ErrDirEmpty,
 		},
 		{
+			name: "relative directory path",
+			config: Config{
+				Dir:              "relative/path",
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			wantErr: ErrAbsDir,
+		},
+		{
 			name: "directory does not exist",
 			config: Config{
 				Dir:              "/non/existent/dir",
@@ -84,7 +94,7 @@ func TestGroupConfig_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
+			err := tt.config.ValidateAndMkdir()
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
@@ -118,7 +128,7 @@ func TestGroupConfig_ValidateStatError(t *testing.T) {
 			NumExpectedFiles: 1,
 		}
 
-		err = config.Validate()
+		err = config.ValidateAndMkdir()
 		// Should return the os.Stat error (not ErrDirNotExists)
 		assert.Error(t, err)
 		assert.NotErrorIs(t, err, ErrDirNotExists)
@@ -138,7 +148,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 			NumExpectedFiles: 1,
 		}
 
-		err := config.Validate()
+		err := config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 
@@ -152,7 +162,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 			NumExpectedFiles: 10000, // Very large number
 		}
 
-		err := config.Validate()
+		err := config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 
@@ -166,7 +176,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 			NumExpectedFiles: 1,
 		}
 
-		err := config.Validate()
+		err := config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 
@@ -180,7 +190,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 			NumExpectedFiles: 1,
 		}
 
-		err := config.Validate()
+		err := config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 
@@ -197,7 +207,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 			NumExpectedFiles: 1,
 		}
 
-		err = config.Validate()
+		err = config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 
@@ -214,7 +224,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 			NumExpectedFiles: 1,
 		}
 
-		err = config.Validate()
+		err = config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 }
@@ -232,7 +242,7 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 			NumExpectedFiles: 1,
 		}
 
-		err := config.Validate()
+		err := config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 
@@ -246,7 +256,7 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 			NumExpectedFiles: 1,
 		}
 
-		err := config.Validate()
+		err := config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 
@@ -260,7 +270,7 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 			NumExpectedFiles: 1,
 		}
 
-		err := config.Validate()
+		err := config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 }
@@ -297,7 +307,7 @@ func TestGroupConfig_JSONTags(t *testing.T) {
 		}
 
 		// Validate that the config is valid
-		err := config.Validate()
+		err := config.ValidateAndMkdir()
 		assert.NoError(t, err)
 
 		// Check that all fields are accessible (this would fail if JSON tags were wrong)
@@ -601,7 +611,7 @@ func TestGroupConfig_JSONWithStringDuration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Validate the decoded config
-		err = config.Validate()
+		err = config.ValidateAndMkdir()
 		assert.NoError(t, err)
 	})
 }
@@ -622,7 +632,7 @@ func TestGroupConfig_JSONEdgeCases(t *testing.T) {
 		assert.Equal(t, time.Duration(0), config.TTLToDelete.Duration)
 
 		// This should fail validation
-		err = config.Validate()
+		err = config.ValidateAndMkdir()
 		assert.ErrorIs(t, err, ErrTTLZero)
 	})
 
@@ -676,7 +686,7 @@ func TestGroupConfig_JSONEdgeCases(t *testing.T) {
 		assert.Equal(t, time.Duration(0), config.TTLToDelete.Duration)
 
 		// This should fail validation due to zero TTL
-		err = config.Validate()
+		err = config.ValidateAndMkdir()
 		assert.ErrorIs(t, err, ErrTTLZero)
 	})
 }

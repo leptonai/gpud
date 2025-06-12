@@ -3,6 +3,7 @@ package nfschecker
 import (
 	"errors"
 	"os"
+	"path/filepath"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -35,7 +36,7 @@ type Configs []Config
 // Validate validates the group configurations.
 func (cfgs Configs) Validate() error {
 	for _, cfg := range cfgs {
-		if err := cfg.Validate(); err != nil {
+		if err := cfg.ValidateAndMkdir(); err != nil {
 			return err
 		}
 	}
@@ -57,19 +58,31 @@ func (cfgs Configs) GetMemberConfigs(machineID string) MemberConfigs {
 
 var (
 	ErrDirEmpty          = errors.New("directory is empty")
-	ErrDirNotExists      = errors.New("directory does not exist")
+	ErrAbsDir            = errors.New("directory is not absolute")
+	ErrDirNotExists      = errors.New("directory does not exist and cannot be created")
 	ErrFileContentsEmpty = errors.New("file content is empty")
 	ErrTTLZero           = errors.New("TTL is zero")
 	ErrExpectedFilesZero = errors.New("expected files is zero")
 )
 
-// Validate validates the configuration.
-func (c *Config) Validate() error {
+// ValidateAndMkdir validates the configuration
+// and creates the target directory if it does not exist.
+func (c *Config) ValidateAndMkdir() error {
 	if c.Dir == "" {
 		return ErrDirEmpty
 	}
+
+	// e.g., ".gpud-nfs-checker" given as a relative path
+	if !filepath.IsAbs(c.Dir) {
+		return ErrAbsDir
+	}
+
 	if _, err := os.Stat(c.Dir); os.IsNotExist(err) {
-		return ErrDirNotExists
+		// e.g., "/data/.gpud-nfs-checker"
+		// then we should mkdir ".gpud-nfs-checker" in "/data"
+		if err := os.MkdirAll(c.Dir, 0755); err != nil {
+			return ErrDirNotExists
+		}
 	} else if err != nil {
 		return err
 	}
