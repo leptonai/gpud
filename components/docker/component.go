@@ -1,5 +1,5 @@
-// Package container tracks the current containers from the docker runtime.
-package container
+// Package docker tracks the current docker status.
+package docker
 
 import (
 	"bytes"
@@ -19,8 +19,8 @@ import (
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 
-// Name is the ID of the Docker container component.
-const Name = "docker-container"
+// Name is the ID of the Docker component.
+const Name = "docker"
 
 var _ components.Component = &component{}
 

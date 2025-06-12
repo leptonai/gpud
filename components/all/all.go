@@ -24,13 +24,13 @@ import (
 	componentsacceleratornvidiatemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsacceleratornvidiautilization "github.com/leptonai/gpud/components/accelerator/nvidia/utilization"
 	componentsacceleratornvidiaxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
-	componentscontainerdpod "github.com/leptonai/gpud/components/containerd/pod"
+	componentscontainerd "github.com/leptonai/gpud/components/containerd"
 	componentscpu "github.com/leptonai/gpud/components/cpu"
 	componentsdisk "github.com/leptonai/gpud/components/disk"
-	componentsdockercontainer "github.com/leptonai/gpud/components/docker/container"
+	componentsdocker "github.com/leptonai/gpud/components/docker"
 	componentsfuse "github.com/leptonai/gpud/components/fuse"
 	componentskernelmodule "github.com/leptonai/gpud/components/kernel-module"
-	componentskubeletpod "github.com/leptonai/gpud/components/kubelet/pod"
+	componentskubelet "github.com/leptonai/gpud/components/kubelet"
 	componentslibrary "github.com/leptonai/gpud/components/library"
 	componentsmemory "github.com/leptonai/gpud/components/memory"
 	componentsnetworklatency "github.com/leptonai/gpud/components/network/latency"
@@ -51,12 +51,12 @@ func All() []Component {
 
 var componentInits = []Component{
 	{Name: componentscpu.Name, InitFunc: componentscpu.New},
-	{Name: componentscontainerdpod.Name, InitFunc: componentscontainerdpod.New},
+	{Name: componentscontainerd.Name, InitFunc: componentscontainerd.New},
 	{Name: componentsdisk.Name, InitFunc: componentsdisk.New},
-	{Name: componentsdockercontainer.Name, InitFunc: componentsdockercontainer.New},
+	{Name: componentsdocker.Name, InitFunc: componentsdocker.New},
 	{Name: componentsfuse.Name, InitFunc: componentsfuse.New},
 	{Name: componentskernelmodule.Name, InitFunc: componentskernelmodule.New},
-	{Name: componentskubeletpod.Name, InitFunc: componentskubeletpod.New},
+	{Name: componentskubelet.Name, InitFunc: componentskubelet.New},
 	{Name: componentslibrary.Name, InitFunc: componentslibrary.New},
 	{Name: componentsmemory.Name, InitFunc: componentsmemory.New},
 	{Name: componentsnetworklatency.Name, InitFunc: componentsnetworklatency.New},
