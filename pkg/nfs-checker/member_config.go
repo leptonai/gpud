@@ -37,7 +37,7 @@ var ErrIDEmpty = errors.New("ID is empty")
 
 // Validate validates the configuration.
 func (c *MemberConfig) Validate() error {
-	if err := c.Config.Validate(); err != nil {
+	if err := c.Config.ValidateAndMkdir(); err != nil {
 		return err
 	}
 
