@@ -1,11 +1,10 @@
-// Package pod tracks the current pods from the kubelet read-only port.
-package pod
+// Package containerd tracks the current containerd status.
+package containerd
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -14,17 +13,13 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/netutil"
+	"github.com/leptonai/gpud/pkg/systemd"
 )
 
-// Name is the ID of the kubernetes pod component.
-const Name = "kubelet"
-
-const (
-	defaultFailedCountThreshold = 5
-	defaultKubeletReadOnlyPort  = 10255
-)
+// Name is the ID of the containerd component.
+const Name = "containerd"
 
 var _ components.Component = &component{}
 
@@ -32,12 +27,13 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	checkDependencyInstalled func() bool
-	checkKubeletRunning      func() bool
-	kubeletReadOnlyPort      int
+	checkDependencyInstalledFunc func() bool
+	checkSocketExistsFunc        func() bool
+	checkServiceActiveFunc       func(context.Context) (bool, error)
+	checkContainerdRunningFunc   func(context.Context) bool
+	listAllSandboxesFunc         func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error)
 
-	failedCount          int
-	failedCountThreshold int
+	endpoint string
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -49,15 +45,17 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkDependencyInstalled: checkKubeletInstalled,
-		checkKubeletRunning: func() bool {
-			return netutil.IsPortOpen(defaultKubeletReadOnlyPort)
+		checkDependencyInstalledFunc: pkgcontainerd.CheckContainerdInstalled,
+		checkSocketExistsFunc:        pkgcontainerd.CheckSocketExists,
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return systemd.IsActive("containerd")
 		},
-		kubeletReadOnlyPort:  defaultKubeletReadOnlyPort,
-		failedCount:          0,
-		failedCountThreshold: defaultFailedCountThreshold,
-	}
+		checkContainerdRunningFunc: pkgcontainerd.CheckContainerdRunning,
 
+		listAllSandboxesFunc: pkgcontainerd.ListAllSandboxes,
+
+		endpoint: pkgcontainerd.DefaultContainerRuntimeEndpoint,
+	}
 	return c, nil
 }
 
@@ -66,7 +64,7 @@ func (c *component) Name() string { return Name }
 func (c *component) Tags() []string {
 	return []string{
 		"container",
-		"kubelet",
+		Name,
 	}
 }
 
@@ -112,8 +110,7 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking kubelet pods")
-
+	log.Logger.Infow("checking containerd pods", "endpoint", c.endpoint)
 	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
@@ -123,42 +120,62 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
-		// "kubelet" is not installed, thus not needed to check its activeness
+	// assume "containerd" is not installed, thus not needed to check its activeness
+	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = "kubelet is not installed"
+		cr.reason = "containerd not installed"
 		return cr
 	}
 
-	if c.checkKubeletRunning == nil || !c.checkKubeletRunning() {
-		// "kubelet" is not running, thus not needed to check its activeness
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = "kubelet is installed but not running"
-		return cr
-	}
-
-	// below are the checks in case "kubelet" is installed and running, thus requires activeness checks
-	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-	cr.NodeName, cr.Pods, cr.err = listPodsFromKubeletReadOnlyPort(cctx, c.kubeletReadOnlyPort)
-	ccancel()
-
-	if cr.err != nil {
-		c.failedCount++
-	} else {
-		c.failedCount = 0
-	}
-
-	if cr.err == nil {
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = fmt.Sprintf("check success for node %s", cr.NodeName)
-		log.Logger.Debugw(cr.reason, "node", cr.NodeName, "count", len(cr.Pods))
-	}
-
-	if c.failedCount >= c.failedCountThreshold {
+	// below are the checks in case "containerd" is installed, thus requires activeness checks
+	if c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() {
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "list pods from kubelet read-only port failed"
-		log.Logger.Errorw(cr.reason, "failedCount", c.failedCount, "error", cr.err)
+		cr.reason = "containerd installed but socket file does not exist"
+		return cr
 	}
+
+	if c.checkContainerdRunningFunc != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+		running := c.checkContainerdRunningFunc(cctx)
+		ccancel()
+		if !running {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "containerd installed but not running"
+			return cr
+		}
+	}
+
+	if c.checkServiceActiveFunc != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+		cr.ContainerdServiceActive, cr.err = c.checkServiceActiveFunc(cctx)
+		ccancel()
+		if !cr.ContainerdServiceActive || cr.err != nil {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "containerd installed but service is not active"
+			return cr
+		}
+	}
+
+	if c.listAllSandboxesFunc != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+		cr.Pods, cr.err = c.listAllSandboxesFunc(cctx, c.endpoint)
+		ccancel()
+		if cr.err != nil {
+			if pkgcontainerd.IsErrUnimplemented(cr.err) {
+				cr.health = apiv1.HealthStateTypeHealthy
+				cr.reason = "containerd installed and active but containerd CRI is not enabled"
+			} else {
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.reason = "error listing pod sandbox status"
+				log.Logger.Errorw(cr.reason, "error", cr.err)
+			}
+			return cr
+		}
+	}
+
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = "ok"
+	log.Logger.Debugw(cr.reason, "count", len(cr.Pods))
 
 	return cr
 }
@@ -166,12 +183,11 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	// KubeletServiceActive is true if the kubelet service is active.
-	KubeletServiceActive bool `json:"kubelet_service_active"`
-	// NodeName is the name of the node.
-	NodeName string `json:"node_name,omitempty"`
+	// ContainerdServiceActive is true if the containerd service is active.
+	ContainerdServiceActive bool `json:"containerd_service_active"`
+
 	// Pods is the list of pods on the node.
-	Pods []PodStatus `json:"pods,omitempty"`
+	Pods []pkgcontainerd.PodSandbox `json:"pods,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time
@@ -202,18 +218,11 @@ func (cr *checkResult) String() string {
 
 	table.SetHeader([]string{"Namespace", "Pod", "Container", "State"})
 	for _, pod := range cr.Pods {
-		for _, container := range pod.ContainerStatuses {
-			state := "unknown"
-			if container.State.Running != nil {
-				state = "running"
-			} else if container.State.Terminated != nil {
-				state = "terminated"
-			} else if container.State.Waiting != nil {
-				state = "waiting"
-			}
-			table.Append([]string{pod.Namespace, pod.Name, container.Name, state})
+		for _, container := range pod.Containers {
+			table.Append([]string{pod.Namespace, pod.Name, container.Name, container.State})
 		}
 	}
+
 	table.Render()
 
 	return buf.String()
@@ -262,11 +271,9 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Health:    cr.health,
 	}
 
-	if len(cr.Pods) == 0 { // no pod found yet
-		return apiv1.HealthStates{state}
+	if len(cr.Pods) > 0 {
+		b, _ := json.Marshal(cr)
+		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
-
-	b, _ := json.Marshal(cr)
-	state.ExtraInfo = map[string]string{"data": string(b)}
 	return apiv1.HealthStates{state}
 }

@@ -1,4 +1,4 @@
-package pod
+package kubelet
 
 import (
 	"context"
@@ -14,11 +14,12 @@ import (
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/leptonai/gpud/components"
 )
 
 // MockGPUdInstance creates a minimal GPUdInstance for testing
