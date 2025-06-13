@@ -326,9 +326,17 @@ func TestEvaluate(t *testing.T) {
 				return
 			}
 
-			reason, health := evaluateIbstatOutputAgainstThresholds(tt.output, tt.config)
+			health, suggestedActions, reason := evaluateIbstatOutputAgainstThresholds(tt.output, tt.config)
 			assert.Equal(t, tt.wantReason, reason)
 			assert.Equal(t, tt.wantHealth, health)
+			// For healthy states, suggestedActions should be nil
+			if tt.wantHealth == apiv1.HealthStateTypeHealthy {
+				assert.Nil(t, suggestedActions)
+			} else {
+				// For unhealthy states, should have hardware inspection suggested
+				assert.NotNil(t, suggestedActions)
+				assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, suggestedActions.RepairActions)
+			}
 		})
 	}
 }
@@ -403,9 +411,17 @@ func TestEvaluateWithTestData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reason, health := evaluateIbstatOutputAgainstThresholds(output, tt.config)
+			health, suggestedActions, reason := evaluateIbstatOutputAgainstThresholds(output, tt.config)
 			assert.Equal(t, tt.wantReason, reason)
 			assert.Equal(t, tt.wantHealth, health)
+			// For healthy states, suggestedActions should be nil
+			if tt.wantHealth == apiv1.HealthStateTypeHealthy {
+				assert.Nil(t, suggestedActions)
+			} else {
+				// For unhealthy states, should have hardware inspection suggested
+				assert.NotNil(t, suggestedActions)
+				assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, suggestedActions.RepairActions)
+			}
 		})
 	}
 }
