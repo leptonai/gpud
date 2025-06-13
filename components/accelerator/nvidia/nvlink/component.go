@@ -147,7 +147,7 @@ func (c *component) Check() components.CheckResult {
 		} else {
 			metricFeatureEnabled.With(prometheus.Labels{"uuid": uuid}).Set(float64(0.0))
 		}
-		metricReplayErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalRelayErrors()))
+		metricReplayErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalReplayErrors()))
 		metricRecoveryErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalRecoveryErrors()))
 		metricCRCErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalCRCErrors()))
 	}

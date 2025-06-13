@@ -28,7 +28,7 @@ var (
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "replay_errors",
-			Help:      "tracks the relay errors in NVLink (aggregated for all links per GPU)",
+			Help:      "tracks the replay errors in NVLink (aggregated for all links per GPU)",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"}, // label is GPU ID
 	).MustCurryWith(componentLabel)
