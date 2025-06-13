@@ -29,7 +29,7 @@ func (s NVLinkStates) AllFeatureEnabled() bool {
 	return true
 }
 
-func (s NVLinkStates) TotalRelayErrors() uint64 {
+func (s NVLinkStates) TotalReplayErrors() uint64 {
 	var total uint64
 	for _, state := range s {
 		total += state.ReplayErrors

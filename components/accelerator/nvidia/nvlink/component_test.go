@@ -720,8 +720,8 @@ func TestCheck_MetricsGeneration(t *testing.T) {
 	// and the feature enabled state is correctly determined
 	assert.False(t, lastCheckResult.NVLinks[0].States.AllFeatureEnabled(),
 		"AllFeatureEnabled should be false since not all links have FeatureEnabled=true")
-	assert.Equal(t, uint64(6), lastCheckResult.NVLinks[0].States.TotalRelayErrors(),
-		"TotalRelayErrors should match the sum")
+	assert.Equal(t, uint64(6), lastCheckResult.NVLinks[0].States.TotalReplayErrors(),
+		"TotalReplayErrors should match the sum")
 	assert.Equal(t, uint64(5), lastCheckResult.NVLinks[0].States.TotalRecoveryErrors(),
 		"TotalRecoveryErrors should match the sum")
 	assert.Equal(t, uint64(5), lastCheckResult.NVLinks[0].States.TotalCRCErrors(),

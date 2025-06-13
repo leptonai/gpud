@@ -95,8 +95,8 @@ func TestNVLinkStatesTotalCounters(t *testing.T) {
 		},
 	}
 
-	t.Run("TotalRelayErrors", func(t *testing.T) {
-		assert.Equal(t, uint64(25), states.TotalRelayErrors())
+	t.Run("TotalReplayErrors", func(t *testing.T) {
+		assert.Equal(t, uint64(25), states.TotalReplayErrors())
 	})
 
 	t.Run("TotalRecoveryErrors", func(t *testing.T) {
