@@ -245,7 +245,7 @@ func (c *component) Check() components.CheckResult {
 		// ok to error as long as it meets the thresholds
 		// which means we may overwrite the error above
 		// (e.g., "ibstat" command exited 255 but still meets the thresholds)
-		cr.reason, cr.health = evaluateIbstatOutputAgainstThresholds(cr.IbstatOutput, thresholds)
+		cr.health, cr.suggestedActions, cr.reason = evaluateIbstatOutputAgainstThresholds(cr.IbstatOutput, thresholds)
 
 		// partial output from "ibstat" command worked
 		if cr.err != nil && cr.health == apiv1.HealthStateTypeHealthy {
@@ -319,18 +319,24 @@ var (
 
 // Returns the output evaluation reason and its health state.
 // We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
-func evaluateIbstatOutputAgainstThresholds(ibstatOut *infiniband.IbstatOutput, thresholds infiniband.ExpectedPortStates) (string, apiv1.HealthStateType) {
+func evaluateIbstatOutputAgainstThresholds(ibstatOut *infiniband.IbstatOutput, thresholds infiniband.ExpectedPortStates) (apiv1.HealthStateType, *apiv1.SuggestedActions, string) {
 	if thresholds.IsZero() {
-		return reasonThresholdNotSetSkipped, apiv1.HealthStateTypeHealthy
+		return apiv1.HealthStateTypeHealthy, nil, reasonThresholdNotSetSkipped
 	}
 
+	// Link down/drop -> hardware inspection
+	// Link port flap -> hardware inspection
 	atLeastPorts := thresholds.AtLeastPorts
 	atLeastRate := thresholds.AtLeastRate
 	if err := ibstatOut.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-		return err.Error(), apiv1.HealthStateTypeUnhealthy
+		return apiv1.HealthStateTypeUnhealthy,
+			&apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
+			err.Error()
 	}
 
-	return reasonNoIbIssueFoundFromIbstat, apiv1.HealthStateTypeHealthy
+	return apiv1.HealthStateTypeHealthy, nil, reasonNoIbIssueFoundFromIbstat
 }
 
 // Returns the output evaluation reason and its health state.
