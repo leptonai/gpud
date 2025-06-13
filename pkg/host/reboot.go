@@ -146,7 +146,7 @@ func LastRebootHelper(lines [][]byte) (time.Time, error) {
 
 	// Convert the first line to a string and parse it as a time.
 	rebootTimeStr := string(lines[0])
-	rebootTime, err := time.Parse("2006-01-02 15:04:05", rebootTimeStr)
+	rebootTime, err := time.ParseInLocation("2006-01-02 15:04:05", rebootTimeStr, time.Local)
 	if err != nil {
 		return time.Time{}, err
 	}
