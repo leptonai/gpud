@@ -150,5 +150,5 @@ func LastRebootHelper(lines [][]byte) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	return rebootTime, nil
+	return rebootTime.UTC(), nil
 }
