@@ -47,8 +47,9 @@ const URLPathComponents = "/components"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /v1/components [get]
 func (g *globalHandler) getComponents(c *gin.Context) {
-	components := make([]string, 0)
-	for _, c := range g.componentsRegistry.All() {
+	allComponents := g.componentsRegistry.All()
+	components := make([]string, 0, len(allComponents))
+	for _, c := range allComponents {
 		components = append(components, c.Name())
 	}
 	sort.Strings(components)
@@ -210,7 +211,7 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 	// when components are registered/deregistered
 	components := g.componentsRegistry.All()
 	success := true
-	triggeredComponents := make([]string, 0)
+	triggeredComponents := make([]string, 0, len(components)/4)
 	exitStatus := 0
 
 	for _, comp := range components {

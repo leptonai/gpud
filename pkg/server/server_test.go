@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -322,11 +323,13 @@ func TestUpdateToken(t *testing.T) {
 
 	// Create a server with a minimal setup
 	s := &Server{
-		machineID:      "test-uid",
+		machineID:      atomic.Pointer[string]{},
 		dbRW:           db,
 		dbRO:           db,
 		epControlPlane: "https://example.com",
 	}
+	machineID := "test-uid"
+	s.machineID.Store(&machineID)
 	userToken := &UserToken{}
 
 	// Call updateToken directly - it will try to mkfifo and fail,
