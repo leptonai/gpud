@@ -1,4 +1,16 @@
 // Package utilization tracks the NVIDIA per-GPU utilization.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeHealthy] when all GPUs' utilization information is successfully retrieved
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting utilization from any GPU
+//
+// Note: This component does not use the "degraded" state.
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// This component reports utilization metrics for monitoring purposes only.
 package utilization
 
 import (
