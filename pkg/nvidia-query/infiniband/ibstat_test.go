@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -313,9 +312,7 @@ CA 'mlx5_11'
 		Link layer: Ethernet
 	`
 	err := ValidateIbstatOutput(outputWithErr)
-	if err != ErrIbstatOutputBrokenStateDown {
-		t.Errorf("ibstat output did not pass validation")
-	}
+	require.ErrorIs(t, err, ErrIbstatOutputBrokenStateDown, "expected ErrIbstatOutputBrokenStateDown")
 }
 
 func TestValidateIbstatOutputErrIbstatOutputBrokenPhysicalDisabled(t *testing.T) {
@@ -342,9 +339,7 @@ CA 'mlx5_11'
 		Link layer: Ethernet
 	`
 	err := ValidateIbstatOutput(outputWithErr)
-	if err != ErrIbstatOutputBrokenPhysicalDisabled {
-		t.Errorf("ibstat output did not pass validation")
-	}
+	require.ErrorIs(t, err, ErrIbstatOutputBrokenPhysicalDisabled, "expected ErrIbstatOutputBrokenPhysicalDisabled")
 }
 
 func TestValidateIbstatOutputHealthyCase(t *testing.T) {
@@ -389,18 +384,17 @@ CA 'mlx5_10'
 		Link layer: Ethernet
 	`
 	err := ValidateIbstatOutput(outputWithNoErr)
-	if err != nil {
-		t.Error("healthy ibstat output did not pass the validation")
-	}
+	require.NoError(t, err, "healthy ibstat output should pass validation")
 }
 
-func TestValidateIBPorts(t *testing.T) {
+func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 	tests := []struct {
-		name         string
-		cards        IBStatCards
-		atLeastPorts int
-		atLeastRate  int
-		wantErr      error
+		name                 string
+		cards                IBStatCards
+		atLeastPorts         int
+		atLeastRate          int
+		wantErr              error
+		wantProblematicPorts int
 	}{
 		{
 			name: "all ports active and matching rate",
@@ -422,9 +416,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 			},
-			atLeastPorts: 4,
-			atLeastRate:  200,
-			wantErr:      nil,
+			atLeastPorts:         4,
+			atLeastRate:          200,
+			wantErr:              nil,
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "all ports active with higher rate than required",
@@ -438,9 +433,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
 				},
 			},
-			atLeastPorts: 2,
-			atLeastRate:  200,
-			wantErr:      nil,
+			atLeastPorts:         2,
+			atLeastRate:          200,
+			wantErr:              nil,
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "all ports disabled but with matching rate",
@@ -454,9 +450,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 			},
-			atLeastPorts: 2,
-			atLeastRate:  200,
-			wantErr:      errors.New("only 0 ports (>= 200 Gb/s) are active, expect at least 2; 2 device(s) found Disabled (mlx5_0, mlx5_1)"),
+			atLeastPorts:         2,
+			atLeastRate:          200,
+			wantErr:              errors.New("only 0 port(s) are active and >=200 Gb/s, expect >=2 port(s); 2 device(s) found Disabled (mlx5_0, mlx5_1)"),
+			wantProblematicPorts: 2,
 		},
 		{
 			name: "some ports down",
@@ -478,9 +475,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 			},
-			atLeastPorts: 4,
-			atLeastRate:  200,
-			wantErr:      errors.New("only 2 ports (>= 200 Gb/s) are active, expect at least 4; 2 device(s) found Disabled (mlx5_1, mlx5_3)"),
+			atLeastPorts:         4,
+			atLeastRate:          200,
+			wantErr:              errors.New("only 2 port(s) are active and >=200 Gb/s, expect >=4 port(s); 2 device(s) found Disabled (mlx5_1, mlx5_3)"),
+			wantProblematicPorts: 2,
 		},
 		{
 			name: "wrong rate",
@@ -494,9 +492,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
 				},
 			},
-			atLeastPorts: 2,
-			atLeastRate:  200,
-			wantErr:      errors.New("only 0 ports (>= 200 Gb/s) are active, expect at least 2"),
+			atLeastPorts:         2,
+			atLeastRate:          200,
+			wantErr:              errors.New("only 0 port(s) are active and >=200 Gb/s, expect >=2 port(s)"),
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "mixed rates with lower threshold",
@@ -514,9 +513,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
 				},
 			},
-			atLeastPorts: 2,
-			atLeastRate:  200,
-			wantErr:      nil,
+			atLeastPorts:         2,
+			atLeastRate:          200,
+			wantErr:              nil,
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "mixed states with empty expected state matches all",
@@ -534,9 +534,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200},
 				},
 			},
-			atLeastPorts: 3,
-			atLeastRate:  200,
-			wantErr:      errors.New("only 2 ports (>= 200 Gb/s) are active, expect at least 3; 1 device(s) found Disabled (mlx5_1)"),
+			atLeastPorts:         3,
+			atLeastRate:          200,
+			wantErr:              errors.New("only 2 port(s) are active and >=200 Gb/s, expect >=3 port(s); 1 device(s) found Disabled (mlx5_1)"),
+			wantProblematicPorts: 1,
 		},
 		{
 			name: "mixed states with empty expected state matches all and with polling state",
@@ -558,9 +559,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Init", PhysicalState: "Polling", Rate: 200},
 				},
 			},
-			atLeastPorts: 3,
-			atLeastRate:  200,
-			wantErr:      errors.New("only 2 ports (>= 200 Gb/s) are active, expect at least 3; 1 device(s) found Disabled (mlx5_1); 1 device(s) found Polling (mlx5_3)"),
+			atLeastPorts:         3,
+			atLeastRate:          200,
+			wantErr:              errors.New("only 2 port(s) are active and >=200 Gb/s, expect >=3 port(s); 1 device(s) found Disabled (mlx5_1); 1 device(s) found Polling (mlx5_3)"),
+			wantProblematicPorts: 2,
 		},
 		{
 			name: "mixed states with wrong rate",
@@ -578,16 +580,18 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 100},
 				},
 			},
-			atLeastPorts: 3,
-			atLeastRate:  200,
-			wantErr:      errors.New("only 0 ports (>= 200 Gb/s) are active, expect at least 3"),
+			atLeastPorts:         3,
+			atLeastRate:          200,
+			wantErr:              errors.New("only 0 port(s) are active and >=200 Gb/s, expect >=3 port(s)"),
+			wantProblematicPorts: 0,
 		},
 		{
-			name:         "empty cards",
-			cards:        IBStatCards{},
-			atLeastPorts: 2,
-			atLeastRate:  200,
-			wantErr:      errors.New("only 0 ports (>= 200 Gb/s) are active, expect at least 2"),
+			name:                 "empty cards",
+			cards:                IBStatCards{},
+			atLeastPorts:         2,
+			atLeastRate:          200,
+			wantErr:              errors.New("only 0 port(s) are active and >=200 Gb/s, expect >=2 port(s)"),
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "some ports disabled but with high enough rate",
@@ -609,9 +613,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 			},
-			atLeastPorts: 4,
-			atLeastRate:  200,
-			wantErr:      errors.New("only 2 ports (>= 200 Gb/s) are active, expect at least 4; 2 device(s) found Disabled (mlx5_1, mlx5_3)"),
+			atLeastPorts:         4,
+			atLeastRate:          200,
+			wantErr:              errors.New("only 2 port(s) are active and >=200 Gb/s, expect >=4 port(s); 2 device(s) found Disabled (mlx5_1, mlx5_3)"),
+			wantProblematicPorts: 2,
 		},
 		{
 			name: "some ports disabled but with high enough rate but missing ports/rates",
@@ -633,9 +638,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
 				},
 			},
-			atLeastPorts: 0,
-			atLeastRate:  0,
-			wantErr:      nil,
+			atLeastPorts:         0,
+			atLeastRate:          0,
+			wantErr:              nil,
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "zero required ports",
@@ -645,9 +651,10 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
 				},
 			},
-			atLeastPorts: 0,
-			atLeastRate:  200,
-			wantErr:      nil,
+			atLeastPorts:         0,
+			atLeastRate:          200,
+			wantErr:              nil,
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "zero required rate",
@@ -661,22 +668,28 @@ func TestValidateIBPorts(t *testing.T) {
 					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 0},
 				},
 			},
-			atLeastPorts: 2,
-			atLeastRate:  0,
-			wantErr:      nil,
+			atLeastPorts:         2,
+			atLeastRate:          0,
+			wantErr:              nil,
+			wantProblematicPorts: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotErr := tt.cards.CheckPortsAndRate(tt.atLeastPorts, tt.atLeastRate)
+			// Convert IBStatCards to []IBPort
+			ports := tt.cards.IBPorts()
+
+			// Use EvaluatePortsAndRate instead of non-existent CheckPortsAndRate method
+			problematicPorts, gotErr := EvaluatePortsAndRate(ports, tt.atLeastPorts, tt.atLeastRate)
 
 			if tt.wantErr == nil {
-				if gotErr != nil {
-					t.Errorf("CheckPortsAndRate() expected no error, got %v", gotErr)
-				}
-			} else if gotErr == nil || gotErr.Error() != tt.wantErr.Error() {
-				t.Errorf("CheckPortsAndRate() expected error:\n%v\n\nwant\n%v", gotErr, tt.wantErr)
+				require.NoError(t, gotErr, "EvaluatePortsAndRate() expected no error")
+				require.Empty(t, problematicPorts, "EvaluatePortsAndRate() expected no problematic ports")
+			} else {
+				require.Error(t, gotErr, "EvaluatePortsAndRate() expected an error")
+				require.Equal(t, tt.wantErr.Error(), gotErr.Error(), "EvaluatePortsAndRate() error message mismatch")
+				require.Equal(t, tt.wantProblematicPorts, len(problematicPorts), "EvaluatePortsAndRate() problematic ports count mismatch")
 			}
 		})
 	}
@@ -698,78 +711,6 @@ func TestParseIBStatNoCardFound(t *testing.T) {
 	`
 	_, err := ParseIBStat(input)
 	assert.ErrorIs(t, err, ErrIbstatOutputNoCardFound, "Expected ErrIbstatOutputNoCardFound when no cards found")
-}
-
-func TestCheckInfiniband(t *testing.T) {
-	tests := []struct {
-		name           string
-		ibstatCommand  string
-		threshold      ExpectedPortStates
-		expectedError  error
-		mockOutputFile string
-		wantErr        bool
-	}{
-		{
-			name:           "all ports active and meeting threshold",
-			ibstatCommand:  "cat testdata/ibstat.47.0.a100.all.active.0",
-			threshold:      ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 200},
-			expectedError:  nil,
-			mockOutputFile: "",
-			wantErr:        false,
-		},
-		{
-			name:           "insufficient port count",
-			ibstatCommand:  "cat testdata/ibstat.47.0.a100.all.active.0",
-			threshold:      ExpectedPortStates{AtLeastPorts: 10, AtLeastRate: 200},
-			expectedError:  errors.New("only 9 ports (>= 200 Gb/s) are active, expect at least 10"),
-			mockOutputFile: "",
-			wantErr:        true,
-		},
-		{
-			name:           "insufficient rate",
-			ibstatCommand:  "cat testdata/ibstat.47.0.a100.all.active.0",
-			threshold:      ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400},
-			expectedError:  errors.New("only 0 ports (>= 400 Gb/s) are active, expect at least 8"),
-			mockOutputFile: "",
-			wantErr:        true,
-		},
-		{
-			name:           "command not found",
-			ibstatCommand:  "nonexistent_command",
-			threshold:      ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 200},
-			expectedError:  ErrNoIbstatCommand,
-			mockOutputFile: "",
-			wantErr:        true,
-		},
-		{
-			name:           "zero threshold",
-			ibstatCommand:  "cat testdata/ibstat.47.0.a100.all.active.0",
-			threshold:      ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 0},
-			expectedError:  nil,
-			mockOutputFile: "",
-			wantErr:        false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			err := CheckInfiniband(ctx, tt.ibstatCommand, tt.threshold)
-
-			if tt.wantErr {
-				require.Error(t, err)
-				if tt.expectedError != nil && !errors.Is(err, tt.expectedError) {
-					if !strings.Contains(err.Error(), tt.expectedError.Error()) {
-						t.Errorf("expected error containing %v, got %v", tt.expectedError, err)
-					}
-				}
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }
 
 func TestIBStatCardsIBPorts(t *testing.T) {

@@ -5,9 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
-	"time"
 
 	"sigs.k8s.io/yaml"
 
@@ -75,22 +73,6 @@ func GetIbstatOutput(ctx context.Context, ibstatCommands []string) (*IbstatOutpu
 	return o, nil
 }
 
-// CheckInfiniband checks if the infiniband ports are up and running with the expected thresholds.
-func CheckInfiniband(ctx context.Context, ibstatCommand string, threshold ExpectedPortStates) error {
-	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	ibstat, err := GetIbstatOutput(cctx, []string{ibstatCommand})
-	cancel()
-
-	if err != nil {
-		log.Logger.Warnw("error getting ibstat output", "error", err)
-		return err
-	}
-
-	atLeastPorts := threshold.AtLeastPorts
-	atLeastRate := threshold.AtLeastRate
-	return ibstat.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate)
-}
-
 var (
 	ErrIbstatOutputBrokenStateDown        = errors.New("ibstat output unexpected; found State: Down (check the physical switch)")
 	ErrIbstatOutputBrokenPhysicalDisabled = errors.New("ibstat output unexpected; found Physical state: Disabled (check the physical switch)")
@@ -118,6 +100,7 @@ type IbstatOutput struct {
 type IBStatCards []IBStatCard
 
 type IBStatCard struct {
+	// Device is the name of the IB card (e.g., "mlx5_1")
 	Device          string     `json:"CA name"`
 	Type            string     `json:"CA type"`
 	NumPorts        string     `json:"Number of ports"`
@@ -129,11 +112,16 @@ type IBStatCard struct {
 }
 
 type IBStatPort struct {
-	State         string `json:"State"`
+	// State is the state of the IB port (e.g., "Active", "Down")
+	State string `json:"State"`
+	// PhysicalState is the physical state of the IB port (e.g., "LinkUp", "Disabled", "Polling")
 	PhysicalState string `json:"Physical state"`
-	Rate          int    `json:"Rate"`
-	BaseLid       int    `json:"Base lid"`
-	LinkLayer     string `json:"Link layer"`
+	// Rate is the rate of the IB port (e.g., 400)
+	Rate int `json:"Rate"`
+	// BaseLid is the base lid of the IB port (e.g., 1)
+	BaseLid int `json:"Base lid"`
+	// LinkLayer is the link layer of the IB port (e.g., "Ethernet")
+	LinkLayer string `json:"Link layer"`
 }
 
 func (cards IBStatCards) IBPorts() []IBPort {
@@ -147,35 +135,6 @@ func (cards IBStatCards) IBPorts() []IBPort {
 		})
 	}
 	return ibports
-}
-
-// CheckPortsAndRate checks if the number of active IB ports matches expectations
-func (cards IBStatCards) CheckPortsAndRate(atLeastPorts int, atLeastRate int) error {
-	if atLeastPorts == 0 && atLeastRate == 0 {
-		return nil
-	}
-
-	// select all "up" devices, and count the ones that match the expected rate with ">="
-	_, portNamesWithLinkUp := CheckPortsAndRate(cards.IBPorts(), []string{"LinkUp"}, "", atLeastRate)
-	if len(portNamesWithLinkUp) >= atLeastPorts {
-		return nil
-	}
-
-	errMsg := fmt.Sprintf("only %d ports (>= %d Gb/s) are active, expect at least %d", len(portNamesWithLinkUp), atLeastRate, atLeastPorts)
-	log.Logger.Warnw(errMsg, "totalPorts", len(cards), "atLeastPorts", atLeastPorts, "atLeastRateGbPerSec", atLeastRate)
-
-	pm, portNamesWithDisabledOrPolling := CheckPortsAndRate(cards.IBPorts(), []string{"Disabled", "Polling"}, "", 0) // atLeastRate is ignored
-	if len(portNamesWithDisabledOrPolling) > 0 {
-		// some ports must be missing -- construct error message accordingly
-		msgs := make([]string, 0)
-		for state, names := range pm {
-			msgs = append(msgs, fmt.Sprintf("%d device(s) found %s (%s)", len(names), state, strings.Join(names, ", ")))
-		}
-		sort.Strings(msgs)
-		errMsg += fmt.Sprintf("; %s", strings.Join(msgs, "; "))
-	}
-
-	return errors.New(errMsg)
 }
 
 var (
