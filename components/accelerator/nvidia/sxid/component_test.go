@@ -904,6 +904,10 @@ func (m *MockRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
+func (m *MockRebootEventStore) PurgeAll(ctx context.Context) error {
+	return nil
+}
+
 func TestSXIDComponent_Start_KmsgWatcherError(t *testing.T) {
 	// Initialize component
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

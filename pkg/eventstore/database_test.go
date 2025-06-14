@@ -65,7 +65,7 @@ func Test_defaultTableName(t *testing.T) {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			result := defaultTableName(tc.input)
+			result := TableName(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

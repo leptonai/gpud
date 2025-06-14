@@ -397,6 +397,18 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
+				&cli.StringFlag{
+					Name:  "purge-events",
+					Usage: "set the comma-separated component names to purge all events for (set * to purge all events in all components, leave empty to skip)",
+				},
+				&cli.BoolFlag{
+					Name:  "purge-reboot-events",
+					Usage: "set true to purge all reboot events",
+				},
+				&cli.BoolFlag{
+					Name:  "purge-metrics",
+					Usage: "set true to purge all metrics",
+				},
 			},
 		},
 		{

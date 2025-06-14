@@ -671,3 +671,218 @@ func TestGetEventsWithEmptyBucket(t *testing.T) {
 		assert.Empty(t, events)
 	})
 }
+
+func TestPurgeAll(t *testing.T) {
+	t.Parallel()
+
+	t.Run("successfully purge all events", func(t *testing.T) {
+		// Create a separate database for this test
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		// Create event store
+		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		recorder := &rebootEventStore{
+			getLastRebootTime: func(ctx context.Context) (time.Time, error) {
+				return time.Now(), nil
+			},
+			eventStore: store,
+		}
+
+		// Insert some test events
+		bucket, err := store.Bucket("os")
+		require.NoError(t, err)
+
+		now := time.Now()
+		testEvents := []eventstore.Event{
+			{
+				Time:    now.Add(-3 * time.Hour),
+				Name:    "reboot",
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "test event 1",
+			},
+			{
+				Time:    now.Add(-2 * time.Hour),
+				Name:    "reboot",
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "test event 2",
+			},
+			{
+				Time:    now.Add(-1 * time.Hour),
+				Name:    "reboot",
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "test event 3",
+			},
+		}
+
+		for _, event := range testEvents {
+			err = bucket.Insert(ctx, event)
+			require.NoError(t, err)
+		}
+		bucket.Close()
+
+		// Verify events exist before purge
+		events, err := recorder.GetRebootEvents(ctx, time.Time{})
+		assert.NoError(t, err)
+		assert.Len(t, events, len(testEvents))
+
+		// Purge all events
+		err = recorder.PurgeAll(ctx)
+		assert.NoError(t, err)
+
+		// Verify events are purged
+		events, err = recorder.GetRebootEvents(ctx, time.Time{})
+		assert.NoError(t, err)
+		assert.Empty(t, events)
+	})
+
+	t.Run("purge with no existing events", func(t *testing.T) {
+		// Create a separate database for this test
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		// Create event store
+		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		recorder := &rebootEventStore{
+			getLastRebootTime: func(ctx context.Context) (time.Time, error) {
+				return time.Now(), nil
+			},
+			eventStore: store,
+		}
+
+		// Purge with no events should not error
+		err = recorder.PurgeAll(ctx)
+		assert.NoError(t, err)
+
+		// Verify no events exist
+		events, err := recorder.GetRebootEvents(ctx, time.Time{})
+		assert.NoError(t, err)
+		assert.Empty(t, events)
+	})
+
+	t.Run("error getting bucket", func(t *testing.T) {
+		// Create a mock eventstore that returns an error when getting bucket
+		mockStore := &mockEventStore{
+			bucketErr: errors.New("failed to get bucket"),
+		}
+
+		recorder := &rebootEventStore{
+			getLastRebootTime: func(ctx context.Context) (time.Time, error) {
+				return time.Now(), nil
+			},
+			eventStore: mockStore,
+		}
+
+		err := recorder.PurgeAll(context.Background())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get bucket")
+	})
+
+	t.Run("error during purge", func(t *testing.T) {
+		// Create a mock eventstore that returns an error during purge
+		mockBucket := &mockBucket{
+			purgeErr: errors.New("purge failed"),
+		}
+		mockStore := &mockEventStore{
+			bucket: mockBucket,
+		}
+
+		recorder := &rebootEventStore{
+			getLastRebootTime: func(ctx context.Context) (time.Time, error) {
+				return time.Now(), nil
+			},
+			eventStore: mockStore,
+		}
+
+		err := recorder.PurgeAll(context.Background())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "purge failed")
+	})
+
+	t.Run("context cancellation", func(t *testing.T) {
+		// Create a separate database for this test
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create event store
+		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+		require.NoError(t, err)
+
+		recorder := &rebootEventStore{
+			getLastRebootTime: func(ctx context.Context) (time.Time, error) {
+				return time.Now(), nil
+			},
+			eventStore: store,
+		}
+
+		// Create a canceled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		// Purge with canceled context should error
+		err = recorder.PurgeAll(ctx)
+		assert.Error(t, err)
+	})
+}
+
+// mockEventStore is a mock implementation of eventstore.Store for testing
+type mockEventStore struct {
+	bucket    eventstore.Bucket
+	bucketErr error
+}
+
+func (m *mockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+	if m.bucketErr != nil {
+		return nil, m.bucketErr
+	}
+	if m.bucket != nil {
+		return m.bucket, nil
+	}
+	return &mockBucket{}, nil
+}
+
+// mockBucket is a mock implementation of eventstore.Bucket for testing
+type mockBucket struct {
+	purgeErr error
+}
+
+func (m *mockBucket) Name() string {
+	return "mock"
+}
+
+func (m *mockBucket) Insert(ctx context.Context, ev eventstore.Event) error {
+	return nil
+}
+
+func (m *mockBucket) Find(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+	return nil, nil
+}
+
+func (m *mockBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+	return nil, nil
+}
+
+func (m *mockBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+	return nil, nil
+}
+
+func (m *mockBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+	if m.purgeErr != nil {
+		return 0, m.purgeErr
+	}
+	return 0, nil
+}
+
+func (m *mockBucket) Close() {
+	// Do nothing
+}

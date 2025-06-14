@@ -15,6 +15,8 @@ const defaultBucketName = "os"
 type RebootEventStore interface {
 	RecordReboot(ctx context.Context) error
 	GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error)
+	// PurgeAll purges all reboot events in the table.
+	PurgeAll(ctx context.Context) error
 }
 
 var _ RebootEventStore = &rebootEventStore{}
@@ -37,6 +39,25 @@ func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
 
 func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return getEvents(ctx, s.eventStore, since)
+}
+
+func (s *rebootEventStore) PurgeAll(ctx context.Context) error {
+	bucket, err := s.eventStore.Bucket(defaultBucketName, eventstore.WithDisablePurge())
+	if err != nil {
+		return err
+	}
+	defer bucket.Close()
+
+	now := time.Now().UTC()
+	now = now.Add(24 * time.Hour)
+
+	purged, err := bucket.Purge(ctx, now.Unix())
+	if err != nil {
+		return err
+	}
+	log.Logger.Infow("purged reboot events", "purged", purged)
+
+	return nil
 }
 
 func recordEvent(ctx context.Context, eventStore eventstore.Store, now time.Time, getLastRebootTime func(context.Context) (time.Time, error)) error {
