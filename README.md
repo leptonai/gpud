@@ -21,7 +21,11 @@ Most importantly, GPUd operates with minimal CPU and memory overhead in a non-cr
 
 ## Get Started
 
-![gpud-demo-2024-08-20.gif)](./assets/gpud-demo-2024-08-20.gif)
+<a href="https://www.youtube.com/watch?v=sq-7_Zrv7-8" target="_blank">
+<img src="https://i3.ytimg.com/vi/sq-7_Zrv7-8/maxresdefault.jpg" alt="gpud-2025-06-01-01-install-and-scan" />
+</a>
+
+See [Tutorials](./docs/TUTORIALS.md) for more.
 
 ### Installation
 
@@ -34,7 +38,7 @@ curl -fsSL https://pkg.gpud.dev/install.sh | sh
 To specify a version
 
 ```bash
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.5.0-rc-34
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.5.0
 ```
 
 Note that the install script doesn't support other architectures (arm64) and OSes (macos), yet.

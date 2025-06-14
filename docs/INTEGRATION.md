@@ -1,27 +1,30 @@
 # Integration with GPUd
 
-GPUd is a powerful service designed to collect node metrics and expose them via a secure HTTPS API, running on port 15132 by default. It provides users with the ability to gather and analyze node data, making it easy to interact with through a customizable client.
+To interact with GPUd API endpoints:
 
-## Key Features
+```bash
+# healthiness of the GPUd process itself
+curl -kL https://localhost:15132/healthz
 
-* Collects metrics, states, and events from nodes.
-* Provides a simple RESTful API to access collected data.
-* Supports secure access via HTTPS.
+# basic machine information
+curl -kL https://localhost:15132/machine-info | jq | less
 
-## API Overview
+# list of health check states
+curl -kL https://localhost:15132/v1/states | jq | less
 
-GPUd provides the following primary API endpoints:
+# list of systemd events per GPUd component
+# (e.g., xid)
+curl -kL https://localhost:15132/v1/events | jq | less
 
-    GET /v1/components: Retrieve a list of all components in GPUd.
-    GET /v1/events: Query component events by component name. If no name is specified, events for all components are returned.
-    GET /v1/info: Retrieve events, metrics, and states for a specific component. If no name is specified, data for all components is returned.
-    GET /v1/metrics: Query metrics for a specific component. If no name is specified, metrics for all components are returned.
-    GET /v1/states: Query states for a specific component. If no name is specified, states for all components are returned.
+# list of system metrics per GPUd component
+# (e.g., GPU temperature)
+curl -kL https://localhost:15132/v1/metrics | jq | less
+```
 
-For detailed documentation, visit the [GPUd API Documentation](https://gpud.ai/api/v1/docs).
+Following defines the response types for the GPUd APIs above:
 
-## Integration Steps
+- [API types in Go struct](https://github.com/leptonai/gpud/blob/main/api/v1/types.go)
+- [OpenAPI spec in JSON](https://github.com/leptonai/gpud/blob/main/docs/apis/swagger.json)
+- [OpenAPI spec in YAML](https://github.com/leptonai/gpud/blob/main/docs/apis/swagger.yaml)
 
-1.	Install and Start GPUd: Follow the instructions in the [Get Started](../README.md#get-started) guide.
-2.	Access the API: Use a client to interact with the GPUd API. You can find a [sample client](../examples/client/main.go) in the examples directory.
-3.	Import GPUd Client: For deeper integration, import the provided [Client](../client) set into your project.
+Or use the [`client/v1`](http://pkg.go.dev/github.com/leptonai/gpud/client/v1) library to interact with GPUd in Go.
