@@ -72,20 +72,7 @@ func (c *component) IsSupported() bool {
 }
 
 func (c *component) Start() error {
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-
-		for {
-			_ = c.Check()
-
-			select {
-			case <-c.ctx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
+	// do not check periodically
 	return nil
 }
 
@@ -148,7 +135,7 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = "checked egress latencies and no issue found"
 		log.Logger.Debugw(cr.reason, "servers", len(cr.EgressLatencies))
 	} else {
-		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.health = apiv1.HealthStateTypeDegraded
 		cr.reason = strings.Join(exceededMsgs, "; ")
 	}
 
