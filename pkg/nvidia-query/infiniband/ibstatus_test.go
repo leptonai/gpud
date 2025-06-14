@@ -376,14 +376,15 @@ func TestIBStatusesIBPorts(t *testing.T) {
 	require.Equal(t, 400, ports[1].Rate)
 }
 
-// TestIBStatusesCheckPortsAndRate tests the CheckPortsAndRate method of IBStatuses
-func TestIBStatusesCheckPortsAndRate(t *testing.T) {
+// TestEvaluatePortsAndRateWithIBStatuses tests using EvaluatePortsAndRate with IBStatuses
+func TestEvaluatePortsAndRateWithIBStatuses(t *testing.T) {
 	tests := []struct {
-		name         string
-		statuses     IBStatuses
-		atLeastPorts int
-		atLeastRate  int
-		wantErr      bool
+		name                 string
+		statuses             IBStatuses
+		atLeastPorts         int
+		atLeastRate          int
+		wantErr              bool
+		wantProblematicPorts int
 	}{
 		{
 			name: "all ports active and meeting threshold",
@@ -401,9 +402,10 @@ func TestIBStatusesCheckPortsAndRate(t *testing.T) {
 					Rate:          "200 Gb/sec (4X HDR)",
 				},
 			},
-			atLeastPorts: 2,
-			atLeastRate:  200,
-			wantErr:      false,
+			atLeastPorts:         2,
+			atLeastRate:          200,
+			wantErr:              false,
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "insufficient port count",
@@ -421,9 +423,10 @@ func TestIBStatusesCheckPortsAndRate(t *testing.T) {
 					Rate:          "200 Gb/sec (4X HDR)",
 				},
 			},
-			atLeastPorts: 3,
-			atLeastRate:  200,
-			wantErr:      true,
+			atLeastPorts:         3,
+			atLeastRate:          200,
+			wantErr:              true,
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "insufficient rate",
@@ -441,9 +444,10 @@ func TestIBStatusesCheckPortsAndRate(t *testing.T) {
 					Rate:          "200 Gb/sec (4X HDR)",
 				},
 			},
-			atLeastPorts: 2,
-			atLeastRate:  400,
-			wantErr:      true,
+			atLeastPorts:         2,
+			atLeastRate:          400,
+			wantErr:              true,
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "some ports disabled",
@@ -461,9 +465,10 @@ func TestIBStatusesCheckPortsAndRate(t *testing.T) {
 					Rate:          "200 Gb/sec (4X HDR)",
 				},
 			},
-			atLeastPorts: 2,
-			atLeastRate:  200,
-			wantErr:      true,
+			atLeastPorts:         2,
+			atLeastRate:          200,
+			wantErr:              true,
+			wantProblematicPorts: 1,
 		},
 		{
 			name: "some ports polling",
@@ -481,16 +486,18 @@ func TestIBStatusesCheckPortsAndRate(t *testing.T) {
 					Rate:          "200 Gb/sec (4X HDR)",
 				},
 			},
-			atLeastPorts: 2,
-			atLeastRate:  200,
-			wantErr:      true,
+			atLeastPorts:         2,
+			atLeastRate:          200,
+			wantErr:              true,
+			wantProblematicPorts: 1,
 		},
 		{
-			name:         "empty statuses",
-			statuses:     IBStatuses{},
-			atLeastPorts: 1,
-			atLeastRate:  200,
-			wantErr:      true,
+			name:                 "empty statuses",
+			statuses:             IBStatuses{},
+			atLeastPorts:         1,
+			atLeastRate:          200,
+			wantErr:              true,
+			wantProblematicPorts: 0,
 		},
 		{
 			name: "zero threshold",
@@ -502,19 +509,27 @@ func TestIBStatusesCheckPortsAndRate(t *testing.T) {
 					Rate:          "200 Gb/sec (4X HDR)",
 				},
 			},
-			atLeastPorts: 0,
-			atLeastRate:  0,
-			wantErr:      false,
+			atLeastPorts:         0,
+			atLeastRate:          0,
+			wantErr:              false,
+			wantProblematicPorts: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.statuses.CheckPortsAndRate(tt.atLeastPorts, tt.atLeastRate)
+			// Convert IBStatuses to []IBPort
+			ports := tt.statuses.IBPorts()
+
+			// Use EvaluatePortsAndRate instead of non-existent CheckPortsAndRate method
+			problematicPorts, err := EvaluatePortsAndRate(ports, tt.atLeastPorts, tt.atLeastRate)
+
 			if tt.wantErr {
 				require.Error(t, err, "Expected an error but got none")
+				require.Equal(t, tt.wantProblematicPorts, len(problematicPorts), "Problematic ports count mismatch")
 			} else {
 				require.NoError(t, err, "Expected no error but got one")
+				require.Empty(t, problematicPorts, "Expected no problematic ports when no error")
 			}
 		})
 	}
