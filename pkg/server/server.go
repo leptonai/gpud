@@ -125,7 +125,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		return nil, fmt.Errorf("failed to create metadata table: %w", err)
 	}
 
-	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	eventStore, err := eventstore.New(dbRW, dbRO, 24*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open events database: %w", err)
 	}
@@ -148,7 +148,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics store: %w", err)
 	}
-	syncer := pkgmetricssyncer.NewSyncer(ctx, promScraper, metricsSQLiteStore, time.Minute, time.Minute, 3*24*time.Hour)
+	syncer := pkgmetricssyncer.NewSyncer(ctx, promScraper, metricsSQLiteStore, time.Minute, time.Minute, 24*time.Hour)
 	syncer.Start()
 
 	promRecorder := pkgmetricsrecorder.NewPrometheusRecorder(ctx, 15*time.Minute, dbRO)
