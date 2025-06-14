@@ -103,7 +103,7 @@ func countProcessesByStatus(ctx context.Context, listProcessFunc func(ctx contex
 		return nil, nil
 	}
 
-	all := make(map[string][]ProcessStatus)
+	all := make(map[string][]ProcessStatus, 8)
 	for _, p := range processes {
 		if p == nil {
 			continue
@@ -135,7 +135,8 @@ func countProcessesByStatus(ctx context.Context, listProcessFunc func(ctx contex
 
 		prev, ok := all[s]
 		if !ok {
-			all[s] = []ProcessStatus{p}
+			all[s] = make([]ProcessStatus, 0, 16)
+			all[s] = append(all[s], p)
 		} else {
 			all[s] = append(prev, p)
 		}

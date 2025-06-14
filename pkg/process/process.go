@@ -88,11 +88,9 @@ type process struct {
 	cmdMu sync.RWMutex
 	cmd   *exec.Cmd
 
-	startedMu sync.RWMutex
-	started   bool
-
-	abortedMu sync.RWMutex
-	aborted   bool
+	// Using atomic operations for frequently accessed boolean flags
+	started int32 // 0 = false, 1 = true
+	aborted int32 // 0 = false, 1 = true
 
 	// error streaming channel, closed on command exit
 	errc chan error
@@ -162,8 +160,8 @@ func New(opts ...OpOption) (Process, error) {
 	return &process{
 		cmd: nil,
 
-		started: false,
-		aborted: false,
+		started: 0,
+		aborted: 0,
 
 		errc: make(chan error, errcBuffer),
 
@@ -177,16 +175,12 @@ func New(opts ...OpOption) (Process, error) {
 }
 
 func (p *process) Start(ctx context.Context) error {
-	p.startedMu.RLock()
-	started := p.started
-	p.startedMu.RUnlock()
+	started := atomic.LoadInt32(&p.started) == 1
 	if started { // already started
 		return nil
 	}
 
-	p.abortedMu.RLock()
-	aborted := p.aborted
-	p.abortedMu.RUnlock()
+	aborted := atomic.LoadInt32(&p.aborted) == 1
 	if aborted { // already aborted
 		return nil
 	}
@@ -214,10 +208,7 @@ func (p *process) Start(ctx context.Context) error {
 }
 
 func (p *process) Started() bool {
-	p.startedMu.RLock()
-	defer p.startedMu.RUnlock()
-
-	return p.started
+	return atomic.LoadInt32(&p.started) == 1
 }
 
 func (p *process) createCmd() *exec.Cmd {
@@ -253,10 +244,7 @@ func (p *process) startCommand() error {
 		return fmt.Errorf("failed to start command: %w", err)
 	}
 	atomic.StoreInt32(&p.pid, int32(p.cmd.Process.Pid))
-
-	p.startedMu.Lock()
-	p.started = true
-	p.startedMu.Unlock()
+	atomic.StoreInt32(&p.started, 1)
 
 	return nil
 }
@@ -287,10 +275,7 @@ func (p *process) StartAndWaitForCombinedOutput(ctx context.Context) ([]byte, er
 		return b.Bytes(), fmt.Errorf("failed to start command: %w", err)
 	}
 	atomic.StoreInt32(&p.pid, int32(p.cmd.Process.Pid))
-
-	p.startedMu.Lock()
-	p.started = true
-	p.startedMu.Unlock()
+	atomic.StoreInt32(&p.started, 1)
 
 	if err := p.cmd.Wait(); err != nil {
 		// may fail from the command error (e.g., exit 255)
@@ -391,16 +376,12 @@ func (p *process) watchCmd() {
 }
 
 func (p *process) Close(ctx context.Context) error {
-	p.startedMu.RLock()
-	started := p.started
-	p.startedMu.RUnlock()
+	started := atomic.LoadInt32(&p.started) == 1
 	if !started { // has not started yet
 		return nil
 	}
 
-	p.abortedMu.RLock()
-	aborted := p.aborted
-	p.abortedMu.RUnlock()
+	aborted := atomic.LoadInt32(&p.aborted) == 1
 	if aborted { // already aborted
 		return nil
 	}
@@ -465,18 +446,13 @@ func (p *process) Close(ctx context.Context) error {
 	// as Wait is still waiting for the process to exit
 	// p.cmd = nil
 
-	p.abortedMu.Lock()
-	p.aborted = true
-	p.abortedMu.Unlock()
+	atomic.StoreInt32(&p.aborted, 1)
 
 	return nil
 }
 
 func (p *process) Closed() bool {
-	p.abortedMu.RLock()
-	defer p.abortedMu.RUnlock()
-
-	return p.aborted
+	return atomic.LoadInt32(&p.aborted) == 1
 }
 
 func (p *process) PID() int32 {

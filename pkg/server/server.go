@@ -19,6 +19,7 @@ import (
 	"net/url"
 	stdos "os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -52,6 +53,12 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
+var userTokenBufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 1024)
+	},
+}
+
 // Server is the gpud main daemon
 type Server struct {
 	dbRW *sql.DB
@@ -67,8 +74,7 @@ type Server struct {
 	// componentsRegistry is the registry for the regular components
 	componentsRegistry components.Registry
 
-	machineIDMu sync.RWMutex
-	machineID   string
+	machineID atomic.Pointer[string]
 
 	// epLocalGPUdServer is the endpoint of the local GPUd server
 	epLocalGPUdServer string
@@ -175,10 +181,11 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		}
 	}()
 
-	s.machineID, err = pkgmetadata.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
+	machineID, err := pkgmetadata.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
+	s.machineID.Store(&machineID)
 
 	kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
 	s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
@@ -191,7 +198,7 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 	s.gpudInstance = &components.GPUdInstance{
 		RootCtx: ctx,
 
-		MachineID: s.machineID,
+		MachineID: *s.machineID.Load(),
 
 		NVMLInstance:         nvmlInstance,
 		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
@@ -427,9 +434,7 @@ func (s *Server) WaitUntilMachineID(ctx context.Context) {
 
 	log.Logger.Infow("waiting for machine id")
 	for {
-		s.machineIDMu.RLock()
-		machineID := s.machineID
-		s.machineIDMu.RUnlock()
+		machineID := *s.machineID.Load()
 
 		log.Logger.Infow("current server machine id", "id", machineID)
 
@@ -453,9 +458,7 @@ func (s *Server) WaitUntilMachineID(ctx context.Context) {
 			continue
 		}
 
-		s.machineIDMu.Lock()
-		s.machineID = machineID
-		s.machineIDMu.Unlock()
+		s.machineID.Store(&machineID)
 
 		log.Logger.Infow("loaded server machine id", "id", machineID)
 		break
@@ -463,9 +466,7 @@ func (s *Server) WaitUntilMachineID(ctx context.Context) {
 }
 
 func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store, token *UserToken) {
-	s.machineIDMu.RLock()
-	machineID := s.machineID
-	s.machineIDMu.RUnlock()
+	machineID := *s.machineID.Load()
 
 	var userToken string
 	pipePath := s.fifoPath
@@ -521,12 +522,13 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			log.Logger.Errorf("error opening named pipe: %v", err)
 			return
 		}
-		buffer := make([]byte, 1024)
+		buffer := userTokenBufferPool.Get().([]byte)
 		if n, err := pipe.Read(buffer); err != nil {
 			log.Logger.Errorf("error reading pipe: %v", err)
 		} else {
 			userToken = string(buffer[:n])
 		}
+		userTokenBufferPool.Put(buffer) //nolint:staticcheck
 
 		pipe.Close()
 		if userToken != "" {
