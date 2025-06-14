@@ -98,7 +98,7 @@ func (d *database) LoadBucketWithNoPurge(name string) (Bucket, error) {
 }
 
 func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, purgeInterval time.Duration) (*table, error) {
-	tableName := defaultTableName(name)
+	tableName := TableName(name)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	err := createTable(ctx, dbRW, tableName)
 	cancel()
@@ -122,10 +122,10 @@ func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, 
 	return t, nil
 }
 
-// defaultTableName creates the default table name for the component.
+// TableName creates the default table name for the component.
 // The table name is in the format of "components_{component_name}_events_v0_4_0".
 // Suffix with the version, in case we change the table schema.
-func defaultTableName(componentName string) string {
+func TableName(componentName string) string {
 	c := strings.ReplaceAll(componentName, " ", "_")
 	c = strings.ReplaceAll(c, "-", "_")
 	c = strings.ReplaceAll(c, "__", "_")

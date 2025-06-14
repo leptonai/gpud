@@ -35,6 +35,10 @@ func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.T
 	return m.events, nil
 }
 
+func (m *MockRebootEventStore) PurgeAll(ctx context.Context) error {
+	return nil
+}
+
 // ErrorRebootEventStore is a mock implementation that always returns an error
 type ErrorRebootEventStore struct{}
 
@@ -44,6 +48,10 @@ func (m *ErrorRebootEventStore) RecordReboot(ctx context.Context) error {
 
 func (m *ErrorRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return nil, errors.New("mock event store error")
+}
+
+func (m *ErrorRebootEventStore) PurgeAll(ctx context.Context) error {
+	return errors.New("mock event store error")
 }
 
 // MockBucket is a mock implementation of eventstore.Bucket

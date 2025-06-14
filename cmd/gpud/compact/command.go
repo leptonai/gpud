@@ -3,6 +3,7 @@ package compact
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -10,7 +11,10 @@ import (
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
+	"github.com/leptonai/gpud/pkg/eventstore"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
 	"github.com/leptonai/gpud/pkg/netutil"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/systemd"
@@ -68,6 +72,48 @@ func Command(cliContext *cli.Context) error {
 		return fmt.Errorf("failed to read state file size: %w", err)
 	}
 	log.Logger.Infow("state file size before compact", "size", humanize.Bytes(dbSize))
+
+	purgeEvents := cliContext.String("purge-events")
+	if purgeEvents != "" {
+		componentNames := strings.Split(purgeEvents, ",")
+		if purgeEvents == "*" {
+			componentNames = []string{}
+		}
+
+		now := time.Now().UTC()
+		now = now.Add(24 * time.Hour)
+
+		if err := eventstore.PurgeByComponents(rootCtx, dbRW, dbRO, now.Unix(), componentNames...); err != nil {
+			return fmt.Errorf("failed to purge events: %w", err)
+		}
+		log.Logger.Infow("purged events", "componentNames", componentNames)
+	}
+
+	purgeRebootEvents := cliContext.Bool("purge-reboot-events")
+	if purgeRebootEvents {
+		eventStore, err := eventstore.New(dbRW, dbRO, 0)
+		if err != nil {
+			return fmt.Errorf("failed to create event store: %w", err)
+		}
+		rebootEventStore := pkghost.NewRebootEventStore(eventStore)
+		if err := rebootEventStore.PurgeAll(rootCtx); err != nil {
+			return fmt.Errorf("failed to purge reboot events: %w", err)
+		}
+		log.Logger.Infow("purged reboot events")
+	}
+
+	purgeMetrics := cliContext.Bool("purge-metrics")
+	if purgeMetrics {
+		metricsSQLiteStore, err := pkgmetricsstore.NewSQLiteStore(rootCtx, dbRW, dbRO, pkgmetricsstore.DefaultTableName)
+		if err != nil {
+			return fmt.Errorf("failed to create metrics store: %w", err)
+		}
+		purged, err := metricsSQLiteStore.Purge(rootCtx, time.Now())
+		if err != nil {
+			return fmt.Errorf("failed to purge metrics: %w", err)
+		}
+		log.Logger.Infow("purged metrics", "purged", purged)
+	}
 
 	if err := sqlite.Compact(rootCtx, dbRW); err != nil {
 		return fmt.Errorf("failed to compact state file: %w", err)
