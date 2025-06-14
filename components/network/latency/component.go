@@ -72,21 +72,7 @@ func (c *component) IsSupported() bool {
 }
 
 func (c *component) Start() error {
-	go func() {
-		// no need to check every minute
-		ticker := time.NewTicker(20 * time.Minute)
-		defer ticker.Stop()
-
-		for {
-			_ = c.Check()
-
-			select {
-			case <-c.ctx.Done():
-				return
-			case <-ticker.C:
-			}
-		}
-	}()
+	// do not check periodically
 	return nil
 }
 
