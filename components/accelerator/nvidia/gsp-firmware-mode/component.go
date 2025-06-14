@@ -1,4 +1,14 @@
 // Package gspfirmwaremode tracks the NVIDIA GSP firmware mode.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting GSP firmware mode from any GPU
+//   - [apiv1.HealthStateTypeHealthy] when all GPUs' GSP firmware modes are successfully retrieved
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// GSP firmware mode information is collected for monitoring purposes only.
 package gspfirmwaremode
 
 import (

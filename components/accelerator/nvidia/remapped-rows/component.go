@@ -1,4 +1,23 @@
 // Package remappedrows tracks the NVIDIA per-GPU remapped rows.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeHealthy] when the GPU does not support row remapping
+//   - [apiv1.HealthStateTypeHealthy] when all GPUs support row remapping and no issues are found
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting remapped rows from any GPU
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error inserting events for remapping issues
+//   - [apiv1.HealthStateTypeUnhealthy] when any GPU qualifies for RMA (remapping failed with uncorrectable errors)
+//   - [apiv1.HealthStateTypeUnhealthy] when any GPU requires reset (remapping pending)
+//
+// Note: This component does not use the [apiv1.HealthStateTypeDegraded] state.
+//
+// Suggested Actions:
+// The [apiv1.HealthState.SuggestedActions] field is set in the following scenarios:
+//   - When row remapping is pending: Suggests [apiv1.RepairActionTypeRebootSystem] repair action with description
+//     "row remapping pending requires GPU reset or system reboot"
+//   - When row remapping has failed: Suggests [apiv1.RepairActionTypeHardwareInspection] repair action with description
+//     "row remapping failure requires hardware inspection"
 package remappedrows
 
 import (

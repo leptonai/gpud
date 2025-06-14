@@ -1,4 +1,17 @@
 // Package disk tracks the disk usage of all the mount points specified in the configuration.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when disk information (block devices, partitions) can be successfully retrieved
+//   - [apiv1.HealthStateTypeHealthy] when no block devices are found (valid state)
+//   - [apiv1.HealthStateTypeHealthy] when no ext4/nfs partitions are found (valid state)
+//   - [apiv1.HealthStateTypeUnhealthy] when context is canceled during block device retrieval
+//   - [apiv1.HealthStateTypeUnhealthy] when context is canceled during ext4 partition retrieval
+//   - [apiv1.HealthStateTypeUnhealthy] when context is canceled during nfs partition retrieval
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Disk space issues require manual intervention such as cleaning up files or expanding storage.
 package disk
 
 import (

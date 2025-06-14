@@ -1,4 +1,24 @@
 // Package nfs writes to and reads from the specified NFS mount points.
+// The NFS health checker monitors NFS mount points.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when no NFS group configs are found (NFS not configured), or when
+//     all configured NFS mount point checks pass successfully.
+//   - [apiv1.HealthStateTypeDegraded] when NFS group configs are invalid, when there's a failure creating
+//     the NFS checker, when write operations fail, or when check operations fail on any configured mount point.
+//
+// Health State Types:
+//   - apiv1.HealthStateTypeHealthy: Set when no NFS group configs are found (NFS not configured), or when
+//     all configured NFS mount point checks pass successfully.
+//   - apiv1.HealthStateTypeDegraded: Set when NFS group configs are invalid, when there's a failure creating
+//     the NFS checker, when write operations fail, or when check operations fail on any configured mount point.
+//
+// The health state is returned via the LastHealthStates() method and served through the "/v1/states" API endpoint.
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// NFS mount issues should be resolved through system administration and storage team intervention.
 package nfs
 
 import (

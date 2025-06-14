@@ -1,4 +1,22 @@
 // Package memory tracks the memory usage of the host.
+// The memory health checker monitors system memory usage.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when memory check succeeds and all metrics are successfully retrieved.
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting virtual memory statistics or when
+//     there's an error retrieving BPF JIT buffer bytes (on supported systems).
+//
+// Health State Types:
+//   - apiv1.HealthStateTypeHealthy: Set when memory check succeeds and all metrics are successfully retrieved.
+//   - apiv1.HealthStateTypeUnhealthy: Set when there's an error getting virtual memory statistics or when
+//     there's an error retrieving BPF JIT buffer bytes (on supported systems).
+//
+// The health state is returned via the LastHealthStates() method and served through the "/v1/states" API endpoint.
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Memory issues are typically symptoms of other problems rather than requiring specific repair actions.
 package memory
 
 import (

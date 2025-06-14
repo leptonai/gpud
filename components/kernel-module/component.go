@@ -1,4 +1,14 @@
 // Package kernelmodule provides a component that checks the kernel modules in Linux.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when all required kernel modules are successfully loaded.
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error retrieving the list of loaded modules,
+//     or when any required kernel modules are missing from the system.
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Missing kernel modules require manual loading or kernel/driver installation at the system level.
 package kernelmodule
 
 import (

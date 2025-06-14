@@ -1,5 +1,16 @@
 // Package nccl monitors the NCCL status.
 // Optional, enabled if the host has NVIDIA GPUs.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeHealthy] when kmsg reader is not set (non-Linux or non-root)
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error reading kernel messages
+//   - [apiv1.HealthStateTypeHealthy] when kernel messages are successfully scanned for NCCL events
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// NCCL kernel messages are collected for monitoring and diagnostic purposes.
 package nccl
 
 import (

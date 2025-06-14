@@ -1,4 +1,22 @@
 // Package badenvs tracks any bad environment variables that are globally set for the NVIDIA GPUs.
+//
+// This component implements the "DCGM_FR_BAD_CUDA_ENV" logic from DCGM to detect
+// environment variables defined in BAD_CUDA_ENV_KEYS that are known to hurt CUDA performance.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeHealthy] when bad environment variables are detected (treated as informational)
+//   - [apiv1.HealthStateTypeHealthy] when no bad environment variables are found
+//
+// This component ALWAYS reports "healthy" regardless of findings, as bad environment
+// variables are considered informational rather than health issues.
+//
+// Reference: https://github.com/NVIDIA/DCGM/blob/903d745504f50153be8293f8566346f9de3b3c93/nvvs/plugin_src/software/Software.cpp#L839-L876
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Bad environment variables should be reviewed and removed from the system environment configuration.
 package badenvs
 
 import (

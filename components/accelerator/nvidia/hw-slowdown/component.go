@@ -1,4 +1,25 @@
 // Package hwslowdown monitors NVIDIA GPU hardware clock events of all GPUs, such as HW Slowdown events.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting or parsing driver version
+//   - [apiv1.HealthStateTypeHealthy] when clock events are not supported for the driver version
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting clock events supported status from any GPU
+//   - [apiv1.HealthStateTypeHealthy] when clock events are not supported by any GPU
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting clock events from any GPU
+//   - [apiv1.HealthStateTypeUnhealthy] when there are errors with event storage operations
+//   - [apiv1.HealthStateTypeHealthy] when no time window is set for evaluation
+//   - [apiv1.HealthStateTypeHealthy] when no event bucket is available
+//   - [apiv1.HealthStateTypeHealthy] when no clock events are found in the evaluation window
+//   - [apiv1.HealthStateTypeHealthy] when HW slowdown events frequency is below threshold
+//   - [apiv1.HealthStateTypeUnhealthy] when HW slowdown events frequency exceeds threshold
+//
+// Suggested Actions:
+// The [apiv1.HealthState.SuggestedActions] field is set when HW slowdown events frequency exceeds
+// the threshold (default: 0.6 events per minute over 10 minutes):
+//   - Suggests [apiv1.RepairActionTypeHardwareInspection] repair action as hardware slowdowns are often caused by
+//     GPU overheating or power supply unit (PSU) failures
 package hwslowdown
 
 import (
