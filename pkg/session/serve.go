@@ -20,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/errdefs"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
+	pkdpackages "github.com/leptonai/gpud/pkg/gpud-manager/packages"
 	pkdsystemd "github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -45,8 +46,9 @@ type Request struct {
 	UpdateVersion string            `json:"update_version,omitempty"`
 	UpdateConfig  map[string]string `json:"update_config,omitempty"`
 
-	Bootstrap          *BootstrapRequest         `json:"bootstrap,omitempty"`
-	InjectFaultRequest *pkgfaultinjector.Request `json:"inject_fault_request,omitempty"`
+	Bootstrap           *BootstrapRequest                `json:"bootstrap,omitempty"`
+	InjectFaultRequest  *pkgfaultinjector.Request        `json:"inject_fault_request,omitempty"`
+	InstallAddonRequest *pkdpackages.InstallAddonRequest `json:"install_addon_request,omitempty"`
 
 	// ComponentName is the name of the component to query or deregister.
 	ComponentName string `json:"component_name,omitempty"`
@@ -265,6 +267,9 @@ func (s *Session) serve() {
 					}
 				}
 			}
+
+		case "installAddon":
+			s.processInstallAddon(payload.InstallAddonRequest, response)
 
 		case "updateConfig":
 			s.processUpdateConfig(payload.UpdateConfig, response)
