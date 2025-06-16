@@ -68,7 +68,13 @@ func CommandStartup(cliContext *cli.Context) error {
 		Type: apiv1.NotificationTypeStartup,
 	}
 
-	return sendNotification(endpoint, req)
+	dbToken, err := pkgmetadata.ReadTokenWithFallback(rootCtx, dbRW, dbRO, machineID)
+	if err != nil || dbToken == "" {
+		log.Logger.Warn("machine not logged in, skipping notification")
+		os.Exit(0)
+	}
+
+	return sendNotification(endpoint, req, dbToken)
 }
 
 func CommandShutdown(cliContext *cli.Context) error {
@@ -119,12 +125,25 @@ func CommandShutdown(cliContext *cli.Context) error {
 		Type: apiv1.NotificationTypeShutdown,
 	}
 
-	return sendNotification(endpoint, req)
+	dbToken, err := pkgmetadata.ReadTokenWithFallback(rootCtx, dbRW, dbRO, machineID)
+	if err != nil || dbToken == "" {
+		log.Logger.Warn("machine not logged in, skipping notification")
+		os.Exit(0)
+	}
+
+	return sendNotification(endpoint, req, dbToken)
 }
 
-func sendNotification(endpoint string, req apiv1.NotificationRequest) error {
+func sendNotification(endpoint string, req apiv1.NotificationRequest, token string) error {
 	rawPayload, _ := json.Marshal(&req)
-	response, err := http.Post(createNotificationURL(endpoint), "application/json", bytes.NewBuffer(rawPayload))
+	httpReq, err := http.NewRequest("POST", createNotificationURL(endpoint), bytes.NewBuffer(rawPayload))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	client := &http.Client{}
+	response, err := client.Do(httpReq)
 	if err != nil {
 		return err
 	}
