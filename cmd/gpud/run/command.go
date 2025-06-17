@@ -88,6 +88,12 @@ func Command(cliContext *cli.Context) error {
 		cfg.Components = strings.Split(components, ",")
 	}
 
+	auditLogger := log.NewNopAuditLogger()
+	if logFile != "" {
+		logAuditFile := log.CreateAuditLogFilepath(logFile)
+		auditLogger = log.NewAuditLogger(logAuditFile)
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
@@ -120,7 +126,7 @@ func Command(cliContext *cli.Context) error {
 	}
 	m.Start(rootCtx)
 
-	server, err := gpudserver.New(rootCtx, cfg, m)
+	server, err := gpudserver.New(rootCtx, auditLogger, cfg, m)
 	if err != nil {
 		return err
 	}

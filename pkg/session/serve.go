@@ -102,9 +102,20 @@ func (s *Session) serve() {
 	for body := range s.reader {
 		var payload Request
 		if err := json.Unmarshal(body.Data, &payload); err != nil {
-			log.Logger.Errorf("failed to unmarshal request: %v", err)
+			log.Logger.Errorf("failed to unmarshal request: %v", err, "requestID", body.ReqID)
 			continue
 		}
+
+		s.auditLogger.Log(
+			log.WithKind("Session"),
+			log.WithAuditID(body.ReqID),
+			log.WithMachineID(s.machineID),
+			log.WithLevel("Metadata"),
+			log.WithStage("RequestDecoded"),
+			log.WithRequestURI(s.epControlPlane+"/api/v1/session"),
+			log.WithVerb(payload.Method),
+			log.WithData(payload),
+		)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 
@@ -415,6 +426,17 @@ func (s *Session) serve() {
 			Data:  responseRaw,
 			ReqID: body.ReqID,
 		}
+
+		s.auditLogger.Log(
+			log.WithKind("Session"),
+			log.WithAuditID(body.ReqID),
+			log.WithMachineID(s.machineID),
+			log.WithLevel("Metadata"),
+			log.WithStage("RequestCompleted"),
+			log.WithRequestURI(s.epControlPlane+"/api/v1/session"),
+			log.WithVerb(payload.Method),
+			log.WithData(response),
+		)
 
 		if needExit != -1 {
 			go func() {

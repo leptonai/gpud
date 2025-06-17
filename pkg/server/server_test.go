@@ -16,6 +16,7 @@ import (
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/config"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -23,7 +24,7 @@ func TestServerErrorForEmptyConfig(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, &config.Config{}, nil)
+	s, err := New(ctx, log.NewNopAuditLogger(), &config.Config{}, nil)
 	require.Nil(t, s)
 	require.NotNil(t, err)
 }
@@ -64,7 +65,7 @@ func TestServerConfigValidation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			s, err := New(ctx, tt.config, nil)
+			s, err := New(ctx, log.NewNopAuditLogger(), tt.config, nil)
 			require.Nil(t, s)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.expectedErr)
@@ -76,7 +77,7 @@ func TestServerErrInvalidStateFile(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s, err := New(ctx, &config.Config{State: "invalid"}, nil)
+	s, err := New(ctx, log.NewNopAuditLogger(), &config.Config{State: "invalid"}, nil)
 	require.Nil(t, s)
 	require.Error(t, err)
 }

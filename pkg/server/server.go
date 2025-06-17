@@ -54,6 +54,8 @@ import (
 
 // Server is the gpud main daemon
 type Server struct {
+	auditLogger log.AuditLogger
+
 	dbRW *sql.DB
 	dbRO *sql.DB
 
@@ -102,7 +104,7 @@ func createURL(endpoint string) string {
 	return fmt.Sprintf("https://%s", host)
 }
 
-func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
+func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Config, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
 	}
@@ -159,6 +161,8 @@ func New(ctx context.Context, config *lepconfig.Config, packageManager *gpudmana
 		return nil, fmt.Errorf("failed to get fifo path: %w", err)
 	}
 	s := &Server{
+		auditLogger: auditLogger,
+
 		dbRW: dbRW,
 		dbRO: dbRO,
 
@@ -484,6 +488,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			s.epLocalGPUdServer,
 			s.epControlPlane,
 			userToken,
+			session.WithAuditLogger(s.auditLogger),
 			session.WithMachineID(machineID),
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
@@ -541,6 +546,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				s.epLocalGPUdServer,
 				s.epControlPlane,
 				userToken,
+				session.WithAuditLogger(s.auditLogger),
 				session.WithMachineID(machineID),
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),

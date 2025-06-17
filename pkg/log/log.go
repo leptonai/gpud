@@ -11,9 +11,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var (
-	Logger *LeptonLogger
-)
+var Logger *gpudLogger
 
 func init() {
 	Logger = CreateLoggerWithConfig(DefaultLoggerConfig())
@@ -25,7 +23,7 @@ func DefaultLoggerConfig() *zap.Config {
 	return &c
 }
 
-func CreateLoggerWithLumberjack(logFile string, maxSize int, logLevel zapcore.Level) *LeptonLogger {
+func CreateLoggerWithLumberjack(logFile string, maxSize int, logLevel zapcore.Level) *gpudLogger {
 	w := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   logFile,
 		MaxSize:    maxSize, // megabytes
@@ -44,7 +42,7 @@ func CreateLoggerWithLumberjack(logFile string, maxSize int, logLevel zapcore.Le
 	)
 	logger := zap.New(core)
 
-	return &LeptonLogger{logger.Sugar()}
+	return &gpudLogger{logger.Sugar()}
 }
 
 func ParseLogLevel(logLevel string) (zap.AtomicLevel, error) {
@@ -59,7 +57,7 @@ func ParseLogLevel(logLevel string) (zap.AtomicLevel, error) {
 	return zapLvl, nil
 }
 
-func CreateLogger(logLevel zap.AtomicLevel, logFile string) *LeptonLogger {
+func CreateLogger(logLevel zap.AtomicLevel, logFile string) *gpudLogger {
 	if logFile != "" {
 		return CreateLoggerWithLumberjack(logFile, 128, logLevel.Level())
 	}
@@ -69,7 +67,7 @@ func CreateLogger(logLevel zap.AtomicLevel, logFile string) *LeptonLogger {
 	return CreateLoggerWithConfig(lCfg)
 }
 
-func CreateLoggerWithConfig(config *zap.Config) *LeptonLogger {
+func CreateLoggerWithConfig(config *zap.Config) *gpudLogger {
 	if config == nil {
 		config = DefaultLoggerConfig()
 	}
@@ -79,17 +77,17 @@ func CreateLoggerWithConfig(config *zap.Config) *LeptonLogger {
 		panic(err)
 	}
 
-	return &LeptonLogger{
+	return &gpudLogger{
 		l.Sugar(),
 	}
 }
 
-type LeptonLogger struct {
+type gpudLogger struct {
 	*zap.SugaredLogger
 }
 
 // Override the default logger's Errorw func to down level context canceled error
-func (l *LeptonLogger) Errorw(msg string, keysAndValues ...interface{}) {
+func (l *gpudLogger) Errorw(msg string, keysAndValues ...interface{}) {
 	for i := 0; i < len(keysAndValues); i += 2 {
 		if keysAndValues[i] != "error" {
 			continue
@@ -106,6 +104,6 @@ func (l *LeptonLogger) Errorw(msg string, keysAndValues ...interface{}) {
 }
 
 // Implements "tailscale.com/types/logger".Logf.
-func (l *LeptonLogger) Printf(format string, v ...any) {
+func (l *gpudLogger) Printf(format string, v ...any) {
 	l.SugaredLogger.Infof(format, v...)
 }
