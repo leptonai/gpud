@@ -1,5 +1,18 @@
 // Package fabricmanager tracks the NVIDIA fabric manager version and its activeness.
 // And streams the fabric manager logs for any errors and events.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeHealthy] when GPU doesn't support fabric manager
+//   - [apiv1.HealthStateTypeHealthy] when NVSwitch is not detected (fabric manager not needed)
+//   - [apiv1.HealthStateTypeHealthy] when nv-fabricmanager executable is not found
+//   - [apiv1.HealthStateTypeUnhealthy] when fabric manager executable exists but service is not active
+//   - [apiv1.HealthStateTypeHealthy] when fabric manager is found and active
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Fabric manager service issues should be resolved through system administration of the nvidia-fabricmanager service.
 package fabricmanager
 
 import (

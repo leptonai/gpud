@@ -1,6 +1,6 @@
 # Components
 
-## GPU components
+Each component implements (and documents) its own health state evaluation. Click the link to see more details:
 
 - [**`accelerator-nvidia-bad-envs`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs): Tracks any bad environment variables that are globally set for the NVIDIA GPUs.
 - [**`accelerator-nvidia-hw-slowdown`**](https://pkg.go.dev/github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown): Monitors NVIDIA GPU hardware slowdown clock events of all GPUs.

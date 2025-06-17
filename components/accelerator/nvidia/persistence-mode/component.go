@@ -1,4 +1,15 @@
 // Package persistencemode tracks the NVIDIA persistence mode.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting persistence mode from any GPU
+//   - [apiv1.HealthStateTypeUnhealthy] when any GPU has persistence mode supported but not enabled
+//   - [apiv1.HealthStateTypeHealthy] when all GPUs' persistence modes are properly configured
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Persistence mode configuration should be managed through nvidia-smi or system startup scripts.
 package persistencemode
 
 import (

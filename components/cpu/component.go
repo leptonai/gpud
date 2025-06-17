@@ -1,4 +1,15 @@
 // Package cpu tracks the combined usage of all CPUs (not per-CPU).
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when CPU time stats, usage percentage, and load average can be successfully retrieved
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error calculating CPU usage from time stats
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error calculating CPU usage percentage
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error calculating load average
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// High CPU usage requires investigation of running processes and system load distribution.
 package cpu
 
 import (

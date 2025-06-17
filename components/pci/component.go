@@ -1,4 +1,16 @@
 // Package pci tracks the PCI devices and their Access Control Services (ACS) status.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when the host virtualization environment is KVM (ACS check not needed),
+//     when the virtualization environment is unknown, when it's a non-KVM host environment with no ACS-enabled
+//     devices found, or when ACS-enabled devices are found and successfully recorded.
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error listing PCI devices or when there's an error
+//     creating an event for ACS-enabled devices.
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// ACS issues require manual intervention at the BIOS/system configuration level.
 package pci
 
 import (

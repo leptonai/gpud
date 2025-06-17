@@ -1,4 +1,15 @@
 // Package power tracks the NVIDIA per-GPU power usage.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting power information from any GPU
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error calculating power usage percentage
+//   - [apiv1.HealthStateTypeHealthy] when all GPUs' power information is successfully retrieved
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Power usage information is collected for monitoring purposes only.
 package power
 
 import (

@@ -1,4 +1,15 @@
 // Package library provides a component that returns healthy if and only if all the specified libraries exist.
+// The library health checker verifies that required system libraries are present.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when all required libraries are found and successfully resolved.
+//   - [apiv1.HealthStateTypeUnhealthy] when any required library cannot be found, or when there's an
+//     error during the library search process.
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Missing libraries require installation through system package managers or manual library installation.
 package library
 
 import (

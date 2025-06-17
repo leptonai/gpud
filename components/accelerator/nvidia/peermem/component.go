@@ -1,5 +1,15 @@
 // Package peermem monitors the peermem module status.
 // Optional, enabled if the host has NVIDIA GPUs.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error checking peermem module status
+//   - [apiv1.HealthStateTypeHealthy] when peermem check is successful (regardless of whether ibcore is using peermem)
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Peermem module configuration should be managed at the system/kernel module level.
 package peermem
 
 import (

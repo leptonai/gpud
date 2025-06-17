@@ -1,4 +1,23 @@
 // Package os queries the host OS information (e.g., kernel version).
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when all system checks pass - zombie process count is below thresholds,
+//     file descriptor usage is within limits, and all system metrics are successfully retrieved.
+//   - [apiv1.HealthStateTypeDegraded] when zombie process count exceeds the degraded threshold (default: 1000),
+//     or when file descriptor/handle usage exceeds the degraded percentage threshold (default: 80%).
+//   - [apiv1.HealthStateTypeUnhealthy] when there are errors retrieving system information (uptime, process count,
+//     file handles, file descriptors), when zombie process count exceeds the unhealthy threshold (default: 2000),
+//     or when file descriptor/handle usage exceeds the unhealthy percentage threshold (default: 95%).
+//
+// Suggested Actions:
+// The [apiv1.HealthState.SuggestedActions] field is set when file descriptor/handle issues are detected:
+//   - When zombie process count exceeds thresholds
+//   - When file descriptor usage exceeds percentage thresholds
+//   - When allocated file handles exceed percentage thresholds
+//
+// In these cases, the suggested action is to "check/restart user applications for leaky file descriptors"
+// with repair action type "CheckUserAppAndGPU".
 package os
 
 import (

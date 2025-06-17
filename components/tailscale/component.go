@@ -1,4 +1,17 @@
 // Package tailscale tracks the current tailscale status.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when tailscaled is not installed (not required), or when
+//     tailscaled is installed and the service is active/running.
+//   - [apiv1.HealthStateTypeUnhealthy] when tailscaled is installed but the service is not active,
+//     or when there's an error checking the service status.
+//
+// The health state is returned via the LastHealthStates() method and served through the "/v1/states" API endpoint.
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Tailscale service issues should be investigated and resolved at the system administration level.
 package tailscale
 
 import (

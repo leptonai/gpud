@@ -1,4 +1,14 @@
 // Package nvlink monitors the NVIDIA per-GPU nvlink devices.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting nvlink information from any GPU
+//   - [apiv1.HealthStateTypeHealthy] when all GPUs' nvlink information is successfully retrieved
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// NVLink status and errors are reported for monitoring purposes only.
 package nvlink
 
 import (

@@ -1,5 +1,24 @@
 // Package xid tracks the NVIDIA GPU Xid errors scanning the kmsg
 // See Xid messages https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeHealthy] when kmsg reader is not set (unable to scan for errors)
+//   - [apiv1.HealthStateTypeHealthy] when XID errors are found but none are marked as critical (default)
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error reading kmsg logs
+//   - [apiv1.HealthStateTypeUnhealthy] when any XID error is found with CriticalErrorMarkedByGPUd set to true
+//
+// Note: For continuous monitoring via LastHealthStates(), the health state is
+// determined by evolveHealthyState() based on accumulated events:
+//   - [apiv1.HealthStateTypeHealthy] when no XID errors exist or after system reboot following repair action
+//   - [apiv1.HealthStateTypeDegraded] when critical XID errors are detected
+//   - [apiv1.HealthStateTypeUnhealthy] when fatal XID errors are detected
+//
+// Suggested Actions:
+// This component does not directly set the [apiv1.HealthState.SuggestedActions] field.
+// Instead, it displays suggested actions from XID error details when found in the error database.
+// The repair actions shown in the output come from the XidError.Detail.SuggestedActionsByGPUd field.
 package xid
 
 import (
