@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -128,6 +129,7 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
+	gspEnabledGPUs := make([]string, 0)
 	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		mode, err := c.getGSPFirmwareModeFunc(uuid, dev)
@@ -140,6 +142,19 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		cr.GSPFirmwareModes = append(cr.GSPFirmwareModes, mode)
+
+		if mode.Supported && mode.Enabled {
+			gspEnabledGPUs = append(gspEnabledGPUs, uuid)
+		}
+	}
+
+	if len(gspEnabledGPUs) > 0 {
+		// ref. https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors
+		// ref. https://docs.nvidia.com/vgpu/latest/grid-vgpu-user-guide/index.html#disabling-gsp
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = "GSP firmware mode supported but should be disabled for " + strings.Join(gspEnabledGPUs, ", ")
+		log.Logger.Errorw(cr.reason, "uuid", gspEnabledGPUs)
+		return cr
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
