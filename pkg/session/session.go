@@ -289,6 +289,10 @@ func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessio
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("X-GPUD-Machine-ID", machineID)
+	req.Header.Set("X-GPUD-Session-Type", sessionType)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	// Depreciated headers
 	req.Header.Set("machine_id", machineID)
 	req.Header.Set("session_type", sessionType)
 	req.Header.Set("token", token)
@@ -396,6 +400,7 @@ func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) err
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.token))
 
 	client := createHTTPClient(jar)
 	resp, err := client.Do(req)
