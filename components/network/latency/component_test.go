@@ -300,8 +300,8 @@ func TestComponentCheckWithThresholdExceeded(t *testing.T) {
 	cr, ok := result.(*checkResult)
 	require.True(t, ok)
 
-	// Verify result is unhealthy due to threshold exceeded
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	// Verify result is degraded due to threshold exceeded
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 	assert.Contains(t, cr.reason, "exceeded threshold")
 	assert.Contains(t, cr.reason, "eu-west-1")
 }
@@ -342,8 +342,8 @@ func TestComponentCheckWithAllLatenciesExceedingThreshold(t *testing.T) {
 	cr, ok := result.(*checkResult)
 	require.True(t, ok)
 
-	// Verify result is unhealthy due to all thresholds exceeded
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	// Verify result is degraded due to all thresholds exceeded
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 	assert.Contains(t, cr.reason, "exceeded threshold")
 	assert.Contains(t, cr.reason, "us-west-2")
 	assert.Contains(t, cr.reason, "eu-west-1")
