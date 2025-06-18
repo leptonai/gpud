@@ -1,8 +1,10 @@
 package log
 
 import (
+	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -16,11 +18,9 @@ type AuditLog struct {
 	Kind       string `json:"kind"`
 	AuditID    string `json:"auditID"`
 	MachineID  string `json:"machineID"`
-	Level      string `json:"level"`
 	Stage      string `json:"stage"`
 	RequestURI string `json:"requestURI"`
 	Verb       string `json:"verb"`
-	UserAgent  string `json:"userAgent"`
 	Data       any    `json:"data"`
 }
 
@@ -36,9 +36,6 @@ func (op *AuditLog) applyOpts(opts []AuditOption) {
 	}
 	if op.AuditID == "" {
 		op.AuditID = uuid.New().String()
-	}
-	if op.Level == "" {
-		op.Level = "Metadata"
 	}
 }
 
@@ -60,12 +57,6 @@ func WithMachineID(machineID string) AuditOption {
 	}
 }
 
-func WithLevel(level string) AuditOption {
-	return func(ev *AuditLog) {
-		ev.Level = level
-	}
-}
-
 func WithStage(stage string) AuditOption {
 	return func(ev *AuditLog) {
 		ev.Stage = stage
@@ -81,12 +72,6 @@ func WithRequestURI(requestURI string) AuditOption {
 func WithVerb(verb string) AuditOption {
 	return func(ev *AuditLog) {
 		ev.Verb = verb
-	}
-}
-
-func WithUserAgent(userAgent string) AuditOption {
-	return func(ev *AuditLog) {
-		ev.UserAgent = userAgent
 	}
 }
 
@@ -122,7 +107,9 @@ func NewAuditLogger(logFile string) AuditLogger {
 	encoderConfig.LevelKey = ""
 	encoderConfig.MessageKey = ""
 	encoderConfig.CallerKey = ""
-	encoderConfig.EncodeTime = zapcore.EpochMillisTimeEncoder
+	encoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		enc.AppendString(fmt.Sprintf("%d", t.UnixMilli()))
+	}
 
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig),
@@ -146,11 +133,9 @@ func (l *auditLogger) Log(opts ...AuditOption) {
 		zap.String("kind", ev.Kind),
 		zap.String("auditID", ev.AuditID),
 		zap.String("machineID", ev.MachineID),
-		zap.String("level", ev.Level),
 		zap.String("stage", ev.Stage),
 		zap.String("requestURI", ev.RequestURI),
 		zap.String("verb", ev.Verb),
-		zap.String("userAgent", ev.UserAgent),
 		zap.Any("data", ev.Data),
 	)
 }

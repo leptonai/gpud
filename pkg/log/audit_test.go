@@ -20,11 +20,9 @@ func TestAuditLogApplyOpts(t *testing.T) {
 			WithKind("TestKind"),
 			WithAuditID("test-audit-id"),
 			WithMachineID("test-machine-id"),
-			WithLevel("Request"),
 			WithStage("ResponseComplete"),
 			WithRequestURI("/api/v1/test"),
 			WithVerb("GET"),
-			WithUserAgent("test-agent/1.0"),
 			WithData(map[string]string{"key": "value"}),
 		}
 
@@ -33,11 +31,9 @@ func TestAuditLogApplyOpts(t *testing.T) {
 		assert.Equal(t, "TestKind", al.Kind)
 		assert.Equal(t, "test-audit-id", al.AuditID)
 		assert.Equal(t, "test-machine-id", al.MachineID)
-		assert.Equal(t, "Request", al.Level)
 		assert.Equal(t, "ResponseComplete", al.Stage)
 		assert.Equal(t, "/api/v1/test", al.RequestURI)
 		assert.Equal(t, "GET", al.Verb)
-		assert.Equal(t, "test-agent/1.0", al.UserAgent)
 		assert.Equal(t, map[string]string{"key": "value"}, al.Data)
 	})
 
@@ -47,10 +43,10 @@ func TestAuditLogApplyOpts(t *testing.T) {
 
 		assert.Equal(t, "Event", al.Kind)
 		assert.NotEmpty(t, al.AuditID)
+
 		// Verify it's a valid UUID
 		_, err := uuid.Parse(al.AuditID)
 		assert.NoError(t, err)
-		assert.Equal(t, "Metadata", al.Level)
 	})
 
 	t.Run("partial options with defaults", func(t *testing.T) {
@@ -60,14 +56,12 @@ func TestAuditLogApplyOpts(t *testing.T) {
 			WithVerb("POST"),
 		})
 
-		assert.Equal(t, "Event", al.Kind)     // default
-		assert.NotEmpty(t, al.AuditID)        // generated
-		assert.Equal(t, "Metadata", al.Level) // default
+		assert.Equal(t, "Event", al.Kind) // default
+		assert.NotEmpty(t, al.AuditID)    // generated
 		assert.Equal(t, "RequestReceived", al.Stage)
 		assert.Equal(t, "POST", al.Verb)
 		assert.Empty(t, al.MachineID)
 		assert.Empty(t, al.RequestURI)
-		assert.Empty(t, al.UserAgent)
 		assert.Nil(t, al.Data)
 	})
 }
@@ -100,13 +94,6 @@ func TestAuditOptionFunctions(t *testing.T) {
 			},
 		},
 		{
-			name:   "WithLevel",
-			option: WithLevel("RequestResponse"),
-			verify: func(t *testing.T, al *AuditLog) {
-				assert.Equal(t, "RequestResponse", al.Level)
-			},
-		},
-		{
 			name:   "WithStage",
 			option: WithStage("Panic"),
 			verify: func(t *testing.T, al *AuditLog) {
@@ -125,13 +112,6 @@ func TestAuditOptionFunctions(t *testing.T) {
 			option: WithVerb("DELETE"),
 			verify: func(t *testing.T, al *AuditLog) {
 				assert.Equal(t, "DELETE", al.Verb)
-			},
-		},
-		{
-			name:   "WithUserAgent",
-			option: WithUserAgent("Mozilla/5.0"),
-			verify: func(t *testing.T, al *AuditLog) {
-				assert.Equal(t, "Mozilla/5.0", al.UserAgent)
 			},
 		},
 		{
@@ -209,11 +189,9 @@ func TestNewAuditLogger(t *testing.T) {
 			WithKind("TestEvent"),
 			WithAuditID("test-123"),
 			WithMachineID("machine-456"),
-			WithLevel("Request"),
 			WithStage("RequestReceived"),
 			WithRequestURI("/api/v1/test"),
 			WithVerb("GET"),
-			WithUserAgent("test-client/1.0"),
 			WithData(map[string]interface{}{
 				"key1": "value1",
 				"key2": 42,
@@ -239,7 +217,6 @@ func TestNewAuditLogger(t *testing.T) {
 		assert.Equal(t, "RequestReceived", logEntry["stage"])
 		assert.Equal(t, "/api/v1/test", logEntry["requestURI"])
 		assert.Equal(t, "GET", logEntry["verb"])
-		assert.Equal(t, "test-client/1.0", logEntry["userAgent"])
 
 		data, ok := logEntry["data"].(map[string]interface{})
 		assert.True(t, ok)
@@ -287,11 +264,9 @@ func TestAuditLoggerLog(t *testing.T) {
 			WithKind("Event"),
 			WithAuditID("audit-789"),
 			WithMachineID("machine-789"),
-			WithLevel("RequestResponse"),
 			WithStage("ResponseComplete"),
 			WithRequestURI("/api/v1/components"),
 			WithVerb("POST"),
-			WithUserAgent("gpud/1.0"),
 			WithData(testData),
 		)
 
@@ -309,7 +284,6 @@ func TestAuditLoggerLog(t *testing.T) {
 		assert.Equal(t, "ResponseComplete", logEntry["stage"])
 		assert.Equal(t, "/api/v1/components", logEntry["requestURI"])
 		assert.Equal(t, "POST", logEntry["verb"])
-		assert.Equal(t, "gpud/1.0", logEntry["userAgent"])
 
 		data, ok := logEntry["data"].(map[string]interface{})
 		assert.True(t, ok)
@@ -341,7 +315,6 @@ func TestAuditLoggerLog(t *testing.T) {
 		assert.Empty(t, logEntry["stage"])
 		assert.Empty(t, logEntry["requestURI"])
 		assert.Empty(t, logEntry["verb"])
-		assert.Empty(t, logEntry["userAgent"])
 		assert.Nil(t, logEntry["data"])
 
 		// Verify auditID is a valid UUID
@@ -399,11 +372,9 @@ func TestAuditLoggerEdgeCases(t *testing.T) {
 
 		logger.Log(
 			WithKind(""),
-			WithLevel(""),
 			WithStage(""),
 			WithRequestURI(""),
 			WithVerb(""),
-			WithUserAgent(""),
 		)
 
 		content, err := os.ReadFile(logFile)
@@ -414,12 +385,10 @@ func TestAuditLoggerEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		// Empty strings should be overridden by defaults where applicable
-		assert.Equal(t, "Event", logEntry["kind"])     // default
-		assert.Equal(t, "Metadata", logEntry["level"]) // default
+		assert.Equal(t, "Event", logEntry["kind"]) // default
 		assert.Empty(t, logEntry["stage"])
 		assert.Empty(t, logEntry["requestURI"])
 		assert.Empty(t, logEntry["verb"])
-		assert.Empty(t, logEntry["userAgent"])
 	})
 
 	t.Run("complex nested data", func(t *testing.T) {

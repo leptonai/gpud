@@ -460,7 +460,6 @@ func (s *Session) tryWriteToReader(content Body) bool {
 		log.WithKind("Session"),
 		log.WithAuditID(content.ReqID),
 		log.WithMachineID(s.machineID),
-		log.WithLevel("Metadata"),
 		log.WithStage("RequestReceived"),
 		log.WithRequestURI(s.epControlPlane+"/api/v1/session"),
 		log.WithData(string(content.Data)),

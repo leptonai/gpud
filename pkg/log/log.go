@@ -3,7 +3,9 @@ package log
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -18,7 +20,9 @@ func init() {
 
 func DefaultLoggerConfig() *zap.Config {
 	c := zap.NewProductionConfig()
-	c.EncoderConfig.EncodeTime = zapcore.EpochMillisTimeEncoder
+	c.EncoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		enc.AppendString(fmt.Sprintf("%d", t.UnixMilli()))
+	}
 	return &c
 }
 
@@ -32,7 +36,9 @@ func CreateLoggerWithLumberjack(logFile string, maxSize int, logLevel zapcore.Le
 	})
 
 	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.EncodeTime = zapcore.EpochMillisTimeEncoder
+	encoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
+		enc.AppendString(fmt.Sprintf("%d", t.UnixMilli()))
+	}
 
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig),
