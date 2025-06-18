@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 func TestApplyOpts(t *testing.T) {
@@ -102,11 +103,12 @@ func TestStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Session{
-		ctx:    ctx,
-		cancel: cancel,
-		writer: make(chan Body, 20),
-		reader: make(chan Body, 20),
-		closer: &closeOnce{closer: make(chan any)},
+		ctx:         ctx,
+		cancel:      cancel,
+		auditLogger: log.NewNopAuditLogger(),
+		writer:      make(chan Body, 20),
+		reader:      make(chan Body, 20),
+		closer:      &closeOnce{closer: make(chan any)},
 	}
 
 	s.Stop()
@@ -160,6 +162,7 @@ func TestStartWriterAndReader(t *testing.T) {
 		epControlPlane:    server.URL,
 		token:             "testToken",
 		machineID:         "test_machine",
+		auditLogger:       log.NewNopAuditLogger(),
 		writer:            make(chan Body, 100),
 		reader:            make(chan Body, 100),
 		closer:            &closeOnce{closer: make(chan any)},
@@ -232,6 +235,7 @@ func TestReaderWriterServerError(t *testing.T) {
 		cancel:         cancel,
 		pipeInterval:   10 * time.Millisecond, // Reduce interval for faster testing
 		epControlPlane: server.URL,
+		auditLogger:    log.NewNopAuditLogger(),
 		machineID:      "test_machine",
 		writer:         make(chan Body, 100),
 		reader:         make(chan Body, 100),
@@ -366,7 +370,9 @@ func TestWriteBodyToPipe(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader, writer := io.Pipe()
-			s := &Session{}
+			s := &Session{
+				auditLogger: log.NewNopAuditLogger(),
+			}
 
 			// Start a goroutine to read from the pipe
 			done := make(chan struct{})
@@ -432,8 +438,9 @@ func TestTryWriteToReader(t *testing.T) {
 			assert := assert.New(t)
 
 			s := &Session{
-				reader: make(chan Body, tt.readerBufferSize),
-				closer: &closeOnce{closer: make(chan any)},
+				auditLogger: log.NewNopAuditLogger(),
+				reader:      make(chan Body, tt.readerBufferSize),
+				closer:      &closeOnce{closer: make(chan any)},
 			}
 
 			if tt.setupCloser {
@@ -482,7 +489,8 @@ func TestHandleReaderPipe(t *testing.T) {
 			assert := assert.New(t)
 
 			s := &Session{
-				closer: &closeOnce{closer: make(chan any)},
+				auditLogger: log.NewNopAuditLogger(),
+				closer:      &closeOnce{closer: make(chan any)},
 			}
 
 			if tt.setupCloser {
@@ -551,6 +559,7 @@ func TestSessionKeepAlive(t *testing.T) {
 		ctx:            ctx,
 		cancel:         cancel,
 		epControlPlane: server.URL,
+		auditLogger:    log.NewNopAuditLogger(),
 		machineID:      "test",
 		pipeInterval:   100 * time.Millisecond,
 		writer:         make(chan Body, 10),
@@ -582,9 +591,10 @@ func TestLastPackageTimestamp(t *testing.T) {
 	defer cancel()
 
 	s := &Session{
-		ctx:    ctx,
-		cancel: cancel,
-		closer: &closeOnce{closer: make(chan any)},
+		ctx:         ctx,
+		cancel:      cancel,
+		auditLogger: log.NewNopAuditLogger(),
+		closer:      &closeOnce{closer: make(chan any)},
 	}
 
 	// Test initial state

@@ -28,6 +28,7 @@ import (
 )
 
 type Op struct {
+	auditLogger         log.AuditLogger
 	machineID           string
 	pipeInterval        time.Duration
 	enableAutoUpdate    bool
@@ -50,11 +51,21 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		opt(op)
 	}
 
+	if op.auditLogger == nil {
+		op.auditLogger = log.NewNopAuditLogger()
+	}
+
 	if !op.enableAutoUpdate && op.autoUpdateExitCode != -1 {
 		return ErrAutoUpdateDisabledButExitCodeSet
 	}
 
 	return nil
+}
+
+func WithAuditLogger(auditLogger log.AuditLogger) OpOption {
+	return func(op *Op) {
+		op.auditLogger = auditLogger
+	}
 }
 
 func WithMachineID(machineID string) OpOption {
@@ -119,6 +130,8 @@ type Session struct {
 	cancel context.CancelFunc
 
 	pipeInterval time.Duration
+
+	auditLogger log.AuditLogger
 
 	machineID string
 
@@ -189,6 +202,8 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		cancel: ccancel,
 
 		pipeInterval: op.pipeInterval,
+
+		auditLogger: op.auditLogger,
 
 		epLocalGPUdServer: epLocalGPUdServer,
 		epControlPlane:    epControlPlane,
@@ -446,14 +461,25 @@ func (s *Session) processReaderResponse(resp *http.Response, goroutineCloseCh, p
 }
 
 func (s *Session) tryWriteToReader(content Body) bool {
+	s.auditLogger.Log(
+		log.WithKind("Session"),
+		log.WithAuditID(content.ReqID),
+		log.WithMachineID(s.machineID),
+		log.WithStage("RequestReceived"),
+		log.WithRequestURI(s.epControlPlane+"/api/v1/session"),
+		log.WithData(string(content.Data)),
+	)
+
 	select {
 	case <-s.closer.Done():
 		log.Logger.Debug("session reader: session closed, dropping message")
 		return false
+
 	case s.reader <- content:
 		s.setLastPackageTimestamp(time.Now())
 		log.Logger.Debug("session reader: request received and written to pipe")
 		return true
+
 	default:
 		log.Logger.Errorw("session reader: reader channel full, dropping message")
 		return true

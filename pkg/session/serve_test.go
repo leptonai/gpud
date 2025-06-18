@@ -19,6 +19,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/metrics"
 )
 
@@ -206,6 +207,7 @@ func setupTestSession() (*Session, *mockComponentRegistry, *mockMetricsStore, *m
 	faultInjector := new(mockFaultInjector)
 
 	session := &Session{
+		auditLogger:        log.NewNopAuditLogger(),
 		reader:             reader,
 		writer:             writer,
 		componentsRegistry: componentsRegistry,
@@ -231,6 +233,7 @@ func createMockSession(registry *mockComponentRegistry) *Session {
 	processRunner := new(mockProcessRunner)
 
 	session := &Session{
+		auditLogger:        log.NewNopAuditLogger(),
 		reader:             make(chan Body, 10),
 		writer:             make(chan Body, 10),
 		componentsRegistry: registry,
