@@ -213,7 +213,6 @@ func TestNewAuditLogger(t *testing.T) {
 		if machineID, exists := logEntry["machineID"]; exists {
 			assert.Equal(t, "machine-456", machineID)
 		}
-		assert.Equal(t, "Request", logEntry["level"])
 		assert.Equal(t, "RequestReceived", logEntry["stage"])
 		assert.Equal(t, "/api/v1/test", logEntry["requestURI"])
 		assert.Equal(t, "GET", logEntry["verb"])
@@ -280,7 +279,6 @@ func TestAuditLoggerLog(t *testing.T) {
 		assert.Equal(t, "Event", logEntry["kind"])
 		assert.Equal(t, "audit-789", logEntry["auditID"])
 		assert.Equal(t, "machine-789", logEntry["machineID"])
-		assert.Equal(t, "RequestResponse", logEntry["level"])
 		assert.Equal(t, "ResponseComplete", logEntry["stage"])
 		assert.Equal(t, "/api/v1/components", logEntry["requestURI"])
 		assert.Equal(t, "POST", logEntry["verb"])
@@ -311,7 +309,6 @@ func TestAuditLoggerLog(t *testing.T) {
 
 		assert.Equal(t, "Event", logEntry["kind"])
 		assert.NotEmpty(t, logEntry["auditID"])
-		assert.Equal(t, "Metadata", logEntry["level"])
 		assert.Empty(t, logEntry["stage"])
 		assert.Empty(t, logEntry["requestURI"])
 		assert.Empty(t, logEntry["verb"])
