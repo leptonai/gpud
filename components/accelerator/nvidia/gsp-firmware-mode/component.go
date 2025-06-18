@@ -149,9 +149,10 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if len(gspEnabledGPUs) > 0 {
+		// TODO: set this to apiv1.HealthStateTypeDegraded
 		// ref. https://repost.aws/knowledge-center/ec2-linux-troubleshoot-xid-errors
 		// ref. https://docs.nvidia.com/vgpu/latest/grid-vgpu-user-guide/index.html#disabling-gsp
-		cr.health = apiv1.HealthStateTypeDegraded
+		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "GSP firmware mode supported but should be disabled for " + strings.Join(gspEnabledGPUs, ", ")
 		log.Logger.Errorw(cr.reason, "uuid", gspEnabledGPUs)
 		return cr
