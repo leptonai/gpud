@@ -11,7 +11,7 @@ gpud:
   log_level: info
 
   # endpoint for control plane
-  endpoint: mothership-machine.app.lepton.ai
+  endpoint: gpud-manager-prod01.dgxc-lepton.nvidia.com
 
   # set false to disable auto-update
   enable_auto_update: true
