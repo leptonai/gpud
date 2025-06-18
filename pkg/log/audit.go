@@ -3,7 +3,6 @@ package log
 import (
 	"os"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -106,7 +105,7 @@ func NewAuditLogger(logFile string) AuditLogger {
 	encoderConfig.LevelKey = ""
 	encoderConfig.MessageKey = ""
 	encoderConfig.CallerKey = ""
-	encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339Nano)
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig),
