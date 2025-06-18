@@ -181,6 +181,19 @@ func TestNewNopAuditLogger(t *testing.T) {
 	})
 }
 
+func TestNewStdoutAuditLogger(t *testing.T) {
+	logger := NewAuditLogger("")
+	assert.NotNil(t, logger)
+
+	// Should not panic when logging
+	assert.NotPanics(t, func() {
+		logger.Log(
+			WithStage("Test"),
+			WithData("test data"),
+		)
+	})
+}
+
 func TestNewAuditLogger(t *testing.T) {
 	t.Run("with log file", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-audit-test-*")
