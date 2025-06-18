@@ -1,4 +1,17 @@
 // Package docker tracks the current docker status.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when docker is not installed (not required)
+//   - [apiv1.HealthStateTypeHealthy] when connection errors occur and ignoreConnectionErrors is true
+//   - [apiv1.HealthStateTypeUnhealthy] when docker is installed but not running
+//   - [apiv1.HealthStateTypeUnhealthy] when docker service is not active
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error listing containers (except connection errors when ignored)
+//   - [apiv1.HealthStateTypeUnhealthy] when docker client version is newer than daemon (needs upgrade)
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Docker runtime issues should be investigated through Docker logs and system administration.
 package docker
 
 import (

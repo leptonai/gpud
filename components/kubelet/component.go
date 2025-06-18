@@ -1,4 +1,15 @@
 // Package kubelet tracks the current kubelet status.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when kubelet is not installed (not required), when kubelet is installed
+//     but not running, or when pod listing from the kubelet read-only port succeeds.
+//   - [apiv1.HealthStateTypeUnhealthy] when repeated attempts to list pods from the kubelet read-only port
+//     fail and the failure count exceeds the configured threshold (default: 5 consecutive failures).
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Kubelet issues should be investigated through Kubernetes cluster management tools and logs.
 package kubelet
 
 import (

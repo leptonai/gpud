@@ -1,4 +1,15 @@
 // Package fuse monitors the FUSE (Filesystem in Userspace).
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when FUSE connections can be successfully listed and monitored
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error listing FUSE connections
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error finding events in the event bucket
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error inserting events into the event bucket
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// FUSE congestion issues require investigation at the application level that's using the filesystem.
 package fuse
 
 import (

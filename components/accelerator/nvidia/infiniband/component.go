@@ -1,5 +1,25 @@
 // Package infiniband monitors the infiniband status of the system.
 // Optional, enabled if the host has NVIDIA GPUs.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when ports or rate threshold is not set (skipping evaluation)
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeHealthy] when ibstat checker is not found
+//   - [apiv1.HealthStateTypeHealthy] when ibstat command is not found
+//   - [apiv1.HealthStateTypeUnhealthy] when ibstat command fails (other than "not found")
+//   - [apiv1.HealthStateTypeHealthy] when missing event bucket (one-off checks)
+//   - [apiv1.HealthStateTypeHealthy] when missing ibstat/ibstatus output
+//   - [apiv1.HealthStateTypeHealthy] when ibstat/ibstatus output meets port and rate thresholds
+//   - [apiv1.HealthStateTypeUnhealthy] when ibstat/ibstatus output fails to meet port and rate thresholds
+//   - [apiv1.HealthStateTypeUnhealthy] when there are errors with event storage operations
+//
+// Suggested Actions:
+// The [apiv1.HealthState.SuggestedActions] field is set when using the ibstatus command
+// fallback and the output fails to meet configured port and rate thresholds:
+//   - Suggests [apiv1.RepairActionTypeHardwareInspection] repair action for potential InfiniBand switch/hardware issues
+//
+// Note: SuggestedActions are not set when evaluating ibstat output, only for ibstatus fallback.
 package infiniband
 
 import (

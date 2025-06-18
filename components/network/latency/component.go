@@ -1,4 +1,24 @@
 // Package latency tracks the global network connectivity statistics.
+// The network latency health checker monitors egress latencies to global edge servers.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when all measured egress latencies are below the configured threshold
+//     (default: 7000ms).
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error measuring egress latencies, or when any
+//     measured latency exceeds the configured globalMillisecondThreshold.
+//
+// Health State Types:
+//   - apiv1.HealthStateTypeHealthy: Set when all measured egress latencies are below the configured threshold
+//     (default: 7000ms).
+//   - apiv1.HealthStateTypeUnhealthy: Set when there's an error measuring egress latencies, or when any
+//     measured latency exceeds the configured globalMillisecondThreshold.
+//
+// The health state is returned via the LastHealthStates() method and served through the "/v1/states" API endpoint.
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Network latency issues are typically environmental and require network infrastructure investigation.
 package latency
 
 import (

@@ -1,4 +1,18 @@
 // Package temperature tracks the NVIDIA per-GPU temperatures.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when NVIDIA components are unavailable (no NVML, no GPU detected)
+//   - [apiv1.HealthStateTypeHealthy] when all GPUs' temperature information is successfully retrieved and no GPU exceeds HBM temperature thresholds
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error getting temperature from any GPU
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error calculating temperature utilization percentages
+//   - [apiv1.HealthStateTypeUnhealthy] when any GPU's current temperature exceeds its HBM temperature threshold (ThresholdCelsiusMemMax)
+//
+// Note: This component does not use the "degraded" state.
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Temperature violations may require cooling system inspection or workload adjustment.
 package temperature
 
 import (

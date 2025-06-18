@@ -1,4 +1,17 @@
 // Package containerd tracks the current containerd status.
+//
+// /v1/states API Health Field Behavior:
+// The [apiv1.HealthState.Health] field in the /v1/states API response is set as follows:
+//   - [apiv1.HealthStateTypeHealthy] when containerd is not installed (not required)
+//   - [apiv1.HealthStateTypeHealthy] when containerd is installed, active, and CRI is working or not enabled
+//   - [apiv1.HealthStateTypeUnhealthy] when containerd is installed but socket file does not exist
+//   - [apiv1.HealthStateTypeUnhealthy] when containerd is installed but not running
+//   - [apiv1.HealthStateTypeUnhealthy] when containerd service is not active
+//   - [apiv1.HealthStateTypeUnhealthy] when there's an error listing pod sandbox status (except unimplemented CRI)
+//
+// Suggested Actions:
+// This component does not set the [apiv1.HealthState.SuggestedActions] field.
+// Containerd issues should be investigated through container runtime logs and system administration.
 package containerd
 
 import (
