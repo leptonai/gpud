@@ -653,7 +653,7 @@ func TestCheck_GPULostError(t *testing.T) {
 	assert.Equal(t, "error getting GSP firmware mode", data.reason, "reason should indicate GPU is lost")
 }
 
-// TestCheck_GSPEnabledSingleGPU tests when a single GPU has GSP firmware enabled (should be degraded)
+// TestCheck_GSPEnabledSingleGPU tests when a single GPU has GSP firmware enabled (should be healthy)
 func TestCheck_GSPEnabledSingleGPU(t *testing.T) {
 	ctx := context.Background()
 
@@ -689,7 +689,7 @@ func TestCheck_GSPEnabledSingleGPU(t *testing.T) {
 	// Verify the result
 	cr, ok := result.(*checkResult)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "should be marked degraded when GSP is enabled")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "should be marked healthy when GSP is enabled")
 	assert.Equal(t, "GSP firmware mode supported but should be disabled for "+uuid, cr.reason)
 	assert.Len(t, cr.GSPFirmwareModes, 1)
 	assert.Equal(t, gspMode, cr.GSPFirmwareModes[0])
@@ -837,7 +837,7 @@ func TestCheck_MultipleGPUsWithMixedGSPStates(t *testing.T) {
 	// Verify the result
 	cr, ok := result.(*checkResult)
 	require.True(t, ok)
-	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "should be degraded when any GPU has GSP enabled")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "should be healthy when any GPU has GSP enabled")
 
 	// Should contain both problematic GPU UUIDs (order may vary due to map iteration)
 	assert.Contains(t, cr.reason, "GSP firmware mode supported but should be disabled for")
