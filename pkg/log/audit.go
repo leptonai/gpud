@@ -1,7 +1,6 @@
 package log
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -107,9 +106,7 @@ func NewAuditLogger(logFile string) AuditLogger {
 	encoderConfig.LevelKey = ""
 	encoderConfig.MessageKey = ""
 	encoderConfig.CallerKey = ""
-	encoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-		enc.AppendString(fmt.Sprintf("%d", t.UnixMilli()))
-	}
+	encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339Nano)
 
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig),

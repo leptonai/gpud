@@ -3,7 +3,6 @@ package log
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -20,9 +19,7 @@ func init() {
 
 func DefaultLoggerConfig() *zap.Config {
 	c := zap.NewProductionConfig()
-	c.EncoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-		enc.AppendString(fmt.Sprintf("%d", t.UnixMilli()))
-	}
+	c.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339Nano)
 	return &c
 }
 
@@ -36,9 +33,7 @@ func CreateLoggerWithLumberjack(logFile string, maxSize int, logLevel zapcore.Le
 	})
 
 	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-		enc.AppendString(fmt.Sprintf("%d", t.UnixMilli()))
-	}
+	encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339Nano)
 
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig),
