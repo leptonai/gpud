@@ -181,9 +181,10 @@ func TestCheck_Success(t *testing.T) {
 		return devs
 	}
 
+	// Changed to GSP disabled to match expected healthy state
 	gspMode := nvidianvml.GSPFirmwareMode{
 		UUID:      uuid,
-		Enabled:   true,
+		Enabled:   false,
 		Supported: true,
 	}
 
@@ -650,4 +651,314 @@ func TestCheck_GPULostError(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
 	assert.Equal(t, "error getting GSP firmware mode", data.reason, "reason should indicate GPU is lost")
+}
+
+// TestCheck_GSPEnabledSingleGPU tests when a single GPU has GSP firmware enabled (should be degraded)
+func TestCheck_GSPEnabledSingleGPU(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	gspMode := nvidianvml.GSPFirmwareMode{
+		UUID:      uuid,
+		Enabled:   true,
+		Supported: true,
+	}
+
+	getGSPFirmwareModeFunc := func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error) {
+		return gspMode, nil
+	}
+
+	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, getGSPFirmwareModeFunc).(*component)
+	result := component.Check()
+
+	// Verify the result
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "should be marked degraded when GSP is enabled")
+	assert.Equal(t, "GSP firmware mode supported but should be disabled for "+uuid, cr.reason)
+	assert.Len(t, cr.GSPFirmwareModes, 1)
+	assert.Equal(t, gspMode, cr.GSPFirmwareModes[0])
+}
+
+// TestCheck_GSPSupportedButDisabled tests when GSP is supported but disabled (should be healthy)
+func TestCheck_GSPSupportedButDisabled(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	gspMode := nvidianvml.GSPFirmwareMode{
+		UUID:      uuid,
+		Enabled:   false,
+		Supported: true,
+	}
+
+	getGSPFirmwareModeFunc := func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error) {
+		return gspMode, nil
+	}
+
+	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, getGSPFirmwareModeFunc).(*component)
+	result := component.Check()
+
+	// Verify the result
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "should be healthy when GSP is supported but disabled")
+	assert.Equal(t, "all 1 GPU(s) were checked, no GSP firmware mode issue found", cr.reason)
+	assert.Len(t, cr.GSPFirmwareModes, 1)
+	assert.Equal(t, gspMode, cr.GSPFirmwareModes[0])
+}
+
+// TestCheck_GSPNotSupported tests when GSP is not supported (should be healthy)
+func TestCheck_GSPNotSupported(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	gspMode := nvidianvml.GSPFirmwareMode{
+		UUID:      uuid,
+		Enabled:   false,
+		Supported: false,
+	}
+
+	getGSPFirmwareModeFunc := func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error) {
+		return gspMode, nil
+	}
+
+	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, getGSPFirmwareModeFunc).(*component)
+	result := component.Check()
+
+	// Verify the result
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "should be healthy when GSP is not supported")
+	assert.Equal(t, "all 1 GPU(s) were checked, no GSP firmware mode issue found", cr.reason)
+	assert.Len(t, cr.GSPFirmwareModes, 1)
+	assert.Equal(t, gspMode, cr.GSPFirmwareModes[0])
+}
+
+// TestCheck_MultipleGPUsWithMixedGSPStates tests multiple GPUs with different GSP states
+func TestCheck_MultipleGPUsWithMixedGSPStates(t *testing.T) {
+	ctx := context.Background()
+
+	uuid1 := "gpu-uuid-123"
+	uuid2 := "gpu-uuid-456"
+	uuid3 := "gpu-uuid-789"
+
+	mockDeviceObj1 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
+	}
+	mockDev1 := testutil.NewMockDevice(mockDeviceObj1, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	mockDeviceObj2 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid2, nvml.SUCCESS
+		},
+	}
+	mockDev2 := testutil.NewMockDevice(mockDeviceObj2, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	mockDeviceObj3 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid3, nvml.SUCCESS
+		},
+	}
+	mockDev3 := testutil.NewMockDevice(mockDeviceObj3, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid1: mockDev1,
+		uuid2: mockDev2,
+		uuid3: mockDev3,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	// GPU 1: GSP enabled and supported (problematic)
+	// GPU 2: GSP supported but disabled (good)
+	// GPU 3: GSP enabled and supported (problematic)
+	gspModes := map[string]nvidianvml.GSPFirmwareMode{
+		uuid1: {UUID: uuid1, Enabled: true, Supported: true},
+		uuid2: {UUID: uuid2, Enabled: false, Supported: true},
+		uuid3: {UUID: uuid3, Enabled: true, Supported: true},
+	}
+
+	getGSPFirmwareModeFunc := func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error) {
+		return gspModes[uuid], nil
+	}
+
+	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, getGSPFirmwareModeFunc).(*component)
+	result := component.Check()
+
+	// Verify the result
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "should be degraded when any GPU has GSP enabled")
+
+	// Should contain both problematic GPU UUIDs (order may vary due to map iteration)
+	assert.Contains(t, cr.reason, "GSP firmware mode supported but should be disabled for")
+	assert.Contains(t, cr.reason, uuid1)
+	assert.Contains(t, cr.reason, uuid3)
+
+	// Should have all 3 GSP firmware modes collected
+	assert.Len(t, cr.GSPFirmwareModes, 3)
+
+	// Verify all modes are present
+	uuids := make(map[string]bool)
+	for _, mode := range cr.GSPFirmwareModes {
+		uuids[mode.UUID] = true
+		expectedMode := gspModes[mode.UUID]
+		assert.Equal(t, expectedMode, mode)
+	}
+	assert.True(t, uuids[uuid1])
+	assert.True(t, uuids[uuid2])
+	assert.True(t, uuids[uuid3])
+}
+
+// TestCheck_MultipleGPUsAllHealthy tests multiple GPUs where none have GSP enabled
+func TestCheck_MultipleGPUsAllHealthy(t *testing.T) {
+	ctx := context.Background()
+
+	uuid1 := "gpu-uuid-123"
+	uuid2 := "gpu-uuid-456"
+
+	mockDeviceObj1 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
+	}
+	mockDev1 := testutil.NewMockDevice(mockDeviceObj1, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	mockDeviceObj2 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid2, nvml.SUCCESS
+		},
+	}
+	mockDev2 := testutil.NewMockDevice(mockDeviceObj2, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid1: mockDev1,
+		uuid2: mockDev2,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	gspModes := map[string]nvidianvml.GSPFirmwareMode{
+		uuid1: {UUID: uuid1, Enabled: false, Supported: true},
+		uuid2: {UUID: uuid2, Enabled: false, Supported: false},
+	}
+
+	getGSPFirmwareModeFunc := func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error) {
+		return gspModes[uuid], nil
+	}
+
+	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, getGSPFirmwareModeFunc).(*component)
+	result := component.Check()
+
+	// Verify the result
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "should be healthy when no GPUs have GSP enabled")
+	assert.Equal(t, "all 2 GPU(s) were checked, no GSP firmware mode issue found", cr.reason)
+	assert.Len(t, cr.GSPFirmwareModes, 2)
+}
+
+// TestCheck_ErrorOnSecondGPU tests error handling when a specific GPU fails to get GSP mode
+func TestCheck_ErrorOnSecondGPU(t *testing.T) {
+	ctx := context.Background()
+
+	uuid1 := "gpu-uuid-123"
+	uuid2 := "gpu-uuid-456"
+
+	mockDeviceObj1 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
+	}
+	mockDev1 := testutil.NewMockDevice(mockDeviceObj1, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	mockDeviceObj2 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid2, nvml.SUCCESS
+		},
+	}
+	mockDev2 := testutil.NewMockDevice(mockDeviceObj2, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid1: mockDev1,
+		uuid2: mockDev2,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	errExpected := errors.New("failed to get GSP mode")
+	getGSPFirmwareModeFunc := func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error) {
+		if uuid == uuid2 {
+			// GPU with uuid2 fails
+			return nvidianvml.GSPFirmwareMode{}, errExpected
+		}
+		// GPU with uuid1 succeeds
+		return nvidianvml.GSPFirmwareMode{UUID: uuid, Enabled: false, Supported: true}, nil
+	}
+
+	component := MockGSPFirmwareModeComponent(ctx, getDevicesFunc, getGSPFirmwareModeFunc).(*component)
+	result := component.Check()
+
+	// Verify error handling
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health, "should be unhealthy when any GPU fails")
+	assert.Equal(t, errExpected, cr.err)
+	assert.Equal(t, "error getting GSP firmware mode", cr.reason)
+	// Should have collected data for the GPU that succeeded before hitting the error
+	assert.Len(t, cr.GSPFirmwareModes, 1)
+	assert.Equal(t, uuid1, cr.GSPFirmwareModes[0].UUID)
 }
