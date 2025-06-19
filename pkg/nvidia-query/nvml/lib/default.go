@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvml_lib_mock "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib/mock"
@@ -56,7 +57,14 @@ func New(opts ...OpOption) (Library, error) {
 	if ret == nvml.ERROR_LIBRARY_NOT_FOUND {
 		return nil, ErrNVMLNotFound
 	}
-	return nil, fmt.Errorf("failed to initialize NVML: %v", nvml.ErrorString(ret))
+
+	// e.g., "Driver Not Loaded"
+	es := nvml.ErrorString(ret)
+	if strings.Contains(strings.ToLower(es), "driver not loaded") {
+		return nil, ErrNVMLNotFound
+	}
+
+	return nil, fmt.Errorf("failed to initialize NVML: %s", es)
 }
 
 // 0x0000000000000000 is none
