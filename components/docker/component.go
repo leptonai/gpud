@@ -157,7 +157,11 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = "error listing containers"
 
 		if pkgdocker.IsErrDockerClientVersionNewerThanDaemon(cr.err) {
+			// TODO: set this to degraded?
+			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = "not supported; needs upgrading docker daemon in the host"
+			log.Logger.Errorw(cr.reason, "error", cr.err)
+			return cr
 		}
 
 		// e.g.,
