@@ -71,7 +71,8 @@ func (c *checker) Write() error {
 	}
 
 	file := filepath.Join(c.cfg.Dir, c.cfg.ID)
-	if err := os.WriteFile(file, []byte(c.cfg.FileContents), 0644); err != nil {
+	data := c.cfg.GenerateData()
+	if err := data.Write(file); err != nil {
 		return err
 	}
 
@@ -104,14 +105,27 @@ func (c *checker) Check() CheckResult {
 	for _, file := range matches {
 		result.ReadIDs = append(result.ReadIDs, filepath.Base(file))
 
-		contents, err := os.ReadFile(file)
+		data, err := ReadDataFromFile(file)
 		if err != nil {
 			result.Message = "failed"
 			result.Error = fmt.Sprintf("failed to read file %s: %s", file, err)
 			return result
 		}
 
-		if string(contents) != c.cfg.FileContents {
+		// old format that only wrote the file contents
+		// skip the file contents check
+		if data.VolumeName == "" || data.VolumeMountPath == "" {
+			result.Message = "ok; file contents are not checked due to missing volume name or mount path"
+			continue
+		}
+
+		// the nfs checker configuration has changed
+		if data.VolumeName != c.cfg.VolumeName || data.VolumeMountPath != c.cfg.VolumeMountPath {
+			result.Message = "ok; file contents are not checked due to mismatching volume name or mount path"
+			continue
+		}
+
+		if data.FileContents != c.cfg.FileContents {
 			result.Message = "failed"
 			result.Error = fmt.Sprintf("file %q has unexpected contents", file)
 			return result

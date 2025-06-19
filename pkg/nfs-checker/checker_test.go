@@ -69,11 +69,13 @@ func TestChecker_Write(t *testing.T) {
 		err := checker.Write()
 		assert.NoError(t, err)
 
-		// Verify file was created with correct content
+		// Verify file was created with correct JSON content
 		filePath := filepath.Join(tempDir, "test-id")
-		content, err := os.ReadFile(filePath)
+		data, err := ReadDataFromFile(filePath)
 		assert.NoError(t, err)
-		assert.Equal(t, "test-content", string(content))
+		assert.Equal(t, "test-content", data.FileContents)
+		assert.Equal(t, "", data.VolumeName)
+		assert.Equal(t, "", data.VolumeMountPath)
 	})
 
 	t.Run("write to non-existent directory", func(t *testing.T) {
@@ -99,11 +101,13 @@ func TestChecker_Write(t *testing.T) {
 		err = checker.Write()
 		assert.NoError(t, err)
 
-		// Verify directory was created and file exists
+		// Verify directory was created and file exists with correct JSON content
 		filePath := filepath.Join(subDir, "test-id")
-		content, err := os.ReadFile(filePath)
+		data, err := ReadDataFromFile(filePath)
 		assert.NoError(t, err)
-		assert.Equal(t, "test-content", string(content))
+		assert.Equal(t, "test-content", data.FileContents)
+		assert.Equal(t, "", data.VolumeName)
+		assert.Equal(t, "", data.VolumeMountPath)
 	})
 }
 
@@ -154,10 +158,12 @@ func TestChecker_Clean(t *testing.T) {
 func TestChecker_Check(t *testing.T) {
 	tempDir := t.TempDir()
 
-	t.Run("successful check with expected files", func(t *testing.T) {
+	t.Run("successful check with expected files using new JSON format", func(t *testing.T) {
 		cfg := &MemberConfig{
 			Config: Config{
 				Dir:              tempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
 				FileContents:     "shared-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 2,
@@ -168,13 +174,26 @@ func TestChecker_Check(t *testing.T) {
 		checker, err := NewChecker(cfg)
 		require.NoError(t, err)
 
-		// Create files from multiple checkers
-		file1 := filepath.Join(tempDir, "checker1")
-		file2 := filepath.Join(tempDir, "checker2")
+		// Create another checker with the same config but different ID
+		cfg2 := &MemberConfig{
+			Config: Config{
+				Dir:              tempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "shared-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 2,
+			},
+			ID: "checker2",
+		}
 
-		err = os.WriteFile(file1, []byte("shared-content"), 0644)
+		checker2, err := NewChecker(cfg2)
 		require.NoError(t, err)
-		err = os.WriteFile(file2, []byte("shared-content"), 0644)
+
+		// Both checkers write their files using the new JSON format
+		err = checker.Write()
+		require.NoError(t, err)
+		err = checker2.Write()
 		require.NoError(t, err)
 
 		result := checker.Check()
@@ -184,10 +203,115 @@ func TestChecker_Check(t *testing.T) {
 		assert.Empty(t, result.Error)
 	})
 
+	t.Run("successful check with old plain text format", func(t *testing.T) {
+		oldTempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              oldTempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "shared-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 2,
+			},
+			ID: "checker1",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Create files with old plain text format (no volume info)
+		file1 := filepath.Join(oldTempDir, "checker1")
+		file2 := filepath.Join(oldTempDir, "checker2")
+
+		err = os.WriteFile(file1, []byte("shared-content"), 0644)
+		require.NoError(t, err)
+		err = os.WriteFile(file2, []byte("shared-content"), 0644)
+		require.NoError(t, err)
+
+		result := checker.Check()
+		assert.Equal(t, oldTempDir, result.Dir)
+		assert.Contains(t, result.Message, "successfully checked directory")
+		assert.ElementsMatch(t, []string{"checker1", "checker2"}, result.ReadIDs)
+		assert.Empty(t, result.Error)
+	})
+
+	t.Run("volume name mismatch", func(t *testing.T) {
+		mismatchTempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              mismatchTempDir,
+				VolumeName:       "expected-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "shared-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "checker1",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Create file with different volume name
+		wrongData := Data{
+			VolumeName:      "wrong-volume",
+			VolumeMountPath: "/mnt/test",
+			FileContents:    "shared-content",
+		}
+
+		file := filepath.Join(mismatchTempDir, "checker2")
+		err = wrongData.Write(file)
+		require.NoError(t, err)
+
+		result := checker.Check()
+		assert.Equal(t, mismatchTempDir, result.Dir)
+		assert.Contains(t, result.Message, "successfully checked directory")
+		assert.ElementsMatch(t, []string{"checker2"}, result.ReadIDs)
+		assert.Empty(t, result.Error)
+	})
+
+	t.Run("volume mount path mismatch", func(t *testing.T) {
+		mismatchTempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              mismatchTempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/expected",
+				FileContents:     "shared-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "checker1",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Create file with different mount path
+		wrongData := Data{
+			VolumeName:      "test-volume",
+			VolumeMountPath: "/mnt/wrong",
+			FileContents:    "shared-content",
+		}
+
+		file := filepath.Join(mismatchTempDir, "checker2")
+		err = wrongData.Write(file)
+		require.NoError(t, err)
+
+		result := checker.Check()
+		assert.Equal(t, mismatchTempDir, result.Dir)
+		assert.Contains(t, result.Message, "successfully checked directory")
+		assert.ElementsMatch(t, []string{"checker2"}, result.ReadIDs)
+		assert.Empty(t, result.Error)
+	})
+
 	t.Run("insufficient files", func(t *testing.T) {
 		cfg := &MemberConfig{
 			Config: Config{
 				Dir:              tempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
 				FileContents:     "shared-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 5,
@@ -200,16 +324,18 @@ func TestChecker_Check(t *testing.T) {
 
 		result := checker.Check()
 		assert.Equal(t, tempDir, result.Dir)
-		assert.Contains(t, result.Error, "expected 5 files, but only 2 files were read")
+		assert.Contains(t, result.Error, "expected 5 files, but only")
+		assert.Contains(t, result.Error, "files were read")
 	})
 
-	t.Run("file with wrong content", func(t *testing.T) {
-		// Use a fresh temp directory for this test to avoid files from previous tests
+	t.Run("file with wrong content in new JSON format", func(t *testing.T) {
 		wrongTempDir := t.TempDir()
 
 		cfg := &MemberConfig{
 			Config: Config{
 				Dir:              wrongTempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
 				FileContents:     "expected-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
@@ -220,9 +346,15 @@ func TestChecker_Check(t *testing.T) {
 		checker, err := NewChecker(cfg)
 		require.NoError(t, err)
 
-		// Create file with wrong content
+		// Create file with correct volume info but wrong content
+		wrongData := Data{
+			VolumeName:      "test-volume",
+			VolumeMountPath: "/mnt/test",
+			FileContents:    "wrong-content",
+		}
+
 		wrongFile := filepath.Join(wrongTempDir, "wrong-content")
-		err = os.WriteFile(wrongFile, []byte("wrong-content"), 0644)
+		err = wrongData.Write(wrongFile)
 		require.NoError(t, err)
 
 		result := checker.Check()
@@ -230,10 +362,44 @@ func TestChecker_Check(t *testing.T) {
 		assert.Contains(t, result.Error, "file \""+wrongFile+"\" has unexpected contents")
 	})
 
-	t.Run("unreadable file", func(t *testing.T) {
+	t.Run("file with wrong content in old plain text format", func(t *testing.T) {
+		// Use a fresh temp directory for this test to avoid files from previous tests
+		wrongTempDir := t.TempDir()
+
 		cfg := &MemberConfig{
 			Config: Config{
-				Dir:              tempDir,
+				Dir:              wrongTempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "expected-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "checker1",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Create file with wrong content using old format
+		wrongFile := filepath.Join(wrongTempDir, "wrong-content")
+		err = os.WriteFile(wrongFile, []byte("wrong-content"), 0644)
+		require.NoError(t, err)
+
+		result := checker.Check()
+		assert.Equal(t, wrongTempDir, result.Dir)
+		// Old format files don't have volume info, so content check is skipped
+		assert.Contains(t, result.Message, "successfully checked directory")
+		assert.Empty(t, result.Error)
+	})
+
+	t.Run("unreadable file", func(t *testing.T) {
+		unreadableTempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              unreadableTempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
 				FileContents:     "shared-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
@@ -245,12 +411,12 @@ func TestChecker_Check(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create unreadable file (only on Unix-like systems)
-		unreadableFile := filepath.Join(tempDir, "unreadable")
+		unreadableFile := filepath.Join(unreadableTempDir, "unreadable")
 		err = os.WriteFile(unreadableFile, []byte("content"), 0000)
 		require.NoError(t, err)
 
 		result := checker.Check()
-		assert.Equal(t, tempDir, result.Dir)
+		assert.Equal(t, unreadableTempDir, result.Dir)
 		// Should contain error about failing to read the file
 		assert.Contains(t, result.Error, "failed to read file")
 		assert.Contains(t, result.Error, "unreadable")
@@ -264,6 +430,8 @@ func TestChecker_Check(t *testing.T) {
 func TestMultipleCheckersOnSameDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	sharedContent := "shared-test-content"
+	volumeName := "shared-volume"
+	volumeMountPath := "/mnt/shared"
 
 	// Create multiple checkers with different IDs but same directory
 	checkers := make([]Checker, 3)
@@ -271,6 +439,8 @@ func TestMultipleCheckersOnSameDirectory(t *testing.T) {
 		cfg := &MemberConfig{
 			Config: Config{
 				Dir:              tempDir,
+				VolumeName:       volumeName,
+				VolumeMountPath:  volumeMountPath,
 				FileContents:     sharedContent,
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 3,
@@ -284,18 +454,20 @@ func TestMultipleCheckersOnSameDirectory(t *testing.T) {
 	}
 
 	t.Run("all checkers write successfully", func(t *testing.T) {
-		// All checkers write their files
+		// All checkers write their files using JSON format
 		for i, checker := range checkers {
 			err := checker.Write()
 			assert.NoError(t, err, "checker %d should write successfully", i)
 		}
 
-		// Verify all files exist
+		// Verify all files exist and contain correct JSON data
 		for i := 0; i < 3; i++ {
 			filePath := filepath.Join(tempDir, fmt.Sprintf("checker-%d", i))
-			content, err := os.ReadFile(filePath)
+			data, err := ReadDataFromFile(filePath)
 			assert.NoError(t, err)
-			assert.Equal(t, sharedContent, string(content))
+			assert.Equal(t, volumeName, data.VolumeName)
+			assert.Equal(t, volumeMountPath, data.VolumeMountPath)
+			assert.Equal(t, sharedContent, data.FileContents)
 		}
 	})
 
@@ -311,9 +483,15 @@ func TestMultipleCheckersOnSameDirectory(t *testing.T) {
 	})
 
 	t.Run("clean operation works for all checkers", func(t *testing.T) {
-		// Create an old file that should be cleaned
+		// Create an old file that should be cleaned using JSON format
+		oldData := Data{
+			VolumeName:      volumeName,
+			VolumeMountPath: volumeMountPath,
+			FileContents:    sharedContent,
+		}
+
 		oldFile := filepath.Join(tempDir, "old-checker")
-		err := os.WriteFile(oldFile, []byte(sharedContent), 0644)
+		err := oldData.Write(oldFile)
 		require.NoError(t, err)
 
 		// Set old timestamp
@@ -341,6 +519,8 @@ func TestMultipleCheckersOnSameDirectory(t *testing.T) {
 func TestConcurrentCheckers(t *testing.T) {
 	tempDir := t.TempDir()
 	sharedContent := "concurrent-test-content"
+	volumeName := "concurrent-volume"
+	volumeMountPath := "/mnt/concurrent"
 	numCheckers := 5
 
 	// Create multiple checkers
@@ -349,6 +529,8 @@ func TestConcurrentCheckers(t *testing.T) {
 		cfg := &MemberConfig{
 			Config: Config{
 				Dir:              tempDir,
+				VolumeName:       volumeName,
+				VolumeMountPath:  volumeMountPath,
 				FileContents:     sharedContent,
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: numCheckers,
@@ -376,12 +558,14 @@ func TestConcurrentCheckers(t *testing.T) {
 			assert.NoError(t, err, "concurrent write %d should succeed", i)
 		}
 
-		// Verify all files exist
+		// Verify all files exist and contain correct JSON data
 		for i := 0; i < numCheckers; i++ {
 			filePath := filepath.Join(tempDir, fmt.Sprintf("concurrent-checker-%d", i))
-			content, err := os.ReadFile(filePath)
+			data, err := ReadDataFromFile(filePath)
 			assert.NoError(t, err)
-			assert.Equal(t, sharedContent, string(content))
+			assert.Equal(t, volumeName, data.VolumeName)
+			assert.Equal(t, volumeMountPath, data.VolumeMountPath)
+			assert.Equal(t, sharedContent, data.FileContents)
 		}
 	})
 
@@ -774,5 +958,355 @@ func TestCheckResult_Dir(t *testing.T) {
 				assert.Equal(t, tc.dir, result.Dir)
 			})
 		}
+	})
+}
+
+func TestConfig_GenerateData(t *testing.T) {
+	t.Run("generate data with all fields", func(t *testing.T) {
+		cfg := Config{
+			VolumeName:      "test-volume",
+			VolumeMountPath: "/mnt/test",
+			FileContents:    "test-content",
+		}
+
+		data := cfg.GenerateData()
+		assert.Equal(t, cfg.VolumeName, data.VolumeName)
+		assert.Equal(t, cfg.VolumeMountPath, data.VolumeMountPath)
+		assert.Equal(t, cfg.FileContents, data.FileContents)
+	})
+
+	t.Run("generate data with empty fields", func(t *testing.T) {
+		cfg := Config{
+			VolumeName:      "",
+			VolumeMountPath: "",
+			FileContents:    "",
+		}
+
+		data := cfg.GenerateData()
+		assert.Equal(t, "", data.VolumeName)
+		assert.Equal(t, "", data.VolumeMountPath)
+		assert.Equal(t, "", data.FileContents)
+	})
+
+	t.Run("generate data with special characters", func(t *testing.T) {
+		cfg := Config{
+			VolumeName:      "volume-with_special.chars",
+			VolumeMountPath: "/mnt/path with spaces",
+			FileContents:    "content with\nnewlines and émojis 🚀",
+		}
+
+		data := cfg.GenerateData()
+		assert.Equal(t, cfg.VolumeName, data.VolumeName)
+		assert.Equal(t, cfg.VolumeMountPath, data.VolumeMountPath)
+		assert.Equal(t, cfg.FileContents, data.FileContents)
+	})
+}
+
+func TestChecker_WriteAndReadIntegration(t *testing.T) {
+	t.Run("write then read same data", func(t *testing.T) {
+		tempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              tempDir,
+				VolumeName:       "integration-volume",
+				VolumeMountPath:  "/mnt/integration",
+				FileContents:     "integration-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "integration-checker",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Write data
+		err = checker.Write()
+		require.NoError(t, err)
+
+		// Read back and verify
+		filePath := filepath.Join(tempDir, "integration-checker")
+		data, err := ReadDataFromFile(filePath)
+		require.NoError(t, err)
+
+		assert.Equal(t, cfg.VolumeName, data.VolumeName)
+		assert.Equal(t, cfg.VolumeMountPath, data.VolumeMountPath)
+		assert.Equal(t, cfg.FileContents, data.FileContents)
+
+		// Check should pass
+		result := checker.Check()
+		assert.Empty(t, result.Error)
+		assert.Contains(t, result.ReadIDs, "integration-checker")
+	})
+
+	t.Run("mixed old and new format files", func(t *testing.T) {
+		tempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              tempDir,
+				VolumeName:       "mixed-volume",
+				VolumeMountPath:  "/mnt/mixed",
+				FileContents:     "mixed-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 3,
+			},
+			ID: "mixed-checker",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Write new format file
+		err = checker.Write()
+		require.NoError(t, err)
+
+		// Write old format file
+		oldFile := filepath.Join(tempDir, "old-format")
+		err = os.WriteFile(oldFile, []byte("old-content"), 0644)
+		require.NoError(t, err)
+
+		// Write another new format file with different content
+		differentData := Data{
+			VolumeName:      "different-volume",
+			VolumeMountPath: "/mnt/different",
+			FileContents:    "different-content",
+		}
+		differentFile := filepath.Join(tempDir, "different-format")
+		err = differentData.Write(differentFile)
+		require.NoError(t, err)
+
+		result := checker.Check()
+		assert.Equal(t, tempDir, result.Dir)
+		assert.ElementsMatch(t, []string{"mixed-checker", "old-format", "different-format"}, result.ReadIDs)
+		// Should have success message since file count is sufficient
+		assert.Contains(t, result.Message, "successfully checked directory")
+		assert.Empty(t, result.Error)
+	})
+}
+
+func TestChecker_EdgeCasesAndErrors(t *testing.T) {
+	t.Run("check with mixed valid and invalid files", func(t *testing.T) {
+		tempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              tempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-checker",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Create a valid file
+		validData := Data{
+			VolumeName:      "test-volume",
+			VolumeMountPath: "/mnt/test",
+			FileContents:    "test-content",
+		}
+		validFile := filepath.Join(tempDir, "valid-file")
+		err = validData.Write(validFile)
+		require.NoError(t, err)
+
+		// Create an invalid file with wrong content
+		invalidData := Data{
+			VolumeName:      "test-volume",
+			VolumeMountPath: "/mnt/test",
+			FileContents:    "wrong-content",
+		}
+		invalidFile := filepath.Join(tempDir, "invalid-file")
+		err = invalidData.Write(invalidFile)
+		require.NoError(t, err)
+
+		result := checker.Check()
+		assert.Equal(t, tempDir, result.Dir)
+		// Should fail on the first invalid file (alphabetically)
+		assert.Contains(t, result.Error, "has unexpected contents")
+		// Should stop at first error, so only first file processed
+		assert.Contains(t, result.ReadIDs, "invalid-file")
+		assert.NotContains(t, result.ReadIDs, "valid-file")
+	})
+
+	t.Run("check with zero expected files", func(t *testing.T) {
+		tempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              tempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 0, // This should be caught by validation
+			},
+			ID: "test-checker",
+		}
+
+		// This should fail validation
+		_, err := NewChecker(cfg)
+		assert.ErrorIs(t, err, ErrExpectedFilesZero)
+	})
+
+	t.Run("write to directory with existing file as directory name", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Create a regular file with the same name as our target directory
+		conflictFile := filepath.Join(tempDir, "conflict")
+		err := os.WriteFile(conflictFile, []byte("conflict"), 0644)
+		require.NoError(t, err)
+
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              conflictFile, // This is a file, not a directory
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-checker",
+		}
+
+		// The validation should pass initially (it only validates the dir is absolute and has content)
+		// but writing should fail when trying to create subdirectory under the file
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Write should fail because the "directory" is actually a file
+		err = checker.Write()
+		assert.Error(t, err)
+	})
+
+	t.Run("check with very long file names", func(t *testing.T) {
+		tempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              tempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-checker-with-a-very-long-name-that-might-cause-issues-in-some-filesystems",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		err = checker.Write()
+		assert.NoError(t, err)
+
+		result := checker.Check()
+		assert.Empty(t, result.Error)
+		assert.Contains(t, result.ReadIDs, cfg.ID)
+	})
+}
+
+func TestChecker_VolumeValidationEdgeCases(t *testing.T) {
+	t.Run("empty volume name but non-empty mount path", func(t *testing.T) {
+		tempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              tempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-checker",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Create file with empty volume name
+		data := Data{
+			VolumeName:      "",
+			VolumeMountPath: "/mnt/test",
+			FileContents:    "test-content",
+		}
+
+		file := filepath.Join(tempDir, "test-file")
+		err = data.Write(file)
+		require.NoError(t, err)
+
+		result := checker.Check()
+		assert.Equal(t, tempDir, result.Dir)
+		assert.Contains(t, result.Message, "successfully checked directory")
+		assert.Empty(t, result.Error)
+	})
+
+	t.Run("non-empty volume name but empty mount path", func(t *testing.T) {
+		tempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              tempDir,
+				VolumeName:       "test-volume",
+				VolumeMountPath:  "/mnt/test",
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-checker",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Create file with empty mount path
+		data := Data{
+			VolumeName:      "test-volume",
+			VolumeMountPath: "",
+			FileContents:    "test-content",
+		}
+
+		file := filepath.Join(tempDir, "test-file")
+		err = data.Write(file)
+		require.NoError(t, err)
+
+		result := checker.Check()
+		assert.Equal(t, tempDir, result.Dir)
+		assert.Contains(t, result.Message, "successfully checked directory")
+		assert.Empty(t, result.Error)
+	})
+
+	t.Run("exact volume match but different case", func(t *testing.T) {
+		tempDir := t.TempDir()
+		cfg := &MemberConfig{
+			Config: Config{
+				Dir:              tempDir,
+				VolumeName:       "Test-Volume",
+				VolumeMountPath:  "/mnt/Test",
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Minute},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-checker",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Create file with different case
+		data := Data{
+			VolumeName:      "test-volume",
+			VolumeMountPath: "/mnt/test",
+			FileContents:    "test-content",
+		}
+
+		file := filepath.Join(tempDir, "test-file")
+		err = data.Write(file)
+		require.NoError(t, err)
+
+		result := checker.Check()
+		assert.Equal(t, tempDir, result.Dir)
+		// Should be treated as mismatch (case-sensitive) but still succeed due to file count
+		assert.Contains(t, result.Message, "successfully checked directory")
+		assert.Empty(t, result.Error)
 	})
 }

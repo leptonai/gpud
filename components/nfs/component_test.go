@@ -492,9 +492,14 @@ func TestCheckWithCheckerError(t *testing.T) {
 	// Create a temporary directory
 	tmpDir := t.TempDir()
 
-	// Write a file with wrong content to trigger check error
+	// Write a file with wrong content using the new JSON format to trigger check error
+	wrongData := pkgnfschecker.Data{
+		VolumeName:      "test-volume",   // Has volume info so content will be checked
+		VolumeMountPath: "/mnt/test",     // Has mount path so content will be checked
+		FileContents:    "wrong content", // Different from expected content
+	}
 	wrongFile := filepath.Join(tmpDir, "wrong-machine")
-	err := os.WriteFile(wrongFile, []byte("wrong content"), 0644)
+	err := wrongData.Write(wrongFile)
 	require.NoError(t, err)
 
 	c := &component{
@@ -503,6 +508,8 @@ func TestCheckWithCheckerError(t *testing.T) {
 			return pkgnfschecker.Configs{
 				{
 					Dir:              tmpDir,
+					VolumeName:       "test-volume",      // Match the volume info
+					VolumeMountPath:  "/mnt/test",        // Match the mount path
 					FileContents:     "expected content", // Different from what we wrote
 					TTLToDelete:      metav1.Duration{Duration: time.Hour},
 					NumExpectedFiles: 1,

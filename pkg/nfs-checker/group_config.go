@@ -11,6 +11,18 @@ import (
 // Config is a common configuration for all the NFS checker group
 // members, which then translates into a single NFS checker.
 type Config struct {
+	// VolumeName is the name of the volume that the NFS checker group
+	// is mounted to.
+	// [Config.FileContents] is only checked if and only if [Config.VolumeName]
+	// and [Config.VolumeMountPath] are set and equal.
+	// e.g., "my-nfs"
+	VolumeName string `json:"volume_name"`
+	// VolumeMountPath is the path where the volume is mounted to.
+	// [Config.FileContents] is only checked if and only if [Config.VolumeName]
+	// and [Config.VolumeMountPath] are set and equal.
+	// e.g., "/mnt/my-nfs"
+	VolumeMountPath string `json:"volume_mount_path"`
+
 	// Dir is the directory where all the checkers in the group
 	// write and read.
 	Dir string `json:"dir"`
@@ -28,6 +40,15 @@ type Config struct {
 	// NumExpectedFiles is the count of files that are expected to be read
 	// from the directory.
 	NumExpectedFiles int `json:"num_expected_files,omitempty"`
+}
+
+// GenerateData generates the data to be written to the file.
+func (cfg Config) GenerateData() Data {
+	return Data{
+		VolumeName:      cfg.VolumeName,
+		VolumeMountPath: cfg.VolumeMountPath,
+		FileContents:    cfg.FileContents,
+	}
 }
 
 // Configs is a list of GroupConfig.
