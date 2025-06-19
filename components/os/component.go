@@ -357,8 +357,8 @@ func (c *component) Check() components.CheckResult {
 	cr.FileDescriptors.FDLimitSupported = fdLimitSupported
 
 	var maxRunningPIDsPct float64
-	if fdLimitSupported && c.maxRunningPIDs > 0 {
-		maxRunningPIDsPct = calcUsagePct(cr.FileDescriptors.Usage, c.maxRunningPIDs)
+	if c.maxRunningPIDs > 0 {
+		maxRunningPIDsPct = calcUsagePct(cr.FileDescriptors.RunningPIDs, c.maxRunningPIDs)
 	}
 
 	cr.FileDescriptors.ThresholdRunningPIDs = c.maxRunningPIDs

@@ -1893,7 +1893,7 @@ func TestComponent_ThresholdRunningPIDs(t *testing.T) {
 			usage:               1000,
 			limit:               10000,
 			fdLimitSupported:    false,
-			expectedPIDsPercent: "0.00", // Should be 0 when fd limit not supported
+			expectedPIDsPercent: "20.00", // 1000/5000 * 100
 		},
 		{
 			name:                "high usage with threshold",
@@ -2122,7 +2122,7 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	allocatedFHPct := calcUsagePct(allocatedFH, limit)
 	usedPct := calcUsagePct(usage, limit)
 	thresholdAllocFHPct := calcUsagePct(usage, min(thresholdAllocFH, limit))
-	maxRunningPIDsPct := calcUsagePct(usage, maxRunningPIDs)
+	maxRunningPIDsPct := calcUsagePct(runningPIDs, maxRunningPIDs)
 
 	// Verify all fields are populated correctly
 	fd := data.FileDescriptors
@@ -3183,6 +3183,7 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 		maxRunningPIDs             uint64
 		maxRunningPIDsPctDegraded  float64
 		maxRunningPIDsPctUnhealthy float64
+		runningPIDs                uint64
 		usage                      uint64
 		limit                      uint64
 		fdLimitSupported           bool
@@ -3194,6 +3195,7 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 			maxRunningPIDs:             10000,
 			maxRunningPIDsPctDegraded:  80.0,
 			maxRunningPIDsPctUnhealthy: 95.0,
+			runningPIDs:                7000, // 70% of max
 			usage:                      7000,
 			limit:                      100000,
 			fdLimitSupported:           true,
@@ -3205,6 +3207,7 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 			maxRunningPIDs:             10000,
 			maxRunningPIDsPctDegraded:  80.0,
 			maxRunningPIDsPctUnhealthy: 95.0,
+			runningPIDs:                8000, // 80% of max
 			usage:                      8000,
 			limit:                      100000,
 			fdLimitSupported:           true,
@@ -3216,6 +3219,7 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 			maxRunningPIDs:             10000,
 			maxRunningPIDsPctDegraded:  80.0,
 			maxRunningPIDsPctUnhealthy: 95.0,
+			runningPIDs:                8500, // 85% of max
 			usage:                      8500,
 			limit:                      100000,
 			fdLimitSupported:           true,
@@ -3227,6 +3231,7 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 			maxRunningPIDs:             10000,
 			maxRunningPIDsPctDegraded:  80.0,
 			maxRunningPIDsPctUnhealthy: 95.0,
+			runningPIDs:                9600, // 96% of max
 			usage:                      9600,
 			limit:                      100000,
 			fdLimitSupported:           true,
@@ -3238,17 +3243,19 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 			maxRunningPIDs:             10000,
 			maxRunningPIDsPctDegraded:  80.0,
 			maxRunningPIDsPctUnhealthy: 95.0,
+			runningPIDs:                9600,
 			usage:                      9600,
 			limit:                      100000,
 			fdLimitSupported:           false,
-			expectedHealth:             apiv1.HealthStateTypeHealthy,
-			expectedReason:             "ok",
+			expectedHealth:             apiv1.HealthStateTypeUnhealthy,
+			expectedReason:             "too many running pids (unhealthy state percent threshold: 95.00 %)",
 		},
 		{
 			name:                       "zero threshold running PIDs",
 			maxRunningPIDs:             0,
 			maxRunningPIDsPctDegraded:  80.0,
 			maxRunningPIDsPctUnhealthy: 95.0,
+			runningPIDs:                9600,
 			usage:                      9600,
 			limit:                      100000,
 			fdLimitSupported:           true,
@@ -3260,6 +3267,7 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 			maxRunningPIDs:             10000,
 			maxRunningPIDsPctDegraded:  0,
 			maxRunningPIDsPctUnhealthy: 95.0,
+			runningPIDs:                9600,
 			usage:                      9600,
 			limit:                      100000,
 			fdLimitSupported:           true,
@@ -3293,7 +3301,7 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 				return 1000, 0, nil
 			}
 			comp.countRunningPIDsFunc = func() (uint64, error) {
-				return 500, nil
+				return tt.runningPIDs, nil
 			}
 			comp.getUsageFunc = func() (uint64, error) {
 				return tt.usage, nil
@@ -3489,7 +3497,7 @@ func TestComponent_ThresholdPercentageChecksPriority(t *testing.T) {
 		return 1000, 0, nil
 	}
 	comp.countRunningPIDsFunc = func() (uint64, error) {
-		return 500, nil
+		return 8500, nil // 85% of max to trigger degraded state
 	}
 	comp.getUsageFunc = func() (uint64, error) {
 		return 8500, nil // This would trigger both thresholds
@@ -3629,7 +3637,7 @@ func TestComponent_ThresholdPercentageMetricsUpdates(t *testing.T) {
 	assert.Equal(t, float64(maxRunningPIDs), *dto.Gauge.Value)
 
 	// Verify threshold running PIDs percent metric
-	expectedPIDsPct := calcUsagePct(usage, maxRunningPIDs)
+	expectedPIDsPct := calcUsagePct(500, maxRunningPIDs) // 500 is the runningPIDs value returned by countRunningPIDsFunc
 	gauge, err = metricThresholdRunningPIDsPercent.GetMetricWith(prometheus.Labels{})
 	assert.NoError(t, err)
 	dto = &prometheusdto.Metric{}
