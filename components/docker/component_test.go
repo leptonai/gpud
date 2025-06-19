@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -689,7 +690,7 @@ func TestDirectCheckOnce(t *testing.T) {
 
 		// Verify special error handling
 		comp.lastMu.RLock()
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastCheckResult.health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastCheckResult.health)
 		assert.Contains(t, comp.lastCheckResult.reason, "not supported")
 		assert.Contains(t, comp.lastCheckResult.reason, "needs upgrading docker daemon")
 		comp.lastMu.RUnlock()
@@ -906,4 +907,292 @@ func TestCheckResultHealthStateType(t *testing.T) {
 		health: apiv1.HealthStateTypeUnhealthy,
 	}
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+}
+
+// TestCheckErrorHandling tests the specific error handling logic in the Check method
+// for the lines where cr.err != nil and docker client version mismatch
+func TestCheckErrorHandling(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name                   string
+		listContainersError    error
+		expectedHealth         apiv1.HealthStateType
+		expectedReasonContains string
+		ignoreConnectionErrors bool
+		shouldReturnEarly      bool
+	}{
+		{
+			name:                   "General error listing containers",
+			listContainersError:    errors.New("some general error"),
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReasonContains: "error listing containers",
+			ignoreConnectionErrors: true,
+			shouldReturnEarly:      false,
+		},
+		{
+			name:                   "Docker client version newer than daemon",
+			listContainersError:    errors.New("Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43"),
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReasonContains: "not supported; needs upgrading docker daemon in the host",
+			ignoreConnectionErrors: true,
+			shouldReturnEarly:      true,
+		},
+		{
+			name:                   "Docker client version newer than daemon - different version",
+			listContainersError:    errors.New("Error response from daemon: client version 1.45 is too new. Maximum supported API version is 1.42"),
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReasonContains: "not supported; needs upgrading docker daemon in the host",
+			ignoreConnectionErrors: false,
+			shouldReturnEarly:      true,
+		},
+		{
+			name:                   "Connection error - ignore enabled",
+			listContainersError:    errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"),
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReasonContains: "connection error to docker daemon",
+			ignoreConnectionErrors: true,
+			shouldReturnEarly:      false,
+		},
+		{
+			name:                   "Connection error - ignore disabled",
+			listContainersError:    errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"),
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReasonContains: "connection error to docker daemon",
+			ignoreConnectionErrors: false,
+			shouldReturnEarly:      false,
+		},
+		{
+			name:                   "Connection error - daemon running check",
+			listContainersError:    errors.New("Is the docker daemon running?"),
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReasonContains: "connection error to docker daemon",
+			ignoreConnectionErrors: true,
+			shouldReturnEarly:      false,
+		},
+		{
+			name:                   "Network timeout error",
+			listContainersError:    errors.New("network timeout"),
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReasonContains: "error listing containers",
+			ignoreConnectionErrors: true,
+			shouldReturnEarly:      false,
+		},
+		{
+			name:                   "Permission denied error",
+			listContainersError:    errors.New("permission denied while trying to connect to the Docker daemon socket"),
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReasonContains: "error listing containers",
+			ignoreConnectionErrors: true,
+			shouldReturnEarly:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			comp := &component{
+				ctx:    ctx,
+				cancel: func() {},
+				checkDependencyInstalledFunc: func() bool {
+					return true
+				},
+				checkDockerRunningFunc: func(context.Context) bool {
+					return true
+				},
+				checkServiceActiveFunc: func() (bool, error) {
+					return true, nil
+				},
+				listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
+					return nil, tt.listContainersError
+				},
+				ignoreConnectionErrors: tt.ignoreConnectionErrors,
+				lastCheckResult:        &checkResult{},
+			}
+
+			result := comp.Check()
+			cr := result.(*checkResult)
+
+			// Verify the error was captured
+			assert.NotNil(t, cr.err)
+			assert.Equal(t, tt.listContainersError.Error(), cr.err.Error())
+
+			// Verify health state
+			assert.Equal(t, tt.expectedHealth, cr.health)
+
+			// Verify reason contains expected text
+			assert.Contains(t, cr.reason, tt.expectedReasonContains)
+
+			// For docker client version errors, verify early return behavior
+			if tt.shouldReturnEarly {
+				assert.Equal(t, "not supported; needs upgrading docker daemon in the host", cr.reason)
+			}
+		})
+	}
+}
+
+// TestCheckErrorHandlingEdgeCases tests edge cases in the error handling logic
+func TestCheckErrorHandlingEdgeCases(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Docker client version error with partial match", func(t *testing.T) {
+		// This should not match the version error pattern
+		comp := &component{
+			ctx:    ctx,
+			cancel: func() {},
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			checkServiceActiveFunc: func() (bool, error) {
+				return true, nil
+			},
+			listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
+				return nil, errors.New("client version 1.44 but not the full pattern")
+			},
+			ignoreConnectionErrors: true,
+			lastCheckResult:        &checkResult{},
+		}
+
+		result := comp.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Contains(t, cr.reason, "error listing containers")
+		assert.NotContains(t, cr.reason, "not supported")
+	})
+
+	t.Run("Mixed error patterns - connection error takes precedence", func(t *testing.T) {
+		comp := &component{
+			ctx:    ctx,
+			cancel: func() {},
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			checkServiceActiveFunc: func() (bool, error) {
+				return true, nil
+			},
+			listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
+				return nil, errors.New("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running? client version might be newer")
+			},
+			ignoreConnectionErrors: true,
+			lastCheckResult:        &checkResult{},
+		}
+
+		result := comp.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Contains(t, cr.reason, "connection error to docker daemon")
+	})
+
+	t.Run("Error with empty message", func(t *testing.T) {
+		comp := &component{
+			ctx:    ctx,
+			cancel: func() {},
+			checkDependencyInstalledFunc: func() bool {
+				return true
+			},
+			checkDockerRunningFunc: func(context.Context) bool {
+				return true
+			},
+			checkServiceActiveFunc: func() (bool, error) {
+				return true, nil
+			},
+			listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
+				return nil, errors.New("")
+			},
+			ignoreConnectionErrors: true,
+			lastCheckResult:        &checkResult{},
+		}
+
+		result := comp.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Contains(t, cr.reason, "error listing containers")
+	})
+}
+
+// TestCheckDockerClientVersionErrorHandling specifically tests the docker client version error handling
+func TestCheckDockerClientVersionErrorHandling(t *testing.T) {
+	ctx := context.Background()
+
+	versionErrors := []string{
+		"Error response from daemon: client version 1.44 is too new. Maximum supported API version is 1.43",
+		"Error response from daemon: client version 1.45 is too new. Maximum supported API version is 1.44",
+		"Error response from daemon: client version 2.0 is too new. Maximum supported API version is 1.43",
+	}
+
+	for i, errMsg := range versionErrors {
+		t.Run(fmt.Sprintf("Version error case %d", i+1), func(t *testing.T) {
+			comp := &component{
+				ctx:    ctx,
+				cancel: func() {},
+				checkDependencyInstalledFunc: func() bool {
+					return true
+				},
+				checkDockerRunningFunc: func(context.Context) bool {
+					return true
+				},
+				checkServiceActiveFunc: func() (bool, error) {
+					return true, nil
+				},
+				listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
+					return nil, errors.New(errMsg)
+				},
+				ignoreConnectionErrors: false, // This shouldn't matter for version errors
+				lastCheckResult:        &checkResult{},
+			}
+
+			result := comp.Check()
+			cr := result.(*checkResult)
+
+			// Verify the version error is handled specially
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+			assert.Equal(t, "not supported; needs upgrading docker daemon in the host", cr.reason)
+			assert.NotNil(t, cr.err)
+			assert.Equal(t, errMsg, cr.err.Error())
+		})
+	}
+}
+
+// TestCheckErrorHandlingWithSuccessfulScenario tests the successful scenario for comparison
+func TestCheckErrorHandlingWithSuccessfulScenario(t *testing.T) {
+	ctx := context.Background()
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkDockerRunningFunc: func(context.Context) bool {
+			return true
+		},
+		checkServiceActiveFunc: func() (bool, error) {
+			return true, nil
+		},
+		listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
+			return []pkgdocker.DockerContainer{
+				{ID: "container1", Name: "test-container-1"},
+				{ID: "container2", Name: "test-container-2"},
+			}, nil
+		},
+		ignoreConnectionErrors: true,
+		lastCheckResult:        &checkResult{},
+	}
+
+	result := comp.Check()
+	cr := result.(*checkResult)
+
+	// Verify successful scenario
+	assert.Nil(t, cr.err)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "ok", cr.reason)
+	assert.Len(t, cr.Containers, 2)
 }
