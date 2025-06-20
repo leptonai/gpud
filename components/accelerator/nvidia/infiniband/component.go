@@ -9,14 +9,17 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/dustin/go-humanize"
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
@@ -34,7 +37,7 @@ type component struct {
 	cancel context.CancelFunc
 
 	nvmlInstance   nvidianvml.Instance
-	toolOverwrites nvidia_common.ToolOverwrites
+	toolOverwrites pkgconfigcommon.ToolOverwrites
 
 	eventBucket eventstore.Bucket
 	kmsgSyncer  *kmsg.Syncer
@@ -126,11 +129,22 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if c.eventBucket == nil {
 		return nil, nil
 	}
+
 	evs, err := c.eventBucket.Get(ctx, since)
 	if err != nil {
 		return nil, err
 	}
-	return evs.Events(), nil
+
+	filtered := make(apiv1.Events, 0)
+	for _, ev := range evs.Events() {
+		// skip healthy ibport events
+		// that are only used for ib flapping evaluation
+		if ev.Name == "ibstat" && ev.Type == apiv1.EventTypeInfo {
+			continue
+		}
+		filtered = append(filtered, ev)
+	}
+	return filtered, nil
 }
 
 func (c *component) Close() error {
@@ -149,7 +163,7 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking nvidia gpu infiniband")
+	log.Logger.Infow("checking nvidia infiniband")
 
 	cr := &checkResult{
 		ts: time.Now().UTC(),
@@ -227,82 +241,23 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	// neither "ibstat" nor "ibstatus" command returned any data
-	// then we just skip the evaluation
-	if cr.err == nil && cr.IbstatOutput == nil &&
-		cr.errIbstatus == nil && cr.IbstatusOutput == nil {
-		cr.reason = reasonMissingIbstatIbstatusOutput
-		cr.health = apiv1.HealthStateTypeHealthy
-		log.Logger.Errorw(cr.reason)
-		return cr
-	}
-
-	// whether ibstat command failed or not, we use the entire/partial output
 	if cr.IbstatOutput != nil {
-		// whether ibstat command failed or not (e.g., one port device is wrongly mapped)
-		// but we got the entire/partial output from "ibstat" command
-		// thus we use the data from "ibstat" command to evaluate
-		// ok to error as long as it meets the thresholds
-		// which means we may overwrite the error above
-		// (e.g., "ibstat" command exited 255 but still meets the thresholds)
-		cr.health, cr.suggestedActions, cr.reason = evaluateIbstatOutputAgainstThresholds(cr.IbstatOutput, thresholds)
-
-		// partial output from "ibstat" command worked
-		if cr.err != nil && cr.health == apiv1.HealthStateTypeHealthy {
-			log.Logger.Debugw("ibstat command returned partial output -- discarding error", "error", cr.err, "reason", cr.reason)
-			cr.err = nil
-			cr.errIbstatus = nil
-		}
+		cr.allIBPorts = cr.IbstatOutput.Parsed.IBPorts()
 	} else if cr.IbstatusOutput != nil {
-		// ibstat command failed and no output
-		// then we need fallback to the second data source "ibstatus"
-		cr.health, cr.suggestedActions, cr.reason = evaluateIbstatusOutputAgainstThresholds(cr.IbstatusOutput, thresholds)
+		cr.allIBPorts = cr.IbstatusOutput.Parsed.IBPorts()
 	}
+	evaluateThresholds(cr, thresholds)
 
-	// we only care about unhealthy events, no need to persist healthy events
-	if cr.health == apiv1.HealthStateTypeHealthy {
+	// record events whether ib ports are healthy or not
+	// as we use historical data including healthy ports
+	// to evaluate ib port drop and flap
+	if err := c.recordIbEvent(cr); err != nil {
 		return cr
 	}
 
-	// now that event store/bucket is set
-	// now that ibstat output has some issues with its thresholds (unhealthy state)
-	// we persist such unhealthy state event
-	//
-	// potential infiniband switch/hardware issue needs immediate attention
-	ev := eventstore.Event{
-		Time:    cr.ts,
-		Name:    "ibstat",
-		Type:    string(apiv1.EventTypeWarning),
-		Message: cr.reason,
-	}
-
-	// lookup to prevent duplicate event insertions
-	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	found, err := c.eventBucket.Find(cctx, ev)
-	ccancel()
-	if err != nil {
-		cr.err = err
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "error finding ibstat event"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
-		return cr
-	}
-
-	// already exists, no need to insert
-	if found != nil {
-		return cr
-	}
-
-	// insert event
-	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	cr.err = c.eventBucket.Insert(cctx, ev)
-	ccancel()
-	if cr.err != nil {
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "error inserting ibstat event"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
-		return cr
-	}
+	c.evaluateIbSwitchFault(cr)
+	c.evaluateIbPortDrop(cr)
+	c.evaluateIbPortFlap(cr)
 
 	return cr
 }
@@ -313,50 +268,431 @@ var (
 
 	reasonMissingIbstatIbstatusOutput = "missing ibstat/ibstatus output (skipped evaluation)"
 	reasonMissingEventBucket          = "missing event storage (skipped evaluation)"
-	reasonNoIbIssueFoundFromIbstat    = "no infiniband issue found (in ibstat)"
-	reasonNoIbIssueFoundFromIbstatus  = "no infiniband issue found (in ibstatus)"
+	reasonNoIbIssueFoundFromIbstat    = "no infiniband issue found (in ibstat/ibstatus)"
 )
 
-// Returns the output evaluation reason and its health state.
-// We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
-func evaluateIbstatOutputAgainstThresholds(ibstatOut *infiniband.IbstatOutput, thresholds infiniband.ExpectedPortStates) (apiv1.HealthStateType, *apiv1.SuggestedActions, string) {
+func evaluateThresholds(cr *checkResult, thresholds infiniband.ExpectedPortStates) {
+	// DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
 	if thresholds.IsZero() {
-		return apiv1.HealthStateTypeHealthy, nil, reasonThresholdNotSetSkipped
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.suggestedActions = nil
+		cr.unhealthyIBPorts = nil
+		cr.reason = reasonThresholdNotSetSkipped
+
+		cr.err = nil
+		cr.errIbstatus = nil
+		return
+	}
+
+	// neither "ibstat" nor "ibstatus" command returned any data
+	// then we just skip the evaluation
+	if len(cr.allIBPorts) == 0 {
+		cr.reason = reasonMissingIbstatIbstatusOutput
+		cr.health = apiv1.HealthStateTypeHealthy
+		log.Logger.Errorw(cr.reason)
+		return
 	}
 
 	// Link down/drop -> hardware inspection
 	// Link port flap -> hardware inspection
 	atLeastPorts := thresholds.AtLeastPorts
 	atLeastRate := thresholds.AtLeastRate
-	if err := ibstatOut.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-		return apiv1.HealthStateTypeUnhealthy,
-			&apiv1.SuggestedActions{
-				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
-			},
-			err.Error()
+
+	// whether ibstat command failed or not (e.g., one port device is wrongly mapped), we use the entire/partial output
+	// but we got the entire/partial output from "ibstat" command
+	// thus we use the data from "ibstat" command to evaluate
+	// ok to error as long as it meets the thresholds
+	// which means we may overwrite the error above
+	// (e.g., "ibstat" command exited 255 but still meets the thresholds)
+	unhealthy, err := infiniband.EvaluatePortsAndRate(cr.allIBPorts, atLeastPorts, atLeastRate)
+	if err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+		}
+		cr.unhealthyIBPorts = unhealthy
+		cr.reason = err.Error()
+		return
 	}
 
-	return apiv1.HealthStateTypeHealthy, nil, reasonNoIbIssueFoundFromIbstat
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.suggestedActions = nil
+	cr.unhealthyIBPorts = nil
+	cr.reason = reasonNoIbIssueFoundFromIbstat
+
+	// partial output from "ibstat" command worked
+	if cr.err != nil && cr.health == apiv1.HealthStateTypeHealthy {
+		log.Logger.Debugw("ibstat command returned partial output -- discarding error", "error", cr.err, "reason", cr.reason)
+		cr.err = nil
+		cr.errIbstatus = nil
+	}
 }
 
-// Returns the output evaluation reason and its health state.
-// We DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
-func evaluateIbstatusOutputAgainstThresholds(ibstatusOut *infiniband.IbstatusOutput, thresholds infiniband.ExpectedPortStates) (apiv1.HealthStateType, *apiv1.SuggestedActions, string) {
-	if thresholds.IsZero() {
-		return apiv1.HealthStateTypeHealthy, nil, reasonThresholdNotSetSkipped
+func (cr *checkResult) convertToIbstatEvent() *eventstore.Event {
+	if cr == nil {
+		return nil
 	}
 
-	atLeastPorts := thresholds.AtLeastPorts
-	atLeastRate := thresholds.AtLeastRate
-	if err := ibstatusOut.Parsed.CheckPortsAndRate(atLeastPorts, atLeastRate); err != nil {
-		return apiv1.HealthStateTypeUnhealthy,
-			&apiv1.SuggestedActions{
-				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
-			},
-			err.Error()
+	ibportsEncoded := []byte("[]")
+	if len(cr.allIBPorts) > 0 {
+		all := make([]infiniband.IBPort, 0)
+		for _, port := range cr.allIBPorts {
+			all = append(all, infiniband.IBPort{
+				Device: port.Device,
+				State:  port.State,
+
+				// we do not need the physical state and rate
+				// as we only use the device name to evaluate ib port drop and flap
+				// this saves the space in db file
+				PhysicalState: "",
+				Rate:          0,
+			})
+		}
+		ibportsEncoded, _ = json.Marshal(all)
 	}
 
-	return apiv1.HealthStateTypeHealthy, nil, reasonNoIbIssueFoundFromIbstatus
+	eventType := string(apiv1.EventTypeInfo)
+	if len(cr.unhealthyIBPorts) > 0 {
+		eventType = string(apiv1.EventTypeWarning)
+	}
+
+	return &eventstore.Event{
+		Time:    cr.ts,
+		Name:    "ibstat",
+		Type:    eventType,
+		Message: cr.reason,
+		ExtraInfo: map[string]string{
+			"all_ibports": string(ibportsEncoded),
+		},
+	}
+}
+
+func parseIBPortsFromEvent(ev eventstore.Event) []infiniband.IBPort {
+	if ev.Name != "ibstat" {
+		return nil
+	}
+
+	raw := ev.ExtraInfo["all_ibports"]
+	if raw == "" {
+		return nil
+	}
+
+	var ports []infiniband.IBPort
+	if err := json.Unmarshal([]byte(raw), &ports); err != nil {
+		log.Logger.Errorw("error unmarshalling ib ports", "error", err)
+		return nil
+	}
+
+	return ports
+}
+
+func (c *component) recordIbEvent(cr *checkResult) error {
+	ev := cr.convertToIbstatEvent()
+	if ev == nil {
+		return nil
+	}
+
+	// lookup to prevent duplicate event insertions
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+	found, err := c.eventBucket.Find(cctx, *ev)
+	ccancel()
+	if err != nil {
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error finding ibstat event"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
+		return err
+	}
+
+	// already exists, no need to insert
+	if found != nil {
+		return nil
+	}
+
+	// insert event
+	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
+	cr.err = c.eventBucket.Insert(cctx, *ev)
+	ccancel()
+	if cr.err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error inserting ibstat event"
+		log.Logger.Errorw(cr.reason, "error", cr.err)
+		return cr.err
+	}
+
+	return nil
+}
+
+// readAllIbstatEvents reads all ibstat events from the event store
+// and returns them in ascending order by time
+// including the healthy ib port events
+func (c *component) readAllIbstatEvents(since time.Time) ([]eventstore.Event, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
+
+	// (events are sorted by time ascending, latest event is the last one)
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+	events, err := c.eventBucket.Get(cctx, since)
+	ccancel()
+	if err != nil {
+		return nil, err
+	}
+	if len(events) == 0 {
+		return nil, nil
+	}
+
+	ibstatEvents := make([]eventstore.Event, 0)
+	for _, ev := range events {
+		if ev.Name != "ibstat" {
+			continue
+		}
+		ibstatEvents = append(ibstatEvents, ev)
+	}
+
+	if len(ibstatEvents) == 0 {
+		return nil, nil
+	}
+
+	return ibstatEvents, nil
+}
+
+// evaluateIbSwitchFault evaluates whether the check result is caused by
+// the ib switch fault, where all ports are down
+// if that's the case, it sets the field [checkResult.reasonIbSwitchFault]
+func (c *component) evaluateIbSwitchFault(cr *checkResult) {
+	if cr == nil {
+		return
+	}
+
+	if cr.health == apiv1.HealthStateTypeHealthy {
+		// currently no unhealthy port, thus assume no ib switch fault
+		return
+	}
+
+	if len(cr.unhealthyIBPorts) == 0 {
+		// currently no unhealthy port, thus assume no ib switch fault
+		return
+	}
+
+	// need to check total number of ports from the output
+	var totalPorts int
+	if cr.IbstatOutput != nil {
+		totalPorts = len(cr.IbstatOutput.Parsed)
+	} else if cr.IbstatusOutput != nil {
+		totalPorts = len(cr.IbstatusOutput.Parsed)
+	}
+
+	if totalPorts == 0 || len(cr.unhealthyIBPorts) != totalPorts {
+		// maybe some ports are down, but not all ports are down
+		// thus assume no ib switch fault
+		return
+	}
+
+	cr.reasonIbSwitchFault = "ib switch fault, all ports down"
+}
+
+// evaluateIbPortDrop evaluates whether the check result is caused by
+// the ib ports being down for more than 4 minutes
+// it uses the historical data in the event store to evaluate the ib port drop
+// if that's the case, it sets the field [checkResult.reasonIbPortDrop]
+func (c *component) evaluateIbPortDrop(cr *checkResult) {
+	if cr == nil {
+		return
+	}
+
+	if cr.health == apiv1.HealthStateTypeHealthy {
+		// currently no unhealthy port, thus assume no ib port drop
+		// impossible to have ports down more than 4 minutes since now all ports are healthy
+		return
+	}
+
+	if cr.ts.IsZero() {
+		// current check result timestamp is unknown, can't evaluate
+		return
+	}
+
+	if c.eventBucket == nil {
+		// no event bucket, can't evaluate
+		return
+	}
+
+	// query the last 4 minutes with some buffer
+	// since we only check once per minute
+	// (events are sorted by time ascending, latest event is the last one)
+	since := cr.ts.Add(-10 * time.Minute)
+	ibstatEvents, err := c.readAllIbstatEvents(since)
+	if err != nil {
+		log.Logger.Errorw("error reading ibstat events", "error", err)
+		return
+	}
+	if len(ibstatEvents) == 0 {
+		// no unhealthy port event in the last 4 minutes
+		// thus safe to assume no ib port drop
+		return
+	}
+	if len(ibstatEvents) == 1 && cr.ts == ibstatEvents[0].Time {
+		// read the one that we just inserted
+		return
+	}
+
+	// maps from port device name to the time when the port first dropped
+	droppedSince := make(map[string]time.Time)
+	for _, ev := range ibstatEvents {
+		allPorts := parseIBPortsFromEvent(ev)
+		for _, port := range allPorts {
+			// delete in for-loop, because the later one in the entry
+			// is the latest one, thus, if the latest event says this port is up
+			// we should delete the entry from the map since it's not down anymore
+			if port.State != "Down" {
+				delete(droppedSince, port.Device)
+				continue
+			}
+
+			// only track the first time the port dropped
+			if _, ok := droppedSince[port.Device]; !ok {
+				droppedSince[port.Device] = ev.Time
+			}
+		}
+	}
+
+	// now all entries in "dropSince" are the ports that are STILL down
+	// now we have the ib port drop that lasted >= 4 minutes
+	// collect more detailed information
+	msgs := make([]string, 0)
+	for dev, ts := range droppedSince {
+		elapsed := cr.ts.Sub(ts)
+		if elapsed < 0 {
+			// something wrong with the event store
+			log.Logger.Warnw("unexpected event timestamp", "checkResultTimestamp", cr.ts, "eventTimestamp", ibstatEvents[0].Time)
+			continue
+		}
+
+		if elapsed < 4*time.Minute {
+			// some ports are down, but only down for less than 4 minutes (too recent!)
+			// thus safe to assume no ib port drop
+			// even if we have more events, all only elapsed less than 4 minutes
+			// thus safe to assume no ib port drop
+			// may come back later!
+			log.Logger.Warnw("ib port drop too recent", "device", dev, "elapsed", elapsed)
+			continue
+		}
+
+		dropHumanized := humanize.RelTime(ts, cr.ts, "ago", "from now")
+		msgs = append(msgs, fmt.Sprintf("%s dropped %s", dev, dropHumanized))
+	}
+	if len(msgs) == 0 {
+		// no ib port drop
+		return
+	}
+	sort.Strings(msgs)
+
+	cr.reasonIbPortDrop = "ib port drop -- " + strings.Join(msgs, ", ")
+}
+
+// evaluateIbPortFlap evaluates whether the check result is caused by
+// the ib port flap, where the port is down and back to active
+// for the last 4 minutes
+// it uses the historical data in the event store to evaluate the ib port flap
+// if that's the case, it sets the field [checkResult.reasonIbPortFlap]
+func (c *component) evaluateIbPortFlap(cr *checkResult) {
+	if cr == nil {
+		return
+	}
+
+	// even when the current check result is healthy
+	// if the old results were unhealthy
+	// we still need to evaluate the ib port flap
+
+	if cr.ts.IsZero() {
+		// current check result timestamp is unknown, can't evaluate
+		return
+	}
+
+	if c.eventBucket == nil {
+		// no event bucket, can't evaluate
+		return
+	}
+
+	// query the last 4 minutes with some buffer
+	// since we only check once per minute
+	// (events are sorted by time ascending, latest event is the last one)
+	since := cr.ts.Add(-10 * time.Minute)
+	ibstatEvents, err := c.readAllIbstatEvents(since)
+	if err != nil {
+		log.Logger.Errorw("error reading ibstat events", "error", err)
+		return
+	}
+	if len(ibstatEvents) <= 1 {
+		// no unhealthy port event in the last 4 minutes
+		// thus safe to assume no ib port flap
+		//
+		// or
+		//
+		// not enough number of events to evalute ib port flaps
+		return
+	}
+
+	// check if there was any ibstat event and lasted >= 4 minutes
+	elapsedSinceOldest := cr.ts.Sub(ibstatEvents[0].Time)
+	if elapsedSinceOldest < 0 {
+		// something wrong with the event store
+		log.Logger.Warnw("unexpected event timestamp", "checkResultTimestamp", cr.ts, "eventTimestamp", ibstatEvents[0].Time)
+		return
+	}
+
+	// maps from port device name to the state transitions
+	stateTransitions := make(map[string][]string)
+	for _, ev := range ibstatEvents {
+		elapsed := cr.ts.Sub(ev.Time)
+
+		// ib port flag is only evaluated for the last 4 minutes
+		// old events should be ignored
+		if elapsed > 4*time.Minute {
+			continue
+		}
+
+		allPorts := parseIBPortsFromEvent(ev)
+		for _, port := range allPorts {
+			prev, ok := stateTransitions[port.Device]
+			if !ok || len(prev) == 0 {
+				stateTransitions[port.Device] = []string{port.State}
+			} else if prev[len(prev)-1] != port.State {
+				// ip port state flapped!
+				stateTransitions[port.Device] = append(stateTransitions[port.Device], port.State)
+			}
+		}
+	}
+
+	// no state transitions in the last 4 minutes
+	if len(stateTransitions) == 0 {
+		return
+	}
+
+	msgs := make([]string, 0)
+	for dev, transitions := range stateTransitions {
+		if len(transitions) < 2 {
+			continue
+		}
+
+		// keep up to 4 entries
+		if len(transitions) > 4 {
+			// keep the last 4 entries
+			transitions = transitions[len(transitions)-4:]
+		}
+
+		// Down -> Active == ib port flap
+		// Active -> Down == ib port flap
+		// Active -> Down -> Active == ib port flap
+		msgs = append(msgs, fmt.Sprintf("%s %s", dev, strings.Join(transitions, " -> ")))
+	}
+	if len(msgs) == 0 {
+		// no ib port state flapped
+		return
+	}
+	sort.Strings(msgs)
+
+	cr.reasonIbPortFlap = "ib port flap -- " + strings.Join(msgs, ", ")
 }
 
 var _ components.CheckResult = &checkResult{}
@@ -364,6 +700,12 @@ var _ components.CheckResult = &checkResult{}
 type checkResult struct {
 	IbstatOutput   *infiniband.IbstatOutput   `json:"ibstat_output"`
 	IbstatusOutput *infiniband.IbstatusOutput `json:"ibstatus_output"`
+
+	allIBPorts []infiniband.IBPort
+
+	// current unhealthy ib ports that are problematic
+	// (down/polling/disabled, below expected ib port thresholds)
+	unhealthyIBPorts []infiniband.IBPort
 
 	// timestamp of the last check
 	ts time.Time
@@ -378,6 +720,10 @@ type checkResult struct {
 	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
+
+	reasonIbSwitchFault string
+	reasonIbPortDrop    string
+	reasonIbPortFlap    string
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -438,7 +784,22 @@ func (cr *checkResult) Summary() string {
 	if cr == nil {
 		return ""
 	}
-	return cr.reason
+
+	reason := cr.reason
+
+	if cr.reasonIbSwitchFault != "" {
+		reason += "; " + cr.reasonIbSwitchFault
+	}
+
+	if cr.reasonIbPortDrop != "" {
+		reason += "; " + cr.reasonIbPortDrop
+	}
+
+	if cr.reasonIbPortFlap != "" {
+		reason += "; " + cr.reasonIbPortFlap
+	}
+
+	return reason
 }
 
 func (cr *checkResult) HealthStateType() apiv1.HealthStateType {
@@ -486,10 +847,10 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Time:             metav1.NewTime(cr.ts),
 		Component:        Name,
 		Name:             Name,
-		Reason:           cr.reason,
-		SuggestedActions: cr.getSuggestedActions(),
-		Error:            cr.getError(),
 		Health:           cr.health,
+		Reason:           cr.Summary(),
+		Error:            cr.getError(),
+		SuggestedActions: cr.getSuggestedActions(),
 	}
 
 	if cr.IbstatOutput != nil {

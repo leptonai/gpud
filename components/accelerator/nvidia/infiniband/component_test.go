@@ -2,6 +2,7 @@ package infiniband
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -112,7 +113,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: "only 1 ports (>= 200 Gb/s) are active, expect at least 2",
+			wantReason: "only 1 port(s) are active and >=200 Gb/s, expect >=2 port(s)",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
@@ -142,7 +143,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2",
+			wantReason: "only 0 port(s) are active and >=200 Gb/s, expect >=2 port(s)",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
@@ -172,7 +173,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2; 2 device(s) found Disabled (mlx5_0, mlx5_1)",
+			wantReason: "only 0 port(s) are active and >=200 Gb/s, expect >=2 port(s); 2 device(s) found Disabled (mlx5_0, mlx5_1)",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
@@ -185,8 +186,8 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
+			wantReason: reasonMissingIbstatIbstatusOutput,
+			wantHealth: apiv1.HealthStateTypeHealthy,
 		},
 		{
 			name: "inactive ports",
@@ -253,7 +254,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 3,
 				AtLeastRate:  200,
 			},
-			wantReason: "only 2 ports (>= 200 Gb/s) are active, expect at least 3; 1 device(s) found Disabled (mlx5_1)",
+			wantReason: "only 2 port(s) are active and >=200 Gb/s, expect >=3 port(s); 1 device(s) found Disabled (mlx5_1)",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
@@ -291,7 +292,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  300,
 			},
-			wantReason: "only 1 ports (>= 300 Gb/s) are active, expect at least 2",
+			wantReason: "only 1 port(s) are active and >=300 Gb/s, expect >=2 port(s)",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 		{
@@ -313,7 +314,7 @@ func TestEvaluate(t *testing.T) {
 				AtLeastPorts: 1,
 				AtLeastRate:  100,
 			},
-			wantReason: "only 0 ports (>= 100 Gb/s) are active, expect at least 1",
+			wantReason: "only 0 port(s) are active and >=100 Gb/s, expect >=1 port(s)",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
@@ -326,16 +327,24 @@ func TestEvaluate(t *testing.T) {
 				return
 			}
 
-			health, suggestedActions, reason := evaluateIbstatOutputAgainstThresholds(tt.output, tt.config)
-			assert.Equal(t, tt.wantReason, reason)
-			assert.Equal(t, tt.wantHealth, health)
+			// Create a checkResult and populate allIBPorts
+			cr := &checkResult{
+				allIBPorts: tt.output.Parsed.IBPorts(),
+			}
+
+			// Call the function
+			evaluateThresholds(cr, tt.config)
+
+			// Check results
+			assert.Equal(t, tt.wantReason, cr.reason)
+			assert.Equal(t, tt.wantHealth, cr.health)
 			// For healthy states, suggestedActions should be nil
 			if tt.wantHealth == apiv1.HealthStateTypeHealthy {
-				assert.Nil(t, suggestedActions)
+				assert.Nil(t, cr.suggestedActions)
 			} else {
 				// For unhealthy states, should have hardware inspection suggested
-				assert.NotNil(t, suggestedActions)
-				assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, suggestedActions.RepairActions)
+				assert.NotNil(t, cr.suggestedActions)
+				assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, cr.suggestedActions.RepairActions)
 			}
 		})
 	}
@@ -404,23 +413,31 @@ func TestEvaluateWithTestData(t *testing.T) {
 				AtLeastPorts: 12,  // Total number of ports
 				AtLeastRate:  400, // Only 8 ports have this rate
 			},
-			wantReason: "only 8 ports (>= 400 Gb/s) are active, expect at least 12",
+			wantReason: "only 8 port(s) are active and >=400 Gb/s, expect >=12 port(s)",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			health, suggestedActions, reason := evaluateIbstatOutputAgainstThresholds(output, tt.config)
-			assert.Equal(t, tt.wantReason, reason)
-			assert.Equal(t, tt.wantHealth, health)
+			// Create a checkResult and populate allIBPorts
+			cr := &checkResult{
+				allIBPorts: output.Parsed.IBPorts(),
+			}
+
+			// Call the function
+			evaluateThresholds(cr, tt.config)
+
+			// Check results
+			assert.Equal(t, tt.wantReason, cr.reason)
+			assert.Equal(t, tt.wantHealth, cr.health)
 			// For healthy states, suggestedActions should be nil
 			if tt.wantHealth == apiv1.HealthStateTypeHealthy {
-				assert.Nil(t, suggestedActions)
+				assert.Nil(t, cr.suggestedActions)
 			} else {
 				// For unhealthy states, should have hardware inspection suggested
-				assert.NotNil(t, suggestedActions)
-				assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, suggestedActions.RepairActions)
+				assert.NotNil(t, cr.suggestedActions)
+				assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, cr.suggestedActions.RepairActions)
 			}
 		})
 	}
@@ -672,6 +689,8 @@ func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	defer m.mu.Unlock()
 
 	for i, e := range m.events {
+		// Compare relevant fields for duplicate detection
+		// In production, this should also compare ib_ports or a hash
 		if e.Name == event.Name && e.Type == event.Type && e.Message == event.Message {
 			return &m.events[i], nil
 		}
@@ -1216,7 +1235,7 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason:           reasonNoIbIssueFoundFromIbstatus,
+			wantReason:           reasonNoIbIssueFoundFromIbstat,
 			wantHealth:           apiv1.HealthStateTypeHealthy,
 			wantSuggestedActions: nil,
 		},
@@ -1238,7 +1257,7 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: "only 1 ports (>= 200 Gb/s) are active, expect at least 2",
+			wantReason: "only 1 port(s) are active and >=200 Gb/s, expect >=2 port(s)",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 			wantSuggestedActions: &apiv1.SuggestedActions{
 				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
@@ -1269,7 +1288,7 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2",
+			wantReason: "only 0 port(s) are active and >=200 Gb/s, expect >=2 port(s)",
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 			wantSuggestedActions: &apiv1.SuggestedActions{
 				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
@@ -1285,11 +1304,9 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 				AtLeastPorts: 2,
 				AtLeastRate:  200,
 			},
-			wantReason: "only 0 ports (>= 200 Gb/s) are active, expect at least 2",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-			wantSuggestedActions: &apiv1.SuggestedActions{
-				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
-			},
+			wantReason:           reasonMissingIbstatIbstatusOutput,
+			wantHealth:           apiv1.HealthStateTypeHealthy,
+			wantSuggestedActions: nil,
 		},
 	}
 
@@ -1301,10 +1318,18 @@ func TestEvaluateIbstatusOutput(t *testing.T) {
 				return
 			}
 
-			health, suggestedActions, reason := evaluateIbstatusOutputAgainstThresholds(tt.output, tt.config)
-			assert.Equal(t, tt.wantReason, reason)
-			assert.Equal(t, tt.wantHealth, health)
-			assert.Equal(t, tt.wantSuggestedActions, suggestedActions)
+			// Create a checkResult and populate allIBPorts
+			cr := &checkResult{
+				allIBPorts: tt.output.Parsed.IBPorts(),
+			}
+
+			// Call the function
+			evaluateThresholds(cr, tt.config)
+
+			// Check results
+			assert.Equal(t, tt.wantReason, cr.reason)
+			assert.Equal(t, tt.wantHealth, cr.health)
+			assert.Equal(t, tt.wantSuggestedActions, cr.suggestedActions)
 		})
 	}
 }
@@ -1868,12 +1893,15 @@ func TestCheckEventBucketEventExists(t *testing.T) {
 
 	mockBucket := createMockEventBucket()
 	// Pre-insert an event that matches the one Check would insert
-	unhealthyReason := "only 0 ports (>= 100 Gb/s) are active, expect at least 1"
+	unhealthyReason := "only 0 port(s) are active and >=100 Gb/s, expect >=1 port(s); 1 device(s) found Disabled (mlx5_0)"
 	existingEvent := eventstore.Event{
 		Time:    time.Now().UTC().Add(-time.Minute), // Some time in the past
 		Name:    "ibstat",
 		Type:    string(apiv1.EventTypeWarning),
 		Message: unhealthyReason,
+		ExtraInfo: map[string]string{
+			"all_ibports": `[{"device":"mlx5_0","state":"Down","physical_state":"","rate":0}]`,
+		},
 	}
 	_ = mockBucket.Insert(context.Background(), existingEvent)
 	assert.Equal(t, 1, len(mockBucket.events), "Event should be pre-inserted")
@@ -1890,7 +1918,7 @@ func TestCheckEventBucketEventExists(t *testing.T) {
 		getIbstatOutputFunc: func(ctx context.Context, ibstatCommands []string) (*infiniband.IbstatOutput, error) {
 			return &infiniband.IbstatOutput{
 				Parsed: infiniband.IBStatCards{
-					{Device: "mlx5_0", Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "LinkDown", Rate: 50}},
+					{Device: "mlx5_0", Port1: infiniband.IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 50}},
 				},
 			}, nil
 		},
@@ -1946,9 +1974,24 @@ func TestCheckHealthyResult(t *testing.T) {
 	assert.NoError(t, data.err)
 	assert.NoError(t, data.errIbstatus)
 
-	// Verify no event was inserted
+	// Verify an Info event was inserted for healthy state
 	events := mockBucket.GetAPIEvents()
-	assert.Empty(t, events, "No event should have been inserted for healthy state")
+	assert.Equal(t, 1, len(events), "One Info event should have been inserted for healthy state")
+	assert.Equal(t, "ibstat", events[0].Name)
+	assert.Equal(t, apiv1.EventTypeInfo, events[0].Type)
+	assert.Equal(t, reasonNoIbIssueFoundFromIbstat, events[0].Message)
+
+	// Verify all ports are stored in the event
+	// Get the raw event from the bucket to access ExtraInfo
+	rawEvents, err := mockBucket.Get(context.Background(), time.Now().Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(rawEvents), "Should have one raw event")
+
+	var ports []infiniband.IBPort
+	err = json.Unmarshal([]byte(rawEvents[0].ExtraInfo["all_ibports"]), &ports)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(ports), "All ports should be stored in the event")
+	assert.Equal(t, "mlx5_0", ports[0].Device)
 }
 
 // Test Check when ibstat returns nil output but ibstatus returns unhealthy
@@ -1990,7 +2033,7 @@ func TestCheckFallbackToIbstatusUnhealthy(t *testing.T) {
 	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	// Update expected reason to include the device state details from ibstatus evaluation
-	unhealthyReason := "only 0 ports (>= 200 Gb/s) are active, expect at least 1; 1 device(s) found Polling (mlx5_0)"
+	unhealthyReason := "only 0 port(s) are active and >=200 Gb/s, expect >=1 port(s); 1 device(s) found Polling (mlx5_0)"
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Equal(t, unhealthyReason, data.reason)
 	assert.NoError(t, data.err)         // ibstat func itself didn't error
@@ -2047,16 +2090,32 @@ func TestCheckFallbackToIbstatusHealthy(t *testing.T) {
 	data, ok := result.(*checkResult)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
-	assert.Equal(t, reasonNoIbIssueFoundFromIbstatus, data.reason)
-	assert.Error(t, data.err, "Expected ibstat error to remain")
+	assert.Equal(t, reasonNoIbIssueFoundFromIbstat, data.reason)
+	assert.Nil(t, data.err, "ibstat error should be cleared when healthy from fallback")
 	assert.NoError(t, data.errIbstatus) // ibstatus func didn't error
 
 	// Verify suggested actions are nil for healthy state
 	assert.Nil(t, data.suggestedActions, "Expected no suggested actions for healthy state")
 
-	// Verify no event was inserted for healthy state
+	// Verify an Info event was inserted for healthy state
 	events := mockBucket.GetAPIEvents()
-	assert.Empty(t, events, "No event should have been inserted for healthy state")
+	assert.Equal(t, 1, len(events), "One Info event should have been inserted for healthy state")
+	assert.Equal(t, "ibstat", events[0].Name)
+	assert.Equal(t, apiv1.EventTypeInfo, events[0].Type)
+	assert.Equal(t, reasonNoIbIssueFoundFromIbstat, events[0].Message)
+
+	// Verify all ports from ibstatus are stored in the event
+	rawEvents, err := mockBucket.Get(context.Background(), time.Now().Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(rawEvents), "Should have one raw event")
+
+	var ports []infiniband.IBPort
+	err = json.Unmarshal([]byte(rawEvents[0].ExtraInfo["all_ibports"]), &ports)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(ports), "All ports from ibstatus should be stored in the event")
+	deviceNames := []string{ports[0].Device, ports[1].Device}
+	assert.Contains(t, deviceNames, "mlx5_0")
+	assert.Contains(t, deviceNames, "mlx5_1")
 }
 
 // Test Check when NVML does not exist
@@ -2284,4 +2343,1346 @@ func TestCheckWithPartialIbstatOutput(t *testing.T) {
 	assert.Nil(t, result.err, "Error should be nil as partial data meets thresholds")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.health)
 	assert.Equal(t, reasonNoIbIssueFoundFromIbstat, result.reason)
+}
+
+// TestEvaluateIbSwitchFault tests the evaluateIbSwitchFault function
+func TestEvaluateIbSwitchFault(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                        string
+		cr                          *checkResult
+		expectedReasonIbSwitchFault string
+	}{
+		{
+			name:                        "nil check result",
+			cr:                          nil,
+			expectedReasonIbSwitchFault: "",
+		},
+		{
+			name: "healthy state",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeHealthy,
+			},
+			expectedReasonIbSwitchFault: "",
+		},
+		{
+			name: "unhealthy but no unhealthy ports",
+			cr: &checkResult{
+				health:           apiv1.HealthStateTypeUnhealthy,
+				unhealthyIBPorts: []infiniband.IBPort{},
+			},
+			expectedReasonIbSwitchFault: "",
+		},
+		{
+			name: "unhealthy with some ports down but not all",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+				unhealthyIBPorts: []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+				},
+				IbstatOutput: &infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{Device: "mlx5_0", Port1: infiniband.IBStatPort{State: "Down"}},
+						{Device: "mlx5_1", Port1: infiniband.IBStatPort{State: "Active"}},
+					},
+				},
+			},
+			expectedReasonIbSwitchFault: "",
+		},
+		{
+			name: "unhealthy with all ports down",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+				unhealthyIBPorts: []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+					{Device: "mlx5_1", State: "Down"},
+				},
+				IbstatOutput: &infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{Device: "mlx5_0", Port1: infiniband.IBStatPort{State: "Down"}},
+						{Device: "mlx5_1", Port1: infiniband.IBStatPort{State: "Down"}},
+					},
+				},
+			},
+			expectedReasonIbSwitchFault: "ib switch fault, all ports down",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &component{}
+			c.evaluateIbSwitchFault(tt.cr)
+			if tt.cr != nil {
+				assert.Equal(t, tt.expectedReasonIbSwitchFault, tt.cr.reasonIbSwitchFault)
+			}
+		})
+	}
+}
+
+// TestEvaluateIbPortDrop tests the evaluateIbPortDrop function
+func TestEvaluateIbPortDrop(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                     string
+		cr                       *checkResult
+		setupEventBucket         func() *mockEventBucket
+		expectedReasonIbPortDrop string
+	}{
+		{
+			name:                     "nil check result",
+			cr:                       nil,
+			expectedReasonIbPortDrop: "",
+		},
+		{
+			name: "healthy state",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeHealthy,
+				ts:     time.Now().UTC(),
+			},
+			expectedReasonIbPortDrop: "",
+		},
+		{
+			name: "zero timestamp",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+				ts:     time.Time{},
+			},
+			expectedReasonIbPortDrop: "",
+		},
+		{
+			name: "no event bucket",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+				ts:     time.Now().UTC(),
+			},
+			setupEventBucket:         nil, // no event bucket
+			expectedReasonIbPortDrop: "",
+		},
+		{
+			name: "no events in last 10 minutes",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+				ts:     time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				return createMockEventBucket()
+			},
+			expectedReasonIbPortDrop: "",
+		},
+		{
+			name: "only current event exists",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+				ts:     time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				bucket := createMockEventBucket()
+				now := time.Now().UTC()
+				allPorts := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+				}
+				ports, _ := json.Marshal(allPorts)
+				event := eventstore.Event{
+					Time:    now.Add(-10 * time.Second), // Make it slightly in the past
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports),
+					},
+				}
+				_ = bucket.Insert(context.Background(), event)
+				return bucket
+			},
+			expectedReasonIbPortDrop: "", // Still empty because < 4 minutes
+		},
+		{
+			name: "events exist but elapsed time < 4 minutes",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+				ts:     time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				bucket := createMockEventBucket()
+				now := time.Now().UTC()
+				allPorts := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+				}
+				ports, _ := json.Marshal(allPorts)
+				// Add multiple events to avoid the single event check
+				event1 := eventstore.Event{
+					Time:    now.Add(-3 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports),
+					},
+				}
+				event2 := eventstore.Event{
+					Time:    now.Add(-2 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports),
+					},
+				}
+				_ = bucket.Insert(context.Background(), event1)
+				_ = bucket.Insert(context.Background(), event2)
+				return bucket
+			},
+			expectedReasonIbPortDrop: "",
+		},
+		{
+			name: "events exist and elapsed time >= 4 minutes",
+			cr: &checkResult{
+				health: apiv1.HealthStateTypeUnhealthy,
+				ts:     time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				bucket := createMockEventBucket()
+				now := time.Now().UTC()
+
+				// First event: both ports go down (>4 minutes ago)
+				allPorts1 := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+					{Device: "mlx5_1", State: "Down"},
+				}
+				ports1, _ := json.Marshal(allPorts1)
+				event1 := eventstore.Event{
+					Time:    now.Add(-5 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports1),
+					},
+				}
+
+				// Second event: both ports still down
+				allPorts2 := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+					{Device: "mlx5_1", State: "Down"},
+				}
+				ports2, _ := json.Marshal(allPorts2)
+				event2 := eventstore.Event{
+					Time:    now.Add(-1 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports2),
+					},
+				}
+				_ = bucket.Insert(context.Background(), event1)
+				_ = bucket.Insert(context.Background(), event2)
+				return bucket
+			},
+			expectedReasonIbPortDrop: "ib port drop", // Will contain port drop messages
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &component{
+				ctx: context.Background(),
+			}
+			if tt.setupEventBucket != nil {
+				c.eventBucket = tt.setupEventBucket()
+			}
+
+			c.evaluateIbPortDrop(tt.cr)
+			if tt.cr != nil {
+				if tt.expectedReasonIbPortDrop == "" {
+					assert.Equal(t, "", tt.cr.reasonIbPortDrop)
+				} else {
+					assert.Contains(t, tt.cr.reasonIbPortDrop, tt.expectedReasonIbPortDrop)
+					// For the port drop case, verify it contains specific port info
+					if tt.name == "events exist and elapsed time >= 4 minutes" {
+						assert.Contains(t, tt.cr.reasonIbPortDrop, "mlx5_0 dropped")
+						assert.Contains(t, tt.cr.reasonIbPortDrop, "mlx5_1 dropped")
+						assert.Contains(t, tt.cr.reasonIbPortDrop, "ago")
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestEvaluateIbPortFlap tests the evaluateIbPortFlap function
+func TestEvaluateIbPortFlap(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                     string
+		cr                       *checkResult
+		setupEventBucket         func() *mockEventBucket
+		expectedReasonIbPortFlap string
+	}{
+		{
+			name:                     "nil check result",
+			cr:                       nil,
+			expectedReasonIbPortFlap: "",
+		},
+		{
+			name: "zero timestamp",
+			cr: &checkResult{
+				ts: time.Time{},
+			},
+			expectedReasonIbPortFlap: "",
+		},
+		{
+			name: "no event bucket",
+			cr: &checkResult{
+				ts: time.Now().UTC(),
+			},
+			setupEventBucket:         nil, // no event bucket
+			expectedReasonIbPortFlap: "",
+		},
+		{
+			name: "no events",
+			cr: &checkResult{
+				ts: time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				return createMockEventBucket()
+			},
+			expectedReasonIbPortFlap: "",
+		},
+		{
+			name: "only one event",
+			cr: &checkResult{
+				ts: time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				bucket := createMockEventBucket()
+				allPorts := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+				}
+				ports, _ := json.Marshal(allPorts)
+				event := eventstore.Event{
+					Time:    time.Now().UTC().Add(-2 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports),
+					},
+				}
+				_ = bucket.Insert(context.Background(), event)
+				return bucket
+			},
+			expectedReasonIbPortFlap: "",
+		},
+		{
+			name: "events exist but no state changes",
+			cr: &checkResult{
+				ts: time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				bucket := createMockEventBucket()
+				now := time.Now().UTC()
+				// Both events have same state
+				allPorts := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+				}
+				ports, _ := json.Marshal(allPorts)
+				event1 := eventstore.Event{
+					Time:    now.Add(-3 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports),
+					},
+				}
+				event2 := eventstore.Event{
+					Time:    now.Add(-1 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports),
+					},
+				}
+				_ = bucket.Insert(context.Background(), event1)
+				_ = bucket.Insert(context.Background(), event2)
+				return bucket
+			},
+			expectedReasonIbPortFlap: "", // No flapping when state doesn't change
+		},
+		{
+			name: "events with state changes within 4 minutes",
+			cr: &checkResult{
+				ts: time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				bucket := createMockEventBucket()
+				now := time.Now().UTC()
+				// State changes from Down to Active
+				allPorts1 := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+				}
+				ports1, _ := json.Marshal(allPorts1)
+				event1 := eventstore.Event{
+					Time:    now.Add(-3 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports1),
+					},
+				}
+				allPorts2 := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Active"},
+				}
+				ports2, _ := json.Marshal(allPorts2)
+				event2 := eventstore.Event{
+					Time:    now.Add(-1 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeInfo), // Info because all ports are Active
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports2),
+					},
+				}
+				_ = bucket.Insert(context.Background(), event1)
+				_ = bucket.Insert(context.Background(), event2)
+				return bucket
+			},
+			expectedReasonIbPortFlap: "mlx5_0 Down -> Active",
+		},
+		{
+			name: "more than 4 state transitions - keeps only last 4",
+			cr: &checkResult{
+				ts: time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				bucket := createMockEventBucket()
+				now := time.Now().UTC()
+
+				// Create 6 events to generate more than 4 state transitions
+				states := []string{"Active", "Down", "Active", "Down", "Active", "Down"}
+				eventTypes := []apiv1.EventType{
+					apiv1.EventTypeInfo,    // Active
+					apiv1.EventTypeWarning, // Down
+					apiv1.EventTypeInfo,    // Active
+					apiv1.EventTypeWarning, // Down
+					apiv1.EventTypeInfo,    // Active
+					apiv1.EventTypeWarning, // Down
+				}
+
+				for i, state := range states {
+					allPorts := []infiniband.IBPort{
+						{Device: "mlx5_0", State: state},
+					}
+					ports, _ := json.Marshal(allPorts)
+					event := eventstore.Event{
+						Time:    now.Add(time.Duration(-360+i*60) * time.Second), // Events 60 seconds apart, within 4 minutes
+						Name:    "ibstat",
+						Type:    string(eventTypes[i]),
+						Message: "test",
+						ExtraInfo: map[string]string{
+							"all_ibports": string(ports),
+						},
+					}
+					_ = bucket.Insert(context.Background(), event)
+				}
+				return bucket
+			},
+			// Should keep only the last 4 transitions: Active -> Down -> Active -> Down
+			expectedReasonIbPortFlap: "mlx5_0 Active -> Down -> Active -> Down",
+		},
+		{
+			name: "multiple devices with more than 4 transitions each",
+			cr: &checkResult{
+				ts: time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				bucket := createMockEventBucket()
+				now := time.Now().UTC()
+
+				// Create events for two devices with different flapping patterns
+				// mlx5_0: 5 transitions
+				// mlx5_1: 6 transitions
+				events := []struct {
+					time  time.Time
+					ports []infiniband.IBPort
+					etype apiv1.EventType
+				}{
+					{
+						time: now.Add(-3*time.Minute + 30*time.Second),
+						ports: []infiniband.IBPort{
+							{Device: "mlx5_0", State: "Active"},
+							{Device: "mlx5_1", State: "Down"},
+						},
+						etype: apiv1.EventTypeWarning, // mlx5_1 is down
+					},
+					{
+						time: now.Add(-3 * time.Minute),
+						ports: []infiniband.IBPort{
+							{Device: "mlx5_0", State: "Down"},
+							{Device: "mlx5_1", State: "Active"},
+						},
+						etype: apiv1.EventTypeWarning, // mlx5_0 is down
+					},
+					{
+						time: now.Add(-2*time.Minute + 30*time.Second),
+						ports: []infiniband.IBPort{
+							{Device: "mlx5_0", State: "Active"},
+							{Device: "mlx5_1", State: "Down"},
+						},
+						etype: apiv1.EventTypeWarning, // mlx5_1 is down
+					},
+					{
+						time: now.Add(-2 * time.Minute),
+						ports: []infiniband.IBPort{
+							{Device: "mlx5_0", State: "Down"},
+							{Device: "mlx5_1", State: "Active"},
+						},
+						etype: apiv1.EventTypeWarning, // mlx5_0 is down
+					},
+					{
+						time: now.Add(-1*time.Minute + 30*time.Second),
+						ports: []infiniband.IBPort{
+							{Device: "mlx5_0", State: "Active"},
+							{Device: "mlx5_1", State: "Down"},
+						},
+						etype: apiv1.EventTypeWarning, // mlx5_1 is down
+					},
+					{
+						time: now.Add(-1 * time.Minute),
+						ports: []infiniband.IBPort{
+							{Device: "mlx5_0", State: "Active"}, // mlx5_0 stays Active
+							{Device: "mlx5_1", State: "Active"},
+						},
+						etype: apiv1.EventTypeInfo, // all active
+					},
+				}
+
+				for _, ev := range events {
+					ports, _ := json.Marshal(ev.ports)
+					event := eventstore.Event{
+						Time:    ev.time,
+						Name:    "ibstat",
+						Type:    string(ev.etype),
+						Message: "test",
+						ExtraInfo: map[string]string{
+							"all_ibports": string(ports),
+						},
+					}
+					_ = bucket.Insert(context.Background(), event)
+				}
+				return bucket
+			},
+			// mlx5_0: states are [Active, Down, Active, Down, Active] (5 states), keeps last 4: Down -> Active -> Down -> Active
+			// mlx5_1: states are [Down, Active, Down, Active, Down, Active] (6 states), keeps last 4: Down -> Active -> Down -> Active
+			expectedReasonIbPortFlap: "mlx5_0 Down -> Active -> Down -> Active, mlx5_1 Down -> Active -> Down -> Active",
+		},
+		{
+			name: "events with state changes but older than 4 minutes",
+			cr: &checkResult{
+				ts: time.Now().UTC(),
+			},
+			setupEventBucket: func() *mockEventBucket {
+				bucket := createMockEventBucket()
+				now := time.Now().UTC()
+				// State changes but too old
+				allPorts1 := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down"},
+				}
+				ports1, _ := json.Marshal(allPorts1)
+				event1 := eventstore.Event{
+					Time:    now.Add(-6 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports1),
+					},
+				}
+				allPorts2 := []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Active"},
+				}
+				ports2, _ := json.Marshal(allPorts2)
+				event2 := eventstore.Event{
+					Time:    now.Add(-5 * time.Minute),
+					Name:    "ibstat",
+					Type:    string(apiv1.EventTypeInfo),
+					Message: "test",
+					ExtraInfo: map[string]string{
+						"all_ibports": string(ports2),
+					},
+				}
+				_ = bucket.Insert(context.Background(), event1)
+				_ = bucket.Insert(context.Background(), event2)
+				return bucket
+			},
+			expectedReasonIbPortFlap: "", // No flapping because events are too old (> 4 minutes)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &component{
+				ctx: context.Background(),
+			}
+			if tt.setupEventBucket != nil {
+				c.eventBucket = tt.setupEventBucket()
+			}
+
+			c.evaluateIbPortFlap(tt.cr)
+			if tt.cr != nil {
+				if tt.expectedReasonIbPortFlap == "" {
+					assert.Equal(t, "", tt.cr.reasonIbPortFlap)
+				} else {
+					// Check that the reason contains "ib port flap" prefix and the expected transitions
+					assert.Contains(t, tt.cr.reasonIbPortFlap, "ib port flap")
+					assert.Contains(t, tt.cr.reasonIbPortFlap, tt.expectedReasonIbPortFlap)
+				}
+			}
+		})
+	}
+}
+
+// TestEvaluateIbPortDropWithReadError tests evaluateIbPortDrop when readIbstatEvents returns an error
+func TestEvaluateIbPortDropWithReadError(t *testing.T) {
+	t.Parallel()
+
+	mockBucket := createMockEventBucket()
+	// Force Get to return an error
+	mockBucket.mu.Lock()
+	mockBucket.events = nil // This will cause our mock to simulate an error scenario
+	mockBucket.mu.Unlock()
+
+	c := &component{
+		ctx: context.Background(),
+		eventBucket: &mockEventBucketWithError{
+			mockEventBucket: mockBucket,
+			getErr:          errors.New("read error"),
+		},
+	}
+
+	cr := &checkResult{
+		health: apiv1.HealthStateTypeUnhealthy,
+		ts:     time.Now().UTC(),
+	}
+
+	// Should handle error gracefully
+	c.evaluateIbPortDrop(cr)
+	assert.Equal(t, "", cr.reasonIbPortDrop)
+}
+
+// TestEvaluateIbPortFlapWithReadError tests evaluateIbPortFlap when readIbstatEvents returns an error
+func TestEvaluateIbPortFlapWithReadError(t *testing.T) {
+	t.Parallel()
+
+	c := &component{
+		ctx: context.Background(),
+		eventBucket: &mockEventBucketWithError{
+			mockEventBucket: createMockEventBucket(),
+			getErr:          errors.New("read error"),
+		},
+	}
+
+	cr := &checkResult{
+		ts: time.Now().UTC(),
+	}
+
+	// Should handle error gracefully
+	c.evaluateIbPortFlap(cr)
+	assert.Equal(t, "", cr.reasonIbPortFlap)
+}
+
+// mockEventBucketWithError is a wrapper around mockEventBucket that can return errors
+type mockEventBucketWithError struct {
+	*mockEventBucket
+	getErr error
+}
+
+func (m *mockEventBucketWithError) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+	return m.mockEventBucket.Get(ctx, since)
+}
+
+// TestCheckResultSummaryWithAllReasons tests Summary() with all reason fields populated
+func TestCheckResultSummaryWithAllReasons(t *testing.T) {
+	t.Parallel()
+
+	cr := &checkResult{
+		reason:              "base reason",
+		reasonIbSwitchFault: "switch fault reason",
+		reasonIbPortDrop:    "port drop reason",
+		reasonIbPortFlap:    "port flap reason",
+	}
+
+	summary := cr.Summary()
+	assert.Equal(t, "base reason; switch fault reason; port drop reason; port flap reason", summary)
+}
+
+// TestParseIBPortsFromEvent tests the parseIBPortsFromEvent function
+func TestParseIBPortsFromEvent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		event    eventstore.Event
+		expected []infiniband.IBPort
+	}{
+		{
+			name: "valid ibstat event",
+			event: eventstore.Event{
+				Name: "ibstat",
+				ExtraInfo: map[string]string{
+					"all_ibports": `[{"device":"mlx5_0","state":"Down","physical_state":"LinkDown","rate":100}]`,
+				},
+			},
+			expected: []infiniband.IBPort{
+				{Device: "mlx5_0", State: "Down", PhysicalState: "LinkDown", Rate: 100},
+			},
+		},
+		{
+			name: "non-ibstat event",
+			event: eventstore.Event{
+				Name: "other",
+				ExtraInfo: map[string]string{
+					"all_ibports": `[{"device":"mlx5_0","state":"Down"}]`,
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "empty ib_ports",
+			event: eventstore.Event{
+				Name: "ibstat",
+				ExtraInfo: map[string]string{
+					"all_ibports": "",
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "invalid json",
+			event: eventstore.Event{
+				Name: "ibstat",
+				ExtraInfo: map[string]string{
+					"all_ibports": "invalid json",
+				},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseIBPortsFromEvent(tt.event)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestConvertToIbstatEvent tests the convertToIbstatEvent function
+func TestConvertToIbstatEvent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		cr            *checkResult
+		expectedNil   bool
+		expectedType  string
+		expectedPorts int // number of ports expected in ib_ports
+	}{
+		{
+			name:        "nil check result",
+			cr:          nil,
+			expectedNil: true,
+		},
+		{
+			name: "healthy state with all ports",
+			cr: &checkResult{
+				ts:     time.Now().UTC(),
+				reason: "test reason",
+				allIBPorts: []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", Rate: 200},
+				},
+				unhealthyIBPorts: []infiniband.IBPort{}, // no unhealthy ports
+			},
+			expectedNil:   false,
+			expectedType:  string(apiv1.EventTypeInfo), // Info type when no unhealthy ports
+			expectedPorts: 2,                           // ALL ports are stored
+		},
+		{
+			name: "unhealthy state with all ports",
+			cr: &checkResult{
+				ts:     time.Now().UTC(),
+				reason: "test reason",
+				allIBPorts: []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down", PhysicalState: "LinkDown", Rate: 100},
+					{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", Rate: 200},
+				},
+				unhealthyIBPorts: []infiniband.IBPort{
+					{Device: "mlx5_0", State: "Down", PhysicalState: "LinkDown", Rate: 100},
+				},
+			},
+			expectedNil:   false,
+			expectedType:  string(apiv1.EventTypeWarning), // Warning type when unhealthy ports exist
+			expectedPorts: 2,                              // ALL ports are stored, not just unhealthy
+		},
+		{
+			name: "no ports at all",
+			cr: &checkResult{
+				ts:               time.Now().UTC(),
+				reason:           "test reason",
+				allIBPorts:       []infiniband.IBPort{},
+				unhealthyIBPorts: []infiniband.IBPort{},
+			},
+			expectedNil:   false,
+			expectedType:  string(apiv1.EventTypeInfo), // Info type when no unhealthy ports
+			expectedPorts: 0,                           // empty JSON object
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := tt.cr.convertToIbstatEvent()
+			if tt.expectedNil {
+				assert.Nil(t, event)
+			} else {
+				assert.NotNil(t, event)
+				assert.Equal(t, "ibstat", event.Name)
+				assert.Equal(t, tt.expectedType, event.Type)
+				assert.Equal(t, tt.cr.reason, event.Message)
+
+				// Parse ib_ports to verify all ports are stored
+				var ports []infiniband.IBPort
+				err := json.Unmarshal([]byte(event.ExtraInfo["all_ibports"]), &ports)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedPorts, len(ports))
+
+				// Verify specific ports if expected
+				if tt.expectedPorts > 0 {
+					for i, expectedPort := range tt.cr.allIBPorts {
+						// Note: stored ports have PhysicalState and Rate zeroed out
+						assert.Equal(t, expectedPort.Device, ports[i].Device)
+						assert.Equal(t, expectedPort.State, ports[i].State)
+						assert.Equal(t, "", ports[i].PhysicalState) // Should be empty
+						assert.Equal(t, 0, ports[i].Rate)           // Should be 0
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestIsSupported tests the IsSupported method
+func TestIsSupported(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		nvmlInstance nvidianvml.Instance
+		expected     bool
+	}{
+		{
+			name:         "nil nvml instance",
+			nvmlInstance: nil,
+			expected:     false,
+		},
+		{
+			name:         "nvml does not exist",
+			nvmlInstance: &mockNVMLInstance{exists: false},
+			expected:     false,
+		},
+		{
+			name:         "nvml exists but no product name",
+			nvmlInstance: &mockNVMLInstance{exists: true, productName: ""},
+			expected:     false,
+		},
+		{
+			name:         "nvml exists with product name",
+			nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+			expected:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &component{
+				nvmlInstance: tt.nvmlInstance,
+			}
+			assert.Equal(t, tt.expected, c.IsSupported())
+		})
+	}
+}
+
+// TestComponentName tests the ComponentName method
+func TestComponentName(t *testing.T) {
+	t.Parallel()
+
+	cr := &checkResult{}
+	assert.Equal(t, Name, cr.ComponentName())
+}
+
+// TestEvaluateIBPortsAgainstThresholds tests the evaluateIBPortsAgainstThresholds function with various scenarios
+func TestEvaluateIBPortsAgainstThresholds(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                     string
+		cr                       *checkResult
+		thresholds               infiniband.ExpectedPortStates
+		expectedHealth           apiv1.HealthStateType
+		expectedReason           string
+		expectedErr              error
+		expectedErrIbstatus      error
+		expectedSuggestedActions *apiv1.SuggestedActions
+		setupAllIBPorts          func(cr *checkResult)
+	}{
+		{
+			name: "zero thresholds",
+			cr:   &checkResult{},
+			thresholds: infiniband.ExpectedPortStates{
+				AtLeastPorts: 0,
+				AtLeastRate:  0,
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: reasonThresholdNotSetSkipped,
+		},
+		{
+			name: "ibstat output healthy",
+			cr: &checkResult{
+				IbstatOutput: &infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{
+							Device: "mlx5_0",
+							Port1: infiniband.IBStatPort{
+								State:         "Active",
+								PhysicalState: "LinkUp",
+								Rate:          200,
+							},
+						},
+					},
+				},
+			},
+			setupAllIBPorts: func(cr *checkResult) {
+				cr.allIBPorts = cr.IbstatOutput.Parsed.IBPorts()
+			},
+			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: reasonNoIbIssueFoundFromIbstat,
+		},
+		{
+			name: "ibstat output unhealthy",
+			cr: &checkResult{
+				IbstatOutput: &infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{
+							Device: "mlx5_0",
+							Port1: infiniband.IBStatPort{
+								State:         "Down",
+								PhysicalState: "Disabled",
+								Rate:          200,
+							},
+						},
+					},
+				},
+			},
+			setupAllIBPorts: func(cr *checkResult) {
+				cr.allIBPorts = cr.IbstatOutput.Parsed.IBPorts()
+			},
+			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "only 0 port(s) are active and >=100 Gb/s, expect >=1 port(s); 1 device(s) found Disabled (mlx5_0)",
+			expectedSuggestedActions: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
+		},
+		{
+			name: "ibstat partial output with error but healthy result",
+			cr: &checkResult{
+				IbstatOutput: &infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{
+							Device: "mlx5_0",
+							Port1: infiniband.IBStatPort{
+								State:         "Active",
+								PhysicalState: "LinkUp",
+								Rate:          200,
+							},
+						},
+					},
+				},
+				err:         errors.New("partial ibstat error"),
+				errIbstatus: errors.New("ibstatus error"),
+			},
+			setupAllIBPorts: func(cr *checkResult) {
+				cr.allIBPorts = cr.IbstatOutput.Parsed.IBPorts()
+			},
+			thresholds:          infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      reasonNoIbIssueFoundFromIbstat,
+			expectedErr:         nil, // Should be cleared
+			expectedErrIbstatus: nil, // Should be cleared
+		},
+		{
+			name: "ibstat output with error and unhealthy result",
+			cr: &checkResult{
+				IbstatOutput: &infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{
+							Device: "mlx5_0",
+							Port1: infiniband.IBStatPort{
+								State:         "Down",
+								PhysicalState: "Disabled",
+								Rate:          200,
+							},
+						},
+					},
+				},
+				err: errors.New("ibstat error"),
+			},
+			setupAllIBPorts: func(cr *checkResult) {
+				cr.allIBPorts = cr.IbstatOutput.Parsed.IBPorts()
+			},
+			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "only 0 port(s) are active and >=100 Gb/s, expect >=1 port(s); 1 device(s) found Disabled (mlx5_0)",
+			expectedErr:    errors.New("ibstat error"), // Should be preserved
+			expectedSuggestedActions: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
+		},
+		{
+			name: "fallback to ibstatus output",
+			cr: &checkResult{
+				IbstatusOutput: &infiniband.IbstatusOutput{
+					Parsed: infiniband.IBStatuses{
+						{
+							Device:        "mlx5_0",
+							State:         "4: ACTIVE",
+							PhysicalState: "5: LinkUp",
+							Rate:          "200 Gb/sec",
+							LinkLayer:     "InfiniBand",
+						},
+					},
+				},
+			},
+			setupAllIBPorts: func(cr *checkResult) {
+				cr.allIBPorts = cr.IbstatusOutput.Parsed.IBPorts()
+			},
+			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: reasonNoIbIssueFoundFromIbstat,
+		},
+		{
+			name: "fallback to ibstatus output unhealthy",
+			cr: &checkResult{
+				IbstatusOutput: &infiniband.IbstatusOutput{
+					Parsed: infiniband.IBStatuses{
+						{
+							Device:        "mlx5_0",
+							State:         "1: DOWN",
+							PhysicalState: "3: Disabled",
+							Rate:          "200 Gb/sec",
+							LinkLayer:     "InfiniBand",
+						},
+					},
+				},
+			},
+			setupAllIBPorts: func(cr *checkResult) {
+				cr.allIBPorts = cr.IbstatusOutput.Parsed.IBPorts()
+			},
+			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "only 0 port(s) are active and >=100 Gb/s, expect >=1 port(s); 1 device(s) found Disabled (mlx5_0)",
+			expectedSuggestedActions: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
+		},
+		{
+			name:           "neither ibstat nor ibstatus output",
+			cr:             &checkResult{},
+			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: reasonMissingIbstatIbstatusOutput,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a copy to avoid mutating the test case
+			if tt.cr != nil {
+				crCopy := *tt.cr
+				if tt.setupAllIBPorts != nil {
+					tt.setupAllIBPorts(&crCopy)
+				}
+				evaluateThresholds(&crCopy, tt.thresholds)
+
+				// Assert results
+				assert.Equal(t, tt.expectedHealth, crCopy.health)
+				assert.Equal(t, tt.expectedReason, crCopy.reason)
+
+				if tt.expectedErr != nil {
+					assert.Equal(t, tt.expectedErr.Error(), crCopy.err.Error())
+				} else {
+					assert.Nil(t, crCopy.err)
+				}
+				if tt.expectedErrIbstatus != nil {
+					assert.Equal(t, tt.expectedErrIbstatus.Error(), crCopy.errIbstatus.Error())
+				} else {
+					assert.Nil(t, crCopy.errIbstatus)
+				}
+				if tt.expectedSuggestedActions != nil {
+					assert.Equal(t, tt.expectedSuggestedActions, crCopy.suggestedActions)
+				}
+			}
+		})
+	}
+}
+
+// TestEvaluateIBPortsAgainstThresholdsWithComplexScenarios tests more complex scenarios for evaluateIBPortsAgainstThresholds
+func TestEvaluateIBPortsAgainstThresholdsWithComplexScenarios(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                     string
+		cr                       *checkResult
+		thresholds               infiniband.ExpectedPortStates
+		expectedHealthState      apiv1.HealthStateType
+		expectedUnhealthyPorts   []infiniband.IBPort
+		expectedReason           string
+		expectedSuggestedActions *apiv1.SuggestedActions
+		setupAllIBPorts          func(cr *checkResult)
+	}{
+		{
+			name: "multiple ports with mixed states",
+			cr: &checkResult{
+				IbstatOutput: &infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{
+							Device: "mlx5_0",
+							Port1: infiniband.IBStatPort{
+								State:         "Active",
+								PhysicalState: "LinkUp",
+								Rate:          400,
+							},
+						},
+						{
+							Device: "mlx5_1",
+							Port1: infiniband.IBStatPort{
+								State:         "Down",
+								PhysicalState: "Disabled",
+								Rate:          400,
+							},
+						},
+						{
+							Device: "mlx5_2",
+							Port1: infiniband.IBStatPort{
+								State:         "Polling",
+								PhysicalState: "Polling",
+								Rate:          400,
+							},
+						},
+						{
+							Device: "mlx5_3",
+							Port1: infiniband.IBStatPort{
+								State:         "Active",
+								PhysicalState: "LinkUp",
+								Rate:          100, // Lower rate
+							},
+						},
+					},
+				},
+			},
+			setupAllIBPorts: func(cr *checkResult) {
+				cr.allIBPorts = cr.IbstatOutput.Parsed.IBPorts()
+			},
+			thresholds:          infiniband.ExpectedPortStates{AtLeastPorts: 3, AtLeastRate: 400},
+			expectedHealthState: apiv1.HealthStateTypeUnhealthy,
+			expectedReason:      "only 1 port(s) are active and >=400 Gb/s, expect >=3 port(s); 1 device(s) found Disabled (mlx5_1); 1 device(s) found Polling (mlx5_2)",
+			expectedUnhealthyPorts: []infiniband.IBPort{
+				{Device: "mlx5_1", State: "Down", PhysicalState: "Disabled", Rate: 400},
+				{Device: "mlx5_2", State: "Polling", PhysicalState: "Polling", Rate: 400},
+			},
+			expectedSuggestedActions: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
+		},
+		{
+			name: "all ports inactive but meets threshold",
+			cr: &checkResult{
+				IbstatOutput: &infiniband.IbstatOutput{
+					Parsed: infiniband.IBStatCards{
+						{
+							Device: "mlx5_0",
+							Port1: infiniband.IBStatPort{
+								State:         "Inactive",
+								PhysicalState: "LinkUp",
+								Rate:          400,
+							},
+						},
+						{
+							Device: "mlx5_1",
+							Port1: infiniband.IBStatPort{
+								State:         "Inactive",
+								PhysicalState: "LinkUp",
+								Rate:          400,
+							},
+						},
+					},
+				},
+			},
+			setupAllIBPorts: func(cr *checkResult) {
+				cr.allIBPorts = cr.IbstatOutput.Parsed.IBPorts()
+			},
+			thresholds:          infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400},
+			expectedHealthState: apiv1.HealthStateTypeHealthy,
+			expectedReason:      reasonNoIbIssueFoundFromIbstat,
+		},
+		{
+			name: "ibstatus output with various states",
+			cr: &checkResult{
+				IbstatusOutput: &infiniband.IbstatusOutput{
+					Parsed: infiniband.IBStatuses{
+						{
+							Device:        "mlx5_0",
+							State:         "4: ACTIVE",
+							PhysicalState: "5: LinkUp",
+							Rate:          "400 Gb/sec",
+							LinkLayer:     "InfiniBand",
+						},
+						{
+							Device:        "mlx5_1",
+							State:         "2: INIT",
+							PhysicalState: "4: PortConfigurationTraining",
+							Rate:          "400 Gb/sec",
+							LinkLayer:     "InfiniBand",
+						},
+						{
+							Device:        "mlx5_2",
+							State:         "1: DOWN",
+							PhysicalState: "1: Sleep",
+							Rate:          "400 Gb/sec",
+							LinkLayer:     "InfiniBand",
+						},
+					},
+				},
+			},
+			setupAllIBPorts: func(cr *checkResult) {
+				cr.allIBPorts = cr.IbstatusOutput.Parsed.IBPorts()
+			},
+			thresholds:          infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400},
+			expectedHealthState: apiv1.HealthStateTypeUnhealthy,
+			expectedReason:      "only 1 port(s) are active and >=400 Gb/s, expect >=2 port(s)",
+			expectedSuggestedActions: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupAllIBPorts != nil {
+				tt.setupAllIBPorts(tt.cr)
+			}
+			evaluateThresholds(tt.cr, tt.thresholds)
+
+			assert.Equal(t, tt.expectedHealthState, tt.cr.health)
+			assert.Equal(t, tt.expectedReason, tt.cr.reason)
+
+			if tt.expectedUnhealthyPorts != nil {
+				assert.Len(t, tt.cr.unhealthyIBPorts, len(tt.expectedUnhealthyPorts))
+				// Compare unhealthy ports (order may vary)
+				for _, expectedPort := range tt.expectedUnhealthyPorts {
+					found := false
+					for _, actualPort := range tt.cr.unhealthyIBPorts {
+						if actualPort.Device == expectedPort.Device {
+							found = true
+							assert.Equal(t, expectedPort.State, actualPort.State)
+							assert.Equal(t, expectedPort.PhysicalState, actualPort.PhysicalState)
+							assert.Equal(t, expectedPort.Rate, actualPort.Rate)
+							break
+						}
+					}
+					assert.True(t, found, "Expected unhealthy port %s not found", expectedPort.Device)
+				}
+			}
+
+			assert.Equal(t, tt.expectedSuggestedActions, tt.cr.suggestedActions)
+		})
+	}
+}
+
+// TestGetSuggestedActions tests the getSuggestedActions method
+func TestGetSuggestedActions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cr       *checkResult
+		expected *apiv1.SuggestedActions
+	}{
+		{
+			name:     "nil check result",
+			cr:       nil,
+			expected: nil,
+		},
+		{
+			name:     "non-nil check result with nil suggested actions",
+			cr:       &checkResult{},
+			expected: nil,
+		},
+		{
+			name: "non-nil check result with hardware inspection suggested",
+			cr: &checkResult{
+				suggestedActions: &apiv1.SuggestedActions{
+					RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+				},
+			},
+			expected: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+			},
+		},
+		{
+			name: "non-nil check result with multiple repair actions",
+			cr: &checkResult{
+				suggestedActions: &apiv1.SuggestedActions{
+					RepairActions: []apiv1.RepairActionType{
+						apiv1.RepairActionTypeHardwareInspection,
+						apiv1.RepairActionTypeRebootSystem,
+					},
+				},
+			},
+			expected: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+		},
+		{
+			name: "non-nil check result with empty repair actions",
+			cr: &checkResult{
+				suggestedActions: &apiv1.SuggestedActions{
+					RepairActions: []apiv1.RepairActionType{},
+				},
+			},
+			expected: &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cr.getSuggestedActions()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

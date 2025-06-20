@@ -136,35 +136,6 @@ func parseIbstatusRate(rate string) int {
 	return 0
 }
 
-// CheckPortsAndRate checks if the number of active IB port devices matches expectations.
-func (devs IBStatuses) CheckPortsAndRate(atLeastPorts int, atLeastRate int) error {
-	if atLeastPorts == 0 && atLeastRate == 0 {
-		return nil
-	}
-
-	// select all "up" devices, and count the ones that match the expected rate with ">="
-	_, portNamesWithLinkUp := CheckPortsAndRate(devs.IBPorts(), []string{"LinkUp"}, "", atLeastRate)
-	if len(portNamesWithLinkUp) >= atLeastPorts {
-		return nil
-	}
-
-	errMsg := fmt.Sprintf("only %d ports (>= %d Gb/s) are active, expect at least %d", len(portNamesWithLinkUp), atLeastRate, atLeastPorts)
-	log.Logger.Warnw(errMsg, "totalPorts", len(devs), "atLeastPorts", atLeastPorts, "atLeastRateGbPerSec", atLeastRate)
-
-	pm, portNamesWithDisabledOrPolling := CheckPortsAndRate(devs.IBPorts(), []string{"Disabled", "Polling"}, "", 0) // atLeastRate is ignored
-	if len(portNamesWithDisabledOrPolling) > 0 {
-		// some ports must be missing -- construct error message accordingly
-		msgs := make([]string, 0)
-		for state, names := range pm {
-			msgs = append(msgs, fmt.Sprintf("%d device(s) found %s (%s)", len(names), state, strings.Join(names, ", ")))
-		}
-		sort.Strings(msgs)
-		errMsg += fmt.Sprintf("; %s", strings.Join(msgs, "; "))
-	}
-
-	return errors.New(errMsg)
-}
-
 var (
 	ErrIbstatusOutputEmpty         = errors.New("ibstatus returned empty output")
 	ErrIbstatusOutputNoDeviceFound = errors.New("parsed ibstatus output does not contain any device")
