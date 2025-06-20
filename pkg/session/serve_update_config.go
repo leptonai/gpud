@@ -3,6 +3,7 @@ package session
 import (
 	"encoding/json"
 
+	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
@@ -28,6 +29,17 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 			}
 			if s.setDefaultIbExpectedPortStatesFunc != nil {
 				s.setDefaultIbExpectedPortStatesFunc(updateCfg)
+			}
+
+		case componentsnvidiagpucounts.Name:
+			var updateCfg componentsnvidiagpucounts.ExpectedGPUCounts
+			if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
+				log.Logger.Warnw("failed to unmarshal nvidia gpu counts config", "error", err)
+				resp.Error = err.Error()
+				return
+			}
+			if s.setDefaultGPUCountsFunc != nil {
+				s.setDefaultGPUCountsFunc(updateCfg)
 			}
 
 		case componentsnfs.Name:
