@@ -8,6 +8,7 @@ import (
 	"github.com/urfave/cli"
 	"go.uber.org/zap"
 
+	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
@@ -18,6 +19,7 @@ func CreateCommand() func(*cli.Context) error {
 	return func(cliContext *cli.Context) error {
 		return cmdScan(
 			cliContext.String("log-level"),
+			cliContext.Int("gpu-count"),
 			cliContext.String("ibstat-command"),
 			cliContext.String("ibstatus-command"),
 			cliContext.String("nfs-checker-configs"),
@@ -25,7 +27,7 @@ func CreateCommand() func(*cli.Context) error {
 	}
 }
 
-func cmdScan(logLevel string, ibstatCommand string, ibstatusCommand string, nfsCheckerConfigs string) error {
+func cmdScan(logLevel string, gpuCount int, ibstatCommand string, ibstatusCommand string, nfsCheckerConfigs string) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
@@ -33,6 +35,12 @@ func cmdScan(logLevel string, ibstatCommand string, ibstatusCommand string, nfsC
 	log.Logger = log.CreateLogger(zapLvl, "")
 
 	log.Logger.Debugw("starting scan command")
+
+	if gpuCount > 0 {
+		componentsnvidiagpucounts.SetDefaultExpectedGPUCounts(componentsnvidiagpucounts.ExpectedGPUCounts{
+			Count: gpuCount,
+		})
+	}
 
 	if len(nfsCheckerConfigs) > 0 {
 		groupConfigs := make(pkgnfschecker.Configs, 0)

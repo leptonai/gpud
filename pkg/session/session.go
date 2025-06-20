@@ -14,6 +14,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
@@ -145,6 +146,7 @@ type Session struct {
 	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
 
 	setDefaultIbExpectedPortStatesFunc func(states infiniband.ExpectedPortStates)
+	setDefaultGPUCountsFunc            func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
 	setDefaultNFSGroupConfigsFunc      func(cfgs pkgnfschecker.Configs)
 
 	nvmlInstance       nvidianvml.Instance
@@ -214,6 +216,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
 
 		setDefaultIbExpectedPortStatesFunc: componentsnvidiainfiniband.SetDefaultExpectedPortStates,
+		setDefaultGPUCountsFunc:            componentsnvidiagpucounts.SetDefaultExpectedGPUCounts,
 		setDefaultNFSGroupConfigsFunc:      componentsnfs.SetDefaultConfigs,
 
 		nvmlInstance:       op.nvmlInstance,
