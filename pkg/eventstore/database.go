@@ -57,7 +57,11 @@ type table struct {
 	rootCtx    context.Context
 	rootCancel context.CancelFunc
 
-	retention     time.Duration
+	// retention is the duration to keep the events
+	// set to 0 to disable periodic purge
+	retention time.Duration
+	// purgeInterval is the interval to purge the events
+	// set to 0 to disable periodic purge
 	purgeInterval time.Duration
 
 	table string
@@ -91,10 +95,6 @@ func (d *database) Bucket(name string, opts ...OpOption) (Bucket, error) {
 	}
 
 	return newTable(d.dbRW, d.dbRO, name, d.retention, purgeInterval)
-}
-
-func (d *database) LoadBucketWithNoPurge(name string) (Bucket, error) {
-	return newTable(d.dbRW, d.dbRO, name, 0, 0)
 }
 
 func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, purgeInterval time.Duration) (*table, error) {
