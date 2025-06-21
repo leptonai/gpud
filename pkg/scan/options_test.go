@@ -13,7 +13,6 @@ func TestApplyOpts(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, "ibstat", op.ibstatCommand)
-		assert.Equal(t, "ibstatus", op.ibstatusCommand)
 		assert.False(t, op.debug)
 	})
 
@@ -23,17 +22,6 @@ func TestApplyOpts(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, "/custom/ibstat", op.ibstatCommand)
-		assert.Equal(t, "ibstatus", op.ibstatusCommand)
-		assert.False(t, op.debug)
-	})
-
-	t.Run("with ibstatus command", func(t *testing.T) {
-		op := &Op{}
-		err := op.applyOpts([]OpOption{WithIbstatusCommand("/custom/ibstatus")})
-
-		assert.NoError(t, err)
-		assert.Equal(t, "ibstat", op.ibstatCommand)
-		assert.Equal(t, "/custom/ibstatus", op.ibstatusCommand)
 		assert.False(t, op.debug)
 	})
 
@@ -43,7 +31,6 @@ func TestApplyOpts(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, "ibstat", op.ibstatCommand)
-		assert.Equal(t, "ibstatus", op.ibstatusCommand)
 		assert.True(t, op.debug)
 	})
 
@@ -51,13 +38,11 @@ func TestApplyOpts(t *testing.T) {
 		op := &Op{}
 		err := op.applyOpts([]OpOption{
 			WithIbstatCommand("/custom/ibstat"),
-			WithIbstatusCommand("/custom/ibstatus"),
 			WithDebug(true),
 		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, "/custom/ibstat", op.ibstatCommand)
-		assert.Equal(t, "/custom/ibstatus", op.ibstatusCommand)
 		assert.True(t, op.debug)
 	})
 }
@@ -68,14 +53,6 @@ func TestWithIbstatCommand(t *testing.T) {
 	opt(op)
 
 	assert.Equal(t, "/test/ibstat", op.ibstatCommand)
-}
-
-func TestWithIbstatusCommand(t *testing.T) {
-	opt := WithIbstatusCommand("/test/ibstatus")
-	op := &Op{}
-	opt(op)
-
-	assert.Equal(t, "/test/ibstatus", op.ibstatusCommand)
 }
 
 func TestWithDebug(t *testing.T) {

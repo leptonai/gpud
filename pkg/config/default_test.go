@@ -30,13 +30,11 @@ func TestDefaultConfig(t *testing.T) {
 
 	t.Run("with options", func(t *testing.T) {
 		ibstatCmd := "/custom/ibstat"
-		ibstatusCmd := "/custom/ibstatus"
 
-		cfg, err := DefaultConfig(ctx, WithIbstatCommand(ibstatCmd), WithIbstatusCommand(ibstatusCmd))
+		cfg, err := DefaultConfig(ctx, WithIbstatCommand(ibstatCmd))
 		require.NoError(t, err)
 
 		assert.Equal(t, ibstatCmd, cfg.NvidiaToolOverwrites.IbstatCommand)
-		assert.Equal(t, ibstatusCmd, cfg.NvidiaToolOverwrites.IbstatusCommand)
 	})
 }
 
