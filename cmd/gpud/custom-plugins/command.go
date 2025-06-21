@@ -78,8 +78,7 @@ func Command(cliContext *cli.Context) error {
 		RootCtx:      ctx,
 		NVMLInstance: nvmlInstance,
 		NVIDIAToolOverwrites: nvidiacommon.ToolOverwrites{
-			IbstatCommand:   cliContext.String("ibstat-command"),
-			IbstatusCommand: cliContext.String("ibstatus-command"),
+			IbstatCommand: cliContext.String("ibstat-command"),
 		},
 	}
 
