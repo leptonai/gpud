@@ -30,3 +30,11 @@ func GetBoardID(uuid string, dev device.Device) (uint32, error) {
 	}
 	return boardID, nil
 }
+
+func GetBusID(uuid string, dev device.Device) (string, error) {
+	busID, err := dev.GetPCIBusID()
+	if err != nil {
+		return "", fmt.Errorf("failed to get bus id: %w", err)
+	}
+	return busID, nil
+}
