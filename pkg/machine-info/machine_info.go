@@ -29,6 +29,7 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/providers"
 	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
+	"github.com/leptonai/gpud/pkg/providers/nebius"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -209,20 +210,27 @@ func GetProvider(publicIP string) *providers.Info {
 		return providerInfo
 	}
 
-	// no fallback when there's no public IP
-	if publicIP == "" {
-		return providerInfo
+	if publicIP != "" {
+		// fallback to ASN lookup
+		log.Logger.Debugw("fallback to ASN lookup for provider", "publicIP", publicIP)
+		asnResult, err := asn.GetASLookup(publicIP)
+		if err != nil {
+			return providerInfo
+		}
+
+		log.Logger.Debugw("ASN lookup result", "asnResult", asnResult)
+		providerInfo.Provider = asn.NormalizeASNName(asnResult.AsnName)
 	}
 
-	// fallback to ASN lookup
-	log.Logger.Debugw("fallback to ASN lookup for provider", "publicIP", publicIP)
-	asnResult, err := asn.GetASLookup(publicIP)
-	if err != nil {
-		return providerInfo
+	if providerInfo.Provider == "nebius" && providerInfo.InstanceID == "" {
+		instanceID, err := nebius.GetInstanceID()
+		if err != nil {
+			log.Logger.Warnw("failed to get Nebius instance ID", "error", err)
+		} else {
+			providerInfo.InstanceID = instanceID
+		}
 	}
 
-	log.Logger.Debugw("ASN lookup result", "asnResult", asnResult)
-	providerInfo.Provider = asn.NormalizeASNName(asnResult.AsnName)
 	return providerInfo
 }
 
