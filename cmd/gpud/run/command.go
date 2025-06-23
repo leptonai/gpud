@@ -52,12 +52,10 @@ func Command(cliContext *cli.Context) error {
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
 	ibstatCommand := cliContext.String("ibstat-command")
-	ibstatusCommand := cliContext.String("ibstatus-command")
 	components := cliContext.String("components")
 
 	configOpts := []config.OpOption{
 		config.WithIbstatCommand(ibstatCommand),
-		config.WithIbstatusCommand(ibstatusCommand),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

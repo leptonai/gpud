@@ -18,9 +18,6 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 	if op.IbstatCommand == "" {
 		op.IbstatCommand = "ibstat"
 	}
-	if op.IbstatusCommand == "" {
-		op.IbstatusCommand = "ibstatus"
-	}
 
 	return nil
 }
@@ -29,12 +26,5 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 func WithIbstatCommand(p string) OpOption {
 	return func(op *Op) {
 		op.IbstatCommand = p
-	}
-}
-
-// Specifies the ibstat binary path to overwrite the default path.
-func WithIbstatusCommand(p string) OpOption {
-	return func(op *Op) {
-		op.IbstatusCommand = p
 	}
 }
