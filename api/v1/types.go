@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -384,13 +385,15 @@ func (gi *MachineGPUInfo) RenderTable(wr io.Writer) {
 	if len(gi.GPUs) > 0 {
 		table := tablewriter.NewWriter(wr)
 		table.SetAlignment(tablewriter.ALIGN_CENTER)
-		table.SetHeader([]string{"UUID", "SN", "MinorID"})
+		table.SetHeader([]string{"UUID", "SN", "MinorID", "BoardID", "BusID"})
 
 		for _, gpu := range gi.GPUs {
 			table.Append([]string{
 				gpu.UUID,
 				gpu.SN,
 				gpu.MinorID,
+				strconv.Itoa(int(gpu.BoardID)),
+				gpu.BusID,
 			})
 		}
 
