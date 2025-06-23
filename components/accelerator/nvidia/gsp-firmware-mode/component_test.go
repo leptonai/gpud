@@ -958,7 +958,14 @@ func TestCheck_ErrorOnSecondGPU(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health, "should be unhealthy when any GPU fails")
 	assert.Equal(t, errExpected, cr.err)
 	assert.Equal(t, "error getting GSP firmware mode", cr.reason)
-	// Should have collected data for the GPU that succeeded before hitting the error
-	assert.Len(t, cr.GSPFirmwareModes, 1)
-	assert.Equal(t, uuid1, cr.GSPFirmwareModes[0].UUID)
+
+	// Due to map iteration order being undefined, we might have:
+	// - 0 items if the failing GPU (uuid2) is processed first
+	// - 1 item if the successful GPU (uuid1) is processed first
+	assert.LessOrEqual(t, len(cr.GSPFirmwareModes), 1, "should have at most 1 GPU data collected")
+
+	// If we have 1 item, it should be from the successful GPU
+	if len(cr.GSPFirmwareModes) == 1 {
+		assert.Equal(t, uuid1, cr.GSPFirmwareModes[0].UUID)
+	}
 }
