@@ -177,12 +177,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Value:  "ibstat",
 					Hidden: true, // only for testing
 				},
-				cli.StringFlag{
-					Name:   "ibstatus-command",
-					Usage:  "sets the ibstatus command (leave empty for default, useful for testing)",
-					Value:  "ibstatus",
-					Hidden: true, // only for testing
-				},
 			},
 		},
 		{
@@ -418,11 +412,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "sets the ibstat command (leave empty for default, useful for testing)",
 					Hidden: true, // only for testing
 				},
-				cli.StringFlag{
-					Name:   "ibstatus-command",
-					Usage:  "sets the ibstatus command (leave empty for default, useful for testing)",
-					Hidden: true, // only for testing
-				},
 			},
 		},
 		{
@@ -462,11 +451,6 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:   "ibstat-command",
 					Usage:  "sets the ibstat command (leave empty for default, useful for testing)",
-					Hidden: true, // only for testing
-				},
-				cli.StringFlag{
-					Name:   "ibstatus-command",
-					Usage:  "sets the ibstatus command (leave empty for default, useful for testing)",
 					Hidden: true, // only for testing
 				},
 			},

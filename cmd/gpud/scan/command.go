@@ -19,13 +19,12 @@ func CreateCommand() func(*cli.Context) error {
 		return cmdScan(
 			cliContext.String("log-level"),
 			cliContext.String("ibstat-command"),
-			cliContext.String("ibstatus-command"),
 			cliContext.String("nfs-checker-configs"),
 		)
 	}
 }
 
-func cmdScan(logLevel string, ibstatCommand string, ibstatusCommand string, nfsCheckerConfigs string) error {
+func cmdScan(logLevel string, ibstatCommand string, nfsCheckerConfigs string) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
@@ -45,7 +44,6 @@ func cmdScan(logLevel string, ibstatCommand string, ibstatusCommand string, nfsC
 
 	opts := []scan.OpOption{
 		scan.WithIbstatCommand(ibstatCommand),
-		scan.WithIbstatusCommand(ibstatusCommand),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error
 		opts = append(opts, scan.WithDebug(true))
