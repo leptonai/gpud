@@ -414,7 +414,11 @@ func TestComponentClose(t *testing.T) {
 	mockEventBucket := new(mockEventBucket)
 	mockEventBucket.On("Close").Return()
 
+	cancelCalled := false
 	comp := &component{
+		cancel: func() {
+			cancelCalled = true
+		},
 		eventBucket: mockEventBucket,
 	}
 
@@ -422,6 +426,7 @@ func TestComponentClose(t *testing.T) {
 	assert.NoError(t, err)
 
 	mockEventBucket.AssertCalled(t, "Close")
+	assert.True(t, cancelCalled)
 }
 
 func TestEventsWithNilBucket(t *testing.T) {

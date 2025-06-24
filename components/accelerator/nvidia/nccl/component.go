@@ -118,6 +118,8 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
+	c.cancel()
+
 	if c.kmsgSyncer != nil {
 		c.kmsgSyncer.Close()
 	}
