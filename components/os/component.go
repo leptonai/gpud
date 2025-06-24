@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -184,13 +185,24 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 		}
 
 		if len(componentEvents) > 0 {
-			events = make(apiv1.Events, len(componentEvents))
-			for i, ev := range componentEvents {
-				events[i] = ev.ToEvent()
+			events = make(apiv1.Events, 0, len(componentEvents))
+			for _, ev := range componentEvents {
+				// to prevent duplicate events
+				// since "reboot" events and "os" events
+				// share the same event store bucket "os"
+				if ev.Name == pkghost.EventNameReboot {
+					continue
+				}
+				events = append(events, ev.ToEvent())
 			}
 		}
 	}
 
+	// for now,
+	// reboot events are recorded in the "os" bucket
+	// until we migrate, this method manually selects
+	// only the "reboot" events from the "os" bucket
+	// thus there should be no overlap between "eventBucket" and "rebootEventStore"
 	if c.rebootEventStore != nil {
 		rebootEvents, err := c.rebootEventStore.GetRebootEvents(ctx, since)
 		if err != nil {
@@ -204,6 +216,10 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if len(events) == 0 {
 		return nil, nil
 	}
+
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].Time.Time.After(events[j].Time.Time)
+	})
 
 	return events, nil
 }
