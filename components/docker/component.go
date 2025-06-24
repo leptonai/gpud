@@ -143,7 +143,7 @@ func (c *component) Check() components.CheckResult {
 		if !cr.DockerServiceActive || cr.err != nil {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "docker installed but docker service is not active or failed to check"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 	}
@@ -160,7 +160,7 @@ func (c *component) Check() components.CheckResult {
 			// TODO: set this to degraded?
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = "not supported; needs upgrading docker daemon in the host"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 

@@ -186,7 +186,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting driver version"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 
@@ -195,7 +195,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error parsing driver version"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 		if !c.checkClockEventsSupportedFunc(major) {
@@ -212,7 +212,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting clock events supported"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 
@@ -227,7 +227,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting clock events"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 
@@ -267,7 +267,7 @@ func (c *component) Check() components.CheckResult {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error finding clock events"
-				log.Logger.Errorw(cr.reason, "error", cr.err)
+				log.Logger.Warnw(cr.reason, "error", cr.err)
 				return cr
 			}
 			if found != nil {
@@ -279,7 +279,7 @@ func (c *component) Check() components.CheckResult {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error inserting clock events"
-				log.Logger.Errorw(cr.reason, "error", cr.err)
+				log.Logger.Warnw(cr.reason, "error", cr.err)
 				return cr
 			}
 			log.Logger.Infow("inserted clock events to db", "gpu_uuid", uuid)
@@ -307,7 +307,7 @@ func (c *component) Check() components.CheckResult {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error getting clock events from db"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 

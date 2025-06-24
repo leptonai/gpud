@@ -136,7 +136,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting memory"
-			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 		cr.Memories = append(cr.Memories, mem)
@@ -151,7 +151,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting used percent"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 		metricUsedPercent.With(prometheus.Labels{"uuid": uuid}).Set(usedPct)

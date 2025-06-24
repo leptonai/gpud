@@ -136,7 +136,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting utilization"
-			log.Logger.Errorw(cr.reason, "error", err)
+			log.Logger.Warnw(cr.reason, "error", err)
 			return cr
 		}
 		cr.Utilizations = append(cr.Utilizations, util)

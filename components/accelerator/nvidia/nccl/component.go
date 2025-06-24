@@ -169,7 +169,7 @@ func (c *component) Check() components.CheckResult {
 		cr.err = err
 		cr.reason = "failed to read kmsg"
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 

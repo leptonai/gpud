@@ -157,7 +157,7 @@ func (c *component) Check() components.CheckResult {
 	if c.failedCount >= c.failedCountThreshold {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "list pods from kubelet read-only port failed"
-		log.Logger.Errorw(cr.reason, "failedCount", c.failedCount, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "failedCount", c.failedCount, "error", cr.err)
 	}
 
 	return cr

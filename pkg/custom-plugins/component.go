@@ -212,7 +212,7 @@ func (c *component) Check() components.CheckResult {
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("error executing state plugin (exit code: %d)", cr.exitCode)
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 

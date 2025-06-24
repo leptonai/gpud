@@ -167,7 +167,7 @@ func (c *component) Check() components.CheckResult {
 			} else {
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error listing pod sandbox status"
-				log.Logger.Errorw(cr.reason, "error", cr.err)
+				log.Logger.Warnw(cr.reason, "error", cr.err)
 			}
 			return cr
 		}

@@ -254,7 +254,7 @@ func (c *component) Check() components.CheckResult {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error getting uptime"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -270,7 +270,7 @@ func (c *component) Check() components.CheckResult {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error getting process count"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -288,7 +288,7 @@ func (c *component) Check() components.CheckResult {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("too many zombie processes (unhealthy state threshold: %d)", c.zombieProcessCountThresholdUnhealthy)
 		cr.suggestedActions = defaultSuggestedActionsForFd
-		log.Logger.Errorw(cr.reason, "count", cr.ZombieProcesses)
+		log.Logger.Warnw(cr.reason, "count", cr.ZombieProcesses)
 		return cr
 	}
 	if cr.ZombieProcesses > c.zombieProcessCountThresholdDegraded {
@@ -296,7 +296,7 @@ func (c *component) Check() components.CheckResult {
 		cr.health = apiv1.HealthStateTypeDegraded
 		cr.reason = fmt.Sprintf("too many zombie processes (degraded state threshold: %d)", c.zombieProcessCountThresholdDegraded)
 		cr.suggestedActions = defaultSuggestedActionsForFd
-		log.Logger.Errorw(cr.reason, "count", cr.ZombieProcesses)
+		log.Logger.Warnw(cr.reason, "count", cr.ZombieProcesses)
 		return cr
 	}
 
@@ -304,7 +304,7 @@ func (c *component) Check() components.CheckResult {
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error getting file handles"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 	metricAllocatedFileHandles.With(prometheus.Labels{}).Set(float64(cr.FileDescriptors.AllocatedFileHandles))
@@ -313,7 +313,7 @@ func (c *component) Check() components.CheckResult {
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error getting running pids"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 	metricRunningPIDs.With(prometheus.Labels{}).Set(float64(cr.FileDescriptors.RunningPIDs))
@@ -325,7 +325,7 @@ func (c *component) Check() components.CheckResult {
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error getting file descriptor usage"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -333,7 +333,7 @@ func (c *component) Check() components.CheckResult {
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error getting file descriptor limit"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 	metricLimit.With(prometheus.Labels{}).Set(float64(cr.FileDescriptors.Limit))
@@ -371,14 +371,14 @@ func (c *component) Check() components.CheckResult {
 		if maxRunningPIDsPct > c.maxRunningPIDsPctUnhealthy {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = fmt.Sprintf("too many running pids (unhealthy state percent threshold: %.2f %%)", c.maxRunningPIDsPctUnhealthy)
-			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.RunningPIDs)
+			log.Logger.Warnw(cr.reason, "count", cr.FileDescriptors.RunningPIDs)
 			cr.suggestedActions = defaultSuggestedActionsForFd
 			return cr
 		}
 		if maxRunningPIDsPct > c.maxRunningPIDsPctDegraded {
 			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = fmt.Sprintf("too many running pids (degraded state percent threshold: %.2f %%)", c.maxRunningPIDsPctDegraded)
-			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.RunningPIDs)
+			log.Logger.Warnw(cr.reason, "count", cr.FileDescriptors.RunningPIDs)
 			cr.suggestedActions = defaultSuggestedActionsForFd
 			return cr
 		}
@@ -399,14 +399,14 @@ func (c *component) Check() components.CheckResult {
 		if maxAllocatedFileHandlesPct > c.maxAllocatedFileHandlesPctUnhealthy {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = fmt.Sprintf("too many allocated file handles (unhealthy state percent threshold: %.2f %%)", c.maxAllocatedFileHandlesPctUnhealthy)
-			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.AllocatedFileHandles)
+			log.Logger.Warnw(cr.reason, "count", cr.FileDescriptors.AllocatedFileHandles)
 			cr.suggestedActions = defaultSuggestedActionsForFd
 			return cr
 		}
 		if maxAllocatedFileHandlesPct > c.maxAllocatedFileHandlesPctDegraded {
 			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = fmt.Sprintf("too many allocated file handles (degraded state percent threshold: %.2f %%)", c.maxAllocatedFileHandlesPctDegraded)
-			log.Logger.Errorw(cr.reason, "count", cr.FileDescriptors.AllocatedFileHandles)
+			log.Logger.Warnw(cr.reason, "count", cr.FileDescriptors.AllocatedFileHandles)
 			cr.suggestedActions = defaultSuggestedActionsForFd
 			return cr
 		}

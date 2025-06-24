@@ -201,7 +201,7 @@ func (c *component) Check() components.CheckResult {
 		} else {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "ibstat command failed"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 		}
 	}
 
@@ -263,7 +263,7 @@ func (c *component) Check() components.CheckResult {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error finding ibstat event"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -279,7 +279,7 @@ func (c *component) Check() components.CheckResult {
 	if cr.err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error inserting ibstat event"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 

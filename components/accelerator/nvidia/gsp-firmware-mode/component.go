@@ -137,7 +137,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting GSP firmware mode"
-			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 
@@ -154,7 +154,7 @@ func (c *component) Check() components.CheckResult {
 		// ref. https://docs.nvidia.com/vgpu/latest/grid-vgpu-user-guide/index.html#disabling-gsp
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "GSP firmware mode supported but should be disabled for " + strings.Join(gspEnabledGPUs, ", ")
-		log.Logger.Errorw(cr.reason, "uuid", gspEnabledGPUs)
+		log.Logger.Warnw(cr.reason, "uuid", gspEnabledGPUs)
 		return cr
 	}
 

@@ -155,7 +155,7 @@ func (c *component) Check() components.CheckResult {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "error listing fuse connections"
-		log.Logger.Errorw(cr.reason, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 
@@ -191,7 +191,7 @@ func (c *component) Check() components.CheckResult {
 		if err != nil {
 			cr.err = err
 			cr.reason = "error json encoding fuse connection info"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 
@@ -210,7 +210,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error finding event"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 		if found == nil {
@@ -220,7 +220,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error inserting event"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 	}
