@@ -136,7 +136,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting nvlink"
-			log.Logger.Errorw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 

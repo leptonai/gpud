@@ -136,7 +136,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting power"
-			log.Logger.Errorw(cr.reason, "error", err)
+			log.Logger.Warnw(cr.reason, "error", err)
 			return cr
 		}
 		cr.Powers = append(cr.Powers, power)
@@ -149,7 +149,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting used percent"
-			log.Logger.Errorw(cr.reason, "error", err)
+			log.Logger.Warnw(cr.reason, "error", err)
 			return cr
 		}
 		metricUsedPercent.With(prometheus.Labels{"uuid": uuid}).Set(usedPct)

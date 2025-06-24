@@ -136,7 +136,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting persistence mode"
-			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 

@@ -350,7 +350,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 					} else {
 						cr.reason = "error listing pod sandbox status"
 					}
-					log.Logger.Errorw(cr.reason, "error", cr.err)
+					log.Logger.Warnw(cr.reason, "error", cr.err)
 				} else {
 					cr.Pods = []pkgcontainerd.PodSandbox{}
 					cr.health = apiv1.HealthStateTypeHealthy

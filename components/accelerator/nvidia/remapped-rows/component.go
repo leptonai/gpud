@@ -174,7 +174,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting remapped rows"
-			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			continue
 		}
 		cr.RemappedRows = append(cr.RemappedRows, remappedRows)
@@ -216,7 +216,7 @@ func (c *component) Check() components.CheckResult {
 			if cr.err != nil {
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error inserting event for remapping pending"
-				log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
+				log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			}
 		}
 
@@ -243,7 +243,7 @@ func (c *component) Check() components.CheckResult {
 			if cr.err != nil {
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error inserting event for remapping failed"
-				log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
+				log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			}
 		}
 

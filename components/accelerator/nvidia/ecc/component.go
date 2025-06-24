@@ -138,7 +138,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting ECC mode"
-			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 		cr.ECCModes = append(cr.ECCModes, eccMode)
@@ -148,7 +148,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting ECC errors"
-			log.Logger.Errorw(cr.reason, "uuid", uuid, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
 		cr.ECCErrors = append(cr.ECCErrors, eccErrors)
