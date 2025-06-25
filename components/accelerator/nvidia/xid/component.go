@@ -349,6 +349,13 @@ func (cr *checkResult) HealthStateType() apiv1.HealthStateType {
 	return cr.health
 }
 
+func (cr *checkResult) getError() string {
+	if cr == nil || cr.err == nil {
+		return ""
+	}
+	return cr.err.Error()
+}
+
 func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
@@ -367,7 +374,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Component: Name,
 		Name:      Name,
 		Reason:    cr.reason,
-		Error:     cr.err.Error(),
+		Error:     cr.getError(),
 		Health:    cr.health,
 	}
 	return apiv1.HealthStates{state}

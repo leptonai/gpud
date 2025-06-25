@@ -166,7 +166,7 @@ func (c *component) Check() components.CheckResult {
 
 		// e.g.,
 		// Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
-		if strings.Contains(cr.err.Error(), "Cannot connect to the Docker daemon") || strings.Contains(cr.err.Error(), "the docker daemon running") {
+		if strings.Contains(cr.getError(), "Cannot connect to the Docker daemon") || strings.Contains(cr.err.Error(), "the docker daemon running") {
 			if c.ignoreConnectionErrors {
 				cr.health = apiv1.HealthStateTypeHealthy
 			} else {

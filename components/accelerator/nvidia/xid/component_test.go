@@ -2,6 +2,7 @@ package xid
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -979,4 +980,37 @@ func TestHandleEventChannel(t *testing.T) {
 
 	// Wait for the goroutine to finish
 	wg.Wait()
+}
+
+func TestCheckResult_getError(t *testing.T) {
+	tests := []struct {
+		name     string
+		cr       *checkResult
+		expected string
+	}{
+		{
+			name:     "nil checkResult",
+			cr:       nil,
+			expected: "",
+		},
+		{
+			name:     "checkResult with nil error",
+			cr:       &checkResult{err: nil},
+			expected: "",
+		},
+		{
+			name:     "checkResult with error",
+			cr:       &checkResult{err: errors.New("test error")},
+			expected: "test error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cr.getError()
+			if result != tt.expected {
+				t.Errorf("getError() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
 }
