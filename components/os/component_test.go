@@ -31,7 +31,7 @@ func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time, buckets ...eventstore.Bucket) (eventstore.Events, error) {
+func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return m.events, nil
 }
 
@@ -42,7 +42,7 @@ func (m *errRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
-func (m *errRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time, buckets ...eventstore.Bucket) (eventstore.Events, error) {
+func (m *errRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return nil, errors.New("mock event store error")
 }
 

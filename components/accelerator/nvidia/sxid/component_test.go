@@ -893,7 +893,7 @@ type mockRebootEventStore struct {
 	getRebootEventsError error
 }
 
-func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time, otherBuckets ...eventstore.Bucket) (eventstore.Events, error) {
+func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if m.getRebootEventsError != nil {
 		return nil, m.getRebootEventsError
 	}

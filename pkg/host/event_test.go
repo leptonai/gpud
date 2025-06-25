@@ -672,7 +672,7 @@ func TestGetEventsWithEmptyBucket(t *testing.T) {
 	})
 }
 
-func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
+func TestGetRebootEventsFiltering(t *testing.T) {
 	t.Parallel()
 
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
@@ -689,8 +689,8 @@ func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
 	now := time.Now()
 	baseTime := now.Add(-4 * time.Hour)
 
-	// Test with one other bucket containing events
-	t.Run("get events with one other bucket", func(t *testing.T) {
+	// Test that GetRebootEvents only returns reboot events from the os bucket
+	t.Run("get only reboot events from os bucket", func(t *testing.T) {
 		// Clean up any existing events
 		osBucket, err := store.Bucket(EventBucketName)
 		require.NoError(t, err)
@@ -698,11 +698,11 @@ func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
 		require.NoError(t, err)
 		osBucket.Close()
 
-		// Insert reboot events in the main "os" bucket
+		// Insert mixed events in the main "os" bucket
 		osBucket, err = store.Bucket(EventBucketName)
 		require.NoError(t, err)
 
-		rebootEvents := []eventstore.Event{
+		events := []eventstore.Event{
 			{
 				Time:    baseTime.Add(-2 * time.Hour),
 				Name:    EventNameReboot,
@@ -715,6 +715,75 @@ func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
 				Type:    string(apiv1.EventTypeWarning),
 				Message: "system reboot detected",
 			},
+			{
+				Time:    baseTime.Add(-3 * time.Hour),
+				Name:    "kmsg_error", // This should be filtered out
+				Type:    string(apiv1.EventTypeFatal),
+				Message: "kernel message error",
+			},
+			{
+				Time:    baseTime.Add(-30 * time.Minute),
+				Name:    "os_warning", // This should be filtered out
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "OS warning",
+			},
+		}
+
+		for _, event := range events {
+			err = osBucket.Insert(ctx, event)
+			require.NoError(t, err)
+		}
+		osBucket.Close()
+
+		// Get events - should only return reboot events
+		retrievedEvents, err := recorder.GetRebootEvents(ctx, baseTime.Add(-5*time.Hour))
+		assert.NoError(t, err)
+		assert.Len(t, retrievedEvents, 2, "Should have 2 reboot events only")
+
+		// Verify events are sorted by timestamp (descending)
+		for i := 1; i < len(retrievedEvents); i++ {
+			assert.True(t, retrievedEvents[i-1].Time.After(retrievedEvents[i].Time) || retrievedEvents[i-1].Time.Equal(retrievedEvents[i].Time),
+				"Events should be sorted by timestamp descending")
+		}
+
+		// Verify all returned events are reboot events
+		for _, event := range retrievedEvents {
+			assert.Equal(t, EventNameReboot, event.Name, "All returned events should be reboot events")
+		}
+	})
+
+	// Test filtering by time range
+	t.Run("get events filtered by time range", func(t *testing.T) {
+		// Clean up any existing events
+		osBucket, err := store.Bucket(EventBucketName)
+		require.NoError(t, err)
+		_, err = osBucket.Purge(ctx, time.Now().Unix())
+		require.NoError(t, err)
+		osBucket.Close()
+
+		// Insert multiple reboot events with different timestamps
+		osBucket, err = store.Bucket(EventBucketName)
+		require.NoError(t, err)
+
+		rebootEvents := []eventstore.Event{
+			{
+				Time:    baseTime.Add(-5 * time.Hour), // too old, should be filtered out
+				Name:    EventNameReboot,
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "old reboot",
+			},
+			{
+				Time:    baseTime.Add(-2 * time.Hour), // within range
+				Name:    EventNameReboot,
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "recent reboot 1",
+			},
+			{
+				Time:    baseTime.Add(-1 * time.Hour), // within range
+				Name:    EventNameReboot,
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "recent reboot 2",
+			},
 		}
 
 		for _, event := range rebootEvents {
@@ -723,179 +792,22 @@ func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
 		}
 		osBucket.Close()
 
-		// Create another bucket and insert different events
-		otherBucket, err := store.Bucket("disk")
-		require.NoError(t, err)
-
-		diskEvents := []eventstore.Event{
-			{
-				Time:    baseTime.Add(-3 * time.Hour),
-				Name:    "disk_error",
-				Type:    string(apiv1.EventTypeFatal),
-				Message: "disk error detected",
-			},
-			{
-				Time:    baseTime.Add(-30 * time.Minute),
-				Name:    "disk_warning",
-				Type:    string(apiv1.EventTypeWarning),
-				Message: "disk space low",
-			},
-		}
-
-		for _, event := range diskEvents {
-			err = otherBucket.Insert(ctx, event)
-			require.NoError(t, err)
-		}
-
-		// Get events with the other bucket
-		events, err := recorder.GetRebootEvents(ctx, baseTime.Add(-5*time.Hour), otherBucket)
+		// Get events since 3 hours ago - should only get 2 recent events
+		events, err := recorder.GetRebootEvents(ctx, baseTime.Add(-3*time.Hour))
 		assert.NoError(t, err)
-		assert.Len(t, events, 4, "Should have 2 reboot events + 2 disk events")
+		assert.Len(t, events, 2, "Should have 2 recent reboot events")
 
-		// Verify events are sorted by timestamp (descending)
-		for i := 1; i < len(events); i++ {
-			assert.True(t, events[i-1].Time.After(events[i].Time) || events[i-1].Time.Equal(events[i].Time),
-				"Events should be sorted by timestamp descending")
-		}
-
-		// Verify we have both reboot and disk events
-		rebootCount := 0
-		diskCount := 0
-		for _, event := range events {
-			if event.Name == EventNameReboot {
-				rebootCount++
-			} else if event.Name == "disk_error" || event.Name == "disk_warning" {
-				diskCount++
-			}
-		}
-		assert.Equal(t, 2, rebootCount, "Should have 2 reboot events")
-		assert.Equal(t, 2, diskCount, "Should have 2 disk events")
-
-		otherBucket.Close()
-	})
-
-	// Test with multiple other buckets
-	t.Run("get events with multiple other buckets", func(t *testing.T) {
-		// Clean up any existing events
-		osBucket, err := store.Bucket(EventBucketName)
-		require.NoError(t, err)
-		_, err = osBucket.Purge(ctx, time.Now().Unix())
-		require.NoError(t, err)
-		osBucket.Close()
-
-		// Insert reboot event
-		osBucket, err = store.Bucket(EventBucketName)
-		require.NoError(t, err)
-		err = osBucket.Insert(ctx, eventstore.Event{
-			Time:    baseTime,
-			Name:    EventNameReboot,
-			Type:    string(apiv1.EventTypeWarning),
-			Message: "system reboot detected",
-		})
-		require.NoError(t, err)
-		osBucket.Close()
-
-		// Create first other bucket (memory)
-		memoryBucket, err := store.Bucket("memory")
-		require.NoError(t, err)
-		err = memoryBucket.Insert(ctx, eventstore.Event{
-			Time:    baseTime.Add(-1 * time.Hour),
-			Name:    "memory_pressure",
-			Type:    string(apiv1.EventTypeWarning),
-			Message: "high memory usage",
-		})
-		require.NoError(t, err)
-
-		// Create second other bucket (network)
-		networkBucket, err := store.Bucket("network")
-		require.NoError(t, err)
-		err = networkBucket.Insert(ctx, eventstore.Event{
-			Time:    baseTime.Add(-2 * time.Hour),
-			Name:    "network_timeout",
-			Type:    string(apiv1.EventTypeFatal),
-			Message: "network timeout",
-		})
-		require.NoError(t, err)
-
-		// Get events with multiple other buckets
-		events, err := recorder.GetRebootEvents(ctx, baseTime.Add(-3*time.Hour), memoryBucket, networkBucket)
-		assert.NoError(t, err)
-		assert.Len(t, events, 3, "Should have 1 reboot + 1 memory + 1 network event")
-
-		// Verify all event types are present
-		eventNames := make(map[string]int)
-		for _, event := range events {
-			eventNames[event.Name]++
-		}
-		assert.Equal(t, 1, eventNames[EventNameReboot])
-		assert.Equal(t, 1, eventNames["memory_pressure"])
-		assert.Equal(t, 1, eventNames["network_timeout"])
-
-		memoryBucket.Close()
-		networkBucket.Close()
-	})
-
-	// Test with other buckets containing events outside the "since" time range
-	t.Run("get events with other buckets outside since time", func(t *testing.T) {
-		// Clean up any existing events
-		osBucket, err := store.Bucket(EventBucketName)
-		require.NoError(t, err)
-		_, err = osBucket.Purge(ctx, time.Now().Unix())
-		require.NoError(t, err)
-		osBucket.Close()
-
-		// Insert reboot event within range
-		osBucket, err = store.Bucket(EventBucketName)
-		require.NoError(t, err)
-		err = osBucket.Insert(ctx, eventstore.Event{
-			Time:    baseTime,
-			Name:    EventNameReboot,
-			Type:    string(apiv1.EventTypeWarning),
-			Message: "system reboot detected",
-		})
-		require.NoError(t, err)
-		osBucket.Close()
-
-		// Create other bucket with events both inside and outside range
-		cpuBucket, err := store.Bucket("cpu")
-		require.NoError(t, err)
-
-		// Event within range
-		err = cpuBucket.Insert(ctx, eventstore.Event{
-			Time:    baseTime.Add(-30 * time.Minute),
-			Name:    "cpu_high",
-			Type:    string(apiv1.EventTypeWarning),
-			Message: "high CPU usage",
-		})
-		require.NoError(t, err)
-
-		// Event outside range (too old)
-		err = cpuBucket.Insert(ctx, eventstore.Event{
-			Time:    baseTime.Add(-5 * time.Hour),
-			Name:    "cpu_old",
-			Type:    string(apiv1.EventTypeInfo),
-			Message: "old CPU event",
-		})
-		require.NoError(t, err)
-
-		// Get events since 2 hours ago
-		sinceTime := baseTime.Add(-2 * time.Hour)
-		events, err := recorder.GetRebootEvents(ctx, sinceTime, cpuBucket)
-		assert.NoError(t, err)
-		assert.Len(t, events, 2, "Should have only events within the time range")
-
-		// Verify only events within range are returned
+		// Verify all events are within the time range
+		sinceTime := baseTime.Add(-3 * time.Hour)
 		for _, event := range events {
 			assert.True(t, event.Time.After(sinceTime) || event.Time.Equal(sinceTime),
 				"All events should be after the since time")
-			assert.NotEqual(t, "cpu_old", event.Name, "Old events should be filtered out")
+			assert.Equal(t, EventNameReboot, event.Name)
 		}
-
-		cpuBucket.Close()
 	})
 
-	// Test with empty other buckets
-	t.Run("get events with empty other buckets", func(t *testing.T) {
+	// Test with events outside the time range in os bucket
+	t.Run("get events with time filtering in os bucket", func(t *testing.T) {
 		// Clean up any existing events
 		osBucket, err := store.Bucket(EventBucketName)
 		require.NoError(t, err)
@@ -903,33 +815,74 @@ func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
 		require.NoError(t, err)
 		osBucket.Close()
 
-		// Insert reboot event
+		// Insert mixed reboot and non-reboot events in os bucket
 		osBucket, err = store.Bucket(EventBucketName)
 		require.NoError(t, err)
-		err = osBucket.Insert(ctx, eventstore.Event{
-			Time:    baseTime,
-			Name:    EventNameReboot,
-			Type:    string(apiv1.EventTypeWarning),
-			Message: "system reboot detected",
-		})
+
+		events := []eventstore.Event{
+			{
+				Time:    baseTime,
+				Name:    EventNameReboot,
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "system reboot detected",
+			},
+			{
+				Time:    baseTime.Add(-30 * time.Minute),
+				Name:    EventNameReboot,
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "another reboot",
+			},
+			{
+				Time:    baseTime.Add(-5 * time.Hour),
+				Name:    EventNameReboot,
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "old reboot",
+			},
+			{
+				Time:    baseTime.Add(-1 * time.Hour),
+				Name:    "kmsg_error", // Non-reboot event, should be filtered
+				Type:    string(apiv1.EventTypeFatal),
+				Message: "kernel message error",
+			},
+		}
+
+		for _, event := range events {
+			err = osBucket.Insert(ctx, event)
+			require.NoError(t, err)
+		}
+		osBucket.Close()
+
+		// Get events since 2 hours ago
+		sinceTime := baseTime.Add(-2 * time.Hour)
+		retrievedEvents, err := recorder.GetRebootEvents(ctx, sinceTime)
+		assert.NoError(t, err)
+		assert.Len(t, retrievedEvents, 2, "Should have only reboot events within the time range")
+
+		// Verify only reboot events within range are returned
+		for _, event := range retrievedEvents {
+			assert.True(t, event.Time.After(sinceTime) || event.Time.Equal(sinceTime),
+				"All events should be after the since time")
+			assert.Equal(t, EventNameReboot, event.Name, "All events should be reboot events")
+		}
+	})
+
+	// Test with empty os bucket
+	t.Run("get events with empty os bucket", func(t *testing.T) {
+		// Clean up any existing events
+		osBucket, err := store.Bucket(EventBucketName)
+		require.NoError(t, err)
+		_, err = osBucket.Purge(ctx, time.Now().Unix())
 		require.NoError(t, err)
 		osBucket.Close()
 
-		// Create empty other bucket
-		emptyBucket, err := store.Bucket("empty")
-		require.NoError(t, err)
-
-		// Get events with empty other bucket
-		events, err := recorder.GetRebootEvents(ctx, baseTime.Add(-1*time.Hour), emptyBucket)
+		// Get events from empty bucket
+		events, err := recorder.GetRebootEvents(ctx, baseTime.Add(-1*time.Hour))
 		assert.NoError(t, err)
-		assert.Len(t, events, 1, "Should have only the reboot event")
-		assert.Equal(t, EventNameReboot, events[0].Name)
-
-		emptyBucket.Close()
+		assert.Len(t, events, 0, "Should have no events from empty bucket")
 	})
 
-	// Test filtering of non-reboot events from main bucket
-	t.Run("filter non-reboot events from main bucket", func(t *testing.T) {
+	// Test filtering of non-reboot events from os bucket
+	t.Run("filter non-reboot events from os bucket", func(t *testing.T) {
 		// Clean up any existing events
 		osBucket, err := store.Bucket(EventBucketName)
 		require.NoError(t, err)
@@ -960,6 +913,12 @@ func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
 				Type:    string(apiv1.EventTypeWarning),
 				Message: "another reboot",
 			},
+			{
+				Time:    baseTime.Add(-45 * time.Minute),
+				Name:    "os_warning", // This should be filtered out
+				Type:    string(apiv1.EventTypeWarning),
+				Message: "OS warning",
+			},
 		}
 
 		for _, event := range events {
@@ -968,44 +927,19 @@ func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
 		}
 		osBucket.Close()
 
-		// Create other bucket with events
-		otherBucket, err := store.Bucket("other")
-		require.NoError(t, err)
-		err = otherBucket.Insert(ctx, eventstore.Event{
-			Time:    baseTime.Add(-45 * time.Minute),
-			Name:    "other_event",
-			Type:    string(apiv1.EventTypeInfo),
-			Message: "other event",
-		})
-		require.NoError(t, err)
-
 		// Get events
-		retrievedEvents, err := recorder.GetRebootEvents(ctx, baseTime.Add(-2*time.Hour), otherBucket)
+		retrievedEvents, err := recorder.GetRebootEvents(ctx, baseTime.Add(-2*time.Hour))
 		assert.NoError(t, err)
-		assert.Len(t, retrievedEvents, 3, "Should have 2 reboot events + 1 other event")
+		assert.Len(t, retrievedEvents, 2, "Should have only 2 reboot events")
 
-		// Verify only reboot events from main bucket and all events from other bucket
-		rebootCount := 0
-		otherCount := 0
-		kmsgCount := 0
+		// Verify only reboot events are returned
 		for _, event := range retrievedEvents {
-			if event.Name == EventNameReboot {
-				rebootCount++
-			} else if event.Name == "other_event" {
-				otherCount++
-			} else if event.Name == "kmsg_error" {
-				kmsgCount++
-			}
+			assert.Equal(t, EventNameReboot, event.Name, "All events should be reboot events")
 		}
-		assert.Equal(t, 2, rebootCount, "Should have 2 reboot events")
-		assert.Equal(t, 1, otherCount, "Should have 1 other event")
-		assert.Equal(t, 0, kmsgCount, "Should not have kmsg events from main bucket")
-
-		otherBucket.Close()
 	})
 
-	// Test proper sorting with events from multiple buckets
-	t.Run("proper sorting with multiple buckets", func(t *testing.T) {
+	// Test proper sorting of reboot events
+	t.Run("proper sorting of reboot events", func(t *testing.T) {
 		// Clean up any existing events
 		osBucket, err := store.Bucket(EventBucketName)
 		require.NoError(t, err)
@@ -1019,7 +953,8 @@ func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
 
 		rebootTimes := []time.Time{
 			baseTime.Add(-3 * time.Hour), // oldest
-			baseTime.Add(-1 * time.Hour), // newest reboot
+			baseTime.Add(-1 * time.Hour), // newest
+			baseTime.Add(-2 * time.Hour), // middle
 		}
 
 		for i, timestamp := range rebootTimes {
@@ -1033,43 +968,22 @@ func TestGetRebootEventsWithOtherBuckets(t *testing.T) {
 		}
 		osBucket.Close()
 
-		// Create other bucket with events at specific times
-		otherBucket, err := store.Bucket("test")
-		require.NoError(t, err)
-
-		otherTimes := []time.Time{
-			baseTime.Add(-2 * time.Hour),    // middle
-			baseTime.Add(-30 * time.Minute), // newest overall
-		}
-
-		for i, timestamp := range otherTimes {
-			err = otherBucket.Insert(ctx, eventstore.Event{
-				Time:    timestamp,
-				Name:    fmt.Sprintf("test_event_%d", i),
-				Type:    string(apiv1.EventTypeInfo),
-				Message: fmt.Sprintf("test event %d", i),
-			})
-			require.NoError(t, err)
-		}
-
 		// Get all events
-		events, err := recorder.GetRebootEvents(ctx, baseTime.Add(-4*time.Hour), otherBucket)
+		events, err := recorder.GetRebootEvents(ctx, baseTime.Add(-4*time.Hour))
 		assert.NoError(t, err)
-		assert.Len(t, events, 4, "Should have all 4 events")
+		assert.Len(t, events, 3, "Should have all 3 reboot events")
 
 		// Verify correct sorting (descending order by timestamp)
 		expectedOrder := []time.Time{
-			baseTime.Add(-30 * time.Minute), // newest
-			baseTime.Add(-1 * time.Hour),
-			baseTime.Add(-2 * time.Hour),
+			baseTime.Add(-1 * time.Hour), // newest
+			baseTime.Add(-2 * time.Hour), // middle
 			baseTime.Add(-3 * time.Hour), // oldest
 		}
 
 		for i, expectedTime := range expectedOrder {
 			assert.Equal(t, expectedTime.Unix(), events[i].Time.Unix(),
 				"Event %d should have timestamp %v, got %v", i, expectedTime, events[i].Time)
+			assert.Equal(t, EventNameReboot, events[i].Name, "All events should be reboot events")
 		}
-
-		otherBucket.Close()
 	})
 }

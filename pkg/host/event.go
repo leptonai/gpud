@@ -27,7 +27,7 @@ type RebootEventStore interface {
 	// it will also query the events from the extra buckets, with the same since time.
 	// The returned events do NOT include other events from the "os" component (e.g., kmsg watcher).
 	// The returned events are in the descending order of timestamp (latest event first).
-	GetRebootEvents(ctx context.Context, since time.Time, otherBuckets ...eventstore.Bucket) (eventstore.Events, error)
+	GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error)
 }
 
 var _ RebootEventStore = &rebootEventStore{}
@@ -48,8 +48,8 @@ func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
 	return recordEvent(ctx, s.eventStore, time.Now().UTC(), s.getLastRebootTime)
 }
 
-func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time, otherBuckets ...eventstore.Bucket) (eventstore.Events, error) {
-	return getEvents(ctx, s.eventStore, since, otherBuckets...)
+func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+	return getEvents(ctx, s.eventStore, since)
 }
 
 func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now time.Time, getLastRebootTime func(context.Context) (time.Time, error)) error {
@@ -113,7 +113,7 @@ func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now tim
 	return bucket.Insert(ctx, curRebootEvent)
 }
 
-func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time, otherBuckets ...eventstore.Bucket) (eventstore.Events, error) {
+func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) (eventstore.Events, error) {
 	rebootBucket, err := eventStore.Bucket(EventBucketName, eventstore.WithDisablePurge())
 	if err != nil {
 		return nil, err
@@ -135,15 +135,6 @@ func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time
 			continue
 		}
 		all = append(all, ev)
-	}
-
-	// get events from other buckets
-	for _, bucket := range otherBuckets {
-		evs, err := bucket.Get(ctx, since)
-		if err != nil {
-			return nil, err
-		}
-		all = append(all, evs...)
 	}
 
 	// The returned events are in the descending order of timestamp (latest event first).
