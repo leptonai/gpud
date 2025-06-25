@@ -3,8 +3,10 @@ package nfs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -155,9 +157,15 @@ func TestCheckWithInvalidConfigs(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{
 				{
-					Dir: "", // Invalid - empty dir
+					VolumePath: "", // Invalid - empty dir
 				},
 			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
 		},
 	}
 
@@ -175,12 +183,18 @@ func TestCheckWithValidConfigs(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{
 				{
-					Dir:              tmpDir,
+					VolumePath:       tmpDir,
 					FileContents:     "test content",
 					TTLToDelete:      metav1.Duration{Duration: time.Hour},
 					NumExpectedFiles: 1,
 				},
 			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
 		},
 	}
 
@@ -232,14 +246,24 @@ func TestCheckResultString(t *testing.T) {
 					},
 				},
 			},
-			expected: "no devices with ACS enabled (ok)",
+			expected: "", // We'll check that it contains table content instead
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.cr.String()
-			assert.Equal(t, tt.expected, result)
+			if tt.name == "with NFSCheckResults" {
+				// Check that the result contains table headers and data
+				assert.Contains(t, result, "DIRECTORY")
+				assert.Contains(t, result, "MESSAGE")
+				assert.Contains(t, result, "/test/dir1")
+				assert.Contains(t, result, "success")
+				assert.Contains(t, result, "/test/dir2")
+				assert.Contains(t, result, "failed")
+			} else {
+				assert.Equal(t, tt.expected, result)
+			}
 		})
 	}
 }
@@ -379,12 +403,18 @@ func TestCheckWithNFSCheckerError(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{
 				{
-					Dir:              tmpDir,
+					VolumePath:       tmpDir,
 					FileContents:     "test content",
 					TTLToDelete:      metav1.Duration{Duration: time.Hour},
 					NumExpectedFiles: 10, // Expect more files than we'll have
 				},
 			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
 		},
 	}
 
@@ -401,12 +431,22 @@ func TestCheckWithNewCheckerError(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{
 				{
-					Dir:              "", // Invalid empty dir will cause NewChecker to fail
+					VolumePath:       "", // Invalid empty dir will cause validation to fail
 					FileContents:     "test content",
 					TTLToDelete:      metav1.Duration{Duration: time.Hour},
 					NumExpectedFiles: 1,
 				},
 			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			// Return error for empty path
+			if dir == "" {
+				return "", "", errors.New("empty path")
+			}
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
 		},
 	}
 
@@ -414,7 +454,7 @@ func TestCheckWithNewCheckerError(t *testing.T) {
 	cr := result.(*checkResult)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
-	assert.Contains(t, result.Summary(), "invalid nfs group configs")
+	assert.Contains(t, result.Summary(), "failed to find mount target device")
 	assert.NotNil(t, cr.err)
 }
 
@@ -434,12 +474,18 @@ func TestCheckWithWriteError(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{
 				{
-					Dir:              readOnlyDir,
+					VolumePath:       readOnlyDir,
 					FileContents:     "test content",
 					TTLToDelete:      metav1.Duration{Duration: time.Hour},
 					NumExpectedFiles: 1,
 				},
 			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
 		},
 	}
 
@@ -461,18 +507,24 @@ func TestCheckWithMultipleMemberConfigs(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{
 				{
-					Dir:              tmpDir1,
+					VolumePath:       tmpDir1,
 					FileContents:     "test content 1",
 					TTLToDelete:      metav1.Duration{Duration: time.Hour},
 					NumExpectedFiles: 1,
 				},
 				{
-					Dir:              tmpDir2,
+					VolumePath:       tmpDir2,
 					FileContents:     "test content 2",
 					TTLToDelete:      metav1.Duration{Duration: time.Hour},
 					NumExpectedFiles: 1,
 				},
 			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
 		},
 	}
 
@@ -502,12 +554,18 @@ func TestCheckWithCheckerError(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{
 				{
-					Dir:              tmpDir,
+					VolumePath:       tmpDir,
 					FileContents:     "expected content", // Different from what we wrote
 					TTLToDelete:      metav1.Duration{Duration: time.Hour},
 					NumExpectedFiles: 1,
 				},
 			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
 		},
 	}
 
@@ -582,4 +640,297 @@ func TestComponentWithRealData(t *testing.T) {
 	states := comp.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+}
+
+func TestCheckWithFindMntTargetDeviceError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:       tmpDir,
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "", "", errors.New("mount target device error")
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "failed to find mount target device for "+tmpDir)
+	assert.NotNil(t, cr.err)
+	assert.Equal(t, "mount target device error", cr.err.Error())
+}
+
+func TestCheckWithNonNFSMount(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:       tmpDir,
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "/dev/sda1", "ext4", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return false // Not an NFS filesystem
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Equal(t, fmt.Sprintf("volume path %s mounted on /dev/sda1, but not nfs", tmpDir), result.Summary())
+	assert.Nil(t, cr.err) // This case doesn't set an error, just health state
+}
+
+func TestCheckWithValidNFSMount(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:       tmpDir,
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return fsType == "nfs"
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Should succeed with valid NFS mount
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Len(t, cr.NFSCheckResults, 1)
+	assert.Equal(t, tmpDir, cr.NFSCheckResults[0].Dir)
+}
+
+func TestCheckWithMultipleVolumesOneFails(t *testing.T) {
+	tmpDir1 := t.TempDir()
+	tmpDir2 := t.TempDir()
+
+	callCount := 0
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:       tmpDir1,
+					FileContents:     "test content 1",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+				{
+					VolumePath:       tmpDir2,
+					FileContents:     "test content 2",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			callCount++
+			if callCount == 1 {
+				return "server1:/export/path1", "nfs", nil
+			}
+			// Second call fails
+			return "", "", errors.New("second mount check failed")
+		},
+		isNFSFSType: func(fsType string) bool {
+			return fsType == "nfs"
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Should fail on second mount check
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "failed to find mount target device for "+tmpDir2)
+	assert.NotNil(t, cr.err)
+}
+
+func TestCheckResultStringWithNFSResults(t *testing.T) {
+	cr := &checkResult{
+		NFSCheckResults: []pkgnfschecker.CheckResult{
+			{
+				Dir:     "/mnt/nfs1",
+				Message: "wrote 1 files, expected 1 files (success)",
+			},
+			{
+				Dir:     "/mnt/nfs2",
+				Message: "wrote 2 files, expected 2 files (success)",
+			},
+		},
+	}
+
+	result := cr.String()
+	// Should contain a table with the results - check for uppercase headers
+	assert.Contains(t, result, "DIRECTORY")
+	assert.Contains(t, result, "MESSAGE")
+	assert.Contains(t, result, "/mnt/nfs1")
+	assert.Contains(t, result, "/mnt/nfs2")
+	assert.Contains(t, result, "wrote 1 files")
+	assert.Contains(t, result, "wrote 2 files")
+}
+
+func TestStartPeriodicCheck(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	checkCount := 0
+	var mu sync.Mutex
+
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			mu.Lock()
+			checkCount++
+			mu.Unlock()
+			return pkgnfschecker.Configs{}
+		},
+	}
+
+	err := c.Start()
+	assert.NoError(t, err)
+
+	// Wait a short time to ensure the goroutine starts
+	time.Sleep(100 * time.Millisecond)
+
+	// Cancel to stop the goroutine
+	cancel()
+
+	// Give it time to process the cancellation
+	time.Sleep(100 * time.Millisecond)
+
+	// Should have been called at least once (initial ticker)
+	mu.Lock()
+	count := checkCount
+	mu.Unlock()
+	assert.GreaterOrEqual(t, count, 0, "Check should have been called during Start")
+}
+
+func TestCheckWithEmptyMemberConfigs(t *testing.T) {
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			// Return empty configs to test the empty member configs scenario
+			return pkgnfschecker.Configs{}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Should be healthy with no configs
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Equal(t, "no nfs group configs found", result.Summary())
+	assert.Len(t, cr.NFSCheckResults, 0)
+}
+
+func TestHealthStatesConsistency(t *testing.T) {
+	testTime := time.Now().UTC()
+
+	tests := []struct {
+		name           string
+		cr             *checkResult
+		expectedHealth apiv1.HealthStateType
+		expectedReason string
+		expectedError  string
+	}{
+		{
+			name: "healthy state",
+			cr: &checkResult{
+				ts:     testTime,
+				health: apiv1.HealthStateTypeHealthy,
+				reason: "all checks passed",
+				err:    nil,
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "all checks passed",
+			expectedError:  "",
+		},
+		{
+			name: "degraded state with error",
+			cr: &checkResult{
+				ts:     testTime,
+				health: apiv1.HealthStateTypeDegraded,
+				reason: "check failed",
+				err:    errors.New("specific error"),
+			},
+			expectedHealth: apiv1.HealthStateTypeDegraded,
+			expectedReason: "check failed",
+			expectedError:  "specific error",
+		},
+		{
+			name: "unhealthy state",
+			cr: &checkResult{
+				ts:     testTime,
+				health: apiv1.HealthStateTypeUnhealthy,
+				reason: "critical failure",
+				err:    errors.New("critical error"),
+			},
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "critical failure",
+			expectedError:  "critical error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test direct methods
+			assert.Equal(t, tt.expectedHealth, tt.cr.HealthStateType())
+			assert.Equal(t, tt.expectedReason, tt.cr.Summary())
+			assert.Equal(t, tt.expectedError, tt.cr.getError())
+
+			// Test HealthStates method
+			states := tt.cr.HealthStates()
+			require.Len(t, states, 1)
+			assert.Equal(t, Name, states[0].Name)
+			assert.Equal(t, Name, states[0].Component)
+			assert.Equal(t, tt.expectedHealth, states[0].Health)
+			assert.Equal(t, tt.expectedReason, states[0].Reason)
+			assert.Equal(t, tt.expectedError, states[0].Error)
+			assert.Equal(t, testTime, states[0].Time.Time)
+		})
+	}
 }

@@ -11,9 +11,16 @@ import (
 // Config is a common configuration for all the NFS checker group
 // members, which then translates into a single NFS checker.
 type Config struct {
-	// Dir is the directory where all the checkers in the group
-	// write and read.
-	Dir string `json:"dir"`
+	// VolumePath is the volume path to test its NFS mounts.
+	// Must be writable by the NFS checker group members.
+	// And writes are saved in the [Config.VolumePath] under [Config.DirName].
+	// This path must be an absolute path.
+	VolumePath string `json:"volume_path"`
+
+	// DirName is the directory name under [Config.VolumePath]
+	// to write and read the files.
+	// e.g., ".gpud-nfs-checker"
+	DirName string `json:"dir_name"`
 
 	// FileContents is the file contents to write the file with
 	// and also the expected file contents to be read from other
@@ -57,31 +64,36 @@ func (cfgs Configs) GetMemberConfigs(machineID string) MemberConfigs {
 }
 
 var (
-	ErrDirEmpty          = errors.New("directory is empty")
-	ErrAbsDir            = errors.New("directory is not absolute")
-	ErrDirNotExists      = errors.New("directory does not exist and cannot be created")
-	ErrFileContentsEmpty = errors.New("file content is empty")
-	ErrTTLZero           = errors.New("TTL is zero")
-	ErrExpectedFilesZero = errors.New("expected files is zero")
+	ErrVolumePathEmpty     = errors.New("volume path is empty")
+	ErrVolumePathNotAbs    = errors.New("volume path is not absolute")
+	ErrVolumePathNotExists = errors.New("volume path does not exist and cannot be created")
+	ErrFileContentsEmpty   = errors.New("file content is empty")
+	ErrTTLZero             = errors.New("TTL is zero")
+	ErrExpectedFilesZero   = errors.New("expected files is zero")
 )
 
 // ValidateAndMkdir validates the configuration
 // and creates the target directory if it does not exist.
 func (c *Config) ValidateAndMkdir() error {
-	if c.Dir == "" {
-		return ErrDirEmpty
+	if c.VolumePath == "" {
+		return ErrVolumePathEmpty
 	}
 
 	// e.g., ".gpud-nfs-checker" given as a relative path
-	if !filepath.IsAbs(c.Dir) {
-		return ErrAbsDir
+	if !filepath.IsAbs(c.VolumePath) {
+		return ErrVolumePathNotAbs
 	}
 
-	if _, err := os.Stat(c.Dir); os.IsNotExist(err) {
-		// e.g., "/data/.gpud-nfs-checker"
-		// then we should mkdir ".gpud-nfs-checker" in "/data"
-		if err := os.MkdirAll(c.Dir, 0755); err != nil {
-			return ErrDirNotExists
+	if _, err := os.Stat(c.VolumePath); os.IsNotExist(err) {
+		return ErrVolumePathNotExists
+	} else if err != nil {
+		return err
+	}
+
+	dir := filepath.Join(c.VolumePath, c.DirName)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
 		}
 	} else if err != nil {
 		return err

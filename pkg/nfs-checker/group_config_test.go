@@ -23,7 +23,7 @@ func TestGroupConfig_Validate(t *testing.T) {
 		{
 			name: "valid config",
 			config: Config{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
@@ -33,37 +33,37 @@ func TestGroupConfig_Validate(t *testing.T) {
 		{
 			name: "empty directory",
 			config: Config{
-				Dir:              "",
+				VolumePath:       "",
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
 			},
-			wantErr: ErrDirEmpty,
+			wantErr: ErrVolumePathEmpty,
 		},
 		{
 			name: "relative directory path",
 			config: Config{
-				Dir:              "relative/path",
+				VolumePath:       "relative/path",
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
 			},
-			wantErr: ErrAbsDir,
+			wantErr: ErrVolumePathNotAbs,
 		},
 		{
 			name: "directory does not exist",
 			config: Config{
-				Dir:              "/non/existent/dir",
+				VolumePath:       "/non/existent/dir",
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
 			},
-			wantErr: ErrDirNotExists,
+			wantErr: ErrVolumePathNotExists,
 		},
 		{
 			name: "empty file contents",
 			config: Config{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
 				FileContents:     "",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
@@ -73,7 +73,7 @@ func TestGroupConfig_Validate(t *testing.T) {
 		{
 			name: "zero TTL",
 			config: Config{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: 0},
 				NumExpectedFiles: 1,
@@ -83,7 +83,7 @@ func TestGroupConfig_Validate(t *testing.T) {
 		{
 			name: "zero expected files",
 			config: Config{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 0,
@@ -122,7 +122,7 @@ func TestGroupConfig_ValidateStatError(t *testing.T) {
 		}()
 
 		config := Config{
-			Dir:              restrictedDir,
+			VolumePath:       restrictedDir,
 			FileContents:     "test-content",
 			TTLToDelete:      metav1.Duration{Duration: time.Minute},
 			NumExpectedFiles: 1,
@@ -131,8 +131,8 @@ func TestGroupConfig_ValidateStatError(t *testing.T) {
 		err = config.ValidateAndMkdir()
 		// Should return the os.Stat error (not ErrDirNotExists)
 		assert.Error(t, err)
-		assert.NotErrorIs(t, err, ErrDirNotExists)
-		assert.NotErrorIs(t, err, ErrDirEmpty)
+		assert.NotErrorIs(t, err, ErrVolumePathNotExists)
+		assert.NotErrorIs(t, err, ErrVolumePathEmpty)
 	})
 }
 
@@ -142,7 +142,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 		longContent := string(make([]byte, 100000)) // 100KB of null bytes
 
 		config := Config{
-			Dir:              tempDir,
+			VolumePath:       tempDir,
 			FileContents:     longContent,
 			TTLToDelete:      metav1.Duration{Duration: time.Minute},
 			NumExpectedFiles: 1,
@@ -156,7 +156,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 		tempDir := t.TempDir()
 
 		config := Config{
-			Dir:              tempDir,
+			VolumePath:       tempDir,
 			FileContents:     "test-content",
 			TTLToDelete:      metav1.Duration{Duration: time.Minute},
 			NumExpectedFiles: 10000, // Very large number
@@ -170,7 +170,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 		tempDir := t.TempDir()
 
 		config := Config{
-			Dir:              tempDir,
+			VolumePath:       tempDir,
 			FileContents:     "test-content",
 			TTLToDelete:      metav1.Duration{Duration: time.Nanosecond}, // Very short TTL
 			NumExpectedFiles: 1,
@@ -184,7 +184,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 		tempDir := t.TempDir()
 
 		config := Config{
-			Dir:              tempDir,
+			VolumePath:       tempDir,
 			FileContents:     "test-content",
 			TTLToDelete:      metav1.Duration{Duration: 24 * time.Hour}, // Very long TTL
 			NumExpectedFiles: 1,
@@ -201,7 +201,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		config := Config{
-			Dir:              spacedDir,
+			VolumePath:       spacedDir,
 			FileContents:     "test-content",
 			TTLToDelete:      metav1.Duration{Duration: time.Minute},
 			NumExpectedFiles: 1,
@@ -218,7 +218,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 
 		config := Config{
-			Dir:              specialDir,
+			VolumePath:       specialDir,
 			FileContents:     "test-content",
 			TTLToDelete:      metav1.Duration{Duration: time.Minute},
 			NumExpectedFiles: 1,
@@ -236,7 +236,7 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 		specialContent := "test-content with special chars: !@#$%^&*()_+-=[]{}|;':\",./<>?"
 
 		config := Config{
-			Dir:              tempDir,
+			VolumePath:       tempDir,
 			FileContents:     specialContent,
 			TTLToDelete:      metav1.Duration{Duration: time.Minute},
 			NumExpectedFiles: 1,
@@ -250,7 +250,7 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 		unicodeContent := "test-content with unicode: 你好世界 🌍 🚀 ñáéíóú"
 
 		config := Config{
-			Dir:              tempDir,
+			VolumePath:       tempDir,
 			FileContents:     unicodeContent,
 			TTLToDelete:      metav1.Duration{Duration: time.Minute},
 			NumExpectedFiles: 1,
@@ -264,7 +264,7 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 		multilineContent := "line1\nline2\tindented\r\nwindows-style"
 
 		config := Config{
-			Dir:              tempDir,
+			VolumePath:       tempDir,
 			FileContents:     multilineContent,
 			TTLToDelete:      metav1.Duration{Duration: time.Minute},
 			NumExpectedFiles: 1,
@@ -277,16 +277,16 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 
 func TestGroupConfig_ErrorConstants(t *testing.T) {
 	t.Run("error constants are defined", func(t *testing.T) {
-		assert.NotNil(t, ErrDirEmpty)
-		assert.NotNil(t, ErrDirNotExists)
+		assert.NotNil(t, ErrVolumePathEmpty)
+		assert.NotNil(t, ErrVolumePathNotExists)
 		assert.NotNil(t, ErrFileContentsEmpty)
 		assert.NotNil(t, ErrTTLZero)
 		assert.NotNil(t, ErrExpectedFilesZero)
 	})
 
 	t.Run("error messages are meaningful", func(t *testing.T) {
-		assert.Contains(t, ErrDirEmpty.Error(), "directory")
-		assert.Contains(t, ErrDirNotExists.Error(), "directory")
+		assert.Contains(t, ErrVolumePathEmpty.Error(), "volume path")
+		assert.Contains(t, ErrVolumePathNotExists.Error(), "volume path")
 		assert.Contains(t, ErrFileContentsEmpty.Error(), "file content")
 		assert.Contains(t, ErrTTLZero.Error(), "TTL")
 		assert.Contains(t, ErrExpectedFilesZero.Error(), "expected files")
@@ -300,7 +300,8 @@ func TestGroupConfig_JSONTags(t *testing.T) {
 		tempDir := t.TempDir()
 
 		config := Config{
-			Dir:              tempDir,
+			VolumePath:       tempDir,
+			DirName:          "test-dir",
 			FileContents:     "test-content",
 			TTLToDelete:      metav1.Duration{Duration: time.Minute},
 			NumExpectedFiles: 1,
@@ -311,7 +312,7 @@ func TestGroupConfig_JSONTags(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Check that all fields are accessible (this would fail if JSON tags were wrong)
-		assert.NotEmpty(t, config.Dir)
+		assert.NotEmpty(t, config.VolumePath)
 		assert.NotEmpty(t, config.FileContents)
 		assert.NotZero(t, config.TTLToDelete.Duration)
 		assert.NotZero(t, config.NumExpectedFiles)
@@ -330,7 +331,8 @@ func TestGroupConfig_JSONEncoding(t *testing.T) {
 		{
 			name: "1 minute TTL",
 			config: Config{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
+				DirName:          "test-dir-1",
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
@@ -341,7 +343,8 @@ func TestGroupConfig_JSONEncoding(t *testing.T) {
 		{
 			name: "30 seconds TTL",
 			config: Config{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
+				DirName:          "test-dir-2",
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: 30 * time.Second},
 				NumExpectedFiles: 2,
@@ -352,7 +355,8 @@ func TestGroupConfig_JSONEncoding(t *testing.T) {
 		{
 			name: "1 hour TTL",
 			config: Config{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
+				DirName:          "test-dir-3",
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Hour},
 				NumExpectedFiles: 3,
@@ -397,7 +401,8 @@ func TestGroupConfig_JSONDecoding(t *testing.T) {
 		{
 			name: "decode 1m TTL",
 			jsonInput: `{
-				"dir": "` + tempDir + `",
+				"volume_path": "` + tempDir + `",
+				"dir_name": "test-dir",
 				"file_contents": "test-content",
 				"ttl_to_delete": "1m",
 				"num_expected_files": 1
@@ -408,7 +413,8 @@ func TestGroupConfig_JSONDecoding(t *testing.T) {
 		{
 			name: "decode 30s TTL",
 			jsonInput: `{
-				"dir": "` + tempDir + `",
+				"volume_path": "` + tempDir + `",
+				"dir_name": "test-dir",
 				"file_contents": "test-content",
 				"ttl_to_delete": "30s",
 				"num_expected_files": 2
@@ -419,7 +425,8 @@ func TestGroupConfig_JSONDecoding(t *testing.T) {
 		{
 			name: "decode 1h TTL",
 			jsonInput: `{
-				"dir": "` + tempDir + `",
+				"volume_path": "` + tempDir + `",
+				"dir_name": "test-dir",
 				"file_contents": "test-content",
 				"ttl_to_delete": "1h",
 				"num_expected_files": 3
@@ -430,7 +437,8 @@ func TestGroupConfig_JSONDecoding(t *testing.T) {
 		{
 			name: "decode 2h30m TTL",
 			jsonInput: `{
-				"dir": "` + tempDir + `",
+				"volume_path": "` + tempDir + `",
+				"dir_name": "test-dir",
 				"file_contents": "test-content",
 				"ttl_to_delete": "2h30m",
 				"num_expected_files": 1
@@ -441,7 +449,8 @@ func TestGroupConfig_JSONDecoding(t *testing.T) {
 		{
 			name: "decode 500ms TTL",
 			jsonInput: `{
-				"dir": "` + tempDir + `",
+				"volume_path": "` + tempDir + `",
+				"dir_name": "test-dir",
 				"file_contents": "test-content",
 				"ttl_to_delete": "500ms",
 				"num_expected_files": 1
@@ -452,7 +461,8 @@ func TestGroupConfig_JSONDecoding(t *testing.T) {
 		{
 			name: "decode nanosecond duration",
 			jsonInput: `{
-				"dir": "` + tempDir + `",
+				"volume_path": "` + tempDir + `",
+				"dir_name": "test-dir",
 				"file_contents": "test-content",
 				"ttl_to_delete": "60000000000ns",
 				"num_expected_files": 1
@@ -463,7 +473,8 @@ func TestGroupConfig_JSONDecoding(t *testing.T) {
 		{
 			name: "decode invalid TTL format",
 			jsonInput: `{
-				"dir": "` + tempDir + `",
+				"volume_path": "` + tempDir + `",
+				"dir_name": "test-dir",
 				"file_contents": "test-content",
 				"ttl_to_delete": "invalid-duration",
 				"num_expected_files": 1
@@ -484,7 +495,7 @@ func TestGroupConfig_JSONDecoding(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedTTL, config.TTLToDelete.Duration)
-			assert.Equal(t, tempDir, config.Dir)
+			assert.Equal(t, tempDir, config.VolumePath)
 			assert.Equal(t, "test-content", config.FileContents)
 		})
 	}
@@ -530,7 +541,8 @@ func TestGroupConfig_JSONRoundTrip(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			original := Config{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
+				DirName:          "test-dir",
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: tt.ttlDuration},
 				NumExpectedFiles: 1,
@@ -546,7 +558,7 @@ func TestGroupConfig_JSONRoundTrip(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify all fields are preserved
-			assert.Equal(t, original.Dir, decoded.Dir)
+			assert.Equal(t, original.VolumePath, decoded.VolumePath)
 			assert.Equal(t, original.FileContents, decoded.FileContents)
 			assert.Equal(t, original.TTLToDelete.Duration, decoded.TTLToDelete.Duration)
 			assert.Equal(t, original.NumExpectedFiles, decoded.NumExpectedFiles)
@@ -562,7 +574,8 @@ func TestGroupConfig_JSONWithStringDuration(t *testing.T) {
 
 	t.Run("decode string duration 1m", func(t *testing.T) {
 		jsonInput := `{
-			"dir": "` + tempDir + `",
+			"volume_path": "` + tempDir + `",
+			"dir_name": "test-dir",
 			"file_contents": "test-content",
 			"ttl_to_delete": "1m",
 			"num_expected_files": 1
@@ -575,7 +588,8 @@ func TestGroupConfig_JSONWithStringDuration(t *testing.T) {
 
 	t.Run("decode string duration 5m30s", func(t *testing.T) {
 		jsonInput := `{
-			"dir": "` + tempDir + `",
+			"volume_path": "` + tempDir + `",
+			"dir_name": "test-dir",
 			"file_contents": "test-content",
 			"ttl_to_delete": "5m30s",
 			"num_expected_files": 1
@@ -588,7 +602,8 @@ func TestGroupConfig_JSONWithStringDuration(t *testing.T) {
 
 	t.Run("decode string duration with quotes", func(t *testing.T) {
 		jsonInput := `{
-			"dir": "` + tempDir + `",
+			"volume_path": "` + tempDir + `",
+			"dir_name": "test-dir",
 			"file_contents": "test-content",
 			"ttl_to_delete": "10m15s",
 			"num_expected_files": 1
@@ -601,7 +616,8 @@ func TestGroupConfig_JSONWithStringDuration(t *testing.T) {
 
 	t.Run("validate decoded config with string duration", func(t *testing.T) {
 		jsonInput := `{
-			"dir": "` + tempDir + `",
+			"volume_path": "` + tempDir + `",
+			"dir_name": "test-dir",
 			"file_contents": "test-content",
 			"ttl_to_delete": "1m",
 			"num_expected_files": 1
@@ -621,7 +637,8 @@ func TestGroupConfig_JSONEdgeCases(t *testing.T) {
 
 	t.Run("zero duration", func(t *testing.T) {
 		jsonInput := `{
-			"dir": "` + tempDir + `",
+			"volume_path": "` + tempDir + `",
+			"dir_name": "test-dir",
 			"file_contents": "test-content",
 			"ttl_to_delete": "0s",
 			"num_expected_files": 1
@@ -638,7 +655,8 @@ func TestGroupConfig_JSONEdgeCases(t *testing.T) {
 
 	t.Run("very large duration", func(t *testing.T) {
 		jsonInput := `{
-			"dir": "` + tempDir + `",
+			"volume_path": "` + tempDir + `",
+			"dir_name": "test-dir",
 			"file_contents": "test-content",
 			"ttl_to_delete": "8760h",
 			"num_expected_files": 1
@@ -651,7 +669,8 @@ func TestGroupConfig_JSONEdgeCases(t *testing.T) {
 
 	t.Run("nanosecond precision", func(t *testing.T) {
 		jsonInput := `{
-			"dir": "` + tempDir + `",
+			"volume_path": "` + tempDir + `",
+			"dir_name": "test-dir",
 			"file_contents": "test-content",
 			"ttl_to_delete": "1000000000ns",
 			"num_expected_files": 1
@@ -664,7 +683,8 @@ func TestGroupConfig_JSONEdgeCases(t *testing.T) {
 
 	t.Run("malformed JSON", func(t *testing.T) {
 		jsonInput := `{
-			"dir": "` + tempDir + `",
+			"volume_path": "` + tempDir + `",
+			"dir_name": "test-dir",
 			"file_contents": "test-content",
 			"ttl_to_delete": "1m",
 			"num_expected_files": 1,
@@ -676,7 +696,8 @@ func TestGroupConfig_JSONEdgeCases(t *testing.T) {
 
 	t.Run("missing TTL field", func(t *testing.T) {
 		jsonInput := `{
-			"dir": "` + tempDir + `",
+			"volume_path": "` + tempDir + `",
+			"dir_name": "test-dir",
 			"file_contents": "test-content",
 			"num_expected_files": 1
 		}`
@@ -703,13 +724,15 @@ func TestGroupConfigs_Validate(t *testing.T) {
 	t.Run("all valid configs", func(t *testing.T) {
 		configs := Configs{
 			{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
+				DirName:          "test-dir-1",
 				FileContents:     "content-1",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
 			},
 			{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
+				DirName:          "test-dir-2",
 				FileContents:     "content-2",
 				TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
 				NumExpectedFiles: 2,
@@ -723,13 +746,15 @@ func TestGroupConfigs_Validate(t *testing.T) {
 	t.Run("one invalid config", func(t *testing.T) {
 		configs := Configs{
 			{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
+				DirName:          "test-dir-1",
 				FileContents:     "content-1",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
 			},
 			{
-				Dir:              "", // Invalid: empty directory
+				VolumePath:       "", // Invalid: empty directory
+				DirName:          "test-dir-2",
 				FileContents:     "content-2",
 				TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
 				NumExpectedFiles: 2,
@@ -737,19 +762,21 @@ func TestGroupConfigs_Validate(t *testing.T) {
 		}
 
 		err := configs.Validate()
-		assert.ErrorIs(t, err, ErrDirEmpty)
+		assert.ErrorIs(t, err, ErrVolumePathEmpty)
 	})
 
 	t.Run("multiple invalid configs", func(t *testing.T) {
 		configs := Configs{
 			{
-				Dir:              "", // Invalid: empty directory
+				VolumePath:       "", // Invalid: empty directory
+				DirName:          "test-dir-1",
 				FileContents:     "content-1",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
 			},
 			{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
+				DirName:          "test-dir-2",
 				FileContents:     "", // Invalid: empty file contents
 				TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
 				NumExpectedFiles: 2,
@@ -758,7 +785,7 @@ func TestGroupConfigs_Validate(t *testing.T) {
 
 		err := configs.Validate()
 		// Should return the first error encountered
-		assert.ErrorIs(t, err, ErrDirEmpty)
+		assert.ErrorIs(t, err, ErrVolumePathEmpty)
 	})
 }
 
@@ -774,7 +801,7 @@ func TestGroupConfigs_GetMemberConfigs(t *testing.T) {
 	t.Run("single config", func(t *testing.T) {
 		configs := Configs{
 			{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
@@ -786,7 +813,7 @@ func TestGroupConfigs_GetMemberConfigs(t *testing.T) {
 
 		member := memberConfigs[0]
 		assert.Equal(t, "test-machine-id", member.ID)
-		assert.Equal(t, tempDir, member.Dir)
+		assert.Equal(t, tempDir, member.VolumePath)
 		assert.Equal(t, "test-content", member.FileContents)
 		assert.Equal(t, time.Minute, member.TTLToDelete.Duration)
 		assert.Equal(t, 1, member.NumExpectedFiles)
@@ -796,13 +823,13 @@ func TestGroupConfigs_GetMemberConfigs(t *testing.T) {
 		tempDir2 := t.TempDir()
 		configs := Configs{
 			{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
 				FileContents:     "content-1",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,
 			},
 			{
-				Dir:              tempDir2,
+				VolumePath:       tempDir2,
 				FileContents:     "content-2",
 				TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
 				NumExpectedFiles: 2,
@@ -815,7 +842,7 @@ func TestGroupConfigs_GetMemberConfigs(t *testing.T) {
 		// Check first member config
 		member1 := memberConfigs[0]
 		assert.Equal(t, "machine-123", member1.ID)
-		assert.Equal(t, tempDir, member1.Dir)
+		assert.Equal(t, tempDir, member1.VolumePath)
 		assert.Equal(t, "content-1", member1.FileContents)
 		assert.Equal(t, time.Minute, member1.TTLToDelete.Duration)
 		assert.Equal(t, 1, member1.NumExpectedFiles)
@@ -823,7 +850,7 @@ func TestGroupConfigs_GetMemberConfigs(t *testing.T) {
 		// Check second member config
 		member2 := memberConfigs[1]
 		assert.Equal(t, "machine-123", member2.ID)
-		assert.Equal(t, tempDir2, member2.Dir)
+		assert.Equal(t, tempDir2, member2.VolumePath)
 		assert.Equal(t, "content-2", member2.FileContents)
 		assert.Equal(t, 2*time.Minute, member2.TTLToDelete.Duration)
 		assert.Equal(t, 2, member2.NumExpectedFiles)
@@ -832,7 +859,7 @@ func TestGroupConfigs_GetMemberConfigs(t *testing.T) {
 	t.Run("different machine IDs", func(t *testing.T) {
 		configs := Configs{
 			{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
 				FileContents:     "shared-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 3,
@@ -850,7 +877,7 @@ func TestGroupConfigs_GetMemberConfigs(t *testing.T) {
 		assert.Equal(t, "machine-2", memberConfigs2[0].ID)
 
 		// Both should have the same group config data
-		assert.Equal(t, memberConfigs1[0].Dir, memberConfigs2[0].Dir)
+		assert.Equal(t, memberConfigs1[0].VolumePath, memberConfigs2[0].VolumePath)
 		assert.Equal(t, memberConfigs1[0].FileContents, memberConfigs2[0].FileContents)
 		assert.Equal(t, memberConfigs1[0].TTLToDelete.Duration, memberConfigs2[0].TTLToDelete.Duration)
 		assert.Equal(t, memberConfigs1[0].NumExpectedFiles, memberConfigs2[0].NumExpectedFiles)
@@ -859,7 +886,7 @@ func TestGroupConfigs_GetMemberConfigs(t *testing.T) {
 	t.Run("empty machine ID", func(t *testing.T) {
 		configs := Configs{
 			{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: time.Minute},
 				NumExpectedFiles: 1,

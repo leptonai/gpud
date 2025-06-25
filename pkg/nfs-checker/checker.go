@@ -66,11 +66,12 @@ func (c *checker) Write() error {
 	// make sure the directory is writable
 	// permission bit "0755" is used to allow the group to read the files
 	// and the owner to read and write the files.
-	if err := os.MkdirAll(c.cfg.Dir, 0755); err != nil {
+	if err := os.MkdirAll(c.cfg.VolumePath, 0755); err != nil {
 		return err
 	}
 
-	file := filepath.Join(c.cfg.Dir, c.cfg.ID)
+	dir := filepath.Join(c.cfg.VolumePath, c.cfg.DirName)
+	file := filepath.Join(dir, c.cfg.ID)
 	if err := os.WriteFile(file, []byte(c.cfg.FileContents), 0644); err != nil {
 		return err
 	}
@@ -83,12 +84,13 @@ func (c *checker) Write() error {
 // based on the configuration.
 func (c *checker) Check() CheckResult {
 	// list all files under this directory
-	pattern := filepath.Join(c.cfg.Dir, "*")
+	dir := filepath.Join(c.cfg.VolumePath, c.cfg.DirName)
+	pattern := filepath.Join(dir, "*")
 
 	matches, err := c.listFilesByPattern(pattern)
 	if err != nil {
 		return CheckResult{
-			Dir:     c.cfg.Dir,
+			Dir:     dir,
 			Message: "failed to list files",
 			Error:   err.Error(),
 		}
@@ -99,7 +101,7 @@ func (c *checker) Check() CheckResult {
 	sort.Strings(matches)
 
 	result := CheckResult{
-		Dir: c.cfg.Dir,
+		Dir: dir,
 	}
 	for _, file := range matches {
 		result.ReadIDs = append(result.ReadIDs, filepath.Base(file))
@@ -124,14 +126,15 @@ func (c *checker) Check() CheckResult {
 		return result
 	}
 
-	result.Message = fmt.Sprintf("successfully checked directory %q with %d files", c.cfg.Dir, len(matches))
+	result.Message = fmt.Sprintf("successfully checked directory %q with %d files", c.cfg.VolumePath, len(matches))
 	return result
 }
 
 // Clean cleans up the files in the directory with the TTL.
 func (c *checker) Clean() error {
 	// list all files under this directory
-	pattern := filepath.Join(c.cfg.Dir, "*")
+	dir := filepath.Join(c.cfg.VolumePath, c.cfg.DirName)
+	pattern := filepath.Join(dir, "*")
 
 	// remove all files that are older than the TTL
 	// in order to make sure the checker only checks

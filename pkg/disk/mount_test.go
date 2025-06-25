@@ -15,12 +15,15 @@ func Test_findMntTargetDevice(t *testing.T) {
 
 	buf := bufio.NewScanner(f)
 
-	mountPoint, err := findMntTargetDevice(buf, "/var/lib/kubelet")
+	mountPoint, fsType, err := findMntTargetDevice(buf, "/var/lib/kubelet")
 	if err != nil {
 		t.Fatalf("failed to find mount point: %v", err)
 	}
 	if mountPoint != "/dev/mapper/vgroot-lvroot" {
 		t.Fatalf("expected mount point: %s, got: %s", "/dev/mapper/vgroot-lvroot", mountPoint)
+	}
+	if fsType != "ext4" {
+		t.Fatalf("expected fsType ext4, got: %s", fsType)
 	}
 }
 
