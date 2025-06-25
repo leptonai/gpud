@@ -79,7 +79,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		{
 			name: "invalid nfs config - malformed JSON",
 			configMap: map[string]string{
-				"nfs": `[{"dir": "/tmp/test", "ttl_to_delete": "5m", "num_expected_files":}]`,
+				"nfs": `[{"volume_path": "/tmp/test", "ttl_to_delete": "5m", "num_expected_files":}]`,
 			},
 			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for nfs config")
@@ -96,7 +96,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		{
 			name: "invalid nfs config - validation error",
 			configMap: map[string]string{
-				"nfs": `[{"dir": "", "file_contents": "test-content", "ttl_to_delete": "5m", "num_expected_files": 3}]`,
+				"nfs": `[{"volume_path": "", "file_contents": "test-content", "ttl_to_delete": "5m", "num_expected_files": 3}]`,
 			},
 			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for nfs config")
@@ -104,7 +104,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				t.Error("setDefaultNFSGroupConfigsFunc should not be called for invalid config")
 			},
-			expectedError:                         "directory is empty",
+			expectedError:                         "volume path is empty",
 			expectedIbExpectedPortStatesCalled:    false,
 			expectedNFSGroupConfigsCalled:         false,
 			expectedIbExpectedPortStatesCallCount: 0,
@@ -204,7 +204,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				nfsCallCount++
 				assert.Len(t, cfgs, 1)
-				assert.Equal(t, tempDir, cfgs[0].Dir)
+				assert.Equal(t, tempDir, cfgs[0].VolumePath)
 				assert.Equal(t, "test-content", cfgs[0].FileContents)
 				assert.Equal(t, 5*time.Minute, cfgs[0].TTLToDelete.Duration)
 				assert.Equal(t, 3, cfgs[0].NumExpectedFiles)
@@ -212,7 +212,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		}
 
 		configMap := map[string]string{
-			"nfs": `[{"dir": "` + tempDir + `", "file_contents": "test-content", "ttl_to_delete": "5m", "num_expected_files": 3}]`,
+			"nfs": `[{"volume_path": "` + tempDir + `", "file_contents": "test-content", "ttl_to_delete": "5m", "num_expected_files": 3}]`,
 		}
 
 		resp := &Response{}
@@ -238,7 +238,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				nfsCallCount++
 				assert.Len(t, cfgs, 1)
-				assert.Equal(t, tempDir, cfgs[0].Dir)
+				assert.Equal(t, tempDir, cfgs[0].VolumePath)
 				assert.Equal(t, "multi-content", cfgs[0].FileContents)
 				assert.Equal(t, 10*time.Minute, cfgs[0].TTLToDelete.Duration)
 				assert.Equal(t, 5, cfgs[0].NumExpectedFiles)
@@ -247,7 +247,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 
 		configMap := map[string]string{
 			"accelerator-nvidia-infiniband": `{"at_least_ports": 4, "at_least_rate": 200}`,
-			"nfs":                           `[{"dir": "` + tempDir + `", "file_contents": "multi-content", "ttl_to_delete": "10m", "num_expected_files": 5}]`,
+			"nfs":                           `[{"volume_path": "` + tempDir + `", "file_contents": "multi-content", "ttl_to_delete": "10m", "num_expected_files": 5}]`,
 		}
 
 		resp := &Response{}
@@ -296,7 +296,7 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 			name:          "nfs - empty object in array with validation error",
 			componentName: "nfs",
 			configValue:   `[{}]`,
-			expectedError: "directory is empty",
+			expectedError: "volume path is empty",
 		},
 		{
 			name:          "infiniband - invalid field type",
@@ -374,7 +374,7 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		// Create a real pkgnfschecker.GroupConfigs structure (slice)
 		expectedConfigs := pkgnfschecker.Configs{
 			{
-				Dir:              tempDir,
+				VolumePath:       tempDir,
 				FileContents:     "test-content",
 				TTLToDelete:      metav1.Duration{Duration: 5 * time.Minute},
 				NumExpectedFiles: 10,
@@ -401,7 +401,7 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 
 		assert.Empty(t, resp.Error)
 		assert.Len(t, actualConfigs, 1)
-		assert.Equal(t, expectedConfigs[0].Dir, actualConfigs[0].Dir)
+		assert.Equal(t, expectedConfigs[0].VolumePath, actualConfigs[0].VolumePath)
 		assert.Equal(t, expectedConfigs[0].FileContents, actualConfigs[0].FileContents)
 		assert.Equal(t, expectedConfigs[0].TTLToDelete, actualConfigs[0].TTLToDelete)
 		assert.Equal(t, expectedConfigs[0].NumExpectedFiles, actualConfigs[0].NumExpectedFiles)
@@ -414,13 +414,13 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		// Create multiple GroupConfig objects
 		expectedConfigs := pkgnfschecker.Configs{
 			{
-				Dir:              tempDir1,
+				VolumePath:       tempDir1,
 				FileContents:     "test-content1",
 				TTLToDelete:      metav1.Duration{Duration: 5 * time.Minute},
 				NumExpectedFiles: 10,
 			},
 			{
-				Dir:              tempDir2,
+				VolumePath:       tempDir2,
 				FileContents:     "test-content2",
 				TTLToDelete:      metav1.Duration{Duration: 10 * time.Minute},
 				NumExpectedFiles: 20,
@@ -449,13 +449,13 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		assert.Len(t, actualConfigs, 2)
 
 		// Check first config
-		assert.Equal(t, expectedConfigs[0].Dir, actualConfigs[0].Dir)
+		assert.Equal(t, expectedConfigs[0].VolumePath, actualConfigs[0].VolumePath)
 		assert.Equal(t, expectedConfigs[0].FileContents, actualConfigs[0].FileContents)
 		assert.Equal(t, expectedConfigs[0].TTLToDelete, actualConfigs[0].TTLToDelete)
 		assert.Equal(t, expectedConfigs[0].NumExpectedFiles, actualConfigs[0].NumExpectedFiles)
 
 		// Check second config
-		assert.Equal(t, expectedConfigs[1].Dir, actualConfigs[1].Dir)
+		assert.Equal(t, expectedConfigs[1].VolumePath, actualConfigs[1].VolumePath)
 		assert.Equal(t, expectedConfigs[1].FileContents, actualConfigs[1].FileContents)
 		assert.Equal(t, expectedConfigs[1].TTLToDelete, actualConfigs[1].TTLToDelete)
 		assert.Equal(t, expectedConfigs[1].NumExpectedFiles, actualConfigs[1].NumExpectedFiles)

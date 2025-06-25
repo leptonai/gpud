@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
@@ -30,6 +32,8 @@ type component struct {
 	machineID string
 
 	getGroupConfigsFunc func() pkgnfschecker.Configs
+	findMntTargetDevice func(dir string) (string, string, error)
+	isNFSFSType         func(fsType string) bool
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -41,8 +45,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		machineID:           gpudInstance.MachineID,
+		machineID: gpudInstance.MachineID,
+
 		getGroupConfigsFunc: GetDefaultConfigs,
+		findMntTargetDevice: disk.FindMntTargetDevice,
+		isNFSFSType:         disk.DefaultNFSFsTypeFunc,
 	}
 
 	return c, nil
@@ -118,12 +125,31 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
+	// verify the volume path is an nfs mount point
+	for _, groupConfig := range groupConfigs {
+		dev, fsType, err := c.findMntTargetDevice(groupConfig.VolumePath)
+		if dev == "" || err != nil {
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeDegraded
+			cr.reason = "failed to find mount target device for " + groupConfig.VolumePath
+			log.Logger.Warnw(cr.reason, "error", err)
+			return cr
+		}
+		if !c.isNFSFSType(fsType) {
+			cr.health = apiv1.HealthStateTypeDegraded
+			cr.reason = fmt.Sprintf("volume path %s mounted on %s, but not nfs", groupConfig.VolumePath, dev)
+			log.Logger.Warnw(cr.reason)
+			return cr
+		}
+		log.Logger.Infow("nfs mount point found", "volume_path", groupConfig.VolumePath, "device", dev, "fs_type", fsType)
+	}
+
 	memberConfigs := groupConfigs.GetMemberConfigs(c.machineID)
 	if err := memberConfigs.Validate(); err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeDegraded
 		cr.reason = "invalid nfs group configs"
-		log.Logger.Debugw(cr.reason)
+		log.Logger.Warnw(cr.reason, "error", err)
 		return cr
 	}
 
@@ -133,16 +159,16 @@ func (c *component) Check() components.CheckResult {
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
-			cr.reason = "failed to create nfs checker for " + memberConfig.Dir
-			log.Logger.Debugw(cr.reason)
+			cr.reason = "failed to create nfs checker for " + memberConfig.VolumePath
+			log.Logger.Warnw(cr.reason, "error", err)
 			return cr
 		}
 
 		if err := checker.Write(); err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
-			cr.reason = "failed to write to nfs checker for " + memberConfig.Dir
-			log.Logger.Debugw(cr.reason)
+			cr.reason = "failed to write to nfs checker for " + memberConfig.VolumePath
+			log.Logger.Warnw(cr.reason, "error", err)
 			return cr
 		}
 
@@ -150,8 +176,8 @@ func (c *component) Check() components.CheckResult {
 		if len(nfsResult.Error) > 0 {
 			cr.err = errors.New(nfsResult.Error)
 			cr.health = apiv1.HealthStateTypeDegraded
-			cr.reason = "failed to check nfs checker for " + memberConfig.Dir
-			log.Logger.Debugw(cr.reason)
+			cr.reason = "failed to check nfs checker for " + memberConfig.VolumePath
+			log.Logger.Warnw(cr.reason, "error", err)
 			return cr
 		}
 
@@ -195,7 +221,6 @@ func (cr *checkResult) String() string {
 		return ""
 	}
 
-	cnt := 0
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
@@ -205,11 +230,7 @@ func (cr *checkResult) String() string {
 	}
 	table.Render()
 
-	if cnt > 0 {
-		return buf.String()
-	}
-
-	return "no devices with ACS enabled (ok)"
+	return buf.String()
 }
 
 func (cr *checkResult) Summary() string {

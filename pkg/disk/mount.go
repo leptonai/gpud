@@ -7,20 +7,22 @@ import (
 	"strings"
 )
 
-// FindMntTargetDevice retrieves mount information for a given target directory.
+// FindMntTargetDevice returns the device name and file system type of the mount target.
 // Implements "findmnt --target [DIRECTORY]".
 // It returns an empty string and no error if the target is not found.
-func FindMntTargetDevice(target string) (string, error) {
+func FindMntTargetDevice(dir string) (string, string, error) {
 	file, err := os.Open("/proc/self/mountinfo")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer file.Close()
 
-	return findMntTargetDevice(bufio.NewScanner(file), target)
+	return findMntTargetDevice(bufio.NewScanner(file), dir)
 }
 
-func findMntTargetDevice(scanner *bufio.Scanner, target string) (string, error) {
+// findMntTargetDevice is a helper function to find the mount target device and its file system type
+// for a given target directory.
+func findMntTargetDevice(scanner *bufio.Scanner, dir string) (string, string, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -32,7 +34,7 @@ func findMntTargetDevice(scanner *bufio.Scanner, target string) (string, error) 
 		// e.g.,
 		// 2914 838 253:0 /var/lib/lxc/ny2g2r14hh2-lxc/rootfs/etc /var/lib/kubelet/pods/545812e1-e899-4d9d-9c5e-ce1a72cd9fa6/volume-subpaths/host-root/gpu-feature-discovery-imex-init/2 rw,relatime shared:518 master:1 - ext4 /dev/mapper/vgroot-lvroot rw
 		mountPoint := fields[4] // "/var/lib/lxc/ny2g2r14hh2-lxc/rootfs/etc"
-		if !strings.HasPrefix(mountPoint, target) {
+		if !strings.HasPrefix(mountPoint, dir) {
 			continue
 		}
 
@@ -59,13 +61,13 @@ func findMntTargetDevice(scanner *bufio.Scanner, target string) (string, error) 
 			continue
 		}
 
-		return dev, nil
+		return dev, fsType, nil
 	}
 	if err := scanner.Err(); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return "", nil
+	return "", "", nil
 }
 
 // FindFsTypeAndDeviceByMinorNumber retrieves the filesystem type and device name for a given minor number.
