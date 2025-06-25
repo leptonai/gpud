@@ -865,7 +865,7 @@ func TestSXIDComponent_UpdateCurrentState_RebootError(t *testing.T) {
 	defer cleanup()
 
 	// Create a mock reboot event store that returns an error on GetRebootEvents
-	mockRebootStore := &MockRebootEventStore{
+	mockRebootStore := &mockRebootEventStore{
 		getRebootEventsError: errors.New("test error"),
 	}
 	component.rebootEventStore = mockRebootStore
@@ -887,20 +887,20 @@ func TestSXIDComponent_UpdateCurrentState_RebootError(t *testing.T) {
 	assert.Contains(t, state.Error, "failed to get reboot events")
 }
 
-// MockRebootEventStore implements pkghost.RebootEventStore for testing
-type MockRebootEventStore struct {
+// mockRebootEventStore implements pkghost.RebootEventStore for testing
+type mockRebootEventStore struct {
 	rebootEvents         eventstore.Events
 	getRebootEventsError error
 }
 
-func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if m.getRebootEventsError != nil {
 		return nil, m.getRebootEventsError
 	}
 	return m.rebootEvents, nil
 }
 
-func (m *MockRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 

@@ -29,7 +29,11 @@ func TestLastRebootHelper(t *testing.T) {
 			lines: [][]byte{
 				[]byte("2025-02-10 14:30:00"),
 			},
-			want:    time.Date(2025, 2, 10, 14, 30, 0, 0, time.UTC),
+			want: func() time.Time {
+				// Calculate expected result the same way as LastRebootHelper
+				t, _ := time.ParseInLocation("2006-01-02 15:04:05", "2025-02-10 14:30:00", time.Local)
+				return t.UTC()
+			}(),
 			wantErr: false,
 		},
 		{

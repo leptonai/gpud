@@ -22,65 +22,65 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-// MockRebootEventStore is a mock implementation of the RebootEventStore interface
-type MockRebootEventStore struct {
+// mockRebootEventStore is a mock implementation of the RebootEventStore interface
+type mockRebootEventStore struct {
 	events eventstore.Events
 }
 
-func (m *MockRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return m.events, nil
 }
 
-// ErrorRebootEventStore is a mock implementation that always returns an error
-type ErrorRebootEventStore struct{}
+// errRebootEventStore is a mock implementation that always returns an error
+type errRebootEventStore struct{}
 
-func (m *ErrorRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *errRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
 
-func (m *ErrorRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *errRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return nil, errors.New("mock event store error")
 }
 
-// MockBucket is a mock implementation of eventstore.Bucket
-type MockBucket struct {
+// mockBucket is a mock implementation of eventstore.Bucket
+type mockBucket struct {
 	getError error
 	events   eventstore.Events
 	closed   bool
 }
 
-func (m *MockBucket) Name() string {
+func (m *mockBucket) Name() string {
 	return "mock-bucket"
 }
 
-func (m *MockBucket) Insert(ctx context.Context, event eventstore.Event) error {
+func (m *mockBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	return nil
 }
 
-func (m *MockBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
+func (m *mockBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	return nil, nil
 }
 
-func (m *MockBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if m.getError != nil {
 		return nil, m.getError
 	}
 	return m.events, nil
 }
 
-func (m *MockBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *mockBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	return nil, nil
 }
 
-func (m *MockBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
 	return 0, nil
 }
 
-func (m *MockBucket) Close() {
+func (m *mockBucket) Close() {
 	m.closed = true
 }
 
@@ -214,7 +214,7 @@ func TestComponent(t *testing.T) {
 	defer cancel()
 
 	// Create a RebootEventStore implementation
-	mockRebootStore := &MockRebootEventStore{
+	mockRebootStore := &mockRebootEventStore{
 		events: eventstore.Events{
 			{
 				Time:    time.Now().Add(-1 * time.Hour),
@@ -316,7 +316,7 @@ func TestComponent_States(t *testing.T) {
 	defer cancel()
 
 	// Create a RebootEventStore implementation
-	mockRebootStore := &MockRebootEventStore{}
+	mockRebootStore := &mockRebootEventStore{}
 
 	comp, err := New(&components.GPUdInstance{
 		RootCtx:          ctx,
@@ -401,7 +401,7 @@ func TestComponent_States(t *testing.T) {
 
 // TestMockRebootEventStore tests the mock implementation of RebootEventStore
 func TestMockRebootEventStore(t *testing.T) {
-	mock := &MockRebootEventStore{
+	mock := &mockRebootEventStore{
 		events: eventstore.Events{
 			{
 				Time:    time.Now().Add(-1 * time.Hour),
@@ -432,7 +432,7 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockRebootStore := &MockRebootEventStore{}
+	mockRebootStore := &mockRebootEventStore{}
 
 	// Test with process count error
 	t.Run("process count error", func(t *testing.T) {
@@ -524,7 +524,7 @@ func TestComponent_UptimeError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mockRebootStore := &MockRebootEventStore{}
+	mockRebootStore := &mockRebootEventStore{}
 
 	c, err := New(&components.GPUdInstance{
 		RootCtx:          ctx,
@@ -1121,7 +1121,7 @@ func TestComponent_WithRebootEventStore(t *testing.T) {
 	defer cancel()
 
 	// Create a reboot event store with some events
-	mockStore := &MockRebootEventStore{
+	mockStore := &mockRebootEventStore{
 		events: eventstore.Events{
 			{
 				Time:    time.Now().Add(-1 * time.Hour),
@@ -1188,7 +1188,7 @@ func TestComponent_EventsWithMockBucket(t *testing.T) {
 
 	// Test when only rebootEventStore is available
 	t.Run("only reboot events", func(t *testing.T) {
-		mockStore := &MockRebootEventStore{
+		mockStore := &mockRebootEventStore{
 			events: eventstore.Events{
 				{
 					Time:    time.Now().Add(-1 * time.Hour),
@@ -1227,7 +1227,7 @@ func TestComponent_EventsWithMockBucket(t *testing.T) {
 
 	// Test error handling
 	t.Run("reboot store returns error", func(t *testing.T) {
-		errorStore := &ErrorRebootEventStore{}
+		errorStore := &errRebootEventStore{}
 
 		// Again directly testing the error case without using component.Events
 		getEvents := func(ctx context.Context, since time.Time) (apiv1.Events, error) {
@@ -1252,7 +1252,7 @@ func TestComponent_NilEventBucketHandling(t *testing.T) {
 	defer cancel()
 
 	// Create a reboot event store with some events
-	mockStore := &MockRebootEventStore{
+	mockStore := &mockRebootEventStore{
 		events: eventstore.Events{
 			{
 				Time:    time.Now().Add(-1 * time.Hour),
@@ -1300,7 +1300,7 @@ func TestComponent_EventsNilSafe(t *testing.T) {
 	defer cancel()
 
 	// Create a reboot event store with some events
-	mockStore := &MockRebootEventStore{
+	mockStore := &mockRebootEventStore{
 		events: eventstore.Events{
 			{
 				Time:    time.Now().Add(-1 * time.Hour),
@@ -1394,7 +1394,7 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 				return &component{
 					ctx:    ctx,
 					cancel: cancel,
-					eventBucket: &MockBucket{
+					eventBucket: &mockBucket{
 						events: eventstore.Events{
 							{
 								Time:    time.Now().Add(-2 * time.Hour),
@@ -1416,7 +1416,7 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 				return &component{
 					ctx:    ctx,
 					cancel: cancel,
-					eventBucket: &MockBucket{
+					eventBucket: &mockBucket{
 						getError: errors.New("bucket get error"),
 					},
 					rebootEventStore: nil,
@@ -1433,7 +1433,7 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 					ctx:         ctx,
 					cancel:      cancel,
 					eventBucket: nil,
-					rebootEventStore: &MockRebootEventStore{
+					rebootEventStore: &mockRebootEventStore{
 						events: eventstore.Events{
 							{
 								Time:    time.Now().Add(-1 * time.Hour),
@@ -1455,7 +1455,7 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 					ctx:              ctx,
 					cancel:           cancel,
 					eventBucket:      nil,
-					rebootEventStore: &ErrorRebootEventStore{},
+					rebootEventStore: &errRebootEventStore{},
 				}
 			},
 			wantErr:     true,
@@ -1468,7 +1468,7 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 				return &component{
 					ctx:    ctx,
 					cancel: cancel,
-					eventBucket: &MockBucket{
+					eventBucket: &mockBucket{
 						events: eventstore.Events{
 							{
 								Time:    time.Now().Add(-2 * time.Hour),
@@ -1478,7 +1478,7 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 							},
 						},
 					},
-					rebootEventStore: &MockRebootEventStore{
+					rebootEventStore: &mockRebootEventStore{
 						events: eventstore.Events{
 							{
 								Time:    time.Now().Add(-1 * time.Hour),
@@ -1499,8 +1499,8 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 				return &component{
 					ctx:         ctx,
 					cancel:      cancel,
-					eventBucket: &MockBucket{},
-					rebootEventStore: &MockRebootEventStore{
+					eventBucket: &mockBucket{},
+					rebootEventStore: &mockRebootEventStore{
 						events: eventstore.Events{
 							{
 								Time:    time.Now().Add(-1 * time.Hour),
@@ -1521,7 +1521,7 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 				return &component{
 					ctx:    ctx,
 					cancel: cancel,
-					eventBucket: &MockBucket{
+					eventBucket: &mockBucket{
 						events: eventstore.Events{
 							{
 								Time:    time.Now().Add(-2 * time.Hour),
@@ -1531,7 +1531,7 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 							},
 						},
 					},
-					rebootEventStore: &MockRebootEventStore{},
+					rebootEventStore: &mockRebootEventStore{},
 				}
 			},
 			expectedLen:      1,
@@ -1543,8 +1543,8 @@ func TestComponent_EventsWithMocks(t *testing.T) {
 				return &component{
 					ctx:              ctx,
 					cancel:           cancel,
-					eventBucket:      &MockBucket{},
-					rebootEventStore: &MockRebootEventStore{},
+					eventBucket:      &mockBucket{},
+					rebootEventStore: &mockRebootEventStore{},
 				}
 			},
 			expectedLen: 0,
@@ -3661,4 +3661,593 @@ func TestComponent_ThresholdPercentageMetricsUpdates(t *testing.T) {
 	err = gauge.Write(dto)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedAllocFHPct, *dto.Gauge.Value)
+}
+
+// TestComponent_EventsRebootDuplicateFiltering tests that the Events method
+// properly filters out duplicate reboot events from eventBucket vs rebootEventStore
+func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	testTime := time.Now()
+	since := testTime.Add(-2 * time.Hour)
+
+	t.Run("eventBucket filters out reboot events", func(t *testing.T) {
+		// Create mock bucket with both reboot and non-reboot events
+		mockBucket := &mockBucket{
+			events: eventstore.Events{
+				{
+					Time:    testTime.Add(-1 * time.Hour),
+					Name:    pkghost.EventNameReboot, // This should be filtered out
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Reboot event from eventBucket",
+				},
+				{
+					Time:    testTime.Add(-30 * time.Minute),
+					Name:    "kernel-panic", // This should be included
+					Type:    string(apiv1.EventTypeCritical),
+					Message: "Kernel panic event",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 1) // Only the non-reboot event should be included
+		assert.Equal(t, "kernel-panic", events[0].Name)
+		assert.Equal(t, "Kernel panic event", events[0].Message)
+	})
+
+	t.Run("rebootEventStore includes only reboot events", func(t *testing.T) {
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    testTime.Add(-1 * time.Hour),
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Reboot event from rebootEventStore",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx:          ctx,
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 1)
+		assert.Equal(t, pkghost.EventNameReboot, events[0].Name)
+		assert.Equal(t, "Reboot event from rebootEventStore", events[0].Message)
+	})
+
+	t.Run("combined sources without duplicates", func(t *testing.T) {
+		// Mock bucket with reboot event (should be filtered) and other event (should be included)
+		mockBucket := &mockBucket{
+			events: eventstore.Events{
+				{
+					Time:    testTime.Add(-90 * time.Minute),
+					Name:    pkghost.EventNameReboot, // This should be filtered out
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Duplicate reboot event from eventBucket",
+				},
+				{
+					Time:    testTime.Add(-60 * time.Minute),
+					Name:    "disk-error",
+					Type:    string(apiv1.EventTypeCritical),
+					Message: "Disk error event",
+				},
+			},
+		}
+
+		// Mock reboot store with reboot event (should be included)
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    testTime.Add(-45 * time.Minute),
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Reboot event from rebootEventStore",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 2) // Only disk-error and reboot from rebootEventStore
+
+		// Verify events are correct and no duplicates
+		eventNames := make(map[string]int)
+		for _, event := range events {
+			eventNames[event.Name]++
+			if event.Name == pkghost.EventNameReboot {
+				assert.Equal(t, "Reboot event from rebootEventStore", event.Message)
+			} else if event.Name == "disk-error" {
+				assert.Equal(t, "Disk error event", event.Message)
+			}
+		}
+
+		// Ensure only one reboot event (from rebootEventStore, not eventBucket)
+		assert.Equal(t, 1, eventNames[pkghost.EventNameReboot])
+		assert.Equal(t, 1, eventNames["disk-error"])
+	})
+
+	t.Run("multiple reboot events in eventBucket all filtered", func(t *testing.T) {
+		mockBucket := &mockBucket{
+			events: eventstore.Events{
+				{
+					Time:    testTime.Add(-2 * time.Hour),
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "First reboot event from eventBucket",
+				},
+				{
+					Time:    testTime.Add(-90 * time.Minute),
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Second reboot event from eventBucket",
+				},
+				{
+					Time:    testTime.Add(-30 * time.Minute),
+					Name:    "memory-error",
+					Type:    string(apiv1.EventTypeCritical),
+					Message: "Memory error event",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 1) // Only the memory-error event
+		assert.Equal(t, "memory-error", events[0].Name)
+		assert.Equal(t, "Memory error event", events[0].Message)
+	})
+
+	t.Run("empty eventBucket with rebootEventStore", func(t *testing.T) {
+		mockBucket := &mockBucket{
+			events: eventstore.Events{}, // Empty
+		}
+
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    testTime.Add(-1 * time.Hour),
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Reboot event from rebootEventStore",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 1)
+		assert.Equal(t, pkghost.EventNameReboot, events[0].Name)
+		assert.Equal(t, "Reboot event from rebootEventStore", events[0].Message)
+	})
+
+	t.Run("eventBucket error handling", func(t *testing.T) {
+		mockBucket := &mockBucket{
+			getError: errors.New("eventBucket error"),
+		}
+
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    testTime.Add(-1 * time.Hour),
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Reboot event from rebootEventStore",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "eventBucket error")
+		assert.Nil(t, events)
+	})
+
+	t.Run("rebootEventStore error handling", func(t *testing.T) {
+		mockBucket := &mockBucket{
+			events: eventstore.Events{
+				{
+					Time:    testTime.Add(-1 * time.Hour),
+					Name:    "cpu-error",
+					Type:    string(apiv1.EventTypeCritical),
+					Message: "CPU error event",
+				},
+			},
+		}
+
+		errRebootStore := &errRebootEventStore{}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+			RebootEventStore: errRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mock event store error")
+		assert.Nil(t, events)
+	})
+
+	t.Run("nil stores return nil events", func(t *testing.T) {
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			// Both EventStore and RebootEventStore are nil
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Nil(t, events)
+	})
+}
+
+// TestComponent_EventsSortingByTime tests that events from both eventBucket and rebootEventStore
+// are combined and sorted correctly by time in descending order (most recent first)
+func TestComponent_EventsSortingByTime(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Define test times in ascending order (older to newer)
+	baseTime := time.Now().Add(-4 * time.Hour)
+	oldestTime := baseTime                    // -4 hours
+	olderTime := baseTime.Add(1 * time.Hour)  // -3 hours
+	newerTime := baseTime.Add(2 * time.Hour)  // -2 hours
+	newestTime := baseTime.Add(3 * time.Hour) // -1 hour
+	since := baseTime.Add(-1 * time.Hour)     // -5 hours (to capture all events)
+
+	t.Run("events sorted with reboot and non-reboot mixed", func(t *testing.T) {
+		// Mock bucket with non-reboot events at different times
+		mockBucket := &mockBucket{
+			events: eventstore.Events{
+				{
+					Time:    olderTime, // -3 hours (should be 3rd in sorted result)
+					Name:    "disk-error",
+					Type:    string(apiv1.EventTypeCritical),
+					Message: "Disk error event",
+				},
+				{
+					Time:    newestTime, // -1 hour (should be 1st in sorted result)
+					Name:    "memory-warning",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Memory warning event",
+				},
+			},
+		}
+
+		// Mock reboot store with reboot events at different times
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    newerTime, // -2 hours (should be 2nd in sorted result)
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "System reboot event",
+				},
+				{
+					Time:    oldestTime, // -4 hours (should be 4th in sorted result)
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Older system reboot event",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 4, "Should have 4 events total")
+
+		// Verify events are sorted by time in descending order (newest first)
+		// Expected order: memory-warning, reboot, disk-error, older-reboot
+		assert.Equal(t, "memory-warning", events[0].Name, "Newest event should be first")
+		assert.Equal(t, newestTime.Unix(), events[0].Time.Time.Unix(), "First event should have newest timestamp")
+
+		assert.Equal(t, pkghost.EventNameReboot, events[1].Name, "Second newest event should be reboot")
+		assert.Equal(t, newerTime.Unix(), events[1].Time.Time.Unix(), "Second event should have second newest timestamp")
+		assert.Equal(t, "System reboot event", events[1].Message)
+
+		assert.Equal(t, "disk-error", events[2].Name, "Third newest event should be disk-error")
+		assert.Equal(t, olderTime.Unix(), events[2].Time.Time.Unix(), "Third event should have third newest timestamp")
+
+		assert.Equal(t, pkghost.EventNameReboot, events[3].Name, "Oldest event should be older reboot")
+		assert.Equal(t, oldestTime.Unix(), events[3].Time.Time.Unix(), "Fourth event should have oldest timestamp")
+		assert.Equal(t, "Older system reboot event", events[3].Message)
+
+		// Verify sorting order by comparing adjacent timestamps
+		for i := 0; i < len(events)-1; i++ {
+			assert.True(t, events[i].Time.Time.After(events[i+1].Time.Time) || events[i].Time.Time.Equal(events[i+1].Time.Time),
+				"Event %d should be newer than or equal to event %d", i, i+1)
+		}
+	})
+
+	t.Run("events with identical timestamps maintain stable sort", func(t *testing.T) {
+		sameTime := baseTime.Add(1 * time.Hour)
+
+		// Mock bucket with events at the same time
+		mockBucket := &mockBucket{
+			events: eventstore.Events{
+				{
+					Time:    sameTime,
+					Name:    "event-a",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Event A",
+				},
+				{
+					Time:    sameTime,
+					Name:    "event-b",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Event B",
+				},
+			},
+		}
+
+		// Mock reboot store with event at the same time
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    sameTime,
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Reboot at same time",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 3, "Should have 3 events total")
+
+		// All events should have the same timestamp
+		for _, event := range events {
+			assert.Equal(t, sameTime.Unix(), event.Time.Time.Unix(), "All events should have same timestamp")
+		}
+	})
+
+	t.Run("empty eventBucket with sorted reboot events", func(t *testing.T) {
+		// Mock bucket with no events
+		mockBucket := &mockBucket{
+			events: eventstore.Events{},
+		}
+
+		// Mock reboot store with multiple reboot events at different times
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    oldestTime, // Older timestamp
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "First reboot",
+				},
+				{
+					Time:    newestTime, // Newer timestamp
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "Second reboot",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 2, "Should have 2 reboot events")
+
+		// Verify sorting: newer event first
+		assert.Equal(t, pkghost.EventNameReboot, events[0].Name)
+		assert.Equal(t, "Second reboot", events[0].Message, "Newer reboot should be first")
+		assert.Equal(t, newestTime.Unix(), events[0].Time.Time.Unix())
+
+		assert.Equal(t, pkghost.EventNameReboot, events[1].Name)
+		assert.Equal(t, "First reboot", events[1].Message, "Older reboot should be second")
+		assert.Equal(t, oldestTime.Unix(), events[1].Time.Time.Unix())
+
+		// Verify descending order
+		assert.True(t, events[0].Time.Time.After(events[1].Time.Time), "First event should be newer than second")
+	})
+
+	t.Run("empty rebootEventStore with sorted non-reboot events", func(t *testing.T) {
+		// Mock bucket with multiple non-reboot events at different times
+		mockBucket := &mockBucket{
+			events: eventstore.Events{
+				{
+					Time:    newerTime, // Newer timestamp
+					Name:    "cpu-warning",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "CPU warning event",
+				},
+				{
+					Time:    oldestTime, // Older timestamp
+					Name:    "network-error",
+					Type:    string(apiv1.EventTypeCritical),
+					Message: "Network error event",
+				},
+			},
+		}
+
+		// Mock reboot store with no events
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 2, "Should have 2 non-reboot events")
+
+		// Verify sorting: newer event first
+		assert.Equal(t, "cpu-warning", events[0].Name, "Newer event should be first")
+		assert.Equal(t, newerTime.Unix(), events[0].Time.Time.Unix())
+
+		assert.Equal(t, "network-error", events[1].Name, "Older event should be second")
+		assert.Equal(t, oldestTime.Unix(), events[1].Time.Time.Unix())
+
+		// Verify descending order
+		assert.True(t, events[0].Time.Time.After(events[1].Time.Time), "First event should be newer than second")
+	})
+
+	t.Run("single event from each source sorted correctly", func(t *testing.T) {
+		// Mock bucket with single non-reboot event (older)
+		mockBucket := &mockBucket{
+			events: eventstore.Events{
+				{
+					Time:    olderTime, // -3 hours
+					Name:    "io-error",
+					Type:    string(apiv1.EventTypeCritical),
+					Message: "IO error event",
+				},
+			},
+		}
+
+		// Mock reboot store with single reboot event (newer)
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    newerTime, // -2 hours
+					Name:    pkghost.EventNameReboot,
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "System reboot event",
+				},
+			},
+		}
+
+		comp, err := New(&components.GPUdInstance{
+			RootCtx: ctx,
+			EventStore: &mockEventStore{
+				bucket: mockBucket,
+			},
+			RebootEventStore: mockRebootStore,
+		})
+		assert.NoError(t, err)
+		defer comp.Close()
+
+		events, err := comp.Events(ctx, since)
+		assert.NoError(t, err)
+		assert.Len(t, events, 2, "Should have 2 events total")
+
+		// Verify sorting: reboot event (newer) should be first
+		assert.Equal(t, pkghost.EventNameReboot, events[0].Name, "Newer reboot event should be first")
+		assert.Equal(t, newerTime.Unix(), events[0].Time.Time.Unix())
+
+		assert.Equal(t, "io-error", events[1].Name, "Older non-reboot event should be second")
+		assert.Equal(t, olderTime.Unix(), events[1].Time.Time.Unix())
+
+		// Verify descending order
+		assert.True(t, events[0].Time.Time.After(events[1].Time.Time), "Reboot event should be newer than IO error event")
+	})
+}
+
+// mockEventStore is a mock implementation of eventstore.Store
+type mockEventStore struct {
+	bucket eventstore.Bucket
+}
+
+func (m *mockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+	return m.bucket, nil
+}
+
+func (m *mockEventStore) Close() {
+	// No-op
 }
