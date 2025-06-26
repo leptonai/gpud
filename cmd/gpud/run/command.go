@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
@@ -48,11 +49,18 @@ func Command(cliContext *cli.Context) error {
 	listenAddress := cliContext.String("listen-address")
 	pprof := cliContext.Bool("pprof")
 	retentionPeriod := cliContext.Duration("retention-period")
+	gpuCount := cliContext.Int("gpu-count")
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
 	ibstatCommand := cliContext.String("ibstat-command")
 	components := cliContext.String("components")
+
+	if gpuCount > 0 {
+		componentsnvidiagpucounts.SetDefaultExpectedGPUCounts(componentsnvidiagpucounts.ExpectedGPUCounts{
+			Count: gpuCount,
+		})
+	}
 
 	configOpts := []config.OpOption{
 		config.WithIbstatCommand(ibstatCommand),

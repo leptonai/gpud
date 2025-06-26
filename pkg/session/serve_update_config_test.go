@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
@@ -20,11 +21,14 @@ func TestProcessUpdateConfig(t *testing.T) {
 		configMap                             map[string]string
 		setDefaultIbExpectedPortStatesFunc    func(states infiniband.ExpectedPortStates)
 		setDefaultNFSGroupConfigsFunc         func(cfgs pkgnfschecker.Configs)
+		setDefaultGPUCountsFunc               func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
 		expectedError                         string
 		expectedIbExpectedPortStatesCalled    bool
 		expectedNFSGroupConfigsCalled         bool
+		expectedGPUCountsCalled               bool
 		expectedIbExpectedPortStatesCallCount int
 		expectedNFSGroupConfigsCallCount      int
+		expectedGPUCountsCallCount            int
 	}{
 		{
 			name:      "empty config map",
@@ -35,11 +39,16 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				t.Error("setDefaultNFSGroupConfigsFunc should not be called for empty config map")
 			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				t.Error("setDefaultGPUCountsFunc should not be called for empty config map")
+			},
 			expectedError:                         "",
 			expectedIbExpectedPortStatesCalled:    false,
 			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               false,
 			expectedIbExpectedPortStatesCallCount: 0,
 			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            0,
 		},
 		{
 			name: "valid infiniband config",
@@ -53,11 +62,38 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				t.Error("setDefaultNFSGroupConfigsFunc should not be called for infiniband config")
 			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				t.Error("setDefaultGPUCountsFunc should not be called for infiniband config")
+			},
 			expectedError:                         "",
 			expectedIbExpectedPortStatesCalled:    true,
 			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               false,
 			expectedIbExpectedPortStatesCallCount: 1,
 			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            0,
+		},
+		{
+			name: "valid gpu counts config",
+			configMap: map[string]string{
+				"accelerator-nvidia-gpu-counts": `{"count": 8}`,
+			},
+			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for gpu counts config")
+			},
+			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
+				t.Error("setDefaultNFSGroupConfigsFunc should not be called for gpu counts config")
+			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				assert.Equal(t, 8, counts.Count)
+			},
+			expectedError:                         "",
+			expectedIbExpectedPortStatesCalled:    false,
+			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               true,
+			expectedIbExpectedPortStatesCallCount: 0,
+			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            1,
 		},
 		{
 			name: "invalid infiniband config - malformed JSON",
@@ -70,11 +106,38 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				t.Error("setDefaultNFSGroupConfigsFunc should not be called for infiniband config")
 			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				t.Error("setDefaultGPUCountsFunc should not be called for infiniband config")
+			},
 			expectedError:                         "invalid character '}' looking for beginning of value",
 			expectedIbExpectedPortStatesCalled:    false,
 			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               false,
 			expectedIbExpectedPortStatesCallCount: 0,
 			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            0,
+		},
+		{
+			name: "invalid gpu counts config - malformed JSON",
+			configMap: map[string]string{
+				"accelerator-nvidia-gpu-counts": `{"count":}`,
+			},
+			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for gpu counts config")
+			},
+			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
+				t.Error("setDefaultNFSGroupConfigsFunc should not be called for gpu counts config")
+			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				t.Error("setDefaultGPUCountsFunc should not be called for invalid JSON")
+			},
+			expectedError:                         "invalid character '}' looking for beginning of value",
+			expectedIbExpectedPortStatesCalled:    false,
+			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               false,
+			expectedIbExpectedPortStatesCallCount: 0,
+			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            0,
 		},
 		{
 			name: "invalid nfs config - malformed JSON",
@@ -87,11 +150,16 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				t.Error("setDefaultNFSGroupConfigsFunc should not be called for invalid JSON")
 			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				t.Error("setDefaultGPUCountsFunc should not be called for nfs config")
+			},
 			expectedError:                         "invalid character '}' looking for beginning of value",
 			expectedIbExpectedPortStatesCalled:    false,
 			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               false,
 			expectedIbExpectedPortStatesCallCount: 0,
 			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            0,
 		},
 		{
 			name: "invalid nfs config - validation error",
@@ -104,11 +172,16 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				t.Error("setDefaultNFSGroupConfigsFunc should not be called for invalid config")
 			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				t.Error("setDefaultGPUCountsFunc should not be called for nfs config")
+			},
 			expectedError:                         "volume path is empty",
 			expectedIbExpectedPortStatesCalled:    false,
 			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               false,
 			expectedIbExpectedPortStatesCallCount: 0,
 			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            0,
 		},
 		{
 			name: "unsupported component",
@@ -121,11 +194,16 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				t.Error("setDefaultNFSGroupConfigsFunc should not be called for unsupported component")
 			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				t.Error("setDefaultGPUCountsFunc should not be called for unsupported component")
+			},
 			expectedError:                         "",
 			expectedIbExpectedPortStatesCalled:    false,
 			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               false,
 			expectedIbExpectedPortStatesCallCount: 0,
 			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            0,
 		},
 		{
 			name: "nil function handlers",
@@ -134,11 +212,34 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultIbExpectedPortStatesFunc:    nil,
 			setDefaultNFSGroupConfigsFunc:         nil,
+			setDefaultGPUCountsFunc:               nil,
 			expectedError:                         "",
 			expectedIbExpectedPortStatesCalled:    false,
 			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               false,
 			expectedIbExpectedPortStatesCallCount: 0,
 			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            0,
+		},
+		{
+			name: "nil gpu counts function handler with gpu counts config",
+			configMap: map[string]string{
+				"accelerator-nvidia-gpu-counts": `{"count": 8}`,
+			},
+			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for gpu counts config")
+			},
+			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
+				t.Error("setDefaultNFSGroupConfigsFunc should not be called for gpu counts config")
+			},
+			setDefaultGPUCountsFunc:               nil,
+			expectedError:                         "",
+			expectedIbExpectedPortStatesCalled:    false,
+			expectedNFSGroupConfigsCalled:         false,
+			expectedGPUCountsCalled:               false,
+			expectedIbExpectedPortStatesCallCount: 0,
+			expectedNFSGroupConfigsCallCount:      0,
+			expectedGPUCountsCallCount:            0,
 		},
 	}
 
@@ -146,6 +247,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ibCallCount := 0
 			nfsCallCount := 0
+			gpuCallCount := 0
 
 			// Create session with mock functions
 			s := &Session{
@@ -161,6 +263,12 @@ func TestProcessUpdateConfig(t *testing.T) {
 						tt.setDefaultNFSGroupConfigsFunc(cfgs)
 					}
 				},
+				setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+					gpuCallCount++
+					if tt.setDefaultGPUCountsFunc != nil {
+						tt.setDefaultGPUCountsFunc(counts)
+					}
+				},
 			}
 
 			// Handle nil function cases
@@ -169,6 +277,9 @@ func TestProcessUpdateConfig(t *testing.T) {
 			}
 			if tt.setDefaultNFSGroupConfigsFunc == nil {
 				s.setDefaultNFSGroupConfigsFunc = nil
+			}
+			if tt.setDefaultGPUCountsFunc == nil {
+				s.setDefaultGPUCountsFunc = nil
 			}
 
 			resp := &Response{}
@@ -186,6 +297,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			// Verify function call counts
 			assert.Equal(t, tt.expectedIbExpectedPortStatesCallCount, ibCallCount, "Unexpected infiniband function call count")
 			assert.Equal(t, tt.expectedNFSGroupConfigsCallCount, nfsCallCount, "Unexpected NFS function call count")
+			assert.Equal(t, tt.expectedGPUCountsCallCount, gpuCallCount, "Unexpected GPU counts function call count")
 		})
 	}
 
@@ -195,6 +307,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 
 		ibCallCount := 0
 		nfsCallCount := 0
+		gpuCallCount := 0
 
 		s := &Session{
 			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
@@ -209,6 +322,10 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Equal(t, 5*time.Minute, cfgs[0].TTLToDelete.Duration)
 				assert.Equal(t, 3, cfgs[0].NumExpectedFiles)
 			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				gpuCallCount++
+				t.Error("setDefaultGPUCountsFunc should not be called for nfs config")
+			},
 		}
 
 		configMap := map[string]string{
@@ -221,6 +338,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		assert.Empty(t, resp.Error)
 		assert.Equal(t, 0, ibCallCount, "Unexpected infiniband function call count")
 		assert.Equal(t, 1, nfsCallCount, "Unexpected NFS function call count")
+		assert.Equal(t, 0, gpuCallCount, "Unexpected GPU counts function call count")
 	})
 
 	t.Run("multiple valid configs", func(t *testing.T) {
@@ -228,6 +346,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 
 		ibCallCount := 0
 		nfsCallCount := 0
+		gpuCallCount := 0
 
 		s := &Session{
 			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
@@ -243,11 +362,16 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Equal(t, 10*time.Minute, cfgs[0].TTLToDelete.Duration)
 				assert.Equal(t, 5, cfgs[0].NumExpectedFiles)
 			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				gpuCallCount++
+				assert.Equal(t, 16, counts.Count)
+			},
 		}
 
 		configMap := map[string]string{
 			"accelerator-nvidia-infiniband": `{"at_least_ports": 4, "at_least_rate": 200}`,
 			"nfs":                           `[{"volume_path": "` + tempDir + `", "file_contents": "multi-content", "ttl_to_delete": "10m", "num_expected_files": 5}]`,
+			"accelerator-nvidia-gpu-counts": `{"count": 16}`,
 		}
 
 		resp := &Response{}
@@ -256,6 +380,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		assert.Empty(t, resp.Error)
 		assert.Equal(t, 1, ibCallCount, "Unexpected infiniband function call count")
 		assert.Equal(t, 1, nfsCallCount, "Unexpected NFS function call count")
+		assert.Equal(t, 1, gpuCallCount, "Unexpected GPU counts function call count")
 	})
 }
 
@@ -277,6 +402,18 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 		{
 			name:          "infiniband - null JSON",
 			componentName: "accelerator-nvidia-infiniband",
+			configValue:   `null`,
+			expectedError: "",
+		},
+		{
+			name:          "gpu counts - empty JSON",
+			componentName: "accelerator-nvidia-gpu-counts",
+			configValue:   `{}`,
+			expectedError: "",
+		},
+		{
+			name:          "gpu counts - null JSON",
+			componentName: "accelerator-nvidia-gpu-counts",
 			configValue:   `null`,
 			expectedError: "",
 		},
@@ -305,6 +442,12 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 			expectedError: "cannot unmarshal string into Go struct field",
 		},
 		{
+			name:          "gpu counts - invalid field type",
+			componentName: "accelerator-nvidia-gpu-counts",
+			configValue:   `{"count": "invalid"}`,
+			expectedError: "cannot unmarshal string into Go struct field",
+		},
+		{
 			name:          "nfs - invalid field type",
 			componentName: "nfs",
 			configValue:   `[{"num_expected_files": "invalid"}]`,
@@ -317,6 +460,7 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 			s := &Session{
 				setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {},
 				setDefaultNFSGroupConfigsFunc:      func(cfgs pkgnfschecker.Configs) {},
+				setDefaultGPUCountsFunc:            func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {},
 			}
 
 			configMap := map[string]string{
@@ -337,6 +481,34 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 
 func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 	t.Parallel()
+
+	t.Run("gpu counts with real structure", func(t *testing.T) {
+		// Create a real componentsnvidiagpucounts.ExpectedGPUCounts structure
+		expectedCounts := componentsnvidiagpucounts.ExpectedGPUCounts{
+			Count: 4,
+		}
+
+		// Marshal it to JSON
+		configBytes, err := json.Marshal(expectedCounts)
+		assert.NoError(t, err)
+
+		var actualCounts componentsnvidiagpucounts.ExpectedGPUCounts
+		s := &Session{
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				actualCounts = counts
+			},
+		}
+
+		configMap := map[string]string{
+			"accelerator-nvidia-gpu-counts": string(configBytes),
+		}
+
+		resp := &Response{}
+		s.processUpdateConfig(configMap, resp)
+
+		assert.Empty(t, resp.Error)
+		assert.Equal(t, expectedCounts.Count, actualCounts.Count)
+	})
 
 	t.Run("infiniband with real structure", func(t *testing.T) {
 		// Create a real infiniband.ExpectedPortStates structure
