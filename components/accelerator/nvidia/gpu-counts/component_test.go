@@ -1585,7 +1585,7 @@ func TestComponent_Check_SuggestedActions_RebootEventsError(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "error getting reboot events", cr.reason)
+	assert.Equal(t, "nvidia gpu count mismatch (found 1, expected 2)", cr.reason)
 	assert.Equal(t, testErr, cr.err)
 	assert.Nil(t, cr.suggestedActions)
 }
@@ -1641,7 +1641,7 @@ func TestComponent_Check_SuggestedActions_GPUMismatchEventsError(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "error getting gpu count mismatch events", cr.reason)
+	assert.Equal(t, "nvidia gpu count mismatch (found 1, expected 2)", cr.reason)
 	assert.Equal(t, testErr, cr.err)
 	assert.Nil(t, cr.suggestedActions)
 }

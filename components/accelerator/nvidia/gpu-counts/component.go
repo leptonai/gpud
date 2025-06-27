@@ -28,6 +28,8 @@ const (
 	EventNameMisMatch = "gpu-count-mismatch"
 )
 
+const defaultLookbackPeriod = 3 * 24 * time.Hour
+
 var _ components.Component = &component{}
 
 type component struct {
@@ -48,8 +50,6 @@ type component struct {
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
-
-const defaultLookbackPeriod = 3 * 24 * time.Hour
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
@@ -231,7 +231,6 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "error getting reboot events"
 		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
@@ -239,7 +238,6 @@ func (c *component) Check() components.CheckResult {
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "error getting gpu count mismatch events"
 		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
