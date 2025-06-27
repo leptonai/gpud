@@ -152,6 +152,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "set the time period to retain metrics for (once elapsed, old records are compacted/purged)",
 					Value: pkgconfig.DefaultRetentionPeriod.Duration,
 				},
+				&cli.IntFlag{
+					Name:  "gpu-count",
+					Usage: "specifies the expected GPU count",
+					Value: 0,
+				},
 				&cli.BoolTFlag{
 					Name:  "enable-auto-update",
 					Usage: "enable auto update of gpud (default: true)",
@@ -406,6 +411,11 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "nfs-checker-configs",
 					Usage: "set the NFS checker group configs in JSON (leave empty for default, useful for testing)",
+				},
+				&cli.IntFlag{
+					Name:  "gpu-count",
+					Usage: "specifies the expected GPU count",
+					Value: 0,
 				},
 				cli.StringFlag{
 					Name:   "ibstat-command",
