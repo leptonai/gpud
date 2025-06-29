@@ -98,8 +98,11 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 			}
 			var version string
 			err := runCommand(ctx, pkg.ScriptPath, "version", &version)
-			if err != nil || version == "" {
-				log.Logger.Errorf("[package controller]: %v unexpected version failure: %v, version: %s", pkg.Name, err, version)
+			if err != nil {
+				log.Logger.Errorf("[package controller]: %v unexpected version failure: %v", pkg.Name, err)
+				continue
+			}
+			if version == "" {
 				continue
 			}
 			c.Lock()
