@@ -29,11 +29,13 @@ func TestDefaultConfig(t *testing.T) {
 	})
 
 	t.Run("with options", func(t *testing.T) {
+		classDir := "/custom/class"
 		ibstatCmd := "/custom/ibstat"
 
-		cfg, err := DefaultConfig(ctx, WithIbstatCommand(ibstatCmd))
+		cfg, err := DefaultConfig(ctx, WithInfinibandClassRootDir(classDir), WithIbstatCommand(ibstatCmd))
 		require.NoError(t, err)
 
+		assert.Equal(t, classDir, cfg.NvidiaToolOverwrites.InfinibandClassRootDir)
 		assert.Equal(t, ibstatCmd, cfg.NvidiaToolOverwrites.IbstatCommand)
 	})
 }

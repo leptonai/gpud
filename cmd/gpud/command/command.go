@@ -152,11 +152,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "set the time period to retain metrics for (once elapsed, old records are compacted/purged)",
 					Value: pkgconfig.DefaultRetentionPeriod.Duration,
 				},
-				&cli.IntFlag{
-					Name:  "gpu-count",
-					Usage: "specifies the expected GPU count",
-					Value: 0,
-				},
 				&cli.BoolTFlag{
 					Name:  "enable-auto-update",
 					Usage: "enable auto update of gpud (default: true)",
@@ -175,6 +170,27 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "components",
 					Usage: "sets the components to enable (comma-separated, leave empty for default to enable all components, set 'none' or any other non-matching value to disable all components, prefix component name with '-' to disable it)",
 					Value: "",
+				},
+
+				&cli.IntFlag{
+					Name:  "gpu-count",
+					Usage: "specifies the expected GPU count",
+					Value: 0,
+				},
+				&cli.StringFlag{
+					Name:  "infiniband-expected-port-states",
+					Usage: "set the infiniband expected port states in JSON (leave empty for default, useful for testing)",
+				},
+				&cli.StringFlag{
+					Name:  "nfs-checker-configs",
+					Usage: "set the NFS checker group configs in JSON (leave empty for default, useful for testing)",
+				},
+
+				cli.StringFlag{
+					Name:   "infiniband-class-root-dir",
+					Usage:  "sets the infiniband class root directory (leave empty for default)",
+					Value:  "",
+					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
 					Name:   "ibstat-command",
@@ -408,14 +424,26 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
-				&cli.StringFlag{
-					Name:  "nfs-checker-configs",
-					Usage: "set the NFS checker group configs in JSON (leave empty for default, useful for testing)",
-				},
+
 				&cli.IntFlag{
 					Name:  "gpu-count",
 					Usage: "specifies the expected GPU count",
 					Value: 0,
+				},
+				&cli.StringFlag{
+					Name:  "infiniband-expected-port-states",
+					Usage: "set the infiniband expected port states in JSON (leave empty for default, useful for testing)",
+				},
+				&cli.StringFlag{
+					Name:  "nfs-checker-configs",
+					Usage: "set the NFS checker group configs in JSON (leave empty for default, useful for testing)",
+				},
+
+				cli.StringFlag{
+					Name:   "infiniband-class-root-dir",
+					Usage:  "sets the infiniband class root directory (leave empty for default)",
+					Value:  "",
+					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
 					Name:   "ibstat-command",

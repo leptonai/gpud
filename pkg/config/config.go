@@ -9,7 +9,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	nvidia_common "github.com/leptonai/gpud/pkg/config/common"
+	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 )
 
 // Config provides gpud configuration data for the server
@@ -42,7 +42,7 @@ type Config struct {
 	AutoUpdateExitCode int `json:"auto_update_exit_code"`
 
 	// A list of nvidia tool command paths to overwrite the default paths.
-	NvidiaToolOverwrites nvidia_common.ToolOverwrites `json:"nvidia_tool_overwrites"`
+	NvidiaToolOverwrites pkgconfigcommon.ToolOverwrites `json:"nvidia_tool_overwrites"`
 
 	// PluginSpecsFile is the file that contains the plugin specs.
 	PluginSpecsFile string `json:"plugin_specs_file"`

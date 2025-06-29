@@ -64,7 +64,8 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 		NVMLInstance: nvmlInstance,
 		NVIDIAToolOverwrites: nvidiacommon.ToolOverwrites{
-			IbstatCommand: op.ibstatCommand,
+			InfinibandClassRootDir: op.infinibandClassRootDir,
+			IbstatCommand:          op.ibstatCommand,
 		},
 
 		EventStore:       nil,

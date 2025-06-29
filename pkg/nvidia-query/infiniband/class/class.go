@@ -27,6 +27,8 @@ import (
 	"syscall"
 )
 
+// DefaultRootDir is the default root directory for InfiniBand devices.
+// ref. https://docs.nvidia.com/networking/display/ofedv512580/infiniband+interface
 const DefaultRootDir = "/sys/class/infiniband"
 
 // LoadDevices loads all InfiniBand devices from the given root directory.
