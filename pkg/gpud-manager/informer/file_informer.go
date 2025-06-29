@@ -75,9 +75,8 @@ func (f *fileInformer) Start() chan packages.PackageInfo {
 				if event.Op&fsnotify.Remove == fsnotify.Remove {
 					fileInfo, err := os.Stat(event.Name)
 					if os.IsNotExist(err) || (err == nil && fileInfo.IsDir()) {
-						log.Logger.Infof("Directory removed: %s", event.Name)
 						if rErr := watcher.Remove(event.Name); rErr != nil {
-							log.Logger.Error(rErr)
+							log.Logger.Debug(rErr)
 						}
 					}
 				}
