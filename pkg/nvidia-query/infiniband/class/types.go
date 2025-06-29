@@ -27,6 +27,7 @@ import (
 // /sys/class/infiniband/<Name>/ports/<Port>/counters_ext
 // for a single port of one InfiniBand device.
 // ref. https://enterprise-support.nvidia.com/s/article/infiniband-port-counters
+// ref. https://enterprise-support.nvidia.com/s/article/understanding-mlx5-linux-counters-and-status-parameters
 type Counters struct {
 	// ExcessiveBufferOverrunErrors from counters/excessive_buffer_overrun_errors - Number of times the port receiver detected an overrun of its receive buffer.
 	// This indicates packets arriving faster than they can be processed, potentially causing data loss.
@@ -34,6 +35,7 @@ type Counters struct {
 
 	// LinkDowned from counters/link_downed - Number of times the link has gone down due to error thresholds being exceeded.
 	// A high value indicates link instability and potential hardware or cabling issues.
+	// "Total number of times the Port Training state machine has failed the link error recovery process and downed the link."
 	LinkDowned *uint64 `json:"link_downed"`
 
 	// LinkErrorRecovery from counters/link_error_recovery - Number of times the link recovered from an error condition.
@@ -121,6 +123,7 @@ type Counters struct {
 // /sys/class/infiniband/<Name>/ports/<Port>/hw_counters
 // for a single port of one InfiniBand device.
 // These are hardware-specific counters typically found on modern RDMA NICs.
+// ref. https://enterprise-support.nvidia.com/s/article/understanding-mlx5-linux-counters-and-status-parameters
 type HWCounters struct {
 	// DuplicateRequest from hw_counters/duplicate_request - Number of duplicate request packets received.
 	// High values may indicate network issues or improper retry logic in applications.
@@ -246,6 +249,7 @@ type HWCounters struct {
 // Port contains info from files in
 // /sys/class/infiniband/<Name>/ports/<Port>
 // for a single port of one InfiniBand device.
+// ref. https://enterprise-support.nvidia.com/s/article/understanding-mlx5-linux-counters-and-status-parameters
 type Port struct {
 	// Name is the name of the port from /sys/class/infiniband/<Name>/ports/<Port>.
 	// e.g., "mlx5_0" for /sys/class/infiniband/mlx5_0/ports/1.
@@ -297,6 +301,7 @@ type Port struct {
 
 // Device contains info from files in /sys/class/infiniband for a
 // single InfiniBand device.
+// ref. https://enterprise-support.nvidia.com/s/article/understanding-mlx5-linux-counters-and-status-parameters
 type Device struct {
 	// Name is the name of the device from /sys/class/infiniband/<Name>.
 	Name string `json:"name"`

@@ -29,8 +29,6 @@ import (
 
 const (
 	Name = "accelerator-nvidia-infiniband"
-
-	EventNameInfinibandPortStates = "infiniband-port-states"
 )
 
 var _ components.Component = &component{}
@@ -47,7 +45,7 @@ type component struct {
 
 	getThresholdsFunc   func() infiniband.ExpectedPortStates
 	getClassDevicesFunc func() (infinibandclass.Devices, error)
-	getIbstatOutputFunc func(ctx context.Context, ibstatCommands []string) (*infiniband.IbstatOutput, error)
+	getIbstatOutputFunc func(ctx context.Context) (*infiniband.IbstatOutput, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -62,9 +60,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		toolOverwrites:    gpudInstance.NVIDIAToolOverwrites,
 		getThresholdsFunc: GetDefaultExpectedPortStates,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
-			return infinibandclass.LoadDevices(infinibandclass.DefaultRootDir)
+			return infinibandclass.LoadDevices(gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir)
 		},
-		getIbstatOutputFunc: infiniband.GetIbstatOutput,
+		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
+			return infiniband.GetIbstatOutput(ctx, []string{gpudInstance.NVIDIAToolOverwrites.IbstatCommand})
+		},
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -171,8 +171,8 @@ func (c *component) Check() components.CheckResult {
 	// nothing specified for this machine, gpud MUST skip the ib check
 	thresholds := c.getThresholdsFunc()
 	if thresholds.IsZero() {
-		cr.reason = reasonThresholdNotSetSkipped
 		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = reasonNoThreshold
 		return cr
 	}
 
@@ -194,30 +194,40 @@ func (c *component) Check() components.CheckResult {
 
 	var err error
 	cr.ClassDevices, err = c.getClassDevicesFunc()
-	if err != nil {
-		log.Logger.Warnw("error loading infiniband class devices", "error", err)
+	if len(cr.ClassDevices) == 0 || err != nil {
+		log.Logger.Warnw("error loading infiniband class devices", "devices", len(cr.ClassDevices), "error", err)
 	}
 
-	if len(cr.ClassDevices) > 0 {
-		for _, dev := range cr.ClassDevices {
-			for _, port := range dev.Ports {
-				if port.Counters.LinkDowned == nil {
-					continue
-				}
-				v := float64(*port.Counters.LinkDowned)
+	var ibportsToEvaluate []infiniband.IBPort
+	for _, dev := range cr.ClassDevices {
+		for _, port := range dev.Ports {
+			ibportsToEvaluate = append(ibportsToEvaluate, infiniband.IBPort{
+				Device:        dev.Name,
+				State:         port.State,
+				PhysicalState: port.PhysState,
+				RateGBSec:     int(port.RateGBSec),
+				LinkLayer:     port.LinkLayer,
+			})
 
-				devPort := dev.Name + "_" + port.Name
-				metricIbLinkedDowned.With(prometheus.Labels{"device_port": devPort}).Set(v)
+			if port.Counters.LinkDowned == nil {
+				continue
 			}
+
+			devicePort := dev.Name + "_" + port.Name
+			linkDowned := float64(*port.Counters.LinkDowned)
+
+			metricIbLinkedDowned.With(prometheus.Labels{"device_port": devicePort}).Set(linkDowned)
 		}
 	}
 
+	// TODO: deprecate in favor of class dir data
 	// "ibstat" may fail if there's a port device that is wrongly mapped (e.g., exit 255)
 	// but can still return the partial output with the correct data
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	cr.IbstatOutput, cr.err = c.getIbstatOutputFunc(cctx, []string{c.toolOverwrites.IbstatCommand})
+	cr.IbstatOutput, cr.err = c.getIbstatOutputFunc(cctx)
 	ccancel()
 
+	// TODO: deprecate in favor of class dir data
 	if cr.err != nil {
 		if errors.Is(cr.err, infiniband.ErrNoIbstatCommand) {
 			cr.health = apiv1.HealthStateTypeHealthy
@@ -233,29 +243,26 @@ func (c *component) Check() components.CheckResult {
 	// (e.g., "gpud scan" one-off checks)
 	if c.eventBucket == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = reasonMissingEventBucket
+		cr.reason = reasonNoEventBucket
 		return cr
 	}
 
 	// "ibstat" command returned no data, skip the evaluation
+	// TODO: deprecate in favor of class dir data
 	if cr.err == nil && cr.IbstatOutput == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = reasonMissingIbstatOutput
+		cr.reason = reasonNoIbPortData
 		log.Logger.Warnw(cr.reason)
 		return cr
 	}
 
-	// whether ibstat command failed or not, we use the entire/partial output
-	if cr.IbstatOutput != nil {
-		cr.allIBPortsFromIbstat = cr.IbstatOutput.Parsed.IBPorts()
-	}
-	evaluateThresholds(cr, thresholds)
+	evaluateHealthStateWithThresholds(thresholds, ibportsToEvaluate, cr)
+	if len(cr.unhealthyIBPorts) == 0 && cr.IbstatOutput != nil {
+		log.Logger.Warnw("infiniband class dir data is available but no unhealthy IB ports are found, using ibstat as fallback", "ibClassDir", c.toolOverwrites.InfinibandClassRootDir)
 
-	// record events whether ib ports are healthy or not
-	// as we use historical data including healthy ports
-	// to evaluate ib port drop and flap
-	if err := c.recordIbEvent(cr); err != nil {
-		return cr
+		// only use ibstat as fallback if class dir data is not available or no unhealthy IB ports are found
+		// TODO: deprecate in favor of class dir data
+		evaluateHealthStateWithThresholds(thresholds, cr.IbstatOutput.Parsed.IBPorts(), cr)
 	}
 
 	return cr
@@ -263,20 +270,23 @@ func (c *component) Check() components.CheckResult {
 
 var (
 	// nothing specified for this machine, gpud MUST skip the ib check
-	reasonThresholdNotSetSkipped = "ports or rate threshold not set, skipping"
-
-	reasonMissingIbstatOutput      = "missing ibstat output (skipped evaluation)"
-	reasonMissingEventBucket       = "missing event storage (skipped evaluation)"
-	reasonNoIbIssueFoundFromIbstat = "no infiniband issue found (in ibstat)"
+	reasonNoThreshold   = "ports or rate threshold not set (skipped evaluation)"
+	reasonNoEventBucket = "no event storage (skipped evaluation)"
+	reasonNoIbPortData  = "no infiniband port data (skipped evaluation)"
+	reasonNoIbPortIssue = "ok; no infiniband port issue"
 )
 
-func evaluateThresholds(cr *checkResult, thresholds infiniband.ExpectedPortStates) {
-	// DO NOT auto-detect infiniband devices/PCI buses, strictly rely on the user-specified config.
+// evaluateHealthStateWithThresholds evaluates the current infiniband port states against the thresholds
+// and it DOES NOT take historical states into account
+func evaluateHealthStateWithThresholds(thresholds infiniband.ExpectedPortStates, ibports []infiniband.IBPort, cr *checkResult) {
+	// DO NOT auto-detect infiniband devices/PCI buses
+	// strictly rely on the user-specified config.
 	if thresholds.IsZero() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.suggestedActions = nil
+		cr.reason = reasonNoThreshold
+
 		cr.unhealthyIBPorts = nil
-		cr.reason = reasonThresholdNotSetSkipped
 
 		cr.err = nil
 		return
@@ -284,9 +294,9 @@ func evaluateThresholds(cr *checkResult, thresholds infiniband.ExpectedPortState
 
 	// neither "ibstat" nor "ibstatus" command returned any data
 	// then we just skip the evaluation
-	if len(cr.allIBPortsFromIbstat) == 0 {
+	if len(ibports) == 0 {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = reasonMissingIbstatOutput
+		cr.reason = reasonNoIbPortData
 		log.Logger.Warnw(cr.reason)
 		return
 	}
@@ -302,7 +312,7 @@ func evaluateThresholds(cr *checkResult, thresholds infiniband.ExpectedPortState
 	// ok to error as long as it meets the thresholds
 	// which means we may overwrite the error above
 	// (e.g., "ibstat" command exited 255 but still meets the thresholds)
-	unhealthy, err := infiniband.EvaluatePortsAndRate(cr.allIBPortsFromIbstat, atLeastPorts, atLeastRate)
+	unhealthy, err := infiniband.EvaluatePortsAndRate(ibports, atLeastPorts, atLeastRate)
 	if err != nil {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.suggestedActions = &apiv1.SuggestedActions{
@@ -316,7 +326,8 @@ func evaluateThresholds(cr *checkResult, thresholds infiniband.ExpectedPortState
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.suggestedActions = nil
-	cr.reason = reasonNoIbIssueFoundFromIbstat
+	cr.reason = reasonNoIbPortIssue
+
 	cr.unhealthyIBPorts = nil
 
 	// partial output from "ibstat" command worked
@@ -326,111 +337,16 @@ func evaluateThresholds(cr *checkResult, thresholds infiniband.ExpectedPortState
 	}
 }
 
-func (cr *checkResult) convertToIbstatEvent() *eventstore.Event {
-	if cr == nil {
-		return nil
-	}
-
-	ibportsEncoded := []byte("[]")
-	if len(cr.allIBPortsFromIbstat) > 0 {
-		all := make([]infiniband.IBPort, 0)
-		for _, port := range cr.allIBPortsFromIbstat {
-			all = append(all, infiniband.IBPort{
-				Device: port.Device,
-				State:  port.State,
-
-				// we do not need the physical state and rate
-				// as we only use the device name to evaluate ib port drop and flap
-				// this saves the space in db file
-				PhysicalState: "",
-				RateGBSec:     0,
-			})
-		}
-		ibportsEncoded, _ = json.Marshal(all)
-	}
-
-	eventType := string(apiv1.EventTypeInfo)
-	if len(cr.unhealthyIBPorts) > 0 {
-		eventType = string(apiv1.EventTypeWarning)
-	}
-
-	return &eventstore.Event{
-		Component: Name,
-		Time:      cr.ts,
-		Name:      EventNameInfinibandPortStates,
-		Type:      eventType,
-		Message:   cr.reason,
-		ExtraInfo: map[string]string{
-			"all_ibports": string(ibportsEncoded),
-		},
-	}
-}
-
-func (c *component) recordIbEvent(cr *checkResult) error {
-	ev := cr.convertToIbstatEvent()
-	if ev == nil {
-		return nil
-	}
-
-	// lookup to prevent duplicate event insertions
-	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	found, err := c.eventBucket.Find(cctx, *ev)
-	ccancel()
-	if err != nil {
-		cr.err = err
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "error finding ibstat event"
-		log.Logger.Warnw(cr.reason, "error", cr.err)
-		return err
-	}
-
-	// already exists, no need to insert
-	if found != nil {
-		return nil
-	}
-
-	// insert event
-	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
-	cr.err = c.eventBucket.Insert(cctx, *ev)
-	ccancel()
-	if cr.err != nil {
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "error inserting ibstat event"
-		log.Logger.Warnw(cr.reason, "error", cr.err)
-		return cr.err
-	}
-
-	return nil
-}
-
-// evaluateIbstatOutputAgainstThresholds is a helper function for testing
-// that wraps the evaluateThresholds function and returns the values expected by tests
-func evaluateIbstatOutputAgainstThresholds(output *infiniband.IbstatOutput, config infiniband.ExpectedPortStates) (apiv1.HealthStateType, *apiv1.SuggestedActions, string) {
-	cr := &checkResult{
-		IbstatOutput: output,
-		ts:           time.Now().UTC(),
-	}
-
-	if output != nil {
-		cr.allIBPortsFromIbstat = output.Parsed.IBPorts()
-	}
-
-	evaluateThresholds(cr, config)
-
-	return cr.health, cr.suggestedActions, cr.reason
-}
-
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	ClassDevices infinibandclass.Devices  `json:"class_devices"`
+	ClassDevices infinibandclass.Devices `json:"class_devices"`
+	// TODO: deprecate in favor of class dir data
 	IbstatOutput *infiniband.IbstatOutput `json:"ibstat_output"`
-
-	allIBPortsFromIbstat []infiniband.IBPort
 
 	// current unhealthy ib ports that are problematic
 	// (down/polling/disabled, below expected ib port thresholds)
-	unhealthyIBPorts []infiniband.IBPort
+	unhealthyIBPorts []infiniband.IBPort `json:"-"`
 
 	// timestamp of the last check
 	ts time.Time
@@ -536,15 +452,16 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Time:             metav1.NewTime(cr.ts),
 		Component:        Name,
 		Name:             Name,
+		Health:           cr.health,
 		Reason:           cr.reason,
 		SuggestedActions: cr.getSuggestedActions(),
 		Error:            cr.getError(),
-		Health:           cr.health,
 	}
 
-	if cr.IbstatOutput != nil {
+	if len(cr.ClassDevices) > 0 || cr.IbstatOutput != nil {
 		b, _ := json.Marshal(cr)
 		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
+
 	return apiv1.HealthStates{state}
 }

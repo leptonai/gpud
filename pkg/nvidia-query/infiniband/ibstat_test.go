@@ -401,19 +401,19 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_2",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_3",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         4,
@@ -426,11 +426,11 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         2,
@@ -443,11 +443,11 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         2,
@@ -460,19 +460,19 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_2",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_3",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         4,
@@ -485,11 +485,11 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         2,
@@ -502,15 +502,15 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_2",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         2,
@@ -523,15 +523,15 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_2",
-					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         3,
@@ -544,19 +544,19 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_2",
-					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_3",
-					Port1:  IBStatPort{State: "Init", PhysicalState: "Polling", Rate: 200},
+					Port1:  IBStatPort{State: "Init", PhysicalState: "Polling", Rate: 200, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         3,
@@ -569,15 +569,15 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 100, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "LinkUp", Rate: 100},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "LinkUp", Rate: 100, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_2",
-					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 100},
+					Port1:  IBStatPort{State: "Init", PhysicalState: "LinkUp", Rate: 100, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         3,
@@ -598,19 +598,19 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_2",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_3",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         4,
@@ -623,19 +623,19 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_2",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_3",
-					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200},
+					Port1:  IBStatPort{State: "Down", PhysicalState: "Disabled", Rate: 200, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         0,
@@ -648,7 +648,7 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 200, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         0,
@@ -661,11 +661,11 @@ func TestEvaluatePortsAndRateWithIBStatCards(t *testing.T) {
 			cards: IBStatCards{
 				{
 					Device: "mlx5_0",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 0},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 0, LinkLayer: "Infiniband"},
 				},
 				{
 					Device: "mlx5_1",
-					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 0},
+					Port1:  IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 0, LinkLayer: "Infiniband"},
 				},
 			},
 			atLeastPorts:         2,
@@ -748,4 +748,209 @@ func TestIBStatCardsIBPorts(t *testing.T) {
 	require.Equal(t, "Down", ports[1].State)
 	require.Equal(t, "Disabled", ports[1].PhysicalState)
 	require.Equal(t, 400, ports[1].RateGBSec)
+}
+
+func TestIBStatCards_IBPorts_Comprehensive(t *testing.T) {
+	tests := []struct {
+		name          string
+		cards         IBStatCards
+		expectedPorts []IBPort
+	}{
+		{
+			name:          "empty cards",
+			cards:         IBStatCards{},
+			expectedPorts: []IBPort{},
+		},
+		{
+			name: "single card with all fields",
+			cards: IBStatCards{
+				{
+					Device: "mlx5_0",
+					Port1: IBStatPort{
+						State:         "Active",
+						PhysicalState: "LinkUp",
+						Rate:          400,
+						LinkLayer:     "Infiniband",
+					},
+				},
+			},
+			expectedPorts: []IBPort{
+				{
+					Device:        "mlx5_0",
+					State:         "Active",
+					PhysicalState: "LinkUp",
+					RateGBSec:     400,
+					LinkLayer:     "Infiniband",
+				},
+			},
+		},
+		{
+			name: "multiple cards with different states and link layers",
+			cards: IBStatCards{
+				{
+					Device: "mlx5_0",
+					Port1: IBStatPort{
+						State:         "Active",
+						PhysicalState: "LinkUp",
+						Rate:          400,
+						LinkLayer:     "Infiniband",
+					},
+				},
+				{
+					Device: "mlx5_1",
+					Port1: IBStatPort{
+						State:         "Down",
+						PhysicalState: "Disabled",
+						Rate:          200,
+						LinkLayer:     "Ethernet",
+					},
+				},
+				{
+					Device: "mlx5_2",
+					Port1: IBStatPort{
+						State:         "Init",
+						PhysicalState: "Polling",
+						Rate:          100,
+						LinkLayer:     "InfiniBand",
+					},
+				},
+			},
+			expectedPorts: []IBPort{
+				{
+					Device:        "mlx5_0",
+					State:         "Active",
+					PhysicalState: "LinkUp",
+					RateGBSec:     400,
+					LinkLayer:     "Infiniband",
+				},
+				{
+					Device:        "mlx5_1",
+					State:         "Down",
+					PhysicalState: "Disabled",
+					RateGBSec:     200,
+					LinkLayer:     "Ethernet",
+				},
+				{
+					Device:        "mlx5_2",
+					State:         "Init",
+					PhysicalState: "Polling",
+					RateGBSec:     100,
+					LinkLayer:     "InfiniBand",
+				},
+			},
+		},
+		{
+			name: "cards with zero rates and empty fields",
+			cards: IBStatCards{
+				{
+					Device: "",
+					Port1: IBStatPort{
+						State:         "",
+						PhysicalState: "",
+						Rate:          0,
+						LinkLayer:     "",
+					},
+				},
+				{
+					Device: "mlx5_test",
+					Port1: IBStatPort{
+						State:         "Unknown",
+						PhysicalState: "Sleep",
+						Rate:          0,
+						LinkLayer:     "Unknown",
+					},
+				},
+			},
+			expectedPorts: []IBPort{
+				{
+					Device:        "",
+					State:         "",
+					PhysicalState: "",
+					RateGBSec:     0,
+					LinkLayer:     "",
+				},
+				{
+					Device:        "mlx5_test",
+					State:         "Unknown",
+					PhysicalState: "Sleep",
+					RateGBSec:     0,
+					LinkLayer:     "Unknown",
+				},
+			},
+		},
+		{
+			name: "large number of cards",
+			cards: IBStatCards{
+				{Device: "mlx5_0", Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400, LinkLayer: "Infiniband"}},
+				{Device: "mlx5_1", Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400, LinkLayer: "Infiniband"}},
+				{Device: "mlx5_2", Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400, LinkLayer: "Infiniband"}},
+				{Device: "mlx5_3", Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400, LinkLayer: "Infiniband"}},
+				{Device: "mlx5_4", Port1: IBStatPort{State: "Active", PhysicalState: "LinkUp", Rate: 400, LinkLayer: "Infiniband"}},
+			},
+			expectedPorts: []IBPort{
+				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
+				{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
+				{Device: "mlx5_2", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
+				{Device: "mlx5_3", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
+				{Device: "mlx5_4", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
+			},
+		},
+		{
+			name: "mixed case link layers",
+			cards: IBStatCards{
+				{
+					Device: "mlx5_0",
+					Port1: IBStatPort{
+						State:         "Active",
+						PhysicalState: "LinkUp",
+						Rate:          400,
+						LinkLayer:     "INFINIBAND",
+					},
+				},
+				{
+					Device: "mlx5_1",
+					Port1: IBStatPort{
+						State:         "Active",
+						PhysicalState: "LinkUp",
+						Rate:          400,
+						LinkLayer:     "ethernet",
+					},
+				},
+			},
+			expectedPorts: []IBPort{
+				{
+					Device:        "mlx5_0",
+					State:         "Active",
+					PhysicalState: "LinkUp",
+					RateGBSec:     400,
+					LinkLayer:     "INFINIBAND",
+				},
+				{
+					Device:        "mlx5_1",
+					State:         "Active",
+					PhysicalState: "LinkUp",
+					RateGBSec:     400,
+					LinkLayer:     "ethernet",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cards.IBPorts()
+
+			assert.Equal(t, len(tt.expectedPorts), len(result), "Number of ports should match")
+
+			for i, expectedPort := range tt.expectedPorts {
+				if i < len(result) {
+					assert.Equal(t, expectedPort.Device, result[i].Device, "Device name should match at index %d", i)
+					assert.Equal(t, expectedPort.State, result[i].State, "State should match at index %d", i)
+					assert.Equal(t, expectedPort.PhysicalState, result[i].PhysicalState, "PhysicalState should match at index %d", i)
+					assert.Equal(t, expectedPort.RateGBSec, result[i].RateGBSec, "RateGBSec should match at index %d", i)
+					assert.Equal(t, expectedPort.LinkLayer, result[i].LinkLayer, "LinkLayer should match at index %d", i)
+				}
+			}
+		})
+	}
 }

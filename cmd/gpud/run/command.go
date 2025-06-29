@@ -3,6 +3,7 @@ package run
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -16,9 +17,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
+	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
+	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
@@ -49,20 +54,48 @@ func Command(cliContext *cli.Context) error {
 	listenAddress := cliContext.String("listen-address")
 	pprof := cliContext.Bool("pprof")
 	retentionPeriod := cliContext.Duration("retention-period")
-	gpuCount := cliContext.Int("gpu-count")
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
+
+	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
 	ibstatCommand := cliContext.String("ibstat-command")
 	components := cliContext.String("components")
+
+	gpuCount := cliContext.Int("gpu-count")
+	infinibandExpectedPortStates := cliContext.String("infiniband-expected-port-states")
+	nfsCheckerConfigs := cliContext.String("nfs-checker-configs")
 
 	if gpuCount > 0 {
 		componentsnvidiagpucounts.SetDefaultExpectedGPUCounts(componentsnvidiagpucounts.ExpectedGPUCounts{
 			Count: gpuCount,
 		})
+
+		log.Logger.Infow("set gpu count", "gpuCount", gpuCount)
+	}
+
+	if len(infinibandExpectedPortStates) > 0 {
+		var expectedPortStates infiniband.ExpectedPortStates
+		if err := json.Unmarshal([]byte(infinibandExpectedPortStates), &expectedPortStates); err != nil {
+			return err
+		}
+		componentsinfiniband.SetDefaultExpectedPortStates(expectedPortStates)
+
+		log.Logger.Infow("set infiniband expected port states", "infinibandExpectedPortStates", infinibandExpectedPortStates)
+	}
+
+	if len(nfsCheckerConfigs) > 0 {
+		groupConfigs := make(pkgnfschecker.Configs, 0)
+		if err := json.Unmarshal([]byte(nfsCheckerConfigs), &groupConfigs); err != nil {
+			return err
+		}
+		componentsnfs.SetDefaultConfigs(groupConfigs)
+
+		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
 	}
 
 	configOpts := []config.OpOption{
+		config.WithInfinibandClassRootDir(ibClassRootDir),
 		config.WithIbstatCommand(ibstatCommand),
 	}
 

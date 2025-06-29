@@ -9,9 +9,11 @@ import (
 	"go.uber.org/zap"
 
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
+	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
+	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	"github.com/leptonai/gpud/pkg/scan"
 )
 
@@ -20,13 +22,15 @@ func CreateCommand() func(*cli.Context) error {
 		return cmdScan(
 			cliContext.String("log-level"),
 			cliContext.Int("gpu-count"),
-			cliContext.String("ibstat-command"),
+			cliContext.String("infiniband-expected-port-states"),
 			cliContext.String("nfs-checker-configs"),
+			cliContext.String("infiniband-class-root-dir"),
+			cliContext.String("ibstat-command"),
 		)
 	}
 }
 
-func cmdScan(logLevel string, gpuCount int, ibstatCommand string, nfsCheckerConfigs string) error {
+func cmdScan(logLevel string, gpuCount int, infinibandExpectedPortStates string, nfsCheckerConfigs string, ibClassRootDir string, ibstatCommand string) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
@@ -39,6 +43,18 @@ func cmdScan(logLevel string, gpuCount int, ibstatCommand string, nfsCheckerConf
 		componentsnvidiagpucounts.SetDefaultExpectedGPUCounts(componentsnvidiagpucounts.ExpectedGPUCounts{
 			Count: gpuCount,
 		})
+
+		log.Logger.Infow("set gpu count", "gpuCount", gpuCount)
+	}
+
+	if len(infinibandExpectedPortStates) > 0 {
+		var expectedPortStates infiniband.ExpectedPortStates
+		if err := json.Unmarshal([]byte(infinibandExpectedPortStates), &expectedPortStates); err != nil {
+			return err
+		}
+		componentsinfiniband.SetDefaultExpectedPortStates(expectedPortStates)
+
+		log.Logger.Infow("set infiniband expected port states", "infinibandExpectedPortStates", infinibandExpectedPortStates)
 	}
 
 	if len(nfsCheckerConfigs) > 0 {
@@ -47,10 +63,12 @@ func cmdScan(logLevel string, gpuCount int, ibstatCommand string, nfsCheckerConf
 			return err
 		}
 		componentsnfs.SetDefaultConfigs(groupConfigs)
-		log.Logger.Debugw("set nfs checker group configs", "groupConfigs", groupConfigs)
+
+		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
 	}
 
 	opts := []scan.OpOption{
+		scan.WithInfinibandClassRootDir(ibClassRootDir),
 		scan.WithIbstatCommand(ibstatCommand),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error

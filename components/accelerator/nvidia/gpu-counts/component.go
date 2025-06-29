@@ -186,8 +186,8 @@ func (c *component) Check() components.CheckResult {
 	// nothing specified for this machine, gpud MUST skip the gpu count check
 	thresholds := c.getThresholdsFunc()
 	if thresholds.IsZero() {
-		cr.reason = reasonThresholdNotSetSkipped
 		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = reasonThresholdNotSetSkipped
 		return cr
 	}
 

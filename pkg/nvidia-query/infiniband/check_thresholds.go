@@ -19,6 +19,12 @@ type IBPort struct {
 	PhysicalState string `json:"physical_state,omitempty"`
 	// RateGBSec is the rate in GB/s (e.g., 400).
 	RateGBSec int `json:"rate_gb_sec,omitempty"`
+	// LinkLayer is the link layer of the IB port (e.g., "Infiniband", "Ethernet")
+	LinkLayer string `json:"link_layer,omitempty"`
+}
+
+func (p IBPort) IsIBPort() bool {
+	return strings.EqualFold(p.LinkLayer, "infiniband")
 }
 
 // checkPortsAndRate returns all [IBPort]s that match the expected thresholds.
@@ -35,23 +41,27 @@ func checkPortsAndRate(ports []IBPort, expectedPhysicalStates []string, atLeastR
 		expStates[s] = struct{}{}
 	}
 
-	for _, card := range ports {
+	for _, port := range ports {
+		if !port.IsIBPort() {
+			continue
+		}
+
 		// e.g.,
 		// expected "Physical state: LinkUp"
 		// but got "Physical state: Disabled" or "Physical state: Polling"
-		_, found := expStates[card.PhysicalState]
+		_, found := expStates[port.PhysicalState]
 		if len(expStates) > 0 && !found {
 			continue
 		}
 
 		// only check if atLeastRate is specified
-		if atLeastRate > 0 && atLeastRate > card.RateGBSec {
+		if atLeastRate > 0 && atLeastRate > port.RateGBSec {
 			// does NOT meet the expected rate threshold
 			// thus should not be counted
 			continue
 		}
 
-		matched = append(matched, card)
+		matched = append(matched, port)
 	}
 	return matched
 }

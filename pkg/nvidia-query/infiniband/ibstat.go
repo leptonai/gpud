@@ -134,6 +134,7 @@ func (cards IBStatCards) IBPorts() []IBPort {
 			PhysicalState: card.Port1.PhysicalState,
 			State:         card.Port1.State,
 			RateGBSec:     card.Port1.Rate,
+			LinkLayer:     card.Port1.LinkLayer,
 		})
 	}
 	return ibports
