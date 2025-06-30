@@ -189,7 +189,7 @@ func TestChecker_Check(t *testing.T) {
 
 		result := checker.Check()
 		assert.Equal(t, targetDir, result.Dir)
-		assert.Equal(t, "successfully checked directory \""+tempDir+"\" with 2 files", result.Message)
+		assert.Equal(t, "correctly read/wrote on "+tempDir, result.Message)
 		assert.ElementsMatch(t, []string{"checker1", "checker2"}, result.ReadIDs)
 		assert.Empty(t, result.Error)
 	})

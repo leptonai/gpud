@@ -126,7 +126,7 @@ func (c *checker) Check() CheckResult {
 		return result
 	}
 
-	result.Message = fmt.Sprintf("successfully checked directory %q with %d files", c.cfg.VolumePath, len(matches))
+	result.Message = fmt.Sprintf("correctly read/wrote on %s", c.cfg.VolumePath)
 	return result
 }
 
