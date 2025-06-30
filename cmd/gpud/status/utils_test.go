@@ -36,7 +36,7 @@ func TestCheckLoginSuccess(t *testing.T) {
 			loginSuccess:  "",
 			machineID:     "test-machine-456",
 			expectedError: nil,
-			expectedOut:   fmt.Sprintf("%s login information not found", cmdcommon.CheckMark),
+			expectedOut:   "", // No output expected when loginSuccess is empty
 		},
 		{
 			name:          "invalid timestamp",
