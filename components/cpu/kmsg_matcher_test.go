@@ -1,6 +1,10 @@
 package cpu
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestHasBlockedTooLong(t *testing.T) {
 	tests := []struct {
@@ -58,9 +62,7 @@ func TestHasBlockedTooLong(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := HasBlockedTooLong(tt.line)
-			if got != tt.expected {
-				t.Errorf("HasBlockedTooLong(%q) = %v, want %v", tt.line, got, tt.expected)
-			}
+			assert.Equal(t, tt.expected, got, "HasBlockedTooLong(%q)", tt.line)
 		})
 	}
 }
@@ -96,9 +98,7 @@ func TestHasSoftLockup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := HasSoftLockup(tt.line)
-			if got != tt.expected {
-				t.Errorf("HasSoftLockup(%q) = %v, want %v", tt.line, got, tt.expected)
-			}
+			assert.Equal(t, tt.expected, got, "HasSoftLockup(%q)", tt.line)
 		})
 	}
 }
@@ -151,12 +151,8 @@ func TestMatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotName, gotMessage := Match(tt.line)
-			if gotName != tt.wantName {
-				t.Errorf("Match() name = %v, want %v", gotName, tt.wantName)
-			}
-			if gotMessage != tt.wantMessage {
-				t.Errorf("Match() message = %v, want %v", gotMessage, tt.wantMessage)
-			}
+			assert.Equal(t, tt.wantName, gotName)
+			assert.Equal(t, tt.wantMessage, gotMessage)
 		})
 	}
 }
@@ -165,47 +161,27 @@ func TestGetMatches(t *testing.T) {
 	matches := getMatches()
 
 	// Verify we have the expected number of matchers
-	if len(matches) != 2 {
-		t.Errorf("getMatches() returned %d matches, want 2", len(matches))
-	}
+	assert.Len(t, matches, 2)
 
 	// Verify the blocked too long matcher
 	blockedMatch := matches[0]
-	if blockedMatch.eventName != eventBlockedTooLong {
-		t.Errorf("first match name = %v, want %v", blockedMatch.eventName, eventBlockedTooLong)
-	}
-	if blockedMatch.regex != regexBlockedTooLong {
-		t.Errorf("first match regex = %v, want %v", blockedMatch.regex, regexBlockedTooLong)
-	}
-	if blockedMatch.message != messageBlockedTooLong {
-		t.Errorf("first match message = %v, want %v", blockedMatch.message, messageBlockedTooLong)
-	}
+	assert.Equal(t, eventBlockedTooLong, blockedMatch.eventName)
+	assert.Equal(t, regexBlockedTooLong, blockedMatch.regex)
+	assert.Equal(t, messageBlockedTooLong, blockedMatch.message)
 
 	// Verify the soft lockup matcher
 	lockupMatch := matches[1]
-	if lockupMatch.eventName != eventSoftLockup {
-		t.Errorf("second match name = %v, want %v", lockupMatch.eventName, eventSoftLockup)
-	}
-	if lockupMatch.message != messageSoftLockup {
-		t.Errorf("second match message = %v, want %v", lockupMatch.message, messageSoftLockup)
-	}
+	assert.Equal(t, eventSoftLockup, lockupMatch.eventName)
+	assert.Equal(t, messageSoftLockup, lockupMatch.message)
 
 	// Test the check functions
 	validBlockedInput := "[Sun Jan  5 20:25:34 2025] INFO: task jfsmount:136986 blocked for more than 120 seconds."
-	if !blockedMatch.check(validBlockedInput) {
-		t.Error("blocked check function failed to match valid input")
-	}
+	assert.True(t, blockedMatch.check(validBlockedInput))
 
 	validLockupInput := "[Sun Jan  5 18:37:06 2025] watchdog: BUG: soft lockup - CPU#0 stuck for 27s! [cuda-EvtHandlr:2255424]"
-	if !lockupMatch.check(validLockupInput) {
-		t.Error("lockup check function failed to match valid input")
-	}
+	assert.True(t, lockupMatch.check(validLockupInput))
 
 	invalidInput := "some random log message"
-	if blockedMatch.check(invalidInput) {
-		t.Error("blocked check function matched invalid input")
-	}
-	if lockupMatch.check(invalidInput) {
-		t.Error("lockup check function matched invalid input")
-	}
+	assert.False(t, blockedMatch.check(invalidInput))
+	assert.False(t, lockupMatch.check(invalidInput))
 }

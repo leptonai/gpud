@@ -3,9 +3,11 @@ package library
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/file"
@@ -25,9 +27,7 @@ func createTestComponent() *component {
 
 func TestName(t *testing.T) {
 	c := createTestComponent()
-	if c.Name() != Name {
-		t.Errorf("expected component name %q, got %q", Name, c.Name())
-	}
+	assert.Equal(t, Name, c.Name())
 }
 
 func TestTags(t *testing.T) {
@@ -38,15 +38,7 @@ func TestTags(t *testing.T) {
 	}
 
 	tags := c.Tags()
-	if len(tags) != len(expectedTags) {
-		t.Errorf("expected %d tags, got %d", len(expectedTags), len(tags))
-	}
-
-	for i, tag := range expectedTags {
-		if tags[i] != tag {
-			t.Errorf("expected tag[%d] to be %q, got %q", i, tag, tags[i])
-		}
-	}
+	assert.Equal(t, expectedTags, tags)
 }
 
 func TestCheck(t *testing.T) {
@@ -66,12 +58,8 @@ func TestCheck(t *testing.T) {
 	}
 
 	result := comp.Check()
-	if result.HealthStateType() != apiv1.HealthStateTypeUnhealthy {
-		t.Errorf("expected unhealthy state, got %s", result.HealthStateType())
-	}
-	if !contains(result.Summary(), "lib2.so") {
-		t.Errorf("expected summary to contain lib2.so, got %q", result.Summary())
-	}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "lib2.so")
 
 	// Case 2: Error finding library
 	comp.findLibrary = func(name string, opts ...file.OpOption) (string, error) {
@@ -79,9 +67,7 @@ func TestCheck(t *testing.T) {
 	}
 
 	result = comp.Check()
-	if result.HealthStateType() != apiv1.HealthStateTypeUnhealthy {
-		t.Errorf("expected unhealthy state, got %s", result.HealthStateType())
-	}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
 
 	// Case 3: All libraries found
 	comp.findLibrary = func(name string, opts ...file.OpOption) (string, error) {
@@ -92,23 +78,15 @@ func TestCheck(t *testing.T) {
 	}
 
 	result = comp.Check()
-	if result.HealthStateType() != apiv1.HealthStateTypeHealthy {
-		t.Errorf("expected healthy state, got %s", result.HealthStateType())
-	}
-	if result.Summary() != "all libraries exist" {
-		t.Errorf("expected summary 'all libraries exist', got %q", result.Summary())
-	}
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Equal(t, "all libraries exist", result.Summary())
 }
 
 func TestEvents(t *testing.T) {
 	comp := createTestComponent()
 	events, err := comp.Events(context.Background(), time.Now())
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if events != nil {
-		t.Errorf("expected nil events, got %v", events)
-	}
+	assert.NoError(t, err)
+	assert.Nil(t, events)
 }
 
 func TestLastHealthStates(t *testing.T) {
@@ -116,12 +94,8 @@ func TestLastHealthStates(t *testing.T) {
 
 	// Initial state with no data
 	states := comp.LastHealthStates()
-	if len(states) != 1 {
-		t.Fatalf("expected 1 health state, got %d", len(states))
-	}
-	if states[0].Health != apiv1.HealthStateTypeHealthy {
-		t.Errorf("expected healthy state, got %s", states[0].Health)
-	}
+	require.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 
 	// Set data and check again
 	comp.lastCheckResult = &checkResult{
@@ -130,36 +104,28 @@ func TestLastHealthStates(t *testing.T) {
 	}
 
 	states = comp.LastHealthStates()
-	if states[0].Health != apiv1.HealthStateTypeUnhealthy {
-		t.Errorf("expected unhealthy state, got %s", states[0].Health)
-	}
-	if states[0].Reason != "test reason" {
-		t.Errorf("expected reason 'test reason', got %q", states[0].Reason)
-	}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, "test reason", states[0].Reason)
 }
 
 func TestStartAndClose(t *testing.T) {
 	comp := createTestComponent()
 
 	err := comp.Start()
-	if err != nil {
-		t.Errorf("failed to start component: %v", err)
-	}
+	assert.NoError(t, err)
 
 	// Sleep briefly to allow goroutine to start
 	time.Sleep(10 * time.Millisecond)
 
 	err = comp.Close()
-	if err != nil {
-		t.Errorf("failed to close component: %v", err)
-	}
+	assert.NoError(t, err)
 
 	// Check that context is canceled
 	select {
 	case <-comp.ctx.Done():
 		// This is good, context is canceled
 	default:
-		t.Error("context not canceled after Close()")
+		assert.Fail(t, "context not canceled after Close()")
 	}
 }
 
@@ -170,37 +136,18 @@ func TestDataMethods(t *testing.T) {
 		reason:            "all libraries exist",
 	}
 
-	if cr.HealthStateType() != apiv1.HealthStateTypeHealthy {
-		t.Errorf("expected healthy state, got %s", cr.HealthStateType())
-	}
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 
-	if cr.Summary() != "all libraries exist" {
-		t.Errorf("expected summary 'all libraries exist', got %q", cr.Summary())
-	}
+	assert.Equal(t, "all libraries exist", cr.Summary())
 
 	// Test String() outputs something
 	str := cr.String()
-	if str == "" {
-		t.Error("String() returned empty string")
-	}
+	assert.NotEmpty(t, str)
 
 	// Test nil data handling
 	var nilData *checkResult
-	if nilData.String() != "" {
-		t.Error("String() on nil Data should return empty string")
-	}
-	if nilData.Summary() != "" {
-		t.Error("Summary() on nil Data should return empty string")
-	}
-	if nilData.HealthStateType() != "" {
-		t.Error("HealthState() on nil Data should return empty string")
-	}
-	if nilData.getError() != "" {
-		t.Error("getError() on nil Data should return empty string")
-	}
-}
-
-// Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && s != "" && s != substr && strings.Contains(s, substr)
+	assert.Empty(t, nilData.String())
+	assert.Empty(t, nilData.Summary())
+	assert.Empty(t, nilData.HealthStateType())
+	assert.Empty(t, nilData.getError())
 }

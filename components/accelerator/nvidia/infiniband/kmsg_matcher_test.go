@@ -23,9 +23,7 @@ func TestHasPCIPowerInsufficient(t *testing.T) {
 		{line: "", want: false},
 	}
 	for _, tt := range tests {
-		if got := HasPCIPowerInsufficient(tt.line); got != tt.want {
-			t.Errorf("HasPCIPowerInsufficient(%q) = %v, want %v", tt.line, got, tt.want)
-		}
+		assert.Equal(t, tt.want, HasPCIPowerInsufficient(tt.line), "HasPCIPowerInsufficient(%q)", tt.line)
 	}
 }
 
@@ -45,9 +43,7 @@ func TestHasPortModuleHighTemperature(t *testing.T) {
 		{line: "", want: false},
 	}
 	for _, tt := range tests {
-		if got := HasPortModuleHighTemperature(tt.line); got != tt.want {
-			t.Errorf("HasPortModuleHighTemperature(%q) = %v, want %v", tt.line, got, tt.want)
-		}
+		assert.Equal(t, tt.want, HasPortModuleHighTemperature(tt.line), "HasPortModuleHighTemperature(%q)", tt.line)
 	}
 }
 
@@ -99,12 +95,8 @@ func TestMatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotEvent, gotMessage := Match(tt.line)
-			if gotEvent != tt.wantEvent {
-				t.Errorf("Match() gotEvent = %v, want %v", gotEvent, tt.wantEvent)
-			}
-			if gotMessage != tt.wantMessage {
-				t.Errorf("Match() gotMessage = %v, want %v", gotMessage, tt.wantMessage)
-			}
+			assert.Equal(t, tt.wantEvent, gotEvent)
+			assert.Equal(t, tt.wantMessage, gotMessage)
 		})
 	}
 }
@@ -126,9 +118,7 @@ func TestEdgeCases(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			if got := HasPCIPowerInsufficient(tt.line); got != tt.want {
-				t.Errorf("HasPCIPowerInsufficient(%q) = %v, want %v", tt.line, got, tt.want)
-			}
+			assert.Equal(t, tt.want, HasPCIPowerInsufficient(tt.line), "HasPCIPowerInsufficient(%q)", tt.line)
 		}
 	})
 
@@ -146,9 +136,7 @@ func TestEdgeCases(t *testing.T) {
 		}
 
 		for _, tt := range tests {
-			if got := HasPortModuleHighTemperature(tt.line); got != tt.want {
-				t.Errorf("HasPortModuleHighTemperature(%q) = %v, want %v", tt.line, got, tt.want)
-			}
+			assert.Equal(t, tt.want, HasPortModuleHighTemperature(tt.line), "HasPortModuleHighTemperature(%q)", tt.line)
 		}
 	})
 }
