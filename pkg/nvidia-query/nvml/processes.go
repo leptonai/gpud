@@ -55,6 +55,10 @@ type Process struct {
 }
 
 func GetProcesses(uuid string, dev device.Device) (Processes, error) {
+	return getProcesses(uuid, dev, process.NewProcess)
+}
+
+func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32) (*process.Process, error)) (Processes, error) {
 	procs := Processes{
 		UUID:                                uuid,
 		GetComputeRunningProcessesSupported: true,
@@ -75,10 +79,14 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 	}
 
 	for _, proc := range computeProcs {
-		procObject, err := process.NewProcess(int32(proc.Pid))
+		procObject, err := newProcessFunc(int32(proc.Pid))
 		if err != nil {
 			// ref. process does not exist
 			if errors.Is(err, process.ErrorProcessNotRunning) {
+				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
+				continue
+			}
+			if IsNoSuchFileOrDirectoryError(err) {
 				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
 				continue
 			}
@@ -87,10 +95,18 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 
 		args, err := procObject.CmdlineSlice()
 		if err != nil {
+			if IsNoSuchFileOrDirectoryError(err) {
+				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
+				continue
+			}
 			return Processes{}, fmt.Errorf("failed to get process %d args: %v", proc.Pid, err)
 		}
 		createTimeUnixMS, err := procObject.CreateTime()
 		if err != nil {
+			if IsNoSuchFileOrDirectoryError(err) {
+				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
+				continue
+			}
 			return Processes{}, fmt.Errorf("failed to get process %d create time: %v", proc.Pid, err)
 		}
 		createTime := metav1.Unix(createTimeUnixMS/1000, 0)
