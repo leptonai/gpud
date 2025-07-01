@@ -224,7 +224,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 				}, nil
 			},
 			getProviderFunc: func(ip string) *providers.Info {
-				return &providers.Info{Provider: "aws", PublicIP: ip}
+				return &providers.Info{Provider: "aws", PublicIP: ip, PrivateIP: "172.16.0.100"}
 			},
 			getSystemResourceRootVolumeTotalFunc: func() (string, error) {
 				return "200Gi", nil
@@ -236,6 +236,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 			validate: func(t *testing.T, req *apiv1.LoginRequest) {
 				assert.Equal(t, "3", req.Resources["nvidia.com/gpu"])
 				assert.Equal(t, "8", req.Resources[string(corev1.ResourceCPU)])
+				assert.Equal(t, "172.16.0.100", req.Network.PrivateIP, "Should fallback to provider private IP when no network interfaces")
 				// Memory is calculated from bytes, so we need to check the actual value
 				memQty, err := resource.ParseQuantity(req.Resources[string(corev1.ResourceMemory)])
 				assert.NoError(t, err)
@@ -269,7 +270,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 				}, nil
 			},
 			getProviderFunc: func(ip string) *providers.Info {
-				return &providers.Info{Provider: "aws", PublicIP: ip}
+				return &providers.Info{Provider: "aws", PublicIP: ip, PrivateIP: "10.0.0.250"}
 			},
 			getSystemResourceRootVolumeTotalFunc: func() (string, error) {
 				return "50Gi", nil
@@ -282,6 +283,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 				_, exists := req.Resources["nvidia.com/gpu"]
 				assert.False(t, exists, "GPU count should not be in resources when it's zero")
 				assert.Equal(t, "2", req.Resources[string(corev1.ResourceCPU)])
+				assert.Equal(t, "10.0.0.250", req.Network.PrivateIP, "Should fallback to provider private IP when no network interfaces")
 				// Memory is calculated from bytes, so we need to check the actual value
 				memQty, err := resource.ParseQuantity(req.Resources[string(corev1.ResourceMemory)])
 				assert.NoError(t, err)
@@ -662,6 +664,284 @@ func TestCreateLoginRequest_ResourceCalculation(t *testing.T) {
 			assert.NotNil(t, req)
 			assert.Equal(t, tt.expectedCPU, req.Resources[string(corev1.ResourceCPU)])
 			assert.Equal(t, tt.expectedMemory, req.Resources[string(corev1.ResourceMemory)])
+		})
+	}
+}
+
+// TestCreateLoginRequest_ProviderPrivateIPFallback tests the provider private IP fallback mechanism
+func TestCreateLoginRequest_ProviderPrivateIPFallback(t *testing.T) {
+	tests := []struct {
+		name              string
+		interfaces        []apiv1.MachineNetworkInterface
+		providerPrivateIP string
+		expectedPrivateIP string
+		description       string
+	}{
+		{
+			name:              "fallback to provider private IP when no network interfaces",
+			interfaces:        []apiv1.MachineNetworkInterface{},
+			providerPrivateIP: "172.16.0.10",
+			expectedPrivateIP: "172.16.0.10",
+			description:       "Should use provider private IP when no network interfaces",
+		},
+		{
+			name: "fallback to provider private IP when network interfaces have no private IPs",
+			interfaces: []apiv1.MachineNetworkInterface{
+				{
+					Interface: "eth0",
+					MAC:       "00:11:22:33:44:55",
+					IP:        "8.8.8.8", // Public IP
+					Addr:      netip.MustParseAddr("8.8.8.8"),
+				},
+			},
+			providerPrivateIP: "172.16.0.20",
+			expectedPrivateIP: "172.16.0.20",
+			description:       "Should use provider private IP when network interfaces only have public IPs",
+		},
+		{
+			name: "network interface private IP takes precedence over provider private IP",
+			interfaces: []apiv1.MachineNetworkInterface{
+				{
+					Interface: "eth0",
+					MAC:       "00:11:22:33:44:55",
+					IP:        "10.0.0.5",
+					Addr:      netip.MustParseAddr("10.0.0.5"),
+				},
+			},
+			providerPrivateIP: "172.16.0.30",
+			expectedPrivateIP: "10.0.0.5",
+			description:       "Should use network interface private IP when available, ignoring provider private IP",
+		},
+		{
+			name: "fallback to provider private IP when network interface IPs are empty",
+			interfaces: []apiv1.MachineNetworkInterface{
+				{
+					Interface: "eth0",
+					MAC:       "00:11:22:33:44:55",
+					IP:        "", // Empty IP
+					Addr:      netip.Addr{},
+				},
+			},
+			providerPrivateIP: "172.16.0.40",
+			expectedPrivateIP: "172.16.0.40",
+			description:       "Should use provider private IP when network interface IPs are empty",
+		},
+		{
+			name: "no private IP when both network interfaces and provider have no private IP",
+			interfaces: []apiv1.MachineNetworkInterface{
+				{
+					Interface: "eth0",
+					MAC:       "00:11:22:33:44:55",
+					IP:        "8.8.8.8", // Public IP
+					Addr:      netip.MustParseAddr("8.8.8.8"),
+				},
+			},
+			providerPrivateIP: "", // No provider private IP
+			expectedPrivateIP: "",
+			description:       "Should have no private IP when both sources are empty",
+		},
+		{
+			name: "first valid private IP from network interfaces used, provider ignored",
+			interfaces: []apiv1.MachineNetworkInterface{
+				{
+					Interface: "eth0",
+					MAC:       "00:11:22:33:44:55",
+					IP:        "8.8.8.8", // Public IP
+					Addr:      netip.MustParseAddr("8.8.8.8"),
+				},
+				{
+					Interface: "eth1",
+					MAC:       "00:11:22:33:44:56",
+					IP:        "192.168.1.100",
+					Addr:      netip.MustParseAddr("192.168.1.100"),
+				},
+				{
+					Interface: "eth2",
+					MAC:       "00:11:22:33:44:57",
+					IP:        "10.0.0.200",
+					Addr:      netip.MustParseAddr("10.0.0.200"),
+				},
+			},
+			providerPrivateIP: "172.16.0.50",
+			expectedPrivateIP: "192.168.1.100", // First private IP found
+			description:       "Should use first private IP from network interfaces, ignoring provider private IP",
+		},
+		{
+			name:              "nil network interfaces, fallback to provider private IP",
+			interfaces:        nil,
+			providerPrivateIP: "172.16.0.60",
+			expectedPrivateIP: "172.16.0.60",
+			description:       "Should use provider private IP when network interfaces are nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getMachineInfoFunc := func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+				machineInfo := &apiv1.MachineInfo{
+					CPUInfo: &apiv1.MachineCPUInfo{
+						LogicalCores: 4,
+					},
+					MemoryInfo: &apiv1.MachineMemoryInfo{
+						TotalBytes: 16 * 1024 * 1024 * 1024,
+					},
+				}
+
+				if tt.interfaces != nil {
+					machineInfo.NICInfo = &apiv1.MachineNICInfo{
+						PrivateIPInterfaces: tt.interfaces,
+					}
+				}
+				// If interfaces is nil, NICInfo will be nil too
+
+				return machineInfo, nil
+			}
+
+			getProviderFunc := func(ip string) *providers.Info {
+				return &providers.Info{
+					Provider:  "test-provider",
+					PublicIP:  "1.2.3.4",
+					PrivateIP: tt.providerPrivateIP,
+				}
+			}
+
+			req, err := createLoginRequest(
+				"token",
+				"machine-id",
+				"",
+				"1",
+				&mockNvmlInstance{},
+				func() (string, error) { return "1.2.3.4", nil },
+				func() *apiv1.MachineLocation { return &apiv1.MachineLocation{} },
+				getMachineInfoFunc,
+				getProviderFunc,
+				func() (string, error) { return "100Gi", nil },
+				func(nvidianvml.Instance) (string, error) { return "1", nil },
+			)
+
+			assert.NoError(t, err, tt.description)
+			assert.NotNil(t, req, tt.description)
+			assert.Equal(t, tt.expectedPrivateIP, req.Network.PrivateIP, tt.description)
+		})
+	}
+}
+
+// TestCreateLoginRequest_ProviderInfoUsage tests that provider info fields are properly used
+func TestCreateLoginRequest_ProviderInfoUsage(t *testing.T) {
+	tests := []struct {
+		name         string
+		providerInfo *providers.Info
+		publicIPFunc func() (string, error)
+		validate     func(*testing.T, *apiv1.LoginRequest)
+	}{
+		{
+			name: "provider info overrides public IP from function",
+			providerInfo: &providers.Info{
+				Provider:      "aws",
+				PublicIP:      "54.123.45.67",
+				PrivateIP:     "10.0.1.100",
+				VMEnvironment: "AWS",
+				InstanceID:    "i-1234567890abcdef0",
+			},
+			publicIPFunc: func() (string, error) {
+				return "5.6.7.8", nil // This should be overridden
+			},
+			validate: func(t *testing.T, req *apiv1.LoginRequest) {
+				assert.Equal(t, "54.123.45.67", req.Network.PublicIP, "Provider public IP should override function result")
+				assert.Equal(t, "10.0.1.100", req.Network.PrivateIP, "Provider private IP should be used as fallback")
+				assert.Equal(t, "aws", req.Provider, "Provider name should be set")
+				assert.Equal(t, "i-1234567890abcdef0", req.ProviderInstanceID, "Provider instance ID should be set")
+			},
+		},
+		{
+			name: "provider info with empty private IP",
+			providerInfo: &providers.Info{
+				Provider:      "azure",
+				PublicIP:      "20.123.45.67",
+				PrivateIP:     "", // Empty private IP
+				VMEnvironment: "AZURE",
+				InstanceID:    "vm-abcd1234",
+			},
+			publicIPFunc: func() (string, error) {
+				return "1.2.3.4", nil
+			},
+			validate: func(t *testing.T, req *apiv1.LoginRequest) {
+				assert.Equal(t, "20.123.45.67", req.Network.PublicIP, "Provider public IP should be used")
+				assert.Equal(t, "", req.Network.PrivateIP, "Private IP should be empty when provider has no private IP")
+				assert.Equal(t, "azure", req.Provider, "Provider name should be set")
+				assert.Equal(t, "vm-abcd1234", req.ProviderInstanceID, "Provider instance ID should be set")
+			},
+		},
+		{
+			name: "network interface private IP precedence over provider private IP",
+			providerInfo: &providers.Info{
+				Provider:      "gcp",
+				PublicIP:      "35.123.45.67",
+				PrivateIP:     "172.16.0.10", // Provider has private IP
+				VMEnvironment: "GCP",
+				InstanceID:    "gcp-instance-123",
+			},
+			publicIPFunc: func() (string, error) {
+				return "1.2.3.4", nil
+			},
+			validate: func(t *testing.T, req *apiv1.LoginRequest) {
+				assert.Equal(t, "35.123.45.67", req.Network.PublicIP, "Provider public IP should be used")
+				assert.Equal(t, "192.168.1.50", req.Network.PrivateIP, "Network interface private IP should take precedence")
+				assert.Equal(t, "gcp", req.Provider, "Provider name should be set")
+				assert.Equal(t, "gcp-instance-123", req.ProviderInstanceID, "Provider instance ID should be set")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getMachineInfoFunc := func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+				interfaces := []apiv1.MachineNetworkInterface{}
+
+				// For the third test case, add a network interface with private IP
+				if tt.name == "network interface private IP precedence over provider private IP" {
+					interfaces = append(interfaces, apiv1.MachineNetworkInterface{
+						Interface: "eth0",
+						MAC:       "00:11:22:33:44:55",
+						IP:        "192.168.1.50",
+						Addr:      netip.MustParseAddr("192.168.1.50"),
+					})
+				}
+
+				return &apiv1.MachineInfo{
+					CPUInfo: &apiv1.MachineCPUInfo{
+						LogicalCores: 4,
+					},
+					MemoryInfo: &apiv1.MachineMemoryInfo{
+						TotalBytes: 16 * 1024 * 1024 * 1024,
+					},
+					NICInfo: &apiv1.MachineNICInfo{
+						PrivateIPInterfaces: interfaces,
+					},
+				}, nil
+			}
+
+			getProviderFunc := func(ip string) *providers.Info {
+				return tt.providerInfo
+			}
+
+			req, err := createLoginRequest(
+				"token",
+				"machine-id",
+				"",
+				"1",
+				&mockNvmlInstance{},
+				tt.publicIPFunc,
+				func() *apiv1.MachineLocation { return &apiv1.MachineLocation{} },
+				getMachineInfoFunc,
+				getProviderFunc,
+				func() (string, error) { return "100Gi", nil },
+				func(nvidianvml.Instance) (string, error) { return "1", nil },
+			)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, req)
+			tt.validate(t, req)
 		})
 	}
 }

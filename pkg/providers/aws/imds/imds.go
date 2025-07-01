@@ -116,7 +116,8 @@ func fetchAvailabilityZone(ctx context.Context, tokenURL string, metadataURL str
 }
 
 // FetchPublicIPv4 fetches EC2 instance public IPv4 using IMDSv2.
-// e.g., curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone
+// ref. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html#instancedata-data-categories
+// e.g., curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4
 func FetchPublicIPv4(ctx context.Context) (string, error) {
 	return fetchPublicIPv4(ctx, imdsTokenURL, imdsMetadataURL)
 }
@@ -126,6 +127,21 @@ func fetchPublicIPv4(ctx context.Context, tokenURL string, metadataURL string) (
 	return fetchMetadataByPath(ctx, tokenURL, metadataURL+"/public-ipv4")
 }
 
+// FetchLocalIPv4 fetches EC2 instance private IPv4 using IMDSv2.
+// ref. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html#instancedata-data-categories
+// e.g., curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4
+func FetchLocalIPv4(ctx context.Context) (string, error) {
+	return fetchLocalIPv4(ctx, imdsTokenURL, imdsMetadataURL)
+}
+
+// fetchLocalIPv4 retrieves EC2 instance private IPv4 from the specified path using IMDSv2.
+func fetchLocalIPv4(ctx context.Context, tokenURL string, metadataURL string) (string, error) {
+	return fetchMetadataByPath(ctx, tokenURL, metadataURL+"/local-ipv4")
+}
+
+// FetchInstanceID fetches EC2 instance ID using IMDSv2.
+// ref. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html#instancedata-data-categories
+// e.g., curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id
 func FetchInstanceID(ctx context.Context) (string, error) {
 	return fetchMetadataByPath(ctx, imdsTokenURL, imdsMetadataURL+"/instance-id")
 }

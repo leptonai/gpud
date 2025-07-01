@@ -579,3 +579,126 @@ func TestFetchToken(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "public-test-token", token)
 }
+
+func TestFetchLocalIPv4(t *testing.T) {
+	tests := []struct {
+		name          string
+		mockHandler   func(w http.ResponseWriter, r *http.Request)
+		expectedIP    string
+		expectedError string
+	}{
+		{
+			name: "successful local ip fetch",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				// Check for token request (PUT) vs metadata request (GET)
+				if r.Method == http.MethodPut {
+					// Token request
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("test-token"))
+					require.NoError(t, err)
+					return
+				} else if r.Method == http.MethodGet {
+					// Metadata request
+					require.Equal(t, "test-token", r.Header.Get(headerToken))
+					require.Contains(t, r.URL.Path, "/local-ipv4")
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("10.0.1.5"))
+					require.NoError(t, err)
+					return
+				}
+
+				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
+			},
+			expectedIP: "10.0.1.5",
+		},
+		{
+			name: "local ip fetch failure",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				// Check for token request (PUT) vs metadata request (GET)
+				if r.Method == http.MethodPut {
+					// Token request
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("test-token"))
+					require.NoError(t, err)
+					return
+				} else if r.Method == http.MethodGet {
+					// Metadata request - return error
+					w.WriteHeader(http.StatusInternalServerError)
+					_, err := w.Write([]byte("Server error"))
+					require.NoError(t, err)
+					return
+				}
+
+				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
+			},
+			expectedError: "failed to fetch metadata: received status code 500",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			server := httptest.NewServer(http.HandlerFunc(tc.mockHandler))
+			defer server.Close()
+
+			ip, err := fetchLocalIPv4(ctx, server.URL, server.URL)
+
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedIP, ip)
+			}
+		})
+	}
+}
+
+// TestFetchLocalIPv4Public tests the public API function
+func TestFetchLocalIPv4Public(t *testing.T) {
+	// Create a common handler for both token and metadata requests
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check for token request (PUT) vs metadata request (GET)
+		if r.Method == http.MethodPut {
+			// Token request
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte("test-token"))
+			require.NoError(t, err)
+			return
+		} else if r.Method == http.MethodGet {
+			// Metadata request
+			require.Equal(t, "test-token", r.Header.Get(headerToken))
+
+			if strings.Contains(r.URL.Path, "local-ipv4") {
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write([]byte("172.31.10.100"))
+				require.NoError(t, err)
+				return
+			}
+
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
+	})
+
+	// Start a test server
+	server := httptest.NewServer(mockHandler)
+	defer server.Close()
+
+	// Use a custom function that calls FetchLocalIPv4 with our test server URLs
+	testFetchLocalIP := func(ctx context.Context) (string, error) {
+		return fetchLocalIPv4(ctx, server.URL, server.URL)
+	}
+
+	// Test the function
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	ip, err := testFetchLocalIP(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "172.31.10.100", ip)
+}

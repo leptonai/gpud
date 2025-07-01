@@ -57,6 +57,12 @@ func Detect(ctx context.Context) (*pkgproviders.Info, error) {
 	}
 	info.PublicIP = publicIP
 
+	privateIP, err := detector.PrivateIPv4(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get private IP: %w", err)
+	}
+	info.PrivateIP = privateIP
+
 	vmEnvironment, err := detector.VMEnvironment(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get VM environment: %w", err)
