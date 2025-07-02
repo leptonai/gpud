@@ -2,6 +2,8 @@ package disk
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHasNoSpaceLeft(t *testing.T) {
@@ -48,9 +50,7 @@ func TestHasNoSpaceLeft(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := HasNoSpaceLeft(tt.line); got != tt.want {
-				t.Errorf("HasNoSpaceLeft() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, HasNoSpaceLeft(tt.line), "HasNoSpaceLeft()")
 		})
 	}
 }
@@ -90,12 +90,8 @@ func TestMatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotEventName, gotMessage := Match(tt.line)
-			if gotEventName != tt.wantEventName {
-				t.Errorf("Match() gotEventName = %v, want %v", gotEventName, tt.wantEventName)
-			}
-			if gotMessage != tt.wantMessage {
-				t.Errorf("Match() gotMessage = %v, want %v", gotMessage, tt.wantMessage)
-			}
+			assert.Equal(t, tt.wantEventName, gotEventName)
+			assert.Equal(t, tt.wantMessage, gotMessage)
 		})
 	}
 }
