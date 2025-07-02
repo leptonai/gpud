@@ -10,6 +10,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/time/rate"
 
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
@@ -47,6 +48,8 @@ var (
 	_ Bucket = &table{}
 )
 
+var ErrRateLimitExceeded = errors.New("rate limit exceeded")
+
 type database struct {
 	dbRW      *sql.DB
 	dbRO      *sql.DB
@@ -59,6 +62,9 @@ type table struct {
 
 	retention     time.Duration
 	purgeInterval time.Duration
+
+	ingestRateLimiter *rate.Limiter
+	rateLimitNoWait   bool
 
 	table string
 	dbRW  *sql.DB
@@ -90,14 +96,10 @@ func (d *database) Bucket(name string, opts ...OpOption) (Bucket, error) {
 		purgeInterval = 0
 	}
 
-	return newTable(d.dbRW, d.dbRO, name, d.retention, purgeInterval)
+	return newTable(d.dbRW, d.dbRO, name, d.retention, purgeInterval, op.ingestRateLimiter, op.rateLimitNoWait)
 }
 
-func (d *database) LoadBucketWithNoPurge(name string) (Bucket, error) {
-	return newTable(d.dbRW, d.dbRO, name, 0, 0)
-}
-
-func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, purgeInterval time.Duration) (*table, error) {
+func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, purgeInterval time.Duration, ingestRateLimiter *rate.Limiter, rateLimitNoWait bool) (*table, error) {
 	tableName := defaultTableName(name)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	err := createTable(ctx, dbRW, tableName)
@@ -108,13 +110,15 @@ func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, 
 
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	t := &table{
-		rootCtx:       rootCtx,
-		rootCancel:    rootCancel,
-		table:         tableName,
-		dbRW:          dbRW,
-		dbRO:          dbRO,
-		retention:     retention,
-		purgeInterval: purgeInterval,
+		rootCtx:           rootCtx,
+		rootCancel:        rootCancel,
+		table:             tableName,
+		dbRW:              dbRW,
+		dbRO:              dbRO,
+		retention:         retention,
+		purgeInterval:     purgeInterval,
+		ingestRateLimiter: ingestRateLimiter,
+		rateLimitNoWait:   rateLimitNoWait,
 	}
 	if retention > time.Second {
 		go t.runPurge()
@@ -165,6 +169,20 @@ func (t *table) Close() {
 }
 
 func (t *table) Insert(ctx context.Context, ev Event) error {
+	// Apply rate limiting if configured
+	if t.ingestRateLimiter != nil {
+		if t.rateLimitNoWait {
+			// Non-blocking: return immediately if rate limit exceeded
+			if !t.ingestRateLimiter.Allow() {
+				return ErrRateLimitExceeded
+			}
+		} else {
+			// Default blocking behavior: wait until token is available
+			if err := t.ingestRateLimiter.Wait(ctx); err != nil {
+				return err
+			}
+		}
+	}
 	return insertEvent(ctx, t.dbRW, t.table, ev)
 }
 
