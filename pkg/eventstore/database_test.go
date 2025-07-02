@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/time/rate"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -1214,6 +1215,8 @@ func TestRetentionPurge(t *testing.T) {
 		// much shorter than the retention period
 		// to make tests less flaky
 		50*time.Millisecond,
+		rate.NewLimiter(rate.Inf, 0), // no rate limiting for tests
+		false,                        // rateLimitNoWait parameter
 	)
 	assert.NoError(t, err)
 	defer bucket.Close()
@@ -1517,5 +1520,523 @@ func TestUnmarshalIfValid(t *testing.T) {
 				assert.Nil(t, result)
 			}
 		})
+	}
+}
+
+func TestRateLimitBlocking(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_rate_limit_blocking"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting: 2 events per second (blocking by default)
+	bucket, err := store.Bucket(testTableName, WithIngestRateLimit(2, time.Second))
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "test_event",
+		Type:      string(apiv1.EventTypeWarning),
+		Message:   "test message for rate limiting",
+		ExtraInfo: map[string]string{"test": "blocking"},
+	}
+
+	// First 2 events should succeed immediately
+	start := time.Now()
+	assert.NoError(t, bucket.Insert(ctx, event))
+	assert.NoError(t, bucket.Insert(ctx, event))
+
+	// Third event should block and succeed after rate limit window
+	assert.NoError(t, bucket.Insert(ctx, event))
+	elapsed := time.Since(start)
+
+	// Should have taken at least 500ms (rate limit window)
+	assert.True(t, elapsed >= 400*time.Millisecond, "Expected blocking behavior to wait for rate limit, took %v", elapsed)
+}
+
+func TestRateLimitNonBlocking(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_rate_limit_nonblocking"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting: 2 events per second with no-wait option
+	bucket, err := store.Bucket(testTableName,
+		WithIngestRateLimit(2, time.Second),
+		WithIngestRateLimitNoWait())
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "test_event",
+		Type:      string(apiv1.EventTypeWarning),
+		Message:   "test message for rate limiting",
+		ExtraInfo: map[string]string{"test": "nonblocking"},
+	}
+
+	// First 2 events should succeed immediately
+	start := time.Now()
+	assert.NoError(t, bucket.Insert(ctx, event))
+	assert.NoError(t, bucket.Insert(ctx, event))
+
+	// Third event should fail immediately with ErrRateLimitExceeded
+	err = bucket.Insert(ctx, event)
+	elapsed := time.Since(start)
+
+	assert.Error(t, err)
+	assert.Equal(t, ErrRateLimitExceeded, err)
+	// Should return immediately, not block
+	assert.True(t, elapsed < 100*time.Millisecond, "Expected immediate failure, took %v", elapsed)
+}
+
+func TestRateLimitNonBlockingConcurrent(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_rate_limit_concurrent"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting: 5 events per second with no-wait
+	bucket, err := store.Bucket(testTableName,
+		WithIngestRateLimit(5, time.Second),
+		WithIngestRateLimitNoWait())
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "concurrent_test",
+		Type:      string(apiv1.EventTypeInfo),
+		Message:   "concurrent rate limit test",
+		ExtraInfo: map[string]string{"test": "concurrent"},
+	}
+
+	const numGoroutines = 10
+	const eventsPerGoroutine = 3
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var successCount, errorCount int
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < eventsPerGoroutine; j++ {
+				err := bucket.Insert(ctx, event)
+				mu.Lock()
+				if err == nil {
+					successCount++
+				} else if err == ErrRateLimitExceeded {
+					errorCount++
+				} else {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// With 5 events/second limit and 30 total events, we should have some successes and some rate limit errors
+	assert.True(t, successCount > 0, "Expected some successful inserts")
+	assert.True(t, errorCount > 0, "Expected some rate limit errors")
+	assert.Equal(t, numGoroutines*eventsPerGoroutine, successCount+errorCount, "Total events should match")
+	t.Logf("Successful inserts: %d, Rate limited: %d", successCount, errorCount)
+}
+
+func TestRateLimitBlockingBehavior(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_rate_limit_behavior"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting: 1 event per second (blocking)
+	bucket, err := store.Bucket(testTableName, WithIngestRateLimit(1, time.Second))
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "behavior_test",
+		Type:      string(apiv1.EventTypeInfo),
+		Message:   "testing blocking behavior",
+		ExtraInfo: map[string]string{"test": "behavior"},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// First event should succeed immediately (using the burst token)
+	start := time.Now()
+	assert.NoError(t, bucket.Insert(ctx, event))
+
+	// Second event should block and succeed after ~1 second
+	assert.NoError(t, bucket.Insert(ctx, event))
+	elapsed := time.Since(start)
+
+	// Should have taken at least 900ms due to rate limiting
+	assert.True(t, elapsed >= 900*time.Millisecond,
+		"Expected blocking behavior to wait for rate limit, took %v", elapsed)
+	assert.True(t, elapsed < 2*time.Second,
+		"Expected to complete within reasonable time, took %v", elapsed)
+}
+
+func TestNoRateLimit(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_no_rate_limit"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Create bucket without rate limiting
+	bucket, err := store.Bucket(testTableName)
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "no_limit_test",
+		Type:      string(apiv1.EventTypeInfo),
+		Message:   "testing without rate limit",
+		ExtraInfo: map[string]string{"test": "unlimited"},
+	}
+
+	// Should be able to insert many events quickly without rate limiting
+	start := time.Now()
+	for i := 0; i < 100; i++ {
+		assert.NoError(t, bucket.Insert(ctx, event))
+	}
+	elapsed := time.Since(start)
+
+	// Should complete very quickly without rate limiting
+	assert.True(t, elapsed < 1*time.Second, "Expected fast insertion without rate limiting, took %v", elapsed)
+}
+
+func TestRateLimitBlockingWithAlreadyCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_canceled_context"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting: 1 event per second (blocking)
+	bucket, err := store.Bucket(testTableName, WithIngestRateLimit(1, time.Second))
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "canceled_context_test",
+		Type:      string(apiv1.EventTypeWarning),
+		Message:   "testing with already canceled context",
+		ExtraInfo: map[string]string{"test": "canceled"},
+	}
+
+	// First event should succeed with valid context
+	ctx := context.Background()
+	assert.NoError(t, bucket.Insert(ctx, event))
+
+	// Create an already-canceled context
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// Second event should fail immediately with canceled context
+	start := time.Now()
+	err = bucket.Insert(canceledCtx, event)
+	elapsed := time.Since(start)
+
+	assert.Error(t, err)
+	assert.Equal(t, context.Canceled, err)
+	// Should return immediately, not wait for rate limit
+	assert.True(t, elapsed < 50*time.Millisecond,
+		"Expected immediate failure with canceled context, took %v", elapsed)
+}
+
+func TestRateLimitBlockingWithContextCanceledDuringWait(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_cancel_during_wait"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting: 2 events per second (blocking)
+	bucket, err := store.Bucket(testTableName, WithIngestRateLimit(2, time.Second))
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "cancel_during_wait_test",
+		Type:      string(apiv1.EventTypeInfo),
+		Message:   "testing context cancellation during rate limit wait",
+		ExtraInfo: map[string]string{"test": "cancel-during-wait"},
+	}
+
+	// Use up the burst of 2 events
+	ctx := context.Background()
+	assert.NoError(t, bucket.Insert(ctx, event))
+	assert.NoError(t, bucket.Insert(ctx, event))
+
+	// Create a cancellable context
+	cancelCtx, cancel := context.WithCancel(context.Background())
+
+	// Start a goroutine to cancel the context after a short delay
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		cancel()
+	}()
+
+	// Third event should block and then fail when context is canceled
+	start := time.Now()
+	err = bucket.Insert(cancelCtx, event)
+	elapsed := time.Since(start)
+
+	assert.Error(t, err)
+	assert.Equal(t, context.Canceled, err)
+	// Should fail around 200ms when context is canceled
+	assert.True(t, elapsed >= 150*time.Millisecond && elapsed <= 350*time.Millisecond,
+		"Expected cancellation around 200ms, took %v", elapsed)
+}
+
+func TestRateLimitBlockingWithDeadlineExceeded(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_deadline_exceeded"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting: 1 event per 2 seconds (very slow)
+	bucket, err := store.Bucket(testTableName, WithIngestRateLimit(1, 2*time.Second))
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "deadline_test",
+		Type:      string(apiv1.EventTypeCritical),
+		Message:   "testing deadline exceeded",
+		ExtraInfo: map[string]string{"test": "deadline"},
+	}
+
+	// First event uses the burst token
+	ctx := context.Background()
+	assert.NoError(t, bucket.Insert(ctx, event))
+
+	// Second event with a deadline that will expire before rate limit allows
+	deadlineCtx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	err = bucket.Insert(deadlineCtx, event)
+	elapsed := time.Since(start)
+
+	assert.Error(t, err)
+	// The rate limiter may return its own error when it detects context deadline will be exceeded
+	assert.True(t, err == context.DeadlineExceeded || strings.Contains(err.Error(), "exceed context deadline"),
+		"Expected deadline-related error, got %v", err)
+	// Rate limiter may detect deadline will be exceeded before waiting, so it could be fast
+	assert.True(t, elapsed <= 400*time.Millisecond,
+		"Expected reasonable timing, took %v", elapsed)
+}
+
+func TestRateLimitNonBlockingWithCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_nonblocking_canceled"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting with no-wait option
+	bucket, err := store.Bucket(testTableName,
+		WithIngestRateLimit(1, time.Second),
+		WithIngestRateLimitNoWait())
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "nonblocking_canceled_test",
+		Type:      string(apiv1.EventTypeInfo),
+		Message:   "testing non-blocking with canceled context",
+		ExtraInfo: map[string]string{"test": "nonblocking-canceled"},
+	}
+
+	// First event should succeed
+	ctx := context.Background()
+	assert.NoError(t, bucket.Insert(ctx, event))
+
+	// Create a canceled context
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Second event should fail with rate limit (not context error)
+	// because non-blocking checks rate limit before context
+	err = bucket.Insert(canceledCtx, event)
+	assert.Error(t, err)
+	assert.Equal(t, ErrRateLimitExceeded, err)
+}
+
+func TestRateLimitBlockingContextPropagation(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_context_propagation"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting
+	bucket, err := store.Bucket(testTableName, WithIngestRateLimit(1, time.Second))
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "context_propagation_test",
+		Type:      string(apiv1.EventTypeWarning),
+		Message:   "testing context propagation",
+		ExtraInfo: map[string]string{"test": "propagation"},
+	}
+
+	// Create a parent context with value
+	type ctxKey string
+	const testKey ctxKey = "test-key"
+	parentCtx := context.WithValue(context.Background(), testKey, "test-value")
+
+	// Use up the burst token
+	assert.NoError(t, bucket.Insert(parentCtx, event))
+
+	// Create child context with timeout
+	childCtx, cancel := context.WithTimeout(parentCtx, 300*time.Millisecond)
+	defer cancel()
+
+	// Verify context value is propagated
+	assert.Equal(t, "test-value", childCtx.Value(testKey))
+
+	// Insert should fail with deadline exceeded
+	start := time.Now()
+	err = bucket.Insert(childCtx, event)
+	elapsed := time.Since(start)
+
+	assert.Error(t, err)
+	// The rate limiter may return its own error when it detects context deadline will be exceeded
+	assert.True(t, err == context.DeadlineExceeded || strings.Contains(err.Error(), "exceed context deadline"),
+		"Expected deadline-related error, got %v", err)
+	// Rate limiter may detect deadline will be exceeded before waiting, so it could be fast
+	assert.True(t, elapsed <= 400*time.Millisecond,
+		"Expected reasonable timing, took %v", elapsed)
+}
+
+func TestRateLimitMultipleContextCancellations(t *testing.T) {
+	t.Parallel()
+
+	testTableName := "test_table_multiple_cancellations"
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := New(dbRW, dbRO, 0)
+	assert.NoError(t, err)
+
+	// Configure rate limiting: 3 events per second
+	bucket, err := store.Bucket(testTableName, WithIngestRateLimit(3, time.Second))
+	assert.NoError(t, err)
+	defer bucket.Close()
+
+	event := Event{
+		Time:      time.Now().UTC(),
+		Name:      "multiple_cancel_test",
+		Type:      string(apiv1.EventTypeInfo),
+		Message:   "testing multiple context cancellations",
+		ExtraInfo: map[string]string{"test": "multiple"},
+	}
+
+	// Use up the burst of 3 events
+	ctx := context.Background()
+	assert.NoError(t, bucket.Insert(ctx, event))
+	assert.NoError(t, bucket.Insert(ctx, event))
+	assert.NoError(t, bucket.Insert(ctx, event))
+
+	// Test multiple concurrent inserts with different context cancellation timings
+	var wg sync.WaitGroup
+	results := make([]error, 3)
+	timings := []time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 300 * time.Millisecond}
+
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), timings[idx])
+			defer cancel()
+			results[idx] = bucket.Insert(ctx, event)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// All should have failed with context-related errors
+	for i, err := range results {
+		assert.Error(t, err, "Insert %d should have failed", i)
+		// Rate limiter may return its own error message when detecting context issues
+		assert.True(t, err == context.DeadlineExceeded || err == context.Canceled ||
+			strings.Contains(err.Error(), "exceed context deadline"),
+			"Insert %d should have context-related error, got %v", i, err)
 	}
 }

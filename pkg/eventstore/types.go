@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"golang.org/x/time/rate"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -70,7 +71,9 @@ type Bucket interface {
 }
 
 type Op struct {
-	disablePurge bool
+	disablePurge      bool
+	ingestRateLimiter *rate.Limiter
+	rateLimitNoWait   bool
 }
 
 type OpOption func(*Op)
@@ -78,6 +81,11 @@ type OpOption func(*Op)
 func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
+	}
+
+	if op.ingestRateLimiter == nil {
+		// no rate limit by default
+		op.ingestRateLimiter = rate.NewLimiter(rate.Inf, 0)
 	}
 
 	return nil
@@ -88,5 +96,23 @@ func (op *Op) applyOpts(opts []OpOption) error {
 func WithDisablePurge() OpOption {
 	return func(op *Op) {
 		op.disablePurge = true
+	}
+}
+
+// WithIngestRateLimit specifies the rate limit for ingesting events.
+// The rateLimit is the number of events per a specified time window.
+// The per is the time window for the rate limit.
+func WithIngestRateLimit(events int, per time.Duration) OpOption {
+	return func(op *Op) {
+		op.ingestRateLimiter = rate.NewLimiter(rate.Every(per/time.Duration(events)), events)
+	}
+}
+
+// WithIngestRateLimitNoWait configures rate limiting to return ErrRateLimitExceeded
+// immediately when the rate limit is exceeded, instead of blocking until a token
+// is available. This option only has effect when used with WithIngestRateLimit.
+func WithIngestRateLimitNoWait() OpOption {
+	return func(op *Op) {
+		op.rateLimitNoWait = true
 	}
 }
