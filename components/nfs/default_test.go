@@ -2,10 +2,8 @@ package nfs
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
@@ -23,10 +21,8 @@ func TestDefaultConfig(t *testing.T) {
 		tempDir := t.TempDir()
 
 		expectedConfig := pkgnfschecker.Config{
-			VolumePath:       tempDir,
-			FileContents:     "test-content",
-			TTLToDelete:      metav1.Duration{Duration: time.Minute},
-			NumExpectedFiles: 5,
+			VolumePath:   tempDir,
+			FileContents: "test-content",
 		}
 
 		SetDefaultConfigs(pkgnfschecker.Configs{expectedConfig})
@@ -36,8 +32,6 @@ func TestDefaultConfig(t *testing.T) {
 		actualConfig := actualConfigs[0]
 		assert.Equal(t, expectedConfig.VolumePath, actualConfig.VolumePath)
 		assert.Equal(t, expectedConfig.FileContents, actualConfig.FileContents)
-		assert.Equal(t, expectedConfig.TTLToDelete.Duration, actualConfig.TTLToDelete.Duration)
-		assert.Equal(t, expectedConfig.NumExpectedFiles, actualConfig.NumExpectedFiles)
 	})
 
 	t.Run("set config multiple times", func(t *testing.T) {
@@ -46,10 +40,8 @@ func TestDefaultConfig(t *testing.T) {
 
 		// Set first config
 		config1 := pkgnfschecker.Config{
-			VolumePath:       tempDir1,
-			FileContents:     "content-1",
-			TTLToDelete:      metav1.Duration{Duration: time.Minute},
-			NumExpectedFiles: 1,
+			VolumePath:   tempDir1,
+			FileContents: "content-1",
 		}
 		SetDefaultConfigs(pkgnfschecker.Configs{config1})
 
@@ -60,10 +52,8 @@ func TestDefaultConfig(t *testing.T) {
 
 		// Set second config (should overwrite)
 		config2 := pkgnfschecker.Config{
-			VolumePath:       tempDir2,
-			FileContents:     "content-2",
-			TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
-			NumExpectedFiles: 2,
+			VolumePath:   tempDir2,
+			FileContents: "content-2",
 		}
 		SetDefaultConfigs(pkgnfschecker.Configs{config2})
 
@@ -71,8 +61,6 @@ func TestDefaultConfig(t *testing.T) {
 		assert.Len(t, retrieved2, 1)
 		assert.Equal(t, config2.VolumePath, retrieved2[0].VolumePath)
 		assert.Equal(t, config2.FileContents, retrieved2[0].FileContents)
-		assert.Equal(t, config2.TTLToDelete.Duration, retrieved2[0].TTLToDelete.Duration)
-		assert.Equal(t, config2.NumExpectedFiles, retrieved2[0].NumExpectedFiles)
 
 		// Should not match the first config anymore
 		assert.NotEqual(t, config1.VolumePath, retrieved2[0].VolumePath)
@@ -83,10 +71,8 @@ func TestDefaultConfig(t *testing.T) {
 		tempDir := t.TempDir()
 
 		config := pkgnfschecker.Config{
-			VolumePath:       tempDir,
-			FileContents:     "concurrent-test",
-			TTLToDelete:      metav1.Duration{Duration: time.Minute},
-			NumExpectedFiles: 10,
+			VolumePath:   tempDir,
+			FileContents: "concurrent-test",
 		}
 
 		// Set the config
@@ -109,8 +95,6 @@ func TestDefaultConfig(t *testing.T) {
 			resultConfig := result[0]
 			assert.Equal(t, config.VolumePath, resultConfig.VolumePath)
 			assert.Equal(t, config.FileContents, resultConfig.FileContents)
-			assert.Equal(t, config.TTLToDelete.Duration, resultConfig.TTLToDelete.Duration)
-			assert.Equal(t, config.NumExpectedFiles, resultConfig.NumExpectedFiles)
 		}
 	})
 
@@ -119,17 +103,13 @@ func TestDefaultConfig(t *testing.T) {
 		tempDir2 := t.TempDir()
 
 		config1 := pkgnfschecker.Config{
-			VolumePath:       tempDir1,
-			FileContents:     "content-1",
-			TTLToDelete:      metav1.Duration{Duration: time.Minute},
-			NumExpectedFiles: 1,
+			VolumePath:   tempDir1,
+			FileContents: "content-1",
 		}
 
 		config2 := pkgnfschecker.Config{
-			VolumePath:       tempDir2,
-			FileContents:     "content-2",
-			TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
-			NumExpectedFiles: 2,
+			VolumePath:   tempDir2,
+			FileContents: "content-2",
 		}
 
 		// Set multiple configs
@@ -141,13 +121,9 @@ func TestDefaultConfig(t *testing.T) {
 		// Check first config
 		assert.Equal(t, config1.VolumePath, retrieved[0].VolumePath)
 		assert.Equal(t, config1.FileContents, retrieved[0].FileContents)
-		assert.Equal(t, config1.TTLToDelete.Duration, retrieved[0].TTLToDelete.Duration)
-		assert.Equal(t, config1.NumExpectedFiles, retrieved[0].NumExpectedFiles)
 
 		// Check second config
 		assert.Equal(t, config2.VolumePath, retrieved[1].VolumePath)
 		assert.Equal(t, config2.FileContents, retrieved[1].FileContents)
-		assert.Equal(t, config2.TTLToDelete.Duration, retrieved[1].TTLToDelete.Duration)
-		assert.Equal(t, config2.NumExpectedFiles, retrieved[1].NumExpectedFiles)
 	})
 }

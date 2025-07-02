@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"time"
 
-	pkgfilecleaner "github.com/leptonai/gpud/pkg/file/cleaner"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -32,9 +29,6 @@ type CheckResult struct {
 	// Message is the message of the check result.
 	Message string `json:"message"`
 
-	// ReadIDs is the list of all IDs that are present in the directory.
-	ReadIDs []string `json:"read_ids,omitempty"`
-
 	// Error contains any system error during checks
 	// or validation errors.
 	// Set to an empty string, if there was no error, and
@@ -49,10 +43,6 @@ func NewChecker(cfg *MemberConfig) (Checker, error) {
 	}
 	return &checker{
 		cfg: cfg,
-		getTimeNow: func() time.Time {
-			return time.Now().UTC()
-		},
-		listFilesByPattern: filepath.Glob,
 	}, nil
 }
 
@@ -60,9 +50,6 @@ var _ Checker = &checker{}
 
 type checker struct {
 	cfg *MemberConfig
-
-	getTimeNow         func() time.Time
-	listFilesByPattern func(pattern string) ([]string, error)
 }
 
 // Write writes a file to the directory with the ID as the file name.
@@ -74,8 +61,7 @@ func (c *checker) Write() error {
 		return err
 	}
 
-	dir := filepath.Join(c.cfg.VolumePath, c.cfg.DirName)
-	file := filepath.Join(dir, c.cfg.ID)
+	file := c.cfg.fileSelf()
 	if err := os.WriteFile(file, []byte(c.cfg.FileContents), 0644); err != nil {
 		return err
 	}
@@ -87,64 +73,32 @@ func (c *checker) Write() error {
 // Check checks the directory and returns the result,
 // based on the configuration.
 func (c *checker) Check() CheckResult {
-	// list all files under this directory
 	dir := filepath.Join(c.cfg.VolumePath, c.cfg.DirName)
-	pattern := filepath.Join(dir, "*")
-
-	matches, err := c.listFilesByPattern(pattern)
-	if err != nil {
-		return CheckResult{
-			Dir:     dir,
-			Message: "failed to list files",
-			Error:   err.Error(),
-		}
-	}
-
-	// sort in order to make the output consistent
-	// between subsequent checks
-	sort.Strings(matches)
+	file := c.cfg.fileSelf()
 
 	result := CheckResult{
 		Dir: dir,
 	}
-	for _, file := range matches {
-		result.ReadIDs = append(result.ReadIDs, filepath.Base(file))
 
-		contents, err := os.ReadFile(file)
-		if err != nil {
-			result.Message = "failed"
-			result.Error = fmt.Sprintf("failed to read file %s: %s", file, err)
-			return result
-		}
-
-		if string(contents) != c.cfg.FileContents {
-			result.Message = "failed"
-			result.Error = fmt.Sprintf("file %q has unexpected contents", file)
-			return result
-		}
-	}
-
-	if len(result.ReadIDs) < c.cfg.NumExpectedFiles {
+	contents, err := os.ReadFile(file)
+	if err != nil {
 		result.Message = "failed"
-		result.Error = fmt.Sprintf("expected %d files, but only %d files were read", c.cfg.NumExpectedFiles, len(result.ReadIDs))
+		result.Error = fmt.Sprintf("failed to read file %s: %s", file, err)
 		return result
 	}
 
-	result.Message = fmt.Sprintf("successfully checked directory %q with %d files", c.cfg.VolumePath, len(matches))
+	if string(contents) != c.cfg.FileContents {
+		result.Message = "failed"
+		result.Error = fmt.Sprintf("file %q has unexpected contents", file)
+		return result
+	}
+
+	result.Message = fmt.Sprintf("correctly read/wrote on %q", c.cfg.VolumePath)
 	return result
 }
 
-// Clean cleans up the files in the directory with the TTL.
+// Clean cleans up the file that is written by the checker.
 func (c *checker) Clean() error {
-	// list all files under this directory
-	dir := filepath.Join(c.cfg.VolumePath, c.cfg.DirName)
-	pattern := filepath.Join(dir, "*")
-
-	// remove all files that are older than the TTL
-	// in order to make sure the checker only checks
-	// the latest file writes/reads from other members in the group
-	now := c.getTimeNow()
-	before := now.Add(-c.cfg.TTLToDelete.Duration)
-
-	return pkgfilecleaner.Clean(pattern, before)
+	file := c.cfg.fileSelf()
+	return os.RemoveAll(file)
 }

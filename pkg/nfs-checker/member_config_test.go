@@ -2,10 +2,8 @@ package nfschecker
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestMemberConfig_Validate(t *testing.T) {
@@ -20,25 +18,21 @@ func TestMemberConfig_Validate(t *testing.T) {
 			name: "valid config",
 			config: MemberConfig{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir",
-					FileContents:     "test-content",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   tempDir,
+					DirName:      "test-dir",
+					FileContents: "test-content",
 				},
 				ID: "test-id",
 			},
 			wantErr: nil,
 		},
 		{
-			name: "empty directory",
+			name: "empty volume path",
 			config: MemberConfig{
 				Config: Config{
-					VolumePath:       "",
-					DirName:          "test-dir",
-					FileContents:     "test-content",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   "",
+					DirName:      "test-dir",
+					FileContents: "test-content",
 				},
 				ID: "test-id",
 			},
@@ -48,11 +42,9 @@ func TestMemberConfig_Validate(t *testing.T) {
 			name: "relative directory path",
 			config: MemberConfig{
 				Config: Config{
-					VolumePath:       "relative/path",
-					DirName:          "test-dir",
-					FileContents:     "test-content",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   "relative/path",
+					DirName:      "test-dir",
+					FileContents: "test-content",
 				},
 				ID: "test-id",
 			},
@@ -62,11 +54,9 @@ func TestMemberConfig_Validate(t *testing.T) {
 			name: "directory does not exist",
 			config: MemberConfig{
 				Config: Config{
-					VolumePath:       "/non/existent/dir",
-					DirName:          "test-dir",
-					FileContents:     "test-content",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   "/non/existent/dir",
+					DirName:      "test-dir",
+					FileContents: "test-content",
 				},
 				ID: "test-id",
 			},
@@ -76,11 +66,9 @@ func TestMemberConfig_Validate(t *testing.T) {
 			name: "empty ID",
 			config: MemberConfig{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir",
-					FileContents:     "test-content",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   tempDir,
+					DirName:      "test-dir",
+					FileContents: "test-content",
 				},
 				ID: "",
 			},
@@ -90,43 +78,13 @@ func TestMemberConfig_Validate(t *testing.T) {
 			name: "empty file contents",
 			config: MemberConfig{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir",
-					FileContents:     "",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   tempDir,
+					DirName:      "test-dir",
+					FileContents: "",
 				},
 				ID: "test-id",
 			},
 			wantErr: ErrFileContentsEmpty,
-		},
-		{
-			name: "zero TTL",
-			config: MemberConfig{
-				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir",
-					FileContents:     "test-content",
-					TTLToDelete:      metav1.Duration{Duration: 0},
-					NumExpectedFiles: 1,
-				},
-				ID: "test-id",
-			},
-			wantErr: ErrTTLZero,
-		},
-		{
-			name: "zero expected files",
-			config: MemberConfig{
-				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir",
-					FileContents:     "test-content",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 0,
-				},
-				ID: "test-id",
-			},
-			wantErr: ErrExpectedFilesZero,
 		},
 	}
 
@@ -155,21 +113,17 @@ func TestMemberConfigs_Validate(t *testing.T) {
 		configs := MemberConfigs{
 			{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir-1",
-					FileContents:     "content-1",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   tempDir,
+					DirName:      "test-dir-1",
+					FileContents: "content-1",
 				},
 				ID: "member-1",
 			},
 			{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir-2",
-					FileContents:     "content-2",
-					TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
-					NumExpectedFiles: 2,
+					VolumePath:   tempDir,
+					DirName:      "test-dir-2",
+					FileContents: "content-2",
 				},
 				ID: "member-2",
 			},
@@ -183,21 +137,17 @@ func TestMemberConfigs_Validate(t *testing.T) {
 		configs := MemberConfigs{
 			{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir-1",
-					FileContents:     "content-1",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   tempDir,
+					DirName:      "test-dir-1",
+					FileContents: "content-1",
 				},
 				ID: "member-1",
 			},
 			{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir-2",
-					FileContents:     "content-2",
-					TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
-					NumExpectedFiles: 2,
+					VolumePath:   tempDir,
+					DirName:      "test-dir-2",
+					FileContents: "content-2",
 				},
 				ID: "", // Invalid: empty ID
 			},
@@ -211,21 +161,17 @@ func TestMemberConfigs_Validate(t *testing.T) {
 		configs := MemberConfigs{
 			{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir-1",
-					FileContents:     "content-1",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   tempDir,
+					DirName:      "test-dir-1",
+					FileContents: "content-1",
 				},
 				ID: "member-1",
 			},
 			{
 				Config: Config{
-					VolumePath:       "", // Invalid: empty directory
-					DirName:          "test-dir-2",
-					FileContents:     "content-2",
-					TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
-					NumExpectedFiles: 2,
+					VolumePath:   "", // Invalid: empty directory
+					DirName:      "test-dir-2",
+					FileContents: "content-2",
 				},
 				ID: "member-2",
 			},
@@ -239,21 +185,17 @@ func TestMemberConfigs_Validate(t *testing.T) {
 		configs := MemberConfigs{
 			{
 				Config: Config{
-					VolumePath:       "", // Invalid: empty directory
-					DirName:          "test-dir-1",
-					FileContents:     "content-1",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   "", // Invalid: empty directory
+					DirName:      "test-dir-1",
+					FileContents: "content-1",
 				},
 				ID: "member-1",
 			},
 			{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir-2",
-					FileContents:     "content-2",
-					TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
-					NumExpectedFiles: 2,
+					VolumePath:   tempDir,
+					DirName:      "test-dir-2",
+					FileContents: "content-2",
 				},
 				ID: "", // Invalid: empty ID
 			},
@@ -268,11 +210,9 @@ func TestMemberConfigs_Validate(t *testing.T) {
 		configs := MemberConfigs{
 			{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir",
-					FileContents:     "test-content",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   tempDir,
+					DirName:      "test-dir",
+					FileContents: "test-content",
 				},
 				ID: "single-member",
 			},
@@ -286,21 +226,17 @@ func TestMemberConfigs_Validate(t *testing.T) {
 		configs := MemberConfigs{
 			{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir-1",
-					FileContents:     "content-1",
-					TTLToDelete:      metav1.Duration{Duration: time.Minute},
-					NumExpectedFiles: 1,
+					VolumePath:   tempDir,
+					DirName:      "test-dir-1",
+					FileContents: "content-1",
 				},
 				ID: "same-id",
 			},
 			{
 				Config: Config{
-					VolumePath:       tempDir,
-					DirName:          "test-dir-2",
-					FileContents:     "content-2",
-					TTLToDelete:      metav1.Duration{Duration: 2 * time.Minute},
-					NumExpectedFiles: 2,
+					VolumePath:   tempDir,
+					DirName:      "test-dir-2",
+					FileContents: "content-2",
 				},
 				ID: "same-id", // Same ID is allowed in validation
 			},

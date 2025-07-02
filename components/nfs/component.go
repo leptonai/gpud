@@ -181,10 +181,6 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 
-		// safe to clean/delete old files
-		// since we ONLY clean the files that are older than the TTL
-		// meaning only the stale files that have NOT been updated by the nfs checker
-		// will be deleted
 		if err := checker.Clean(); err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
