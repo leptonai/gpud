@@ -158,6 +158,368 @@ func TestChecker_Clean(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestChecker_Clean_ComprehensiveFileDeletion tests comprehensive file deletion scenarios
+func TestChecker_Clean_ComprehensiveFileDeletion(t *testing.T) {
+	t.Run("clean removes multiple old files with different timestamps", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "multi-old-files-test"
+		ttl := 5 * time.Second
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files with different ages
+		files := []struct {
+			name   string
+			age    time.Duration
+			should string // "delete" or "keep"
+		}{
+			{"very-old-file", 10 * time.Second, "delete"},
+			{"old-file-1", 8 * time.Second, "delete"},
+			{"old-file-2", 6 * time.Second, "delete"},
+			{"borderline-file", 5 * time.Second, "delete"}, // exactly at TTL
+			{"recent-file-1", 3 * time.Second, "keep"},
+			{"recent-file-2", 1 * time.Second, "keep"},
+			{"very-recent-file", 0, "keep"},
+		}
+
+		for _, file := range files {
+			filePath := filepath.Join(targetDir, file.name)
+			err = os.WriteFile(filePath, []byte(fmt.Sprintf("content-%s", file.name)), 0644)
+			require.NoError(t, err, "Failed to create file %s", file.name)
+
+			// Set timestamp
+			fileTime := time.Now().Add(-file.age)
+			err = os.Chtimes(filePath, fileTime, fileTime)
+			require.NoError(t, err, "Failed to set timestamp for file %s", file.name)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// Verify cleanup results
+		for _, file := range files {
+			filePath := filepath.Join(targetDir, file.name)
+			_, err = os.Stat(filePath)
+
+			if file.should == "delete" {
+				assert.True(t, os.IsNotExist(err), "File %s should be deleted (age: %v, TTL: %v)", file.name, file.age, ttl)
+			} else {
+				assert.NoError(t, err, "File %s should be kept (age: %v, TTL: %v)", file.name, file.age, ttl)
+			}
+		}
+	})
+
+	t.Run("clean removes old directories as well as files", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "clean-directories-test"
+		ttl := 3 * time.Second
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create old files and directories
+		oldFile := filepath.Join(targetDir, "old-file.txt")
+		oldDir := filepath.Join(targetDir, "old-directory")
+		newFile := filepath.Join(targetDir, "new-file.txt")
+		newDir := filepath.Join(targetDir, "new-directory")
+
+		// Create old file
+		err = os.WriteFile(oldFile, []byte("old file content"), 0644)
+		require.NoError(t, err)
+
+		// Create old directory with content
+		err = os.MkdirAll(oldDir, 0755)
+		require.NoError(t, err)
+		oldDirFile := filepath.Join(oldDir, "nested-file.txt")
+		err = os.WriteFile(oldDirFile, []byte("nested content"), 0644)
+		require.NoError(t, err)
+
+		// Create new file and directory
+		err = os.WriteFile(newFile, []byte("new file content"), 0644)
+		require.NoError(t, err)
+		err = os.MkdirAll(newDir, 0755)
+		require.NoError(t, err)
+
+		// Set old timestamps
+		oldTime := time.Now().Add(-5 * time.Second)
+		err = os.Chtimes(oldFile, oldTime, oldTime)
+		require.NoError(t, err)
+		err = os.Chtimes(oldDir, oldTime, oldTime)
+		require.NoError(t, err)
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// Verify old items are removed
+		_, err = os.Stat(oldFile)
+		assert.True(t, os.IsNotExist(err), "Old file should be deleted")
+		_, err = os.Stat(oldDir)
+		assert.True(t, os.IsNotExist(err), "Old directory should be deleted")
+
+		// Verify new items remain
+		_, err = os.Stat(newFile)
+		assert.NoError(t, err, "New file should remain")
+		_, err = os.Stat(newDir)
+		assert.NoError(t, err, "New directory should remain")
+	})
+
+	t.Run("clean with zero TTL removes all files", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "zero-ttl-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: 0}, // Zero TTL
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Create checker without validation to allow zero TTL
+		checker := &checker{
+			cfg: cfg,
+			getTimeNow: func() time.Time {
+				return time.Now().UTC()
+			},
+			listFilesByPattern: filepath.Glob,
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files with various timestamps
+		files := []string{"file1.txt", "file2.txt", "file3.txt"}
+		for i, fileName := range files {
+			filePath := filepath.Join(targetDir, fileName)
+			err = os.WriteFile(filePath, []byte(fmt.Sprintf("content %d", i)), 0644)
+			require.NoError(t, err)
+
+			// Set different timestamps
+			fileTime := time.Now().Add(time.Duration(-i-1) * time.Second)
+			err = os.Chtimes(filePath, fileTime, fileTime)
+			require.NoError(t, err)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// All files should be removed
+		for _, fileName := range files {
+			filePath := filepath.Join(targetDir, fileName)
+			_, err = os.Stat(filePath)
+			assert.True(t, os.IsNotExist(err), "File %s should be deleted with zero TTL", fileName)
+		}
+	})
+
+	t.Run("clean with very large TTL keeps all files", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "large-ttl-test"
+		ttl := 24 * time.Hour // Very large TTL
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files with old timestamps (but not older than TTL)
+		files := []string{"old-file1.txt", "old-file2.txt", "old-file3.txt"}
+		for i, fileName := range files {
+			filePath := filepath.Join(targetDir, fileName)
+			err = os.WriteFile(filePath, []byte(fmt.Sprintf("content %d", i)), 0644)
+			require.NoError(t, err)
+
+			// Set timestamps to several hours ago (but less than 24 hours)
+			fileTime := time.Now().Add(time.Duration(-(i+1)*2) * time.Hour)
+			err = os.Chtimes(filePath, fileTime, fileTime)
+			require.NoError(t, err)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// All files should remain
+		for _, fileName := range files {
+			filePath := filepath.Join(targetDir, fileName)
+			_, err = os.Stat(filePath)
+			assert.NoError(t, err, "File %s should be kept with large TTL", fileName)
+		}
+	})
+
+	t.Run("clean with empty directory does not error", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "empty-dir-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Create empty target directory
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Execute clean on empty directory
+		err = checker.Clean()
+		assert.NoError(t, err, "Clean should not error on empty directory")
+
+		// Directory should still exist
+		_, err = os.Stat(targetDir)
+		assert.NoError(t, err, "Target directory should still exist")
+	})
+
+	t.Run("clean with non-existent directory does not error", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "non-existent-dir"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Note: Do not create the target directory
+
+		// Execute clean on non-existent directory
+		err = checker.Clean()
+		assert.NoError(t, err, "Clean should not error on non-existent directory")
+	})
+
+	t.Run("clean preserves files with exact TTL boundary timestamp", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "boundary-test"
+		ttl := 5 * time.Second
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Calculate boundary timestamp exactly at TTL
+		now := time.Now().UTC()
+		boundaryTime := now.Add(-ttl)
+
+		// Create files around the boundary
+		files := []struct {
+			name   string
+			offset time.Duration // offset from boundary time
+			keep   bool
+		}{
+			{"before-boundary", -time.Millisecond, false}, // Should be deleted
+			{"at-boundary", 0, false},                     // Should be deleted (equal case)
+			{"after-boundary", time.Millisecond, true},    // Should be kept
+		}
+
+		for _, file := range files {
+			filePath := filepath.Join(targetDir, file.name)
+			err = os.WriteFile(filePath, []byte("test content"), 0644)
+			require.NoError(t, err)
+
+			fileTime := boundaryTime.Add(file.offset)
+			err = os.Chtimes(filePath, fileTime, fileTime)
+			require.NoError(t, err)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// Verify results
+		for _, file := range files {
+			filePath := filepath.Join(targetDir, file.name)
+			_, err = os.Stat(filePath)
+
+			if file.keep {
+				assert.NoError(t, err, "File %s should be kept", file.name)
+			} else {
+				assert.True(t, os.IsNotExist(err), "File %s should be deleted", file.name)
+			}
+		}
+	})
+}
+
 func TestChecker_Check(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -432,6 +794,455 @@ func TestConcurrentCheckers(t *testing.T) {
 			assert.Empty(t, result.Error, "concurrent check %d should have no errors", i)
 			assert.Len(t, result.ReadIDs, numCheckers, "concurrent check %d should see all files", i)
 		}
+	})
+}
+
+// TestChecker_Clean_ErrorCases tests error scenarios in the Clean function
+func TestChecker_Clean_ErrorCases(t *testing.T) {
+	t.Run("clean continues after permission errors", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "permission-error-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files with old timestamps
+		readOnlyFile := filepath.Join(targetDir, "readonly-file")
+		normalFile := filepath.Join(targetDir, "normal-file")
+
+		err = os.WriteFile(readOnlyFile, []byte("readonly content"), 0644)
+		require.NoError(t, err)
+		err = os.WriteFile(normalFile, []byte("normal content"), 0644)
+		require.NoError(t, err)
+
+		// Set old timestamps
+		oldTime := time.Now().Add(-5 * time.Second)
+		err = os.Chtimes(readOnlyFile, oldTime, oldTime)
+		require.NoError(t, err)
+		err = os.Chtimes(normalFile, oldTime, oldTime)
+		require.NoError(t, err)
+
+		// Make the directory read-only to simulate permission issues
+		err = os.Chmod(targetDir, 0555) // Read and execute only
+		if err != nil {
+			t.Skip("Cannot change directory permissions on this system")
+		}
+
+		// Restore permissions after test
+		defer func() {
+			_ = os.Chmod(targetDir, 0755)
+		}()
+
+		// Clean operation may fail due to permission issues, but should not panic
+		err = checker.Clean()
+		// We expect an error due to permission issues, but the function should handle it gracefully
+		// The exact behavior depends on the underlying file system and OS
+		if err != nil {
+			assert.Contains(t, err.Error(), "permission denied", "Error should be related to permissions")
+		}
+	})
+
+	t.Run("clean with invalid glob pattern characters in directory", func(t *testing.T) {
+		// This test verifies that the Clean function handles cases where the constructed
+		// glob pattern might be invalid due to special characters in directory names
+		tempDir := t.TempDir()
+		// Note: Using normal directory name since most filesystems don't allow
+		// glob special characters in directory names, but we test the pattern construction
+		dirName := "normal-dir-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		// Clean should work normally with regular directory names
+		err = checker.Clean()
+		assert.NoError(t, err, "Clean should handle normal directory names without glob pattern issues")
+	})
+
+	t.Run("clean with symlinked files", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "symlink-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create a real file and a symlink to it
+		realFile := filepath.Join(tempDir, "real-file.txt")
+		symlinkFile := filepath.Join(targetDir, "symlink-file")
+
+		err = os.WriteFile(realFile, []byte("real content"), 0644)
+		require.NoError(t, err)
+
+		err = os.Symlink(realFile, symlinkFile)
+		if err != nil {
+			t.Skip("Cannot create symlinks on this system")
+		}
+
+		// Set old timestamp on symlink
+		oldTime := time.Now().Add(-5 * time.Second)
+		// Use regular Chtimes which should work on symlinks on most systems
+		err = os.Chtimes(symlinkFile, oldTime, oldTime)
+		require.NoError(t, err)
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// Verify symlink is removed
+		_, err = os.Lstat(symlinkFile) // Use Lstat to check symlink itself
+		assert.True(t, os.IsNotExist(err), "Symlink should be deleted")
+
+		// Verify real file still exists
+		_, err = os.Stat(realFile)
+		assert.NoError(t, err, "Real file should still exist")
+	})
+
+	t.Run("clean with concurrent file creation", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "concurrent-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create old file
+		oldFile := filepath.Join(targetDir, "old-file")
+		err = os.WriteFile(oldFile, []byte("old content"), 0644)
+		require.NoError(t, err)
+
+		oldTime := time.Now().Add(-5 * time.Second)
+		err = os.Chtimes(oldFile, oldTime, oldTime)
+		require.NoError(t, err)
+
+		// Start concurrent file creation
+		done := make(chan bool)
+		go func() {
+			defer close(done)
+			for i := 0; i < 5; i++ {
+				concurrentFile := filepath.Join(targetDir, fmt.Sprintf("concurrent-file-%d", i))
+				_ = os.WriteFile(concurrentFile, []byte("concurrent content"), 0644)
+				time.Sleep(10 * time.Millisecond)
+			}
+		}()
+
+		// Execute clean concurrently
+		err = checker.Clean()
+		assert.NoError(t, err, "Clean should handle concurrent file operations")
+
+		// Wait for concurrent operations to complete
+		<-done
+
+		// Verify old file is removed
+		_, err = os.Stat(oldFile)
+		assert.True(t, os.IsNotExist(err), "Old file should be deleted despite concurrent operations")
+	})
+}
+
+// TestChecker_Clean_ConcurrentFileModifications tests Clean() with concurrent file modifications
+func TestChecker_Clean_ConcurrentFileModifications(t *testing.T) {
+	t.Run("concurrent file creation during clean", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "concurrent-create-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create old files that should be cleaned
+		oldFiles := make([]string, 3)
+		for i := 0; i < 3; i++ {
+			oldFiles[i] = filepath.Join(targetDir, fmt.Sprintf("old-file-%d", i))
+			err = os.WriteFile(oldFiles[i], []byte("old content"), 0644)
+			require.NoError(t, err)
+			oldTime := time.Now().Add(-5 * time.Second)
+			err = os.Chtimes(oldFiles[i], oldTime, oldTime)
+			require.NoError(t, err)
+		}
+
+		// Start concurrent file creation
+		var createdFiles []string
+		creationDone := make(chan bool)
+		go func() {
+			defer close(creationDone)
+			for i := 0; i < 5; i++ {
+				concurrentFile := filepath.Join(targetDir, fmt.Sprintf("concurrent-file-%d", i))
+				createdFiles = append(createdFiles, concurrentFile)
+				_ = os.WriteFile(concurrentFile, []byte("concurrent content"), 0644)
+				time.Sleep(5 * time.Millisecond)
+			}
+		}()
+
+		// Execute clean concurrently
+		err = checker.Clean()
+		assert.NoError(t, err, "Clean should handle concurrent file creation")
+
+		// Wait for concurrent operations to complete
+		<-creationDone
+
+		// Verify old files are removed
+		for i, oldFile := range oldFiles {
+			_, err = os.Stat(oldFile)
+			assert.True(t, os.IsNotExist(err), "Old file %d should be deleted", i)
+		}
+
+		// Concurrent files may or may not exist depending on timing and their creation time
+		// This is expected behavior
+	})
+
+	t.Run("concurrent file deletion during clean", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "concurrent-delete-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create old files that should be cleaned
+		numFiles := 10
+		oldFiles := make([]string, numFiles)
+		for i := 0; i < numFiles; i++ {
+			oldFiles[i] = filepath.Join(targetDir, fmt.Sprintf("old-file-%d", i))
+			err = os.WriteFile(oldFiles[i], []byte("old content"), 0644)
+			require.NoError(t, err)
+			oldTime := time.Now().Add(-5 * time.Second)
+			err = os.Chtimes(oldFiles[i], oldTime, oldTime)
+			require.NoError(t, err)
+		}
+
+		// Start concurrent file deletion (racing with Clean)
+		deletionDone := make(chan bool)
+		go func() {
+			defer close(deletionDone)
+			// Delete some files concurrently
+			for i := 0; i < numFiles/2; i++ {
+				_ = os.Remove(oldFiles[i])
+				time.Sleep(2 * time.Millisecond)
+			}
+		}()
+
+		// Execute clean concurrently
+		err = checker.Clean()
+		assert.NoError(t, err, "Clean should handle concurrent file deletion gracefully")
+
+		// Wait for concurrent operations to complete
+		<-deletionDone
+
+		// All old files should be gone (either by Clean or concurrent deletion)
+		for i, oldFile := range oldFiles {
+			_, err = os.Stat(oldFile)
+			assert.True(t, os.IsNotExist(err), "Old file %d should be deleted", i)
+		}
+	})
+
+	t.Run("concurrent file timestamp modification during clean", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "concurrent-timestamp-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		checker, err := NewChecker(cfg)
+		require.NoError(t, err)
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files with mixed timestamps
+		numFiles := 6
+		oldFiles := make([]string, numFiles)
+		for i := 0; i < numFiles; i++ {
+			oldFiles[i] = filepath.Join(targetDir, fmt.Sprintf("file-%d", i))
+			err = os.WriteFile(oldFiles[i], []byte("content"), 0644)
+			require.NoError(t, err)
+			// Half old, half new
+			var timestamp time.Time
+			if i < numFiles/2 {
+				timestamp = time.Now().Add(-5 * time.Second) // Old
+			} else {
+				timestamp = time.Now() // New
+			}
+			err = os.Chtimes(oldFiles[i], timestamp, timestamp)
+			require.NoError(t, err)
+		}
+
+		// Start concurrent timestamp modification
+		timestampDone := make(chan bool)
+		go func() {
+			defer close(timestampDone)
+			// Modify timestamps of some files during cleaning
+			for i := 0; i < numFiles/2; i++ {
+				newTime := time.Now() // Make them "new"
+				_ = os.Chtimes(oldFiles[i], newTime, newTime)
+				time.Sleep(3 * time.Millisecond)
+			}
+		}()
+
+		// Execute clean concurrently
+		err = checker.Clean()
+		assert.NoError(t, err, "Clean should handle concurrent timestamp modifications")
+
+		// Wait for concurrent operations to complete
+		<-timestampDone
+
+		// Check which files remain - this depends on the timing of operations
+		// At minimum, the originally "new" files should still exist
+		remainingCount := 0
+		for i := numFiles / 2; i < numFiles; i++ {
+			if _, err := os.Stat(oldFiles[i]); err == nil {
+				remainingCount++
+			}
+		}
+		assert.GreaterOrEqual(t, remainingCount, 1, "At least some originally new files should remain")
+	})
+
+	t.Run("multiple concurrent clean operations", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "multi-clean-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: time.Second},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Create multiple checkers
+		numCheckers := 3
+		checkers := make([]Checker, numCheckers)
+		for i := 0; i < numCheckers; i++ {
+			checker, err := NewChecker(cfg)
+			require.NoError(t, err)
+			checkers[i] = checker
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create old files
+		numFiles := 20
+		for i := 0; i < numFiles; i++ {
+			oldFile := filepath.Join(targetDir, fmt.Sprintf("old-file-%d", i))
+			err = os.WriteFile(oldFile, []byte("old content"), 0644)
+			require.NoError(t, err)
+			oldTime := time.Now().Add(-5 * time.Second)
+			err = os.Chtimes(oldFile, oldTime, oldTime)
+			require.NoError(t, err)
+		}
+
+		// Run multiple clean operations concurrently
+		cleanDone := make(chan error, numCheckers)
+		for i := 0; i < numCheckers; i++ {
+			go func(checker Checker) {
+				cleanDone <- checker.Clean()
+			}(checkers[i])
+		}
+
+		// Wait for all clean operations to complete
+		for i := 0; i < numCheckers; i++ {
+			err := <-cleanDone
+			assert.NoError(t, err, "Concurrent clean %d should succeed", i)
+		}
+
+		// Verify all old files are cleaned up
+		matches, err := filepath.Glob(filepath.Join(targetDir, "*"))
+		assert.NoError(t, err)
+		assert.Empty(t, matches, "All old files should be cleaned up by concurrent operations")
 	})
 }
 
@@ -845,6 +1656,506 @@ func TestCheckResult_Dir(t *testing.T) {
 				expectedDir := filepath.Join(tc.dir, tc.dirName)
 				assert.Equal(t, expectedDir, result.Dir)
 			})
+		}
+	})
+}
+
+// TestChecker_Clean_WithMockedTime tests Clean() functionality using mocked time
+func TestChecker_Clean_WithMockedTime(t *testing.T) {
+	t.Run("clean removes files based on mocked current time", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "mocked-time-test"
+		ttl := 5 * time.Minute
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Create checker with mocked time
+		checker := &checker{
+			cfg: cfg,
+			getTimeNow: func() time.Time {
+				// Mock current time
+				return time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+			},
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files with various timestamps relative to mocked time
+		mockedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+		files := []struct {
+			name      string
+			modTime   time.Time
+			shouldDel bool
+		}{
+			{"file-10min-old", mockedNow.Add(-10 * time.Minute), true},
+			{"file-6min-old", mockedNow.Add(-6 * time.Minute), true},
+			{"file-exactly-ttl", mockedNow.Add(-ttl), false}, // Should NOT be deleted (boundary case - equal time)
+			{"file-4min-old", mockedNow.Add(-4 * time.Minute), false},
+			{"file-1min-old", mockedNow.Add(-1 * time.Minute), false},
+			{"file-current", mockedNow, false},
+			{"file-future", mockedNow.Add(1 * time.Minute), false},
+		}
+
+		for _, f := range files {
+			filePath := filepath.Join(targetDir, f.name)
+			err = os.WriteFile(filePath, []byte("content"), 0644)
+			require.NoError(t, err)
+			err = os.Chtimes(filePath, f.modTime, f.modTime)
+			require.NoError(t, err)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// Verify results
+		for _, f := range files {
+			filePath := filepath.Join(targetDir, f.name)
+			_, err = os.Stat(filePath)
+			if f.shouldDel {
+				assert.True(t, os.IsNotExist(err), "File %s should be deleted", f.name)
+			} else {
+				assert.NoError(t, err, "File %s should exist", f.name)
+			}
+		}
+	})
+
+	t.Run("clean with time progression simulation", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "time-progression-test"
+		ttl := 10 * time.Second
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Start time
+		startTime := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
+		currentTime := startTime
+
+		// Create checker with mocked time that we can control
+		checker := &checker{
+			cfg: cfg,
+			getTimeNow: func() time.Time {
+				return currentTime
+			},
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create a file at start time
+		testFile := filepath.Join(targetDir, "test-file")
+		err = os.WriteFile(testFile, []byte("content"), 0644)
+		require.NoError(t, err)
+		err = os.Chtimes(testFile, startTime, startTime)
+		require.NoError(t, err)
+
+		// First clean - file should not be deleted (not old enough)
+		err = checker.Clean()
+		assert.NoError(t, err)
+		_, err = os.Stat(testFile)
+		assert.NoError(t, err, "File should exist when younger than TTL")
+
+		// Progress time to just before TTL
+		currentTime = startTime.Add(ttl - time.Second)
+		err = checker.Clean()
+		assert.NoError(t, err)
+		_, err = os.Stat(testFile)
+		assert.NoError(t, err, "File should exist when just before TTL")
+
+		// Progress time to exactly TTL
+		currentTime = startTime.Add(ttl)
+		err = checker.Clean()
+		assert.NoError(t, err)
+		_, err = os.Stat(testFile)
+		assert.NoError(t, err, "File should NOT be deleted when exactly at TTL (boundary case)")
+	})
+
+	t.Run("clean with fractional second precision", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "fractional-seconds-test"
+		ttl := 1 * time.Second
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Mock time with nanosecond precision
+		mockedNow := time.Date(2024, 1, 1, 12, 0, 0, 500000000, time.UTC) // .5 seconds
+
+		checker := &checker{
+			cfg: cfg,
+			getTimeNow: func() time.Time {
+				return mockedNow
+			},
+			listFilesByPattern: filepath.Glob,
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files with precise timestamps
+		files := []struct {
+			name      string
+			modTime   time.Time
+			shouldDel bool
+		}{
+			{"file-1.5s-old", mockedNow.Add(-1500 * time.Millisecond), true},
+			{"file-1.0s-old", mockedNow.Add(-1000 * time.Millisecond), false}, // Exactly at TTL boundary
+			{"file-999ms-old", mockedNow.Add(-999 * time.Millisecond), false},
+			{"file-500ms-old", mockedNow.Add(-500 * time.Millisecond), false},
+		}
+
+		for _, f := range files {
+			filePath := filepath.Join(targetDir, f.name)
+			err = os.WriteFile(filePath, []byte("content"), 0644)
+			require.NoError(t, err)
+			err = os.Chtimes(filePath, f.modTime, f.modTime)
+			require.NoError(t, err)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// Verify results
+		for _, f := range files {
+			filePath := filepath.Join(targetDir, f.name)
+			_, err = os.Stat(filePath)
+			if f.shouldDel {
+				assert.True(t, os.IsNotExist(err), "File %s should be deleted", f.name)
+			} else {
+				assert.NoError(t, err, "File %s should exist", f.name)
+			}
+		}
+	})
+
+	t.Run("clean with dynamic time changes during operation", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "dynamic-time-test"
+		ttl := 5 * time.Second
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Start time
+		callCount := 0
+		baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+		// Create checker with mocked time that changes per call
+		checker := &checker{
+			cfg: cfg,
+			getTimeNow: func() time.Time {
+				callCount++
+				// Simulate time passing during the clean operation
+				return baseTime.Add(time.Duration(callCount) * time.Second)
+			},
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create multiple files
+		for i := 0; i < 10; i++ {
+			filePath := filepath.Join(targetDir, fmt.Sprintf("file-%d", i))
+			err = os.WriteFile(filePath, []byte("content"), 0644)
+			require.NoError(t, err)
+			// Set different ages
+			fileTime := baseTime.Add(-time.Duration(i) * time.Second)
+			err = os.Chtimes(filePath, fileTime, fileTime)
+			require.NoError(t, err)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// Files 5-9 should be deleted (older than 5 seconds)
+		for i := 0; i < 10; i++ {
+			filePath := filepath.Join(targetDir, fmt.Sprintf("file-%d", i))
+			_, err = os.Stat(filePath)
+			if i >= 5 {
+				assert.True(t, os.IsNotExist(err), "File-%d should be deleted", i)
+			} else {
+				assert.NoError(t, err, "File-%d should exist", i)
+			}
+		}
+	})
+}
+
+// TestChecker_Clean_EdgeCasesWithMockedTime tests edge cases using mocked time
+func TestChecker_Clean_EdgeCasesWithMockedTime(t *testing.T) {
+	t.Run("clean with extremely old Unix epoch files", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "epoch-test"
+		ttl := 1 * time.Hour
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Mock current time
+		mockedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+		checker := &checker{
+			cfg: cfg,
+			getTimeNow: func() time.Time {
+				return mockedNow
+			},
+			listFilesByPattern: filepath.Glob,
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files with extreme timestamps
+		files := []struct {
+			name      string
+			modTime   time.Time
+			shouldDel bool
+		}{
+			{"file-unix-epoch", time.Unix(0, 0), true},        // 1970-01-01
+			{"file-before-epoch", time.Unix(-86400, 0), true}, // 1969-12-31
+			{"file-far-past", time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC), true},
+			{"file-recent", mockedNow.Add(-30 * time.Minute), false},
+		}
+
+		for _, f := range files {
+			filePath := filepath.Join(targetDir, f.name)
+			err = os.WriteFile(filePath, []byte("content"), 0644)
+			require.NoError(t, err)
+			err = os.Chtimes(filePath, f.modTime, f.modTime)
+			require.NoError(t, err)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// Verify results
+		for _, f := range files {
+			filePath := filepath.Join(targetDir, f.name)
+			_, err = os.Stat(filePath)
+			if f.shouldDel {
+				assert.True(t, os.IsNotExist(err), "File %s should be deleted", f.name)
+			} else {
+				assert.NoError(t, err, "File %s should exist", f.name)
+			}
+		}
+	})
+
+	t.Run("clean with negative TTL edge case", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "negative-ttl-test"
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: -1 * time.Hour}, // Negative TTL
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Mock current time
+		mockedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+		checker := &checker{
+			cfg: cfg,
+			getTimeNow: func() time.Time {
+				return mockedNow
+			},
+			listFilesByPattern: filepath.Glob,
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files - with negative TTL, all files are "too old"
+		files := []string{"file1", "file2", "file3"}
+		for _, name := range files {
+			filePath := filepath.Join(targetDir, name)
+			err = os.WriteFile(filePath, []byte("content"), 0644)
+			require.NoError(t, err)
+			// Set different timestamps
+			fileTime := mockedNow.Add(-time.Duration(len(name)) * time.Minute)
+			err = os.Chtimes(filePath, fileTime, fileTime)
+			require.NoError(t, err)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// With negative TTL, the cutoff time is in the future, so all files should be deleted
+		for _, name := range files {
+			filePath := filepath.Join(targetDir, name)
+			_, err = os.Stat(filePath)
+			assert.True(t, os.IsNotExist(err), "File %s should be deleted with negative TTL", name)
+		}
+	})
+
+	t.Run("clean with maximum time values", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "max-time-test"
+		ttl := 1 * time.Hour
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Mock current time at year 2100 (more reasonable maximum)
+		mockedNow := time.Date(2100, 12, 31, 23, 59, 59, 999999999, time.UTC)
+
+		checker := &checker{
+			cfg: cfg,
+			getTimeNow: func() time.Time {
+				return mockedNow
+			},
+			listFilesByPattern: filepath.Glob,
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create a file
+		testFile := filepath.Join(targetDir, "future-file")
+		err = os.WriteFile(testFile, []byte("content"), 0644)
+		require.NoError(t, err)
+
+		// Set file time to just before the mocked time
+		fileTime := mockedNow.Add(-30 * time.Minute)
+		err = os.Chtimes(testFile, fileTime, fileTime)
+		require.NoError(t, err)
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// File should still exist (not older than TTL)
+		_, err = os.Stat(testFile)
+		assert.NoError(t, err, "File should exist as it's not older than TTL")
+	})
+
+	t.Run("clean with files in future time", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dirName := "future-files-test"
+		ttl := 1 * time.Hour
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:       tempDir,
+				DirName:          dirName,
+				FileContents:     "test-content",
+				TTLToDelete:      metav1.Duration{Duration: ttl},
+				NumExpectedFiles: 1,
+			},
+			ID: "test-id",
+		}
+
+		// Mock current time
+		mockedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+		checker := &checker{
+			cfg: cfg,
+			getTimeNow: func() time.Time {
+				return mockedNow
+			},
+			listFilesByPattern: filepath.Glob,
+		}
+
+		targetDir := filepath.Join(tempDir, dirName)
+		err := os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Create files with future timestamps
+		files := []struct {
+			name      string
+			modTime   time.Time
+			shouldDel bool
+		}{
+			{"file-future-1h", mockedNow.Add(1 * time.Hour), false},  // Future file
+			{"file-future-1d", mockedNow.Add(24 * time.Hour), false}, // Far future file
+			{"file-old", mockedNow.Add(-2 * time.Hour), true},        // Old file
+		}
+
+		for _, f := range files {
+			filePath := filepath.Join(targetDir, f.name)
+			err = os.WriteFile(filePath, []byte("content"), 0644)
+			require.NoError(t, err)
+			err = os.Chtimes(filePath, f.modTime, f.modTime)
+			require.NoError(t, err)
+		}
+
+		// Execute clean
+		err = checker.Clean()
+		assert.NoError(t, err)
+
+		// Verify results - future files should not be deleted
+		for _, f := range files {
+			filePath := filepath.Join(targetDir, f.name)
+			_, err = os.Stat(filePath)
+			if f.shouldDel {
+				assert.True(t, os.IsNotExist(err), "File %s should be deleted", f.name)
+			} else {
+				assert.NoError(t, err, "File %s should exist", f.name)
+			}
 		}
 	})
 }

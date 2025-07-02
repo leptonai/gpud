@@ -934,3 +934,382 @@ func TestHealthStatesConsistency(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckWithCleanSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:       tmpDir,
+					DirName:          "nfs-check",
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return fsType == "nfs"
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Should succeed - Clean() should be called successfully
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Len(t, cr.NFSCheckResults, 1)
+	assert.Equal(t, filepath.Join(tmpDir, "nfs-check"), cr.NFSCheckResults[0].Dir)
+	assert.Contains(t, result.Summary(), "successfully checked directory")
+}
+
+func TestCheckWithCleanError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// First, run a successful check to create the initial structure
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:       tmpDir,
+					DirName:          "nfs-check",
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return fsType == "nfs"
+		},
+	}
+
+	// Run initial check to create files
+	result1 := c.Check()
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result1.HealthStateType())
+
+	// Now create an old file that should be cleaned up
+	// The NFS checker creates files in VolumePath/DirName/ directory
+	nfsDir := filepath.Join(tmpDir, "nfs-check")
+	oldFile := filepath.Join(nfsDir, "old-file")
+	err := os.WriteFile(oldFile, []byte("test content"), 0644) // Use same content as checker expects
+	require.NoError(t, err)
+
+	// Set file timestamp to past to make it eligible for cleanup
+	pastTime := time.Now().Add(-2 * time.Hour)
+	err = os.Chtimes(oldFile, pastTime, pastTime)
+	require.NoError(t, err)
+
+	// Update config to have shorter TTL to trigger cleanup, and expect more files
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:       tmpDir,
+				DirName:          "nfs-check",
+				FileContents:     "test content",
+				TTLToDelete:      metav1.Duration{Duration: time.Hour}, // Files older than 1 hour should be cleaned
+				NumExpectedFiles: 2,                                    // Expect both the current file and old file initially
+			},
+		}
+	}
+
+	// Make the NFS directory read-only to cause Clean() to fail
+	err = os.Chmod(nfsDir, 0555)
+	require.NoError(t, err)
+	defer func() { _ = os.Chmod(nfsDir, 0755) }() // Restore permissions for cleanup
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Should fail due to Clean() error
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "failed to clean nfs checker for "+tmpDir)
+	assert.NotNil(t, cr.err)
+}
+
+func TestCheckWithCleanPermissionError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// First run a successful check to create the directory structure
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:       tmpDir,
+					DirName:          "nfs-check",
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return fsType == "nfs"
+		},
+	}
+
+	// Run initial check to create structure
+	result1 := c.Check()
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result1.HealthStateType())
+
+	// Create an old file that should be cleaned
+	nfsDir := filepath.Join(tmpDir, "nfs-check")
+	oldFile := filepath.Join(nfsDir, "old-test-file")
+	err := os.WriteFile(oldFile, []byte("test content"), 0644) // Use same content as checker expects
+	require.NoError(t, err)
+
+	// Set file timestamp to 2 hours ago to make it eligible for cleanup
+	pastTime := time.Now().Add(-2 * time.Hour)
+	err = os.Chtimes(oldFile, pastTime, pastTime)
+	require.NoError(t, err)
+
+	// Make the directory read-only to prevent file deletion during Clean()
+	err = os.Chmod(nfsDir, 0555)
+	require.NoError(t, err)
+	defer func() { _ = os.Chmod(nfsDir, 0755) }()
+
+	// Run the check with updated config that expects more files
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:       tmpDir,
+				DirName:          "nfs-check",
+				FileContents:     "test content",
+				TTLToDelete:      metav1.Duration{Duration: time.Hour},
+				NumExpectedFiles: 2, // Expect both current and old file
+			},
+		}
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Should fail due to permission error during Clean()
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "failed to clean nfs checker for "+tmpDir)
+	assert.NotNil(t, cr.err)
+
+	// Verify the old file still exists (wasn't cleaned due to permission error)
+	_, err = os.Stat(oldFile)
+	assert.NoError(t, err, "Old file should still exist due to permission error")
+}
+
+func TestCheckWithMultipleConfigsCleanFailure(t *testing.T) {
+	tmpDir1 := t.TempDir()
+	tmpDir2 := t.TempDir()
+
+	// First, run an initial check to create the directory structures
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:       tmpDir1,
+					DirName:          "nfs-check",
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+				{
+					VolumePath:       tmpDir2,
+					DirName:          "nfs-check",
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return fsType == "nfs"
+		},
+	}
+
+	// Run initial check to create structures
+	result1 := c.Check()
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result1.HealthStateType())
+
+	// Create an old file in the second directory that will cause Clean() to fail
+	nfsDir2 := filepath.Join(tmpDir2, "nfs-check")
+	oldFile := filepath.Join(nfsDir2, "old-file")
+	err := os.WriteFile(oldFile, []byte("test content"), 0644)
+	require.NoError(t, err)
+
+	// Set file timestamp to past to make it eligible for cleanup
+	pastTime := time.Now().Add(-2 * time.Hour)
+	err = os.Chtimes(oldFile, pastTime, pastTime)
+	require.NoError(t, err)
+
+	// Update the component to expect the additional file in the second config
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:       tmpDir1,
+				DirName:          "nfs-check",
+				FileContents:     "test content",
+				TTLToDelete:      metav1.Duration{Duration: time.Hour},
+				NumExpectedFiles: 1,
+			},
+			{
+				VolumePath:       tmpDir2,
+				DirName:          "nfs-check",
+				FileContents:     "test content",
+				TTLToDelete:      metav1.Duration{Duration: time.Hour},
+				NumExpectedFiles: 2, // Will account for both current and old file
+			},
+		}
+	}
+
+	// Make the second directory read-only to cause Clean() to fail for the second config
+	err = os.Chmod(nfsDir2, 0555)
+	require.NoError(t, err)
+	defer func() { _ = os.Chmod(nfsDir2, 0755) }()
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Should fail due to Clean() error on second config
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "failed to clean nfs checker for "+tmpDir2)
+	assert.NotNil(t, cr.err)
+
+	// Since we fail on the second config, the first config completes but second doesn't
+	// NFSCheckResults should contain the first config's results only
+	assert.Len(t, cr.NFSCheckResults, 1)
+	assert.Equal(t, filepath.Join(tmpDir1, "nfs-check"), cr.NFSCheckResults[0].Dir)
+}
+
+func TestCheckCleanCallOrder(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	c := &component{
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:       tmpDir,
+					DirName:          "nfs-check",
+					FileContents:     "test content",
+					TTLToDelete:      metav1.Duration{Duration: time.Hour},
+					NumExpectedFiles: 1,
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return fsType == "nfs"
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	// Verify that the full sequence completed successfully (Write → Check → Clean)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Len(t, cr.NFSCheckResults, 1)
+	assert.Equal(t, filepath.Join(tmpDir, "nfs-check"), cr.NFSCheckResults[0].Dir)
+
+	// Verify that the check result contains the expected message showing Write and Check completed
+	assert.Contains(t, result.Summary(), "successfully checked directory")
+
+	// Verify no error occurred (meaning Clean() was called and succeeded)
+	assert.Nil(t, cr.err)
+}
+
+func TestCheckCleanNotCalledOnEarlierFailures(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	t.Run("Clean not called when Write fails", func(t *testing.T) {
+		// Make directory read-only to cause Write() to fail
+		err := os.Chmod(tmpDir, 0555)
+		require.NoError(t, err)
+		defer func() { _ = os.Chmod(tmpDir, 0755) }()
+
+		c := &component{
+			machineID: "test-machine",
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{
+					{
+						VolumePath:       tmpDir,
+						DirName:          "nfs-check",
+						FileContents:     "test content",
+						TTLToDelete:      metav1.Duration{Duration: time.Hour},
+						NumExpectedFiles: 1,
+					},
+				}
+			},
+			findMntTargetDevice: func(dir string) (string, string, error) {
+				return "server:/export/path", "nfs", nil
+			},
+			isNFSFSType: func(fsType string) bool {
+				return fsType == "nfs"
+			},
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		// Should fail during config validation, before Write() is even called
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+		assert.Contains(t, result.Summary(), "invalid nfs group configs")
+		assert.NotNil(t, cr.err)
+
+		// NFSCheckResults should be empty since we never got to the Check() stage
+		assert.Len(t, cr.NFSCheckResults, 0)
+	})
+
+	t.Run("Clean not called when Check fails", func(t *testing.T) {
+		// Create a writable directory
+		tmpDir2 := t.TempDir()
+
+		c := &component{
+			machineID: "test-machine",
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{
+					{
+						VolumePath:       tmpDir2,
+						DirName:          "nfs-check",
+						FileContents:     "expected content",
+						TTLToDelete:      metav1.Duration{Duration: time.Hour},
+						NumExpectedFiles: 10, // Expect way more files than we'll have
+					},
+				}
+			},
+			findMntTargetDevice: func(dir string) (string, string, error) {
+				return "server:/export/path", "nfs", nil
+			},
+			isNFSFSType: func(fsType string) bool {
+				return fsType == "nfs"
+			},
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		// Should fail at Check() stage, before Clean() is called
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+		assert.Contains(t, result.Summary(), "failed to check nfs checker for "+tmpDir2)
+		assert.NotNil(t, cr.err)
+
+		// NFSCheckResults should be empty since Check() failed
+		assert.Len(t, cr.NFSCheckResults, 0)
+	})
+}

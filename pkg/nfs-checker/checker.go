@@ -48,7 +48,10 @@ func NewChecker(cfg *MemberConfig) (Checker, error) {
 		return nil, err
 	}
 	return &checker{
-		cfg:                cfg,
+		cfg: cfg,
+		getTimeNow: func() time.Time {
+			return time.Now().UTC()
+		},
 		listFilesByPattern: filepath.Glob,
 	}, nil
 }
@@ -58,6 +61,7 @@ var _ Checker = &checker{}
 type checker struct {
 	cfg *MemberConfig
 
+	getTimeNow         func() time.Time
 	listFilesByPattern func(pattern string) ([]string, error)
 }
 
@@ -139,7 +143,7 @@ func (c *checker) Clean() error {
 	// remove all files that are older than the TTL
 	// in order to make sure the checker only checks
 	// the latest file writes/reads from other members in the group
-	now := time.Now().UTC()
+	now := c.getTimeNow()
 	before := now.Add(-c.cfg.TTLToDelete.Duration)
 
 	return pkgfilecleaner.Clean(pattern, before)
