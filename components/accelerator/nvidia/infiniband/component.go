@@ -5,7 +5,6 @@ package infiniband
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -29,6 +28,11 @@ import (
 
 const (
 	Name = "accelerator-nvidia-infiniband"
+
+	defaultIbPortsSnapshotsRetentionPeriod = 10 * time.Minute
+	defaultIbPortDropThreshold             = 5 * time.Minute // 1-minute of buffer in case each periodic check takes longer
+	defaultIbPortFlapEvaluatePeriod        = 5 * time.Minute // 1-minute of buffer in case each periodic check takes longer
+	defaultRequestTimeout                  = 15 * time.Second
 )
 
 var _ components.Component = &component{}
@@ -43,21 +47,51 @@ type component struct {
 	eventBucket eventstore.Bucket
 	kmsgSyncer  *kmsg.Syncer
 
+	getTimeNowFunc      func() time.Time
 	getThresholdsFunc   func() infiniband.ExpectedPortStates
 	getClassDevicesFunc func() (infinibandclass.Devices, error)
 	getIbstatOutputFunc func(ctx context.Context) (*infiniband.IbstatOutput, error)
+
+	// ibPortsSnapshotsRetentionPeriod is the duration to retain the last ib ports data.
+	ibPortsSnapshotsRetentionPeriod time.Duration
+	// lastIbPortsSnapshots is the last ib ports data, with up to [ibPortsSnapshotsRetentionPeriod] items.
+	// They are sorted in the ascending order of [ibPortsSnapshot.ts].
+	lastIbPortsSnapshots ibPortsSnapshots
+
+	ibPortDropThreshold      time.Duration
+	ibPortFlapEvaluatePeriod time.Duration
+	requestTimeout           time.Duration
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
 
+// ibPortsSnapshot is a snapshot of all IB ports at a given time
+// TODO: store them in events store for persistency on gpud restarts
+type ibPortsSnapshot struct {
+	ts time.Time
+
+	// all IB ports that are found in the system
+	all []infiniband.IBPort
+
+	// only unhealthy IB ports that violates the thresholds
+	unhealthy []infiniband.IBPort
+}
+
+type ibPortsSnapshots []ibPortsSnapshot
+
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:               cctx,
-		cancel:            ccancel,
-		nvmlInstance:      gpudInstance.NVMLInstance,
-		toolOverwrites:    gpudInstance.NVIDIAToolOverwrites,
+		ctx:    cctx,
+		cancel: ccancel,
+
+		nvmlInstance:   gpudInstance.NVMLInstance,
+		toolOverwrites: gpudInstance.NVIDIAToolOverwrites,
+
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		getThresholdsFunc: GetDefaultExpectedPortStates,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.LoadDevices(gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir)
@@ -65,6 +99,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
 			return infiniband.GetIbstatOutput(ctx, []string{gpudInstance.NVIDIAToolOverwrites.IbstatCommand})
 		},
+
+		ibPortsSnapshotsRetentionPeriod: defaultIbPortsSnapshotsRetentionPeriod,
+		ibPortDropThreshold:             defaultIbPortDropThreshold,
+		ibPortFlapEvaluatePeriod:        defaultIbPortFlapEvaluatePeriod,
+		requestTimeout:                  defaultRequestTimeout,
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -160,7 +199,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu infiniband")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -198,44 +237,51 @@ func (c *component) Check() components.CheckResult {
 		log.Logger.Warnw("error loading infiniband class devices", "devices", len(cr.ClassDevices), "error", err)
 	}
 
-	var ibportsToEvaluate []infiniband.IBPort
+	var currentPorts []infiniband.IBPort
 	for _, dev := range cr.ClassDevices {
 		for _, port := range dev.Ports {
-			ibportsToEvaluate = append(ibportsToEvaluate, infiniband.IBPort{
+			ibport := infiniband.IBPort{
+				Port:          port.Port,
 				Device:        dev.Name,
 				State:         port.State,
 				PhysicalState: port.PhysState,
 				RateGBSec:     int(port.RateGBSec),
 				LinkLayer:     port.LinkLayer,
-			})
-
-			if port.Counters.LinkDowned == nil {
+			}
+			if !ibport.IsIBPort() {
 				continue
 			}
 
-			devicePort := dev.Name + "_" + port.Name
-			linkDowned := float64(*port.Counters.LinkDowned)
+			if port.Counters.LinkDowned != nil {
+				ibport.TotalLinkDowned = *port.Counters.LinkDowned
 
-			metricIbLinkedDowned.With(prometheus.Labels{"device_port": devicePort}).Set(linkDowned)
+				devicePort := dev.Name + "_" + port.Name
+				linkDowned := float64(*port.Counters.LinkDowned)
+				metricIbLinkedDowned.With(prometheus.Labels{"device_port": devicePort}).Set(linkDowned)
+			}
+
+			currentPorts = append(currentPorts, ibport)
 		}
 	}
 
-	// TODO: deprecate in favor of class dir data
-	// "ibstat" may fail if there's a port device that is wrongly mapped (e.g., exit 255)
-	// but can still return the partial output with the correct data
-	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	cr.IbstatOutput, cr.err = c.getIbstatOutputFunc(cctx)
-	ccancel()
+	if c.getIbstatOutputFunc != nil {
+		// TODO: deprecate in favor of class dir data
+		// "ibstat" may fail if there's a port device that is wrongly mapped (e.g., exit 255)
+		// but can still return the partial output with the correct data
+		cctx, ccancel := context.WithTimeout(c.ctx, c.requestTimeout)
+		cr.IbstatOutput, cr.err = c.getIbstatOutputFunc(cctx)
+		ccancel()
 
-	// TODO: deprecate in favor of class dir data
-	if cr.err != nil {
-		if errors.Is(cr.err, infiniband.ErrNoIbstatCommand) {
-			cr.health = apiv1.HealthStateTypeHealthy
-			cr.reason = "ibstat command not found"
-		} else {
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = "ibstat command failed"
-			log.Logger.Warnw(cr.reason, "error", cr.err)
+		// TODO: deprecate in favor of class dir data
+		if cr.err != nil {
+			if errors.Is(cr.err, infiniband.ErrNoIbstatCommand) {
+				cr.health = apiv1.HealthStateTypeHealthy
+				cr.reason = "ibstat command not found"
+			} else {
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.reason = "ibstat command failed"
+				log.Logger.Warnw(cr.reason, "error", cr.err)
+			}
 		}
 	}
 
@@ -249,14 +295,14 @@ func (c *component) Check() components.CheckResult {
 
 	// "ibstat" command returned no data, skip the evaluation
 	// TODO: deprecate in favor of class dir data
-	if cr.err == nil && cr.IbstatOutput == nil {
+	if cr.err == nil && len(currentPorts) == 0 && cr.IbstatOutput == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = reasonNoIbPortData
 		log.Logger.Warnw(cr.reason)
 		return cr
 	}
 
-	evaluateHealthStateWithThresholds(thresholds, ibportsToEvaluate, cr)
+	evaluateHealthStateWithThresholds(thresholds, currentPorts, cr)
 	if len(cr.unhealthyIBPorts) == 0 && cr.IbstatOutput != nil {
 		log.Logger.Warnw("infiniband class dir data is available but no unhealthy IB ports are found, using ibstat as fallback", "ibClassDir", c.toolOverwrites.InfinibandClassRootDir)
 
@@ -265,76 +311,40 @@ func (c *component) Check() components.CheckResult {
 		evaluateHealthStateWithThresholds(thresholds, cr.IbstatOutput.Parsed.IBPorts(), cr)
 	}
 
+	// ib switch fault does NOT need historical ports data
+	// just use the current ports data
+	evaluateIBSwitchFault(currentPorts, cr)
+
+	// ib port drop/flap detection requires historical ports data
+	// record them in memory for now
+	c.recordIbPortsSnapshot(ibPortsSnapshot{
+		ts:        cr.ts,
+		all:       currentPorts,
+		unhealthy: cr.unhealthyIBPorts,
+	})
+	evaluateIBPortsDrop(c.lastIbPortsSnapshots, c.ibPortDropThreshold, cr)
+	evaluateIBPortFlap(c.lastIbPortsSnapshots, c.ibPortFlapEvaluatePeriod, cr)
+
 	return cr
 }
 
-var (
-	// nothing specified for this machine, gpud MUST skip the ib check
-	reasonNoThreshold   = "ports or rate threshold not set (skipped evaluation)"
-	reasonNoEventBucket = "no event storage (skipped evaluation)"
-	reasonNoIbPortData  = "no infiniband port data (skipped evaluation)"
-	reasonNoIbPortIssue = "ok; no infiniband port issue"
-)
+func (c *component) recordIbPortsSnapshot(snapshot ibPortsSnapshot) {
+	c.lastIbPortsSnapshots = append(c.lastIbPortsSnapshots, snapshot)
 
-// evaluateHealthStateWithThresholds evaluates the current infiniband port states against the thresholds
-// and it DOES NOT take historical states into account
-func evaluateHealthStateWithThresholds(thresholds infiniband.ExpectedPortStates, ibports []infiniband.IBPort, cr *checkResult) {
-	// DO NOT auto-detect infiniband devices/PCI buses
-	// strictly rely on the user-specified config.
-	if thresholds.IsZero() {
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.suggestedActions = nil
-		cr.reason = reasonNoThreshold
+	// truncate any entry that is older than this timestamp
+	staleTime := snapshot.ts.Add(-c.ibPortsSnapshotsRetentionPeriod)
 
-		cr.unhealthyIBPorts = nil
-
-		cr.err = nil
-		return
-	}
-
-	// neither "ibstat" nor "ibstatus" command returned any data
-	// then we just skip the evaluation
-	if len(ibports) == 0 {
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = reasonNoIbPortData
-		log.Logger.Warnw(cr.reason)
-		return
-	}
-
-	// Link down/drop -> hardware inspection
-	// Link port flap -> hardware inspection
-	atLeastPorts := thresholds.AtLeastPorts
-	atLeastRate := thresholds.AtLeastRate
-
-	// whether ibstat command failed or not (e.g., one port device is wrongly mapped), we use the entire/partial output
-	// but we got the entire/partial output from "ibstat" command
-	// thus we use the data from "ibstat" command to evaluate
-	// ok to error as long as it meets the thresholds
-	// which means we may overwrite the error above
-	// (e.g., "ibstat" command exited 255 but still meets the thresholds)
-	unhealthy, err := infiniband.EvaluatePortsAndRate(ibports, atLeastPorts, atLeastRate)
-	if err != nil {
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.suggestedActions = &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+	filtered := make([]ibPortsSnapshot, 0, len(c.lastIbPortsSnapshots))
+	for _, existing := range c.lastIbPortsSnapshots {
+		if existing.ts.Before(staleTime) {
+			// this entry happened before the stale time, skip it
+			continue
 		}
-		cr.reason = err.Error()
-
-		cr.unhealthyIBPorts = unhealthy
-		return
+		filtered = append(filtered, existing)
 	}
 
-	cr.health = apiv1.HealthStateTypeHealthy
-	cr.suggestedActions = nil
-	cr.reason = reasonNoIbPortIssue
-
-	cr.unhealthyIBPorts = nil
-
-	// partial output from "ibstat" command worked
-	if cr.err != nil && cr.health == apiv1.HealthStateTypeHealthy {
-		log.Logger.Debugw("ibstat command returned partial output -- discarding error", "error", cr.err, "reason", cr.reason)
-		cr.err = nil
-	}
+	// now overwrite
+	c.lastIbPortsSnapshots = filtered
 }
 
 var _ components.CheckResult = &checkResult{}
@@ -359,6 +369,17 @@ type checkResult struct {
 	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
+
+	// reasonIbSwitchFault is set if and only if
+	// all ports are down
+	// when this check happened
+	reasonIbSwitchFault string
+
+	// IB port drop when a port has been down for more than 4-minute
+	reasonIbPortsDrop string
+
+	// IB port flap when a port is down and back to active for the last 4-minute
+	reasonIbPortsFlap string
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -407,7 +428,20 @@ func (cr *checkResult) Summary() string {
 	if cr == nil {
 		return ""
 	}
-	return cr.reason
+
+	reason := cr.reason
+
+	if cr.reasonIbSwitchFault != "" {
+		reason += "; " + cr.reasonIbSwitchFault
+	}
+	if cr.reasonIbPortsDrop != "" {
+		reason += "; " + cr.reasonIbPortsDrop
+	}
+	if cr.reasonIbPortsFlap != "" {
+		reason += "; " + cr.reasonIbPortsFlap
+	}
+
+	return reason
 }
 
 func (cr *checkResult) HealthStateType() apiv1.HealthStateType {
@@ -456,11 +490,6 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Reason:           cr.reason,
 		SuggestedActions: cr.getSuggestedActions(),
 		Error:            cr.getError(),
-	}
-
-	if len(cr.ClassDevices) > 0 || cr.IbstatOutput != nil {
-		b, _ := json.Marshal(cr)
-		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
 
 	return apiv1.HealthStates{state}

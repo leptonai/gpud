@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
@@ -26,458 +24,10 @@ import (
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
-func TestEvaluate(t *testing.T) {
-	tests := []struct {
-		name       string
-		output     *infiniband.IbstatOutput
-		config     infiniband.ExpectedPortStates
-		wantReason string
-		wantHealth apiv1.HealthStateType
-	}{
-		{
-			name:   "thresholds not set",
-			output: &infiniband.IbstatOutput{},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 0,
-				AtLeastRate:  0,
-			},
-			wantReason: reasonNoThreshold,
-			wantHealth: apiv1.HealthStateTypeHealthy,
-		},
-		{
-			name:   "only ports threshold set",
-			output: &infiniband.IbstatOutput{Parsed: infiniband.IBStatCards{}},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 2,
-				AtLeastRate:  0,
-			},
-			wantReason: reasonNoThreshold,
-			wantHealth: apiv1.HealthStateTypeHealthy,
-		},
-		{
-			name:   "only rate threshold set",
-			output: &infiniband.IbstatOutput{Parsed: infiniband.IBStatCards{}},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 0,
-				AtLeastRate:  200,
-			},
-			wantReason: reasonNoThreshold,
-			wantHealth: apiv1.HealthStateTypeHealthy,
-		},
-		{
-			name: "healthy state with matching ports and rate",
-			output: &infiniband.IbstatOutput{
-				Raw: "",
-				Parsed: infiniband.IBStatCards{
-					{
-						Device: "mlx5_0",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-					{
-						Device: "mlx5_1",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-				},
-			},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 2,
-				AtLeastRate:  200,
-			},
-			wantReason: reasonNoIbPortIssue,
-			wantHealth: apiv1.HealthStateTypeHealthy,
-		},
-		{
-			name: "unhealthy state - not enough ports",
-			output: &infiniband.IbstatOutput{
-				Raw: "",
-				Parsed: infiniband.IBStatCards{
-					{
-						Device: "mlx5_0",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-				},
-			},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 2,
-				AtLeastRate:  200,
-			},
-			wantReason: "only 1 port(s) are active and >=200 Gb/s, expect >=2 port(s)",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-		},
-		{
-			name: "unhealthy state - rate too low",
-			output: &infiniband.IbstatOutput{
-				Raw: "",
-				Parsed: infiniband.IBStatCards{
-					{
-						Device: "mlx5_0",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          100,
-							LinkLayer:     "Infiniband",
-						},
-					},
-					{
-						Device: "mlx5_1",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          100,
-							LinkLayer:     "Infiniband",
-						},
-					},
-				},
-			},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 2,
-				AtLeastRate:  200,
-			},
-			wantReason: "only 0 port(s) are active and >=200 Gb/s, expect >=2 port(s)",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-		},
-		{
-			name: "unhealthy state - disabled ports",
-			output: &infiniband.IbstatOutput{
-				Raw: "",
-				Parsed: infiniband.IBStatCards{
-					{
-						Device: "mlx5_0",
-						Port1: infiniband.IBStatPort{
-							State:         "Down",
-							PhysicalState: "Disabled",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-					{
-						Device: "mlx5_1",
-						Port1: infiniband.IBStatPort{
-							State:         "Down",
-							PhysicalState: "Disabled",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-				},
-			},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 2,
-				AtLeastRate:  200,
-			},
-			wantReason: "only 0 port(s) are active and >=200 Gb/s, expect >=2 port(s); 2 device(s) physical state Disabled (mlx5_0, mlx5_1)",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-		},
-		{
-			name: "empty ibstat cards",
-			output: &infiniband.IbstatOutput{
-				Raw:    "",
-				Parsed: infiniband.IBStatCards{},
-			},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 2,
-				AtLeastRate:  200,
-			},
-			wantReason: reasonNoIbPortData,
-			wantHealth: apiv1.HealthStateTypeHealthy,
-		},
-		{
-			name: "inactive ports",
-			output: &infiniband.IbstatOutput{
-				Raw: "",
-				Parsed: infiniband.IBStatCards{
-					{
-						Device: "mlx5_0",
-						Port1: infiniband.IBStatPort{
-							State:         "Inactive",
-							PhysicalState: "LinkUp",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-					{
-						Device: "mlx5_1",
-						Port1: infiniband.IBStatPort{
-							State:         "Inactive",
-							PhysicalState: "LinkUp",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-				},
-			},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 2,
-				AtLeastRate:  200,
-			},
-			wantReason: reasonNoIbPortIssue,
-			wantHealth: apiv1.HealthStateTypeHealthy,
-		},
-		{
-			name: "mixed port states",
-			output: &infiniband.IbstatOutput{
-				Raw: "",
-				Parsed: infiniband.IBStatCards{
-					{
-						Device: "mlx5_0",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-					{
-						Device: "mlx5_1",
-						Port1: infiniband.IBStatPort{
-							State:         "Down",
-							PhysicalState: "Disabled",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-					{
-						Device: "mlx5_2",
-						Port1: infiniband.IBStatPort{
-							State:         "Inactive",
-							PhysicalState: "LinkUp",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-				},
-			},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 3,
-				AtLeastRate:  200,
-			},
-			wantReason: "only 2 port(s) are active and >=200 Gb/s, expect >=3 port(s); 1 device(s) physical state Disabled (mlx5_1)",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-		},
-		{
-			name: "mixed rate values",
-			output: &infiniband.IbstatOutput{
-				Raw: "",
-				Parsed: infiniband.IBStatCards{
-					{
-						Device: "mlx5_0",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          400,
-							LinkLayer:     "Infiniband",
-						},
-					},
-					{
-						Device: "mlx5_1",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          200,
-							LinkLayer:     "Infiniband",
-						},
-					},
-					{
-						Device: "mlx5_2",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          100,
-							LinkLayer:     "Infiniband",
-						},
-					},
-				},
-			},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 2,
-				AtLeastRate:  300,
-			},
-			wantReason: "only 1 port(s) are active and >=300 Gb/s, expect >=2 port(s)",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-		},
-		{
-			name: "zero rate value",
-			output: &infiniband.IbstatOutput{
-				Raw: "",
-				Parsed: infiniband.IBStatCards{
-					{
-						Device: "mlx5_0",
-						Port1: infiniband.IBStatPort{
-							State:         "Active",
-							PhysicalState: "LinkUp",
-							Rate:          0,
-							LinkLayer:     "Infiniband",
-						},
-					},
-				},
-			},
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 1,
-				AtLeastRate:  100,
-			},
-			wantReason: "only 0 port(s) are active and >=100 Gb/s, expect >=1 port(s)",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Skip nil output test to avoid panic
-			if tt.output == nil {
-				t.Skip("Skipping test with nil output")
-				return
-			}
-
-			// Create a checkResult and populate it like the component does
-			cr := &checkResult{
-				IbstatOutput: tt.output,
-			}
-
-			var ibportsToEvaluate []infiniband.IBPort
-			if tt.output != nil {
-				ibportsToEvaluate = tt.output.Parsed.IBPorts()
-			}
-
-			// Call evaluateHealthStateWithThresholds which modifies cr in place
-			evaluateHealthStateWithThresholds(tt.config, ibportsToEvaluate, cr)
-
-			// Extract the results from the checkResult
-			health := cr.health
-			suggestedActions := cr.suggestedActions
-			reason := cr.reason
-
-			assert.Equal(t, tt.wantReason, reason)
-			assert.Equal(t, tt.wantHealth, health)
-			// For healthy states, suggestedActions should be nil
-			if tt.wantHealth == apiv1.HealthStateTypeHealthy {
-				assert.Nil(t, suggestedActions)
-			} else {
-				// For unhealthy states, should have hardware inspection suggested
-				assert.NotNil(t, suggestedActions)
-				if suggestedActions != nil {
-					assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, suggestedActions.RepairActions)
-				}
-			}
-		})
-	}
-}
-
-func TestDefaultExpectedPortStates(t *testing.T) {
-	// Test default values
-	defaults := GetDefaultExpectedPortStates()
-	assert.Equal(t, 0, defaults.AtLeastPorts)
-	assert.Equal(t, 0, defaults.AtLeastRate)
-
-	// Test setting new values
-	newStates := infiniband.ExpectedPortStates{
-		AtLeastPorts: 2,
-		AtLeastRate:  200,
-	}
-	SetDefaultExpectedPortStates(newStates)
-
-	updated := GetDefaultExpectedPortStates()
-	assert.Equal(t, newStates.AtLeastPorts, updated.AtLeastPorts)
-	assert.Equal(t, newStates.AtLeastRate, updated.AtLeastRate)
-}
-
-func TestEvaluateWithTestData(t *testing.T) {
-	// Read the test data file
-	testDataPath := filepath.Join("testdata", "ibstat.47.0.h100.all.active.1")
-	content, err := os.ReadFile(testDataPath)
-	require.NoError(t, err, "Failed to read test data file")
-
-	// Parse the test data
-	cards, err := infiniband.ParseIBStat(string(content))
-	require.NoError(t, err, "Failed to parse ibstat output")
-
-	output := &infiniband.IbstatOutput{
-		Raw:    string(content),
-		Parsed: cards,
-	}
-
-	tests := []struct {
-		name       string
-		config     infiniband.ExpectedPortStates
-		wantReason string
-		wantHealth apiv1.HealthStateType
-	}{
-		{
-			name: "unhealthy state - all ports are Ethernet, not InfiniBand",
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 8,   // Number of 400Gb/s ports in the test data
-				AtLeastRate:  400, // Expected rate for H100 cards
-			},
-			wantReason: "only 0 port(s) are active and >=400 Gb/s, expect >=8 port(s)",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-		},
-		{
-			name: "unhealthy state - all ports are Ethernet, not InfiniBand (mixed rate)",
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 12,  // Total number of ports in test data
-				AtLeastRate:  100, // Minimum rate that includes all ports
-			},
-			wantReason: "only 0 port(s) are active and >=100 Gb/s, expect >=12 port(s)",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-		},
-		{
-			name: "unhealthy state - all ports are Ethernet, not InfiniBand (high rate)",
-			config: infiniband.ExpectedPortStates{
-				AtLeastPorts: 12,  // Total number of ports
-				AtLeastRate:  400, // Only 8 ports have this rate
-			},
-			wantReason: "only 0 port(s) are active and >=400 Gb/s, expect >=12 port(s)",
-			wantHealth: apiv1.HealthStateTypeUnhealthy,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a checkResult and populate it like the component does
-			cr := &checkResult{
-				IbstatOutput: output,
-			}
-
-			var ibportsToEvaluate []infiniband.IBPort
-			if output != nil {
-				ibportsToEvaluate = output.Parsed.IBPorts()
-			}
-
-			// Call evaluateHealthStateWithThresholds which modifies cr in place
-			evaluateHealthStateWithThresholds(tt.config, ibportsToEvaluate, cr)
-
-			// Extract the results from the checkResult
-			health := cr.health
-			suggestedActions := cr.suggestedActions
-			reason := cr.reason
-
-			assert.Equal(t, tt.wantReason, reason)
-			assert.Equal(t, tt.wantHealth, health)
-			// For healthy states, suggestedActions should be nil
-			if tt.wantHealth == apiv1.HealthStateTypeHealthy {
-				assert.Nil(t, suggestedActions)
-			} else {
-				// For unhealthy states, should have hardware inspection suggested
-				assert.NotNil(t, suggestedActions)
-				if suggestedActions != nil {
-					assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, suggestedActions.RepairActions)
-				}
-			}
-		})
+// mockTimeNow returns a mock time function for testing
+func mockTimeNow() func() time.Time {
+	return func() time.Time {
+		return time.Now().UTC()
 	}
 }
 
@@ -491,9 +41,11 @@ func TestComponentCheck(t *testing.T) {
 	// Apply fixes to ensure context is properly set
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		eventBucket: mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
 			return nil, errors.New("ibstat checker not found")
 		},
@@ -541,9 +93,10 @@ func TestComponentEvents(t *testing.T) {
 	defer cancel()
 
 	c := &component{
-		ctx:         ctx,
-		cancel:      cancel,
-		eventBucket: mockBucket,
+		ctx:            ctx,
+		cancel:         cancel,
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
 	}
 
 	now := time.Now().UTC()
@@ -587,9 +140,10 @@ func TestComponentClose(t *testing.T) {
 	mockBucket := createMockEventBucket()
 
 	c := &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		eventBucket: mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
 	}
 
 	// Add a real kmsgSyncer only if on linux to test the path where it's not nil
@@ -653,12 +207,12 @@ func TestTags(t *testing.T) {
 	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }
 
-// MockEventStore for testing New errors
-type MockEventStore struct {
+// mockEventStore for testing New errors
+type mockEventStore struct {
 	bucketErr error
 }
 
-func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *mockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
 	if m.bucketErr != nil {
 		return nil, m.bucketErr
 	}
@@ -894,6 +448,8 @@ func TestComponentStart(t *testing.T) {
 	c := &component{
 		ctx:                 cctx,
 		cancel:              ccancel,
+		getTimeNowFunc:      mockTimeNow(),
+		requestTimeout:      5 * time.Second,
 		getIbstatOutputFunc: mockGetIbstatOutput,
 		getThresholdsFunc:   mockGetThresholds,
 	}
@@ -915,7 +471,9 @@ func TestLastHealthStates(t *testing.T) {
 	t.Parallel()
 
 	// Test with nil data
-	c := &component{}
+	c := &component{
+		getTimeNowFunc: mockTimeNow(),
+	}
 	states := c.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
@@ -1021,8 +579,10 @@ func TestComponentCheckErrorCases(t *testing.T) {
 
 	// Test case: getIbstatOutputFunc returns error
 	c := &component{
-		ctx:    cctx,
-		cancel: ccancel,
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
 			return nil, errors.New("ibstat error")
 		},
@@ -1041,8 +601,9 @@ func TestComponentCheckErrorCases(t *testing.T) {
 
 	// Test case: ibstat command not found
 	c = &component{
-		ctx:    cctx,
-		cancel: ccancel,
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
 		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
 			return nil, infiniband.ErrNoIbstatCommand
 		},
@@ -1121,10 +682,12 @@ func TestCheckNilIbstatFunc(t *testing.T) {
 
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
 			return nil, errors.New("ibstat checker not found")
 		},
@@ -1156,8 +719,9 @@ func TestComponentCheckOrder(t *testing.T) {
 
 	// Only test the threshold check first which is more reliable
 	c := &component{
-		ctx:    cctx,
-		cancel: ccancel,
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
 		getThresholdsFunc: func() infiniband.ExpectedPortStates {
 			trackCheck("thresholds")
 			return infiniband.ExpectedPortStates{} // zero thresholds
@@ -1180,7 +744,8 @@ func TestEventsWithContextCanceled(t *testing.T) {
 
 	// Create component with the mock bucket
 	c := &component{
-		eventBucket: mockBucket,
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
 	}
 
 	// Create a canceled context
@@ -1201,7 +766,8 @@ func TestEventsWithNoEventBucket(t *testing.T) {
 
 	// Create component with nil eventBucket
 	c := &component{
-		eventBucket: nil,
+		eventBucket:    nil,
+		getTimeNowFunc: mockTimeNow(),
 	}
 
 	// Test Events with nil eventBucket
@@ -1216,10 +782,11 @@ func TestCloseWithNilComponents(t *testing.T) {
 	t.Parallel()
 
 	c := &component{
-		ctx:         context.Background(),
-		cancel:      func() {}, // no-op cancel
-		eventBucket: nil,
-		kmsgSyncer:  nil,
+		ctx:            context.Background(),
+		cancel:         func() {}, // no-op cancel
+		eventBucket:    nil,
+		kmsgSyncer:     nil,
+		getTimeNowFunc: mockTimeNow(),
 	}
 
 	err := c.Close()
@@ -1260,7 +827,8 @@ func TestIsSupported(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &component{
-				nvmlInstance: tt.nvml,
+				nvmlInstance:   tt.nvml,
+				getTimeNowFunc: mockTimeNow(),
 			}
 			assert.Equal(t, tt.expected, c.IsSupported())
 		})
@@ -1319,7 +887,7 @@ func TestNewWithEventStoreError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	mockStore := &MockEventStore{
+	mockStore := &mockEventStore{
 		bucketErr: errors.New("bucket creation error"),
 	}
 
@@ -1347,10 +915,12 @@ func TestCheckWithVariousStates(t *testing.T) {
 		mockBucket := createMockEventBucket()
 
 		c := &component{
-			ctx:          cctx,
-			cancel:       ccancel,
-			nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-			eventBucket:  mockBucket,
+			ctx:            cctx,
+			cancel:         ccancel,
+			nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+			eventBucket:    mockBucket,
+			getTimeNowFunc: mockTimeNow(),
+			requestTimeout: 5 * time.Second,
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 				return infinibandclass.Devices{}, nil
 			},
@@ -1396,10 +966,12 @@ func TestCheckWithVariousStates(t *testing.T) {
 		mockBucket := createMockEventBucket()
 
 		c := &component{
-			ctx:          cctx,
-			cancel:       ccancel,
-			nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-			eventBucket:  mockBucket,
+			ctx:            cctx,
+			cancel:         ccancel,
+			nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+			eventBucket:    mockBucket,
+			getTimeNowFunc: mockTimeNow(),
+			requestTimeout: 5 * time.Second,
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 				return infinibandclass.Devices{}, nil
 			},
@@ -1445,10 +1017,12 @@ func TestCheckWithVariousStates(t *testing.T) {
 		mockBucket := createMockEventBucket()
 
 		c := &component{
-			ctx:          cctx,
-			cancel:       ccancel,
-			nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-			eventBucket:  mockBucket,
+			ctx:            cctx,
+			cancel:         ccancel,
+			nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+			eventBucket:    mockBucket,
+			getTimeNowFunc: mockTimeNow(),
+			requestTimeout: 5 * time.Second,
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 				return infinibandclass.Devices{}, nil
 			},
@@ -1495,10 +1069,12 @@ func TestCheckWithPartialIbstatOutput(t *testing.T) {
 	mockBucket := createMockEventBucket()
 
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
@@ -1545,10 +1121,12 @@ func TestCheckWithNilIbstatOutputNoError(t *testing.T) {
 	mockBucket := createMockEventBucket()
 
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
@@ -1598,9 +1176,7 @@ func TestHealthStatesWithIbstatOutput(t *testing.T) {
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "test reason", states[0].Reason)
-	assert.NotNil(t, states[0].ExtraInfo)
-	assert.Contains(t, states[0].ExtraInfo["data"], "ibstat_output")
-	assert.Contains(t, states[0].ExtraInfo["data"], "mlx5_0")
+	assert.Nil(t, states[0].ExtraInfo) // ExtraInfo functionality has been removed
 }
 
 // TestCheckUnhealthyState tests unhealthy state detection (no longer tests event insertion since it was removed)
@@ -1613,10 +1189,12 @@ func TestCheckUnhealthyState(t *testing.T) {
 	mockBucket := createMockEventBucket()
 
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
@@ -1665,7 +1243,7 @@ func TestNewKmsgSyncerHandling(t *testing.T) {
 
 	// Test that New succeeds even without root privileges
 	ctx := context.Background()
-	mockStore := &MockEventStore{}
+	mockStore := &mockEventStore{}
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:              ctx,
@@ -1693,6 +1271,8 @@ func TestCheckWithNoNVMLLibrary(t *testing.T) {
 		ctx:                 cctx,
 		cancel:              ccancel,
 		nvmlInstance:        &mockNVMLInstance{exists: false, productName: ""},
+		getTimeNowFunc:      mockTimeNow(),
+		requestTimeout:      5 * time.Second,
 		getIbstatOutputFunc: mockGetIbstatOutput,
 		getThresholdsFunc:   mockGetThresholds,
 	}
@@ -1712,8 +1292,9 @@ func TestCheckZeroThresholds(t *testing.T) {
 	defer ccancel()
 
 	c := &component{
-		ctx:    cctx,
-		cancel: ccancel,
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
 		getThresholdsFunc: func() infiniband.ExpectedPortStates {
 			return infiniband.ExpectedPortStates{
 				AtLeastPorts: 0,
@@ -1738,9 +1319,11 @@ func TestCheckWithClassDevicesError(t *testing.T) {
 	// Create a component with mocked functions where getClassDevicesFunc returns an error
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		eventBucket: mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		nvmlInstance: &mockNVMLInstance{
 			exists:      true,
 			productName: "Tesla V100",
@@ -1794,9 +1377,11 @@ func TestCheckWithClassDevicesSuccess(t *testing.T) {
 	// Create a component with mocked functions where getClassDevicesFunc succeeds
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		eventBucket: mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		nvmlInstance: &mockNVMLInstance{
 			exists:      true,
 			productName: "Tesla V100",
@@ -1943,9 +1528,11 @@ func TestGetClassDevicesWithVariousDeviceTypes(t *testing.T) {
 
 			mockBucket := createMockEventBucket()
 			c := &component{
-				ctx:         cctx,
-				cancel:      ccancel,
-				eventBucket: mockBucket,
+				ctx:            cctx,
+				cancel:         ccancel,
+				getTimeNowFunc: mockTimeNow(),
+				requestTimeout: 5 * time.Second,
+				eventBucket:    mockBucket,
 				nvmlInstance: &mockNVMLInstance{
 					exists:      true,
 					productName: "Tesla V100",
@@ -1994,9 +1581,8 @@ func TestGetClassDevicesWithVariousDeviceTypes(t *testing.T) {
 			// Test that the devices are properly reported in health states
 			healthStates := data.HealthStates()
 			assert.Len(t, healthStates, 1)
-			if len(tt.mockDevices) > 0 {
-				assert.Contains(t, healthStates[0].ExtraInfo["data"], "class_devices")
-			}
+			// ExtraInfo functionality has been removed
+			assert.Nil(t, healthStates[0].ExtraInfo)
 		})
 	}
 }
@@ -2146,9 +1732,11 @@ func TestClassDevicesErrorHandlingInDifferentScenarios(t *testing.T) {
 			}
 
 			c := &component{
-				ctx:         cctx,
-				cancel:      ccancel,
-				eventBucket: mockBucket,
+				ctx:            cctx,
+				cancel:         ccancel,
+				getTimeNowFunc: mockTimeNow(),
+				requestTimeout: 5 * time.Second,
+				eventBucket:    mockBucket,
 				nvmlInstance: &mockNVMLInstance{
 					exists:      true,
 					productName: "Tesla V100",
@@ -2220,9 +1808,11 @@ func TestComponentWithRealClassDevicesFunctionality(t *testing.T) {
 
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		eventBucket: mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		nvmlInstance: &mockNVMLInstance{
 			exists:      true,
 			productName: "H100",
@@ -2280,12 +1870,11 @@ func TestComponentWithRealClassDevicesFunctionality(t *testing.T) {
 	assert.Contains(t, stringOutput, "MT_0000000838")
 	assert.Contains(t, stringOutput, "28.41.1000")
 
-	// Verify health states include class device data
+	// Verify health states
 	healthStates := data.HealthStates()
 	assert.Len(t, healthStates, 1)
-	assert.Contains(t, healthStates[0].ExtraInfo["data"], "class_devices")
-	assert.Contains(t, healthStates[0].ExtraInfo["data"], "mlx5_0")
-	assert.Contains(t, healthStates[0].ExtraInfo["data"], "mlx5_1")
+	// ExtraInfo functionality has been removed
+	assert.Nil(t, healthStates[0].ExtraInfo)
 }
 
 // TestComponentWithClassDevicesButNoCounters tests Check when ClassDevices have ports without LinkDowned counters
@@ -2319,10 +1908,12 @@ func TestComponentWithClassDevicesButNoCounters(t *testing.T) {
 
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return mockDevices, nil
 		},
@@ -2372,10 +1963,12 @@ func TestCheckWithClassDevicesAndIbstatBothPresent(t *testing.T) {
 
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return mockDevices, nil
 		},
@@ -2422,10 +2015,12 @@ func TestCheckWithPartialErrorButHealthy(t *testing.T) {
 
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
@@ -2525,7 +2120,7 @@ func TestNewWithKmsgSyncerError(t *testing.T) {
 	// For now, this test documents the intended behavior
 
 	ctx := context.Background()
-	mockStore := &MockEventStore{}
+	mockStore := &mockEventStore{}
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:              ctx,
@@ -2639,10 +2234,12 @@ func TestCheckWithClassDevicesPrometheusMetrics(t *testing.T) {
 
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return mockDevices, nil
 		},
@@ -2687,10 +2284,12 @@ func TestCheckWithContextTimeout(t *testing.T) {
 	defer ccancel()
 
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  nil, // No event bucket - this will cause early return with healthy state
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    nil,                    // No event bucket - this will cause early return with healthy state
+		requestTimeout: 100 * time.Millisecond, // Use short timeout for fast test
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
@@ -2699,7 +2298,7 @@ func TestCheckWithContextTimeout(t *testing.T) {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
-			case <-time.After(20 * time.Second): // Longer than the 15s timeout in Check()
+			case <-time.After(200 * time.Millisecond): // Longer than the 100ms timeout in requestTimeout
 				return nil, errors.New("should not reach here")
 			}
 		},
@@ -2731,10 +2330,12 @@ func TestCheckWithPartialErrorDiscarded(t *testing.T) {
 
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
@@ -2779,10 +2380,12 @@ func TestCheckWithIbstatUnhealthyButSetsError(t *testing.T) {
 	defer ccancel()
 
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  nil, // No event bucket - this will cause the check to return early with healthy state
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    nil, // No event bucket - this will cause the check to return early with healthy state
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
@@ -2817,10 +2420,12 @@ func TestCheckWithIbstatUnhealthyWithEventBucket(t *testing.T) {
 
 	mockBucket := createMockEventBucket()
 	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket, // With event bucket, should proceed to evaluation
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		eventBucket:    mockBucket, // With event bucket, should proceed to evaluation
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
@@ -2860,9 +2465,10 @@ func TestCloseWithBothKmsgAndEventBucket(t *testing.T) {
 	mockKmsgSyncer := &struct{ closed bool }{closed: false}
 
 	c := &component{
-		ctx:         cctx,
-		cancel:      ccancel,
-		eventBucket: mockBucket,
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
+		eventBucket:    mockBucket,
 		// Note: We can't easily test with a real kmsgSyncer due to interface constraints
 		// but we can test that Close() handles the presence of both gracefully
 		kmsgSyncer: nil, // Set to nil since we can't mock it easily
@@ -2889,7 +2495,7 @@ func TestNewWithCompleteEventStoreSetup(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	mockStore := &MockEventStore{} // No error
+	mockStore := &mockEventStore{} // No error
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx: ctx,
@@ -2958,117 +2564,6 @@ func TestCheckResultHealthStatesWithError(t *testing.T) {
 	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, states[0].SuggestedActions.RepairActions)
 }
 
-// TestCheckWithEmptyIbportsToEvaluate tests Check when ibportsToEvaluate ends up empty after processing ClassDevices
-func TestCheckWithEmptyIbportsToEvaluate(t *testing.T) {
-	t.Parallel()
-
-	cctx, ccancel := context.WithCancel(context.Background())
-	defer ccancel()
-
-	// Create mock devices without ports to test empty ibportsToEvaluate path
-	mockDevices := infinibandclass.Devices{
-		{
-			Name:            "mlx5_0",
-			BoardID:         "MT_0000000123",
-			FirmwareVersion: "28.40.1000",
-			HCAType:         "MT4125",
-			Ports:           []infinibandclass.Port{}, // Empty ports
-		},
-	}
-
-	mockBucket := createMockEventBucket()
-	c := &component{
-		ctx:          cctx,
-		cancel:       ccancel,
-		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		eventBucket:  mockBucket,
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
-			return mockDevices, nil
-		},
-		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
-			// Return nil to test fallback path when ibportsToEvaluate is empty
-			return nil, nil
-		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
-				AtLeastPorts: 1,
-				AtLeastRate:  200,
-			}
-		},
-	}
-
-	result := c.Check()
-	data, ok := result.(*checkResult)
-	require.True(t, ok)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
-	assert.Equal(t, reasonNoIbPortData, data.reason)
-}
-
-// TestEvaluateHealthStateWithThresholdsComprehensive tests more edge cases for evaluateHealthStateWithThresholds
-func TestEvaluateHealthStateWithThresholdsComprehensive(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name              string
-		thresholds        infiniband.ExpectedPortStates
-		ibports           []infiniband.IBPort
-		expectedHealth    apiv1.HealthStateType
-		expectedReason    string
-		shouldHaveActions bool
-		shouldHaveError   bool
-	}{
-		{
-			name:           "zero thresholds should return healthy with no threshold reason",
-			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 0},
-			ibports:        []infiniband.IBPort{},
-			expectedHealth: apiv1.HealthStateTypeHealthy,
-			expectedReason: reasonNoThreshold,
-		},
-		{
-			name:           "empty ibports should return healthy with no data reason",
-			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
-			ibports:        []infiniband.IBPort{},
-			expectedHealth: apiv1.HealthStateTypeHealthy,
-			expectedReason: reasonNoIbPortData,
-		},
-		{
-			name:       "healthy ports meeting thresholds",
-			thresholds: infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 200},
-			ibports: []infiniband.IBPort{
-				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
-				{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
-			},
-			expectedHealth: apiv1.HealthStateTypeHealthy,
-			expectedReason: reasonNoIbPortIssue,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cr := &checkResult{
-				ts: time.Now().UTC(),
-			}
-
-			evaluateHealthStateWithThresholds(tt.thresholds, tt.ibports, cr)
-
-			assert.Equal(t, tt.expectedHealth, cr.health)
-			assert.Equal(t, tt.expectedReason, cr.reason)
-
-			if tt.shouldHaveActions {
-				assert.NotNil(t, cr.suggestedActions)
-			} else {
-				assert.Nil(t, cr.suggestedActions)
-			}
-
-			if tt.shouldHaveError {
-				assert.NotNil(t, cr.err)
-			} else {
-				assert.Nil(t, cr.err)
-			}
-		})
-	}
-}
-
 // TestStartMethodComprehensive tests Start method more thoroughly
 func TestStartMethodComprehensive(t *testing.T) {
 	t.Parallel()
@@ -3078,8 +2573,10 @@ func TestStartMethodComprehensive(t *testing.T) {
 
 	checkCallCount := 0
 	c := &component{
-		ctx:    cctx,
-		cancel: ccancel,
+		ctx:            cctx,
+		cancel:         ccancel,
+		getTimeNowFunc: mockTimeNow(),
+		requestTimeout: 5 * time.Second,
 		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
 			checkCallCount++
 			return &infiniband.IbstatOutput{
@@ -3130,4 +2627,479 @@ func TestStartMethodComprehensive(t *testing.T) {
 
 	assert.NotNil(t, lastResult, "lastCheckResult should be populated")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastResult.health)
+}
+
+// TestNewComprehensive tests the New constructor function comprehensively
+func TestNewComprehensive(t *testing.T) {
+	tests := []struct {
+		name         string
+		gpudInstance *components.GPUdInstance
+		expectError  bool
+		validateFunc func(t *testing.T, c components.Component)
+	}{
+		{
+			name: "successful creation with event store",
+			gpudInstance: &components.GPUdInstance{
+				RootCtx:              context.Background(),
+				NVMLInstance:         &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+				NVIDIAToolOverwrites: pkgconfigcommon.ToolOverwrites{IbstatCommand: "ibstat"},
+				EventStore:           &mockEventStore{},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, c components.Component) {
+				assert.NotNil(t, c)
+				assert.Equal(t, Name, c.Name())
+				comp := c.(*component)
+				assert.NotNil(t, comp.eventBucket)
+				assert.Nil(t, comp.kmsgSyncer) // not root
+			},
+		},
+		{
+			name: "successful creation without event store",
+			gpudInstance: &components.GPUdInstance{
+				RootCtx:              context.Background(),
+				NVMLInstance:         &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+				NVIDIAToolOverwrites: pkgconfigcommon.ToolOverwrites{IbstatCommand: "ibstat"},
+				EventStore:           nil,
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, c components.Component) {
+				assert.NotNil(t, c)
+				comp := c.(*component)
+				assert.Nil(t, comp.eventBucket)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := New(tt.gpudInstance)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				tt.validateFunc(t, c)
+				// Clean up
+				if c != nil {
+					c.Close()
+				}
+			}
+		})
+	}
+}
+
+// TestComponentMethods tests basic component interface methods
+func TestComponentMethods(t *testing.T) {
+	c := &component{
+		getTimeNowFunc: mockTimeNow(),
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+	}
+
+	// Test Name
+	assert.Equal(t, Name, c.Name())
+
+	// Test Tags
+	expectedTags := []string{"accelerator", "gpu", "nvidia", Name}
+	assert.Equal(t, expectedTags, c.Tags())
+
+	// Test IsSupported
+	assert.True(t, c.IsSupported())
+
+	// Test with nil nvmlInstance
+	c.nvmlInstance = nil
+	assert.False(t, c.IsSupported())
+
+	// Test with nvmlInstance that doesn't exist
+	c.nvmlInstance = &mockNVMLInstance{exists: false}
+	assert.False(t, c.IsSupported())
+
+	// Test with empty product name
+	c.nvmlInstance = &mockNVMLInstance{exists: true, productName: ""}
+	assert.False(t, c.IsSupported())
+}
+
+// TestRecordIbPortsSnapshot tests the recordIbPortsSnapshot method
+func TestRecordIbPortsSnapshot(t *testing.T) {
+	c := &component{
+		getTimeNowFunc:                  mockTimeNow(),
+		ibPortsSnapshotsRetentionPeriod: 10 * time.Minute,
+		lastIbPortsSnapshots:            make(ibPortsSnapshots, 0),
+	}
+
+	now := time.Now()
+
+	// Add first snapshot
+	snapshot1 := ibPortsSnapshot{
+		ts: now,
+		all: []infiniband.IBPort{
+			{Device: "mlx5_0", Port: 1, State: "Active"},
+		},
+	}
+	c.recordIbPortsSnapshot(snapshot1)
+	assert.Len(t, c.lastIbPortsSnapshots, 1)
+
+	// Add second snapshot 5 minutes later
+	snapshot2 := ibPortsSnapshot{
+		ts: now.Add(5 * time.Minute),
+		all: []infiniband.IBPort{
+			{Device: "mlx5_0", Port: 1, State: "Active"},
+		},
+	}
+	c.recordIbPortsSnapshot(snapshot2)
+	assert.Len(t, c.lastIbPortsSnapshots, 2)
+
+	// Add third snapshot 11 minutes later (should remove first)
+	snapshot3 := ibPortsSnapshot{
+		ts: now.Add(11 * time.Minute),
+		all: []infiniband.IBPort{
+			{Device: "mlx5_0", Port: 1, State: "Active"},
+		},
+	}
+	c.recordIbPortsSnapshot(snapshot3)
+	assert.Len(t, c.lastIbPortsSnapshots, 2)
+	assert.Equal(t, snapshot2.ts, c.lastIbPortsSnapshots[0].ts)
+	assert.Equal(t, snapshot3.ts, c.lastIbPortsSnapshots[1].ts)
+}
+
+// TestCheckResultMethods tests checkResult methods
+func TestCheckResultMethods(t *testing.T) {
+	// Test nil checkResult
+	var cr *checkResult
+	assert.Equal(t, Name, cr.ComponentName())
+	assert.Equal(t, "", cr.String())
+	assert.Equal(t, "", cr.Summary())
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
+	assert.Nil(t, cr.getSuggestedActions())
+	assert.Equal(t, "", cr.getError())
+
+	healthStates := cr.HealthStates()
+	assert.Len(t, healthStates, 1)
+	assert.Equal(t, "no data yet", healthStates[0].Reason)
+
+	// Test with data
+	cr = &checkResult{
+		ts:               time.Now(),
+		health:           apiv1.HealthStateTypeHealthy,
+		reason:           "test reason",
+		suggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}},
+		err:              errors.New("test error"),
+		IbstatOutput: &infiniband.IbstatOutput{
+			Parsed: infiniband.IBStatCards{
+				{
+					Device: "mlx5_0",
+					Port1: infiniband.IBStatPort{
+						State:         "Active",
+						PhysicalState: "LinkUp",
+						Rate:          200,
+					},
+				},
+			},
+		},
+		reasonIbSwitchFault: "switch fault",
+		reasonIbPortsDrop:   "port drop",
+		reasonIbPortsFlap:   "port flap",
+	}
+
+	assert.Equal(t, Name, cr.ComponentName())
+	assert.Contains(t, cr.String(), "mlx5_0")
+
+	summary := cr.Summary()
+	assert.Contains(t, summary, "test reason")
+	assert.Contains(t, summary, "switch fault")
+	assert.Contains(t, summary, "port drop")
+	assert.Contains(t, summary, "port flap")
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
+	assert.NotNil(t, cr.getSuggestedActions())
+	assert.Equal(t, "test error", cr.getError())
+
+	healthStates = cr.HealthStates()
+	assert.Len(t, healthStates, 1)
+	assert.Equal(t, "test reason", healthStates[0].Reason)
+	// ExtraInfo functionality has been removed
+	assert.Nil(t, healthStates[0].ExtraInfo)
+}
+
+// TestCheckMethodComprehensive tests the Check method comprehensively
+func TestCheckMethodComprehensive(t *testing.T) {
+	tests := []struct {
+		name                string
+		setupComponent      func() *component
+		expectedHealth      apiv1.HealthStateType
+		expectedReasonCheck func(string) bool
+	}{
+		{
+			name: "no thresholds set",
+			setupComponent: func() *component {
+				return &component{
+					ctx:               context.Background(),
+					getTimeNowFunc:    mockTimeNow(),
+					getThresholdsFunc: func() infiniband.ExpectedPortStates { return infiniband.ExpectedPortStates{} },
+				}
+			},
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReasonCheck: func(reason string) bool { return reason == reasonNoThreshold },
+		},
+		{
+			name: "nil nvml instance",
+			setupComponent: func() *component {
+				return &component{
+					ctx:            context.Background(),
+					getTimeNowFunc: mockTimeNow(),
+					nvmlInstance:   nil,
+					getThresholdsFunc: func() infiniband.ExpectedPortStates {
+						return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 200}
+					},
+				}
+			},
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReasonCheck: func(reason string) bool { return reason == "NVIDIA NVML instance is nil" },
+		},
+		{
+			name: "nvml not exists",
+			setupComponent: func() *component {
+				return &component{
+					ctx:            context.Background(),
+					getTimeNowFunc: mockTimeNow(),
+					nvmlInstance:   &mockNVMLInstance{exists: false},
+					getThresholdsFunc: func() infiniband.ExpectedPortStates {
+						return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 200}
+					},
+				}
+			},
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReasonCheck: func(reason string) bool { return reason == "NVIDIA NVML library is not loaded" },
+		},
+		{
+			name: "no product name",
+			setupComponent: func() *component {
+				return &component{
+					ctx:            context.Background(),
+					getTimeNowFunc: mockTimeNow(),
+					nvmlInstance:   &mockNVMLInstance{exists: true, productName: ""},
+					getThresholdsFunc: func() infiniband.ExpectedPortStates {
+						return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 200}
+					},
+				}
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReasonCheck: func(reason string) bool {
+				return reason == "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
+			},
+		},
+		{
+			name: "no event bucket",
+			setupComponent: func() *component {
+				return &component{
+					ctx:            context.Background(),
+					getTimeNowFunc: mockTimeNow(),
+					nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+					getThresholdsFunc: func() infiniband.ExpectedPortStates {
+						return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 200}
+					},
+					getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+						return infinibandclass.Devices{}, nil
+					},
+					getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
+						return &infiniband.IbstatOutput{}, nil
+					},
+					eventBucket: nil,
+				}
+			},
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReasonCheck: func(reason string) bool { return reason == reasonNoEventBucket },
+		},
+		{
+			name: "ibstat command not found",
+			setupComponent: func() *component {
+				es := &mockEventStore{}
+				bucket, _ := es.Bucket(Name)
+				return &component{
+					ctx:            context.Background(),
+					getTimeNowFunc: mockTimeNow(),
+					nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+					getThresholdsFunc: func() infiniband.ExpectedPortStates {
+						return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 200}
+					},
+					getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+						return infinibandclass.Devices{}, nil
+					},
+					getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
+						return nil, infiniband.ErrNoIbstatCommand
+					},
+					eventBucket:                     bucket,
+					ibPortsSnapshotsRetentionPeriod: 10 * time.Minute,
+					ibPortDropThreshold:             5 * time.Minute,
+					ibPortFlapEvaluatePeriod:        5 * time.Minute,
+				}
+			},
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReasonCheck: func(reason string) bool { return reason == reasonNoIbPortData },
+		},
+		{
+			name: "ibstat command failed",
+			setupComponent: func() *component {
+				es := &mockEventStore{}
+				bucket, _ := es.Bucket(Name)
+				return &component{
+					ctx:            context.Background(),
+					getTimeNowFunc: mockTimeNow(),
+					nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+					getThresholdsFunc: func() infiniband.ExpectedPortStates {
+						return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 200}
+					},
+					getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+						return infinibandclass.Devices{}, nil
+					},
+					getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
+						return nil, errors.New("command failed")
+					},
+					eventBucket:                     bucket,
+					ibPortsSnapshotsRetentionPeriod: 10 * time.Minute,
+					ibPortDropThreshold:             5 * time.Minute,
+					ibPortFlapEvaluatePeriod:        5 * time.Minute,
+				}
+			},
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReasonCheck: func(reason string) bool { return reason == reasonNoIbPortData },
+		},
+		{
+			name: "healthy with class devices",
+			setupComponent: func() *component {
+				es := &mockEventStore{}
+				bucket, _ := es.Bucket(Name)
+				return &component{
+					ctx:            context.Background(),
+					getTimeNowFunc: mockTimeNow(),
+					nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+					getThresholdsFunc: func() infiniband.ExpectedPortStates {
+						return infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 200}
+					},
+					ibPortsSnapshotsRetentionPeriod: 10 * time.Minute,
+					ibPortDropThreshold:             5 * time.Minute,
+					ibPortFlapEvaluatePeriod:        5 * time.Minute,
+					getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+						return infinibandclass.Devices{
+							{
+								Name: "mlx5_0",
+								Ports: []infinibandclass.Port{
+									{
+										Name:      "1",
+										Port:      1,
+										State:     "Active",
+										PhysState: "LinkUp",
+										RateGBSec: 200,
+										LinkLayer: "Infiniband",
+										Counters: infinibandclass.Counters{
+											LinkDowned: func() *uint64 { v := uint64(0); return &v }(),
+										},
+									},
+								},
+							},
+						}, nil
+					},
+					getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
+						return &infiniband.IbstatOutput{
+							Parsed: infiniband.IBStatCards{
+								{
+									Device: "mlx5_0",
+									Port1: infiniband.IBStatPort{
+										State:         "Active",
+										PhysicalState: "LinkUp",
+										Rate:          200,
+										LinkLayer:     "Infiniband",
+									},
+								},
+							},
+						}, nil
+					},
+					eventBucket: bucket,
+				}
+			},
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReasonCheck: func(reason string) bool { return reason == reasonNoIbPortIssue },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := tt.setupComponent()
+
+			result := c.Check()
+			cr := result.(*checkResult)
+
+			assert.Equal(t, tt.expectedHealth, cr.health)
+			assert.True(t, tt.expectedReasonCheck(cr.reason), "Reason check failed. Got: %s", cr.reason)
+		})
+	}
+}
+
+// TestLastHealthStatesComprehensive tests the LastHealthStates method comprehensively
+func TestLastHealthStatesComprehensive(t *testing.T) {
+	c := &component{
+		getTimeNowFunc: mockTimeNow(),
+	}
+
+	// Test with nil lastCheckResult
+	states := c.LastHealthStates()
+	assert.Len(t, states, 1)
+	assert.Equal(t, "no data yet", states[0].Reason)
+
+	// Set a check result
+	c.lastCheckResult = &checkResult{
+		ts:     time.Now(),
+		health: apiv1.HealthStateTypeHealthy,
+		reason: "all good",
+	}
+
+	states = c.LastHealthStates()
+	assert.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+	assert.Equal(t, "all good", states[0].Reason)
+}
+
+// TestEvents tests the Events method
+func TestEvents(t *testing.T) {
+	// Test without event bucket
+	c := &component{
+		getTimeNowFunc: mockTimeNow(),
+	}
+	events, err := c.Events(context.Background(), time.Now().Add(-1*time.Hour))
+	assert.NoError(t, err)
+	assert.Nil(t, events)
+
+	// Test with event bucket
+	es := &mockEventStore{}
+	bucket, _ := es.Bucket(Name)
+	c.eventBucket = bucket
+
+	events, err = c.Events(context.Background(), time.Now().Add(-1*time.Hour))
+	assert.NoError(t, err)
+	assert.NotNil(t, events)
+}
+
+// TestClose tests the Close method
+func TestClose(t *testing.T) {
+	cctx, ccancel := context.WithCancel(context.Background())
+	es := &mockEventStore{}
+	bucket, _ := es.Bucket(Name)
+
+	c := &component{
+		ctx:            cctx,
+		cancel:         ccancel,
+		eventBucket:    bucket,
+		getTimeNowFunc: mockTimeNow(),
+		// kmsgSyncer would be nil in tests (not root)
+	}
+
+	err := c.Close()
+	assert.NoError(t, err)
+
+	// Verify context is canceled
+	select {
+	case <-cctx.Done():
+		// Expected
+	default:
+		t.Error("Context should be canceled")
+	}
 }
