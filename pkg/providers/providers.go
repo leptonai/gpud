@@ -18,6 +18,9 @@ type Detector interface {
 	// PublicIPv4 returns a non-empty string and no error,
 	// if a public IPv4 is successfully detected.
 	PublicIPv4(context.Context) (string, error)
+	// PrivateIPv4 returns a non-empty string and no error,
+	// if a private IPv4 is successfully detected.
+	PrivateIPv4(context.Context) (string, error)
 	// VMEnvironment returns a non-empty string and no error,
 	// if a VM environment is successfully detected.
 	// e.g., "azEnvironment" as "AZUREPUBLICCLOUD" for Azure.
@@ -30,6 +33,7 @@ type Detector interface {
 type Info struct {
 	Provider      string `json:"provider"`
 	PublicIP      string `json:"public_ip"`
+	PrivateIP     string `json:"private_ip"`
 	VMEnvironment string `json:"vm_environment"`
 	InstanceID    string `json:"instance_id"`
 }
@@ -43,6 +47,7 @@ func (i *Info) RenderTable(wr io.Writer) {
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.Append([]string{"Provider", i.Provider})
 	table.Append([]string{"Public IP", i.PublicIP})
+	table.Append([]string{"Private IP", i.PrivateIP})
 	table.Append([]string{"VM Environment", i.VMEnvironment})
 	table.Append([]string{"Instance ID", i.InstanceID})
 	table.Render()

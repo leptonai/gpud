@@ -93,6 +93,11 @@ func createLoginRequest(
 		}
 	}
 
+	if req.Network.PrivateIP == "" {
+		log.Logger.Warnw("no private ip found, falling back to provider private ip", "provider", req.Provider, "privateIP", detectedProvider.PrivateIP)
+		req.Network.PrivateIP = detectedProvider.PrivateIP
+	}
+
 	// represents the CPU, in cores (500m = .5 cores).
 	// Must be parsed using the "resource.ParseQuantity" function in https://pkg.go.dev/k8s.io/apimachinery/pkg/api/resource.
 	req.Resources[string(corev1.ResourceCPU)] = resource.NewQuantity(req.MachineInfo.CPUInfo.LogicalCores, resource.DecimalSI).String()

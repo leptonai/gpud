@@ -10,6 +10,7 @@ type detector struct {
 	providerName           string
 	detectProviderFunc     func(ctx context.Context) (string, error)
 	fetchPublicIPv4Func    func(ctx context.Context) (string, error)
+	fetchPrivateIPv4Func   func(ctx context.Context) (string, error)
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error)
 	fetchInstanceIDFunc    func(ctx context.Context) (string, error)
 }
@@ -18,6 +19,7 @@ func New(
 	name string,
 	detectProviderFunc func(ctx context.Context) (string, error),
 	fetchPublicIPv4Func func(ctx context.Context) (string, error),
+	fetchPrivateIPv4Func func(ctx context.Context) (string, error),
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error),
 	fetchInstanceIDFunc func(ctx context.Context) (string, error),
 ) Detector {
@@ -25,6 +27,7 @@ func New(
 		providerName:           name,
 		detectProviderFunc:     detectProviderFunc,
 		fetchPublicIPv4Func:    fetchPublicIPv4Func,
+		fetchPrivateIPv4Func:   fetchPrivateIPv4Func,
 		fetchVMEnvironmentFunc: fetchVMEnvironmentFunc,
 		fetchInstanceIDFunc:    fetchInstanceIDFunc,
 	}
@@ -51,6 +54,13 @@ func (d *detector) Provider(ctx context.Context) (string, error) {
 func (d *detector) PublicIPv4(ctx context.Context) (string, error) {
 	if d.fetchPublicIPv4Func != nil {
 		return d.fetchPublicIPv4Func(ctx)
+	}
+	return "", nil
+}
+
+func (d *detector) PrivateIPv4(ctx context.Context) (string, error) {
+	if d.fetchPrivateIPv4Func != nil {
+		return d.fetchPrivateIPv4Func(ctx)
 	}
 	return "", nil
 }

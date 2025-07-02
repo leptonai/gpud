@@ -16,8 +16,10 @@ type mockDetector struct {
 	name          string
 	provider      string
 	publicIP      string
+	privateIP     string
 	provErr       error
 	publicErr     error
+	privateErr    error
 	vmEnv         string
 	vmEnvErr      error
 	instanceID    string
@@ -42,6 +44,10 @@ func (m *mockDetector) Provider(ctx context.Context) (string, error) {
 
 func (m *mockDetector) PublicIPv4(ctx context.Context) (string, error) {
 	return m.publicIP, m.publicErr
+}
+
+func (m *mockDetector) PrivateIPv4(ctx context.Context) (string, error) {
+	return m.privateIP, m.privateErr
 }
 
 func (m *mockDetector) VMEnvironment(ctx context.Context) (string, error) {
@@ -98,11 +104,23 @@ func detectForTest(ctx context.Context, detectors []providers.Detector) (*provid
 	}
 	info.PublicIP = publicIP
 
+	privateIP, err := detector.PrivateIPv4(ctx)
+	if err != nil {
+		return nil, errors.New("failed to get private IP: " + err.Error())
+	}
+	info.PrivateIP = privateIP
+
 	vmEnvironment, err := detector.VMEnvironment(ctx)
 	if err != nil {
 		return nil, errors.New("failed to get VM environment: " + err.Error())
 	}
 	info.VMEnvironment = vmEnvironment
+
+	instanceID, err := detector.InstanceID(ctx)
+	if err != nil {
+		return nil, errors.New("failed to get instance ID: " + err.Error())
+	}
+	info.InstanceID = instanceID
 
 	return info, nil
 }
@@ -110,10 +128,11 @@ func detectForTest(ctx context.Context, detectors []providers.Detector) (*provid
 func TestDetect_Success(t *testing.T) {
 	testDetectors := []providers.Detector{
 		&mockDetector{
-			name:     "aws",
-			provider: "aws",
-			publicIP: "1.2.3.4",
-			vmEnv:    "AWS",
+			name:      "aws",
+			provider:  "aws",
+			publicIP:  "1.2.3.4",
+			privateIP: "10.0.1.100",
+			vmEnv:     "AWS",
 		},
 	}
 
@@ -122,6 +141,7 @@ func TestDetect_Success(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "aws", info.Provider)
 		assert.Equal(t, "1.2.3.4", info.PublicIP)
+		assert.Equal(t, "10.0.1.100", info.PrivateIP)
 		assert.Equal(t, "AWS", info.VMEnvironment)
 	})
 }
@@ -129,16 +149,18 @@ func TestDetect_Success(t *testing.T) {
 func TestDetect_SkipOnEmptyProvider(t *testing.T) {
 	testDetectors := []providers.Detector{
 		&mockDetector{
-			name:     "aws",
-			provider: "", // Empty provider name
-			publicIP: "1.2.3.4",
-			vmEnv:    "AWS",
+			name:      "aws",
+			provider:  "", // Empty provider name
+			publicIP:  "1.2.3.4",
+			privateIP: "10.0.1.100",
+			vmEnv:     "AWS",
 		},
 		&mockDetector{
-			name:     "azure",
-			provider: "azure",
-			publicIP: "5.6.7.8",
-			vmEnv:    "AZURE",
+			name:      "azure",
+			provider:  "azure",
+			publicIP:  "5.6.7.8",
+			privateIP: "10.0.2.200",
+			vmEnv:     "AZURE",
 		},
 	}
 
@@ -147,6 +169,7 @@ func TestDetect_SkipOnEmptyProvider(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "azure", info.Provider)
 		assert.Equal(t, "5.6.7.8", info.PublicIP)
+		assert.Equal(t, "10.0.2.200", info.PrivateIP)
 		assert.Equal(t, "AZURE", info.VMEnvironment)
 	})
 }
@@ -158,16 +181,18 @@ func TestDetect_SkipOnEmptyProvider(t *testing.T) {
 func TestDetect_ProviderError(t *testing.T) {
 	testDetectors := []providers.Detector{
 		&mockDetector{
-			name:     "aws",
-			provErr:  errors.New("provider error"),
-			publicIP: "1.2.3.4",
-			vmEnv:    "AWS",
+			name:      "aws",
+			provErr:   errors.New("provider error"),
+			publicIP:  "1.2.3.4",
+			privateIP: "10.0.1.100",
+			vmEnv:     "AWS",
 		},
 		&mockDetector{
-			name:     "azure",
-			provider: "azure",
-			publicIP: "5.6.7.8",
-			vmEnv:    "AZURE",
+			name:      "azure",
+			provider:  "azure",
+			publicIP:  "5.6.7.8",
+			privateIP: "10.0.2.200",
+			vmEnv:     "AZURE",
 		},
 	}
 
@@ -176,6 +201,7 @@ func TestDetect_ProviderError(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "azure", info.Provider)
 	assert.Equal(t, "5.6.7.8", info.PublicIP)
+	assert.Equal(t, "10.0.2.200", info.PrivateIP)
 	assert.Equal(t, "AZURE", info.VMEnvironment)
 }
 
@@ -204,6 +230,7 @@ func TestDetect_PublicIPError(t *testing.T) {
 			name:      "aws",
 			provider:  "aws",
 			publicErr: errors.New("public IP error"),
+			privateIP: "10.0.1.100",
 			vmEnv:     "AWS",
 		},
 	}
@@ -218,10 +245,11 @@ func TestDetect_PublicIPError(t *testing.T) {
 func TestDetect_VMEnvironmentError(t *testing.T) {
 	testDetectors := []providers.Detector{
 		&mockDetector{
-			name:     "aws",
-			provider: "aws",
-			publicIP: "1.2.3.4",
-			vmEnvErr: errors.New("VM environment error"),
+			name:      "aws",
+			provider:  "aws",
+			publicIP:  "1.2.3.4",
+			privateIP: "10.0.1.100",
+			vmEnvErr:  errors.New("VM environment error"),
 		},
 	}
 
@@ -229,5 +257,23 @@ func TestDetect_VMEnvironmentError(t *testing.T) {
 		_, err := Detect(context.Background())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get VM environment")
+	})
+}
+
+func TestDetect_PrivateIPError(t *testing.T) {
+	testDetectors := []providers.Detector{
+		&mockDetector{
+			name:       "aws",
+			provider:   "aws",
+			publicIP:   "1.2.3.4",
+			privateErr: errors.New("private IP error"),
+			vmEnv:      "AWS",
+		},
+	}
+
+	withTemporaryDetectors(testDetectors, func() {
+		_, err := Detect(context.Background())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get private IP")
 	})
 }
