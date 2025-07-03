@@ -130,6 +130,9 @@ func (cards IBStatCards) IBPorts() []IBPort {
 	ibports := make([]IBPort, 0)
 	for _, card := range cards {
 		ibports = append(ibports, IBPort{
+			// we only parse "Port 1" for ibstat
+			Port: 1,
+
 			Device:        card.Device,
 			PhysicalState: card.Port1.PhysicalState,
 			State:         card.Port1.State,

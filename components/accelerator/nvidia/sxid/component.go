@@ -443,22 +443,6 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 	}
 }
 
-var _ components.HealthSettable = &component{}
-
-func (c *component) SetHealthy() error {
-	log.Logger.Debugw("set healthy event received")
-	newEvent := &eventstore.Event{
-		Time: time.Now().UTC(),
-		Name: "SetHealthy",
-	}
-	select {
-	case c.extraEventCh <- newEvent:
-	default:
-		log.Logger.Debugw("channel full, set healthy event skipped")
-	}
-	return nil
-}
-
 func (c *component) updateCurrentState() error {
 	if c.rebootEventStore == nil || c.eventBucket == nil {
 		return nil
