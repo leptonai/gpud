@@ -3,14 +3,14 @@
 package lib
 
 import (
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	nvlibdevice "github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
 type Library interface {
 	NVML() nvml.Interface
-	Device() device.Interface
+	Device() nvlibdevice.Interface
 	Info() nvinfo.Interface
 	Shutdown() nvml.Return
 }
@@ -32,7 +32,7 @@ func (n *nvmlInterface) NVML() nvml.Interface {
 	return n
 }
 
-func (n *nvmlInterface) Device() device.Interface {
+func (n *nvmlInterface) Device() nvlibdevice.Interface {
 	return n.dev
 }
 
@@ -56,7 +56,7 @@ func createLibrary(opts ...OpOption) Library {
 		propertyExtractor: options.propertyExtractor,
 	}
 
-	devLib := device.New(nvInterface.Interface)
+	devLib := nvlibdevice.New(nvInterface.Interface)
 	nvInterface.dev = &devInterface{
 		Interface:                              devLib,
 		devices:                                options.devicesToReturn,
@@ -83,16 +83,16 @@ func (n *nvmlInterface) Init() nvml.Return {
 	return n.Interface.Init()
 }
 
-var _ device.Interface = &devInterface{}
+var _ nvlibdevice.Interface = &devInterface{}
 
 type devInterface struct {
-	device.Interface
-	devices                                []device.Device
+	nvlibdevice.Interface
+	devices                                []nvlibdevice.Device
 	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
 	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
 }
 
-func (d *devInterface) GetDevices() ([]device.Device, error) {
+func (d *devInterface) GetDevices() ([]nvlibdevice.Device, error) {
 	devs := d.devices
 
 	var err error
@@ -104,7 +104,7 @@ func (d *devInterface) GetDevices() ([]device.Device, error) {
 		return nil, err
 	}
 
-	updated := make([]device.Device, len(devs))
+	updated := make([]nvlibdevice.Device, len(devs))
 	for i, dev := range devs {
 		updated[i] = &devDevInterface{
 			Device:                                 dev,
@@ -116,10 +116,10 @@ func (d *devInterface) GetDevices() ([]device.Device, error) {
 	return updated, nil
 }
 
-var _ device.Device = &devDevInterface{}
+var _ nvlibdevice.Device = &devDevInterface{}
 
 type devDevInterface struct {
-	device.Device
+	nvlibdevice.Device
 	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
 	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
 }

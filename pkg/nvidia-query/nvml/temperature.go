@@ -4,15 +4,19 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 type Temperature struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"bus_id"`
 
 	CurrentCelsiusGPUCore uint32 `json:"current_celsius_gpu_core"`
 
@@ -49,7 +53,8 @@ func (temp Temperature) GetUsedPercentGPUMax() (float64, error) {
 
 func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 	temp := Temperature{
-		UUID: uuid,
+		UUID:  uuid,
+		BusID: dev.PCIBusID(),
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g92d1c5182a14dd4be7090e3c1480b121

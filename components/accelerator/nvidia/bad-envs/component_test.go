@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 

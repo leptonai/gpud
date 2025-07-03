@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 // Returns true if clock events is supported by this device.
@@ -49,6 +49,10 @@ type ClockEvents struct {
 
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"bus_id"`
 
 	// Represents the bitmask of active clocks event reasons.
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlClocksEventReasons.html#group__nvmlClocksEventReasons
@@ -94,6 +98,7 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	clockEvents := ClockEvents{
 		Time:      metav1.Time{Time: time.Now().UTC()},
 		UUID:      uuid,
+		BusID:     dev.PCIBusID(),
 		Supported: true,
 	}
 

@@ -35,6 +35,7 @@ func TestGetMemory(t *testing.T) {
 			memoryRet:   nvml.SUCCESS,
 			expectedMemory: Memory{
 				UUID:              "test-uuid",
+				BusID:             "test-pci",
 				TotalBytes:        4096 * 1024 * 1024,
 				TotalHumanized:    "4.3 GB",
 				FreeBytes:         2048 * 1024 * 1024,
@@ -61,6 +62,7 @@ func TestGetMemory(t *testing.T) {
 			memoryRet: nvml.SUCCESS,
 			expectedMemory: Memory{
 				UUID:              "test-uuid",
+				BusID:             "test-pci",
 				TotalBytes:        4096 * 1024 * 1024,
 				TotalHumanized:    "4.3 GB",
 				FreeBytes:         2048 * 1024 * 1024,
@@ -83,6 +85,7 @@ func TestGetMemory(t *testing.T) {
 			memoryRet:   nvml.ERROR_NOT_SUPPORTED,
 			expectedMemory: Memory{
 				UUID:              "test-uuid",
+				BusID:             "test-pci",
 				TotalBytes:        0,
 				TotalHumanized:    "",
 				FreeBytes:         0,

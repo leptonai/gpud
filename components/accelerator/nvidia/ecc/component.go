@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +17,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 const Name = "accelerator-nvidia-ecc"
@@ -197,10 +197,10 @@ func (cr *checkResult) String() string {
 	buf1 := bytes.NewBuffer(nil)
 	table1 := tablewriter.NewWriter(buf1)
 	table1.SetAlignment(tablewriter.ALIGN_CENTER)
-	table1.SetHeader([]string{"GPU UUID", "Enabled Current", "Enabled Pending", "Supported"})
+	table1.SetHeader([]string{"GPU BUS ID", "Enabled Current", "Enabled Pending", "Supported"})
 	for _, eccMode := range cr.ECCModes {
 		table1.Append([]string{
-			eccMode.UUID,
+			eccMode.BusID,
 			fmt.Sprintf("%t", eccMode.EnabledCurrent),
 			fmt.Sprintf("%t", eccMode.EnabledPending),
 			fmt.Sprintf("%t", eccMode.Supported),

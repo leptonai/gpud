@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +17,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 const Name = "accelerator-nvidia-nvlink"
@@ -189,9 +189,9 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"UUID", "NVLink Enabled", "NVLink Supported"})
+	table.SetHeader([]string{"Bus ID", "NVLink Enabled", "NVLink Supported"})
 	for _, nvlink := range cr.NVLinks {
-		table.Append([]string{nvlink.UUID, fmt.Sprintf("%t", nvlink.States.AllFeatureEnabled()), fmt.Sprintf("%t", nvlink.Supported)})
+		table.Append([]string{nvlink.BusID, fmt.Sprintf("%t", nvlink.States.AllFeatureEnabled()), fmt.Sprintf("%t", nvlink.Supported)})
 	}
 	table.Render()
 

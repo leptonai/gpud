@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/olekukonko/tablewriter"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 const Name = "accelerator-nvidia-persistence-mode"
@@ -196,9 +196,9 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"UUID", "Persistence Mode Enabled", "Persistence Mode Supported"})
+	table.SetHeader([]string{"Bus ID", "Persistence Mode Enabled", "Persistence Mode Supported"})
 	for _, persistenceMode := range cr.PersistenceModes {
-		table.Append([]string{persistenceMode.UUID, fmt.Sprintf("%t", persistenceMode.Enabled), fmt.Sprintf("%t", persistenceMode.Supported)})
+		table.Append([]string{persistenceMode.BusID, fmt.Sprintf("%t", persistenceMode.Enabled), fmt.Sprintf("%t", persistenceMode.Supported)})
 	}
 	table.Render()
 

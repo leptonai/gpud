@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 const Name = "accelerator-nvidia-temperature"
@@ -210,10 +210,10 @@ func (cr *checkResult) String() string {
 
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
-	table.SetHeader([]string{"GPU UUID", "Current temp", "HBM temp threshold", "Used %"})
+	table.SetHeader([]string{"GPU Bus ID", "Current temp", "HBM temp threshold", "Used %"})
 	for _, temp := range cr.Temperatures {
 		table.Append([]string{
-			temp.UUID,
+			temp.BusID,
 			fmt.Sprintf("%d °C", temp.CurrentCelsiusGPUCore),
 			fmt.Sprintf("%d °C", temp.ThresholdCelsiusMemMax),
 			fmt.Sprintf("%s %%", temp.UsedPercentMemMax),

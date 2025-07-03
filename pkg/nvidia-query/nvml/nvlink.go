@@ -3,13 +3,17 @@ package nvml
 import (
 	"github.com/leptonai/gpud/pkg/log"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 type NVLink struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"bus_id"`
 
 	// States is the list of nvlink states.
 	States NVLinkStates `json:"states"`
@@ -76,6 +80,7 @@ type NVLinkState struct {
 func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 	nvlink := NVLink{
 		UUID:      uuid,
+		BusID:     dev.PCIBusID(),
 		Supported: true,
 	}
 

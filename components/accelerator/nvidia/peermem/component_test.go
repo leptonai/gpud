@@ -3,21 +3,20 @@ package peermem
 import (
 	"context"
 	"errors"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	querypeermem "github.com/leptonai/gpud/pkg/nvidia-query/peermem"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // mockNVMLInstance is a mock implementation of nvidianvml.Instance
@@ -238,7 +237,6 @@ func TestNewComponent(t *testing.T) {
 
 func TestNewComponentError(t *testing.T) {
 	// Test creating a component when event store fails to create bucket
-	// Note: Bucket creation only happens on Linux.
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:      context.Background(),
 		NVMLInstance: &mockNVMLInstance{exists: true},
@@ -247,20 +245,11 @@ func TestNewComponentError(t *testing.T) {
 
 	comp, err := New(gpudInstance)
 
-	if runtime.GOOS == "linux" {
-		assert.Error(t, err)
-		assert.Nil(t, comp)
-		if err != nil { // Avoid panic on nil err
-			assert.Contains(t, err.Error(), "failed to create bucket")
-		}
-	} else {
-		// On non-Linux, bucket creation is skipped, so New should succeed
-		assert.NoError(t, err)
-		require.NotNil(t, comp)
-		// Assert that the event bucket was not assigned
-		peermemComp, ok := comp.(*component)
-		require.True(t, ok)
-		assert.Nil(t, peermemComp.eventBucket)
+	// When EventStore is provided, bucket creation is always attempted regardless of OS
+	assert.Error(t, err)
+	assert.Nil(t, comp)
+	if err != nil { // Avoid panic on nil err
+		assert.Contains(t, err.Error(), "failed to create bucket")
 	}
 }
 

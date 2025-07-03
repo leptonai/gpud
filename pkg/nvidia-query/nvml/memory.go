@@ -4,14 +4,18 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/dustin/go-humanize"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 type Memory struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"bus_id"`
 
 	TotalBytes     uint64 `json:"total_bytes"`
 	TotalHumanized string `json:"total_humanized"`
@@ -38,6 +42,7 @@ func (mem Memory) GetUsedPercent() (float64, error) {
 func GetMemory(uuid string, dev device.Device) (Memory, error) {
 	mem := Memory{
 		UUID:      uuid,
+		BusID:     dev.PCIBusID(),
 		Supported: true,
 	}
 

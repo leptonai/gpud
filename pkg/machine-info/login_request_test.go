@@ -7,7 +7,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -15,6 +14,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	"github.com/leptonai/gpud/pkg/providers"
 )
 

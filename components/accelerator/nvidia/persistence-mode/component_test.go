@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +15,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
@@ -559,20 +559,22 @@ func TestData_String(t *testing.T) {
 				PersistenceModes: []nvidianvml.PersistenceMode{
 					{
 						UUID:      "gpu-uuid-123",
+						BusID:     "0000:01:00.0",
 						Enabled:   true,
 						Supported: true,
 					},
 					{
 						UUID:      "gpu-uuid-456",
+						BusID:     "0000:02:00.0",
 						Enabled:   false,
 						Supported: true,
 					},
 				},
 			},
 			contains: []string{
-				"UUID", "PERSISTENCE MODE ENABLED", "PERSISTENCE MODE SUPPORTED",
-				"gpu-uuid-123", "true", "true",
-				"gpu-uuid-456", "false", "true",
+				"BUS ID", "PERSISTENCE MODE ENABLED", "PERSISTENCE MODE SUPPORTED",
+				"0000:01:00.0", "true", "true",
+				"0000:02:00.0", "false", "true",
 			},
 		},
 	}

@@ -5,13 +5,17 @@ import (
 
 	"github.com/leptonai/gpud/pkg/log"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 type ECCErrors struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"bus_id"`
 
 	// Aggregate counts persist across reboots (i.e. for the lifetime of the device).
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceEnumvs.html#group__nvmlDeviceEnumvs_1g08978d1c4fb52b6a4c72b39de144f1d9
@@ -121,6 +125,7 @@ func (allCounts AllECCErrorCounts) FindUncorrectedErrs() []string {
 func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
 	result := ECCErrors{
 		UUID:      uuid,
+		BusID:     dev.PCIBusID(),
 		Aggregate: AllECCErrorCounts{},
 		Volatile:  AllECCErrorCounts{},
 		Supported: true,

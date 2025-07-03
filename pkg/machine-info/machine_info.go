@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -297,22 +298,22 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 			info.Memory = qty.String()
 		}
 
-		serialID, err := nvidianvml.GetSerial(uuid, dev)
-		if err != nil {
-			return nil, err
+		serialID, ret := dev.GetSerial()
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("failed to get serial id: %v", nvml.ErrorString(ret))
 		}
 
-		minorID, err := nvidianvml.GetMinorID(uuid, dev)
-		if err != nil {
-			return nil, err
+		minorID, ret := dev.GetMinorNumber()
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("failed to get minor id: %v", nvml.ErrorString(ret))
 		}
 
-		boardID, err := nvidianvml.GetBoardID(uuid, dev)
-		if err != nil {
-			return nil, err
+		boardID, ret := dev.GetBoardId()
+		if ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("failed to get board id: %v", nvml.ErrorString(ret))
 		}
 
-		busID, err := nvidianvml.GetBusID(uuid, dev)
+		busID, err := dev.GetPCIBusID()
 		if err != nil {
 			return nil, err
 		}

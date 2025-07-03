@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	infinibandclass "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/class"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 

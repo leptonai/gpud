@@ -3,8 +3,8 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -17,6 +17,10 @@ import (
 type RemappedRows struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"bus_id"`
 
 	// The number of rows remapped due to correctable errors.
 	RemappedDueToCorrectableErrors int `json:"remapped_due_to_correctable_errors"`
@@ -45,6 +49,7 @@ type RemappedRows struct {
 func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 	remRws := RemappedRows{
 		UUID:      uuid,
+		BusID:     dev.PCIBusID(),
 		Supported: true,
 	}
 

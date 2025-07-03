@@ -25,6 +25,7 @@ func TestGetPersistenceMode(t *testing.T) {
 			persistenceModeRet: nvml.SUCCESS,
 			expectedPersistenceMode: PersistenceMode{
 				UUID:      "test-uuid",
+				BusID:     "test-pci",
 				Enabled:   true,
 				Supported: true,
 			},
@@ -36,6 +37,7 @@ func TestGetPersistenceMode(t *testing.T) {
 			persistenceModeRet: nvml.SUCCESS,
 			expectedPersistenceMode: PersistenceMode{
 				UUID:      "test-uuid",
+				BusID:     "test-pci",
 				Enabled:   false,
 				Supported: true,
 			},
@@ -47,6 +49,7 @@ func TestGetPersistenceMode(t *testing.T) {
 			persistenceModeRet: nvml.ERROR_NOT_SUPPORTED,
 			expectedPersistenceMode: PersistenceMode{
 				UUID:      "test-uuid",
+				BusID:     "test-pci",
 				Enabled:   false,
 				Supported: false,
 			},
