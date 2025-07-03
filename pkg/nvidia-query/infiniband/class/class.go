@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 // DefaultRootDir is the default root directory for InfiniBand devices.
@@ -54,6 +56,13 @@ func loadDevices(cd classDirInterface) (Devices, error) {
 
 	ibc := make(Devices, 0, len(dirs))
 	for _, d := range dirs {
+		deviceName := d.Name()
+		if !strings.HasPrefix(deviceName, "mlx") {
+			// e.g., "mlx5_0"
+			// not "._mlx5_0"
+			continue
+		}
+
 		dev, err := parseInfiniBandDevice(cd, d.Name())
 		if err != nil {
 			return nil, err
@@ -104,8 +113,14 @@ func parseInfiniBandDevice(cd classDirInterface, deviceName string) (Device, err
 	}
 
 	device.Ports = make([]Port, 0, len(ports))
-	for _, d := range ports {
-		port, err := parseInfiniBandPort(cd, deviceName, d.Name())
+	for _, p := range ports {
+		portNumber, err := strconv.ParseUint(p.Name(), 10, 32)
+		if err != nil {
+			log.Logger.Warnw("failed to parse port number", "port", p.Name(), "error", err)
+			continue
+		}
+
+		port, err := parseInfiniBandPort(cd, deviceName, uint(portNumber))
 		if err != nil {
 			return Device{}, err
 		}
@@ -153,15 +168,11 @@ func parseRate(s string) (float64, uint64, error) {
 
 // parseInfiniBandPort scans predefined files in /sys/class/infiniband/<device>/ports/<port>
 // directory and gets their contents.
-func parseInfiniBandPort(cd classDirInterface, portName string, port string) (*Port, error) {
-	portNumber, err := strconv.ParseUint(port, 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert %s into uint", port)
-	}
-	ibp := Port{Name: portName, Port: uint(portNumber)}
+func parseInfiniBandPort(cd classDirInterface, portName string, portNumber uint) (*Port, error) {
+	ibp := Port{Name: portName, Port: portNumber}
 
 	// e.g., /sys/class/infiniband/mlx5_0/ports/1
-	portDir := filepath.Join(portName, "ports", port)
+	portDir := filepath.Join(portName, "ports", strconv.FormatUint(uint64(portNumber), 10))
 
 	content, err := cd.readFile(filepath.Join(portDir, "link_layer"))
 	if err != nil {

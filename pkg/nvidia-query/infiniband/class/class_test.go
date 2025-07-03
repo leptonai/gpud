@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -335,13 +336,22 @@ func TestParseInfiniBandDeviceErrors(t *testing.T) {
 
 // TestParseInfiniBandPortErrors tests error cases in parseInfiniBandPort
 func TestParseInfiniBandPortErrors(t *testing.T) {
-	// Test invalid port number
-	_, err := parseInfiniBandPort(nil, "test_device", "invalid")
+	// Test invalid port number - this test is no longer relevant since parseInfiniBandPort now takes uint
+	// Instead, test with a mock that simulates the error condition
+	mockFS := &mockClassDirInterface{
+		files: map[string]string{
+			"test_device/ports/1/link_layer": "InfiniBand",
+		},
+		readErrors: map[string]error{
+			"test_device/ports/1/link_layer": errors.New("link_layer read error"),
+		},
+	}
+	_, err := parseInfiniBandPort(mockFS, "test_device", 1)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to convert")
+	assert.Contains(t, err.Error(), "link_layer read error")
 
 	// Test error reading state
-	mockFS := &mockClassDirInterface{
+	mockFS = &mockClassDirInterface{
 		files: map[string]string{
 			"test_device/ports/1/link_layer": "InfiniBand",
 		},
@@ -349,7 +359,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/state": errors.New("state read error"),
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", "1")
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "state read error")
 
@@ -360,7 +370,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/state":      "invalid state format",
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", "1")
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "could not parse state file")
 
@@ -374,7 +384,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/phys_state": errors.New("phys_state read error"),
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", "1")
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "phys_state read error")
 
@@ -387,7 +397,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/rate":       "invalid rate",
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", "1")
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "could not parse rate file")
 
@@ -403,7 +413,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/counters": errors.New("exists check error"),
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", "1")
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "exists check error")
 }
@@ -538,4 +548,165 @@ func TestDevicesSorting(t *testing.T) {
 	assert.Equal(t, "mlx5_10", devices[1].Name)
 	assert.Equal(t, "mlx5_2", devices[2].Name)
 	assert.Equal(t, "mlx5_9", devices[3].Name)
+}
+
+// TestDeviceNameFiltering tests that only devices with "mlx" prefix are included
+func TestDeviceNameFiltering(t *testing.T) {
+	mockFS := &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			"": {
+				mockDirEntry{name: "mlx5_0", dir: true},      // Should be included
+				mockDirEntry{name: "mlx5_1", dir: true},      // Should be included
+				mockDirEntry{name: "mlx4_0", dir: true},      // Should be included
+				mockDirEntry{name: "._mlx5_0", dir: true},    // Should be excluded (starts with ._)
+				mockDirEntry{name: "bond0", dir: true},       // Should be excluded (no mlx prefix)
+				mockDirEntry{name: "eth0", dir: true},        // Should be excluded (no mlx prefix)
+				mockDirEntry{name: "ib0", dir: true},         // Should be excluded (no mlx prefix)
+				mockDirEntry{name: "some_mlx5_0", dir: true}, // Should be excluded (mlx not at start)
+				mockDirEntry{name: "MLX5_0", dir: true},      // Should be excluded (case sensitive)
+			},
+		},
+		files: map[string]string{
+			"mlx5_0/fw_ver": "1.0",
+			"mlx5_1/fw_ver": "1.0",
+			"mlx4_0/fw_ver": "1.0",
+		},
+	}
+
+	// Add empty ports directories for valid devices
+	for _, device := range []string{"mlx5_0", "mlx5_1", "mlx4_0"} {
+		mockFS.dirs[filepath.Join(device, "ports")] = []os.DirEntry{}
+	}
+
+	devices, err := loadDevices(mockFS)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(devices), "Should only include devices with 'mlx' prefix")
+
+	// Check that only the correct devices are included
+	deviceNames := make([]string, len(devices))
+	for i, device := range devices {
+		deviceNames[i] = device.Name
+	}
+	assert.Contains(t, deviceNames, "mlx5_0")
+	assert.Contains(t, deviceNames, "mlx5_1")
+	assert.Contains(t, deviceNames, "mlx4_0")
+	assert.NotContains(t, deviceNames, "._mlx5_0")
+	assert.NotContains(t, deviceNames, "bond0")
+	assert.NotContains(t, deviceNames, "eth0")
+	assert.NotContains(t, deviceNames, "ib0")
+	assert.NotContains(t, deviceNames, "some_mlx5_0")
+	assert.NotContains(t, deviceNames, "MLX5_0")
+}
+
+// TestLoadDevicesWithMixedDeviceTypes tests loading devices with mixed valid/invalid types
+func TestLoadDevicesWithMixedDeviceTypes(t *testing.T) {
+	mockFS := &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			"": {
+				mockDirEntry{name: "mlx5_0", dir: true},
+				mockDirEntry{name: "bond0", dir: true},
+				mockDirEntry{name: "mlx5_1", dir: true},
+				mockDirEntry{name: "eth0", dir: true},
+			},
+		},
+		files: map[string]string{
+			"mlx5_0/fw_ver": "28.41.1000",
+			"mlx5_1/fw_ver": "28.41.1000",
+			// bond0 and eth0 don't have fw_ver files as they're not InfiniBand devices
+		},
+	}
+
+	// Add empty ports directories for InfiniBand devices only
+	for _, device := range []string{"mlx5_0", "mlx5_1"} {
+		mockFS.dirs[filepath.Join(device, "ports")] = []os.DirEntry{}
+	}
+
+	devices, err := loadDevices(mockFS)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(devices), "Should only load InfiniBand devices")
+
+	// Verify device properties
+	for _, device := range devices {
+		assert.True(t, strings.HasPrefix(device.Name, "mlx"))
+		assert.Equal(t, "28.41.1000", device.FirmwareVersion)
+	}
+}
+
+// TestLoadDevicesEmptyDirectory tests behavior when the infiniband directory is empty
+func TestLoadDevicesEmptyDirectory(t *testing.T) {
+	mockFS := &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			"": {}, // Empty directory
+		},
+	}
+
+	devices, err := loadDevices(mockFS)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(devices), "Should return empty slice for empty directory")
+}
+
+// TestLoadDevicesOnlyNonInfiniBandDevices tests when only non-InfiniBand devices are present
+func TestLoadDevicesOnlyNonInfiniBandDevices(t *testing.T) {
+	mockFS := &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			"": {
+				mockDirEntry{name: "bond0", dir: true},
+				mockDirEntry{name: "eth0", dir: true},
+				mockDirEntry{name: "ib0", dir: true},
+				mockDirEntry{name: "wlan0", dir: true},
+			},
+		},
+	}
+
+	devices, err := loadDevices(mockFS)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(devices), "Should return empty slice when no InfiniBand devices found")
+}
+
+// TestDeviceNameCaseSensitivity tests that device name filtering is case sensitive
+func TestDeviceNameCaseSensitivity(t *testing.T) {
+	mockFS := &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			"": {
+				mockDirEntry{name: "mlx5_0", dir: true}, // Should be included
+				mockDirEntry{name: "MLX5_0", dir: true}, // Should be excluded
+				mockDirEntry{name: "Mlx5_0", dir: true}, // Should be excluded
+				mockDirEntry{name: "mLx5_0", dir: true}, // Should be excluded
+			},
+		},
+		files: map[string]string{
+			"mlx5_0/fw_ver": "1.0",
+		},
+	}
+
+	mockFS.dirs[filepath.Join("mlx5_0", "ports")] = []os.DirEntry{}
+
+	devices, err := loadDevices(mockFS)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(devices), "Should only include lowercase 'mlx' prefixed devices")
+	assert.Equal(t, "mlx5_0", devices[0].Name)
+}
+
+// TestLoadDevicesWithFilesInsteadOfDirectories tests error handling when files exist instead of directories
+func TestLoadDevicesWithFilesInsteadOfDirectories(t *testing.T) {
+	mockFS := &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			"": {
+				mockDirEntry{name: "mlx5_0", dir: true},  // Valid directory
+				mockDirEntry{name: "mlx5_1", dir: false}, // File instead of directory - should cause error
+			},
+		},
+		files: map[string]string{
+			"mlx5_0/fw_ver": "1.0",
+		},
+	}
+
+	mockFS.dirs[filepath.Join("mlx5_0", "ports")] = []os.DirEntry{}
+
+	// The loadDevices function now returns an error when it encounters a file instead of a directory
+	// because parseInfiniBandDevice will try to read fw_ver from what it thinks is a device directory
+	devices, err := loadDevices(mockFS)
+	assert.Error(t, err, "Should return error when encountering file instead of directory")
+	assert.Contains(t, err.Error(), "failed to read HCA firmware version")
+	assert.Nil(t, devices)
 }
