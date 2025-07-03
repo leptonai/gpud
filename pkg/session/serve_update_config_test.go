@@ -3,10 +3,8 @@ package session
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
@@ -319,8 +317,6 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Len(t, cfgs, 1)
 				assert.Equal(t, tempDir, cfgs[0].VolumePath)
 				assert.Equal(t, "test-content", cfgs[0].FileContents)
-				assert.Equal(t, 5*time.Minute, cfgs[0].TTLToDelete.Duration)
-				assert.Equal(t, 3, cfgs[0].NumExpectedFiles)
 			},
 			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
 				gpuCallCount++
@@ -359,8 +355,6 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Len(t, cfgs, 1)
 				assert.Equal(t, tempDir, cfgs[0].VolumePath)
 				assert.Equal(t, "multi-content", cfgs[0].FileContents)
-				assert.Equal(t, 10*time.Minute, cfgs[0].TTLToDelete.Duration)
-				assert.Equal(t, 5, cfgs[0].NumExpectedFiles)
 			},
 			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
 				gpuCallCount++
@@ -451,7 +445,7 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 			name:          "nfs - invalid field type",
 			componentName: "nfs",
 			configValue:   `[{"num_expected_files": "invalid"}]`,
-			expectedError: "cannot unmarshal string into Go struct field",
+			expectedError: "volume path is empty",
 		},
 	}
 
@@ -546,10 +540,8 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		// Create a real pkgnfschecker.GroupConfigs structure (slice)
 		expectedConfigs := pkgnfschecker.Configs{
 			{
-				VolumePath:       tempDir,
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: 5 * time.Minute},
-				NumExpectedFiles: 10,
+				VolumePath:   tempDir,
+				FileContents: "test-content",
 			},
 		}
 
@@ -575,8 +567,6 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		assert.Len(t, actualConfigs, 1)
 		assert.Equal(t, expectedConfigs[0].VolumePath, actualConfigs[0].VolumePath)
 		assert.Equal(t, expectedConfigs[0].FileContents, actualConfigs[0].FileContents)
-		assert.Equal(t, expectedConfigs[0].TTLToDelete, actualConfigs[0].TTLToDelete)
-		assert.Equal(t, expectedConfigs[0].NumExpectedFiles, actualConfigs[0].NumExpectedFiles)
 	})
 
 	t.Run("nfs with multiple configs", func(t *testing.T) {
@@ -586,16 +576,12 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		// Create multiple GroupConfig objects
 		expectedConfigs := pkgnfschecker.Configs{
 			{
-				VolumePath:       tempDir1,
-				FileContents:     "test-content1",
-				TTLToDelete:      metav1.Duration{Duration: 5 * time.Minute},
-				NumExpectedFiles: 10,
+				VolumePath:   tempDir1,
+				FileContents: "test-content1",
 			},
 			{
-				VolumePath:       tempDir2,
-				FileContents:     "test-content2",
-				TTLToDelete:      metav1.Duration{Duration: 10 * time.Minute},
-				NumExpectedFiles: 20,
+				VolumePath:   tempDir2,
+				FileContents: "test-content2",
 			},
 		}
 
@@ -623,13 +609,9 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		// Check first config
 		assert.Equal(t, expectedConfigs[0].VolumePath, actualConfigs[0].VolumePath)
 		assert.Equal(t, expectedConfigs[0].FileContents, actualConfigs[0].FileContents)
-		assert.Equal(t, expectedConfigs[0].TTLToDelete, actualConfigs[0].TTLToDelete)
-		assert.Equal(t, expectedConfigs[0].NumExpectedFiles, actualConfigs[0].NumExpectedFiles)
 
 		// Check second config
 		assert.Equal(t, expectedConfigs[1].VolumePath, actualConfigs[1].VolumePath)
 		assert.Equal(t, expectedConfigs[1].FileContents, actualConfigs[1].FileContents)
-		assert.Equal(t, expectedConfigs[1].TTLToDelete, actualConfigs[1].TTLToDelete)
-		assert.Equal(t, expectedConfigs[1].NumExpectedFiles, actualConfigs[1].NumExpectedFiles)
 	})
 }

@@ -2,6 +2,7 @@ package nfschecker
 
 import (
 	"errors"
+	"path/filepath"
 )
 
 // MemberConfig configures a "single" NFS checker.
@@ -18,6 +19,12 @@ type MemberConfig struct {
 	// This ID just needs to be different from other writers
 	// that mounts the same NFS mount point
 	ID string `json:"id"`
+}
+
+// fileSelf returns the file path of the file that is written by the checker.
+func (cfg *MemberConfig) fileSelf() string {
+	dir := filepath.Join(cfg.VolumePath, cfg.DirName)
+	return filepath.Join(dir, cfg.ID)
 }
 
 // MemberConfigs is a list of MemberConfig.

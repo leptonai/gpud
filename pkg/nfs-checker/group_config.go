@@ -4,8 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Config is a common configuration for all the NFS checker group
@@ -27,14 +25,6 @@ type Config struct {
 	// files in the group directory. Meaning all other group members
 	// write the same file contents to the directory.
 	FileContents string `json:"file_contents"`
-
-	// TTLToDelete is the duration that can elapse before files can be deleted
-	// this is set to avoid counting the old files as valid data.
-	TTLToDelete metav1.Duration `json:"ttl_to_delete"`
-
-	// NumExpectedFiles is the count of files that are expected to be read
-	// from the directory.
-	NumExpectedFiles int `json:"num_expected_files,omitempty"`
 }
 
 // Configs is a list of GroupConfig.
@@ -68,8 +58,6 @@ var (
 	ErrVolumePathNotAbs    = errors.New("volume path is not absolute")
 	ErrVolumePathNotExists = errors.New("volume path does not exist and cannot be created")
 	ErrFileContentsEmpty   = errors.New("file content is empty")
-	ErrTTLZero             = errors.New("TTL is zero")
-	ErrExpectedFilesZero   = errors.New("expected files is zero")
 )
 
 // ValidateAndMkdir validates the configuration
@@ -101,12 +89,6 @@ func (c *Config) ValidateAndMkdir() error {
 
 	if c.FileContents == "" {
 		return ErrFileContentsEmpty
-	}
-	if c.TTLToDelete.Duration == 0 {
-		return ErrTTLZero
-	}
-	if c.NumExpectedFiles == 0 {
-		return ErrExpectedFilesZero
 	}
 
 	return nil

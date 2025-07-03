@@ -181,6 +181,14 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 
+		if err := checker.Clean(); err != nil {
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeDegraded
+			cr.reason = "failed to clean nfs checker for " + memberConfig.VolumePath
+			log.Logger.Warnw(cr.reason, "error", err)
+			return cr
+		}
+
 		cr.NFSCheckResults = append(cr.NFSCheckResults, nfsResult)
 		msg = append(msg, nfsResult.Message)
 	}

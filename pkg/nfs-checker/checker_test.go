@@ -1,16 +1,12 @@
 package nfschecker
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestNewChecker(t *testing.T) {
@@ -19,11 +15,9 @@ func TestNewChecker(t *testing.T) {
 	t.Run("valid config", func(t *testing.T) {
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          "test-dir",
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   tempDir,
+				DirName:      "test-dir",
+				FileContents: "test-content",
 			},
 			ID: "test-id",
 		}
@@ -36,11 +30,9 @@ func TestNewChecker(t *testing.T) {
 	t.Run("invalid config", func(t *testing.T) {
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       "",
-				DirName:          "test-dir",
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   "",
+				DirName:      "test-dir",
+				FileContents: "test-content",
 			},
 			ID: "test-id",
 		}
@@ -56,11 +48,9 @@ func TestChecker_Write(t *testing.T) {
 
 	cfg := &MemberConfig{
 		Config: Config{
-			VolumePath:       tempDir,
-			DirName:          "test-dir",
-			FileContents:     "test-content",
-			TTLToDelete:      metav1.Duration{Duration: time.Minute},
-			NumExpectedFiles: 1,
+			VolumePath:   tempDir,
+			DirName:      "test-dir",
+			FileContents: "test-content",
 		},
 		ID: "test-id",
 	}
@@ -88,11 +78,9 @@ func TestChecker_Write(t *testing.T) {
 
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       subDir,
-				DirName:          "test-dir-2",
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   subDir,
+				DirName:      "test-dir-2",
+				FileContents: "test-content",
 			},
 			ID: "test-id",
 		}
@@ -117,11 +105,9 @@ func TestChecker_Clean(t *testing.T) {
 
 	cfg := &MemberConfig{
 		Config: Config{
-			VolumePath:       tempDir,
-			DirName:          dirName,
-			FileContents:     "test-content",
-			TTLToDelete:      metav1.Duration{Duration: time.Second},
-			NumExpectedFiles: 1,
+			VolumePath:   tempDir,
+			DirName:      dirName,
+			FileContents: "test-content",
 		},
 		ID: "test-id",
 	}
@@ -129,33 +115,22 @@ func TestChecker_Clean(t *testing.T) {
 	checker, err := NewChecker(cfg)
 	require.NoError(t, err)
 
-	// Create some test files in the target directory
-	targetDir := filepath.Join(tempDir, dirName)
-	oldFile := filepath.Join(targetDir, "old-file")
-	newFile := filepath.Join(targetDir, "new-file")
-
-	// Create old file (modify time in the past)
-	err = os.WriteFile(oldFile, []byte("old content"), 0644)
+	// Write a file using the checker
+	err = checker.Write()
 	require.NoError(t, err)
 
-	oldTime := time.Now().Add(-2 * time.Second)
-	err = os.Chtimes(oldFile, oldTime, oldTime)
-	require.NoError(t, err)
+	// Verify file exists
+	file := filepath.Join(tempDir, dirName, "test-id")
+	_, err = os.Stat(file)
+	assert.NoError(t, err)
 
-	// Create new file
-	err = os.WriteFile(newFile, []byte("new content"), 0644)
-	require.NoError(t, err)
-
-	// Clean should remove old files
+	// Clean should remove the file that was written
 	err = checker.Clean()
 	assert.NoError(t, err)
 
-	// Verify old file is removed and new file remains
-	_, err = os.Stat(oldFile)
+	// Verify file is removed
+	_, err = os.Stat(file)
 	assert.True(t, os.IsNotExist(err))
-
-	_, err = os.Stat(newFile)
-	assert.NoError(t, err)
 }
 
 func TestChecker_Check(t *testing.T) {
@@ -165,11 +140,9 @@ func TestChecker_Check(t *testing.T) {
 		dirName := "success-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "shared-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 2,
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: "test-content",
 			},
 			ID: "checker1",
 		}
@@ -177,32 +150,24 @@ func TestChecker_Check(t *testing.T) {
 		checker, err := NewChecker(cfg)
 		require.NoError(t, err)
 
-		// Create files from multiple checkers in the target directory
-		targetDir := filepath.Join(tempDir, dirName)
-		file1 := filepath.Join(targetDir, "checker1")
-		file2 := filepath.Join(targetDir, "checker2")
-
-		err = os.WriteFile(file1, []byte("shared-content"), 0644)
-		require.NoError(t, err)
-		err = os.WriteFile(file2, []byte("shared-content"), 0644)
+		// Write the file using the checker
+		err = checker.Write()
 		require.NoError(t, err)
 
 		result := checker.Check()
+		targetDir := filepath.Join(tempDir, dirName)
 		assert.Equal(t, targetDir, result.Dir)
-		assert.Equal(t, "successfully checked directory \""+tempDir+"\" with 2 files", result.Message)
-		assert.ElementsMatch(t, []string{"checker1", "checker2"}, result.ReadIDs)
+		assert.Equal(t, "correctly read/wrote on \""+tempDir+"\"", result.Message)
 		assert.Empty(t, result.Error)
 	})
 
-	t.Run("insufficient files", func(t *testing.T) {
-		dirName := "insufficient-test-dir"
+	t.Run("file not found", func(t *testing.T) {
+		dirName := "not-found-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "shared-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 5,
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: "test-content",
 			},
 			ID: "checker1",
 		}
@@ -210,10 +175,12 @@ func TestChecker_Check(t *testing.T) {
 		checker, err := NewChecker(cfg)
 		require.NoError(t, err)
 
+		// Don't write file, so Check() should fail
 		result := checker.Check()
 		expectedDir := filepath.Join(tempDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
-		assert.Contains(t, result.Error, "expected 5 files, but only 0 files were read")
+		assert.Contains(t, result.Error, "failed to read file")
+		assert.Contains(t, result.Error, "no such file or directory")
 	})
 
 	t.Run("file with wrong content", func(t *testing.T) {
@@ -223,11 +190,9 @@ func TestChecker_Check(t *testing.T) {
 
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       wrongTempDir,
-				DirName:          dirName,
-				FileContents:     "expected-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   wrongTempDir,
+				DirName:      dirName,
+				FileContents: "expected-content",
 			},
 			ID: "checker1",
 		}
@@ -235,28 +200,26 @@ func TestChecker_Check(t *testing.T) {
 		checker, err := NewChecker(cfg)
 		require.NoError(t, err)
 
-		// Create file with wrong content in the target directory
+		// Create file with wrong content using the checker's file path
 		targetDir := filepath.Join(wrongTempDir, dirName)
 		err = os.MkdirAll(targetDir, 0755)
 		require.NoError(t, err)
-		wrongFile := filepath.Join(targetDir, "wrong-content")
+		wrongFile := filepath.Join(targetDir, "checker1")
 		err = os.WriteFile(wrongFile, []byte("wrong-content"), 0644)
 		require.NoError(t, err)
 
 		result := checker.Check()
 		assert.Equal(t, targetDir, result.Dir)
-		assert.Contains(t, result.Error, "file \""+wrongFile+"\" has unexpected contents")
+		assert.Contains(t, result.Error, "has unexpected contents")
 	})
 
 	t.Run("unreadable file", func(t *testing.T) {
 		dirName := "unreadable-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "shared-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: "shared-content",
 			},
 			ID: "checker1",
 		}
@@ -284,168 +247,15 @@ func TestChecker_Check(t *testing.T) {
 	})
 }
 
-func TestMultipleCheckersOnSameDirectory(t *testing.T) {
-	tempDir := t.TempDir()
-	dirName := "multi-checker-test-dir"
-	sharedContent := "shared-test-content"
-
-	// Create multiple checkers with different IDs but same directory
-	checkers := make([]Checker, 3)
-	for i := 0; i < 3; i++ {
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     sharedContent,
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 3,
-			},
-			ID: fmt.Sprintf("checker-%d", i),
-		}
-
-		checker, err := NewChecker(cfg)
-		require.NoError(t, err)
-		checkers[i] = checker
-	}
-
-	targetDir := filepath.Join(tempDir, dirName)
-
-	t.Run("all checkers write successfully", func(t *testing.T) {
-		// All checkers write their files
-		for i, checker := range checkers {
-			err := checker.Write()
-			assert.NoError(t, err, "checker %d should write successfully", i)
-		}
-
-		// Verify all files exist
-		for i := 0; i < 3; i++ {
-			filePath := filepath.Join(targetDir, fmt.Sprintf("checker-%d", i))
-			content, err := os.ReadFile(filePath)
-			assert.NoError(t, err)
-			assert.Equal(t, sharedContent, string(content))
-		}
-	})
-
-	t.Run("all checkers see all files", func(t *testing.T) {
-		// Each checker should see all 3 files
-		for i, checker := range checkers {
-			result := checker.Check()
-			assert.Equal(t, targetDir, result.Dir) // Explicitly test Dir field
-			assert.Empty(t, result.Error, "checker %d should have no errors", i)
-			assert.Len(t, result.ReadIDs, 3, "checker %d should see 3 files", i)
-			assert.ElementsMatch(t, []string{"checker-0", "checker-1", "checker-2"}, result.ReadIDs)
-		}
-	})
-
-	t.Run("clean operation works for all checkers", func(t *testing.T) {
-		// Create an old file that should be cleaned
-		oldFile := filepath.Join(targetDir, "old-checker")
-		err := os.WriteFile(oldFile, []byte(sharedContent), 0644)
-		require.NoError(t, err)
-
-		// Set old timestamp
-		oldTime := time.Now().Add(-2 * time.Minute)
-		err = os.Chtimes(oldFile, oldTime, oldTime)
-		require.NoError(t, err)
-
-		// Any checker can clean
-		err = checkers[0].Clean()
-		assert.NoError(t, err)
-
-		// Verify old file is removed
-		_, err = os.Stat(oldFile)
-		assert.True(t, os.IsNotExist(err))
-
-		// Verify current files still exist
-		for i := 0; i < 3; i++ {
-			filePath := filepath.Join(targetDir, fmt.Sprintf("checker-%d", i))
-			_, err := os.Stat(filePath)
-			assert.NoError(t, err, "current file checker-%d should still exist", i)
-		}
-	})
-}
-
-func TestConcurrentCheckers(t *testing.T) {
-	tempDir := t.TempDir()
-	dirName := "concurrent-test-dir"
-	sharedContent := "concurrent-test-content"
-	numCheckers := 5
-
-	// Create multiple checkers
-	checkers := make([]Checker, numCheckers)
-	for i := 0; i < numCheckers; i++ {
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     sharedContent,
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: numCheckers,
-			},
-			ID: fmt.Sprintf("concurrent-checker-%d", i),
-		}
-
-		checker, err := NewChecker(cfg)
-		require.NoError(t, err)
-		checkers[i] = checker
-	}
-
-	targetDir := filepath.Join(tempDir, dirName)
-
-	t.Run("concurrent writes", func(t *testing.T) {
-		// Write concurrently
-		done := make(chan error, numCheckers)
-		for i, checker := range checkers {
-			go func(idx int, c Checker) {
-				done <- c.Write()
-			}(i, checker)
-		}
-
-		// Wait for all writes to complete
-		for i := 0; i < numCheckers; i++ {
-			err := <-done
-			assert.NoError(t, err, "concurrent write %d should succeed", i)
-		}
-
-		// Verify all files exist
-		for i := 0; i < numCheckers; i++ {
-			filePath := filepath.Join(targetDir, fmt.Sprintf("concurrent-checker-%d", i))
-			content, err := os.ReadFile(filePath)
-			assert.NoError(t, err)
-			assert.Equal(t, sharedContent, string(content))
-		}
-	})
-
-	t.Run("concurrent checks", func(t *testing.T) {
-		// Check concurrently
-		results := make(chan CheckResult, numCheckers)
-		for i, checker := range checkers {
-			go func(idx int, c Checker) {
-				results <- c.Check()
-			}(i, checker)
-		}
-
-		// Collect all results
-		for i := 0; i < numCheckers; i++ {
-			result := <-results
-			assert.Equal(t, targetDir, result.Dir) // Explicitly test Dir field
-			assert.Empty(t, result.Error, "concurrent check %d should have no errors", i)
-			assert.Len(t, result.ReadIDs, numCheckers, "concurrent check %d should see all files", i)
-		}
-	})
-}
-
 func TestEdgeCases(t *testing.T) {
 	t.Run("empty directory check", func(t *testing.T) {
 		tempDir := t.TempDir()
 		dirName := "empty-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: "test-content",
 			},
 			ID: "test-checker",
 		}
@@ -456,8 +266,7 @@ func TestEdgeCases(t *testing.T) {
 		result := checker.Check()
 		expectedDir := filepath.Join(tempDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir) // Explicitly test Dir field
-		assert.Contains(t, result.Error, "expected 1 files, but only 0 files were read")
-		assert.Empty(t, result.ReadIDs)
+		assert.Contains(t, result.Error, "no such file or directory")
 	})
 
 	t.Run("directory with subdirectories", func(t *testing.T) {
@@ -474,11 +283,9 @@ func TestEdgeCases(t *testing.T) {
 
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: "test-content",
 			},
 			ID: "test-checker",
 		}
@@ -490,17 +297,10 @@ func TestEdgeCases(t *testing.T) {
 		err = checker.Write()
 		require.NoError(t, err)
 
-		// Check should work despite subdirectory presence
-		// The check should report an error for trying to read the subdirectory
+		// Check should work fine - it only checks the specific file, not subdirectories
 		result := checker.Check()
 		assert.Equal(t, targetDir, result.Dir) // Explicitly test Dir field
-		// We expect an error about the subdirectory being unreadable
-		assert.Contains(t, result.Error, "failed to read file")
-		assert.Contains(t, result.Error, "subdir")
-		// Since subdir comes first alphabetically, the check fails early and only subdir is in ReadIDs
-		assert.Contains(t, result.ReadIDs, "subdir")
-		// test-checker comes after subdir alphabetically, so it's not processed due to early return
-		assert.NotContains(t, result.ReadIDs, "test-checker")
+		assert.Empty(t, result.Error)          // Should succeed since the file exists and has correct content
 	})
 
 	t.Run("very long file content", func(t *testing.T) {
@@ -510,11 +310,9 @@ func TestEdgeCases(t *testing.T) {
 
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     longContent,
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: longContent,
 			},
 			ID: "long-content-checker",
 		}
@@ -529,37 +327,6 @@ func TestEdgeCases(t *testing.T) {
 		expectedDir := filepath.Join(tempDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir) // Explicitly test Dir field
 		assert.Empty(t, result.Error)
-		assert.Contains(t, result.ReadIDs, "long-content-checker")
-	})
-
-	t.Run("listFilesByPattern error", func(t *testing.T) {
-		tempDir := t.TempDir()
-		dirName := "pattern-error-test-dir"
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
-			},
-			ID: "test-checker",
-		}
-
-		// Create checker with a mock function that returns an error
-		checker := &checker{
-			cfg: cfg,
-			listFilesByPattern: func(pattern string) ([]string, error) {
-				return nil, errors.New("mock glob error")
-			},
-		}
-
-		result := checker.Check()
-		expectedDir := filepath.Join(tempDir, dirName)
-		assert.Equal(t, expectedDir, result.Dir) // Explicitly test Dir field
-		assert.Equal(t, "failed to list files", result.Message)
-		assert.Contains(t, result.Error, "mock glob error")
-		assert.Empty(t, result.ReadIDs)
 	})
 
 	t.Run("write with mkdir error", func(t *testing.T) {
@@ -571,11 +338,9 @@ func TestEdgeCases(t *testing.T) {
 
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       filepath.Join(tempFile.Name(), "subdir"), // This should fail
-				DirName:          "test-dir",
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   filepath.Join(tempFile.Name(), "subdir"), // This should fail
+				DirName:      "test-dir",
+				FileContents: "test-content",
 			},
 			ID: "test-id",
 		}
@@ -601,11 +366,9 @@ func TestEdgeCases(t *testing.T) {
 
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: "test-content",
 			},
 			ID: "test-id", // This conflicts with the directory
 		}
@@ -623,11 +386,9 @@ func TestCheckResult_Dir(t *testing.T) {
 		dirName := "success-dir-test"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: "test-content",
 			},
 			ID: "test-checker",
 		}
@@ -652,11 +413,9 @@ func TestCheckResult_Dir(t *testing.T) {
 		dirName := "error-dir-test"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 5, // Expecting more files than exist
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: "test-content",
 			},
 			ID: "test-checker",
 		}
@@ -670,37 +429,6 @@ func TestCheckResult_Dir(t *testing.T) {
 		expectedDir := filepath.Join(tempDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
 		assert.NotEmpty(t, result.Error) // Should have validation errors
-	})
-
-	t.Run("Dir field set correctly when listFilesByPattern fails", func(t *testing.T) {
-		tempDir := t.TempDir()
-		dirName := "pattern-fail-dir-test"
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
-			},
-			ID: "test-checker",
-		}
-
-		// Create checker with a mock function that returns an error
-		checker := &checker{
-			cfg: cfg,
-			listFilesByPattern: func(pattern string) ([]string, error) {
-				return nil, errors.New("mock pattern error")
-			},
-		}
-
-		result := checker.Check()
-
-		// Dir field should still be set correctly even when glob fails
-		expectedDir := filepath.Join(tempDir, dirName)
-		assert.Equal(t, expectedDir, result.Dir)
-		assert.Equal(t, "failed to list files", result.Message)
-		assert.Contains(t, result.Error, "mock pattern error")
 	})
 
 	t.Run("Dir field with different directory paths", func(t *testing.T) {
@@ -745,11 +473,9 @@ func TestCheckResult_Dir(t *testing.T) {
 
 				cfg := &MemberConfig{
 					Config: Config{
-						VolumePath:       testDir,
-						DirName:          tc.dirName,
-						FileContents:     "test-content",
-						TTLToDelete:      metav1.Duration{Duration: time.Minute},
-						NumExpectedFiles: 1,
+						VolumePath:   testDir,
+						DirName:      tc.dirName,
+						FileContents: "test-content",
 					},
 					ID: "test-checker",
 				}
@@ -775,11 +501,9 @@ func TestCheckResult_Dir(t *testing.T) {
 		dirName := "consistency-dir-test"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:       tempDir,
-				DirName:          dirName,
-				FileContents:     "test-content",
-				TTLToDelete:      metav1.Duration{Duration: time.Minute},
-				NumExpectedFiles: 1,
+				VolumePath:   tempDir,
+				DirName:      dirName,
+				FileContents: "test-content",
 			},
 			ID: "test-checker",
 		}
@@ -824,11 +548,9 @@ func TestCheckResult_Dir(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				cfg := &MemberConfig{
 					Config: Config{
-						VolumePath:       tc.dir,
-						DirName:          tc.dirName,
-						FileContents:     "test-content",
-						TTLToDelete:      metav1.Duration{Duration: time.Minute},
-						NumExpectedFiles: 1,
+						VolumePath:   tc.dir,
+						DirName:      tc.dirName,
+						FileContents: "test-content",
 					},
 					ID: "test-checker",
 				}
