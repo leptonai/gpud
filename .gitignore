@@ -28,3 +28,8 @@ go.work.sum
 .DS_Store
 
 coverage.html
+
+.claude
+CLAUDE.md
+GEMINI.md
+CODEX.md

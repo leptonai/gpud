@@ -127,6 +127,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to create metadata table: %w", err)
 	}
 
+	// by default, we only retain past 24 hours of events
 	eventStore, err := eventstore.New(dbRW, dbRO, 24*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open events database: %w", err)
