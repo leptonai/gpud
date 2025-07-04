@@ -40,16 +40,6 @@ func TestDataGetStatesWithError(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 }
 
-// mockEventStore implements a mock for eventstore.Store
-type mockEventStore struct {
-	mock.Mock
-}
-
-func (m *mockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
-	args := m.Called(name)
-	return args.Get(0).(eventstore.Bucket), args.Error(1)
-}
-
 // mockEventBucket implements a mock for eventstore.Bucket
 type mockEventBucket struct {
 	mock.Mock
