@@ -17,39 +17,35 @@ const (
 	//
 	// ref.
 	// https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
-	RegexNVRMXidKMessage = `NVRM: Xid.*?: (\d+),`
 
-	// Regex to extract PCI device ID from NVRM Xid messages
-	// Matches both formats: (0000:03:00) and (PCI:0000:05:00)
-	RegexNVRMXidDeviceUUID = `NVRM: Xid \(((?:PCI:)?[0-9a-fA-F:]+)\)`
+	// Combined regex to extract both device UUID and Xid error code in one match
+	// Group 1: Device UUID (with or without PCI: prefix)
+	// Group 2: Xid error code
+	RegexNVRMXidCombined = `NVRM: Xid \(((?:PCI:)?[0-9a-fA-F:]+)\).*?: (\d+),`
 )
 
 var (
-	compiledRegexNVRMXidKMessage   = regexp.MustCompile(RegexNVRMXidKMessage)
-	compiledRegexNVRMXidDeviceUUID = regexp.MustCompile(RegexNVRMXidDeviceUUID)
+	compiledRegexNVRMXidCombined = regexp.MustCompile(RegexNVRMXidCombined)
 )
+
+// ExtractNVRMXidInfo extracts both the nvidia Xid error code and device UUID from the dmesg log line.
+// Returns (xidCode, deviceUUID) or (0, "") if not found.
+// https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
+func ExtractNVRMXidInfo(line string) (int, string) {
+	if match := compiledRegexNVRMXidCombined.FindStringSubmatch(line); match != nil {
+		if id, err := strconv.Atoi(match[2]); err == nil {
+			return id, match[1]
+		}
+	}
+	return 0, ""
+}
 
 // ExtractNVRMXid extracts the nvidia Xid error code from the dmesg log line.
 // Returns 0 if the error code is not found.
 // https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
 func ExtractNVRMXid(line string) int {
-	if match := compiledRegexNVRMXidKMessage.FindStringSubmatch(line); match != nil {
-		if id, err := strconv.Atoi(match[1]); err == nil {
-			return id
-		}
-	}
-	return 0
-}
-
-// ExtractNVRMXidDeviceUUID extracts the PCI device ID from the NVRM Xid dmesg log line.
-// For input without "PCI:" prefix, it returns the ID as is.
-// For input with "PCI:" prefix, it returns the full ID including the prefix.
-// Returns empty string if the device ID is not found.
-func ExtractNVRMXidDeviceUUID(line string) string {
-	if match := compiledRegexNVRMXidDeviceUUID.FindStringSubmatch(line); match != nil {
-		return match[1]
-	}
-	return ""
+	id, _ := ExtractNVRMXidInfo(line)
+	return id
 }
 
 type XidError struct {
@@ -65,7 +61,7 @@ func (xidErr *XidError) YAML() ([]byte, error) {
 // Match returns a matching xid error object if found.
 // Otherwise, returns nil.
 func Match(line string) *XidError {
-	extractedID := ExtractNVRMXid(line)
+	extractedID, deviceUUID := ExtractNVRMXidInfo(line)
 	if extractedID == 0 {
 		return nil
 	}
@@ -73,7 +69,6 @@ func Match(line string) *XidError {
 	if !ok {
 		return nil
 	}
-	deviceUUID := ExtractNVRMXidDeviceUUID(line)
 	return &XidError{
 		Xid:        extractedID,
 		DeviceUUID: deviceUUID,
