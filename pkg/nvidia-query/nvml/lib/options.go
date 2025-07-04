@@ -1,7 +1,7 @@
 package lib
 
 import (
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	nvlibdevice "github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
@@ -11,7 +11,7 @@ type Op struct {
 
 	initReturn        *nvml.Return
 	propertyExtractor nvinfo.PropertyExtractor
-	devicesToReturn   []device.Device
+	devicesToReturn   []nvlibdevice.Device
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g055e7c34f7f15b6ae9aac1dabd60870d
 	devGetRemappedRowsForAllDevs func() (corrRows int, uncRows int, isPending bool, failureOccurred bool, ret nvml.Return)
@@ -54,7 +54,7 @@ func WithPropertyExtractor(propertyExtractor nvinfo.PropertyExtractor) OpOption 
 	}
 }
 
-func WithDevice(dev device.Device) OpOption {
+func WithDevice(dev nvlibdevice.Device) OpOption {
 	return func(op *Op) {
 		op.devicesToReturn = append(op.devicesToReturn, dev)
 	}

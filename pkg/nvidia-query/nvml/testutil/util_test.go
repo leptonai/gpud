@@ -46,7 +46,7 @@ func TestMockDevice(t *testing.T) {
 				Architecture:          tt.architecture,
 				Brand:                 tt.brand,
 				CudaComputeCapability: tt.computeCap,
-				PCIBusID:              tt.pciBusID,
+				BusID:                 tt.pciBusID,
 			}
 
 			assert.NotNil(t, mockDevice)
@@ -55,7 +55,7 @@ func TestMockDevice(t *testing.T) {
 			assert.Equal(t, tt.architecture, mockDevice.Architecture)
 			assert.Equal(t, tt.brand, mockDevice.Brand)
 			assert.Equal(t, tt.computeCap, mockDevice.CudaComputeCapability)
-			assert.Equal(t, tt.pciBusID, mockDevice.PCIBusID)
+			assert.Equal(t, tt.pciBusID, mockDevice.BusID)
 
 			// Test device methods
 			arch, err := mockDevice.GetArchitectureAsString()

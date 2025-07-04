@@ -47,6 +47,7 @@ func TestGetECCModeEnabled(t *testing.T) {
 			eccModeRet: nvml.SUCCESS,
 			expectedECCMode: ECCMode{
 				UUID:           "test-uuid",
+				BusID:          "test-pci",
 				EnabledCurrent: true,
 				EnabledPending: true,
 				Supported:      true,
@@ -60,6 +61,7 @@ func TestGetECCModeEnabled(t *testing.T) {
 			eccModeRet: nvml.SUCCESS,
 			expectedECCMode: ECCMode{
 				UUID:           "test-uuid",
+				BusID:          "test-pci",
 				EnabledCurrent: true,
 				EnabledPending: false,
 				Supported:      true,
@@ -73,6 +75,7 @@ func TestGetECCModeEnabled(t *testing.T) {
 			eccModeRet: nvml.SUCCESS,
 			expectedECCMode: ECCMode{
 				UUID:           "test-uuid",
+				BusID:          "test-pci",
 				EnabledCurrent: false,
 				EnabledPending: true,
 				Supported:      true,
@@ -86,6 +89,7 @@ func TestGetECCModeEnabled(t *testing.T) {
 			eccModeRet: nvml.SUCCESS,
 			expectedECCMode: ECCMode{
 				UUID:           "test-uuid",
+				BusID:          "test-pci",
 				EnabledCurrent: false,
 				EnabledPending: false,
 				Supported:      true,
@@ -99,6 +103,7 @@ func TestGetECCModeEnabled(t *testing.T) {
 			eccModeRet: nvml.ERROR_NOT_SUPPORTED,
 			expectedECCMode: ECCMode{
 				UUID:           "test-uuid",
+				BusID:          "test-pci",
 				EnabledCurrent: false,
 				EnabledPending: false,
 				Supported:      false,
@@ -154,6 +159,7 @@ func TestGetECCModeEnabled(t *testing.T) {
 func TestECCModeStruct(t *testing.T) {
 	eccMode := ECCMode{
 		UUID:           "gpu-00000000-0000-0000-0000-000000000000",
+		BusID:          "0000:01:00.0",
 		EnabledCurrent: true,
 		EnabledPending: false,
 		Supported:      true,
@@ -161,6 +167,7 @@ func TestECCModeStruct(t *testing.T) {
 
 	// Verify field values
 	assert.Equal(t, "gpu-00000000-0000-0000-0000-000000000000", eccMode.UUID)
+	assert.Equal(t, "0000:01:00.0", eccMode.BusID)
 	assert.True(t, eccMode.EnabledCurrent)
 	assert.False(t, eccMode.EnabledPending)
 	assert.True(t, eccMode.Supported)

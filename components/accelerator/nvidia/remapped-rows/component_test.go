@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	nvlibdevice "github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	gonvml "github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,7 +21,9 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -93,7 +96,7 @@ func (m *mockLibrary) NVML() gonvml.Interface {
 	return nil
 }
 
-func (m *mockLibrary) Device() device.Interface {
+func (m *mockLibrary) Device() nvlibdevice.Interface {
 	return nil
 }
 
@@ -403,11 +406,14 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 	require.NoError(t, err)
 	defer eventBucket.Close()
 
-	// Create mock device data
+	// Create mock device data using testutil
+	mockDev1 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDev2 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:02:00.0")
+	mockDev3 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:03:00.0")
 	mockDevices := map[string]device.Device{
-		"GPU1": nil, // We don't use the actual device in our test
-		"GPU2": nil,
-		"GPU3": nil,
+		"GPU1": mockDev1,
+		"GPU2": mockDev2,
+		"GPU3": mockDev3,
 	}
 
 	// Create the component with our mock functions
@@ -557,8 +563,9 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	defer eventBucket.Close()
 
 	// Create the component with our mock functions
+	mockDev1 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
 	mockDevices := map[string]device.Device{
-		"GPU1": nil,
+		"GPU1": mockDev1,
 	}
 	getDevicesFunc := func() map[string]device.Device {
 		return mockDevices
@@ -1025,8 +1032,9 @@ func TestStateTransitions(t *testing.T) {
 	defer eventBucket.Close()
 
 	// Setup initial state with 1 GPU
+	mockDev1 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
 	mockDevices := map[string]device.Device{
-		"GPU1": nil,
+		"GPU1": mockDev1,
 	}
 
 	var stateCheckCount int
@@ -1207,8 +1215,9 @@ func TestRemappedRowsThresholds(t *testing.T) {
 	defer eventBucket.Close()
 
 	// Setup with 1 GPU
+	mockDev1 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
 	mockDevices := map[string]device.Device{
-		"GPU1": nil,
+		"GPU1": mockDev1,
 	}
 
 	// Set up NVML instance
@@ -1303,11 +1312,15 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	defer eventBucket.Close()
 
 	// Setup with multiple GPUs
+	mockDev1 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDev2 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:02:00.0")
+	mockDev3 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:03:00.0")
+	mockDev4 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:04:00.0")
 	mockDevices := map[string]device.Device{
-		"GPU1": nil,
-		"GPU2": nil,
-		"GPU3": nil,
-		"GPU4": nil,
+		"GPU1": mockDev1,
+		"GPU2": mockDev2,
+		"GPU3": mockDev3,
+		"GPU4": mockDev4,
 	}
 
 	// Set up NVML instance
@@ -1386,9 +1399,9 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	// Verify component state
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 
-	// Check for both GPU2 and GPU3 issues in the reason
-	assert.Contains(t, data.reason, "GPU2 needs reset")
-	assert.Contains(t, data.reason, "GPU3 qualifies for RMA")
+	// Check for both GPU2 and GPU3 issues in the reason (now uses PCI bus ID)
+	assert.Contains(t, data.reason, "0000:02:00.0 needs reset")
+	assert.Contains(t, data.reason, "0000:03:00.0 qualifies for RMA")
 
 	// Check health states API
 	states := c.LastHealthStates()
@@ -1450,8 +1463,9 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 			eventStore := &mockEventStore{bucket: eventBucket}
 
 			// Setup with 1 GPU
+			mockDev1 := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
 			mockDevices := map[string]device.Device{
-				"GPU1": nil,
+				"GPU1": mockDev1,
 			}
 
 			// Set up NVML instance
@@ -1626,8 +1640,10 @@ func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Create a proper mock device using testutil
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
 	mockDevices := map[string]device.Device{
-		"GPU1": nil,
+		"GPU1": mockDev,
 	}
 	nvmlInstance := &mockNVMLInstance{
 		getDevicesFunc: func() map[string]device.Device { return mockDevices },

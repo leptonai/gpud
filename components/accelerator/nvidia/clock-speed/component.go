@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +17,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 const Name = "accelerator-nvidia-clock-speed"
@@ -183,10 +183,11 @@ func (cr *checkResult) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 
-	table.SetHeader([]string{"GPU UUID", "Graphics MHz", "Memory MHz", "Graphics Supported", "Memory Supported"})
+	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Graphics MHz", "Memory MHz", "Graphics Supported", "Memory Supported"})
 	for _, clockSpeed := range cr.ClockSpeeds {
 		table.Append([]string{
 			clockSpeed.UUID,
+			clockSpeed.BusID,
 			fmt.Sprintf("%d MHz", clockSpeed.GraphicsMHz),
 			fmt.Sprintf("%d MHz", clockSpeed.MemoryMHz),
 			fmt.Sprintf("%t", clockSpeed.ClockGraphicsSupported),

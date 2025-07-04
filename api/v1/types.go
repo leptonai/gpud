@@ -374,26 +374,32 @@ type MachineGPUInfo struct {
 }
 
 type MachineGPUInstance struct {
-	UUID    string `json:"uuid,omitempty"`
+	// UUID is the GPU UUID from the nvml API.
+	// e.g., "GPU-46a3bbe2-3e87-3dde-b464-a03eba0c21d7"
+	UUID string `json:"uuid,omitempty"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"busID,omitempty"`
+
 	SN      string `json:"sn,omitempty"`
 	MinorID string `json:"minorID,omitempty"`
 	BoardID uint32 `json:"boardID,omitempty"`
-	BusID   string `json:"busID,omitempty"`
 }
 
 func (gi *MachineGPUInfo) RenderTable(wr io.Writer) {
 	if len(gi.GPUs) > 0 {
 		table := tablewriter.NewWriter(wr)
 		table.SetAlignment(tablewriter.ALIGN_CENTER)
-		table.SetHeader([]string{"UUID", "SN", "MinorID", "BoardID", "BusID"})
+		table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "SN", "Minor ID", "Board ID"})
 
 		for _, gpu := range gi.GPUs {
 			table.Append([]string{
 				gpu.UUID,
+				gpu.BusID,
 				gpu.SN,
 				gpu.MinorID,
 				strconv.Itoa(int(gpu.BoardID)),
-				gpu.BusID,
 			})
 		}
 

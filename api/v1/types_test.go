@@ -205,7 +205,7 @@ func TestMachineInfo_RenderTable(t *testing.T) {
 				"GPU Driver Version", "470.82.01",
 				"GPU Product", "NVIDIA A100-SXM4-40GB",
 				"Container Root Disk", "/dev/nvme0n1p1",
-				"UUID", "SN", "MINORID",
+				"UUID", "SN", "MINOR ID",
 				"GPU-abc123", "SN12345", "0",
 				"/dev/nvme0n1p1", "part", "ext4", "537 GB", "/",
 			},
@@ -259,7 +259,7 @@ func TestMachineGPUInfo_RenderTable(t *testing.T) {
 					},
 				},
 			},
-			wantContains: []string{"UUID", "SN", "MINORID", "GPU-abc123", "SN12345", "0"},
+			wantContains: []string{"UUID", "SN", "MINOR ID", "GPU-abc123", "SN12345", "0"},
 		},
 		{
 			name: "Multiple GPUs",
@@ -282,7 +282,7 @@ func TestMachineGPUInfo_RenderTable(t *testing.T) {
 				},
 			},
 			wantContains: []string{
-				"UUID", "SN", "MINORID",
+				"UUID", "SN", "MINOR ID",
 				"GPU-abc123", "SN12345", "0",
 				"GPU-def456", "SN67890", "1",
 			},

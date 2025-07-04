@@ -4,9 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 // Mock device implementation
@@ -21,6 +22,7 @@ type mockDevice struct {
 	crcErrors         uint64
 	crcErrorsErr      nvml.Return
 	fieldValuesErr    nvml.Return
+	busID             string
 }
 
 func (m *mockDevice) GetNvLinkState(link int) (nvml.EnableState, nvml.Return) {
@@ -38,6 +40,10 @@ func (m *mockDevice) GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCou
 	default:
 		return 0, nvml.ERROR_UNKNOWN
 	}
+}
+
+func (m *mockDevice) PCIBusID() string {
+	return m.busID
 }
 
 // TestNVLinkStatesAllFeatureEnabled tests the AllFeatureEnabled method
@@ -144,6 +150,7 @@ func TestGetNVLink(t *testing.T) {
 				crcErrors:         30,
 				crcErrorsErr:      nvml.SUCCESS,
 				fieldValuesErr:    nvml.SUCCESS,
+				busID:             "test-pci",
 			},
 			expectedSupported:      true,
 			expectedStatesCount:    nvml.NVLINK_MAX_LINKS,
@@ -156,6 +163,7 @@ func TestGetNVLink(t *testing.T) {
 			name: "NVLink not supported",
 			mockDev: &mockDevice{
 				nvLinkStateErr: nvml.ERROR_NOT_SUPPORTED,
+				busID:          "test-pci",
 			},
 			expectedSupported:   false,
 			expectedStatesCount: 0,
@@ -172,6 +180,7 @@ func TestGetNVLink(t *testing.T) {
 				crcErrors:         0,
 				crcErrorsErr:      nvml.SUCCESS,
 				fieldValuesErr:    nvml.SUCCESS,
+				busID:             "test-pci",
 			},
 			expectedSupported:   true,
 			expectedStatesCount: 0,
@@ -180,6 +189,7 @@ func TestGetNVLink(t *testing.T) {
 			name: "GPU lost error",
 			mockDev: &mockDevice{
 				nvLinkStateErr: nvml.ERROR_GPU_IS_LOST,
+				busID:          "test-pci",
 			},
 			expectedSupported:     false,
 			expectedStatesCount:   0,

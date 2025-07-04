@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 // Name is the ID of the remapped rows component.
@@ -174,7 +174,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting remapped rows"
-			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "uuid", uuid, "pciBusID", dev.PCIBusID(), "error", cr.err)
 			continue
 		}
 		cr.RemappedRows = append(cr.RemappedRows, remappedRows)
@@ -216,7 +216,7 @@ func (c *component) Check() components.CheckResult {
 			if cr.err != nil {
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error inserting event for remapping pending"
-				log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
+				log.Logger.Warnw(cr.reason, "uuid", uuid, "pciBusID", dev.PCIBusID(), "error", cr.err)
 			}
 		}
 
@@ -243,15 +243,15 @@ func (c *component) Check() components.CheckResult {
 			if cr.err != nil {
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error inserting event for remapping failed"
-				log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
+				log.Logger.Warnw(cr.reason, "uuid", uuid, "pciBusID", dev.PCIBusID(), "error", cr.err)
 			}
 		}
 
 		if remappedRows.QualifiesForRMA() {
-			issues = append(issues, fmt.Sprintf("%s qualifies for RMA (row remapping failed, remapped due to %d uncorrectable error(s))", uuid, remappedRows.RemappedDueToUncorrectableErrors))
+			issues = append(issues, fmt.Sprintf("%s qualifies for RMA (row remapping failed, remapped due to %d uncorrectable error(s))", dev.PCIBusID(), remappedRows.RemappedDueToUncorrectableErrors))
 		}
 		if remappedRows.RequiresReset() {
-			issues = append(issues, fmt.Sprintf("%s needs reset (detected pending row remapping)", uuid))
+			issues = append(issues, fmt.Sprintf("%s needs reset (detected pending row remapping)", dev.PCIBusID()))
 		}
 	}
 
@@ -305,10 +305,11 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"GPU UUID", "Remapped due to correctable errors", "Remapped due to uncorrectable errors", "Remapping pending", "Remapping failed"})
+	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Remapped due to correctable errors", "Remapped due to uncorrectable errors", "Remapping pending", "Remapping failed"})
 	for _, remappedRows := range cr.RemappedRows {
 		table.Append([]string{
 			remappedRows.UUID,
+			remappedRows.BusID,
 			fmt.Sprintf("%d", remappedRows.RemappedDueToCorrectableErrors),
 			fmt.Sprintf("%d", remappedRows.RemappedDueToUncorrectableErrors),
 			fmt.Sprintf("%v", remappedRows.RemappingPending),

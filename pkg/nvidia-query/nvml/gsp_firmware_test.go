@@ -27,6 +27,7 @@ func TestGetGSPFirmwareMode(t *testing.T) {
 			gspFirmwareRet: nvml.SUCCESS,
 			expectedGSPFirmware: GSPFirmwareMode{
 				UUID:      "test-uuid",
+				BusID:     "test-pci",
 				Enabled:   true,
 				Supported: true,
 			},
@@ -39,6 +40,7 @@ func TestGetGSPFirmwareMode(t *testing.T) {
 			gspFirmwareRet: nvml.SUCCESS,
 			expectedGSPFirmware: GSPFirmwareMode{
 				UUID:      "test-uuid",
+				BusID:     "test-pci",
 				Enabled:   false,
 				Supported: true,
 			},
@@ -51,6 +53,7 @@ func TestGetGSPFirmwareMode(t *testing.T) {
 			gspFirmwareRet: nvml.ERROR_NOT_SUPPORTED,
 			expectedGSPFirmware: GSPFirmwareMode{
 				UUID:      "test-uuid",
+				BusID:     "test-pci",
 				Enabled:   false,
 				Supported: false,
 			},

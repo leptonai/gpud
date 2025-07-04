@@ -1,9 +1,11 @@
 package testutil
 
 import (
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	nvlibdevice "github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 var _ device.Device = (*MockDevice)(nil)
@@ -13,7 +15,7 @@ type MockDevice struct {
 	Architecture          string
 	Brand                 string
 	CudaComputeCapability string
-	PCIBusID              string
+	BusID                 string
 	Serial                string
 	MinorNumber           int
 	BoardID               uint32
@@ -31,7 +33,7 @@ func NewMockDeviceWithIDs(device *mock.Device, architecture, brand, cudaComputeC
 		Architecture:          architecture,
 		Brand:                 brand,
 		CudaComputeCapability: cudaComputeCapability,
-		PCIBusID:              pciBusID,
+		BusID:                 pciBusID,
 		Serial:                serial,
 		MinorNumber:           minorNumber,
 		BoardID:               boardID,
@@ -50,16 +52,16 @@ func (d *MockDevice) GetCudaComputeCapabilityAsString() (string, error) {
 	return d.CudaComputeCapability, nil
 }
 
-func (d *MockDevice) GetMigDevices() ([]device.MigDevice, error) {
+func (d *MockDevice) GetMigDevices() ([]nvlibdevice.MigDevice, error) {
 	return nil, nil
 }
 
-func (d *MockDevice) GetMigProfiles() ([]device.MigProfile, error) {
+func (d *MockDevice) GetMigProfiles() ([]nvlibdevice.MigProfile, error) {
 	return nil, nil
 }
 
 func (d *MockDevice) GetPCIBusID() (string, error) {
-	return d.PCIBusID, nil
+	return d.BusID, nil
 }
 
 func (d *MockDevice) GetSerial() (string, nvml.Return) {
@@ -86,10 +88,14 @@ func (d *MockDevice) IsMigEnabled() (bool, error) {
 	return false, nil
 }
 
-func (d *MockDevice) VisitMigDevices(func(j int, m device.MigDevice) error) error {
+func (d *MockDevice) VisitMigDevices(func(j int, m nvlibdevice.MigDevice) error) error {
 	return nil
 }
 
-func (d *MockDevice) VisitMigProfiles(func(p device.MigProfile) error) error {
+func (d *MockDevice) VisitMigProfiles(func(p nvlibdevice.MigProfile) error) error {
 	return nil
+}
+
+func (d *MockDevice) PCIBusID() string {
+	return d.BusID
 }

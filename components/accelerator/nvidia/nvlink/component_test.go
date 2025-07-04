@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +15,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
@@ -450,6 +450,7 @@ func TestData_String(t *testing.T) {
 				NVLinks: []nvidianvml.NVLink{
 					{
 						UUID:      "gpu-uuid-123",
+						BusID:     "0000:01:00.0",
 						Supported: true,
 						States: []nvidianvml.NVLinkState{
 							{
@@ -460,7 +461,7 @@ func TestData_String(t *testing.T) {
 					},
 				},
 			},
-			contains: "UUID",
+			contains: "gpu-uuid-123",
 		},
 	}
 
@@ -472,7 +473,6 @@ func TestData_String(t *testing.T) {
 			}
 			if tt.contains != "" {
 				assert.Contains(t, got, tt.contains)
-				assert.Contains(t, got, "gpu-uuid-123")
 			}
 		})
 	}

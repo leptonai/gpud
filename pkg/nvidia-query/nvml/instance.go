@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
@@ -147,7 +147,8 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) 
 	productName := ""
 	archFamily := ""
 	brand := ""
-	dm := make(map[string]device.Device)
+
+	devs := make(map[string]device.Device)
 	if len(devices) > 0 {
 		name, ret := devices[0].GetName()
 		if ret != nvml.SUCCESS {
@@ -155,24 +156,30 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) 
 		}
 		productName = name
 
-		var err error
-
-		archFamily, err = GetArchFamily(devices[0])
-		if err != nil {
-			return nil, err
-		}
-
-		brand, err = GetBrand(devices[0])
-		if err != nil {
-			return nil, err
-		}
-
 		for _, dev := range devices {
 			uuid, ret := dev.GetUUID()
 			if ret != nvml.SUCCESS {
 				return nil, fmt.Errorf("failed to get device uuid: %v", nvml.ErrorString(ret))
 			}
-			dm[uuid] = dev
+			busID, err := dev.GetPCIBusID()
+			if err != nil {
+				return nil, err
+			}
+
+			devs[uuid] = device.New(dev, busID)
+		}
+
+		var err error
+		for _, dev := range devs {
+			archFamily, err = GetArchFamily(dev)
+			if err != nil {
+				return nil, err
+			}
+
+			brand, err = GetBrand(dev)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -186,7 +193,7 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) 
 		driverVersion:        driverVersion,
 		driverMajor:          driverMajor,
 		cudaVersion:          cudaVersion,
-		devices:              dm,
+		devices:              devs,
 		sanitizedProductName: SanitizeProductName(productName),
 		architecture:         archFamily,
 		brand:                brand,

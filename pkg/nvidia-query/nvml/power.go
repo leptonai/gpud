@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 type Power struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"bus_id"`
 
 	UsageMilliWatts           uint32 `json:"usage_milli_watts"`
 	EnforcedLimitMilliWatts   uint32 `json:"enforced_limit_milli_watts"`
@@ -29,7 +33,8 @@ func (power Power) GetUsedPercent() (float64, error) {
 
 func GetPower(uuid string, dev device.Device) (Power, error) {
 	power := Power{
-		UUID: uuid,
+		UUID:  uuid,
+		BusID: dev.PCIBusID(),
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7ef7dff0ff14238d08a19ad7fb23fc87

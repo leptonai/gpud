@@ -3,8 +3,8 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 // PersistenceMode is the persistence mode of the device.
@@ -24,6 +24,7 @@ import (
 // Or run "nvidia-smi -pm 1" to enable persistence mode.
 type PersistenceMode struct {
 	UUID    string `json:"uuid"`
+	BusID   string `json:"bus_id"`
 	Enabled bool   `json:"enabled"`
 	// Supported is true if the persistence mode is supported by the device.
 	Supported bool `json:"supported"`
@@ -32,6 +33,7 @@ type PersistenceMode struct {
 func GetPersistenceMode(uuid string, dev device.Device) (PersistenceMode, error) {
 	mode := PersistenceMode{
 		UUID:      uuid,
+		BusID:     dev.PCIBusID(),
 		Supported: true,
 	}
 

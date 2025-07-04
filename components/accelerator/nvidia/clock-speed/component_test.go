@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,6 +14,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
@@ -140,6 +140,7 @@ func TestData_String(t *testing.T) {
 		ClockSpeeds: []nvidianvml.ClockSpeed{
 			{
 				UUID:                   "test-uuid-1",
+				BusID:                  "0000:01:00.0",
 				GraphicsMHz:            1000,
 				MemoryMHz:              2000,
 				ClockGraphicsSupported: true,
@@ -147,6 +148,7 @@ func TestData_String(t *testing.T) {
 			},
 			{
 				UUID:                   "test-uuid-2",
+				BusID:                  "0000:02:00.0",
 				GraphicsMHz:            1500,
 				MemoryMHz:              3000,
 				ClockGraphicsSupported: false,
@@ -157,9 +159,11 @@ func TestData_String(t *testing.T) {
 
 	str = dataWithClockSpeeds.String()
 	assert.Contains(t, str, "test-uuid-1")
+	assert.Contains(t, str, "0000:01:00.0")
 	assert.Contains(t, str, "1000 MHz")
 	assert.Contains(t, str, "2000 MHz")
 	assert.Contains(t, str, "test-uuid-2")
+	assert.Contains(t, str, "0000:02:00.0")
 	assert.Contains(t, str, "1500 MHz")
 	assert.Contains(t, str, "3000 MHz")
 }

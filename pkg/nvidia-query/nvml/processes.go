@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/dustin/go-humanize"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	"github.com/shirou/gopsutil/v4/process"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -22,6 +22,10 @@ import (
 type Processes struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"bus_id"`
 
 	// A list of running processes.
 	RunningProcesses []Process `json:"running_processes"`
@@ -60,7 +64,9 @@ func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 
 func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32) (*process.Process, error)) (Processes, error) {
 	procs := Processes{
-		UUID:                                uuid,
+		UUID:  uuid,
+		BusID: dev.PCIBusID(),
+
 		GetComputeRunningProcessesSupported: true,
 		GetProcessUtilizationSupported:      true,
 	}

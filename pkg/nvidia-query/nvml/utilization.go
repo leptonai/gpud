@@ -3,8 +3,8 @@ package nvml
 import (
 	"fmt"
 
-	"github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 // Utilization represents the data from the nvmlDeviceGetUtilizationRates API.
@@ -16,6 +16,10 @@ import (
 type Utilization struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
+
+	// BusID is the GPU bus ID from the nvml API.
+	//  e.g., "0000:0f:00.0"
+	BusID string `json:"bus_id"`
 
 	// Percent of time over the past sample period during which one or more kernels was executing on the GPU.
 	GPUUsedPercent uint32 `json:"gpu_used_percent"`
@@ -29,6 +33,7 @@ type Utilization struct {
 func GetUtilization(uuid string, dev device.Device) (Utilization, error) {
 	util := Utilization{
 		UUID:      uuid,
+		BusID:     dev.PCIBusID(),
 		Supported: true,
 	}
 
