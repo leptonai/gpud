@@ -174,8 +174,8 @@ func (t *table) Find(ctx context.Context, ev Event) (*Event, error) {
 }
 
 // Get queries the event in the descending order of timestamp (latest event first).
-func (t *table) Get(ctx context.Context, since time.Time) (Events, error) {
-	return getEvents(ctx, t.dbRO, t.table, since)
+func (t *table) Get(ctx context.Context, since time.Time, opts ...OpOption) (Events, error) {
+	return getEvents(ctx, t.dbRO, t.table, since, opts...)
 }
 
 // Latest queries the latest event, returns nil if no event found.
@@ -314,17 +314,36 @@ SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 }
 
 // Returns the event in the descending order of timestamp (latest event first).
-func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) (Events, error) {
-	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
-FROM %s
-WHERE %s > ?
-ORDER BY %s DESC`,
+func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time, opts ...OpOption) (Events, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf("SELECT %s, %s, %s, %s, %s FROM %s WHERE %s > ?",
 		columnTimestamp, columnName, columnType, columnMessage, columnExtraInfo,
 		tableName,
 		columnTimestamp,
-		columnTimestamp,
 	)
 	params := []any{since.UTC().Unix()}
+
+	if len(op.eventNamesToSelect) > 0 {
+		placeholders := make([]string, 0, len(op.eventNamesToSelect))
+		for eventName := range op.eventNamesToSelect {
+			placeholders = append(placeholders, "?")
+			params = append(params, eventName)
+		}
+		query += fmt.Sprintf(" AND %s IN (%s)", columnName, strings.Join(placeholders, ","))
+	}
+	if len(op.eventNamesToExclude) > 0 {
+		placeholders := make([]string, 0, len(op.eventNamesToExclude))
+		for eventName := range op.eventNamesToExclude {
+			placeholders = append(placeholders, "?")
+			params = append(params, eventName)
+		}
+		query += fmt.Sprintf(" AND %s NOT IN (%s)", columnName, strings.Join(placeholders, ","))
+	}
+	query += fmt.Sprintf(" ORDER BY %s DESC", columnTimestamp)
 
 	start := time.Now()
 	rows, err := db.QueryContext(ctx, query, params...)

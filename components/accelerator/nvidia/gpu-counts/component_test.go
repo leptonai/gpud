@@ -15,7 +15,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
+	hostevents "github.com/leptonai/gpud/pkg/host/events"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
@@ -79,20 +79,20 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
-// mockRebootEventStore implements pkghost.RebootEventStore for testing
+// mockRebootEventStore implements hostevents.RebootEventStore for testing
 type mockRebootEventStore struct {
 	events eventstore.Events
 	err    error
 }
 
-// Ensure mockRebootEventStore implements pkghost.RebootEventStore
-var _ pkghost.RebootEventStore = (*mockRebootEventStore)(nil)
+// Ensure mockRebootEventStore implements hostevents.RebootEventStore
+var _ hostevents.RebootsStore = (*mockRebootEventStore)(nil)
 
-func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *mockRebootEventStore) Record(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockRebootEventStore) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -134,7 +134,7 @@ func (m *mockEventBucket) Find(ctx context.Context, ev eventstore.Event) (*event
 	return m.foundEvent, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time, opts ...eventstore.OpOption) (eventstore.Events, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}

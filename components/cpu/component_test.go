@@ -41,7 +41,7 @@ func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time, opts ...eventstore.OpOption) (eventstore.Events, error) {
 	args := m.Called(ctx, since)
 	return args.Get(0).(eventstore.Events), args.Error(1)
 }
