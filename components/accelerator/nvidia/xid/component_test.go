@@ -13,7 +13,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
+	hostevents "github.com/leptonai/gpud/pkg/host/events"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
@@ -168,7 +168,7 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	rebootEventStore := hostevents.NewRebootsStore(store)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -206,7 +206,7 @@ func TestXIDComponent_Events(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	rebootEventStore := hostevents.NewRebootsStore(store)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -274,7 +274,7 @@ func TestXIDComponent_States(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	rebootEventStore := hostevents.NewRebootsStore(store)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -549,7 +549,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	rebootEventStore := hostevents.NewRebootsStore(store)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -910,7 +910,7 @@ func TestHandleEventChannel(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	rebootEventStore := hostevents.NewRebootsStore(store)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,

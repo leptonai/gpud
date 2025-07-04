@@ -40,32 +40,32 @@ func TestDataGetStatesWithError(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 }
 
-// MockEventStore implements a mock for eventstore.Store
-type MockEventStore struct {
+// mockEventStore implements a mock for eventstore.Store
+type mockEventStore struct {
 	mock.Mock
 }
 
-func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *mockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
 	args := m.Called(name)
 	return args.Get(0).(eventstore.Bucket), args.Error(1)
 }
 
-// MockEventBucket implements a mock for eventstore.Bucket
-type MockEventBucket struct {
+// mockEventBucket implements a mock for eventstore.Bucket
+type mockEventBucket struct {
 	mock.Mock
 }
 
-func (m *MockEventBucket) Name() string {
+func (m *mockEventBucket) Name() string {
 	args := m.Called()
 	return args.String(0)
 }
 
-func (m *MockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
+func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
 
-func (m *MockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
+func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	args := m.Called(ctx, event)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -73,12 +73,12 @@ func (m *MockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time, opts ...eventstore.OpOption) (eventstore.Events, error) {
 	args := m.Called(ctx, since)
 	return args.Get(0).(eventstore.Events), args.Error(1)
 }
 
-func (m *MockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -86,12 +86,12 @@ func (m *MockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error)
 	return args.Get(0).(*eventstore.Event), args.Error(1)
 }
 
-func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
 	args := m.Called(ctx, beforeTimestamp)
 	return args.Int(0), args.Error(1)
 }
 
-func (m *MockEventBucket) Close() {
+func (m *mockEventBucket) Close() {
 	m.Called()
 }
 
@@ -106,7 +106,7 @@ func (m *MockKmsgSyncer) Close() error {
 }
 
 func TestComponentName(t *testing.T) {
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	c := &component{
 		eventBucket: mockEventBucket,
 	}
@@ -128,7 +128,7 @@ func TestTags(t *testing.T) {
 
 func TestComponentStates(t *testing.T) {
 	// Setup
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 
 	c := &component{
 		ctx:         context.Background(),
@@ -162,7 +162,7 @@ func TestComponentStates(t *testing.T) {
 
 func TestComponentEvents(t *testing.T) {
 	// Setup
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	testTime := time.Now()
 	testEvents := eventstore.Events{
 		{
@@ -194,7 +194,7 @@ func TestComponentEvents(t *testing.T) {
 
 func TestComponentCheckOnce(t *testing.T) {
 	// Setup mocks
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 
 	// Mock virtual memory function
 	mockVMStat := &mem.VirtualMemoryStat{
@@ -249,7 +249,7 @@ func TestComponentCheckOnce(t *testing.T) {
 
 func TestComponentCheckOnceWithVMError(t *testing.T) {
 	// Setup mocks
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	testError := errors.New("virtual memory error")
 
 	// Mock virtual memory function with error
@@ -278,7 +278,7 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 
 func TestComponentCheckOnceWithBPFError(t *testing.T) {
 	// Setup mocks
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	testError := errors.New("BPF JIT buffer error")
 
 	// Mock virtual memory function
@@ -320,7 +320,7 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	mockEventBucket := new(MockEventBucket)
+	mockEventBucket := new(mockEventBucket)
 	mockEventBucket.On("Close").Return()
 
 	mockKmsg := new(MockKmsgSyncer)

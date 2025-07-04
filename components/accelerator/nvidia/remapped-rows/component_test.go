@@ -55,7 +55,7 @@ func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time, opts ...eventstore.OpOption) (eventstore.Events, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

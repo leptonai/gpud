@@ -455,7 +455,7 @@ func (b *eventWrapperBucket) Insert(ctx context.Context, ev eventstore.Event) er
 	return b.wrapped.Insert(ctx, ev)
 }
 
-func (b *eventWrapperBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (b *eventWrapperBucket) Get(ctx context.Context, since time.Time, opts ...eventstore.OpOption) (eventstore.Events, error) {
 	if b.getFn != nil {
 		return b.getFn(ctx, since)
 	}

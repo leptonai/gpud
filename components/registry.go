@@ -10,7 +10,7 @@ import (
 
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
+	hostevents "github.com/leptonai/gpud/pkg/host/events"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -36,7 +36,7 @@ type GPUdInstance struct {
 	DBRO *sql.DB
 
 	EventStore       eventstore.Store
-	RebootEventStore pkghost.RebootEventStore
+	RebootEventStore hostevents.RebootsStore
 
 	MountPoints  []string
 	MountTargets []string

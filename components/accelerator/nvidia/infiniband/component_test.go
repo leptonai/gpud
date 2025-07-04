@@ -246,7 +246,7 @@ func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) er
 	return nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time, opts ...eventstore.OpOption) (eventstore.Events, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -2132,7 +2132,7 @@ type mockEventBucketWithGetError struct {
 	getError error
 }
 
-func (m *mockEventBucketWithGetError) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucketWithGetError) Get(ctx context.Context, since time.Time, opts ...eventstore.OpOption) (eventstore.Events, error) {
 	if m.getError != nil {
 		return nil, m.getError
 	}

@@ -38,6 +38,7 @@ import (
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	hostevents "github.com/leptonai/gpud/pkg/host/events"
 	"github.com/leptonai/gpud/pkg/httputil"
 	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/log"
@@ -133,11 +134,11 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to open events database: %w", err)
 	}
 
-	rebootEventStore := pkghost.NewRebootEventStore(eventStore)
+	rebootEventStore := hostevents.NewRebootsStore(eventStore)
 
 	// only record once when we create the server instance
 	cctx, ccancel := context.WithTimeout(ctx, time.Minute)
-	err = rebootEventStore.RecordReboot(cctx)
+	err = rebootEventStore.Record(cctx)
 	ccancel()
 	if err != nil {
 		log.Logger.Errorw("failed to record reboot", "error", err)

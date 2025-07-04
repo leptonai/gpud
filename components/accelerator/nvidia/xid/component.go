@@ -22,7 +22,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
+	hostevents "github.com/leptonai/gpud/pkg/host/events"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -50,7 +50,7 @@ type component struct {
 
 	nvmlInstance nvidianvml.Instance
 
-	rebootEventStore pkghost.RebootEventStore
+	rebootEventStore hostevents.RebootsStore
 	eventBucket      eventstore.Bucket
 	kmsgWatcher      kmsg.Watcher
 
@@ -458,7 +458,7 @@ func (c *component) updateCurrentState() error {
 	}
 
 	var rebootErr string
-	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, time.Now().Add(-DefaultRetentionPeriod))
+	rebootEvents, err := c.rebootEventStore.Get(c.ctx, time.Now().Add(-DefaultRetentionPeriod))
 	if err != nil {
 		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
 		log.Logger.Errorw("failed to get reboot events", "error", err)

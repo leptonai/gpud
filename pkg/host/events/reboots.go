@@ -1,4 +1,4 @@
-package host
+package events
 
 import (
 	"context"
@@ -8,57 +8,60 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
 const (
-	EventBucketName = "os"
-	EventNameReboot = "reboot"
+	// RebootBucketName is the bucket name for the reboot events.
+	// For historical reasons, we use the same bucket name as the "os" component.
+	RebootBucketName = "os"
+
+	// RebootEventName is the event name for the reboot events.
+	RebootEventName = "reboot"
 )
 
-// RebootEventStore is the interface for the reboot event store.
+// RebootsStore is the interface for the reboot event store.
 // It is used to record and query reboot events.
-type RebootEventStore interface {
-	// RecordReboot records a reboot event, with the event name [EventNameReboot],
-	// in the bucket [EventBucketName].
-	RecordReboot(ctx context.Context) error
+type RebootsStore interface {
+	// Record records a reboot event, with the event name [RebootEventName],
+	// in the bucket [RebootBucketName].
+	Record(ctx context.Context) error
 
-	// GetRebootEvents queries all "reboot" events and if any extra buckets are provided,
+	// Get queries all "reboot" events and if any extra buckets are provided,
 	// it will also query the events from the extra buckets, with the same since time.
 	// The returned events do NOT include other events from the "os" component (e.g., kmsg watcher).
 	// The returned events are in the descending order of timestamp (latest event first).
-	GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error)
+	Get(ctx context.Context, since time.Time) (eventstore.Events, error)
 }
 
-var _ RebootEventStore = &rebootEventStore{}
+var _ RebootsStore = &rebootsStore{}
 
-type rebootEventStore struct {
+type rebootsStore struct {
+	getTimeNowFunc    func() time.Time
 	getLastRebootTime func(context.Context) (time.Time, error)
 	eventStore        eventstore.Store
 }
 
-func NewRebootEventStore(eventStore eventstore.Store) RebootEventStore {
-	return &rebootEventStore{
-		getLastRebootTime: LastReboot,
+func NewRebootsStore(eventStore eventstore.Store) RebootsStore {
+	return &rebootsStore{
+		getTimeNowFunc:    func() time.Time { return time.Now().UTC() },
+		getLastRebootTime: host.LastReboot,
 		eventStore:        eventStore,
 	}
 }
 
-func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
-	return recordEvent(ctx, s.eventStore, time.Now().UTC(), s.getLastRebootTime)
+func (s *rebootsStore) Record(ctx context.Context) error {
+	return recordEvent(ctx, s.eventStore, s.getTimeNowFunc(), s.getLastRebootTime)
 }
 
-func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
-	return getEvents(ctx, s.eventStore, since)
-}
-
-func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now time.Time, getLastRebootTime func(context.Context) (time.Time, error)) error {
+func recordEvent(ctx context.Context, eventStore eventstore.Store, now time.Time, getLastRebootTime func(context.Context) (time.Time, error)) error {
 	currentBootTime, err := getLastRebootTime(ctx)
 	if err != nil {
 		return err
 	}
 
-	// if now - event time > retention, then skip
+	// if now - event time > retention (too old), then skip
 	if now.Sub(currentBootTime) >= eventstore.DefaultRetention {
 		log.Logger.Debugw("skipping reboot event", "time_since", time.Since(currentBootTime), "retention", eventstore.DefaultRetention)
 		return nil
@@ -66,12 +69,12 @@ func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now tim
 
 	curRebootEvent := eventstore.Event{
 		Time:    currentBootTime,
-		Name:    EventNameReboot,
+		Name:    RebootEventName,
 		Type:    string(apiv1.EventTypeWarning),
 		Message: fmt.Sprintf("system reboot detected %v", currentBootTime),
 	}
 
-	bucket, err := rebootEventStore.Bucket(EventBucketName, eventstore.WithDisablePurge())
+	bucket, err := eventStore.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 	if err != nil {
 		return err
 	}
@@ -113,8 +116,12 @@ func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now tim
 	return bucket.Insert(ctx, curRebootEvent)
 }
 
+func (s *rebootsStore) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+	return getEvents(ctx, s.eventStore, since)
+}
+
 func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) (eventstore.Events, error) {
-	rebootBucket, err := eventStore.Bucket(EventBucketName, eventstore.WithDisablePurge())
+	rebootBucket, err := eventStore.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +138,7 @@ func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time
 	all := make(eventstore.Events, 0, len(allOSEvents)/2)
 	for _, ev := range allOSEvents {
 		// The returned events should NOT include other events from the "os" component (e.g., kmsg watcher).
-		if ev.Name != EventNameReboot {
+		if ev.Name != RebootEventName {
 			continue
 		}
 		all = append(all, ev)

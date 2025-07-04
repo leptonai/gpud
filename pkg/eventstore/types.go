@@ -2,11 +2,16 @@ package eventstore
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+)
+
+var (
+	ErrEventNamesToSelectAndExclude = errors.New("cannot use both event names to select/exclude")
 )
 
 type Events []Event
@@ -62,7 +67,7 @@ type Bucket interface {
 	// Find returns nil if the event is not found.
 	Find(ctx context.Context, ev Event) (*Event, error)
 	// Get queries the event in the descending order of timestamp (latest event first).
-	Get(ctx context.Context, since time.Time) (Events, error)
+	Get(ctx context.Context, since time.Time, opts ...OpOption) (Events, error)
 	// Latest queries the latest event, returns nil if no event found.
 	Latest(ctx context.Context) (*Event, error)
 	Purge(ctx context.Context, beforeTimestamp int64) (int, error)
@@ -70,7 +75,9 @@ type Bucket interface {
 }
 
 type Op struct {
-	disablePurge bool
+	disablePurge        bool
+	eventNamesToSelect  map[string]any
+	eventNamesToExclude map[string]any
 }
 
 type OpOption func(*Op)
@@ -78,6 +85,9 @@ type OpOption func(*Op)
 func (op *Op) applyOpts(opts []OpOption) error {
 	for _, opt := range opts {
 		opt(op)
+	}
+	if len(op.eventNamesToSelect) > 0 && len(op.eventNamesToExclude) > 0 {
+		return ErrEventNamesToSelectAndExclude
 	}
 
 	return nil
@@ -88,5 +98,35 @@ func (op *Op) applyOpts(opts []OpOption) error {
 func WithDisablePurge() OpOption {
 	return func(op *Op) {
 		op.disablePurge = true
+	}
+}
+
+// WithEventNamesToSelect specifies the event names to select from the query.
+// This is useful when a bucket/table contains multiple event names,
+// and we want to select only a subset of them.
+// e.g., select only "reboot" events from the "os" bucket.
+func WithEventNamesToSelect(eventNames ...string) OpOption {
+	return func(op *Op) {
+		if op.eventNamesToSelect == nil {
+			op.eventNamesToSelect = make(map[string]any)
+		}
+		for _, eventName := range eventNames {
+			op.eventNamesToSelect[eventName] = true
+		}
+	}
+}
+
+// WithEventNamesToExclude specifies the event names to exclude from the query.
+// This is useful when a bucket/table contains multiple event names,
+// and we want to exclude a subset of them.
+// e.g., exclude "reboot" events from the "os" bucket.
+func WithEventNamesToExclude(eventNames ...string) OpOption {
+	return func(op *Op) {
+		if op.eventNamesToExclude == nil {
+			op.eventNamesToExclude = make(map[string]any)
+		}
+		for _, eventName := range eventNames {
+			op.eventNamesToExclude[eventName] = true
+		}
 	}
 }

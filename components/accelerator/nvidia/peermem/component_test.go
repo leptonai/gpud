@@ -117,7 +117,7 @@ func (m *mockEventBucket) Find(ctx context.Context, ev eventstore.Event) (*event
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(ctx context.Context, since time.Time, opts ...eventstore.OpOption) (eventstore.Events, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.closed {
