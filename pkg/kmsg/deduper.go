@@ -8,12 +8,19 @@ import (
 )
 
 const (
-	defaultCacheExpiration    = 15 * time.Minute
-	defaultCachePurgeInterval = 30 * time.Minute
+	// round down to the nearest minute
+	defaultCacheKeyTruncateSeconds = 60
+	defaultCacheExpiration         = 15 * time.Minute
+	defaultCachePurgeInterval      = 30 * time.Minute
 )
 
 func (m Message) cacheKey() string {
-	return fmt.Sprintf("%d-%s", m.Timestamp.Unix(), m.Message)
+	unixSeconds := m.Timestamp.Unix()
+
+	// round down to the nearest minute
+	truncated := unixSeconds - (unixSeconds % defaultCacheKeyTruncateSeconds)
+
+	return fmt.Sprintf("%d-%s", truncated, m.Message)
 }
 
 // caches the log lines and its frequencies
