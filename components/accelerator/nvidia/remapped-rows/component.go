@@ -305,9 +305,10 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"GPU Bus ID", "Remapped due to correctable errors", "Remapped due to uncorrectable errors", "Remapping pending", "Remapping failed"})
+	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Remapped due to correctable errors", "Remapped due to uncorrectable errors", "Remapping pending", "Remapping failed"})
 	for _, remappedRows := range cr.RemappedRows {
 		table.Append([]string{
+			remappedRows.UUID,
 			remappedRows.BusID,
 			fmt.Sprintf("%d", remappedRows.RemappedDueToCorrectableErrors),
 			fmt.Sprintf("%d", remappedRows.RemappedDueToUncorrectableErrors),

@@ -189,9 +189,9 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"Bus ID", "NVLink Enabled", "NVLink Supported"})
+	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "NVLink Enabled", "NVLink Supported"})
 	for _, nvlink := range cr.NVLinks {
-		table.Append([]string{nvlink.BusID, fmt.Sprintf("%t", nvlink.States.AllFeatureEnabled()), fmt.Sprintf("%t", nvlink.Supported)})
+		table.Append([]string{nvlink.UUID, nvlink.BusID, fmt.Sprintf("%t", nvlink.States.AllFeatureEnabled()), fmt.Sprintf("%t", nvlink.Supported)})
 	}
 	table.Render()
 

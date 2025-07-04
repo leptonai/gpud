@@ -197,9 +197,10 @@ func (cr *checkResult) String() string {
 	buf1 := bytes.NewBuffer(nil)
 	table1 := tablewriter.NewWriter(buf1)
 	table1.SetAlignment(tablewriter.ALIGN_CENTER)
-	table1.SetHeader([]string{"GPU BUS ID", "Enabled Current", "Enabled Pending", "Supported"})
+	table1.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Enabled Current", "Enabled Pending", "Supported"})
 	for _, eccMode := range cr.ECCModes {
 		table1.Append([]string{
+			eccMode.UUID,
 			eccMode.BusID,
 			fmt.Sprintf("%t", eccMode.EnabledCurrent),
 			fmt.Sprintf("%t", eccMode.EnabledPending),
@@ -210,10 +211,11 @@ func (cr *checkResult) String() string {
 
 	buf2 := bytes.NewBuffer(nil)
 	table2 := tablewriter.NewWriter(buf2)
-	table2.SetHeader([]string{"GPU UUID", "Aggregate Total Corrected", "Aggregate Total Uncorrected", "Volatile Total Corrected", "Volatile Total Uncorrected"})
+	table2.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Aggregate Total Corrected", "Aggregate Total Uncorrected", "Volatile Total Corrected", "Volatile Total Uncorrected"})
 	for _, eccErrors := range cr.ECCErrors {
 		table2.Append([]string{
 			eccErrors.UUID,
+			eccErrors.BusID,
 			fmt.Sprintf("%d", eccErrors.Aggregate.Total.Corrected),
 			fmt.Sprintf("%d", eccErrors.Aggregate.Total.Uncorrected),
 			fmt.Sprintf("%d", eccErrors.Volatile.Total.Corrected),

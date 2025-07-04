@@ -192,9 +192,10 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"GPU Bus ID", "Current usage", "Enforced limit", "Used %"})
+	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Current usage", "Enforced limit", "Used %"})
 	for _, power := range cr.Powers {
 		table.Append([]string{
+			power.UUID,
 			power.BusID,
 			fmt.Sprintf("%d", power.UsageMilliWatts),
 			fmt.Sprintf("%d", power.EnforcedLimitMilliWatts),

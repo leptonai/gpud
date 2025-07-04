@@ -210,9 +210,10 @@ func (cr *checkResult) String() string {
 
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
-	table.SetHeader([]string{"GPU Bus ID", "Current temp", "HBM temp threshold", "Used %"})
+	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Current temp", "HBM temp threshold", "Used %"})
 	for _, temp := range cr.Temperatures {
 		table.Append([]string{
+			temp.UUID,
 			temp.BusID,
 			fmt.Sprintf("%d °C", temp.CurrentCelsiusGPUCore),
 			fmt.Sprintf("%d °C", temp.ThresholdCelsiusMemMax),

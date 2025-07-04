@@ -196,9 +196,9 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"Bus ID", "Persistence Mode Enabled", "Persistence Mode Supported"})
+	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Persistence Mode Enabled", "Persistence Mode Supported"})
 	for _, persistenceMode := range cr.PersistenceModes {
-		table.Append([]string{persistenceMode.BusID, fmt.Sprintf("%t", persistenceMode.Enabled), fmt.Sprintf("%t", persistenceMode.Supported)})
+		table.Append([]string{persistenceMode.UUID, persistenceMode.BusID, fmt.Sprintf("%t", persistenceMode.Enabled), fmt.Sprintf("%t", persistenceMode.Supported)})
 	}
 	table.Render()
 

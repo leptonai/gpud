@@ -183,9 +183,10 @@ func (cr *checkResult) String() string {
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 
-	table.SetHeader([]string{"GPU BUS ID", "Graphics MHz", "Memory MHz", "Graphics Supported", "Memory Supported"})
+	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Graphics MHz", "Memory MHz", "Graphics Supported", "Memory Supported"})
 	for _, clockSpeed := range cr.ClockSpeeds {
 		table.Append([]string{
+			clockSpeed.UUID,
 			clockSpeed.BusID,
 			fmt.Sprintf("%d MHz", clockSpeed.GraphicsMHz),
 			fmt.Sprintf("%d MHz", clockSpeed.MemoryMHz),

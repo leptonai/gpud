@@ -158,9 +158,11 @@ func TestData_String(t *testing.T) {
 	}
 
 	str = dataWithClockSpeeds.String()
+	assert.Contains(t, str, "test-uuid-1")
 	assert.Contains(t, str, "0000:01:00.0")
 	assert.Contains(t, str, "1000 MHz")
 	assert.Contains(t, str, "2000 MHz")
+	assert.Contains(t, str, "test-uuid-2")
 	assert.Contains(t, str, "0000:02:00.0")
 	assert.Contains(t, str, "1500 MHz")
 	assert.Contains(t, str, "3000 MHz")

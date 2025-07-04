@@ -461,7 +461,7 @@ func TestData_String(t *testing.T) {
 					},
 				},
 			},
-			contains: "0000:01:00.0",
+			contains: "gpu-uuid-123",
 		},
 	}
 

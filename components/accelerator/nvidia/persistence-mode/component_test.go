@@ -572,9 +572,9 @@ func TestData_String(t *testing.T) {
 				},
 			},
 			contains: []string{
-				"BUS ID", "PERSISTENCE MODE ENABLED", "PERSISTENCE MODE SUPPORTED",
-				"0000:01:00.0", "true", "true",
-				"0000:02:00.0", "false", "true",
+				"GPU UUID", "GPU BUS ID", "PERSISTENCE MODE ENABLED", "PERSISTENCE MODE SUPPORTED",
+				"gpu-uuid-123", "0000:01:00.0", "true", "true",
+				"gpu-uuid-456", "0000:02:00.0", "false", "true",
 			},
 		},
 	}
