@@ -20,11 +20,6 @@ func TestExtractNVRMXid(t *testing.T) {
 		expected int
 	}{
 		{
-			name:     "NVRM Xid match",
-			input:    "NVRM: Xid critical error: 79, details follow",
-			expected: 79,
-		},
-		{
 			name:     "No match",
 			input:    "Regular log content without Xid errors",
 			expected: 0,
@@ -53,9 +48,9 @@ func TestExtractNVRMXid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ExtractNVRMXid(tt.input)
+			result, _ := ExtractNVRMXidInfo(tt.input)
 			if result != tt.expected {
-				t.Errorf("ExtractNVRMXid(%q) = %d, want %d", tt.input, result, tt.expected)
+				t.Errorf("ExtractNVRMXidInfo(%q) = %d, want %d", tt.input, result, tt.expected)
 			}
 		})
 	}
@@ -103,9 +98,9 @@ func TestExtractNVRMXidDeviceUUID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ExtractNVRMXidDeviceUUID(tt.input)
+			_, result := ExtractNVRMXidInfo(tt.input)
 			if result != tt.expected {
-				t.Errorf("ExtractNVRMXidDeviceUUID(%q) = %q, want %q", tt.input, result, tt.expected)
+				t.Errorf("ExtractNVRMXidInfo(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}

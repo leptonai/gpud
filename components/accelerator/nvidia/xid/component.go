@@ -26,6 +26,7 @@ import (
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 // Name is the name of the XID component.
@@ -49,6 +50,7 @@ type component struct {
 	cancel context.CancelFunc
 
 	nvmlInstance nvidianvml.Instance
+	devices      map[string]device.Device
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
@@ -71,8 +73,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cancel:           ccancel,
 		nvmlInstance:     gpudInstance.NVMLInstance,
 		rebootEventStore: gpudInstance.RebootEventStore,
+		extraEventCh:     make(chan *eventstore.Event, 256),
+	}
 
-		extraEventCh: make(chan *eventstore.Event, 256),
+	if gpudInstance.NVMLInstance != nil {
+		c.devices = gpudInstance.NVMLInstance.Devices()
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -472,7 +477,7 @@ func (c *component) updateCurrentState() error {
 	events := mergeEvents(rebootEvents, localEvents)
 
 	c.mu.Lock()
-	c.currState = evolveHealthyState(events)
+	c.currState = evolveHealthyState(events, c.devices)
 	if rebootErr != "" {
 		c.currState.Error = fmt.Sprintf("%s\n%s", rebootErr, c.currState.Error)
 	}
