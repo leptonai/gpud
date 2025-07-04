@@ -183,6 +183,7 @@ func readAll(kmsgFile *os.File, bootTime time.Time, deduper *deduper) ([]Message
 }
 
 // NewWatcher creates a new watcher that will read from /dev/kmsg.
+// NOTE: creating a watcher for each component is not efficient...
 func NewWatcher() (Watcher, error) {
 	kmsgFile, err := os.Open(kmsgFilePath)
 	if err != nil {
@@ -215,10 +216,13 @@ func (w *watcher) errIfStarted() error {
 	return ErrWatcherAlreadyStarted
 }
 
+// Watch returns a buffered channel (2048 messages) of parsed kmsg messages.
+// WARNING: Channel can block during floods, causing 80%+ CPU usage in Go scheduler.
 func (w *watcher) Watch() (<-chan Message, error) {
 	if err := w.errIfStarted(); err != nil {
 		return nil, err
 	}
+	// WARNING: 2048-message buffer can fill during floods, causing CPU spikes
 	kmsgCh := make(chan Message, 2048)
 	go func() {
 		deduper := newDeduper(defaultCacheExpiration, defaultCachePurgeInterval)
@@ -280,6 +284,12 @@ func readFollow(kmsgFile *os.File, bootTime time.Time, msgs chan<- Message, dedu
 			}
 		}
 
+		// CRITICAL: This channel send can block during message flooding, causing
+		// severe CPU spikes (80%+ CPU usage in Go runtime scheduler).
+		// When the channel buffer (2048) fills up, this operation blocks and
+		// causes the Go scheduler to spin-wait, leading to high CPU usage in
+		// runtime.findRunnable and EpollWait syscalls.
+		// Consider non-blocking sends or backpressure mechanisms for flood scenarios.
 		msgs <- *msg
 	}
 }
