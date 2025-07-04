@@ -52,7 +52,9 @@ func initComponentForTest(ctx context.Context, t *testing.T) (*component, func()
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := hostevents.NewRebootsStore(store)
+	rebootBucket, err := store.Bucket(hostevents.RebootBucketName, eventstore.WithDisablePurge())
+	assert.NoError(t, err)
+	rebootEventStore := hostevents.NewRebootsStore(rebootBucket)
 
 	gpudInstance := createGPUdInstance(ctx, rebootEventStore, store)
 	comp, err := New(gpudInstance)

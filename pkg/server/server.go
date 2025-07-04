@@ -60,6 +60,8 @@ type Server struct {
 	dbRW *sql.DB
 	dbRO *sql.DB
 
+	rebootBucket eventstore.Bucket
+
 	// initRegistry is the registry for init plugins
 	// that runs before the regular components
 	// e.g., install python, ...
@@ -134,7 +136,11 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to open events database: %w", err)
 	}
 
-	rebootEventStore := hostevents.NewRebootsStore(eventStore)
+	rebootBucket, err := eventStore.Bucket(hostevents.RebootBucketName, eventstore.WithDisablePurge())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reboot bucket: %w", err)
+	}
+	rebootEventStore := hostevents.NewRebootsStore(rebootBucket)
 
 	// only record once when we create the server instance
 	cctx, ccancel := context.WithTimeout(ctx, time.Minute)
@@ -167,6 +173,8 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 
 		dbRW: dbRW,
 		dbRO: dbRO,
+
+		rebootBucket: rebootBucket,
 
 		fifoPath: fifoPath,
 
@@ -342,6 +350,10 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 }
 
 func (s *Server) Stop() {
+	if s.rebootBucket != nil {
+		s.rebootBucket.Close()
+	}
+
 	if s.session != nil {
 		s.session.Stop()
 	}

@@ -168,7 +168,9 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := hostevents.NewRebootsStore(store)
+	rebootBucket, err := store.Bucket(hostevents.RebootBucketName, eventstore.WithDisablePurge())
+	assert.NoError(t, err)
+	rebootEventStore := hostevents.NewRebootsStore(rebootBucket)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -206,7 +208,9 @@ func TestXIDComponent_Events(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := hostevents.NewRebootsStore(store)
+	rebootBucket, err := store.Bucket(hostevents.RebootBucketName, eventstore.WithDisablePurge())
+	assert.NoError(t, err)
+	rebootEventStore := hostevents.NewRebootsStore(rebootBucket)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -274,7 +278,9 @@ func TestXIDComponent_States(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := hostevents.NewRebootsStore(store)
+	rebootBucket, err := store.Bucket(hostevents.RebootBucketName, eventstore.WithDisablePurge())
+	assert.NoError(t, err)
+	rebootEventStore := hostevents.NewRebootsStore(rebootBucket)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -549,7 +555,9 @@ func TestUpdateCurrentState(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := hostevents.NewRebootsStore(store)
+	rebootBucket, err := store.Bucket(hostevents.RebootBucketName, eventstore.WithDisablePurge())
+	assert.NoError(t, err)
+	rebootEventStore := hostevents.NewRebootsStore(rebootBucket)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -910,7 +918,9 @@ func TestHandleEventChannel(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := hostevents.NewRebootsStore(store)
+	rebootBucket, err := store.Bucket(hostevents.RebootBucketName, eventstore.WithDisablePurge())
+	assert.NoError(t, err)
+	rebootEventStore := hostevents.NewRebootsStore(rebootBucket)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,

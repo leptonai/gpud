@@ -15,6 +15,15 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
+// Helper function to create a reboot store with a mock lastRebootTime function
+func createTestRebootStore(bucket eventstore.Bucket, mockLastRebootFunc func(context.Context) (time.Time, error)) *rebootsStore {
+	return &rebootsStore{
+		getTimeNowFunc:    func() time.Time { return time.Now().UTC() },
+		getLastRebootTime: mockLastRebootFunc,
+		bucket:            bucket,
+	}
+}
+
 func TestRecordEvent(t *testing.T) {
 	t.Parallel()
 
@@ -31,16 +40,19 @@ func TestRecordEvent(t *testing.T) {
 	// Test with a recent reboot time
 	t.Run("recent reboot should record event", func(t *testing.T) {
 		recentTime := time.Now().Add(-1 * time.Hour)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return recentTime, nil
-		}
 
-		err = recordEvent(ctx, store, recentTime, mockLastReboot)
-		assert.NoError(t, err)
-
+		// Create bucket
 		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 		require.NoError(t, err)
 		defer bucket.Close()
+
+		// Create reboot store with mock function
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return recentTime, nil
+		})
+
+		err = rebootStore.Record(ctx)
+		assert.NoError(t, err)
 
 		events, err := bucket.Get(ctx, recentTime.Add(-1*time.Minute))
 		assert.NoError(t, err)
@@ -53,17 +65,19 @@ func TestRecordEvent(t *testing.T) {
 	// Test with an old reboot time (beyond retention)
 	t.Run("old reboot should not record event", func(t *testing.T) {
 		oldTime := time.Now().Add(-2 * eventstore.DefaultRetention)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return oldTime, nil
-		}
 
-		now := time.Now()
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
+		// Create bucket
 		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 		require.NoError(t, err)
 		defer bucket.Close()
+
+		// Create reboot store with mock function
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return oldTime, nil
+		})
+
+		err = rebootStore.Record(ctx)
+		assert.NoError(t, err)
 
 		// There should still only be 1 event (from the previous test)
 		events, err := bucket.Get(ctx, time.Time{})
@@ -73,12 +87,17 @@ func TestRecordEvent(t *testing.T) {
 
 	// Test with error from lastReboot
 	t.Run("error getting reboot time", func(t *testing.T) {
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return time.Time{}, errors.New("uptime command failed")
-		}
+		// Create bucket
+		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer bucket.Close()
 
-		now := time.Now()
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		// Create reboot store with mock function that returns error
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return time.Time{}, errors.New("uptime command failed")
+		})
+
+		err = rebootStore.Record(ctx)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "uptime command failed")
 	})
@@ -113,19 +132,21 @@ func TestRecordEvent(t *testing.T) {
 		require.NoError(t, err)
 		isolatedBucket.Close()
 
-		// Try to record with same timestamp
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return existingTime, nil
-		}
+		// Create new bucket for the reboot store
+		isolatedBucket2, err := isolatedStore.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer isolatedBucket2.Close()
 
-		now := time.Now()
-		err = recordEvent(ctx, isolatedStore, now, mockLastReboot)
+		// Try to record with same timestamp
+		rebootStore := createTestRebootStore(isolatedBucket2, func(ctx context.Context) (time.Time, error) {
+			return existingTime, nil
+		})
+
+		err = rebootStore.Record(ctx)
 		assert.NoError(t, err)
 
 		// Should still be only 1 event
-		isolatedBucket, err = isolatedStore.Bucket(RebootBucketName, eventstore.WithDisablePurge())
-		require.NoError(t, err)
-		events, err = isolatedBucket.Get(ctx, time.Time{})
+		events, err = isolatedBucket2.Get(ctx, time.Time{})
 		assert.NoError(t, err)
 		assert.Len(t, events, 1)
 	})
@@ -154,18 +175,21 @@ func TestRecordEvent(t *testing.T) {
 
 		// Now try to record one 30 seconds later
 		slightlyDifferentTime := baseTime.Add(30 * time.Second)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return slightlyDifferentTime, nil
-		}
 
-		now := time.Now()
-		err = recordEvent(ctx, isolatedStore, now, mockLastReboot)
+		// Create new bucket for the reboot store
+		isolatedBucket2, err := isolatedStore.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer isolatedBucket2.Close()
+
+		rebootStore := createTestRebootStore(isolatedBucket2, func(ctx context.Context) (time.Time, error) {
+			return slightlyDifferentTime, nil
+		})
+
+		err = rebootStore.Record(ctx)
 		assert.NoError(t, err)
 
 		// Should still be only 1 event
-		isolatedBucket, err = isolatedStore.Bucket(RebootBucketName, eventstore.WithDisablePurge())
-		require.NoError(t, err)
-		events, err := isolatedBucket.Get(ctx, time.Time{})
+		events, err := isolatedBucket2.Get(ctx, time.Time{})
 		assert.NoError(t, err)
 		assert.Len(t, events, 1)
 	})
@@ -183,40 +207,38 @@ func TestRecordEvent(t *testing.T) {
 		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 		require.NoError(t, err)
 
-		// Fixed test time to keep comparisons deterministic
-		now := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
-
-		// First event - should be recorded (at 1:00 PM)
-		baseTime := time.Date(2025, 5, 21, 13, 0, 0, 0, time.UTC)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return baseTime, nil
-		}
-
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
-		// Check first event was recorded
+		// Create bucket
 		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
-		require.NoError(t, err)
-		events, err := bucket.Get(ctx, time.Time{})
-		require.NoError(t, err)
-		require.Len(t, events, 1, "Should have exactly 1 event to start")
-		bucket.Close()
-
-		// Second event - should also be recorded (at 1:02 PM, more than a minute after first)
-		laterTime := time.Date(2025, 5, 21, 13, 2, 0, 0, time.UTC)
-		mockLastReboot2 := func(ctx context.Context) (time.Time, error) {
-			return laterTime, nil
-		}
-
-		err = recordEvent(ctx, store, now, mockLastReboot2)
-		assert.NoError(t, err)
-
-		// Verify both events were recorded
-		bucket, err = store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 		require.NoError(t, err)
 		defer bucket.Close()
 
+		// Use recent times to avoid retention filtering
+		now := time.Now()
+		baseTime := now.Add(-2 * time.Hour) // 2 hours ago
+
+		// First event - should be recorded
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return baseTime, nil
+		})
+
+		err = rebootStore.Record(ctx)
+		assert.NoError(t, err)
+
+		// Check first event was recorded
+		events, err := bucket.Get(ctx, time.Time{})
+		require.NoError(t, err)
+		require.Len(t, events, 1, "Should have exactly 1 event to start")
+
+		// Second event - should also be recorded (more than a minute after first)
+		laterTime := baseTime.Add(2 * time.Minute) // 2 minutes after first event
+		rebootStore2 := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return laterTime, nil
+		})
+
+		err = rebootStore2.Record(ctx)
+		assert.NoError(t, err)
+
+		// Verify both events were recorded
 		events, err = bucket.Get(ctx, time.Time{})
 		require.NoError(t, err)
 		assert.Len(t, events, 2, "Should have recorded both events")
@@ -235,43 +257,43 @@ func TestRecordEvent(t *testing.T) {
 		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 		require.NoError(t, err)
 
-		// Current time
-		now := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
+		// Use current time and relative offsets to avoid retention issues
+		now := time.Now()
 
 		// Insert a more recent reboot event first
-		laterRebootTime := time.Date(2025, 5, 21, 14, 0, 0, 0, time.UTC)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
+		laterRebootTime := now.Add(-1 * time.Hour) // 1 hour ago
+
+		// Create bucket
+		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer bucket.Close()
+
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
 			return laterRebootTime, nil
-		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		})
+		err = rebootStore.Record(ctx)
 		assert.NoError(t, err)
 
 		// Verify the event was recorded
-		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
-		require.NoError(t, err)
 		events, err := bucket.Get(ctx, time.Time{})
 		require.NoError(t, err)
 		require.Len(t, events, 1, "Should have 1 event initially")
-		bucket.Close()
 
 		// Now try to insert an older reboot event
-		earlierRebootTime := time.Date(2025, 5, 21, 13, 0, 0, 0, time.UTC)
-		mockOlderReboot := func(ctx context.Context) (time.Time, error) {
+		earlierRebootTime := now.Add(-2 * time.Hour) // 2 hours ago (older than the first)
+		rebootStore2 := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
 			return earlierRebootTime, nil
-		}
-		err = recordEvent(ctx, store, now, mockOlderReboot)
+		})
+		err = rebootStore2.Record(ctx)
 		assert.NoError(t, err) // Should succeed but not insert
 
 		// Verify that the older event was not inserted
-		bucket, err = store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
-		require.NoError(t, err)
-		defer bucket.Close()
 
 		events, err = bucket.Get(ctx, time.Time{})
 		assert.NoError(t, err)
 		assert.Len(t, events, 1, "Should still have only 1 event")
 
-		// Verify it's still the later event
+		// Verify it's still the later event (more recent one)
 		assert.Equal(t, laterRebootTime.Unix(), events[0].Time.Unix(), "Should keep the later reboot event")
 	})
 }
@@ -292,24 +314,25 @@ func TestDuplicateRebootEvents(t *testing.T) {
 		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 		require.NoError(t, err)
 
-		baseTime := time.Date(2025, 5, 21, 14, 56, 59, 0, time.UTC)
-		now := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
+		baseTime := time.Now().Add(-1 * time.Hour) // Use recent time
 
-		// First event - should be recorded
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return baseTime, nil
-		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
-		// Try to record same event again - should be skipped
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
-		// Check we only have one event
+		// Create bucket
 		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 		require.NoError(t, err)
 		defer bucket.Close()
+
+		// First event - should be recorded
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return baseTime, nil
+		})
+		err = rebootStore.Record(ctx)
+		assert.NoError(t, err)
+
+		// Try to record same event again - should be skipped
+		err = rebootStore.Record(ctx)
+		assert.NoError(t, err)
+
+		// Check we only have one event
 
 		events, err := bucket.Get(ctx, time.Time{})
 		assert.NoError(t, err)
@@ -328,34 +351,36 @@ func TestDuplicateRebootEvents(t *testing.T) {
 		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 		require.NoError(t, err)
 
+		// Create bucket
+		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer bucket.Close()
+
+		// Use recent times to avoid retention filtering
+		now := time.Now()
 		timestamps := []time.Time{
-			time.Date(2025, 5, 21, 5, 26, 28, 0, time.UTC),
-			time.Date(2025, 5, 21, 14, 18, 59, 0, time.UTC),
-			time.Date(2025, 5, 21, 14, 56, 59, 0, time.UTC),
+			now.Add(-5 * time.Hour),
+			now.Add(-3 * time.Hour),
+			now.Add(-1 * time.Hour),
 
 			// Try recording the same timestamps again (simulating duplicate detection)
-			time.Date(2025, 5, 21, 5, 26, 28, 0, time.UTC),
-			time.Date(2025, 5, 21, 14, 18, 59, 0, time.UTC),
-			time.Date(2025, 5, 21, 14, 56, 59, 0, time.UTC),
+			now.Add(-5 * time.Hour),
+			now.Add(-3 * time.Hour),
+			now.Add(-1 * time.Hour),
 		}
-
-		now := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
 
 		// Record each timestamp sequentially
 		for _, ts := range timestamps {
 			finalTs := ts // Capture for closure
-			mockLastReboot := func(ctx context.Context) (time.Time, error) {
+			rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
 				return finalTs, nil
-			}
+			})
 
-			err = recordEvent(ctx, store, now, mockLastReboot)
+			err = rebootStore.Record(ctx)
 			assert.NoError(t, err)
 		}
 
 		// Verify we have only 3 events (not 6)
-		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
-		require.NoError(t, err)
-		defer bucket.Close()
 
 		events, err := bucket.Get(ctx, time.Time{})
 		assert.NoError(t, err)
@@ -369,9 +394,9 @@ func TestDuplicateRebootEvents(t *testing.T) {
 
 		// Check all three unique timestamps are present
 		expectedTimestamps := []time.Time{
-			time.Date(2025, 5, 21, 5, 26, 28, 0, time.UTC),
-			time.Date(2025, 5, 21, 14, 18, 59, 0, time.UTC),
-			time.Date(2025, 5, 21, 14, 56, 59, 0, time.UTC),
+			now.Add(-5 * time.Hour),
+			now.Add(-3 * time.Hour),
+			now.Add(-1 * time.Hour),
 		}
 		for _, ts := range expectedTimestamps {
 			assert.True(t, timeSet[ts.Unix()], "Missing timestamp %v", ts)
@@ -390,29 +415,29 @@ func TestDuplicateRebootEvents(t *testing.T) {
 		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 		require.NoError(t, err)
 
-		baseTime := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
-		now := time.Date(2025, 5, 21, 15, 10, 0, 0, time.UTC)
-
-		// Record first event
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return baseTime, nil
-		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
-		// Try to record event 30 seconds later
-		almostOneMinuteLater := baseTime.Add(30 * time.Second)
-		mockLastReboot = func(ctx context.Context) (time.Time, error) {
-			return almostOneMinuteLater, nil
-		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
-		// Check we only have one event
+		// Create bucket
 		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 		require.NoError(t, err)
 		defer bucket.Close()
 
+		baseTime := time.Now().Add(-1 * time.Hour) // Use recent time
+
+		// Record first event
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return baseTime, nil
+		})
+		err = rebootStore.Record(ctx)
+		assert.NoError(t, err)
+
+		// Try to record event 30 seconds later
+		almostOneMinuteLater := baseTime.Add(30 * time.Second)
+		rebootStore2 := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return almostOneMinuteLater, nil
+		})
+		err = rebootStore2.Record(ctx)
+		assert.NoError(t, err)
+
+		// Check we only have one event
 		events, err := bucket.Get(ctx, time.Time{})
 		assert.NoError(t, err)
 		assert.Len(t, events, 1, "Events under 1 minute apart should be considered duplicates")
@@ -430,29 +455,29 @@ func TestDuplicateRebootEvents(t *testing.T) {
 		store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 		require.NoError(t, err)
 
-		baseTime := time.Date(2025, 5, 21, 16, 0, 0, 0, time.UTC)
-		now := time.Date(2025, 5, 21, 16, 10, 0, 0, time.UTC)
-
-		// Record first event
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return baseTime, nil
-		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
-		// Try to record event 61 seconds later
-		overOneMinuteLater := baseTime.Add(61 * time.Second)
-		mockLastReboot = func(ctx context.Context) (time.Time, error) {
-			return overOneMinuteLater, nil
-		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
-		// Check we have two events
+		// Create bucket
 		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 		require.NoError(t, err)
 		defer bucket.Close()
 
+		baseTime := time.Now().Add(-1 * time.Hour) // Use recent time
+
+		// Record first event
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return baseTime, nil
+		})
+		err = rebootStore.Record(ctx)
+		assert.NoError(t, err)
+
+		// Try to record event 61 seconds later
+		overOneMinuteLater := baseTime.Add(61 * time.Second)
+		rebootStore2 := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return overOneMinuteLater, nil
+		})
+		err = rebootStore2.Record(ctx)
+		assert.NoError(t, err)
+
+		// Check we have two events
 		events, err := bucket.Get(ctx, time.Time{})
 		assert.NoError(t, err)
 		assert.Len(t, events, 2, "Events over 1 minute apart should be recorded separately")
@@ -498,16 +523,19 @@ func TestGetEvents(t *testing.T) {
 	}
 	bucket.Close()
 
+	// Create reboot store for testing
+	rebootStore := NewRebootsStore(bucket)
+
 	// Test getting all events
 	t.Run("get all events", func(t *testing.T) {
-		retrievedEvents, err := getEvents(ctx, store, time.Time{})
+		retrievedEvents, err := rebootStore.Get(ctx, time.Time{})
 		assert.NoError(t, err)
 		assert.Len(t, retrievedEvents, len(events))
 	})
 
 	// Test getting events since a specific time
 	t.Run("get events since specific time", func(t *testing.T) {
-		retrievedEvents, err := getEvents(ctx, store, now.Add(-2*time.Hour))
+		retrievedEvents, err := rebootStore.Get(ctx, now.Add(-2*time.Hour))
 		assert.NoError(t, err)
 		assert.Len(t, retrievedEvents, 1)
 		assert.Equal(t, events[2].time.Unix(), retrievedEvents[0].Time.Unix())
@@ -529,19 +557,19 @@ func TestRecordEventEdgeCases(t *testing.T) {
 
 	// Test with zero value time
 	t.Run("zero time value", func(t *testing.T) {
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return time.Time{}, nil
-		}
-
-		now := time.Now()
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
-		// Since time.Time{} is way in the past, it should be filtered by retention period
+		// Create bucket
 		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 		require.NoError(t, err)
 		defer bucket.Close()
 
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return time.Time{}, nil
+		})
+
+		err = rebootStore.Record(ctx)
+		assert.NoError(t, err)
+
+		// Since time.Time{} is way in the past, it should be filtered by retention period
 		events, err := bucket.Get(ctx, time.Time{})
 		assert.NoError(t, err)
 		assert.Len(t, events, 0)
@@ -552,12 +580,17 @@ func TestRecordEventEdgeCases(t *testing.T) {
 		canceledCtx, cancel := context.WithCancel(ctx)
 		cancel() // Cancel immediately
 
-		recentTime := time.Now().Add(-1 * time.Hour)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return recentTime, nil
-		}
+		// Create bucket
+		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer bucket.Close()
 
-		err = recordEvent(canceledCtx, store, recentTime, mockLastReboot)
+		recentTime := time.Now().Add(-1 * time.Hour)
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return recentTime, nil
+		})
+
+		err = rebootStore.Record(canceledCtx)
 		assert.Error(t, err)
 	})
 }
@@ -577,7 +610,12 @@ func TestRebootsStore(t *testing.T) {
 
 	// Test creating new event recorder
 	t.Run("create new event recorder", func(t *testing.T) {
-		recorder := NewRebootsStore(store)
+		// Create bucket
+		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer bucket.Close()
+
+		recorder := NewRebootsStore(bucket)
 		assert.NotNil(t, recorder)
 	})
 
@@ -590,25 +628,20 @@ func TestRebootsStore(t *testing.T) {
 		require.NoError(t, err)
 		bucket.Close()
 
-		recentTime := time.Now().Add(-1 * time.Hour)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return recentTime, nil
-		}
+		// Create new bucket for test
+		bucket, err = store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer bucket.Close()
 
-		recorder := &rebootsStore{
-			getTimeNowFunc:    func() time.Time { return time.Now().UTC() },
-			getLastRebootTime: mockLastReboot,
-			eventStore:        store,
-		}
+		recentTime := time.Now().Add(-1 * time.Hour)
+		recorder := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return recentTime, nil
+		})
 
 		err = recorder.Record(ctx)
 		assert.NoError(t, err)
 
 		// Verify event was recorded
-		bucket, err = store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
-		require.NoError(t, err)
-		defer bucket.Close()
-
 		events, err := bucket.Get(ctx, recentTime.Add(-1*time.Minute))
 		assert.NoError(t, err)
 		assert.Len(t, events, 1)
@@ -624,17 +657,15 @@ func TestRebootsStore(t *testing.T) {
 		require.NoError(t, err)
 		bucket.Close()
 
-		recorder := &rebootsStore{
-			getTimeNowFunc: func() time.Time { return time.Now().UTC() },
-			getLastRebootTime: func(ctx context.Context) (time.Time, error) {
-				return time.Now(), nil
-			},
-			eventStore: store,
-		}
-
-		// Insert some test events
+		// Create new bucket for test
 		bucket, err = store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
 		require.NoError(t, err)
+
+		recorder := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return time.Now(), nil
+		})
+
+		// Insert some test events
 
 		now := time.Now()
 		testEvents := eventstore.Events{
@@ -697,13 +728,17 @@ func TestRecordEventWithContextTimeout(t *testing.T) {
 		// Wait for context to timeout
 		time.Sleep(2 * time.Nanosecond)
 
-		recentTime := time.Now().Add(-1 * time.Hour)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return recentTime, nil
-		}
+		// Create bucket
+		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer bucket.Close()
 
-		now := time.Now()
-		err = recordEvent(timeoutCtx, store, now, mockLastReboot)
+		recentTime := time.Now().Add(-1 * time.Hour)
+		rebootStore := createTestRebootStore(bucket, func(ctx context.Context) (time.Time, error) {
+			return recentTime, nil
+		})
+
+		err = rebootStore.Record(timeoutCtx)
 		assert.Error(t, err)
 	})
 }
@@ -722,7 +757,13 @@ func TestGetEventsWithEmptyBucket(t *testing.T) {
 
 	// Test getting events from empty bucket
 	t.Run("empty bucket", func(t *testing.T) {
-		events, err := getEvents(ctx, store, time.Time{})
+		// Create bucket
+		bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+		require.NoError(t, err)
+		defer bucket.Close()
+
+		rebootStore := NewRebootsStore(bucket)
+		events, err := rebootStore.Get(ctx, time.Time{})
 		assert.NoError(t, err)
 		assert.Empty(t, events)
 	})
@@ -740,7 +781,12 @@ func TestGetRebootEventsFiltering(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	require.NoError(t, err)
 
-	recorder := NewRebootsStore(store)
+	// Create bucket
+	bucket, err := store.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	recorder := NewRebootsStore(bucket)
 
 	now := time.Now()
 	baseTime := now.Add(-4 * time.Hour)

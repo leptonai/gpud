@@ -123,35 +123,21 @@ func setupBenchmarkRebootsStore(b *testing.B) (RebootsStore, eventstore.Store, f
 		return time.Now().UTC(), nil
 	}
 
-	var store RebootsStore
-	store = &rebootsStore{
-		getTimeNowFunc:    func() time.Time { return time.Now().UTC() },
-		getLastRebootTime: mockGetLastRebootTime,
-		eventStore:        database,
+	bucket, err := database.Bucket(RebootBucketName, eventstore.WithDisablePurge())
+	if err != nil {
+		b.Fatalf("failed to create bucket: %v", err)
 	}
 	cleanup := func() {
+		bucket.Close()
 		_ = dbRW.Close()
 		_ = dbRO.Close()
 		_ = os.Remove(tmpf.Name())
 	}
 
-	if os.Getenv("USE_NEW") == "true" {
-		bucket, err := database.Bucket(RebootBucketName, eventstore.WithDisablePurge())
-		if err != nil {
-			b.Fatalf("failed to create bucket: %v", err)
-		}
-		cleanup = func() {
-			bucket.Close()
-			_ = dbRW.Close()
-			_ = dbRO.Close()
-			_ = os.Remove(tmpf.Name())
-		}
-
-		store = &rebootsStore2{
-			getTimeNowFunc:    func() time.Time { return time.Now().UTC() },
-			getLastRebootTime: mockGetLastRebootTime,
-			bucket:            bucket,
-		}
+	store := &rebootsStore{
+		getTimeNowFunc:    func() time.Time { return time.Now().UTC() },
+		getLastRebootTime: mockGetLastRebootTime,
+		bucket:            bucket,
 	}
 
 	return store, database, cleanup
