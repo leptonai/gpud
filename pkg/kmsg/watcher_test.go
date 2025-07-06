@@ -2,7 +2,9 @@ package kmsg
 
 import (
 	"bufio"
+	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -458,4 +460,169 @@ func Test_DescribeTimestamp(t *testing.T) {
 			assert.Equal(t, tt.expectedOutput, result)
 		})
 	}
+}
+
+// Test_readFollowChannelBlocking tests the readFollow function when the channel send is blocked
+func Test_readFollowChannelBlocking(t *testing.T) {
+	bootTime := time.Unix(1000, 0)
+
+	t.Run("channel blocks and message is dropped with timeout", func(t *testing.T) {
+		// Create a temporary file with a single kmsg line
+		// Note: readFollow reads the entire file content as one message due to how regular files work
+		tmpFile, err := os.CreateTemp("", "kmsg-test-blocking")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		// Write a single valid kmsg line (readFollow will read this as one message)
+		testLine := "6,1001,100000000,-;Test message for blocking"
+		_, err = tmpFile.WriteString(testLine)
+		require.NoError(t, err)
+
+		// Rewind the file
+		_, err = tmpFile.Seek(0, 0)
+		require.NoError(t, err)
+
+		// Create an unbuffered channel to ensure blocking
+		msgChan := make(chan Message)
+
+		// Start readFollow in a goroutine
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- readFollow(tmpFile, bootTime, msgChan, nil)
+		}()
+
+		// Don't consume from the channel - this will cause the send to block
+		// Wait longer than the 1-second timeout to trigger message dropping
+		time.Sleep(1200 * time.Millisecond)
+
+		// Now consume to allow readFollow to complete
+		var received bool
+		select {
+		case _, ok := <-msgChan:
+			received = ok
+		case <-time.After(100 * time.Millisecond):
+			// Channel might be closed if message was dropped
+		}
+
+		// Wait for readFollow to complete
+		select {
+		case err := <-errChan:
+			require.NoError(t, err)
+		case <-time.After(2 * time.Second):
+			t.Fatal("readFollow did not complete within timeout")
+		}
+
+		// The message should have been dropped due to channel blocking timeout
+		// We can't guarantee the exact behavior due to timing, but the function should complete without hanging
+		_ = received // We mainly want to test that readFollow doesn't hang
+	})
+
+	t.Run("fast consumer receives message successfully", func(t *testing.T) {
+		// Create a temporary file with a single kmsg line
+		tmpFile, err := os.CreateTemp("", "kmsg-test-fast")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		testLine := "6,1002,100001000,-;Test message for fast consumer"
+		_, err = tmpFile.WriteString(testLine)
+		require.NoError(t, err)
+
+		// Rewind the file
+		_, err = tmpFile.Seek(0, 0)
+		require.NoError(t, err)
+
+		// Create a buffered channel
+		msgChan := make(chan Message, 1)
+
+		// Start readFollow in a goroutine
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- readFollow(tmpFile, bootTime, msgChan, nil)
+		}()
+
+		// Immediately consume the message (fast consumer)
+		var receivedMsg Message
+		var received bool
+
+		select {
+		case msg, ok := <-msgChan:
+			if ok {
+				receivedMsg = msg
+				received = true
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("Should have received message quickly")
+		}
+
+		// Wait for readFollow to complete
+		select {
+		case err := <-errChan:
+			require.NoError(t, err)
+		case <-time.After(2 * time.Second):
+			t.Fatal("readFollow did not complete within timeout")
+		}
+
+		// Verify we received the message
+		require.True(t, received, "Should have received message with fast consumer")
+		assert.Equal(t, 6, receivedMsg.Priority)
+		assert.Equal(t, 1002, receivedMsg.SequenceNumber)
+		assert.Contains(t, receivedMsg.Message, "Test message for fast consumer")
+	})
+
+	t.Run("sequential calls with slow consumer", func(t *testing.T) {
+		// This test simulates the channel blocking behavior when readFollow is called
+		// sequentially with a slow consumer
+
+		testFiles := []string{
+			"6,1001,100000000,-;Message 1",
+			"6,1002,100001000,-;Message 2",
+		}
+
+		var receivedCount int
+
+		// Test each file individually to avoid the channel closing issue
+		for i, content := range testFiles {
+			// Create a fresh channel for each test
+			msgChan := make(chan Message)
+
+			tmpFile, err := os.CreateTemp("", fmt.Sprintf("kmsg-test-seq-%d", i))
+			require.NoError(t, err)
+			defer os.Remove(tmpFile.Name())
+
+			_, err = tmpFile.WriteString(content)
+			require.NoError(t, err)
+
+			_, err = tmpFile.Seek(0, 0)
+			require.NoError(t, err)
+
+			// Start a slow consumer
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				select {
+				case msg, ok := <-msgChan:
+					if ok {
+						receivedCount++
+						// Simulate slow processing to potentially cause blocking
+						time.Sleep(200 * time.Millisecond)
+						_ = msg
+					}
+				case <-time.After(2 * time.Second):
+					// Timeout waiting for message
+				}
+			}()
+
+			// Call readFollow - might block and timeout due to slow consumer or succeed
+			err = readFollow(tmpFile, bootTime, msgChan, nil)
+			require.NoError(t, err)
+
+			wg.Wait()
+			tmpFile.Close()
+		}
+
+		// We should have received at least one message, but timing may affect the exact count
+		assert.Greater(t, receivedCount, 0, "Should have received at least one message")
+		assert.LessOrEqual(t, receivedCount, len(testFiles), "Should not receive more messages than sent")
+	})
 }

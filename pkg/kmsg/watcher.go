@@ -280,7 +280,17 @@ func readFollow(kmsgFile *os.File, bootTime time.Time, msgs chan<- Message, dedu
 			}
 		}
 
-		msgs <- *msg
+		// even with channel buffer + deduplication
+		// it is still possible that the channel is full (flooding kmsg messages)
+		// if the database operations are slow on the receiver side
+		// rather than blocking the send here, we should just drop
+		// otherwise, go scheduler spins exhausting CPU cores with EpollWait syscalls
+		// ref. https://github.com/leptonai/gpud/pull/967
+		select {
+		case msgs <- *msg:
+		case <-time.After(time.Second):
+			log.Logger.Warnw("kmsg channel is full, dropping message", "timestamp", msg.Timestamp, "message", msg.Message)
+		}
 	}
 }
 
