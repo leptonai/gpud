@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
 )
 
@@ -23,7 +25,7 @@ const (
 
 // evolveHealthyState resolves the state of the XID error component.
 // note: assume events are sorted by time in descending order
-func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
+func evolveHealthyState(events eventstore.Events, devices map[string]device.Device) (ret apiv1.HealthState) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
@@ -85,10 +87,24 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 	if lastXidErr == nil {
 		reason = "XIDComponent is healthy"
 	} else {
-		if xidDetail, ok := xid.GetDetail(int(lastXidErr.Xid)); ok {
-			reason = fmt.Sprintf("XID %d (%s) detected on %s", lastXidErr.Xid, xidDetail.Name, lastXidErr.DeviceUUID)
+		busID := strings.TrimPrefix(lastXidErr.DeviceUUID, "PCI:")
+		var uuid string
+		for k, v := range devices {
+			if v.PCIBusID() == busID {
+				uuid = k
+				break
+			}
+		}
+		var suffix string
+		if uuid != "" {
+			suffix = fmt.Sprintf("GPU %s UUID:%s", lastXidErr.DeviceUUID, uuid)
 		} else {
-			reason = fmt.Sprintf("XID %d detected on %s", lastXidErr.Xid, lastXidErr.DeviceUUID)
+			suffix = fmt.Sprintf("GPU %s", lastXidErr.DeviceUUID)
+		}
+		if xidDetail, ok := xid.GetDetail(int(lastXidErr.Xid)); ok {
+			reason = fmt.Sprintf("XID %d (%s) detected on %s", lastXidErr.Xid, xidDetail.Name, suffix)
+		} else {
+			reason = fmt.Sprintf("XID %d detected on %s", lastXidErr.Xid, suffix)
 		}
 	}
 	return apiv1.HealthState{
