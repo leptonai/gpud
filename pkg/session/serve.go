@@ -32,7 +32,7 @@ import (
 
 const (
 	DefaultQuerySince     = 30 * time.Minute
-	initializeGracePeriod = 3 * time.Minute
+	initializeGracePeriod = 5 * time.Minute
 )
 
 // Request is the request from the control plane to GPUd.
