@@ -663,6 +663,7 @@ func (s *Session) getStatesFromComponent(componentName string, lastRebootTime *t
 	log.Logger.Debugw("successfully got states", "component", componentName)
 	currState.States = state
 
+	nowUTC := time.Now().UTC()
 	for i, componentState := range currState.States {
 		if componentState.Health != apiv1.HealthStateTypeHealthy {
 			if lastRebootTime == nil {
@@ -672,9 +673,13 @@ func (s *Session) getStatesFromComponent(componentName string, lastRebootTime *t
 					log.Logger.Errorw("failed to get last reboot time", "error", err)
 				}
 			}
-			if time.Since(*lastRebootTime) < initializeGracePeriod {
+
+			elapsed := nowUTC.Sub(*lastRebootTime)
+			if elapsed < initializeGracePeriod {
 				log.Logger.Warnw("set unhealthy state initializing due to recent reboot", "component", componentName)
 				currState.States[i].Health = apiv1.HealthStateTypeInitializing
+			} else {
+				log.Logger.Debugw("found unhealthy state", "component", componentName)
 			}
 
 			if componentState.Error != "" &&
