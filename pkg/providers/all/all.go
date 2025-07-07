@@ -37,6 +37,7 @@ func Detect(ctx context.Context) (*pkgproviders.Info, error) {
 
 		if provider != "" {
 			detector = d
+			log.Logger.Debugw("detected provider", "provider", provider)
 			break
 		}
 	}

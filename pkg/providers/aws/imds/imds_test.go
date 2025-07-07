@@ -397,7 +397,7 @@ func TestFetchPublicIPv4(t *testing.T) {
 			expectedIP: "203.0.113.1",
 		},
 		{
-			name: "ip fetch failure - not assigned",
+			name: "ip fetch failure - not assigned (404 returns no error)",
 			mockHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Check for token request (PUT) vs metadata request (GET)
 				if r.Method == http.MethodPut {
@@ -416,7 +416,29 @@ func TestFetchPublicIPv4(t *testing.T) {
 
 				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 			},
-			expectedError: "failed to fetch metadata: received status code 404",
+			expectedIP: "", // 404 should return empty string with no error
+		},
+		{
+			name: "ip fetch failure - server error",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				// Check for token request (PUT) vs metadata request (GET)
+				if r.Method == http.MethodPut {
+					// Token request
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("test-token"))
+					require.NoError(t, err)
+					return
+				} else if r.Method == http.MethodGet {
+					// Metadata request - return server error
+					w.WriteHeader(http.StatusInternalServerError)
+					_, err := w.Write([]byte("Internal Server Error"))
+					require.NoError(t, err)
+					return
+				}
+
+				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
+			},
+			expectedError: "failed to fetch metadata: received status code 500",
 		},
 	}
 
