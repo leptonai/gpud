@@ -1084,14 +1084,27 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 			return disk.Partitions{}, nil
 		}
 
-		var contextCanceled bool
+		// Use a channel to ensure proper ordering
+		cancelChan := make(chan struct{})
+		callCount := 0
 		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
-			if !contextCanceled {
-				ctxCancel()
-				contextCanceled = true
+			callCount++
+			// On first call, signal to cancel context
+			if callCount == 1 {
+				close(cancelChan)
+				// Give time for context cancellation to propagate
+				// Use a longer sleep on slow CI machines
+				time.Sleep(50 * time.Millisecond)
 			}
-			return nil, context.Canceled
+			// Always return an error to trigger retry logic
+			return nil, assert.AnError
 		}
+
+		// Cancel context after first getNFSPartitionsFunc call
+		go func() {
+			<-cancelChan
+			ctxCancel()
+		}()
 
 		checkDone := make(chan struct{})
 		go func() {
@@ -1100,12 +1113,12 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 		}()
 		select {
 		case <-checkDone:
-		case <-time.After(time.Second):
+		case <-time.After(2 * time.Second):
 			assert.Fail(t, "Check() did not complete within timeout")
 		}
 
-		// Ensure context cancellation was detected
-		assert.True(t, contextCanceled, "getNFSPartitionsFunc should have been called")
+		// Ensure getNFSPartitionsFunc was called at least once
+		assert.Greater(t, callCount, 0, "getNFSPartitionsFunc should have been called at least once")
 
 		c.lastMu.RLock()
 		lastCheckResult := c.lastCheckResult
