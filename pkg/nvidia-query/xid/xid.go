@@ -3704,8 +3704,9 @@ This event is similar to Xid 94. However, Xid 94 indicates that the error is sup
 			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
-			// Xid 110 indicates a security fault error, labeling a hardware failure as an only possible reason, thus we recommend submitting a ticket for hardware inspection.
+			// Xid 110 indicates a security fault error, labeling a hardware failure as an only possible reason, thus we recommend reboot first and then hardware inspection if the issue persists.
 			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem, // reboot first, and then if it happens again, inspect hardware
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
