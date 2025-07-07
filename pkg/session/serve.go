@@ -556,10 +556,13 @@ func (s *Session) getHealthStates(payload Request) (apiv1.GPUdComponentHealthSta
 		allComponents = payload.Components
 	}
 	var statesBuf = make(chan apiv1.ComponentHealthStates, len(allComponents))
-	var lastRebootTime *time.Time
+	rebootTime, err := pkghost.LastReboot(context.Background())
+	if err != nil {
+		log.Logger.Errorw("failed to get last reboot time", "error", err)
+	}
 	for _, componentName := range allComponents {
 		go func(name string) {
-			statesBuf <- s.getStatesFromComponent(name, lastRebootTime)
+			statesBuf <- s.getStatesFromComponent(name, rebootTime)
 		}(componentName)
 	}
 	var states apiv1.GPUdComponentHealthStates
@@ -643,7 +646,7 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 	return currMetrics
 }
 
-func (s *Session) getStatesFromComponent(componentName string, lastRebootTime *time.Time) apiv1.ComponentHealthStates {
+func (s *Session) getStatesFromComponent(componentName string, lastRebootTime time.Time) apiv1.ComponentHealthStates {
 	component := s.componentsRegistry.Get(componentName)
 	if component == nil {
 		log.Logger.Errorw("failed to get component",
@@ -665,14 +668,10 @@ func (s *Session) getStatesFromComponent(componentName string, lastRebootTime *t
 
 	for i, componentState := range currState.States {
 		if componentState.Health != apiv1.HealthStateTypeHealthy {
-			if lastRebootTime == nil {
-				rebootTime, err := pkghost.LastReboot(context.Background())
-				lastRebootTime = &rebootTime
-				if err != nil {
-					log.Logger.Errorw("failed to get last reboot time", "error", err)
-				}
+			if lastRebootTime.IsZero() {
+				continue
 			}
-			if time.Since(*lastRebootTime) < initializeGracePeriod {
+			if time.Since(lastRebootTime) < initializeGracePeriod {
 				log.Logger.Warnw("set unhealthy state initializing due to recent reboot", "component", componentName)
 				currState.States[i].Health = apiv1.HealthStateTypeInitializing
 			}
