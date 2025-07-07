@@ -69,9 +69,18 @@ func FetchMetadata(ctx context.Context, path string) (string, error) {
 
 // fetchMetadataByPath retrieves EC2 instance metadata from the specified path using IMDSv2.
 func fetchMetadataByPath(ctx context.Context, tokenURL string, metadataURL string) (string, error) {
-	token, err := fetchToken(ctx, tokenURL)
+	s, _, err := fetchMetadataByPathWithStatusCode(ctx, tokenURL, metadataURL)
 	if err != nil {
 		return "", err
+	}
+	return s, nil
+}
+
+// fetchMetadataByPathWithStatusCode retrieves EC2 instance metadata from the specified path using IMDSv2.
+func fetchMetadataByPathWithStatusCode(ctx context.Context, tokenURL string, metadataURL string) (string, int, error) {
+	token, err := fetchToken(ctx, tokenURL)
+	if err != nil {
+		return "", 0, err
 	}
 
 	client := &http.Client{
@@ -80,26 +89,26 @@ func fetchMetadataByPath(ctx context.Context, tokenURL string, metadataURL strin
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to create metadata request: %w", err)
+		return "", 0, fmt.Errorf("failed to create metadata request: %w", err)
 	}
 	req.Header.Set(headerToken, token)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch metadata: %w", err)
+		return "", 0, fmt.Errorf("failed to fetch metadata: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to fetch metadata: received status code %d", resp.StatusCode)
+		return "", resp.StatusCode, fmt.Errorf("failed to fetch metadata: received status code %d", resp.StatusCode)
 	}
 
 	metadataBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read metadata response body: %w", err)
+		return "", resp.StatusCode, fmt.Errorf("failed to read metadata response body: %w", err)
 	}
 
-	return strings.TrimSpace(string(metadataBytes)), nil
+	return strings.TrimSpace(string(metadataBytes)), resp.StatusCode, nil
 }
 
 // FetchAvailabilityZone fetches EC2 instance availability zone using IMDSv2.
@@ -124,7 +133,15 @@ func FetchPublicIPv4(ctx context.Context) (string, error) {
 
 // fetchPublicIPv4 retrieves EC2 instance public IPv4 from the specified path using IMDSv2.
 func fetchPublicIPv4(ctx context.Context, tokenURL string, metadataURL string) (string, error) {
-	return fetchMetadataByPath(ctx, tokenURL, metadataURL+"/public-ipv4")
+	s, code, err := fetchMetadataByPathWithStatusCode(ctx, tokenURL, metadataURL+"/public-ipv4")
+	if err != nil {
+		// machine with no public IP will return status code 404
+		if code == http.StatusNotFound {
+			return "", nil
+		}
+		return "", err
+	}
+	return s, nil
 }
 
 // FetchLocalIPv4 fetches EC2 instance private IPv4 using IMDSv2.
