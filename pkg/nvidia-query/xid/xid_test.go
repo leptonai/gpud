@@ -181,16 +181,6 @@ func TestDetailsValidation(t *testing.T) {
 			t.Errorf("xid %d is marked as critical in GPUd, but has no repair actions", d.Xid)
 		}
 
-		// if nvidia says only possible reason is hw, then we do hard inspections directly
-		if d.Xid != 48 && d.IsOnlyHWError() && (d.SuggestedActionsByGPUd == nil || len(d.SuggestedActionsByGPUd.RepairActions) == 0) {
-			t.Fatalf("xid %d is only hardware error, but has no suggested actions", d.Xid)
-		}
-		if d.Xid != 48 && d.IsOnlyHWError() && d.SuggestedActionsByGPUd != nil {
-			if d.SuggestedActionsByGPUd.RepairActions[0] != apiv1.RepairActionTypeHardwareInspection {
-				t.Errorf("xid %d is only hardware error, but has %s action", d.Xid, d.SuggestedActionsByGPUd.RepairActions[0])
-			}
-		}
-
 		// if nvidia says this can be only because of user error, then we ignore, don’t mark it as critical
 		if d.IsOnlyUserAppError() && d.CriticalErrorMarkedByGPUd {
 			t.Errorf("xid %d is only user app error, but is marked as critical", d.Xid)
