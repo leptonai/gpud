@@ -255,7 +255,7 @@ func TestGetStatesFromComponent(t *testing.T) {
 	t.Run("component not found", func(t *testing.T) {
 		registry.On("Get", "nonexistent").Return(nil)
 
-		result := session.getStatesFromComponent("nonexistent", nil)
+		result := session.getStatesFromComponent("nonexistent", time.Time{})
 
 		assert.Equal(t, "nonexistent", result.Component)
 		assert.Empty(t, result.States)
@@ -273,9 +273,8 @@ func TestGetStatesFromComponent(t *testing.T) {
 
 		// Pass a non-nil rebootTime to avoid calling pkghost.LastReboot
 		rebootTime := time.Now().Add(-10 * time.Minute)
-		lastRebootTime := &rebootTime
 
-		result := session.getStatesFromComponent("component1", lastRebootTime)
+		result := session.getStatesFromComponent("component1", rebootTime)
 
 		assert.Equal(t, "component1", result.Component)
 		assert.Equal(t, healthStates, result.States)
