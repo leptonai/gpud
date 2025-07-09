@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -14,12 +15,17 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
+	"github.com/leptonai/gpud/pkg/kubelet"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 
 // Name is the ID of the containerd component.
-const Name = "containerd"
+const (
+	Name                       = "containerd"
+	DanglingDegradedThreshold  = 5
+	DanglingUnhealthyThreshold = 10
+)
 
 var _ components.Component = &component{}
 
@@ -156,6 +162,8 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = "ok"
 	if c.listAllSandboxesFunc != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
 		cr.Pods, cr.err = c.listAllSandboxesFunc(cctx, c.endpoint)
@@ -171,10 +179,32 @@ func (c *component) Check() components.CheckResult {
 			}
 			return cr
 		}
+		var danglingCount int
+		_, kubeletPods, err := kubelet.ListPodsFromKubeletReadOnlyPort(cctx, kubelet.DefaultKubeletReadOnlyPort)
+		if err != nil {
+			log.Logger.Errorf("error listing pods from kubelet: %v", err)
+		} else {
+			danglingCount = danglingPodCount(cr.Pods, kubeletPods)
+		}
+		if danglingCount > DanglingUnhealthyThreshold {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("node has %v dangling pods, unhealthy threshold %v", danglingCount, DanglingUnhealthyThreshold)
+			cr.suggestedAction = &apiv1.SuggestedActions{
+				Description:   "too many dangling pod",
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+			}
+			return cr
+		} else if danglingCount > DanglingDegradedThreshold {
+			cr.health = apiv1.HealthStateTypeDegraded
+			cr.reason = fmt.Sprintf("node has %v dangling pods, consider reboot system to recover, degraded threshold %v", danglingCount, DanglingDegradedThreshold)
+			cr.suggestedAction = &apiv1.SuggestedActions{
+				Description: "too many dangling pod",
+			}
+			return cr
+		} else if danglingCount != 0 {
+			cr.reason = fmt.Sprintf("node has %v dangling pods", danglingCount)
+		}
 	}
-
-	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = "ok"
 	log.Logger.Debugw(cr.reason, "count", len(cr.Pods))
 
 	return cr
@@ -197,7 +227,8 @@ type checkResult struct {
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
 	// tracks the reason of the last check
-	reason string
+	reason          string
+	suggestedAction *apiv1.SuggestedActions
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -263,12 +294,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.suggestedAction,
 	}
 
 	if len(cr.Pods) > 0 {
@@ -276,4 +308,27 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
 	return apiv1.HealthStates{state}
+}
+
+func danglingPodCount(containerdPods []pkgcontainerd.PodSandbox, kubeletPods []kubelet.PodStatus) int {
+	var danglingCount int
+	if kubeletPods == nil {
+		return danglingCount
+	}
+	podMap := make(map[string]struct{})
+	for _, pod := range kubeletPods {
+		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		podMap[podKey] = struct{}{}
+	}
+	for _, pod := range containerdPods {
+		if pod.State != "SANDBOX_READY" {
+			continue
+		}
+		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		if _, ok := podMap[podKey]; !ok {
+			danglingCount++
+		}
+	}
+
+	return danglingCount
 }

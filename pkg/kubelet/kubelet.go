@@ -17,7 +17,7 @@ import (
 
 const DefaultKubeletReadOnlyPort = 10255
 
-func checkKubeletInstalled() bool {
+func CheckKubeletInstalled() bool {
 	p, err := pkg_file.LocateExecutable("kubelet")
 	if err == nil {
 		log.Logger.Debugw("kubelet found in PATH", "path", p)
@@ -27,8 +27,8 @@ func checkKubeletInstalled() bool {
 	return false
 }
 
-// returns the node name and the list of pods
-func listPodsFromKubeletReadOnlyPort(ctx context.Context, port int) (string, []PodStatus, error) {
+// ListPodsFromKubeletReadOnlyPort returns the node name and the list of pods
+func ListPodsFromKubeletReadOnlyPort(ctx context.Context, port int) (string, []PodStatus, error) {
 	url := fmt.Sprintf("http://localhost:%d/pods", port)
 	req, rerr := http.NewRequest(http.MethodGet, url, nil)
 	if rerr != nil {

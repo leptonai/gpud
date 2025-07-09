@@ -14,6 +14,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/kubelet"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
 )
@@ -23,7 +24,6 @@ const Name = "kubelet"
 
 const (
 	defaultFailedCountThreshold = 5
-	defaultKubeletReadOnlyPort  = 10255
 )
 
 var _ components.Component = &component{}
@@ -49,11 +49,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkDependencyInstalled: checkKubeletInstalled,
+		checkDependencyInstalled: kubelet.CheckKubeletInstalled,
 		checkKubeletRunning: func() bool {
-			return netutil.IsPortOpen(defaultKubeletReadOnlyPort)
+			return netutil.IsPortOpen(kubelet.DefaultKubeletReadOnlyPort)
 		},
-		kubeletReadOnlyPort:  defaultKubeletReadOnlyPort,
+		kubeletReadOnlyPort:  kubelet.DefaultKubeletReadOnlyPort,
 		failedCount:          0,
 		failedCountThreshold: defaultFailedCountThreshold,
 	}
@@ -139,7 +139,7 @@ func (c *component) Check() components.CheckResult {
 
 	// below are the checks in case "kubelet" is installed and running, thus requires activeness checks
 	cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-	cr.NodeName, cr.Pods, cr.err = listPodsFromKubeletReadOnlyPort(cctx, c.kubeletReadOnlyPort)
+	cr.NodeName, cr.Pods, cr.err = kubelet.ListPodsFromKubeletReadOnlyPort(cctx, c.kubeletReadOnlyPort)
 	ccancel()
 
 	if cr.err != nil {
@@ -171,7 +171,7 @@ type checkResult struct {
 	// NodeName is the name of the node.
 	NodeName string `json:"node_name,omitempty"`
 	// Pods is the list of pods on the node.
-	Pods []PodStatus `json:"pods,omitempty"`
+	Pods []kubelet.PodStatus `json:"pods,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time
