@@ -11,10 +11,10 @@ import (
 
 // IBPort is the port of the IB card.
 type IBPort struct {
-	// Port is the port number of the IB port (e.g., 1).
-	Port uint `json:"port,omitempty"`
 	// Device is the name of the IB port (e.g., mlx5_1).
 	Device string `json:"device,omitempty"`
+	// Port is the port number of the IB port (e.g., 1).
+	Port uint `json:"port,omitempty"`
 	// State is the state of the IB port (e.g., "Active", "Down")
 	State string `json:"state,omitempty"`
 	// PhysicalState is the physical state of the IB port (e.g., "LinkUp", "Disabled", "Polling")
