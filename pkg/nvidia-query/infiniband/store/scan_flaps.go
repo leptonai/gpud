@@ -108,12 +108,21 @@ func (ss devPortSnapshots) findFlaps(device string, port uint, downIntervalThres
 	// e.g., only 2 "flap" events happened when the threshold is 3
 	// thus no ib port flap
 	if len(revertsToActive) < flapBackToActiveThreshold {
-		log.Logger.Warnw("ib port reverted back to active but not enough times (not a flap)",
-			"device", device,
-			"port", port,
-			"revertsToActive", revertsToActive,
-			"threshold", flapBackToActiveThreshold,
-		)
+		if len(revertsToActive) > 0 {
+			log.Logger.Warnw("ib port reverted back to active but not enough times (not a flap)",
+				"device", device,
+				"port", port,
+				"revertsToActive", revertsToActive,
+				"threshold", flapBackToActiveThreshold,
+			)
+		} else {
+			log.Logger.Debugw("no ib port reverted back to active (not a flap)",
+				"device", device,
+				"port", port,
+				"down1", down1.ts,
+				"down2", down2.ts,
+			)
+		}
 		return nil
 	}
 
