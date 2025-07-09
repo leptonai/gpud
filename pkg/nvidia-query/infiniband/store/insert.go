@@ -105,6 +105,7 @@ func (s *ibPortsStore) Insert(eventTime time.Time, ibPorts []infiniband.IBPort) 
 	s.updateAllDeviceValues(allDevs)
 	s.updateAllPortValues(allPorts)
 
+	log.Logger.Infow("successfully inserted ib ports", "table", s.historyTable, "eventTime", eventTime, "ibPorts", len(ibPorts))
 	return nil
 }
 
