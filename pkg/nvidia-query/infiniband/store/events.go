@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -56,7 +57,29 @@ type Events []Event
 // Events returns the events since the given timestamp.
 // The events are sorted by timestamp in ascending order.
 func (s *ibPortsStore) Events(since time.Time) ([]Event, error) {
-	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s FROM %s WHERE %s != ""`,
+	allDevs := s.getAllDeviceValues()
+	allPorts := s.getAllPortValues()
+
+	events := make([]Event, 0)
+	for dev := range allDevs {
+		for port := range allPorts {
+			evs, err := s.lastEvents(dev, port, since)
+			if err != nil {
+				return nil, err
+			}
+			if len(evs) > 0 {
+				events = append(events, evs...)
+			}
+		}
+	}
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].Time.Before(events[j].Time)
+	})
+	return events, nil
+}
+
+func (s *ibPortsStore) lastEvents(device string, port uint, since time.Time) ([]Event, error) {
+	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s != ""`,
 		historyTableColumnTimestamp,
 		historyTableColumnDevice,
 		historyTableColumnPort,
@@ -68,10 +91,11 @@ func (s *ibPortsStore) Events(since time.Time) ([]Event, error) {
 		historyTableColumnEventType,
 		historyTableColumnEventReason,
 		s.historyTable,
+		historyTableColumnDevice,
+		historyTableColumnPort,
 		historyTableColumnEventType,
 	)
-
-	params := make([]any, 0)
+	params := []any{device, port}
 
 	cctx, cancel := context.WithTimeout(s.rootCtx, 30*time.Second)
 	defer cancel()
@@ -89,7 +113,8 @@ func (s *ibPortsStore) Events(since time.Time) ([]Event, error) {
 		params = append(params, since.Unix())
 	}
 
-	query += fmt.Sprintf(` ORDER BY %s ASC;`, historyTableColumnTimestamp)
+	// limit 1 is fine, since ib flap vs. drop events are mutually exclusive
+	query += fmt.Sprintf(` ORDER BY %s DESC LIMIT 1;`, historyTableColumnTimestamp)
 
 	now := s.getTimeNow()
 	rows, err := s.dbRO.QueryContext(cctx, query, params...)
