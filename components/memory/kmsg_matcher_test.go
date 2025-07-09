@@ -85,7 +85,7 @@ func TestCreateMatchFunc(t *testing.T) {
 				},
 				{
 					eventName: "OOM",
-					message:   "OOM encountered, victim process: nginx, pid: 22222",
+					message:   "System OOM encountered, victim process: nginx, pid: 22222",
 				},
 			},
 		},
@@ -177,7 +177,7 @@ func TestCreateMatchFunc(t *testing.T) {
 			}{
 				{
 					eventName: "OOM",
-					message:   "OOM encountered, victim process: memorymonster, pid: 13536",
+					message:   "System OOM encountered, victim process: memorymonster, pid: 13536",
 				},
 			},
 		},
@@ -194,7 +194,7 @@ func TestCreateMatchFunc(t *testing.T) {
 			}{
 				{
 					eventName: "OOM",
-					message:   "OOM encountered, victim process: Plex Media Server, pid: 1234",
+					message:   "System OOM encountered, victim process: Plex Media Server, pid: 1234",
 				},
 			},
 		},
@@ -210,7 +210,7 @@ func TestCreateMatchFunc(t *testing.T) {
 			}{
 				{
 					eventName: "OOM",
-					message:   "OOM encountered, victim process: x86_64-pc-linux-gnu-c++-5.4.0, pid: 5678",
+					message:   "System OOM encountered, victim process: x86_64-pc-linux-gnu-c++-5.4.0, pid: 5678",
 				},
 			},
 		},
@@ -319,6 +319,31 @@ func TestOomInstanceSummary(t *testing.T) {
 				ProcessName: "postgres",
 			},
 			expected: "OOM encountered",
+		},
+		{
+			name: "system OOM without process info",
+			instance: &OOMInstance{
+				VictimContainerName: "/",
+			},
+			expected: "System OOM encountered",
+		},
+		{
+			name: "system OOM with process info",
+			instance: &OOMInstance{
+				VictimContainerName: "/",
+				ProcessName:         "apache2",
+				Pid:                 54321,
+			},
+			expected: "System OOM encountered, victim process: apache2, pid: 54321",
+		},
+		{
+			name: "container OOM (not system)",
+			instance: &OOMInstance{
+				VictimContainerName: "/docker/abc123",
+				ProcessName:         "nginx",
+				Pid:                 9999,
+			},
+			expected: "OOM encountered, victim process: nginx, pid: 9999",
 		},
 	}
 
@@ -721,7 +746,7 @@ func TestCreateMatchFuncStreamOOMs(t *testing.T) {
 			}{
 				{
 					eventName: "OOM",
-					message:   "OOM encountered, victim process: badsysprogram, pid: 1532",
+					message:   "System OOM encountered, victim process: badsysprogram, pid: 1532",
 				},
 			},
 		},

@@ -128,6 +128,9 @@ func (o *OOMInstance) Summary() string {
 		return ""
 	}
 	eventMsg := "OOM encountered"
+	if o.VictimContainerName == "/" {
+		eventMsg = "System OOM encountered"
+	}
 	if o.ProcessName != "" && o.Pid != 0 {
 		eventMsg = fmt.Sprintf("%s, victim process: %s, pid: %d", eventMsg, o.ProcessName, o.Pid)
 	}
