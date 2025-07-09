@@ -269,7 +269,7 @@ func (c *component) Check() components.CheckResult {
 	// no data, skip the evaluation
 	if len(sysClassIBPorts) == 0 {
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = reasonNoIbPortIssue
+		cr.reason = reasonNoIbPortData
 		log.Logger.Warnw(cr.reason)
 		return cr
 	}
