@@ -1,123 +1,205 @@
+// Copyright 2014 Google Inc. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// ref. https://github.com/google/cadvisor/blob/master/utils/oomparser/oomparser.go
+
 package memory
 
 import (
+	"fmt"
+	"path"
 	"regexp"
+	"strconv"
 )
 
-const (
-	// e.g.,
-	// Out of memory: Killed process 123, UID 48, (httpd).
-	// [...] Out of memory: Killed process 123, UID 48, (httpd).
-	//
-	// NOTE: this is often followed by a line like:
-	// [Sun Dec  8 09:23:39 2024] oom_reaper: reaped process 345646 (vector), now anon-rss:0kB, file-rss:0kB, shmem-rss:0
-	// (to reap the memory used by the OOM victim)
-	eventOOM   = "memory_oom"
-	regexOOM   = `Out of memory:`
-	messageOOM = `oom detected`
+const OOMEventName = "OOM"
 
+func createMatchFunc() func(line string) (eventName string, message string) {
+	// below match function is called for each incoming kmsg message
+	// so we track the progress outside of the function
+	readingOOMMessages := false
+	var oomCurrentInstance *OOMInstance
+
+	// this match function is to be run in sequence for each incoming message
+	return func(line string) (eventName string, message string) {
+		// Always check if the current line is the start of a new OOM sequence.
+		// This handles cases where a new OOM event begins before the previous one
+		// was fully parsed (e.g., incomplete legacy event or missing lines).
+		isNewOomStart := checkIfStartOfOomMessages(line)
+
+		if isNewOomStart {
+			// A new OOM event has started. This could be the first one, or it could
+			// interrupt a previous, incomplete event. Reset and start fresh.
+			readingOOMMessages = true
+			oomCurrentInstance = &OOMInstance{
+				ContainerName:       "/",
+				VictimContainerName: "/",
+			}
+			// The "invoked oom-killer" line itself contains no victim data,
+			// so we can end processing for this line and wait for the next one.
+			return "", ""
+		}
+
+		// If we're not in the middle of reading OOM messages, we can ignore this line.
+		if !readingOOMMessages {
+			return "", ""
+		}
+
+		// Try to extract container information from the current line
+		containerFound, err := getContainerName(line, oomCurrentInstance)
+		if err != nil {
+			// If there's an error, reset and skip
+			readingOOMMessages = false
+			oomCurrentInstance = nil
+			return "", ""
+		}
+
+		// Modern kernel format: containerRegexp extracts all info in one match
+		if containerFound && oomCurrentInstance.Pid != 0 {
+			// Generate the event message
+			eventName = OOMEventName
+			message = oomCurrentInstance.Summary()
+
+			// Reset state for next OOM event
+			readingOOMMessages = false
+			oomCurrentInstance = nil
+
+			return eventName, message
+		}
+
+		// Legacy format: container info was not found, try to get process info
+		if !containerFound {
+			processFound, err := getProcessNamePid(line, oomCurrentInstance)
+			if err != nil {
+				// If there's an error, reset and skip
+				readingOOMMessages = false
+				oomCurrentInstance = nil
+				return "", ""
+			}
+
+			// If we found process info, the OOM event is complete
+			if processFound {
+				// Generate the event message
+				eventName = OOMEventName
+				message = oomCurrentInstance.Summary()
+
+				// Reset state for next OOM event
+				readingOOMMessages = false
+				oomCurrentInstance = nil
+
+				return eventName, message
+			}
+		}
+
+		// Still collecting information, return empty
+		return "", ""
+	}
+}
+
+// struct that contains information related to an OOM kill instance
+type OOMInstance struct {
+	// process id of the killed process
+	Pid int
+	// the name of the killed process
+	ProcessName string
+	// the absolute name of the container that OOMed
+	ContainerName string
+	// the absolute name of the container that was killed
+	// due to the OOM.
+	VictimContainerName string
+	// the constraint that triggered the OOM.  One of CONSTRAINT_NONE,
+	// CONSTRAINT_CPUSET, CONSTRAINT_MEMORY_POLICY, CONSTRAINT_MEMCG
+	Constraint string
+}
+
+func (o *OOMInstance) Summary() string {
+	if o == nil {
+		return ""
+	}
+	eventMsg := "OOM encountered"
+	if o.ProcessName != "" && o.Pid != 0 {
+		eventMsg = fmt.Sprintf("%s, victim process: %s, pid: %d", eventMsg, o.ProcessName, o.Pid)
+	}
+	return eventMsg
+}
+
+var (
+	legacyContainerRegexp = regexp.MustCompile(`Task in (.*) killed as a result of limit of (.*)`)
+
+	// Starting in 5.0 linux kernels, the OOM message changed
 	// e.g.,
 	// oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
-	// [...] oom-kill:constraint=CONSTRAINT_MEMCG,nodemask=(null),
-	eventOOMKillConstraint   = "memory_oom_kill_constraint"
-	regexOOMKillConstraint   = `oom-kill:constraint=`
-	messageOOMKillConstraint = "oom kill constraint detected"
+	containerRegexp = regexp.MustCompile(`oom-kill:constraint=(.*),nodemask=(.*),cpuset=(.*),mems_allowed=(.*),oom_memcg=(.*),task_memcg=(.*),task=(.*),pid=(.*),uid=(.*)`)
+
+	// e.g.,
+	// Out of memory: Killed process 123, UID 48, (httpd).
+	lastLineRegexp = regexp.MustCompile(`Killed process ([0-9]+) \((.+)\)`)
 
 	// e.g.,
 	// postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0
-	// [...] postgres invoked oom-killer: gfp_mask=0x201d2, order=0, oomkilladj=0
-	eventOOMKiller   = "memory_oom_killer"
-	regexOOMKiller   = `(?i)\b(invoked|triggered) oom-killer\b`
-	messageOOMKiller = "oom killer detected"
-
-	// e.g.,
-	// Memory cgroup out of memory: Killed process 123, UID 48, (httpd).
-	// [...] Memory cgroup out of memory: Killed process 123, UID 48, (httpd).
-	eventOOMCgroup   = "memory_oom_cgroup"
-	regexOOMCgroup   = `Memory cgroup out of memory`
-	messageOOMCgroup = "oom cgroup detected"
-
-	// May indicate that Dual Inline Memory Module (DIMM) is beginning to fail.
-	//
-	// e.g.,
-	// [...] EDAC MC0: 1 CE memory read error
-	// [...] EDAC MC1: 128 CE memory read error on CPU_SrcID#1_Ha#0_Chan#1_DIMM#1
-	//
-	// ref.
-	// https://serverfault.com/questions/682909/how-to-find-faulty-memory-module-from-mce-message
-	// https://github.com/Azure/azurehpc/blob/2d57191cb35ed638525ba9424cc2aa1b5abe1c05/experimental/aks_npd_draino/npd/deployment/node-problem-detector-config.yaml#L51C20-L51C40
-	eventEDACCorrectableErrors   = "memory_edac_correctable_errors"
-	regexEDACCorrectableErrors   = `.*CE memory read error.*`
-	messageEDACCorrectableErrors = "edac correctable errors detected"
+	firstLineRegexp = regexp.MustCompile(`invoked oom-killer:`)
 )
 
-var (
-	compiledOOM                   = regexp.MustCompile(regexOOM)
-	compiledOOMKillConstraint     = regexp.MustCompile(regexOOMKillConstraint)
-	compiledOOMKiller             = regexp.MustCompile(regexOOMKiller)
-	compiledOOMCgroup             = regexp.MustCompile(regexOOMCgroup)
-	compiledEDACCorrectableErrors = regexp.MustCompile(regexEDACCorrectableErrors)
-)
-
-// Returns true if the line indicates that the file-max limit has been reached.
-// ref. https://docs.kernel.org/admin-guide/sysctl/fs.html#file-max-file-nr
-func HasOOM(line string) bool {
-	if match := compiledOOM.FindStringSubmatch(line); match != nil {
-		return true
+// gets the container name from a line and adds it to the oomInstance.
+func getLegacyContainerName(line string, currentOomInstance *OOMInstance) error {
+	parsedLine := legacyContainerRegexp.FindStringSubmatch(line)
+	if parsedLine == nil {
+		return nil
 	}
-	return false
+	currentOomInstance.ContainerName = path.Join("/", parsedLine[1])
+	currentOomInstance.VictimContainerName = path.Join("/", parsedLine[2])
+	return nil
 }
 
-func HasOOMKillConstraint(line string) bool {
-	if match := compiledOOMKillConstraint.FindStringSubmatch(line); match != nil {
-		return true
+// gets the container name from a line and adds it to the oomInstance.
+func getContainerName(line string, currentOomInstance *OOMInstance) (bool, error) {
+	parsedLine := containerRegexp.FindStringSubmatch(line)
+	if parsedLine == nil {
+		// Fall back to the legacy format if it isn't found here.
+		return false, getLegacyContainerName(line, currentOomInstance)
 	}
-	return false
+	currentOomInstance.ContainerName = parsedLine[6]
+	currentOomInstance.VictimContainerName = parsedLine[5]
+	currentOomInstance.Constraint = parsedLine[1]
+	pid, err := strconv.Atoi(parsedLine[8])
+	if err != nil {
+		return false, err
+	}
+	currentOomInstance.Pid = pid
+	currentOomInstance.ProcessName = parsedLine[7]
+	return true, nil
 }
 
-func HasOOMKiller(line string) bool {
-	if match := compiledOOMKiller.FindStringSubmatch(line); match != nil {
-		return true
+// gets the pid, name, and date from a line and adds it to oomInstance
+func getProcessNamePid(line string, currentOomInstance *OOMInstance) (bool, error) {
+	reList := lastLineRegexp.FindStringSubmatch(line)
+
+	if reList == nil {
+		return false, nil
 	}
-	return false
+
+	pid, err := strconv.Atoi(reList[1])
+	if err != nil {
+		return false, err
+	}
+	currentOomInstance.Pid = pid
+	currentOomInstance.ProcessName = reList[2]
+	return true, nil
 }
 
-func HasOOMCgroup(line string) bool {
-	if match := compiledOOMCgroup.FindStringSubmatch(line); match != nil {
-		return true
-	}
-	return false
-}
-
-func HasEDACCorrectableErrors(line string) bool {
-	if match := compiledEDACCorrectableErrors.FindStringSubmatch(line); match != nil {
-		return true
-	}
-	return false
-}
-
-func Match(line string) (eventName string, message string) {
-	for _, m := range getMatches() {
-		if m.check(line) {
-			return m.eventName, m.message
-		}
-	}
-	return "", ""
-}
-
-type match struct {
-	check     func(string) bool
-	eventName string
-	regex     string
-	message   string
-}
-
-func getMatches() []match {
-	return []match{
-		{check: HasOOM, eventName: eventOOM, regex: regexOOM, message: messageOOM},
-		{check: HasOOMKillConstraint, eventName: eventOOMKillConstraint, regex: regexOOMKillConstraint, message: messageOOMKillConstraint},
-		{check: HasOOMKiller, eventName: eventOOMKiller, regex: regexOOMKiller, message: messageOOMKiller},
-		{check: HasOOMCgroup, eventName: eventOOMCgroup, regex: regexOOMCgroup, message: messageOOMCgroup},
-		{check: HasEDACCorrectableErrors, eventName: eventEDACCorrectableErrors, regex: regexEDACCorrectableErrors, message: messageEDACCorrectableErrors},
-	}
+// uses regex to see if line is the start of a kernel oom log
+func checkIfStartOfOomMessages(line string) bool {
+	potentialOomStart := firstLineRegexp.MatchString(line)
+	return potentialOomStart
 }

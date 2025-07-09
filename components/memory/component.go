@@ -62,7 +62,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, createMatchFunc(), c.eventBucket)
 			if err != nil {
 				ccancel()
 				return nil, err
