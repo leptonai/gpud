@@ -92,12 +92,13 @@ func (ss devPortSnapshots) findDrops(device string, port uint, threshold time.Du
 	// now make sure the drop state persisted long enough for the period "threshold"
 	elapsed := downLatest.ts.Sub(downOldest.ts)
 	if elapsed < threshold {
-		// the drop state did NOT persist long enough for the period X
-		log.Logger.Warnw("persistent ib port down but did not persist long enough for the period X",
+		// the drop state did NOT persist long enough for the period "threshold"
+		log.Logger.Warnw("persistent ib port down but did not persist long enough",
 			"device", device,
 			"port", port,
 			"oldest_down", downOldest.ts,
 			"latest_down", downLatest.ts,
+			"threshold", threshold,
 			"elapsed", elapsed,
 		)
 		return nil
