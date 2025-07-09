@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"sort"
 	"sync"
 	"time"
 
@@ -54,9 +53,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	rebootEventStore pkghost.RebootEventStore
-	eventBucket      eventstore.Bucket
-	kmsgSyncer       *kmsg.Syncer
+	eventBucket eventstore.Bucket
+	kmsgSyncer  *kmsg.Syncer
 
 	countProcessesByStatusFunc           func(ctx context.Context) (map[string][]process.ProcessStatus, error)
 	zombieProcessCountThresholdDegraded  int
@@ -93,8 +91,6 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
-
-		rebootEventStore: gpudInstance.RebootEventStore,
 
 		countProcessesByStatusFunc:           process.CountProcessesByStatus,
 		zombieProcessCountThresholdDegraded:  defaultZombieProcessCountThresholdDegraded,
@@ -173,55 +169,15 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	if c.eventBucket == nil && c.rebootEventStore == nil {
+	if c.eventBucket == nil {
 		return nil, nil
 	}
 
-	var events apiv1.Events
-	if c.eventBucket != nil {
-		componentEvents, err := c.eventBucket.Get(ctx, since)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(componentEvents) > 0 {
-			events = make(apiv1.Events, 0, len(componentEvents))
-			for _, ev := range componentEvents {
-				// to prevent duplicate events
-				// since "reboot" events and "os" events
-				// share the same event store bucket "os"
-				if ev.Name == pkghost.EventNameReboot {
-					continue
-				}
-				events = append(events, ev.ToEvent())
-			}
-		}
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
 	}
-
-	// for now,
-	// reboot events are recorded in the "os" bucket
-	// until we migrate, this method manually selects
-	// only the "reboot" events from the "os" bucket
-	// thus there should be no overlap between "eventBucket" and "rebootEventStore"
-	if c.rebootEventStore != nil {
-		rebootEvents, err := c.rebootEventStore.GetRebootEvents(ctx, since)
-		if err != nil {
-			return nil, err
-		}
-		if len(rebootEvents) > 0 {
-			events = append(events, rebootEvents.Events()...)
-		}
-	}
-
-	if len(events) == 0 {
-		return nil, nil
-	}
-
-	sort.Slice(events, func(i, j int) bool {
-		return events[i].Time.Time.After(events[j].Time.Time)
-	})
-
-	return events, nil
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
