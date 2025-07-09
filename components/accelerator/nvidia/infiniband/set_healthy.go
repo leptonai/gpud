@@ -10,7 +10,12 @@ var _ components.HealthSettable = &component{}
 func (c *component) SetHealthy() error {
 	log.Logger.Debugw("set healthy event received")
 
-	// TODO: implement
+	if c.ibPortsStore != nil {
+		// past events will be discarded
+		if err := c.ibPortsStore.Tombstone(c.getTimeNowFunc()); err != nil {
+			log.Logger.Warnw("error setting tombstone", "error", err)
+		}
+	}
 
 	return nil
 }

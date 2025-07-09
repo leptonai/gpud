@@ -23,13 +23,14 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	infinibandclass "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/class"
+	infinibandstore "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/store"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 const (
 	Name = "accelerator-nvidia-infiniband"
 
-	defaultCheckInterval  = time.Minute
+	defaultCheckInterval  = 30 * time.Second
 	defaultRequestTimeout = 15 * time.Second
 )
 
@@ -45,8 +46,9 @@ type component struct {
 	nvmlInstance   nvidianvml.Instance
 	toolOverwrites pkgconfigcommon.ToolOverwrites
 
-	eventBucket eventstore.Bucket
-	kmsgSyncer  *kmsg.Syncer
+	ibPortsStore infinibandstore.Store
+	eventBucket  eventstore.Bucket
+	kmsgSyncer   *kmsg.Syncer
 
 	getTimeNowFunc      func() time.Time
 	getThresholdsFunc   func() infiniband.ExpectedPortStates
@@ -79,6 +81,14 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
 			return infiniband.GetIbstatOutput(ctx, []string{gpudInstance.NVIDIAToolOverwrites.IbstatCommand})
 		},
+	}
+
+	if gpudInstance.DBRW != nil && gpudInstance.DBRO != nil {
+		var err error
+		c.ibPortsStore, err = infinibandstore.New(gpudInstance.RootCtx, gpudInstance.DBRW, gpudInstance.DBRO)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -240,6 +250,17 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
+	if c.ibPortsStore != nil && len(sysClassIBPorts) > 0 {
+		err := c.ibPortsStore.Insert(c.getTimeNowFunc(), sysClassIBPorts)
+		if err != nil {
+			log.Logger.Warnw("error inserting ib ports into store", "error", err)
+		} else {
+			if err := c.ibPortsStore.Scan(); err != nil {
+				log.Logger.Warnw("error scanning ib ports from store", "error", err)
+			}
+		}
+	}
+
 	if c.getIbstatOutputFunc != nil {
 		// TODO: deprecate in favor of class dir data
 		// "ibstat" may fail if there's a port device that is wrongly mapped (e.g., exit 255)
@@ -278,8 +299,6 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	// TODO: record these in events store for more complicated time series data analysis
-
 	evaluateHealthStateWithThresholds(thresholds, sysClassIBPorts, cr)
 
 	if len(cr.unhealthyIBPorts) == 0 && cr.IbstatOutput != nil {
@@ -288,6 +307,51 @@ func (c *component) Check() components.CheckResult {
 		// only use ibstat as fallback if class dir data is not available or no unhealthy IB ports are found
 		// TODO: deprecate in favor of class dir data
 		evaluateHealthStateWithThresholds(thresholds, cr.IbstatOutput.Parsed.IBPorts(), cr)
+	}
+
+	// regardless of thresholds, check ib flap/drop events
+	// returns until events are marked as processed/discarded
+	// by set healthy event
+	if c.ibPortsStore != nil {
+		events, err := c.ibPortsStore.Events(time.Time{})
+		if err != nil {
+			log.Logger.Warnw("error getting ib flap/drop events", "error", err)
+		}
+		if len(events) > 0 {
+			dropCount := 0
+			flapCount := 0
+
+			// Count event types
+			for _, event := range events {
+				switch event.EventType {
+				case infinibandstore.EventTypeIbPortDrop:
+					dropCount++
+					log.Logger.Warnw("ib port drop event", "event", event)
+				case infinibandstore.EventTypeIbPortFlap:
+					flapCount++
+					log.Logger.Warnw("ib port flap event", "event", event)
+				default:
+					log.Logger.Warnw("unknown ib event type", "event", event)
+				}
+			}
+
+			// Set specific reason based on event types
+			switch {
+			case dropCount > 0 && flapCount == 0:
+				cr.reason = "ib port drop events detected"
+			case dropCount == 0 && flapCount > 0:
+				cr.reason = "ib port flap events detected"
+			default:
+				cr.reason = "ib port flap and drop events detected"
+			}
+
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.suggestedActions = &apiv1.SuggestedActions{
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			}
+		}
 	}
 
 	return cr

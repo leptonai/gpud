@@ -201,6 +201,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		NVMLInstance:         nvmlInstance,
 		NVIDIAToolOverwrites: config.NvidiaToolOverwrites,
 
+		DBRW: dbRW,
 		DBRO: dbRO,
 
 		EventStore:       eventStore,

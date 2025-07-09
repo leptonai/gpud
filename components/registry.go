@@ -33,6 +33,7 @@ type GPUdInstance struct {
 	NVMLInstance         nvidianvml.Instance
 	NVIDIAToolOverwrites nvidiacommon.ToolOverwrites
 
+	DBRW *sql.DB
 	DBRO *sql.DB
 
 	EventStore       eventstore.Store
