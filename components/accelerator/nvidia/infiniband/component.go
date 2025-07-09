@@ -5,13 +5,10 @@ package infiniband
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -53,7 +50,6 @@ type component struct {
 	getTimeNowFunc      func() time.Time
 	getThresholdsFunc   func() infiniband.ExpectedPortStates
 	getClassDevicesFunc func() (infinibandclass.Devices, error)
-	getIbstatOutputFunc func(ctx context.Context) (*infiniband.IbstatOutput, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -77,9 +73,6 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getThresholdsFunc: GetDefaultExpectedPortStates,
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return infinibandclass.LoadDevices(gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir)
-		},
-		getIbstatOutputFunc: func(ctx context.Context) (*infiniband.IbstatOutput, error) {
-			return infiniband.GetIbstatOutput(ctx, []string{gpudInstance.NVIDIAToolOverwrites.IbstatCommand})
 		},
 	}
 
@@ -218,8 +211,12 @@ func (c *component) Check() components.CheckResult {
 
 	var err error
 	cr.ClassDevices, err = c.getClassDevicesFunc()
-	if len(cr.ClassDevices) == 0 || err != nil {
+	if err != nil {
 		log.Logger.Warnw("error loading infiniband class devices", "devices", len(cr.ClassDevices), "error", err)
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error loading infiniband class devices"
+		cr.err = err
+		return cr
 	}
 
 	var sysClassIBPorts []infiniband.IBPort
@@ -254,45 +251,23 @@ func (c *component) Check() components.CheckResult {
 		err := c.ibPortsStore.Insert(c.getTimeNowFunc(), sysClassIBPorts)
 		if err != nil {
 			log.Logger.Warnw("error inserting ib ports into store", "error", err)
-		} else {
-			if err := c.ibPortsStore.Scan(); err != nil {
-				log.Logger.Warnw("error scanning ib ports from store", "error", err)
-			}
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "error inserting ib ports into store"
+			cr.err = err
+			return cr
+		}
+
+		if err := c.ibPortsStore.Scan(); err != nil {
+			log.Logger.Warnw("error scanning ib ports from store", "error", err)
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "error scanning ib ports from store"
+			cr.err = err
+			return cr
 		}
 	}
 
-	if c.getIbstatOutputFunc != nil {
-		// TODO: deprecate in favor of class dir data
-		// "ibstat" may fail if there's a port device that is wrongly mapped (e.g., exit 255)
-		// but can still return the partial output with the correct data
-		cctx, ccancel := context.WithTimeout(c.ctx, c.requestTimeout)
-		cr.IbstatOutput, cr.err = c.getIbstatOutputFunc(cctx)
-		ccancel()
-
-		// TODO: deprecate in favor of class dir data
-		if cr.err != nil {
-			if errors.Is(cr.err, infiniband.ErrNoIbstatCommand) {
-				cr.health = apiv1.HealthStateTypeHealthy
-				cr.reason = "ibstat command not found"
-			} else {
-				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = "ibstat command failed"
-				log.Logger.Warnw(cr.reason, "error", cr.err)
-			}
-		}
-	}
-
-	// no event bucket, no need for timeseries data checks
-	// (e.g., "gpud scan" one-off checks)
-	if c.eventBucket == nil {
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = reasonNoEventBucket
-		return cr
-	}
-
-	// "ibstat" command returned no data, skip the evaluation
-	// TODO: deprecate in favor of class dir data
-	if cr.err == nil && len(sysClassIBPorts) == 0 && cr.IbstatOutput == nil {
+	// no data, skip the evaluation
+	if len(sysClassIBPorts) == 0 {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = reasonNoIbPortIssue
 		log.Logger.Warnw(cr.reason)
@@ -300,14 +275,6 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	evaluateHealthStateWithThresholds(thresholds, sysClassIBPorts, cr)
-
-	if len(cr.unhealthyIBPorts) == 0 && cr.IbstatOutput != nil {
-		log.Logger.Warnw("infiniband class dir data is available but no unhealthy IB ports are found, using ibstat as fallback", "ibClassDir", c.toolOverwrites.InfinibandClassRootDir)
-
-		// only use ibstat as fallback if class dir data is not available or no unhealthy IB ports are found
-		// TODO: deprecate in favor of class dir data
-		evaluateHealthStateWithThresholds(thresholds, cr.IbstatOutput.Parsed.IBPorts(), cr)
-	}
 
 	// regardless of thresholds, check ib flap/drop events
 	// returns until events are marked as processed/discarded
@@ -362,9 +329,6 @@ var _ components.CheckResult = &checkResult{}
 type checkResult struct {
 	ClassDevices infinibandclass.Devices `json:"class_devices"`
 
-	// TODO: deprecate in favor of class dir data
-	IbstatOutput *infiniband.IbstatOutput `json:"ibstat_output"`
-
 	// current unhealthy ib ports that are problematic
 	// (down/polling/disabled, below expected ib port thresholds)
 	unhealthyIBPorts []infiniband.IBPort `json:"-"`
@@ -390,33 +354,12 @@ func (cr *checkResult) String() string {
 	if cr == nil {
 		return ""
 	}
-	if cr.IbstatOutput == nil {
-		return "no data"
-	}
 
 	out := ""
 
 	if len(cr.ClassDevices) > 0 {
 		buf := bytes.NewBuffer(nil)
 		cr.ClassDevices.RenderTable(buf)
-
-		out += buf.String() + "\n\n"
-	}
-
-	if cr.IbstatOutput != nil {
-		buf := bytes.NewBuffer(nil)
-		table := tablewriter.NewWriter(buf)
-		table.SetAlignment(tablewriter.ALIGN_CENTER)
-		table.SetHeader([]string{"Port Device Name", "Port1 State", "Port1 Physical State", "Port1 Rate"})
-		for _, card := range cr.IbstatOutput.Parsed {
-			table.Append([]string{
-				card.Device,
-				card.Port1.State,
-				card.Port1.PhysicalState,
-				fmt.Sprintf("%d", card.Port1.Rate),
-			})
-		}
-		table.Render()
 
 		out += buf.String() + "\n\n"
 	}
