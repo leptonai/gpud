@@ -119,8 +119,6 @@ func (ss devPortSnapshots) findFlaps(device string, port uint, downIntervalThres
 			log.Logger.Debugw("no ib port reverted back to active (not a flap)",
 				"device", device,
 				"port", port,
-				"down1", down1.ts,
-				"down2", down2.ts,
 			)
 		}
 		return nil
