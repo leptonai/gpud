@@ -179,8 +179,11 @@ func (c *component) Check() components.CheckResult {
 			}
 			return cr
 		}
+
 		var danglingCount int
+		cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
 		_, kubeletPods, err := kubelet.ListPodsFromKubeletReadOnlyPort(cctx, kubelet.DefaultKubeletReadOnlyPort)
+		ccancel()
 		if err != nil {
 			log.Logger.Errorf("error listing pods from kubelet: %v", err)
 		} else {
