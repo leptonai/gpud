@@ -200,9 +200,6 @@ func (c *component) Check() components.CheckResult {
 		} else if danglingCount > DanglingDegradedThreshold {
 			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = fmt.Sprintf("node has %v dangling pods, consider reboot system to recover, degraded threshold %v", danglingCount, DanglingDegradedThreshold)
-			cr.suggestedAction = &apiv1.SuggestedActions{
-				Description: "too many dangling pod",
-			}
 			return cr
 		} else if danglingCount != 0 {
 			cr.reason = fmt.Sprintf("node has %v dangling pods", danglingCount)
