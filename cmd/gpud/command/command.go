@@ -192,12 +192,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Value:  "",
 					Hidden: true, // only for testing
 				},
-				cli.StringFlag{
-					Name:   "ibstat-command",
-					Usage:  "sets the ibstat command (leave empty for default, useful for testing)",
-					Value:  "ibstat",
-					Hidden: true, // only for testing
-				},
 			},
 		},
 		{
@@ -438,16 +432,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "nfs-checker-configs",
 					Usage: "set the NFS checker group configs in JSON (leave empty for default, useful for testing)",
 				},
-
 				cli.StringFlag{
 					Name:   "infiniband-class-root-dir",
 					Usage:  "sets the infiniband class root directory (leave empty for default)",
 					Value:  "",
-					Hidden: true, // only for testing
-				},
-				cli.StringFlag{
-					Name:   "ibstat-command",
-					Usage:  "sets the ibstat command (leave empty for default, useful for testing)",
 					Hidden: true, // only for testing
 				},
 			},
@@ -487,8 +475,9 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "fail fast, exit immediately if any plugin returns unhealthy state (default: true)",
 				},
 				cli.StringFlag{
-					Name:   "ibstat-command",
-					Usage:  "sets the ibstat command (leave empty for default, useful for testing)",
+					Name:   "infiniband-class-root-dir",
+					Usage:  "sets the infiniband class root directory (leave empty for default)",
+					Value:  "",
 					Hidden: true, // only for testing
 				},
 			},

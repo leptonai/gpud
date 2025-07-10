@@ -36,7 +36,7 @@ By addressing these challenges, GPUd simplifies GPU management, reduces human er
 - NVIDIA GPU processes: uses NVML to list running processes.
 - NVIDIA NVLink & NVSwitch: scans kmsg for any issues, NVML for status and errors.
 - NVIDIA fabric manager: checks nvidia-fabricmanager unit status.
-- NVIDIA InfiniBand: checks ibstat.
+- NVIDIA InfiniBand: checks infiniband port states.
 - NVIDIA direct RDMA (Remote Direct Memory Access): check lsmod, peermem.
 - CPU, OS, memory, disk, file descriptor usage monitoring.
 - Regex-based kmsg streaming and scanning.

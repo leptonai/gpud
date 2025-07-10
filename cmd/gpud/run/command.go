@@ -59,7 +59,6 @@ func Command(cliContext *cli.Context) error {
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
 
 	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
-	ibstatCommand := cliContext.String("ibstat-command")
 	components := cliContext.String("components")
 
 	gpuCount := cliContext.Int("gpu-count")
@@ -96,7 +95,6 @@ func Command(cliContext *cli.Context) error {
 
 	configOpts := []config.OpOption{
 		config.WithInfinibandClassRootDir(ibClassRootDir),
-		config.WithIbstatCommand(ibstatCommand),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)

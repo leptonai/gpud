@@ -426,7 +426,7 @@ type checkResult struct {
 
 	// timestamp of the last check
 	ts time.Time
-	// error from the last check with "ibstat" command and other operations
+	// error from the last check
 	err error
 
 	// tracks the healthy evaluation result of the last check
