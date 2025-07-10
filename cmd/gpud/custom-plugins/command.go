@@ -78,7 +78,7 @@ func Command(cliContext *cli.Context) error {
 		RootCtx:      ctx,
 		NVMLInstance: nvmlInstance,
 		NVIDIAToolOverwrites: nvidiacommon.ToolOverwrites{
-			IbstatCommand: cliContext.String("ibstat-command"),
+			InfinibandClassRootDir: cliContext.String("infiniband-class-root-dir"),
 		},
 	}
 

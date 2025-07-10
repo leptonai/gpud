@@ -45,7 +45,6 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		EnableAutoUpdate: true,
 		NvidiaToolOverwrites: nvidiacommon.ToolOverwrites{
 			InfinibandClassRootDir: options.InfinibandClassRootDir,
-			IbstatCommand:          options.IbstatCommand,
 		},
 	}
 

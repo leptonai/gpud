@@ -25,12 +25,11 @@ func CreateCommand() func(*cli.Context) error {
 			cliContext.String("infiniband-expected-port-states"),
 			cliContext.String("nfs-checker-configs"),
 			cliContext.String("infiniband-class-root-dir"),
-			cliContext.String("ibstat-command"),
 		)
 	}
 }
 
-func cmdScan(logLevel string, gpuCount int, infinibandExpectedPortStates string, nfsCheckerConfigs string, ibClassRootDir string, ibstatCommand string) error {
+func cmdScan(logLevel string, gpuCount int, infinibandExpectedPortStates string, nfsCheckerConfigs string, ibClassRootDir string) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
@@ -69,7 +68,6 @@ func cmdScan(logLevel string, gpuCount int, infinibandExpectedPortStates string,
 
 	opts := []scan.OpOption{
 		scan.WithInfinibandClassRootDir(ibClassRootDir),
-		scan.WithIbstatCommand(ibstatCommand),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error
 		opts = append(opts, scan.WithDebug(true))

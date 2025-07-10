@@ -20,10 +20,6 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 		op.InfinibandClassRootDir = infinibandclass.DefaultRootDir
 	}
 
-	if op.IbstatCommand == "" {
-		op.IbstatCommand = "ibstat"
-	}
-
 	return nil
 }
 
@@ -31,12 +27,5 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 func WithInfinibandClassRootDir(p string) OpOption {
 	return func(op *Op) {
 		op.InfinibandClassRootDir = p
-	}
-}
-
-// Specifies the ibstat binary path to overwrite the default path.
-func WithIbstatCommand(p string) OpOption {
-	return func(op *Op) {
-		op.IbstatCommand = p
 	}
 }
