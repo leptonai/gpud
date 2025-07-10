@@ -2,6 +2,7 @@ package kmsg
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -53,19 +54,27 @@ func TestDeduper(t *testing.T) {
 		assert.Equal(t, 2, d.addCache(msg1), "first line second occurrence")
 	})
 
-	t.Run("same content different timestamps should have independent counts", func(t *testing.T) {
+	t.Run("same content different timestamps within same minute should be treated as duplicates", func(t *testing.T) {
 		d := newDeduper(5*time.Minute, 10*time.Minute)
 		content := "test content"
+		baseTime := time.Date(2024, 1, 1, 12, 30, 0, 0, time.UTC)
 		msg1 := Message{
-			Timestamp: metav1.Time{Time: time.Now().UTC()},
+			Timestamp: metav1.Time{Time: baseTime},
 			Message:   content,
 		}
 		msg2 := Message{
-			Timestamp: metav1.Time{Time: time.Now().UTC().Add(1 * time.Second)},
+			Timestamp: metav1.Time{Time: baseTime.Add(30 * time.Second)},
 			Message:   content,
 		}
 		assert.Equal(t, 1, d.addCache(msg1), "first timestamp first occurrence")
-		assert.Equal(t, 1, d.addCache(msg2), "second timestamp first occurrence")
+		assert.Equal(t, 2, d.addCache(msg2), "second timestamp within same minute should be second occurrence")
+
+		// Different minute should have independent count
+		msg3 := Message{
+			Timestamp: metav1.Time{Time: baseTime.Add(61 * time.Second)},
+			Message:   content,
+		}
+		assert.Equal(t, 1, d.addCache(msg3), "different minute should be first occurrence")
 	})
 
 	t.Run("count should reset after expiration", func(t *testing.T) {
@@ -94,6 +103,145 @@ func TestDeduper(t *testing.T) {
 		// Wait for expiration
 		time.Sleep(2 * shortExpiration)
 		assert.Equal(t, 1, d.addCache(msg), "should be first occurrence again after expiration")
+	})
+}
+
+func TestCacheKey(t *testing.T) {
+	t.Run("should round down to nearest minute", func(t *testing.T) {
+		// Test various timestamps within the same minute
+		baseTime := time.Date(2024, 1, 1, 12, 30, 0, 0, time.UTC)
+		msg := Message{
+			Message: "test message",
+		}
+
+		// All timestamps within the same minute should produce the same cache key
+		expectedKey := fmt.Sprintf("%d-%s", baseTime.Unix()-(baseTime.Unix()%60), msg.Message)
+
+		// Test at the start of the minute
+		msg.Timestamp = metav1.Time{Time: baseTime}
+		assert.Equal(t, expectedKey, msg.cacheKey())
+
+		// Test at 15 seconds
+		msg.Timestamp = metav1.Time{Time: baseTime.Add(15 * time.Second)}
+		assert.Equal(t, expectedKey, msg.cacheKey())
+
+		// Test at 30 seconds
+		msg.Timestamp = metav1.Time{Time: baseTime.Add(30 * time.Second)}
+		assert.Equal(t, expectedKey, msg.cacheKey())
+
+		// Test at 59 seconds
+		msg.Timestamp = metav1.Time{Time: baseTime.Add(59 * time.Second)}
+		assert.Equal(t, expectedKey, msg.cacheKey())
+	})
+
+	t.Run("should produce different keys for different minutes", func(t *testing.T) {
+		msg := Message{
+			Message: "test message",
+		}
+
+		// Test timestamps in different minutes
+		time1 := time.Date(2024, 1, 1, 12, 30, 45, 0, time.UTC)
+		time2 := time.Date(2024, 1, 1, 12, 31, 15, 0, time.UTC)
+		time3 := time.Date(2024, 1, 1, 12, 32, 0, 0, time.UTC)
+
+		msg.Timestamp = metav1.Time{Time: time1}
+		key1 := msg.cacheKey()
+
+		msg.Timestamp = metav1.Time{Time: time2}
+		key2 := msg.cacheKey()
+
+		msg.Timestamp = metav1.Time{Time: time3}
+		key3 := msg.cacheKey()
+
+		// All keys should be different
+		assert.NotEqual(t, key1, key2)
+		assert.NotEqual(t, key2, key3)
+		assert.NotEqual(t, key1, key3)
+	})
+
+	t.Run("should produce different keys for different messages in same minute", func(t *testing.T) {
+		baseTime := time.Date(2024, 1, 1, 12, 30, 0, 0, time.UTC)
+
+		msg1 := Message{
+			Timestamp: metav1.Time{Time: baseTime},
+			Message:   "message 1",
+		}
+		msg2 := Message{
+			Timestamp: metav1.Time{Time: baseTime.Add(30 * time.Second)},
+			Message:   "message 2",
+		}
+
+		assert.NotEqual(t, msg1.cacheKey(), msg2.cacheKey())
+	})
+
+	t.Run("should handle edge cases correctly", func(t *testing.T) {
+		msg := Message{
+			Message: "test message",
+		}
+
+		// Test at exactly midnight
+		midnight := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		msg.Timestamp = metav1.Time{Time: midnight}
+		midnightKey := msg.cacheKey()
+		expectedMidnightKey := fmt.Sprintf("%d-%s", midnight.Unix(), msg.Message)
+		assert.Equal(t, expectedMidnightKey, midnightKey)
+
+		// Test one second before midnight
+		beforeMidnight := midnight.Add(-1 * time.Second)
+		msg.Timestamp = metav1.Time{Time: beforeMidnight}
+		beforeKey := msg.cacheKey()
+		assert.NotEqual(t, midnightKey, beforeKey)
+
+		// Test at the last second of a minute (59 seconds)
+		lastSecond := time.Date(2024, 1, 1, 12, 30, 59, 0, time.UTC)
+		msg.Timestamp = metav1.Time{Time: lastSecond}
+		lastSecondKey := msg.cacheKey()
+
+		// Test at the first second of next minute
+		firstSecond := time.Date(2024, 1, 1, 12, 31, 0, 0, time.UTC)
+		msg.Timestamp = metav1.Time{Time: firstSecond}
+		firstSecondKey := msg.cacheKey()
+
+		assert.NotEqual(t, lastSecondKey, firstSecondKey)
+	})
+
+	t.Run("verify defaultCacheKeyTruncateSeconds is 60", func(t *testing.T) {
+		// Ensure the constant is set to 60 seconds (1 minute)
+		assert.Equal(t, 60, defaultCacheKeyTruncateSeconds)
+	})
+
+	t.Run("deduper should treat messages within same minute as duplicates", func(t *testing.T) {
+		d := newDeduper(5*time.Minute, 10*time.Minute)
+		baseTime := time.Date(2024, 1, 1, 12, 30, 0, 0, time.UTC)
+		content := "duplicate message"
+
+		// Add message at start of minute
+		msg1 := Message{
+			Timestamp: metav1.Time{Time: baseTime},
+			Message:   content,
+		}
+		assert.Equal(t, 1, d.addCache(msg1))
+
+		// Add same message 30 seconds later (same minute)
+		msg2 := Message{
+			Timestamp: metav1.Time{Time: baseTime.Add(30 * time.Second)},
+			Message:   content,
+		}
+		assert.Equal(t, 2, d.addCache(msg2))
+
+		// Add same message 59 seconds later (still same minute)
+		msg3 := Message{
+			Timestamp: metav1.Time{Time: baseTime.Add(59 * time.Second)},
+			Message:   content,
+		}
+		assert.Equal(t, 3, d.addCache(msg3))
+
+		// Add same message in next minute (should start fresh count)
+		msg4 := Message{
+			Timestamp: metav1.Time{Time: baseTime.Add(60 * time.Second)},
+			Message:   content,
+		}
+		assert.Equal(t, 1, d.addCache(msg4))
 	})
 }
 
@@ -126,19 +274,23 @@ func TestDeduperWithRealData(t *testing.T) {
 	t.Run("should detect duplicate messages in test data", func(t *testing.T) {
 		d := newDeduper(5*time.Minute, 10*time.Minute)
 
-		// The first 7 messages are duplicates (same message, different timestamps)
+		// The first 7 messages have the same content but different timestamps
+		// With minute-based deduplication, they will be considered duplicates if within same minute
 		// The 8th message is different
 
-		// First message should return 1 (first occurrence)
-		assert.Equal(t, 1, d.addCache(messages[0]), "first message occurrence")
+		// Track counts by cache key to handle minute-based deduplication
+		keyCounts := make(map[string]int)
 
-		// Second message should return 2 (second occurrence) - and so on
-		assert.Equal(t, 2, d.addCache(messages[1]), "second message occurrence")
-		assert.Equal(t, 3, d.addCache(messages[2]), "third message occurrence")
-		assert.Equal(t, 4, d.addCache(messages[3]), "fourth message occurrence")
-		assert.Equal(t, 5, d.addCache(messages[4]), "fifth message occurrence")
-		assert.Equal(t, 6, d.addCache(messages[5]), "sixth message occurrence")
-		assert.Equal(t, 7, d.addCache(messages[6]), "seventh message occurrence")
+		// Process first 7 messages (same content)
+		for i := 0; i < 7; i++ {
+			key := messages[i].cacheKey()
+			keyCounts[key]++
+			expected := keyCounts[key]
+			actual := d.addCache(messages[i])
+			assert.Equal(t, expected, actual,
+				"message %d (timestamp: %v) should have occurrence count %d",
+				i, messages[i].Timestamp.Time, expected)
+		}
 
 		// Last message is different, should return 1 (first occurrence)
 		assert.Equal(t, 1, d.addCache(messages[7]), "different message occurrence")
@@ -148,15 +300,31 @@ func TestDeduperWithRealData(t *testing.T) {
 		d := newDeduper(5*time.Minute, 10*time.Minute)
 
 		// In the test data, messages have timestamps like 227996636, 227996637, etc.
-		// These tiny differences might affect caching if using raw timestamps
+		// With the minute-based caching, messages within the same minute will be considered duplicates
 
-		// Verify that messages with nearly identical timestamps but identical content
-		// are still considered duplicates
-		for i := 0; i < 7; i++ {
-			expected := i + 1 // Expected occurrence count (1-based)
-			assert.Equal(t, expected, d.addCache(messages[i]),
-				"message %d with timestamp %d should be occurrence %d",
-				i, messages[i].Timestamp.Unix(), expected)
+		// First, let's check if all 7 messages are within the same minute
+		minTime := messages[0].Timestamp.Unix()
+		maxTime := messages[6].Timestamp.Unix()
+		withinSameMinute := (maxTime - minTime) < 60
+
+		if withinSameMinute {
+			// If all within same minute, they should all be duplicates
+			for i := 0; i < 7; i++ {
+				expected := i + 1 // Expected occurrence count (1-based)
+				assert.Equal(t, expected, d.addCache(messages[i]),
+					"message %d with timestamp %d should be occurrence %d",
+					i, messages[i].Timestamp.Unix(), expected)
+			}
+		} else {
+			// If spanning multiple minutes, need to check each message individually
+			counts := make(map[string]int)
+			for i := 0; i < 7; i++ {
+				key := messages[i].cacheKey()
+				counts[key]++
+				assert.Equal(t, counts[key], d.addCache(messages[i]),
+					"message %d should have correct occurrence count based on cache key",
+					i)
+			}
 		}
 	})
 
@@ -192,21 +360,23 @@ func TestDeduperWithRealData(t *testing.T) {
 			assert.Equal(t, errorMessage, messages[i].Message)
 		}
 
-		// But they should have different timestamps and different cache keys
+		// Test cache key behavior with minute-based rounding
 		for i := 0; i < 7; i++ {
 			for j := i + 1; j < 7; j++ {
 				// Messages should have same content but different timestamps
 				assert.Equal(t, messages[i].Message, messages[j].Message)
 				assert.NotEqual(t, messages[i].Timestamp, messages[j].Timestamp)
 
-				// By default, cacheKey uses Unix seconds, so these will be same in test data
-				// Let's test the actual implementation
-				if messages[i].Timestamp.Unix() == messages[j].Timestamp.Unix() {
+				// With minute-based rounding, check if they're in the same minute
+				minI := messages[i].Timestamp.Unix() - (messages[i].Timestamp.Unix() % 60)
+				minJ := messages[j].Timestamp.Unix() - (messages[j].Timestamp.Unix() % 60)
+
+				if minI == minJ {
 					assert.Equal(t, messages[i].cacheKey(), messages[j].cacheKey(),
-						"messages with same second-level timestamp should have same cache key")
+						"messages within same minute should have same cache key")
 				} else {
 					assert.NotEqual(t, messages[i].cacheKey(), messages[j].cacheKey(),
-						"messages with different second-level timestamps should have different cache keys")
+						"messages in different minutes should have different cache keys")
 				}
 			}
 		}
