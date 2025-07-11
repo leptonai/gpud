@@ -1185,10 +1185,10 @@ func TestComponentReadClass_EventReporting(t *testing.T) {
 
 		cr := c.Check()
 
-		// The component should detect flap/drop events and include the EventReason in the summary
+		// The component should detect flap/drop events and include the abbreviated reason in the summary
 		summary := cr.Summary()
-		assert.Contains(t, summary, "mlx5_0 port 1 flap since")
-		assert.Contains(t, summary, "mlx5_1 port 1 drop since")
+		assert.Contains(t, summary, "port flap mlx5_0")
+		assert.Contains(t, summary, "port drop mlx5_1")
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 	})
 
@@ -1248,8 +1248,7 @@ func TestComponentReadClass_EventReporting(t *testing.T) {
 
 		// Should have both flap events in the summary
 		summary := cr.Summary()
-		assert.Contains(t, summary, "mlx5_0 port 1 flap since")
-		assert.Contains(t, summary, "mlx5_1 port 1 flap since")
+		assert.Contains(t, summary, "port flap mlx5_0, mlx5_1")
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 	})
 
@@ -1309,7 +1308,7 @@ func TestComponentReadClass_EventReporting(t *testing.T) {
 
 		// Should only include the known event type (drop), not the unknown one
 		summary := cr.Summary()
-		assert.Contains(t, summary, "mlx5_1 port 1 drop since")
+		assert.Contains(t, summary, "port drop mlx5_1")
 		assert.NotContains(t, summary, "unknown event reason")
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 	})
@@ -1361,7 +1360,7 @@ func TestComponentReadClass_EventReporting(t *testing.T) {
 
 		// Should be unhealthy but summary should handle empty reason gracefully
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
-		// The summary should still contain the reason (even if empty)
-		assert.Contains(t, cr.Summary(), ";")
+		// The summary should still contain the device name in abbreviated format
+		assert.Contains(t, cr.Summary(), "port flap mlx5_0")
 	})
 }
