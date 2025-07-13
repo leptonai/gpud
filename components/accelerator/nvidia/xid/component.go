@@ -52,6 +52,8 @@ type component struct {
 	nvmlInstance nvidianvml.Instance
 	devices      map[string]device.Device
 
+	suggestedActionsStore components.SuggestedActionsStore
+
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
 	kmsgWatcher      kmsg.Watcher
@@ -69,11 +71,12 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:              cctx,
-		cancel:           ccancel,
-		nvmlInstance:     gpudInstance.NVMLInstance,
-		rebootEventStore: gpudInstance.RebootEventStore,
-		extraEventCh:     make(chan *eventstore.Event, 256),
+		ctx:                   cctx,
+		cancel:                ccancel,
+		nvmlInstance:          gpudInstance.NVMLInstance,
+		suggestedActionsStore: gpudInstance.SuggestedActionsStore,
+		rebootEventStore:      gpudInstance.RebootEventStore,
+		extraEventCh:          make(chan *eventstore.Event, 256),
 	}
 
 	if gpudInstance.NVMLInstance != nil {
@@ -482,6 +485,20 @@ func (c *component) updateCurrentState() error {
 		c.currState.Error = fmt.Sprintf("%s\n%s", rebootErr, c.currState.Error)
 	}
 	c.mu.Unlock()
+
+	if c.currState.SuggestedActions != nil && c.suggestedActionsStore != nil {
+		switch c.currState.SuggestedActions.RepairActions[0] {
+		case apiv1.RepairActionTypeHardwareInspection:
+			c.suggestedActionsStore.Suggest(Name, c.currState.SuggestedActions.RepairActions[0], 10*time.Minute)
+		case apiv1.RepairActionTypeRebootSystem:
+			// see if there are any other components that have suggested hw inspections
+			components := c.suggestedActionsStore.HasSuggested(apiv1.RepairActionTypeHardwareInspection)
+			if len(components) > 0 {
+				log.Logger.Infow("xid error suggests reboot but other components suggested hardware inspection", "hwSuggestingComponents", components)
+				c.currState.SuggestedActions.RepairActions[0] = apiv1.RepairActionTypeHardwareInspection
+			}
+		}
+	}
 
 	return nil
 }

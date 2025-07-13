@@ -204,8 +204,9 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		DBRW: dbRW,
 		DBRO: dbRO,
 
-		EventStore:       eventStore,
-		RebootEventStore: rebootEventStore,
+		SuggestedActionsStore: components.NewSuggestedActionsStore(),
+		EventStore:            eventStore,
+		RebootEventStore:      rebootEventStore,
 
 		MountPoints:  []string{"/"},
 		MountTargets: []string{"/var/lib/kubelet"},

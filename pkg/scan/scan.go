@@ -67,8 +67,9 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 			InfinibandClassRootDir: op.infinibandClassRootDir,
 		},
 
-		EventStore:       nil,
-		RebootEventStore: nil,
+		SuggestedActionsStore: components.NewSuggestedActionsStore(),
+		EventStore:            nil,
+		RebootEventStore:      nil,
 
 		MountPoints:  []string{"/"},
 		MountTargets: []string{"/var/lib/kubelet"},

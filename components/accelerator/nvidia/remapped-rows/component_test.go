@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -38,6 +39,9 @@ func (m *mockEventBucket) Name() string {
 }
 
 func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
+	if m.err != nil {
+		return m.err
+	}
 	m.events = append(m.events, event)
 	return nil
 }
@@ -1587,7 +1591,7 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 			} else {
 				// Test HealthStateType() for nil checkResult
 				assert.Equal(t, apiv1.HealthStateType(""), tt.data.HealthStateType()) // Expect empty string for nil receiver
-				// ComponentName() for nil checkResult would panic if called as tt.data.ComponentName()
+				// ComponentName() for nil checkResult would panic if called as tt.data.ComponentName(),
 				// but the method is on *checkResult, so one could call (*checkResult)(nil).ComponentName(),
 				// which would return Name. Testing the non-nil case is generally more relevant for typical usage.
 				// Let's ensure ComponentName() is also tested for the nil case if it makes sense.
@@ -1706,4 +1710,1457 @@ func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
 	eventsClient, errClient := c.Events(ctx, time.Now())
 	assert.NoError(t, errClient, "Events() should not error with nil eventBucket in TestCheckSuggestedActionsWithNilEventBucket")
 	assert.Nil(t, eventsClient, "Events() should return nil events with nil eventBucket in TestCheckSuggestedActionsWithNilEventBucket")
+}
+
+// Test the suggestedActionsStore logic for row remapping pending and failed events
+func TestCheckSuggestedActionsStoreLogic(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	tableName := fmt.Sprintf("test_suggested_actions_%d", time.Now().UnixNano())
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	require.NoError(t, err)
+	eventBucket, err := eventStore.Bucket(tableName)
+	require.NoError(t, err)
+	defer eventBucket.Close()
+
+	// Create mock device
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	tests := []struct {
+		name                            string
+		remappedRows                    nvml.RemappedRows
+		suggestedActionsStore           components.SuggestedActionsStore
+		otherComponentsSuggestingHwInsp []string
+		expectedSuggestedAction         *apiv1.SuggestedActions
+		expectedEventName               string
+		expectSuggestCall               bool
+		expectSuggestDuration           time.Duration
+	}{
+		{
+			name: "remapping pending with nil suggestedActionsStore",
+			remappedRows: nvml.RemappedRows{
+				UUID:             "GPU1",
+				RemappingPending: true,
+				RemappingFailed:  false,
+			},
+			suggestedActionsStore: nil,
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+			expectedEventName: "row_remapping_pending",
+			expectSuggestCall: false,
+		},
+		{
+			name: "remapping pending with no other hw inspection components",
+			remappedRows: nvml.RemappedRows{
+				UUID:             "GPU1",
+				RemappingPending: true,
+				RemappingFailed:  false,
+			},
+			suggestedActionsStore: &mockSuggestedActionsStore{
+				suggestions: make(map[string][]apiv1.RepairActionType),
+			},
+			otherComponentsSuggestingHwInsp: []string{},
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+			expectedEventName: "row_remapping_pending",
+			expectSuggestCall: false,
+		},
+		{
+			name: "remapping pending with other hw inspection components",
+			remappedRows: nvml.RemappedRows{
+				UUID:             "GPU1",
+				RemappingPending: true,
+				RemappingFailed:  false,
+			},
+			suggestedActionsStore: &mockSuggestedActionsStore{
+				suggestions: map[string][]apiv1.RepairActionType{
+					"other-component-1": {apiv1.RepairActionTypeHardwareInspection},
+					"other-component-2": {apiv1.RepairActionTypeHardwareInspection},
+				},
+			},
+			otherComponentsSuggestingHwInsp: []string{"other-component-1", "other-component-2"},
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping pending but suggest hardware inspection (detected by other-component-1, other-component-2)",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedEventName: "row_remapping_pending",
+			expectSuggestCall: false,
+		},
+		{
+			name: "remapping failed with nil suggestedActionsStore",
+			remappedRows: nvml.RemappedRows{
+				UUID:                             "GPU1",
+				RemappingPending:                 false,
+				RemappingFailed:                  true,
+				RemappedDueToUncorrectableErrors: 1,
+			},
+			suggestedActionsStore: nil,
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping failure requires hardware inspection",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedEventName: "row_remapping_failed",
+			expectSuggestCall: false,
+		},
+		{
+			name: "remapping failed with suggestedActionsStore",
+			remappedRows: nvml.RemappedRows{
+				UUID:                             "GPU1",
+				RemappingPending:                 false,
+				RemappingFailed:                  true,
+				RemappedDueToUncorrectableErrors: 1,
+			},
+			suggestedActionsStore: &mockSuggestedActionsStore{
+				suggestions: make(map[string][]apiv1.RepairActionType),
+			},
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping failure requires hardware inspection",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedEventName:     "row_remapping_failed",
+			expectSuggestCall:     true,
+			expectSuggestDuration: 10 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset the mock store if it exists
+			if mockStore, ok := tt.suggestedActionsStore.(*mockSuggestedActionsStore); ok {
+				mockStore.suggestCalls = nil
+			}
+
+			// Set up NVML instance
+			nvmlInstance := &mockNVMLInstance{
+				getDevicesFunc: func() map[string]device.Device {
+					return mockDevices
+				},
+				getProductNameFunc: func() string {
+					return "NVIDIA Test GPU"
+				},
+				getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+					return nvml.MemoryErrorManagementCapabilities{
+						RowRemapping: true,
+					}
+				},
+			}
+
+			// Create a GPUdInstance
+			gpudInstance := &components.GPUdInstance{
+				RootCtx:               ctx,
+				NVMLInstance:          nvmlInstance,
+				EventStore:            eventStore,
+				SuggestedActionsStore: tt.suggestedActionsStore,
+			}
+
+			comp, err := New(gpudInstance)
+			require.NoError(t, err)
+
+			// Get the underlying component
+			c := comp.(*component)
+			c.eventBucket = eventBucket
+
+			// Configure the test case
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+				return tt.remappedRows, nil
+			}
+
+			// Run the check
+			result := c.Check()
+			checkRes, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify suggested actions
+			assert.Equal(t, tt.expectedSuggestedAction, checkRes.suggestedActions)
+
+			// Verify event was created
+			events, err := eventBucket.Get(ctx, time.Time{})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(events), 1)
+
+			// Find the expected event
+			var foundEvent *eventstore.Event
+			for i := range events {
+				if events[i].Name == tt.expectedEventName {
+					foundEvent = &events[i]
+					break
+				}
+			}
+			require.NotNil(t, foundEvent, "Expected event %s not found", tt.expectedEventName)
+			assert.Equal(t, string(apiv1.EventTypeWarning), foundEvent.Type)
+			assert.Contains(t, foundEvent.Message, "GPU1 detected")
+
+			// Verify Suggest was called as expected
+			if tt.expectSuggestCall {
+				mockStore, ok := tt.suggestedActionsStore.(*mockSuggestedActionsStore)
+				require.True(t, ok, "Expected mock store for suggest call verification")
+				assert.Len(t, mockStore.suggestCalls, 1)
+				call := mockStore.suggestCalls[0]
+				assert.Equal(t, Name, call.component)
+				assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, call.action)
+				assert.Equal(t, tt.expectSuggestDuration, call.duration)
+			} else if mockStore, ok := tt.suggestedActionsStore.(*mockSuggestedActionsStore); ok {
+				assert.Empty(t, mockStore.suggestCalls)
+			}
+		})
+	}
+}
+
+func TestEventInsertionError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create mock event bucket that will return an error
+	mockEventBucket := &mockEventBucket{
+		err: errors.New("database error"),
+	}
+
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	// Set up NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc: func() map[string]device.Device {
+			return mockDevices
+		},
+		getProductNameFunc: func() string {
+			return "NVIDIA Test GPU"
+		},
+		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+			return nvml.MemoryErrorManagementCapabilities{
+				RowRemapping: true,
+			}
+		},
+	}
+
+	mockEventStore := &mockEventStore{bucket: mockEventBucket}
+
+	// Create a GPUdInstance
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: nvmlInstance,
+		EventStore:   mockEventStore,
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+
+	// Get the underlying component
+	c := comp.(*component)
+	c.eventBucket = mockEventBucket
+
+	tests := []struct {
+		name         string
+		remappedRows nvml.RemappedRows
+		expectedErr  string
+	}{
+		{
+			name: "remapping pending event insertion error",
+			remappedRows: nvml.RemappedRows{
+				UUID:             "GPU1",
+				RemappingPending: true,
+				RemappingFailed:  false,
+			},
+			expectedErr: "database error",
+		},
+		{
+			name: "remapping failed event insertion error",
+			remappedRows: nvml.RemappedRows{
+				UUID:                             "GPU1",
+				RemappingPending:                 false,
+				RemappingFailed:                  true,
+				RemappedDueToUncorrectableErrors: 1,
+			},
+			expectedErr: "database error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Configure the test case
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+				return tt.remappedRows, nil
+			}
+
+			// Run the check
+			result := c.Check()
+			checkRes, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify that the error was captured
+			assert.NotNil(t, checkRes.err)
+			assert.Contains(t, checkRes.err.Error(), tt.expectedErr)
+			assert.Equal(t, apiv1.HealthStateTypeUnhealthy, checkRes.health)
+			// The reason should contain the actual health issue, not the error message
+			if tt.remappedRows.RemappingPending {
+				assert.Contains(t, checkRes.reason, "needs reset")
+			}
+			if tt.remappedRows.RemappingFailed {
+				assert.Contains(t, checkRes.reason, "qualifies for RMA")
+			}
+		})
+	}
+}
+
+func TestCheckBothPendingAndFailed(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	tableName := fmt.Sprintf("test_both_pending_failed_%d", time.Now().UnixNano())
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	require.NoError(t, err)
+	eventBucket, err := eventStore.Bucket(tableName)
+	require.NoError(t, err)
+	defer eventBucket.Close()
+
+	// Create mock device
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	mockSuggestedActionsStore := &mockSuggestedActionsStore{
+		suggestions: make(map[string][]apiv1.RepairActionType),
+	}
+
+	// Set up NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc: func() map[string]device.Device {
+			return mockDevices
+		},
+		getProductNameFunc: func() string {
+			return "NVIDIA Test GPU"
+		},
+		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+			return nvml.MemoryErrorManagementCapabilities{
+				RowRemapping: true,
+			}
+		},
+	}
+
+	// Create a GPUdInstance
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:               ctx,
+		NVMLInstance:          nvmlInstance,
+		EventStore:            eventStore,
+		SuggestedActionsStore: mockSuggestedActionsStore,
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+
+	// Get the underlying component
+	c := comp.(*component)
+	c.eventBucket = eventBucket
+
+	// Configure both pending and failed
+	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+		return nvml.RemappedRows{
+			UUID:                             "GPU1",
+			RemappingPending:                 true,
+			RemappingFailed:                  true,
+			RemappedDueToUncorrectableErrors: 1,
+		}, nil
+	}
+
+	// Run the check
+	result := c.Check()
+	checkRes, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify both events were created
+	events, err := eventBucket.Get(ctx, time.Time{})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(events), 2)
+
+	// Check for both event types
+	var foundPending, foundFailed bool
+	for _, event := range events {
+		if event.Name == "row_remapping_pending" {
+			foundPending = true
+		} else if event.Name == "row_remapping_failed" {
+			foundFailed = true
+		}
+	}
+	assert.True(t, foundPending, "Expected row_remapping_pending event")
+	assert.True(t, foundFailed, "Expected row_remapping_failed event")
+
+	// Verify that failed suggestion takes precedence
+	assert.NotNil(t, checkRes.suggestedActions)
+	assert.Equal(t, "row remapping failure requires hardware inspection", checkRes.suggestedActions.Description)
+	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, checkRes.suggestedActions.RepairActions[0])
+
+	// Verify Suggest was called for hardware inspection
+	assert.Len(t, mockSuggestedActionsStore.suggestCalls, 1)
+	call := mockSuggestedActionsStore.suggestCalls[0]
+	assert.Equal(t, Name, call.component)
+	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, call.action)
+	assert.Equal(t, 10*time.Minute, call.duration)
+}
+
+// Mock implementation of SuggestedActionsStore for remapped-rows testing
+type mockSuggestedActionsStore struct {
+	suggestions  map[string][]apiv1.RepairActionType
+	suggestCalls []mockSuggestCall
+}
+
+type mockSuggestCall struct {
+	component string
+	action    apiv1.RepairActionType
+	duration  time.Duration
+}
+
+func (m *mockSuggestedActionsStore) Suggest(component string, action apiv1.RepairActionType, duration time.Duration) {
+	m.suggestCalls = append(m.suggestCalls, mockSuggestCall{
+		component: component,
+		action:    action,
+		duration:  duration,
+	})
+}
+
+func (m *mockSuggestedActionsStore) HasSuggested(action apiv1.RepairActionType) []string {
+	var components []string
+	for comp, actions := range m.suggestions {
+		for _, a := range actions {
+			if a == action {
+				components = append(components, comp)
+				break
+			}
+		}
+	}
+	sort.Strings(components)
+	return components
+}
+
+// TestCheckRemappingPendingHardwareInspectionOverride tests the specific logic where
+// row remapping pending with reboot suggested gets overridden to hardware inspection
+// if other components have suggested hardware inspection
+func TestCheckRemappingPendingHardwareInspectionOverride(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	tableName := fmt.Sprintf("test_pending_override_%d", time.Now().UnixNano())
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	require.NoError(t, err)
+	eventBucket, err := eventStore.Bucket(tableName)
+	require.NoError(t, err)
+	defer eventBucket.Close()
+
+	// Create mock device
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	tests := []struct {
+		name                            string
+		otherComponentsSuggestingHwInsp []string
+		expectedSuggestedAction         *apiv1.SuggestedActions
+		expectedDescription             string
+		expectedEventName               string
+		expectedEventMessage            string
+	}{
+		{
+			name:                            "pending without other hw inspection components",
+			otherComponentsSuggestingHwInsp: []string{},
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+			expectedDescription:  "row remapping pending requires GPU reset or system reboot",
+			expectedEventName:    "row_remapping_pending",
+			expectedEventMessage: "GPU1 detected pending row remapping",
+		},
+		{
+			name:                            "pending with other hw inspection components overrides to hw inspection",
+			otherComponentsSuggestingHwInsp: []string{"memory-component", "xid-component"},
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping pending but suggest hardware inspection (detected by memory-component, xid-component)",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedDescription:  "row remapping pending but suggest hardware inspection (detected by memory-component, xid-component)",
+			expectedEventName:    "row_remapping_pending",
+			expectedEventMessage: "GPU1 detected pending row remapping",
+		},
+		{
+			name:                            "pending with single hw inspection component overrides to hw inspection",
+			otherComponentsSuggestingHwInsp: []string{"gpu-temperature-component"},
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping pending but suggest hardware inspection (detected by gpu-temperature-component)",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedDescription:  "row remapping pending but suggest hardware inspection (detected by gpu-temperature-component)",
+			expectedEventName:    "row_remapping_pending",
+			expectedEventMessage: "GPU1 detected pending row remapping",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock suggested actions store
+			mockSuggestedActionsStore := &mockSuggestedActionsStore{
+				suggestions: make(map[string][]apiv1.RepairActionType),
+			}
+
+			// Set up the mock to return the expected components
+			for _, comp := range tt.otherComponentsSuggestingHwInsp {
+				mockSuggestedActionsStore.suggestions[comp] = []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}
+			}
+
+			// Set up NVML instance
+			nvmlInstance := &mockNVMLInstance{
+				getDevicesFunc: func() map[string]device.Device {
+					return mockDevices
+				},
+				getProductNameFunc: func() string {
+					return "NVIDIA Test GPU"
+				},
+				getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+					return nvml.MemoryErrorManagementCapabilities{
+						RowRemapping: true,
+					}
+				},
+			}
+
+			// Create a GPUdInstance
+			gpudInstance := &components.GPUdInstance{
+				RootCtx:               ctx,
+				NVMLInstance:          nvmlInstance,
+				EventStore:            eventStore,
+				SuggestedActionsStore: mockSuggestedActionsStore,
+			}
+
+			comp, err := New(gpudInstance)
+			require.NoError(t, err)
+
+			// Get the underlying component
+			c := comp.(*component)
+			c.eventBucket = eventBucket
+
+			// Configure pending row remapping
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+				return nvml.RemappedRows{
+					UUID:             uuid,
+					RemappingPending: true,
+					RemappingFailed:  false,
+				}, nil
+			}
+
+			// Run the check
+			result := c.Check()
+			checkRes, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify suggested actions
+			assert.Equal(t, tt.expectedSuggestedAction, checkRes.suggestedActions)
+			assert.Equal(t, tt.expectedDescription, checkRes.suggestedActions.Description)
+
+			// Verify event was created
+			events, err := eventBucket.Get(ctx, time.Time{})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(events), 1)
+
+			// Find the expected event
+			var foundEvent *eventstore.Event
+			for i := range events {
+				if events[i].Name == tt.expectedEventName {
+					foundEvent = &events[i]
+					break
+				}
+			}
+			require.NotNil(t, foundEvent, "Expected event %s not found", tt.expectedEventName)
+			assert.Equal(t, string(apiv1.EventTypeWarning), foundEvent.Type)
+			assert.Equal(t, tt.expectedEventMessage, foundEvent.Message)
+		})
+	}
+}
+
+// TestCheckRemappingFailedHardwareInspectionSuggestion tests the specific logic where
+// row remapping failed triggers hardware inspection suggestion and calls the store
+func TestCheckRemappingFailedHardwareInspectionSuggestion(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	tableName := fmt.Sprintf("test_failed_suggestion_%d", time.Now().UnixNano())
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	require.NoError(t, err)
+	eventBucket, err := eventStore.Bucket(tableName)
+	require.NoError(t, err)
+	defer eventBucket.Close()
+
+	// Create mock device
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	tests := []struct {
+		name                    string
+		suggestedActionsStore   components.SuggestedActionsStore
+		expectedSuggestedAction *apiv1.SuggestedActions
+		expectedSuggestCall     bool
+		expectedSuggestDuration time.Duration
+	}{
+		{
+			name:                  "failed with nil suggestedActionsStore",
+			suggestedActionsStore: nil,
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping failure requires hardware inspection",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedSuggestCall: false,
+		},
+		{
+			name: "failed with suggestedActionsStore calls store",
+			suggestedActionsStore: &mockSuggestedActionsStore{
+				suggestions: make(map[string][]apiv1.RepairActionType),
+			},
+			expectedSuggestedAction: &apiv1.SuggestedActions{
+				Description: "row remapping failure requires hardware inspection",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedSuggestCall:     true,
+			expectedSuggestDuration: 10 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset mock store calls if applicable
+			if mockStore, ok := tt.suggestedActionsStore.(*mockSuggestedActionsStore); ok {
+				mockStore.suggestCalls = nil
+			}
+
+			// Set up NVML instance
+			nvmlInstance := &mockNVMLInstance{
+				getDevicesFunc: func() map[string]device.Device {
+					return mockDevices
+				},
+				getProductNameFunc: func() string {
+					return "NVIDIA Test GPU"
+				},
+				getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+					return nvml.MemoryErrorManagementCapabilities{
+						RowRemapping: true,
+					}
+				},
+			}
+
+			// Create a GPUdInstance
+			gpudInstance := &components.GPUdInstance{
+				RootCtx:               ctx,
+				NVMLInstance:          nvmlInstance,
+				EventStore:            eventStore,
+				SuggestedActionsStore: tt.suggestedActionsStore,
+			}
+
+			comp, err := New(gpudInstance)
+			require.NoError(t, err)
+
+			// Get the underlying component
+			c := comp.(*component)
+			c.eventBucket = eventBucket
+
+			// Configure failed row remapping
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+				return nvml.RemappedRows{
+					UUID:                             uuid,
+					RemappingPending:                 false,
+					RemappingFailed:                  true,
+					RemappedDueToUncorrectableErrors: 1,
+				}, nil
+			}
+
+			// Run the check
+			result := c.Check()
+			checkRes, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify suggested actions
+			assert.Equal(t, tt.expectedSuggestedAction, checkRes.suggestedActions)
+
+			// Verify event was created
+			events, err := eventBucket.Get(ctx, time.Time{})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(events), 1)
+
+			// Find the expected event
+			var foundEvent *eventstore.Event
+			for i := range events {
+				if events[i].Name == "row_remapping_failed" {
+					foundEvent = &events[i]
+					break
+				}
+			}
+			require.NotNil(t, foundEvent, "Expected row_remapping_failed event not found")
+			assert.Equal(t, string(apiv1.EventTypeWarning), foundEvent.Type)
+			assert.Equal(t, "GPU1 detected failed row remapping", foundEvent.Message)
+
+			// Verify Suggest was called as expected
+			if tt.expectedSuggestCall {
+				mockStore, ok := tt.suggestedActionsStore.(*mockSuggestedActionsStore)
+				require.True(t, ok, "Expected mock store for suggest call verification")
+				assert.Len(t, mockStore.suggestCalls, 1)
+				call := mockStore.suggestCalls[0]
+				assert.Equal(t, Name, call.component)
+				assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, call.action)
+				assert.Equal(t, tt.expectedSuggestDuration, call.duration)
+			} else if mockStore, ok := tt.suggestedActionsStore.(*mockSuggestedActionsStore); ok {
+				assert.Empty(t, mockStore.suggestCalls)
+			}
+		})
+	}
+}
+
+func TestCheckSpecificLines_RemappingPendingLogic(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	tableName := fmt.Sprintf("test_pending_logic_%d", time.Now().UnixNano())
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	require.NoError(t, err)
+	eventBucket, err := eventStore.Bucket(tableName)
+	require.NoError(t, err)
+	defer eventBucket.Close()
+
+	// Create mock device
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	tests := []struct {
+		name                               string
+		suggestedActionsStore              components.SuggestedActionsStore
+		otherComponentsSuggestingHwInsp    []string
+		expectedInitialSuggestedActions    *apiv1.SuggestedActions
+		expectedOverriddenSuggestedActions *apiv1.SuggestedActions
+		expectedEventInserted              bool
+		expectedEventName                  string
+		expectedEventMessage               string
+		expectedEventType                  string
+	}{
+		{
+			name:                            "nil suggested actions store - no override",
+			suggestedActionsStore:           nil,
+			otherComponentsSuggestingHwInsp: []string{},
+			expectedInitialSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+			expectedOverriddenSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+			expectedEventInserted: true,
+			expectedEventName:     "row_remapping_pending",
+			expectedEventMessage:  "GPU1 detected pending row remapping",
+			expectedEventType:     string(apiv1.EventTypeWarning),
+		},
+		{
+			name: "suggested actions store with no other hw inspection components - no override",
+			suggestedActionsStore: &mockSuggestedActionsStore{
+				suggestions: make(map[string][]apiv1.RepairActionType),
+			},
+			otherComponentsSuggestingHwInsp: []string{},
+			expectedInitialSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+			expectedOverriddenSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+			expectedEventInserted: true,
+			expectedEventName:     "row_remapping_pending",
+			expectedEventMessage:  "GPU1 detected pending row remapping",
+			expectedEventType:     string(apiv1.EventTypeWarning),
+		},
+		{
+			name: "suggested actions store with other hw inspection components - override to hw inspection",
+			suggestedActionsStore: &mockSuggestedActionsStore{
+				suggestions: map[string][]apiv1.RepairActionType{
+					"memory-component": {apiv1.RepairActionTypeHardwareInspection},
+					"xid-component":    {apiv1.RepairActionTypeHardwareInspection},
+				},
+			},
+			otherComponentsSuggestingHwInsp: []string{"memory-component", "xid-component"},
+			expectedInitialSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+			expectedOverriddenSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping pending but suggest hardware inspection (detected by memory-component, xid-component)",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedEventInserted: true,
+			expectedEventName:     "row_remapping_pending",
+			expectedEventMessage:  "GPU1 detected pending row remapping",
+			expectedEventType:     string(apiv1.EventTypeWarning),
+		},
+		{
+			name: "suggested actions store with single hw inspection component - override to hw inspection",
+			suggestedActionsStore: &mockSuggestedActionsStore{
+				suggestions: map[string][]apiv1.RepairActionType{
+					"temperature-component": {apiv1.RepairActionTypeHardwareInspection},
+				},
+			},
+			otherComponentsSuggestingHwInsp: []string{"temperature-component"},
+			expectedInitialSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping pending requires GPU reset or system reboot",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeRebootSystem,
+				},
+			},
+			expectedOverriddenSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping pending but suggest hardware inspection (detected by temperature-component)",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedEventInserted: true,
+			expectedEventName:     "row_remapping_pending",
+			expectedEventMessage:  "GPU1 detected pending row remapping",
+			expectedEventType:     string(apiv1.EventTypeWarning),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset the mock store if it exists
+			if mockStore, ok := tt.suggestedActionsStore.(*mockSuggestedActionsStore); ok {
+				mockStore.suggestCalls = nil
+			}
+
+			// Set up NVML instance
+			nvmlInstance := &mockNVMLInstance{
+				getDevicesFunc: func() map[string]device.Device {
+					return mockDevices
+				},
+				getProductNameFunc: func() string {
+					return "NVIDIA Test GPU"
+				},
+				getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+					return nvml.MemoryErrorManagementCapabilities{
+						RowRemapping: true,
+					}
+				},
+			}
+
+			// Create a GPUdInstance
+			gpudInstance := &components.GPUdInstance{
+				RootCtx:               ctx,
+				NVMLInstance:          nvmlInstance,
+				EventStore:            eventStore,
+				SuggestedActionsStore: tt.suggestedActionsStore,
+			}
+
+			comp, err := New(gpudInstance)
+			require.NoError(t, err)
+
+			// Get the underlying component
+			c := comp.(*component)
+			c.eventBucket = eventBucket
+
+			// Configure pending row remapping
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+				return nvml.RemappedRows{
+					UUID:             uuid,
+					RemappingPending: true,
+					RemappingFailed:  false,
+				}, nil
+			}
+
+			// Run the check
+			result := c.Check()
+			checkRes, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify the suggested actions were set correctly
+			assert.Equal(t, tt.expectedOverriddenSuggestedActions, checkRes.suggestedActions)
+
+			// Verify event was inserted
+			if tt.expectedEventInserted {
+				events, err := eventBucket.Get(ctx, time.Time{})
+				require.NoError(t, err)
+				require.GreaterOrEqual(t, len(events), 1)
+
+				// Find the expected event
+				var foundEvent *eventstore.Event
+				for i := range events {
+					if events[i].Name == tt.expectedEventName {
+						foundEvent = &events[i]
+						break
+					}
+				}
+				require.NotNil(t, foundEvent, "Expected event %s not found", tt.expectedEventName)
+				assert.Equal(t, tt.expectedEventType, foundEvent.Type)
+				assert.Equal(t, tt.expectedEventMessage, foundEvent.Message)
+			}
+		})
+	}
+}
+
+func TestCheckSpecificLines_RemappingFailedLogic(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	tableName := fmt.Sprintf("test_failed_logic_%d", time.Now().UnixNano())
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	require.NoError(t, err)
+	eventBucket, err := eventStore.Bucket(tableName)
+	require.NoError(t, err)
+	defer eventBucket.Close()
+
+	// Create mock device
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	tests := []struct {
+		name                     string
+		suggestedActionsStore    components.SuggestedActionsStore
+		expectedSuggestedActions *apiv1.SuggestedActions
+		expectedSuggestCallCount int
+		expectedSuggestAction    apiv1.RepairActionType
+		expectedSuggestDuration  time.Duration
+		expectedEventInserted    bool
+		expectedEventName        string
+		expectedEventMessage     string
+		expectedEventType        string
+	}{
+		{
+			name:                  "nil suggested actions store - no Suggest call",
+			suggestedActionsStore: nil,
+			expectedSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping failure requires hardware inspection",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedSuggestCallCount: 0,
+			expectedEventInserted:    true,
+			expectedEventName:        "row_remapping_failed",
+			expectedEventMessage:     "GPU1 detected failed row remapping",
+			expectedEventType:        string(apiv1.EventTypeWarning),
+		},
+		{
+			name: "suggested actions store present - calls Suggest",
+			suggestedActionsStore: &mockSuggestedActionsStore{
+				suggestions: make(map[string][]apiv1.RepairActionType),
+			},
+			expectedSuggestedActions: &apiv1.SuggestedActions{
+				Description: "row remapping failure requires hardware inspection",
+				RepairActions: []apiv1.RepairActionType{
+					apiv1.RepairActionTypeHardwareInspection,
+				},
+			},
+			expectedSuggestCallCount: 1,
+			expectedSuggestAction:    apiv1.RepairActionTypeHardwareInspection,
+			expectedSuggestDuration:  10 * time.Minute,
+			expectedEventInserted:    true,
+			expectedEventName:        "row_remapping_failed",
+			expectedEventMessage:     "GPU1 detected failed row remapping",
+			expectedEventType:        string(apiv1.EventTypeWarning),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset the mock store if it exists
+			if mockStore, ok := tt.suggestedActionsStore.(*mockSuggestedActionsStore); ok {
+				mockStore.suggestCalls = nil
+			}
+
+			// Set up NVML instance
+			nvmlInstance := &mockNVMLInstance{
+				getDevicesFunc: func() map[string]device.Device {
+					return mockDevices
+				},
+				getProductNameFunc: func() string {
+					return "NVIDIA Test GPU"
+				},
+				getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+					return nvml.MemoryErrorManagementCapabilities{
+						RowRemapping: true,
+					}
+				},
+			}
+
+			// Create a GPUdInstance
+			gpudInstance := &components.GPUdInstance{
+				RootCtx:               ctx,
+				NVMLInstance:          nvmlInstance,
+				EventStore:            eventStore,
+				SuggestedActionsStore: tt.suggestedActionsStore,
+			}
+
+			comp, err := New(gpudInstance)
+			require.NoError(t, err)
+
+			// Get the underlying component
+			c := comp.(*component)
+			c.eventBucket = eventBucket
+
+			// Configure failed row remapping
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+				return nvml.RemappedRows{
+					UUID:                             uuid,
+					RemappingPending:                 false,
+					RemappingFailed:                  true,
+					RemappedDueToUncorrectableErrors: 1,
+				}, nil
+			}
+
+			// Run the check
+			result := c.Check()
+			checkRes, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify the suggested actions were set correctly
+			assert.Equal(t, tt.expectedSuggestedActions, checkRes.suggestedActions)
+
+			// Verify Suggest was called as expected
+			if mockStore, ok := tt.suggestedActionsStore.(*mockSuggestedActionsStore); ok {
+				assert.Len(t, mockStore.suggestCalls, tt.expectedSuggestCallCount)
+				if tt.expectedSuggestCallCount > 0 {
+					call := mockStore.suggestCalls[0]
+					assert.Equal(t, Name, call.component)
+					assert.Equal(t, tt.expectedSuggestAction, call.action)
+					assert.Equal(t, tt.expectedSuggestDuration, call.duration)
+				}
+			}
+
+			// Verify event was inserted
+			if tt.expectedEventInserted {
+				events, err := eventBucket.Get(ctx, time.Time{})
+				require.NoError(t, err)
+				require.GreaterOrEqual(t, len(events), 1)
+
+				// Find the expected event
+				var foundEvent *eventstore.Event
+				for i := range events {
+					if events[i].Name == tt.expectedEventName {
+						foundEvent = &events[i]
+						break
+					}
+				}
+				require.NotNil(t, foundEvent, "Expected event %s not found", tt.expectedEventName)
+				assert.Equal(t, tt.expectedEventType, foundEvent.Type)
+				assert.Equal(t, tt.expectedEventMessage, foundEvent.Message)
+			}
+		})
+	}
+}
+
+func TestCheckSpecificLines_EventInsertionWithTimeout(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	tableName := fmt.Sprintf("test_event_timeout_%d", time.Now().UnixNano())
+	eventStore, err := eventstore.New(dbRW, dbRO, 0)
+	require.NoError(t, err)
+	eventBucket, err := eventStore.Bucket(tableName)
+	require.NoError(t, err)
+	defer eventBucket.Close()
+
+	// Create mock device
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	tests := []struct {
+		name                  string
+		remappedRows          nvml.RemappedRows
+		expectedEventName     string
+		expectedEventMessage  string
+		expectedEventType     string
+		expectedHealthOnError apiv1.HealthStateType
+		expectedReasonOnError string
+	}{
+		{
+			name: "pending remapping event insertion timeout context",
+			remappedRows: nvml.RemappedRows{
+				UUID:             "GPU1",
+				RemappingPending: true,
+				RemappingFailed:  false,
+			},
+			expectedEventName:     "row_remapping_pending",
+			expectedEventMessage:  "GPU1 detected pending row remapping",
+			expectedEventType:     string(apiv1.EventTypeWarning),
+			expectedHealthOnError: apiv1.HealthStateTypeUnhealthy,
+			expectedReasonOnError: "error inserting event for remapping pending",
+		},
+		{
+			name: "failed remapping event insertion timeout context",
+			remappedRows: nvml.RemappedRows{
+				UUID:                             "GPU1",
+				RemappingPending:                 false,
+				RemappingFailed:                  true,
+				RemappedDueToUncorrectableErrors: 1,
+			},
+			expectedEventName:     "row_remapping_failed",
+			expectedEventMessage:  "GPU1 detected failed row remapping",
+			expectedEventType:     string(apiv1.EventTypeWarning),
+			expectedHealthOnError: apiv1.HealthStateTypeUnhealthy,
+			expectedReasonOnError: "error inserting event for remapping failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up NVML instance
+			nvmlInstance := &mockNVMLInstance{
+				getDevicesFunc: func() map[string]device.Device {
+					return mockDevices
+				},
+				getProductNameFunc: func() string {
+					return "NVIDIA Test GPU"
+				},
+				getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+					return nvml.MemoryErrorManagementCapabilities{
+						RowRemapping: true,
+					}
+				},
+			}
+
+			// Create a GPUdInstance
+			gpudInstance := &components.GPUdInstance{
+				RootCtx:      ctx,
+				NVMLInstance: nvmlInstance,
+				EventStore:   eventStore,
+			}
+
+			comp, err := New(gpudInstance)
+			require.NoError(t, err)
+
+			// Get the underlying component
+			c := comp.(*component)
+			c.eventBucket = eventBucket
+
+			// Configure the test case
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+				return tt.remappedRows, nil
+			}
+
+			// Run the check - this should use the 10-second timeout context
+			result := c.Check()
+			checkRes, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify event was inserted successfully (no timeout error)
+			assert.NoError(t, checkRes.err)
+
+			// Verify event was inserted with correct details
+			events, err := eventBucket.Get(ctx, time.Time{})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(events), 1)
+
+			// Find the expected event
+			var foundEvent *eventstore.Event
+			for i := range events {
+				if events[i].Name == tt.expectedEventName {
+					foundEvent = &events[i]
+					break
+				}
+			}
+			require.NotNil(t, foundEvent, "Expected event %s not found", tt.expectedEventName)
+			assert.Equal(t, tt.expectedEventType, foundEvent.Type)
+			assert.Equal(t, tt.expectedEventMessage, foundEvent.Message)
+		})
+	}
+}
+
+func TestCheckSpecificLines_EventInsertionErrorHandling(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create mock event bucket that will return an error
+	mockEventBucket := &mockEventBucket{
+		err: errors.New("database connection failed"),
+	}
+
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	tests := []struct {
+		name                  string
+		remappedRows          nvml.RemappedRows
+		expectedError         string
+		expectedHealth        apiv1.HealthStateType
+		expectedReasonPattern string
+	}{
+		{
+			name: "pending remapping event insertion error handling",
+			remappedRows: nvml.RemappedRows{
+				UUID:             "GPU1",
+				RemappingPending: true,
+				RemappingFailed:  false,
+			},
+			expectedError:         "database connection failed",
+			expectedHealth:        apiv1.HealthStateTypeUnhealthy,
+			expectedReasonPattern: "needs reset", // The component continues normal flow even with insertion error
+		},
+		{
+			name: "failed remapping event insertion error handling",
+			remappedRows: nvml.RemappedRows{
+				UUID:                             "GPU1",
+				RemappingPending:                 false,
+				RemappingFailed:                  true,
+				RemappedDueToUncorrectableErrors: 1,
+			},
+			expectedError:         "database connection failed",
+			expectedHealth:        apiv1.HealthStateTypeUnhealthy,
+			expectedReasonPattern: "qualifies for RMA", // The component continues normal flow even with insertion error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up NVML instance
+			nvmlInstance := &mockNVMLInstance{
+				getDevicesFunc: func() map[string]device.Device {
+					return mockDevices
+				},
+				getProductNameFunc: func() string {
+					return "NVIDIA Test GPU"
+				},
+				getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+					return nvml.MemoryErrorManagementCapabilities{
+						RowRemapping: true,
+					}
+				},
+			}
+
+			mockEventStore := &mockEventStore{bucket: mockEventBucket}
+
+			// Create a GPUdInstance
+			gpudInstance := &components.GPUdInstance{
+				RootCtx:      ctx,
+				NVMLInstance: nvmlInstance,
+				EventStore:   mockEventStore,
+			}
+
+			comp, err := New(gpudInstance)
+			require.NoError(t, err)
+
+			// Get the underlying component
+			c := comp.(*component)
+			c.eventBucket = mockEventBucket
+
+			// Configure the test case
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+				return tt.remappedRows, nil
+			}
+
+			// Run the check
+			result := c.Check()
+			checkRes, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify that the error was captured
+			assert.NotNil(t, checkRes.err)
+			assert.Contains(t, checkRes.err.Error(), tt.expectedError)
+			assert.Equal(t, tt.expectedHealth, checkRes.health)
+			assert.Contains(t, checkRes.reason, tt.expectedReasonPattern)
+
+			// Verify health states also reflect the error
+			states := c.LastHealthStates()
+			require.Len(t, states, 1)
+			assert.Equal(t, tt.expectedHealth, states[0].Health)
+			assert.Contains(t, states[0].Reason, tt.expectedReasonPattern)
+			assert.Contains(t, states[0].Error, tt.expectedError)
+		})
+	}
+}
+
+func TestCheckSpecificLines_NilEventBucketHandling(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+	mockDevices := map[string]device.Device{
+		"GPU1": mockDev,
+	}
+
+	tests := []struct {
+		name                     string
+		remappedRows             nvml.RemappedRows
+		expectedSuggestedActions *apiv1.SuggestedActions
+		expectedHealth           apiv1.HealthStateType
+		expectedReasonPattern    string
+	}{
+		{
+			name: "pending remapping with nil event bucket - no event insertion",
+			remappedRows: nvml.RemappedRows{
+				UUID:             "GPU1",
+				RemappingPending: true,
+				RemappingFailed:  false,
+			},
+			expectedSuggestedActions: nil, // No suggested actions when event bucket is nil
+			expectedHealth:           apiv1.HealthStateTypeUnhealthy,
+			expectedReasonPattern:    "needs reset",
+		},
+		{
+			name: "failed remapping with nil event bucket - no event insertion",
+			remappedRows: nvml.RemappedRows{
+				UUID:                             "GPU1",
+				RemappingPending:                 false,
+				RemappingFailed:                  true,
+				RemappedDueToUncorrectableErrors: 1,
+			},
+			expectedSuggestedActions: nil, // No suggested actions when event bucket is nil
+			expectedHealth:           apiv1.HealthStateTypeUnhealthy,
+			expectedReasonPattern:    "qualifies for RMA",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up NVML instance
+			nvmlInstance := &mockNVMLInstance{
+				getDevicesFunc: func() map[string]device.Device {
+					return mockDevices
+				},
+				getProductNameFunc: func() string {
+					return "NVIDIA Test GPU"
+				},
+				getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+					return nvml.MemoryErrorManagementCapabilities{
+						RowRemapping: true,
+					}
+				},
+			}
+
+			// Create a GPUdInstance with nil EventStore
+			gpudInstance := &components.GPUdInstance{
+				RootCtx:      ctx,
+				NVMLInstance: nvmlInstance,
+				EventStore:   nil,
+			}
+
+			comp, err := New(gpudInstance)
+			require.NoError(t, err)
+
+			// Get the underlying component
+			c := comp.(*component)
+
+			// Ensure eventBucket is nil
+			assert.Nil(t, c.eventBucket)
+
+			// Configure the test case
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+				return tt.remappedRows, nil
+			}
+
+			// Run the check
+			result := c.Check()
+			checkRes, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			// Verify that suggested actions are set correctly (nil when event bucket is nil)
+			assert.Equal(t, tt.expectedSuggestedActions, checkRes.suggestedActions)
+
+			// Verify health and reason are set correctly
+			assert.Equal(t, tt.expectedHealth, checkRes.health)
+			assert.Contains(t, checkRes.reason, tt.expectedReasonPattern)
+
+			// Verify no event insertion error occurred
+			assert.NoError(t, checkRes.err)
+		})
+	}
 }

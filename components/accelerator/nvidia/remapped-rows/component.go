@@ -35,6 +35,8 @@ type component struct {
 	nvmlInstance        nvidianvml.Instance
 	getRemappedRowsFunc func(uuid string, dev device.Device) (nvidianvml.RemappedRows, error)
 
+	suggestedActionsStore components.SuggestedActionsStore
+
 	eventBucket eventstore.Bucket
 
 	lastMu          sync.RWMutex
@@ -44,10 +46,11 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                 cctx,
-		cancel:              ccancel,
-		nvmlInstance:        gpudInstance.NVMLInstance,
-		getRemappedRowsFunc: nvml.GetRemappedRows,
+		ctx:                   cctx,
+		cancel:                ccancel,
+		nvmlInstance:          gpudInstance.NVMLInstance,
+		getRemappedRowsFunc:   nvml.GetRemappedRows,
+		suggestedActionsStore: gpudInstance.SuggestedActionsStore,
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -201,6 +204,16 @@ func (c *component) Check() components.CheckResult {
 					apiv1.RepairActionTypeRebootSystem,
 				},
 			}
+			if c.suggestedActionsStore != nil {
+				components := c.suggestedActionsStore.HasSuggested(apiv1.RepairActionTypeHardwareInspection)
+				if len(components) > 0 {
+					log.Logger.Infow("row remapping pending with reboot suggested but other components suggested hardware inspection", "hwSuggestingComponents", components)
+					cr.suggestedActions.Description = fmt.Sprintf("row remapping pending but suggest hardware inspection (detected by %s)", strings.Join(components, ", "))
+					cr.suggestedActions.RepairActions = []apiv1.RepairActionType{
+						apiv1.RepairActionTypeHardwareInspection,
+					}
+				}
+			}
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
 			cr.err = c.eventBucket.Insert(
@@ -227,6 +240,9 @@ func (c *component) Check() components.CheckResult {
 				RepairActions: []apiv1.RepairActionType{
 					apiv1.RepairActionTypeHardwareInspection,
 				},
+			}
+			if c.suggestedActionsStore != nil {
+				c.suggestedActionsStore.Suggest(Name, apiv1.RepairActionTypeHardwareInspection, 10*time.Minute)
 			}
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)

@@ -1,47 +1,16 @@
 package components
 
 import (
-	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"sort"
 	"sync"
-
-	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
-	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 var (
 	// ErrAlreadyRegistered is the error returned when a component is already registered.
 	ErrAlreadyRegistered = errors.New("component already registered")
 )
-
-// GPUdInstance is the instance of the GPUd dependencies.
-type GPUdInstance struct {
-	RootCtx context.Context
-
-	// MachineID is either the machine ID assigned from the control plane
-	// or the unique UUID of the machine.
-	// For example, it is used to identify itself for the NFS checker.
-	MachineID string
-
-	KernelModulesToCheck []string
-
-	NVMLInstance         nvidianvml.Instance
-	NVIDIAToolOverwrites nvidiacommon.ToolOverwrites
-
-	DBRW *sql.DB
-	DBRO *sql.DB
-
-	EventStore       eventstore.Store
-	RebootEventStore pkghost.RebootEventStore
-
-	MountPoints  []string
-	MountTargets []string
-}
 
 // InitFunc is the function that initializes a component.
 type InitFunc func(*GPUdInstance) (Component, error)
