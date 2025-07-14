@@ -350,13 +350,13 @@ func (c *component) Check() components.CheckResult {
 				}
 
 				if len(ibDropDevs) > 0 {
-					cr.reason += "port drop " + strings.Join(ibDropDevs, ", ")
+					cr.reason += "device(s) down too long: " + strings.Join(ibDropDevs, ", ")
 				}
 				if len(ibFlapDevs) > 0 {
 					if len(ibDropDevs) > 0 {
 						cr.reason += "; "
 					}
-					cr.reason += "port flap " + strings.Join(ibFlapDevs, ", ")
+					cr.reason += "device(s) flapping between ACTIVE<>DOWN: " + strings.Join(ibFlapDevs, ", ")
 				}
 
 				cr.health = apiv1.HealthStateTypeUnhealthy

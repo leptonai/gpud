@@ -918,8 +918,8 @@ func TestComponentCheckWithIBPortsStore(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 
 	// Should contain both event reasons
-	assert.Contains(t, data.reason, "port flap mlx5_0")
-	assert.Contains(t, data.reason, "port drop mlx5_1")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_1")
 
 	// Should have hardware inspection suggested action
 	assert.NotNil(t, data.suggestedActions)
@@ -1022,7 +1022,7 @@ func TestComponentCheckWithUnknownEventType(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 
 	// Should contain only the known event reason, not the unknown one
-	assert.Contains(t, data.reason, "port drop mlx5_1")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_1")
 	assert.NotContains(t, data.reason, "unknown event reason")
 }
 
@@ -1217,7 +1217,7 @@ func TestComponentCheckWithUnhealthyIBPortsAndEvents(t *testing.T) {
 
 	// The reason should contain both threshold failure and event reason
 	// because both thresholds fail and there are events
-	assert.Contains(t, data.reason, "port flap mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
 	assert.Contains(t, data.reason, "port(s) are active")
 	assert.Contains(t, data.reason, "physical state Disabled")
 	assert.NotNil(t, data.suggestedActions)
@@ -1298,7 +1298,7 @@ func TestComponentCheckWithExistingReasonAndEvents(t *testing.T) {
 
 	// The reason should contain both threshold reason and event reason separated by "; "
 	assert.Contains(t, data.reason, "; ")
-	assert.Contains(t, data.reason, "port drop mlx5_0")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_0")
 }
 
 func TestComponentCheckWithEmptyReasonAndEvents(t *testing.T) {
@@ -1400,9 +1400,9 @@ func TestComponentCheckWithEmptyReasonAndEvents(t *testing.T) {
 	// After the fix, when thresholds are met but there are events,
 	// the reason should contain ONLY the event reasons, not the threshold reason
 	// This avoids confusing messages like "ok; no infiniband port issue; event1, event2"
-	assert.Equal(t, "port drop mlx5_1; port flap mlx5_0", data.reason)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
-	assert.Contains(t, data.reason, "port drop mlx5_1")
+	assert.Equal(t, "device(s) down too long: mlx5_1; device(s) flapping between ACTIVE<>DOWN: mlx5_0", data.reason)
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_1")
 	assert.Contains(t, data.reason, "; ")
 	assert.NotContains(t, data.reason, "ok; no infiniband port issue") // Should NOT contain threshold reason
 }
@@ -1506,8 +1506,8 @@ func TestComponentCheckWithTrueEmptyReasonAndEvents(t *testing.T) {
 
 	// The reason should contain threshold reason + event reasons
 	// because len(cr.unhealthyIBPorts) > 0 but cr.reason is not cleared for threshold failures
-	assert.Contains(t, data.reason, "port flap mlx5_0")
-	assert.Contains(t, data.reason, "port drop mlx5_1")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_1")
 	assert.Contains(t, data.reason, "; ")                 // Should contain semicolon separator
 	assert.Contains(t, data.reason, "port(s) are active") // Should contain threshold reason
 }
@@ -1642,7 +1642,7 @@ func TestComponentCheckShouldNotHaveConfusingReasonMessage(t *testing.T) {
 	}
 
 	// Verify that we get the expected behavior instead
-	assert.Contains(t, data.reason, "port drop mlx5_1, mlx5_2")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_1, mlx5_2")
 }
 
 // Local mock store for component_test.go
@@ -1864,7 +1864,7 @@ func TestComponentCheckWithEventProcessingAndConversion(t *testing.T) {
 
 	// Should be unhealthy due to flap event
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
 	assert.NotNil(t, data.suggestedActions)
 	assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeHardwareInspection)
 
@@ -1970,8 +1970,8 @@ func TestComponentCheckWithMultipleEventTypes(t *testing.T) {
 
 	// Should be unhealthy due to events
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
-	assert.Contains(t, data.reason, "port drop mlx5_1")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_1")
 	assert.Contains(t, data.reason, "; ")
 
 	// Verify both events were inserted
@@ -2118,7 +2118,7 @@ func TestComponentCheckWithEventFindError(t *testing.T) {
 
 	// Should be unhealthy due to the event, despite Find error
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
 
 	// Find error should be logged but not prevent processing
 	// No events should be inserted due to Find error
@@ -2204,7 +2204,7 @@ func TestComponentCheckWithExistingEvent(t *testing.T) {
 
 	// Should be unhealthy due to the event
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
 
 	// Should still have only one event (existing event not duplicated)
 	events := mockBucket.GetAPIEvents()
@@ -2280,7 +2280,7 @@ func TestComponentCheckWithNewEvent(t *testing.T) {
 
 	// Should be unhealthy due to the event
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port drop mlx5_0")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_0")
 
 	// Should have inserted new event
 	events := mockBucket.GetAPIEvents()
@@ -2360,7 +2360,7 @@ func TestComponentCheckWithEventInsertError(t *testing.T) {
 
 	// Should be unhealthy due to the event, despite Insert error
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
 
 	// Insert error should be logged but not prevent processing
 	// No events should be inserted due to Insert error
@@ -2512,7 +2512,7 @@ func TestComponentCheckWithDropEventType(t *testing.T) {
 
 	// Should be unhealthy due to drop event
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port drop mlx5_0")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_0")
 
 	// Drop event should be inserted
 	events := mockBucket.GetAPIEvents()
@@ -2589,7 +2589,7 @@ func TestComponentCheckWithFlapEventType(t *testing.T) {
 
 	// Should be unhealthy due to flap event
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
 
 	// Flap event should be inserted
 	events := mockBucket.GetAPIEvents()
@@ -2716,8 +2716,8 @@ func TestComponentCheckWithMixedEventTypes(t *testing.T) {
 
 	// Should be unhealthy due to known events (drop and flap)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port drop mlx5_0")
-	assert.Contains(t, data.reason, "port flap mlx5_2")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_2")
 	assert.NotContains(t, data.reason, "unknown event reason")
 
 	// Only known events should be inserted (drop and flap)
@@ -2802,7 +2802,7 @@ func TestComponentCheckWithContextTimeoutDuringFind(t *testing.T) {
 
 	// Should be unhealthy due to the event, despite potential timeout
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
 }
 
 func TestComponentCheckWithContextTimeoutDuringInsert(t *testing.T) {
@@ -2875,7 +2875,7 @@ func TestComponentCheckWithContextTimeoutDuringInsert(t *testing.T) {
 
 	// Should be unhealthy due to the event, despite potential timeout
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port drop mlx5_0")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_0")
 }
 
 func TestComponentCheckWithRequestTimeoutConfiguration(t *testing.T) {
@@ -2954,7 +2954,7 @@ func TestComponentCheckWithRequestTimeoutConfiguration(t *testing.T) {
 
 		// Should be unhealthy due to the event regardless of timeout
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "timeout: %v", timeout)
-		assert.Contains(t, data.reason, "port flap mlx5_0", "timeout: %v", timeout)
+		assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0", "timeout: %v", timeout)
 	}
 }
 
@@ -3034,7 +3034,7 @@ func TestComponentCheckWithExistingEventSkipInsertion(t *testing.T) {
 
 	// Should be unhealthy due to the event
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
 
 	// Verify the event was found (not inserted again)
 	// The mock bucket should still have exactly one event
@@ -3111,7 +3111,7 @@ func TestComponentCheckWithSuccessfulEventInsertion(t *testing.T) {
 
 	// Should be unhealthy due to the event
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.Contains(t, data.reason, "port flap mlx5_0")
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
 
 	// Verify the event was inserted successfully
 	// The mock bucket should now have exactly one event
