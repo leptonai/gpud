@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGetPartitions(t *testing.T) {
@@ -318,5 +319,242 @@ func TestGetPartitionsWithSkipUsage(t *testing.T) {
 	// Test isn't meaningful if we don't have mounted partitions with usage info
 	if mountedWithUsageCount == 0 {
 		t.Log("no mounted partitions with usage info detected, test may not be reliable")
+	}
+}
+
+func TestStatWithTimeout_Success(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+
+	// Create a file in the directory
+	testFile := tempDir + "/testfile"
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Test successful stat with normal timeout
+	info, err := statWithTimeout(ctx, testFile, 5*time.Second)
+	if err != nil {
+		t.Fatalf("statWithTimeout failed: %v", err)
+	}
+
+	if info == nil {
+		t.Fatal("statWithTimeout returned nil info but no error")
+	}
+
+	if info.Name() != "testfile" {
+		t.Errorf("expected file name 'testfile', got '%s'", info.Name())
+	}
+}
+
+func TestStatWithTimeout_Timeout(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+
+	// Create a file in the directory
+	testFile := tempDir + "/testfile"
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Use a very short timeout to force timeout
+	ctx := context.Background()
+
+	// This is tricky to test reliably since we can't easily make os.Stat hang
+	// Instead, let's test with a pre-canceled context
+	canceledCtx, cancel := context.WithCancel(ctx)
+	cancel() // Cancel immediately
+
+	info, err := statWithTimeout(canceledCtx, testFile, 1*time.Second)
+	if err == nil {
+		t.Fatal("expected statWithTimeout to return error with canceled context")
+	}
+
+	if info != nil {
+		t.Fatal("expected statWithTimeout to return nil info on error")
+	}
+
+	if err != context.DeadlineExceeded {
+		t.Errorf("expected context.DeadlineExceeded, got %v", err)
+	}
+}
+
+func TestStatWithTimeout_ContextCanceled(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+
+	// Create a file in the directory
+	testFile := tempDir + "/testfile"
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Test with context that gets canceled
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	info, err := statWithTimeout(ctx, testFile, 5*time.Second)
+	if err == nil {
+		t.Fatal("expected statWithTimeout to return error with canceled context")
+	}
+
+	if info != nil {
+		t.Fatal("expected statWithTimeout to return nil info on error")
+	}
+
+	if err != context.DeadlineExceeded {
+		t.Errorf("expected context.DeadlineExceeded, got %v", err)
+	}
+}
+
+func TestStatWithTimeout_NonExistentFile(t *testing.T) {
+	ctx := context.Background()
+	nonExistentFile := "/path/that/does/not/exist"
+
+	info, err := statWithTimeout(ctx, nonExistentFile, 5*time.Second)
+	if err == nil {
+		t.Fatal("expected statWithTimeout to return error for non-existent file")
+	}
+
+	if info != nil {
+		t.Fatal("expected statWithTimeout to return nil info on error")
+	}
+
+	if !os.IsNotExist(err) {
+		t.Errorf("expected os.IsNotExist error, got %v", err)
+	}
+}
+
+func TestGetPartitions_StatTimedOut_MockScenario(t *testing.T) {
+	// This test simulates a scenario where StatTimedOut would be set to true
+	// We'll use a canceled context to simulate a timeout condition
+
+	// Create a context that's already canceled to simulate timeout
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+
+	// Try to get partitions with a canceled context
+	// This should trigger the timeout handling logic
+	partitions, err := GetPartitions(ctx, WithFstype(DefaultFsTypeFunc), WithStatTimeout(1*time.Millisecond))
+
+	// The function should complete without error even if some stat operations fail
+	if err != nil {
+		t.Logf("GetPartitions returned error (expected in some cases): %v", err)
+	}
+
+	// Check if any partitions have StatTimedOut set to true
+	var hasStatTimedOut bool
+	for _, p := range partitions {
+		if p.StatTimedOut {
+			hasStatTimedOut = true
+			t.Logf("Found partition with StatTimedOut=true: %s at %s", p.Device, p.MountPoint)
+
+			// Verify that StatTimedOut partitions are not mounted
+			if p.Mounted {
+				t.Errorf("partition %s has StatTimedOut=true but Mounted=true, expected Mounted=false", p.Device)
+			}
+		}
+	}
+
+	t.Logf("Found %d partitions, hasStatTimedOut=%v", len(partitions), hasStatTimedOut)
+}
+
+func TestGetPartitions_StatTimedOut_False(t *testing.T) {
+	// Test that StatTimedOut is false under normal conditions
+	ctx := context.Background()
+
+	// Get partitions with normal timeout
+	partitions, err := GetPartitions(ctx, WithFstype(DefaultFsTypeFunc), WithStatTimeout(5*time.Second))
+	if err != nil {
+		t.Fatalf("GetPartitions failed: %v", err)
+	}
+
+	// Verify that StatTimedOut is false for all partitions under normal conditions
+	for _, p := range partitions {
+		if p.StatTimedOut {
+			t.Errorf("partition %s unexpectedly has StatTimedOut=true under normal conditions", p.Device)
+		}
+	}
+
+	t.Logf("Verified %d partitions all have StatTimedOut=false", len(partitions))
+}
+
+func TestGetPartitions_StatTimedOut_WithTimeout(t *testing.T) {
+	// Test with a very short timeout to increase likelihood of timeout
+	ctx := context.Background()
+
+	// Use a very short timeout
+	partitions, err := GetPartitions(ctx, WithFstype(DefaultNFSFsTypeFunc), WithStatTimeout(1*time.Nanosecond))
+	if err != nil {
+		t.Logf("GetPartitions with short timeout returned error: %v", err)
+	}
+
+	// Count partitions with StatTimedOut
+	var statTimedOutCount int
+	for _, p := range partitions {
+		if p.StatTimedOut {
+			statTimedOutCount++
+			t.Logf("Partition %s at %s has StatTimedOut=true", p.Device, p.MountPoint)
+
+			// Verify that StatTimedOut partitions are not mounted
+			if p.Mounted {
+				t.Errorf("partition %s has StatTimedOut=true but Mounted=true", p.Device)
+			}
+		}
+	}
+
+	t.Logf("Found %d partitions with StatTimedOut=true out of %d total", statTimedOutCount, len(partitions))
+}
+
+func TestPartition_StatTimedOut_FieldExists(t *testing.T) {
+	// Test that the StatTimedOut field exists and can be set
+	partition := Partition{
+		Device:       "/dev/test",
+		MountPoint:   "/mnt/test",
+		Fstype:       "nfs4",
+		Mounted:      false,
+		StatTimedOut: true,
+	}
+
+	if !partition.StatTimedOut {
+		t.Error("StatTimedOut field should be true")
+	}
+
+	partition.StatTimedOut = false
+	if partition.StatTimedOut {
+		t.Error("StatTimedOut field should be false after setting")
+	}
+}
+
+func TestPartition_StatTimedOut_JSON(t *testing.T) {
+	// Test that StatTimedOut field is properly serialized to JSON
+	partition := Partition{
+		Device:       "/dev/test",
+		MountPoint:   "/mnt/test",
+		Fstype:       "nfs4",
+		Mounted:      false,
+		StatTimedOut: true,
+	}
+
+	jsonBytes, err := json.Marshal(partition)
+	if err != nil {
+		t.Fatalf("failed to marshal partition to JSON: %v", err)
+	}
+
+	jsonStr := string(jsonBytes)
+	if !strings.Contains(jsonStr, "\"stat_timed_out\":true") {
+		t.Errorf("JSON should contain stat_timed_out field, got: %s", jsonStr)
+	}
+
+	// Test unmarshalling
+	var unmarshaledPartition Partition
+	if err := json.Unmarshal(jsonBytes, &unmarshaledPartition); err != nil {
+		t.Fatalf("failed to unmarshal JSON: %v", err)
+	}
+
+	if !unmarshaledPartition.StatTimedOut {
+		t.Error("unmarshaled partition should have StatTimedOut=true")
 	}
 }

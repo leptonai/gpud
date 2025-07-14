@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"runtime"
 	"strings"
@@ -313,6 +314,15 @@ func (c *component) Check() components.CheckResult {
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "ok"
+
+	for _, p := range cr.NFSPartitions {
+		if p.StatTimedOut {
+			cr.reason = fmt.Sprintf("%s not mounted and stat timed out", p.MountPoint)
+			cr.health = apiv1.HealthStateTypeDegraded
+			break
+		}
+	}
+
 	log.Logger.Debugw(cr.reason, "extPartitions", len(cr.ExtPartitions), "nfsPartitions", len(cr.NFSPartitions), "blockDevices", len(cr.BlockDevices))
 
 	return cr
