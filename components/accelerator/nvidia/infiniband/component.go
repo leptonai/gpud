@@ -281,36 +281,109 @@ func (c *component) Check() components.CheckResult {
 	// returns until events are marked as processed/discarded
 	// by set healthy event
 	if c.ibPortsStore != nil {
+		// we DO NOT discard past events until the user explicitly
+		// inspected and set healthy, in order to not miss critical events
+		// this will return empty, once the user inspected and set healthy (to be tombstoned)
 		events, err := c.ibPortsStore.LastEvents(zeroTime)
 		if err != nil {
 			log.Logger.Warnw("error getting ib flap/drop events", "error", err)
 		}
 
+		// above "ibPortsStore.LastEvents" only returns the last event per device and per port
+		// while keeping the details about "when" the event first happened (e.g., flap happened at x)
+		// thus, this infiniband event means, the ib port flap/drop happened at x
+		// and may still happen (thus I am emitting the event!)
+		// to signal that the hw inspection is required and set healthy is required
+
 		if len(events) > 0 {
-			reasons := []string{}
+			// we convert ib events to gpud events again
+			// so that gpud events have detail information
+			// while /states have static information
+			// since "ibPortsStore.LastEvents" returns only the last event
+			// inserting them here as gpud events will have minimum redundancy
+			// (e.g., timewindow moves forward for each iteration of check)
+			gpudEvents := []eventstore.Event{}
+			ibDropDevs := []string{}
+			ibFlapDevs := []string{}
 			for _, event := range events {
+				gpudEvent := eventstore.Event{
+					Component: Name,
+					Time:      event.Time,
+					Name:      event.EventType,
+					Type:      string(apiv1.EventTypeWarning),
+					Message:   event.EventReason,
+				}
+
 				switch event.EventType {
 				case infinibandstore.EventTypeIbPortDrop:
 					log.Logger.Warnw(event.EventReason)
-					reasons = append(reasons, event.EventReason)
+					gpudEvents = append(gpudEvents, gpudEvent)
+					ibDropDevs = append(ibDropDevs, event.Port.Device)
 
 				case infinibandstore.EventTypeIbPortFlap:
 					log.Logger.Warnw(event.EventReason)
-					reasons = append(reasons, event.EventReason)
+					gpudEvents = append(gpudEvents, gpudEvent)
+					ibFlapDevs = append(ibFlapDevs, event.Port.Device)
 
 				default:
 					log.Logger.Warnw("unknown ib event type", "event", event)
 				}
 			}
 
-			if len(reasons) > 0 {
-				sort.Strings(reasons)
-				cr.reason += "; " + strings.Join(reasons, ", ")
+			if len(gpudEvents) > 0 {
+				sort.Slice(gpudEvents, func(i, j int) bool {
+					return gpudEvents[i].Time.Before(gpudEvents[j].Time)
+				})
+				sort.Strings(ibDropDevs)
+				sort.Strings(ibFlapDevs)
+
+				if cr.reason == reasonNoIbPortIssue {
+					// Current ports are healthy but there are historical events
+					// Only clear the "ok; no infiniband port issue" message if there are
+					// actual event descriptions that would make it confusing
+					cr.reason = ""
+				}
+
+				if cr.reason != "" {
+					// e.g., ib port health state violates its expected state/rate threholds
+					cr.reason += "; "
+				}
+
+				if len(ibDropDevs) > 0 {
+					cr.reason += "device(s) down too long: " + strings.Join(ibDropDevs, ", ")
+				}
+				if len(ibFlapDevs) > 0 {
+					if len(ibDropDevs) > 0 {
+						cr.reason += "; "
+					}
+					cr.reason += "device(s) flapping between ACTIVE<>DOWN: " + strings.Join(ibFlapDevs, ", ")
+				}
+
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.suggestedActions = &apiv1.SuggestedActions{
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeHardwareInspection,
 					},
+				}
+
+				for _, gpudEvent := range gpudEvents {
+					cctx, ccancel := context.WithTimeout(c.ctx, c.requestTimeout)
+					prev, err := c.eventBucket.Find(cctx, gpudEvent)
+					ccancel()
+
+					if err != nil {
+						log.Logger.Warnw("error finding event", "error", err)
+					} else if prev == nil {
+						// new event
+						cctx, ccancel := context.WithTimeout(c.ctx, c.requestTimeout)
+						err = c.eventBucket.Insert(cctx, gpudEvent)
+						ccancel()
+						if err != nil {
+							log.Logger.Warnw("error inserting event", "error", err)
+						}
+					} else {
+						log.Logger.Infow("event already exists -- skipped inserting", "event", gpudEvent)
+					}
 				}
 			}
 		}
