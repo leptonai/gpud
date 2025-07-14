@@ -1,11 +1,15 @@
 package disk
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 type Op struct {
 	matchFuncFstype     MatchFunc
 	matchFuncDeviceType MatchFunc
 	skipUsage           bool
+	statTimeout         time.Duration
 }
 
 type MatchFunc func(fs string) bool
@@ -29,6 +33,10 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		}
 	}
 
+	if op.statTimeout == 0 {
+		op.statTimeout = 5 * time.Second
+	}
+
 	return nil
 }
 
@@ -47,6 +55,12 @@ func WithDeviceType(matchFunc MatchFunc) OpOption {
 func WithSkipUsage() OpOption {
 	return func(op *Op) {
 		op.skipUsage = true
+	}
+}
+
+func WithStatTimeout(timeout time.Duration) OpOption {
+	return func(op *Op) {
+		op.statTimeout = timeout
 	}
 }
 

@@ -3,12 +3,14 @@ package disk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
@@ -42,13 +44,21 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 			MountPoint: p.Mountpoint,
 		}
 
-		_, err := os.Stat(p.Mountpoint)
+		_, err := statWithTimeout(ctx, p.Mountpoint, op.statTimeout)
 		part.Mounted = err == nil
 
-		if err != nil && os.IsNotExist(err) {
-			// e.g., deleted pod then "stat /var/lib/kubelet/pods/80017f21-3c73-48" will fail
-			log.Logger.Debugw("skipping partition because mount point does not exist", "error", err, "device", part.Device, "mountPoint", part.MountPoint)
-			continue
+		if err != nil {
+			if os.IsNotExist(err) {
+				// e.g., deleted pod then "stat /var/lib/kubelet/pods/80017f21-3c73-48" will fail
+				log.Logger.Debugw("skipping partition because mount point does not exist", "error", err, "device", part.Device, "mountPoint", part.MountPoint)
+				continue
+			}
+
+			if errors.Is(err, context.DeadlineExceeded) {
+				// NFS or other network filesystem might be unresponsive
+				log.Logger.Warnw("stat operation timed out, marking partition as not mounted", "error", err, "device", part.Device, "mountPoint", part.MountPoint)
+				part.StatTimedOut = true
+			}
 		}
 
 		if part.Mounted && !op.skipUsage {
@@ -153,6 +163,8 @@ type Partition struct {
 	Fstype     string `json:"fstype"`
 	MountPoint string `json:"mount_point"`
 	Mounted    bool   `json:"mounted"`
+	// StatTimedOut is true if the stat operation timed out.
+	StatTimedOut bool `json:"stat_timed_out"`
 
 	Usage *Usage `json:"usage"`
 }
@@ -161,4 +173,33 @@ type Usage struct {
 	TotalBytes uint64 `json:"total_bytes"`
 	FreeBytes  uint64 `json:"free_bytes"`
 	UsedBytes  uint64 `json:"used_bytes"`
+}
+
+// statWithTimeout performs os.Stat with a timeout to prevent blocking on unresponsive filesystems like NFS
+func statWithTimeout(ctx context.Context, path string, timeout time.Duration) (os.FileInfo, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	type result struct {
+		info os.FileInfo
+		err  error
+	}
+
+	resultCh := make(chan result, 1)
+
+	go func() {
+		info, err := os.Stat(path)
+		select {
+		case resultCh <- result{info: info, err: err}:
+		case <-ctx.Done():
+			// Context canceled, result will be discarded
+		}
+	}()
+
+	select {
+	case res := <-resultCh:
+		return res.info, res.err
+	case <-ctx.Done():
+		return nil, context.DeadlineExceeded
+	}
 }

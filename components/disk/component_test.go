@@ -1745,3 +1745,342 @@ func TestComponentClose_EventHandling(t *testing.T) {
 	// The subtest "closeWithBothEventBucketAndKmsgSyncerNil" is identical to the one above.
 	// It can be removed for consolidation.
 }
+
+// TestComponent_StatTimedOut_SetsHealthDegraded tests that the component health state is set to degraded when StatTimedOut=true
+func TestComponent_StatTimedOut_SetsHealthDegraded(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "nfs",
+		Type: "disk",
+	}
+
+	// Create an NFS partition with StatTimedOut=true
+	mockNFSPartition := disk.Partition{
+		Device:       "192.168.1.100:/shared",
+		MountPoint:   "/mnt/nfs",
+		Fstype:       "nfs4",
+		Mounted:      false,
+		StatTimedOut: true, // This should trigger degraded health state
+		Usage:        nil,
+	}
+
+	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{mockDevice}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockNFSPartition}, nil
+	}
+
+	c.Check()
+
+	c.lastMu.RLock()
+	lastCheckResult := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	assert.NotNil(t, lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
+	assert.Contains(t, lastCheckResult.reason, "not mounted and stat timed out")
+	assert.Contains(t, lastCheckResult.reason, "/mnt/nfs")
+	assert.Len(t, lastCheckResult.NFSPartitions, 1)
+	assert.True(t, lastCheckResult.NFSPartitions[0].StatTimedOut)
+}
+
+// TestComponent_StatTimedOut_MultiplePartitions tests behavior with multiple partitions where some have StatTimedOut=true
+func TestComponent_StatTimedOut_MultiplePartitions(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "nfs",
+		Type: "disk",
+	}
+
+	// Create multiple NFS partitions - one with StatTimedOut=true, one without
+	mockNFSPartition1 := disk.Partition{
+		Device:       "192.168.1.100:/shared1",
+		MountPoint:   "/mnt/nfs1",
+		Fstype:       "nfs4",
+		Mounted:      true,
+		StatTimedOut: false,
+		Usage: &disk.Usage{
+			TotalBytes: 1000,
+			FreeBytes:  500,
+			UsedBytes:  500,
+		},
+	}
+
+	mockNFSPartition2 := disk.Partition{
+		Device:       "192.168.1.100:/shared2",
+		MountPoint:   "/mnt/nfs2",
+		Fstype:       "nfs4",
+		Mounted:      false,
+		StatTimedOut: true, // This should trigger degraded health state
+		Usage:        nil,
+	}
+
+	c := createTestComponent(ctx, []string{"/mnt/nfs1", "/mnt/nfs2"}, []string{})
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{mockDevice}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockNFSPartition1, mockNFSPartition2}, nil
+	}
+
+	c.Check()
+
+	c.lastMu.RLock()
+	lastCheckResult := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	assert.NotNil(t, lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
+	assert.Contains(t, lastCheckResult.reason, "not mounted and stat timed out")
+	assert.Contains(t, lastCheckResult.reason, "/mnt/nfs2")
+	assert.Len(t, lastCheckResult.NFSPartitions, 2)
+
+	// Find the partitions and verify their StatTimedOut values
+	var partition1, partition2 *disk.Partition
+	for i := range lastCheckResult.NFSPartitions {
+		if lastCheckResult.NFSPartitions[i].MountPoint == "/mnt/nfs1" {
+			partition1 = &lastCheckResult.NFSPartitions[i]
+		} else if lastCheckResult.NFSPartitions[i].MountPoint == "/mnt/nfs2" {
+			partition2 = &lastCheckResult.NFSPartitions[i]
+		}
+	}
+
+	assert.NotNil(t, partition1)
+	assert.NotNil(t, partition2)
+	assert.False(t, partition1.StatTimedOut)
+	assert.True(t, partition2.StatTimedOut)
+}
+
+// TestComponent_StatTimedOut_False_HealthyState tests that the component health state remains healthy when StatTimedOut=false
+func TestComponent_StatTimedOut_False_HealthyState(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "nfs",
+		Type: "disk",
+	}
+
+	// Create an NFS partition with StatTimedOut=false
+	mockNFSPartition := disk.Partition{
+		Device:       "192.168.1.100:/shared",
+		MountPoint:   "/mnt/nfs",
+		Fstype:       "nfs4",
+		Mounted:      true,
+		StatTimedOut: false, // This should keep health state healthy
+		Usage: &disk.Usage{
+			TotalBytes: 1000,
+			FreeBytes:  500,
+			UsedBytes:  500,
+		},
+	}
+
+	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{mockDevice}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockNFSPartition}, nil
+	}
+
+	c.Check()
+
+	c.lastMu.RLock()
+	lastCheckResult := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	assert.NotNil(t, lastCheckResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+	assert.Equal(t, "ok", lastCheckResult.reason)
+	assert.Len(t, lastCheckResult.NFSPartitions, 1)
+	assert.False(t, lastCheckResult.NFSPartitions[0].StatTimedOut)
+}
+
+// TestComponent_StatTimedOut_ExtPartitionsIgnored tests that only NFS partitions are checked for StatTimedOut
+func TestComponent_StatTimedOut_ExtPartitionsIgnored(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "sda",
+		Type: "disk",
+	}
+
+	// Create an Ext4 partition with StatTimedOut=true (should be ignored)
+	mockExtPartition := disk.Partition{
+		Device:       "/dev/sda1",
+		MountPoint:   "/mnt/ext4",
+		Fstype:       "ext4",
+		Mounted:      false,
+		StatTimedOut: true, // This should be ignored for health state calculation
+		Usage:        nil,
+	}
+
+	// Create an NFS partition with StatTimedOut=false
+	mockNFSPartition := disk.Partition{
+		Device:       "192.168.1.100:/shared",
+		MountPoint:   "/mnt/nfs",
+		Fstype:       "nfs4",
+		Mounted:      true,
+		StatTimedOut: false,
+		Usage: &disk.Usage{
+			TotalBytes: 1000,
+			FreeBytes:  500,
+			UsedBytes:  500,
+		},
+	}
+
+	c := createTestComponent(ctx, []string{"/mnt/ext4", "/mnt/nfs"}, []string{})
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{mockDevice}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockExtPartition}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockNFSPartition}, nil
+	}
+
+	c.Check()
+
+	c.lastMu.RLock()
+	lastCheckResult := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	assert.NotNil(t, lastCheckResult)
+	// Health should be healthy because only NFS partitions are checked for StatTimedOut
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+	assert.Equal(t, "ok", lastCheckResult.reason)
+	assert.Len(t, lastCheckResult.ExtPartitions, 1)
+	assert.Len(t, lastCheckResult.NFSPartitions, 1)
+	assert.True(t, lastCheckResult.ExtPartitions[0].StatTimedOut)  // Ext4 partition has StatTimedOut=true
+	assert.False(t, lastCheckResult.NFSPartitions[0].StatTimedOut) // NFS partition has StatTimedOut=false
+}
+
+// TestComponent_StatTimedOut_ReasonMessage tests that the correct reason message is set when StatTimedOut is detected
+func TestComponent_StatTimedOut_ReasonMessage(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "nfs",
+		Type: "disk",
+	}
+
+	tests := []struct {
+		name        string
+		mountPoint  string
+		expectedMsg string
+	}{
+		{
+			name:        "short mount point",
+			mountPoint:  "/mnt/nfs",
+			expectedMsg: "/mnt/nfs not mounted and stat timed out",
+		},
+		{
+			name:        "long mount point",
+			mountPoint:  "/mnt/very/long/path/to/nfs/mount",
+			expectedMsg: "/mnt/very/long/path/to/nfs/mount not mounted and stat timed out",
+		},
+		{
+			name:        "root mount point",
+			mountPoint:  "/",
+			expectedMsg: "/ not mounted and stat timed out",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockNFSPartition := disk.Partition{
+				Device:       "192.168.1.100:/shared",
+				MountPoint:   tt.mountPoint,
+				Fstype:       "nfs4",
+				Mounted:      false,
+				StatTimedOut: true,
+				Usage:        nil,
+			}
+
+			c := createTestComponent(ctx, []string{tt.mountPoint}, []string{})
+			defer c.Close()
+
+			c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{mockDevice}, nil
+			}
+			c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			}
+			c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{mockNFSPartition}, nil
+			}
+
+			c.Check()
+
+			c.lastMu.RLock()
+			lastCheckResult := c.lastCheckResult
+			c.lastMu.RUnlock()
+
+			assert.NotNil(t, lastCheckResult)
+			assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
+			assert.Equal(t, tt.expectedMsg, lastCheckResult.reason)
+		})
+	}
+}
+
+// TestComponent_StatTimedOut_NoNFSPartitions tests that StatTimedOut in non-NFS partitions doesn't affect health
+func TestComponent_StatTimedOut_NoNFSPartitions(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "sda",
+		Type: "disk",
+	}
+
+	// Create only Ext4 partitions with StatTimedOut=true
+	mockExtPartition := disk.Partition{
+		Device:       "/dev/sda1",
+		MountPoint:   "/mnt/ext4",
+		Fstype:       "ext4",
+		Mounted:      false,
+		StatTimedOut: true, // This should not affect health state
+		Usage:        nil,
+	}
+
+	c := createTestComponent(ctx, []string{"/mnt/ext4"}, []string{})
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{mockDevice}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockExtPartition}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil // No NFS partitions
+	}
+
+	c.Check()
+
+	c.lastMu.RLock()
+	lastCheckResult := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	assert.NotNil(t, lastCheckResult)
+	// Health should be healthy because StatTimedOut only affects NFS partitions
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+	assert.Equal(t, "ok", lastCheckResult.reason)
+	assert.Len(t, lastCheckResult.ExtPartitions, 1)
+	assert.Len(t, lastCheckResult.NFSPartitions, 0)
+	assert.True(t, lastCheckResult.ExtPartitions[0].StatTimedOut)
+}
