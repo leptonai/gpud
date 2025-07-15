@@ -1,6 +1,7 @@
 package nfschecker
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 )
@@ -31,9 +32,9 @@ func (cfg *MemberConfig) fileSelf() string {
 type MemberConfigs []MemberConfig
 
 // Validate validates the member configurations.
-func (cfgs MemberConfigs) Validate() error {
+func (cfgs MemberConfigs) Validate(ctx context.Context) error {
 	for _, cfg := range cfgs {
-		if err := cfg.Validate(); err != nil {
+		if err := cfg.Validate(ctx); err != nil {
 			return err
 		}
 	}
@@ -43,8 +44,8 @@ func (cfgs MemberConfigs) Validate() error {
 var ErrIDEmpty = errors.New("ID is empty")
 
 // Validate validates the configuration.
-func (c *MemberConfig) Validate() error {
-	if err := c.Config.ValidateAndMkdir(); err != nil {
+func (c *MemberConfig) Validate(ctx context.Context) error {
+	if err := c.Config.ValidateAndMkdir(ctx); err != nil {
 		return err
 	}
 

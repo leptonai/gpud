@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -20,6 +21,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -41,6 +43,9 @@ type component struct {
 	getNFSPartitionsFunc  func(ctx context.Context) (disk.Partitions, error)
 
 	findMntFunc func(ctx context.Context, target string) (*disk.FindMntOutput, error)
+
+	// Function field for testable file operations
+	statWithTimeoutFunc func(ctx context.Context, path string) (os.FileInfo, error)
 
 	mountPointsToTrackUsage map[string]struct{}
 
@@ -71,6 +76,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		},
 
 		findMntFunc: disk.FindMnt,
+
+		// Initialize file operation function field with real implementation
+		statWithTimeoutFunc: pkgfile.StatWithTimeout,
 	}
 
 	if runtime.GOOS == "linux" {
@@ -244,13 +252,20 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	for target := range c.mountPointsToTrackUsage {
-		if _, err := os.Stat(target); err != nil {
+		timeoutCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+		_, err := c.statWithTimeoutFunc(timeoutCtx, target)
+		cancel()
+		if err != nil {
 			if os.IsNotExist(err) {
 				log.Logger.Debugw("mount target does not exist", "target", target)
 				continue
 			}
 
-			log.Logger.Errorw("failed to check mount target", "target", target, "error", err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				log.Logger.Warnw("stat operation timed out for mount target, may indicate unresponsive filesystem", "target", target, "error", err)
+			} else {
+				log.Logger.Errorw("failed to check mount target", "target", target, "error", err)
+			}
 			continue
 		}
 
