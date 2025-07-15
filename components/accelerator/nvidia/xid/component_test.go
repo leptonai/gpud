@@ -508,9 +508,9 @@ func TestCheck(t *testing.T) {
 		assert.Equal(t, 31, data.FoundErrors[0].Xid)
 	})
 
-	t.Run("with XID 63 and 64 errors that should be skipped", func(t *testing.T) {
-		// Using a properly implemented mock
-		mockedNVML := createMockNVMLInstance()
+	t.Run("with XID 63 and 64 errors that should be skipped when row remapping is supported", func(t *testing.T) {
+		// Using a properly implemented mock with row remapping support
+		mockedNVML := createMockNVMLInstanceWithRowRemapping()
 		gpudInstance := &components.GPUdInstance{
 			RootCtx:      ctx,
 			NVMLInstance: mockedNVML,
@@ -556,9 +556,9 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	t.Run("with only XID 63 and 64 errors", func(t *testing.T) {
-		// Using a properly implemented mock
-		mockedNVML := createMockNVMLInstance()
+	t.Run("with only XID 63 and 64 errors when row remapping is supported", func(t *testing.T) {
+		// Using a properly implemented mock with row remapping support
+		mockedNVML := createMockNVMLInstanceWithRowRemapping()
 		gpudInstance := &components.GPUdInstance{
 			RootCtx:      ctx,
 			NVMLInstance: mockedNVML,
@@ -588,6 +588,108 @@ func TestCheck(t *testing.T) {
 		assert.Len(t, data.FoundErrors, 0)
 		assert.Contains(t, result.Summary(), "matched 0 xid errors from 2 kmsg(s)")
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	})
+
+	t.Run("with XID 63 and 64 errors that should NOT be skipped when row remapping is NOT supported", func(t *testing.T) {
+		// Using a mock without row remapping support
+		mockedNVML := createMockNVMLInstance()
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockedNVML,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+			return []kmsg.Message{
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:01:00): 63, Row remapping pending",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:02:00): 64, Row remapping failure",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:03:00): 31, GPU has fallen off the bus",
+				},
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		// Should find all XIDs including 63 and 64 since row remapping is not supported
+		assert.Len(t, data.FoundErrors, 3)
+		assert.Contains(t, result.Summary(), "matched 3 xid errors from 3 kmsg(s)")
+
+		// Verify that all XIDs are in the found errors
+		expectedXids := map[int]bool{31: false, 63: false, 64: false}
+		for _, foundErr := range data.FoundErrors {
+			expectedXids[foundErr.Xid] = true
+		}
+		for xid, found := range expectedXids {
+			assert.True(t, found, "XID %d should be found", xid)
+		}
+	})
+
+	t.Run("with mixed XIDs when row remapping supported", func(t *testing.T) {
+		// Using a mock with row remapping support
+		mockedNVML := createMockNVMLInstanceWithRowRemapping()
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockedNVML,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+			return []kmsg.Message{
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:01:00): 31, GPU has fallen off the bus",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:02:00): 63, Row remapping pending",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:03:00): 79, GPU has fallen off the bus",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:04:00): 64, Row remapping failure",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:05:00): 94, Contained ECC error",
+				},
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		// Should find XIDs 31, 79, and 94, but not 63 or 64
+		assert.Len(t, data.FoundErrors, 3)
+		assert.Contains(t, result.Summary(), "matched 3 xid errors from 5 kmsg(s)")
+
+		// Verify the correct XIDs are found
+		foundXids := make(map[int]bool)
+		for _, foundErr := range data.FoundErrors {
+			foundXids[foundErr.Xid] = true
+		}
+		assert.True(t, foundXids[31], "XID 31 should be found")
+		assert.True(t, foundXids[79], "XID 79 should be found")
+		assert.True(t, foundXids[94], "XID 94 should be found")
+		assert.False(t, foundXids[63], "XID 63 should not be found")
+		assert.False(t, foundXids[64], "XID 64 should not be found")
 	})
 }
 
@@ -774,13 +876,23 @@ func TestUpdateCurrentState(t *testing.T) {
 // Helper function to create a mock NVML instance for testing
 func createMockNVMLInstance() *mockNVMLInstance {
 	return &mockNVMLInstance{
-		devices: make(map[string]device.Device),
+		devices:               make(map[string]device.Device),
+		rowRemappingSupported: false,
+	}
+}
+
+// Helper function to create a mock NVML instance with row remapping support
+func createMockNVMLInstanceWithRowRemapping() *mockNVMLInstance {
+	return &mockNVMLInstance{
+		devices:               make(map[string]device.Device),
+		rowRemappingSupported: true,
 	}
 }
 
 // Mock NVML implementation for testing
 type mockNVMLInstance struct {
-	devices map[string]device.Device
+	devices               map[string]device.Device
+	rowRemappingSupported bool
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -827,7 +939,7 @@ func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvml.MemoryErr
 	return nvml.MemoryErrorManagementCapabilities{
 		ErrorContainment:     false,
 		DynamicPageOfflining: false,
-		RowRemapping:         false,
+		RowRemapping:         m.rowRemappingSupported,
 		Message:              "",
 	}
 }
@@ -996,10 +1108,14 @@ func TestHandleEventChannel(t *testing.T) {
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
 
+	// Create a mock NVML instance for testing
+	mockedNVML := createMockNVMLInstance()
+
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
 		EventStore:       store,
 		RebootEventStore: rebootEventStore,
+		NVMLInstance:     mockedNVML,
 	}
 
 	comp, err := New(gpudInstance)
@@ -1112,10 +1228,14 @@ func TestStartWithXID63And64Skipping(t *testing.T) {
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
 
+	// Create a mock NVML instance with row remapping support
+	mockedNVML := createMockNVMLInstanceWithRowRemapping()
+
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
 		EventStore:       store,
 		RebootEventStore: rebootEventStore,
+		NVMLInstance:     mockedNVML,
 	}
 
 	comp, err := New(gpudInstance)
@@ -1205,4 +1325,97 @@ func TestStartWithXID63And64Skipping(t *testing.T) {
 
 	// The component should be unhealthy due to XID 79 (fatal error)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+}
+
+func TestStartWithXID63And64NotSkippedWhenNoRowRemapping(t *testing.T) {
+	// initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	assert.NoError(t, err)
+
+	rebootEventStore := pkghost.NewRebootEventStore(store)
+
+	// Create a mock NVML instance WITHOUT row remapping support
+	mockedNVML := createMockNVMLInstance()
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       store,
+		RebootEventStore: rebootEventStore,
+		NVMLInstance:     mockedNVML,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	c := comp.(*component)
+
+	// If eventBucket is nil, create it manually for testing
+	if c.eventBucket == nil {
+		c.eventBucket, err = store.Bucket(Name)
+		assert.NoError(t, err)
+	}
+
+	// Setup a test channel for events to avoid using kmsg
+	kmsgCh := make(chan kmsg.Message, 10)
+
+	// Start the component with a short update period
+	go c.start(kmsgCh, 100*time.Millisecond)
+
+	defer func() {
+		if err := comp.Close(); err != nil {
+			t.Error("failed to close component")
+		}
+	}()
+
+	// Send XID 63 and 64 messages
+	testMessages := []kmsg.Message{
+		{
+			Timestamp: metav1.NewTime(time.Now()),
+			Message:   "NVRM: Xid (PCI:0000:01:00): 63, Row remapping pending",
+		},
+		{
+			Timestamp: metav1.NewTime(time.Now().Add(1 * time.Second)),
+			Message:   "NVRM: Xid (PCI:0000:02:00): 64, Row remapping failure",
+		},
+	}
+
+	// Send all test messages
+	for _, msg := range testMessages {
+		kmsgCh <- msg
+	}
+
+	// Wait for processing
+	time.Sleep(2 * time.Second)
+
+	// Check that XID 63 and 64 WERE processed (not skipped)
+	events, err := comp.Events(ctx, time.Now().Add(-1*time.Hour))
+	assert.NoError(t, err)
+
+	// Count events by XID
+	xidCounts := make(map[int]int)
+	xidRegex := regexp.MustCompile(`XID (\d+)`)
+	for _, event := range events {
+		if event.Name == EventNameErrorXid {
+			if matches := xidRegex.FindStringSubmatch(event.Message); len(matches) > 1 {
+				if xid, err := strconv.Atoi(matches[1]); err == nil {
+					xidCounts[xid]++
+				}
+			}
+		}
+	}
+
+	// Verify that XID 63 and 64 WERE stored (not skipped) since row remapping is not supported
+	assert.Greater(t, xidCounts[63], 0, "XID 63 should be stored when row remapping is not supported")
+	assert.Greater(t, xidCounts[64], 0, "XID 64 should be stored when row remapping is not supported")
+
+	// The component should be unhealthy due to critical XIDs
+	states := comp.LastHealthStates()
+	assert.NotNil(t, states)
 }

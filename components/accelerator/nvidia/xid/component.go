@@ -258,7 +258,7 @@ func (c *component) Check() components.CheckResult {
 		// from Xid 63/64, while row remmaping pending may self-resolve
 		// after >3 times of system reboots
 		// this is why we here discard Xid 63/64 in favor of row remapping checks
-		if xidErr.Xid == 63 || xidErr.Xid == 64 {
+		if c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping && (xidErr.Xid == 63 || xidErr.Xid == 64) {
 			log.Logger.Warnw("discarding Xid 63/64 in favor of remapped-rows component", "xid", xidErr.Xid, "deviceUUID", xidErr.DeviceUUID)
 			continue
 		}
@@ -445,7 +445,7 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			// from Xid 63/64, while row remmaping pending may self-resolve
 			// after >3 times of system reboots
 			// this is why we here discard Xid 63/64 in favor of row remapping checks
-			if xidErr.Xid == 63 || xidErr.Xid == 64 {
+			if c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping && (xidErr.Xid == 63 || xidErr.Xid == 64) {
 				log.Logger.Warnw("discarding Xid 63/64 in favor of remapped-rows component", "xid", xidErr.Xid, "deviceUUID", xidErr.DeviceUUID)
 				continue
 			}
