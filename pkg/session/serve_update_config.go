@@ -1,7 +1,9 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
+	"time"
 
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
@@ -49,7 +51,11 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 				resp.Error = err.Error()
 				return
 			}
-			if err := updateCfgs.Validate(); err != nil {
+			// Create a context with timeout for validation
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			err := updateCfgs.Validate(ctx)
+			cancel()
+			if err != nil {
 				log.Logger.Warnw("invalid nfs config", "error", err)
 				resp.Error = err.Error()
 				return
