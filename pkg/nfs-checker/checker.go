@@ -3,6 +3,7 @@ package nfschecker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +37,10 @@ type CheckResult struct {
 	// Set to an empty string, if there was no error, and
 	// validation succeeded.
 	Error string `json:"error,omitempty"`
+
+	// TimeoutError indicates that if the [CheckResult].Error is not empty,
+	// the error was due to operation timeout (e.g., [context.DeadlineExceeded]).
+	TimeoutError bool `json:"timeout_error,omitempty"`
 }
 
 // NewChecker creates a new checker with the given configuration.
@@ -86,6 +91,7 @@ func (c *checker) Check(ctx context.Context) CheckResult {
 	if err != nil {
 		result.Message = "failed"
 		result.Error = fmt.Sprintf("failed to read file %s: %s", file, err)
+		result.TimeoutError = errors.Is(err, context.DeadlineExceeded)
 		return result
 	}
 
