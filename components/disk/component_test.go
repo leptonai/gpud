@@ -18,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/kmsg"
 )
 
@@ -105,6 +106,12 @@ func createTestComponent(ctx context.Context, mountPoints, mountTargets []string
 	c, _ := New(gpudInstance)
 	ct := c.(*component)
 	ct.retryInterval = 0
+
+	// Initialize statWithTimeoutFunc with real implementation for tests that don't override it
+	if ct.statWithTimeoutFunc == nil {
+		ct.statWithTimeoutFunc = pkgfile.StatWithTimeout
+	}
+
 	return ct
 }
 
@@ -749,9 +756,10 @@ func TestFindMntRetryLogic(t *testing.T) {
 			defer cancel()
 
 			c := &component{
-				ctx:         ctx,
-				cancel:      cancel,
-				findMntFunc: mockFindMntFunc,
+				ctx:                 ctx,
+				cancel:              cancel,
+				findMntFunc:         mockFindMntFunc,
+				statWithTimeoutFunc: pkgfile.StatWithTimeout,
 				getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 					return disk.Partitions{
 						{
@@ -818,8 +826,9 @@ func TestMountTargetUsagesInitialization(t *testing.T) {
 	defer cancel()
 
 	c := &component{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:                 ctx,
+		cancel:              cancel,
+		statWithTimeoutFunc: pkgfile.StatWithTimeout,
 		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
 			return &disk.FindMntOutput{
 				Filesystems: []disk.FoundMnt{
@@ -889,8 +898,9 @@ func TestFindMntLogging(t *testing.T) {
 
 	callCount := 0
 	c := &component{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:                 ctx,
+		cancel:              cancel,
+		statWithTimeoutFunc: pkgfile.StatWithTimeout,
 		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
 			callCount++
 			if callCount == 1 {
@@ -1712,10 +1722,11 @@ func TestComponentClose_EventHandling(t *testing.T) {
 
 		cctx, ccancel := context.WithCancel(ctx)
 		c := &component{
-			ctx:         cctx,
-			cancel:      ccancel,
-			eventBucket: mockBucket,
-			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+			ctx:                 cctx,
+			cancel:              ccancel,
+			statWithTimeoutFunc: pkgfile.StatWithTimeout,
+			eventBucket:         mockBucket,
+			kmsgSyncer:          nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
 		}
 
 		err := c.Close()
@@ -1731,10 +1742,11 @@ func TestComponentClose_EventHandling(t *testing.T) {
 	t.Run("closeWithEventBucketNilAndKmsgSyncerNil", func(t *testing.T) {
 		cctx, ccancel := context.WithCancel(ctx)
 		c := &component{
-			ctx:         cctx,
-			cancel:      ccancel,
-			eventBucket: nil,
-			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+			ctx:                 cctx,
+			cancel:              ccancel,
+			statWithTimeoutFunc: pkgfile.StatWithTimeout,
+			eventBucket:         nil,
+			kmsgSyncer:          nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
 		}
 
 		err := c.Close()
@@ -2083,4 +2095,337 @@ func TestComponent_StatTimedOut_NoNFSPartitions(t *testing.T) {
 	assert.Len(t, lastCheckResult.ExtPartitions, 1)
 	assert.Len(t, lastCheckResult.NFSPartitions, 0)
 	assert.True(t, lastCheckResult.ExtPartitions[0].StatTimedOut)
+}
+
+// TestComponent_TimeoutScenarios_CompleteFlow tests comprehensive timeout scenarios
+// from file operation timeouts to health state degraded
+func TestComponent_TimeoutScenarios_CompleteFlow(t *testing.T) {
+	t.Parallel()
+
+	scenarios := []struct {
+		name        string
+		ctxFunc     func() (context.Context, context.CancelFunc)
+		expectError bool
+		errorType   error
+		description string
+	}{
+		{
+			name: "deadline_exceeded_timeout",
+			ctxFunc: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+				time.Sleep(10 * time.Millisecond) // Ensure timeout
+				return ctx, cancel
+			},
+			expectError: true,
+			errorType:   context.DeadlineExceeded,
+			description: "simulates NFS hang causing deadline exceeded",
+		},
+		{
+			name: "context_canceled",
+			ctxFunc: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel() // Cancel immediately
+				return ctx, cancel
+			},
+			expectError: true,
+			errorType:   context.Canceled,
+			description: "simulates context cancellation during NFS operation",
+		},
+		{
+			name: "successful_operation",
+			ctxFunc: func() (context.Context, context.CancelFunc) {
+				return context.WithTimeout(context.Background(), 5*time.Second)
+			},
+			expectError: false,
+			errorType:   nil,
+			description: "normal operation for comparison",
+		},
+	}
+
+	for _, scenario := range scenarios {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			// Create test component with NFS mount points
+			c := createTestComponent(ctx, []string{}, []string{"/mnt/nfs-test"})
+			defer c.Close()
+
+			// Mock functions to simulate the timeout scenario
+			c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{
+					{Name: "mock-device", Type: "disk"},
+				}, nil
+			}
+			c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			}
+			c.getNFSPartitionsFunc = func(timeoutCtx context.Context) (disk.Partitions, error) {
+				// Test with the scenario's context to simulate timeout behavior
+				testCtx, testCancel := scenario.ctxFunc()
+				defer testCancel()
+
+				// Create a mock NFS partition and test timeout behavior
+				partition := disk.Partition{
+					Device:     "192.168.1.100:/shared",
+					Fstype:     "nfs4",
+					MountPoint: "/mnt/nfs-test",
+				}
+
+				// Simulate the StatWithTimeout call that would happen in GetPartitions
+				_, err := pkgfile.StatWithTimeout(testCtx, "/mnt/nfs-test")
+				if err != nil {
+					if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+						// This simulates what happens in disk_partition_usage.go line 61
+						partition.StatTimedOut = true
+						partition.Mounted = false
+						t.Logf("Scenario %s: StatTimedOut set to true due to %v", scenario.name, err)
+					}
+				} else {
+					partition.Mounted = true
+					partition.StatTimedOut = false
+				}
+
+				return disk.Partitions{partition}, nil
+			}
+
+			// Run the Check method
+			result := c.Check()
+			cr, ok := result.(*checkResult)
+			require.True(t, ok, "result should be checkResult")
+			require.Len(t, cr.NFSPartitions, 1, "should have one NFS partition")
+
+			nfsPartition := cr.NFSPartitions[0]
+
+			if scenario.expectError {
+				// Verify StatTimedOut is set and health is degraded
+				assert.True(t, nfsPartition.StatTimedOut, "StatTimedOut should be true for scenario: %s", scenario.description)
+				assert.False(t, nfsPartition.Mounted, "Mounted should be false when StatTimedOut is true")
+				assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded when StatTimedOut is true")
+				assert.Contains(t, cr.reason, "not mounted and stat timed out", "Reason should mention timeout")
+				assert.Contains(t, cr.reason, "/mnt/nfs-test", "Reason should mention the mount point")
+			} else {
+				// Verify normal operation
+				assert.False(t, nfsPartition.StatTimedOut, "StatTimedOut should be false for successful operation")
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should be healthy for successful operation")
+				assert.Equal(t, "ok", cr.reason, "Reason should be ok for successful operation")
+			}
+		})
+	}
+}
+
+// TestComponent_MountTargetTimeoutHandling tests timeout handling for mount targets in Check method
+func TestComponent_MountTargetTimeoutHandling(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Create component with mount targets that don't exist (to simulate timeout)
+	c := createTestComponent(ctx, []string{}, []string{"/nonexistent/mount/target"})
+	defer c.Close()
+
+	// Mock functions to return minimal data so we focus on mount target checking
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{
+			{Name: "mock-device", Type: "disk"},
+		}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+
+	// Run Check - this will test the mount target StatWithTimeout logic
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok, "result should be checkResult")
+
+	// The mount target doesn't exist, so StatWithTimeout should return an error
+	// The component should handle this gracefully and continue (not set health to unhealthy)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should remain healthy even when mount target stat fails")
+	assert.Equal(t, "no ext4/nfs partition found", cr.reason, "Should indicate no partitions found")
+}
+
+// TestComponent_GetPartitionsTimeoutIntegration tests integration with GetPartitions timeout behavior
+func TestComponent_GetPartitionsTimeoutIntegration(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Create component that will use real GetPartitions with very short timeout
+	c := createTestComponent(ctx, []string{}, []string{})
+	defer c.Close()
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{
+			{Name: "mock-device", Type: "disk"},
+		}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+
+	// This simulates GetPartitions with very short timeout that could cause StatTimedOut
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		// Use GetPartitions with very short timeout to potentially trigger StatTimedOut
+		return disk.GetPartitions(ctx,
+			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
+			disk.WithSkipUsage(),
+			disk.WithStatTimeout(1*time.Nanosecond), // Very short timeout
+		)
+	}
+
+	// Run Check method
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok, "result should be checkResult")
+
+	// Check if any NFS partitions have StatTimedOut and verify health state
+	hasStatTimedOut := false
+	for _, p := range cr.NFSPartitions {
+		if p.StatTimedOut {
+			hasStatTimedOut = true
+			t.Logf("Found NFS partition with StatTimedOut=true: %s at %s", p.Device, p.MountPoint)
+			assert.False(t, p.Mounted, "StatTimedOut partition should not be mounted")
+		}
+	}
+
+	if hasStatTimedOut {
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded when any NFS partition has StatTimedOut")
+		assert.Contains(t, cr.reason, "stat timed out", "Reason should mention timeout")
+	} else {
+		t.Log("No partitions with StatTimedOut found in this test run")
+		// This is expected as the system may not have NFS partitions or timeouts may not occur
+	}
+}
+
+// TestComponent_ContextErrorTypes verifies different context error types are handled correctly
+func TestComponent_ContextErrorTypes(t *testing.T) {
+	t.Parallel()
+
+	errorTests := []struct {
+		name      string
+		error     error
+		expectSet bool
+	}{
+		{
+			name:      "deadline_exceeded_sets_stat_timed_out",
+			error:     context.DeadlineExceeded,
+			expectSet: true,
+		},
+		{
+			name:      "canceled_sets_stat_timed_out",
+			error:     context.Canceled,
+			expectSet: true,
+		},
+		{
+			name:      "other_error_does_not_set_stat_timed_out",
+			error:     errors.New("some other error"),
+			expectSet: false,
+		},
+	}
+
+	for _, tt := range errorTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+
+			c := createTestComponent(ctx, []string{}, []string{})
+			defer c.Close()
+
+			c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{
+					{Name: "mock-device", Type: "disk"},
+				}, nil
+			}
+			c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			}
+			c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+				// Create a partition and simulate the error condition
+				partition := disk.Partition{
+					Device:     "test.example.com:/share",
+					Fstype:     "nfs4",
+					MountPoint: "/mnt/test-nfs",
+					Mounted:    false,
+				}
+
+				// Simulate the logic from disk_partition_usage.go
+				if errors.Is(tt.error, context.DeadlineExceeded) || errors.Is(tt.error, context.Canceled) {
+					partition.StatTimedOut = true
+				} else {
+					partition.StatTimedOut = false
+				}
+
+				return disk.Partitions{partition}, nil
+			}
+
+			result := c.Check()
+			cr, ok := result.(*checkResult)
+			require.True(t, ok)
+			require.Len(t, cr.NFSPartitions, 1)
+
+			partition := cr.NFSPartitions[0]
+
+			if tt.expectSet {
+				assert.True(t, partition.StatTimedOut, "StatTimedOut should be true for %s", tt.name)
+				assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded")
+				assert.Contains(t, cr.reason, "stat timed out", "Reason should mention timeout")
+			} else {
+				assert.False(t, partition.StatTimedOut, "StatTimedOut should be false for %s", tt.name)
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should be healthy")
+				assert.Equal(t, "ok", cr.reason, "Reason should be ok")
+			}
+		})
+	}
+}
+
+// TestComponent_StatWithTimeoutDeadlineExceeded tests the case where statWithTimeoutFunc returns context.DeadlineExceeded
+func TestComponent_StatWithTimeoutDeadlineExceeded(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary directory to use as mount target
+	tempDir := t.TempDir()
+
+	c := createTestComponent(ctx, []string{}, []string{tempDir})
+	defer c.Close()
+
+	// Override statWithTimeoutFunc to return context.DeadlineExceeded
+	c.statWithTimeoutFunc = func(ctx context.Context, path string) (os.FileInfo, error) {
+		return nil, context.DeadlineExceeded
+	}
+
+	// Mock other functions to return minimal data
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{
+			{Name: "sda", Type: "disk"},
+		}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+	c.findMntFunc = func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+		// This should not be called because statWithTimeoutFunc fails first
+		return nil, errors.New("findMntFunc should not be called when statWithTimeoutFunc returns DeadlineExceeded")
+	}
+
+	// Run Check
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok, "result should be checkResult")
+
+	// Verify that component remains healthy despite timeout
+	// (the timeout is logged but doesn't affect overall health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "no ext4/nfs partition found", cr.reason)
+
+	// Verify that MountTargetUsages is empty/nil due to the timeout
+	assert.Nil(t, cr.MountTargetUsages)
 }
