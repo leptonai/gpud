@@ -10,12 +10,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/shirou/gopsutil/v4/disk"
 
+	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -44,7 +44,9 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 			MountPoint: p.Mountpoint,
 		}
 
-		_, err := statWithTimeout(ctx, p.Mountpoint, op.statTimeout)
+		timeoutCtx, cancel := context.WithTimeout(ctx, op.statTimeout)
+		_, err := pkgfile.StatWithTimeout(timeoutCtx, p.Mountpoint)
+		cancel()
 		part.Mounted = err == nil
 
 		if err != nil {
@@ -173,33 +175,4 @@ type Usage struct {
 	TotalBytes uint64 `json:"total_bytes"`
 	FreeBytes  uint64 `json:"free_bytes"`
 	UsedBytes  uint64 `json:"used_bytes"`
-}
-
-// statWithTimeout performs os.Stat with a timeout to prevent blocking on unresponsive filesystems like NFS
-func statWithTimeout(ctx context.Context, path string, timeout time.Duration) (os.FileInfo, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	type result struct {
-		info os.FileInfo
-		err  error
-	}
-
-	resultCh := make(chan result, 1)
-
-	go func() {
-		info, err := os.Stat(path)
-		select {
-		case resultCh <- result{info: info, err: err}:
-		case <-ctx.Done():
-			// Context canceled, result will be discarded
-		}
-	}()
-
-	select {
-	case res := <-resultCh:
-		return res.info, res.err
-	case <-ctx.Done():
-		return nil, context.DeadlineExceeded
-	}
 }
