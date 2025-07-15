@@ -35,6 +35,13 @@ type component struct {
 	findMntTargetDevice func(dir string) (string, string, error)
 	isNFSFSType         func(fsType string) bool
 
+	// Function fields for testable NFS operations
+	validateMemberConfigs func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error
+	newChecker            func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error)
+	writeChecker          func(ctx context.Context, checker pkgnfschecker.Checker) error
+	checkChecker          func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult
+	cleanChecker          func(checker pkgnfschecker.Checker) error
+
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
@@ -50,6 +57,21 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getGroupConfigsFunc: GetDefaultConfigs,
 		findMntTargetDevice: disk.FindMntTargetDevice,
 		isNFSFSType:         disk.DefaultNFSFsTypeFunc,
+
+		// Initialize NFS operation function fields with real implementations
+		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			return configs.Validate(ctx)
+		},
+		newChecker: pkgnfschecker.NewChecker,
+		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+			return checker.Write(ctx)
+		},
+		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+			return checker.Check(ctx)
+		},
+		cleanChecker: func(checker pkgnfschecker.Checker) error {
+			return checker.Clean()
+		},
 	}
 
 	return c, nil
@@ -145,43 +167,75 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	memberConfigs := groupConfigs.GetMemberConfigs(c.machineID)
-	if err := memberConfigs.Validate(); err != nil {
+	timeoutCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+	err := c.validateMemberConfigs(timeoutCtx, memberConfigs)
+	cancel()
+	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeDegraded
-		cr.reason = "invalid nfs group configs"
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			cr.reason = "NFS validation timed out - filesystem may be unresponsive"
+		} else {
+			cr.reason = "invalid nfs group configs"
+		}
 		log.Logger.Warnw(cr.reason, "error", err)
 		return cr
 	}
 
 	msg := make([]string, 0, len(memberConfigs))
 	for _, memberConfig := range memberConfigs {
-		checker, err := pkgnfschecker.NewChecker(&memberConfig)
+		// Create checker with timeout
+		timeoutCtx, cancel = context.WithTimeout(c.ctx, 5*time.Second)
+		checker, err := c.newChecker(timeoutCtx, &memberConfig)
+		cancel()
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
-			cr.reason = "failed to create nfs checker for " + memberConfig.VolumePath
+
+			if errors.Is(err, context.DeadlineExceeded) {
+				cr.reason = "NFS checker creation timed out for " + memberConfig.VolumePath + " - filesystem may be unresponsive"
+			} else {
+				cr.reason = "failed to create nfs checker for " + memberConfig.VolumePath
+			}
 			log.Logger.Warnw(cr.reason, "error", err)
 			return cr
 		}
 
-		if err := checker.Write(); err != nil {
+		// Write with timeout
+		timeoutCtx, cancel = context.WithTimeout(c.ctx, 5*time.Second)
+		err = c.writeChecker(timeoutCtx, checker)
+		cancel()
+		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
-			cr.reason = "failed to write to nfs checker for " + memberConfig.VolumePath
+			if errors.Is(err, context.DeadlineExceeded) {
+				cr.reason = "NFS write timed out for " + memberConfig.VolumePath + " - filesystem may be unresponsive"
+			} else {
+				cr.reason = "failed to write to nfs checker for " + memberConfig.VolumePath
+			}
 			log.Logger.Warnw(cr.reason, "error", err)
 			return cr
 		}
 
-		nfsResult := checker.Check()
+		// Check with timeout
+		timeoutCtx, cancel = context.WithTimeout(c.ctx, 5*time.Second)
+		nfsResult := c.checkChecker(timeoutCtx, checker)
+		cancel()
 		if len(nfsResult.Error) > 0 {
 			cr.err = errors.New(nfsResult.Error)
 			cr.health = apiv1.HealthStateTypeDegraded
-			cr.reason = "failed to check nfs checker for " + memberConfig.VolumePath
-			log.Logger.Warnw(cr.reason, "error", err)
+
+			if nfsResult.TimeoutError {
+				cr.reason = "NFS check timed out for " + memberConfig.VolumePath + " - filesystem may be unresponsive"
+			} else {
+				cr.reason = "failed to check nfs checker for " + memberConfig.VolumePath
+			}
+			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
 
-		if err := checker.Clean(); err != nil {
+		if err := c.cleanChecker(checker); err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = "failed to clean nfs checker for " + memberConfig.VolumePath

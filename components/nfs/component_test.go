@@ -20,6 +20,27 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
+// createTestComponent creates a component with properly initialized function fields for testing
+func createTestComponent() *component {
+	return &component{
+		ctx:       context.Background(),
+		machineID: "test-machine",
+		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			return configs.Validate(ctx)
+		},
+		newChecker: pkgnfschecker.NewChecker,
+		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+			return checker.Write(ctx)
+		},
+		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+			return checker.Check(ctx)
+		},
+		cleanChecker: func(checker pkgnfschecker.Checker) error {
+			return checker.Clean()
+		},
+	}
+}
+
 func TestNewComponent(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
@@ -138,11 +159,9 @@ func TestLastHealthStatesWithData(t *testing.T) {
 }
 
 func TestCheckWithNoConfigs(t *testing.T) {
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{}
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{}
 	}
 
 	result := c.Check()
@@ -152,6 +171,7 @@ func TestCheckWithNoConfigs(t *testing.T) {
 
 func TestCheckWithInvalidConfigs(t *testing.T) {
 	c := &component{
+		ctx:       context.Background(),
 		machineID: "test-machine",
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{
@@ -166,6 +186,19 @@ func TestCheckWithInvalidConfigs(t *testing.T) {
 		isNFSFSType: func(fsType string) bool {
 			return true
 		},
+		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			return configs.Validate(ctx)
+		},
+		newChecker: pkgnfschecker.NewChecker,
+		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+			return checker.Write(ctx)
+		},
+		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+			return checker.Check(ctx)
+		},
+		cleanChecker: func(checker pkgnfschecker.Checker) error {
+			return checker.Clean()
+		},
 	}
 
 	result := c.Check()
@@ -177,22 +210,20 @@ func TestCheckWithValidConfigs(t *testing.T) {
 	// Create a temporary directory for testing
 	tmpDir := t.TempDir()
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir,
-					FileContents: "test content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return true
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir,
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return true
 	}
 
 	result := c.Check()
@@ -395,22 +426,20 @@ func TestCheckWithNFSCheckerError(t *testing.T) {
 	// Create a temporary directory for testing
 	tmpDir := t.TempDir()
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir,
-					FileContents: "test content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return true
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir,
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return true
 	}
 
 	result := c.Check()
@@ -421,26 +450,24 @@ func TestCheckWithNFSCheckerError(t *testing.T) {
 }
 
 func TestCheckWithNewCheckerError(t *testing.T) {
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   "", // Invalid empty dir will cause validation to fail
-					FileContents: "test content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			// Return error for empty path
-			if dir == "" {
-				return "", "", errors.New("empty path")
-			}
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return true
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   "", // Invalid empty dir will cause validation to fail
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		// Return error for empty path
+		if dir == "" {
+			return "", "", errors.New("empty path")
+		}
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return true
 	}
 
 	result := c.Check()
@@ -462,22 +489,20 @@ func TestCheckWithWriteError(t *testing.T) {
 	require.NoError(t, os.Chmod(readOnlyDir, 0555))
 	defer os.RemoveAll(readOnlyDir)
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   readOnlyDir,
-					FileContents: "test content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return true
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   readOnlyDir,
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return true
 	}
 
 	result := c.Check()
@@ -493,26 +518,24 @@ func TestCheckWithMultipleMemberConfigs(t *testing.T) {
 	tmpDir1 := t.TempDir()
 	tmpDir2 := t.TempDir()
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir1,
-					FileContents: "test content 1",
-				},
-				{
-					VolumePath:   tmpDir2,
-					FileContents: "test content 2",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return true
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir1,
+				FileContents: "test content 1",
+			},
+			{
+				VolumePath:   tmpDir2,
+				FileContents: "test content 2",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return true
 	}
 
 	result := c.Check()
@@ -531,22 +554,20 @@ func TestCheckWithCheckerError(t *testing.T) {
 	// Create a temporary directory
 	tmpDir := t.TempDir()
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir,
-					FileContents: "expected content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return true
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir,
+				FileContents: "expected content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return true
 	}
 
 	// Pre-populate the file with wrong content to make Check() fail
@@ -575,11 +596,9 @@ func TestComponentInterface(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{}
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{}
 	}
 
 	// Test concurrent access to LastHealthStates
@@ -633,22 +652,20 @@ func TestComponentWithRealData(t *testing.T) {
 func TestCheckWithFindMntTargetDeviceError(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir,
-					FileContents: "test content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "", "", errors.New("mount target device error")
-		},
-		isNFSFSType: func(fsType string) bool {
-			return true
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir,
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "", "", errors.New("mount target device error")
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return true
 	}
 
 	result := c.Check()
@@ -663,22 +680,20 @@ func TestCheckWithFindMntTargetDeviceError(t *testing.T) {
 func TestCheckWithNonNFSMount(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir,
-					FileContents: "test content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "/dev/sda1", "ext4", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return false // Not an NFS filesystem
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir,
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "/dev/sda1", "ext4", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return false // Not an NFS filesystem
 	}
 
 	result := c.Check()
@@ -692,22 +707,20 @@ func TestCheckWithNonNFSMount(t *testing.T) {
 func TestCheckWithValidNFSMount(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir,
-					FileContents: "test content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return fsType == "nfs"
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir,
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return fsType == "nfs"
 	}
 
 	result := c.Check()
@@ -724,31 +737,29 @@ func TestCheckWithMultipleVolumesOneFails(t *testing.T) {
 	tmpDir2 := t.TempDir()
 
 	callCount := 0
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir1,
-					FileContents: "test content 1",
-				},
-				{
-					VolumePath:   tmpDir2,
-					FileContents: "test content 2",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			callCount++
-			if callCount == 1 {
-				return "server1:/export/path1", "nfs", nil
-			}
-			// Second call fails
-			return "", "", errors.New("second mount check failed")
-		},
-		isNFSFSType: func(fsType string) bool {
-			return fsType == "nfs"
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir1,
+				FileContents: "test content 1",
+			},
+			{
+				VolumePath:   tmpDir2,
+				FileContents: "test content 2",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		callCount++
+		if callCount == 1 {
+			return "server1:/export/path1", "nfs", nil
+		}
+		// Second call fails
+		return "", "", errors.New("second mount check failed")
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return fsType == "nfs"
 	}
 
 	result := c.Check()
@@ -822,18 +833,16 @@ func TestStartPeriodicCheck(t *testing.T) {
 }
 
 func TestCheckWithEmptyMemberConfigs(t *testing.T) {
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			// Return empty configs to test the empty member configs scenario
-			return pkgnfschecker.Configs{}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return true
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		// Return empty configs to test the empty member configs scenario
+		return pkgnfschecker.Configs{}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return true
 	}
 
 	result := c.Check()
@@ -916,23 +925,21 @@ func TestHealthStatesConsistency(t *testing.T) {
 func TestCheckWithCleanSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir,
-					DirName:      "nfs-check",
-					FileContents: "test content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return fsType == "nfs"
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir,
+				DirName:      "nfs-check",
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return fsType == "nfs"
 	}
 
 	result := c.Check()
@@ -948,23 +955,21 @@ func TestCheckWithCleanSuccess(t *testing.T) {
 func TestCheckCallOrder(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	c := &component{
-		machineID: "test-machine",
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{
-				{
-					VolumePath:   tmpDir,
-					DirName:      "nfs-check",
-					FileContents: "test content",
-				},
-			}
-		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
-			return "server:/export/path", "nfs", nil
-		},
-		isNFSFSType: func(fsType string) bool {
-			return fsType == "nfs"
-		},
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir,
+				DirName:      "nfs-check",
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(dir string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(fsType string) bool {
+		return fsType == "nfs"
 	}
 
 	result := c.Check()
@@ -991,23 +996,21 @@ func TestCheckCleanNotCalledOnEarlierFailures(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = os.Chmod(tmpDir, 0755) }()
 
-		c := &component{
-			machineID: "test-machine",
-			getGroupConfigsFunc: func() pkgnfschecker.Configs {
-				return pkgnfschecker.Configs{
-					{
-						VolumePath:   tmpDir,
-						DirName:      "nfs-check",
-						FileContents: "test content",
-					},
-				}
-			},
-			findMntTargetDevice: func(dir string) (string, string, error) {
-				return "server:/export/path", "nfs", nil
-			},
-			isNFSFSType: func(fsType string) bool {
-				return fsType == "nfs"
-			},
+		c := createTestComponent()
+		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:   tmpDir,
+					DirName:      "nfs-check",
+					FileContents: "test content",
+				},
+			}
+		}
+		c.findMntTargetDevice = func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		}
+		c.isNFSFSType = func(fsType string) bool {
+			return fsType == "nfs"
 		}
 
 		result := c.Check()
@@ -1021,4 +1024,359 @@ func TestCheckCleanNotCalledOnEarlierFailures(t *testing.T) {
 		// NFSCheckResults should be empty since we never got to the Check() stage
 		assert.Len(t, cr.NFSCheckResults, 0)
 	})
+}
+
+func TestCheckWithValidateTimeout(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	c := &component{
+		ctx:       context.Background(),
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:   tmpDir,
+					DirName:      ".gpud-test",
+					FileContents: "test content",
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
+		},
+		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			return context.DeadlineExceeded
+		},
+		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+			return nil, errors.New("should not be called")
+		},
+		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+			return errors.New("should not be called")
+		},
+		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+			return pkgnfschecker.CheckResult{Error: "should not be called"}
+		},
+		cleanChecker: func(checker pkgnfschecker.Checker) error {
+			return errors.New("should not be called")
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Equal(t, "NFS validation timed out - filesystem may be unresponsive", result.Summary())
+	assert.Equal(t, context.DeadlineExceeded, cr.err)
+}
+
+func TestCheckWithNewCheckerTimeout(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	c := &component{
+		ctx:       context.Background(),
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:   tmpDir,
+					DirName:      ".gpud-test",
+					FileContents: "test content",
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
+		},
+		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			return nil // Success
+		},
+		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+			return nil, context.DeadlineExceeded
+		},
+		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+			return errors.New("should not be called")
+		},
+		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+			return pkgnfschecker.CheckResult{Error: "should not be called"}
+		},
+		cleanChecker: func(checker pkgnfschecker.Checker) error {
+			return errors.New("should not be called")
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Equal(t, "NFS checker creation timed out for "+tmpDir+" - filesystem may be unresponsive", result.Summary())
+	assert.Equal(t, context.DeadlineExceeded, cr.err)
+}
+
+func TestCheckWithWriteCheckerTimeout(t *testing.T) {
+	tmpDir := t.TempDir()
+	mockChecker := &mockChecker{}
+
+	c := &component{
+		ctx:       context.Background(),
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:   tmpDir,
+					DirName:      ".gpud-test",
+					FileContents: "test content",
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
+		},
+		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			return nil // Success
+		},
+		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+			return mockChecker, nil // Success
+		},
+		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+			return context.DeadlineExceeded
+		},
+		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+			return pkgnfschecker.CheckResult{Error: "should not be called"}
+		},
+		cleanChecker: func(checker pkgnfschecker.Checker) error {
+			return errors.New("should not be called")
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Equal(t, "NFS write timed out for "+tmpDir+" - filesystem may be unresponsive", result.Summary())
+	assert.Equal(t, context.DeadlineExceeded, cr.err)
+}
+
+func TestCheckWithCheckCheckerTimeoutResult(t *testing.T) {
+	tmpDir := t.TempDir()
+	mockChecker := &mockChecker{}
+
+	c := &component{
+		ctx:       context.Background(),
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:   tmpDir,
+					DirName:      ".gpud-test",
+					FileContents: "test content",
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
+		},
+		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			return nil // Success
+		},
+		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+			return mockChecker, nil // Success
+		},
+		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+			return nil // Success
+		},
+		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+			return pkgnfschecker.CheckResult{
+				Dir:          tmpDir,
+				Error:        "operation timed out",
+				TimeoutError: true, // This is the key field that indicates timeout
+			}
+		},
+		cleanChecker: func(checker pkgnfschecker.Checker) error {
+			return errors.New("should not be called")
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Equal(t, "NFS check timed out for "+tmpDir+" - filesystem may be unresponsive", result.Summary())
+	assert.Contains(t, cr.err.Error(), "operation timed out")
+}
+
+func TestCheckWithNonTimeoutErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	testCases := []struct {
+		name                    string
+		validateError           error
+		newCheckerError         error
+		writeError              error
+		checkResult             pkgnfschecker.CheckResult
+		expectedReasonSubstring string
+	}{
+		{
+			name:                    "validate error non-timeout",
+			validateError:           errors.New("validation failed"),
+			expectedReasonSubstring: "invalid nfs group configs",
+		},
+		{
+			name:                    "newChecker error non-timeout",
+			newCheckerError:         errors.New("creation failed"),
+			expectedReasonSubstring: "failed to create nfs checker",
+		},
+		{
+			name:                    "write error non-timeout",
+			writeError:              errors.New("write failed"),
+			expectedReasonSubstring: "failed to write to nfs checker",
+		},
+		{
+			name: "check error non-timeout",
+			checkResult: pkgnfschecker.CheckResult{
+				Dir:          tmpDir,
+				Error:        "check failed",
+				TimeoutError: false, // Non-timeout error
+			},
+			expectedReasonSubstring: "failed to check nfs checker",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockChecker := &mockChecker{}
+
+			c := &component{
+				ctx:       context.Background(),
+				machineID: "test-machine",
+				getGroupConfigsFunc: func() pkgnfschecker.Configs {
+					return pkgnfschecker.Configs{
+						{
+							VolumePath:   tmpDir,
+							DirName:      ".gpud-test",
+							FileContents: "test content",
+						},
+					}
+				},
+				findMntTargetDevice: func(dir string) (string, string, error) {
+					return "server:/export/path", "nfs", nil
+				},
+				isNFSFSType: func(fsType string) bool {
+					return true
+				},
+				validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+					if tc.validateError != nil {
+						return tc.validateError
+					}
+					return nil
+				},
+				newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+					if tc.newCheckerError != nil {
+						return nil, tc.newCheckerError
+					}
+					return mockChecker, nil
+				},
+				writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+					if tc.writeError != nil {
+						return tc.writeError
+					}
+					return nil
+				},
+				checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+					if tc.checkResult.Error != "" {
+						return tc.checkResult
+					}
+					return pkgnfschecker.CheckResult{
+						Dir:     tmpDir,
+						Message: "success",
+					}
+				},
+				cleanChecker: func(checker pkgnfschecker.Checker) error {
+					return nil
+				},
+			}
+
+			result := c.Check()
+
+			assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+			assert.Contains(t, result.Summary(), tc.expectedReasonSubstring)
+		})
+	}
+}
+
+func TestCheckWithSuccessfulOperations(t *testing.T) {
+	tmpDir := t.TempDir()
+	mockChecker := &mockChecker{}
+
+	c := &component{
+		ctx:       context.Background(),
+		machineID: "test-machine",
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:   tmpDir,
+					DirName:      ".gpud-test",
+					FileContents: "test content",
+				},
+			}
+		},
+		findMntTargetDevice: func(dir string) (string, string, error) {
+			return "server:/export/path", "nfs", nil
+		},
+		isNFSFSType: func(fsType string) bool {
+			return true
+		},
+		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			return nil
+		},
+		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+			return mockChecker, nil
+		},
+		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+			return nil
+		},
+		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+			return pkgnfschecker.CheckResult{
+				Dir:     tmpDir,
+				Message: "correctly read/wrote on " + tmpDir,
+			}
+		},
+		cleanChecker: func(checker pkgnfschecker.Checker) error {
+			return nil
+		},
+	}
+
+	result := c.Check()
+	cr := result.(*checkResult)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "correctly read/wrote on")
+	assert.Len(t, cr.NFSCheckResults, 1)
+	assert.Equal(t, tmpDir, cr.NFSCheckResults[0].Dir)
+}
+
+// mockChecker is a simple mock implementation of the Checker interface for testing
+type mockChecker struct{}
+
+func (m *mockChecker) Write(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockChecker) Check(ctx context.Context) pkgnfschecker.CheckResult {
+	return pkgnfschecker.CheckResult{}
+}
+
+func (m *mockChecker) Clean() error {
+	return nil
 }
