@@ -175,7 +175,7 @@ func (c *component) Check() components.CheckResult {
 		cr.health = apiv1.HealthStateTypeDegraded
 
 		if errors.Is(err, context.DeadlineExceeded) {
-			cr.reason = "NFS validation timed out - filesystem may be unresponsive"
+			cr.reason = "NFS validation timed out - server may be unresponsive"
 		} else {
 			cr.reason = "invalid nfs group configs"
 		}
@@ -194,7 +194,7 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeDegraded
 
 			if errors.Is(err, context.DeadlineExceeded) {
-				cr.reason = "NFS checker creation timed out for " + memberConfig.VolumePath + " - filesystem may be unresponsive"
+				cr.reason = "NFS checker creation timed out for " + memberConfig.VolumePath + " - server may be unresponsive"
 			} else {
 				cr.reason = "failed to create nfs checker for " + memberConfig.VolumePath
 			}
@@ -210,7 +210,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
 			if errors.Is(err, context.DeadlineExceeded) {
-				cr.reason = "NFS write timed out for " + memberConfig.VolumePath + " - filesystem may be unresponsive"
+				cr.reason = "NFS write timed out for " + memberConfig.VolumePath + " - server may be unresponsive"
 			} else {
 				cr.reason = "failed to write to nfs checker for " + memberConfig.VolumePath
 			}
@@ -227,7 +227,7 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeDegraded
 
 			if nfsResult.TimeoutError {
-				cr.reason = "NFS check timed out for " + memberConfig.VolumePath + " - filesystem may be unresponsive"
+				cr.reason = "NFS check timed out for " + memberConfig.VolumePath + " - server may be unresponsive"
 			} else {
 				cr.reason = "failed to check nfs checker for " + memberConfig.VolumePath
 			}

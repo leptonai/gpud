@@ -1068,7 +1068,7 @@ func TestCheckWithValidateTimeout(t *testing.T) {
 	cr := result.(*checkResult)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
-	assert.Equal(t, "NFS validation timed out - filesystem may be unresponsive", result.Summary())
+	assert.Equal(t, "NFS validation timed out - server may be unresponsive", result.Summary())
 	assert.Equal(t, context.DeadlineExceeded, cr.err)
 }
 
@@ -1114,7 +1114,7 @@ func TestCheckWithNewCheckerTimeout(t *testing.T) {
 	cr := result.(*checkResult)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
-	assert.Equal(t, "NFS checker creation timed out for "+tmpDir+" - filesystem may be unresponsive", result.Summary())
+	assert.Equal(t, "NFS checker creation timed out for "+tmpDir+" - server may be unresponsive", result.Summary())
 	assert.Equal(t, context.DeadlineExceeded, cr.err)
 }
 
@@ -1161,7 +1161,7 @@ func TestCheckWithWriteCheckerTimeout(t *testing.T) {
 	cr := result.(*checkResult)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
-	assert.Equal(t, "NFS write timed out for "+tmpDir+" - filesystem may be unresponsive", result.Summary())
+	assert.Equal(t, "NFS write timed out for "+tmpDir+" - server may be unresponsive", result.Summary())
 	assert.Equal(t, context.DeadlineExceeded, cr.err)
 }
 
@@ -1212,7 +1212,7 @@ func TestCheckWithCheckCheckerTimeoutResult(t *testing.T) {
 	cr := result.(*checkResult)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
-	assert.Equal(t, "NFS check timed out for "+tmpDir+" - filesystem may be unresponsive", result.Summary())
+	assert.Equal(t, "NFS check timed out for "+tmpDir+" - server may be unresponsive", result.Summary())
 	assert.Contains(t, cr.err.Error(), "operation timed out")
 }
 

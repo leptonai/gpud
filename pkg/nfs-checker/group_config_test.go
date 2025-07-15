@@ -102,7 +102,7 @@ func TestGroupConfig_ValidateStatError(t *testing.T) {
 		}
 
 		ctx := context.Background()
-	err = config.ValidateAndMkdir(ctx)
+		err = config.ValidateAndMkdir(ctx)
 		// Should return the os.Stat error (not ErrDirNotExists)
 		assert.Error(t, err)
 		assert.NotErrorIs(t, err, ErrVolumePathNotExists)
@@ -122,7 +122,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 		}
 
 		ctx := context.Background()
-	err := config.ValidateAndMkdir(ctx)
+		err := config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -139,7 +139,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 		}
 
 		ctx := context.Background()
-	err = config.ValidateAndMkdir(ctx)
+		err = config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -156,7 +156,7 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 		}
 
 		ctx := context.Background()
-	err = config.ValidateAndMkdir(ctx)
+		err = config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 }
@@ -174,7 +174,7 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 		}
 
 		ctx := context.Background()
-	err := config.ValidateAndMkdir(ctx)
+		err := config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -188,7 +188,7 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 		}
 
 		ctx := context.Background()
-	err := config.ValidateAndMkdir(ctx)
+		err := config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -202,7 +202,7 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 		}
 
 		ctx := context.Background()
-	err := config.ValidateAndMkdir(ctx)
+		err := config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 }

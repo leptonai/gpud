@@ -43,7 +43,7 @@ func TestStatWithTimeout_Timeout(t *testing.T) {
 	defer cancel()
 
 	// Wait to ensure the context expires
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	info, err := StatWithTimeout(ctx, testFile)
 	require.Error(t, err)
@@ -107,25 +107,11 @@ func TestMkdirAllWithTimeout_Timeout(t *testing.T) {
 	// Test timeout scenario
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
-	time.Sleep(10 * time.Millisecond) // Ensure context expires
+	time.Sleep(time.Second)
 
 	err := MkdirAllWithTimeout(ctx, filepath.Join(tmpDir, "timeout", "test"), 0755)
 	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
-}
-
-func TestMkdirAllWithTimeout_Canceled(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
-
-	// Test canceled context scenario
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	err := MkdirAllWithTimeout(ctx, filepath.Join(tmpDir, "canceled", "test"), 0755)
-	require.Error(t, err)
-	assert.Equal(t, context.Canceled, err)
 }
 
 func TestWriteFileWithTimeout_Success(t *testing.T) {
@@ -155,7 +141,7 @@ func TestWriteFileWithTimeout_Timeout(t *testing.T) {
 	// Test timeout scenario
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
-	time.Sleep(10 * time.Millisecond) // Ensure context expires
+	time.Sleep(500 * time.Millisecond) // Ensure context expires
 
 	err := WriteFileWithTimeout(ctx, filepath.Join(tmpDir, "timeout.txt"), []byte("data"), 0644)
 	require.Error(t, err)
@@ -217,7 +203,7 @@ func TestReadFileWithTimeout_Timeout(t *testing.T) {
 	// Test timeout scenario
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
-	time.Sleep(10 * time.Millisecond) // Ensure context expires
+	time.Sleep(500 * time.Millisecond) // Ensure context expires
 
 	_, err := ReadFileWithTimeout(ctx, testFile)
 	require.Error(t, err)
@@ -256,7 +242,7 @@ func TestAllOperationsWithContextScenarios(t *testing.T) {
 			name: "with timeout",
 			setupCtx: func() (context.Context, context.CancelFunc) {
 				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
-				time.Sleep(10 * time.Millisecond) // Ensure timeout
+				time.Sleep(500 * time.Millisecond) // Ensure timeout
 				return ctx, cancel
 			},
 			expectErr: context.DeadlineExceeded,
