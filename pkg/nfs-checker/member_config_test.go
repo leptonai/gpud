@@ -1,6 +1,7 @@
 package nfschecker
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,7 +91,7 @@ func TestMemberConfig_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
+			err := tt.config.Validate(context.Background())
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
@@ -105,7 +106,7 @@ func TestMemberConfigs_Validate(t *testing.T) {
 
 	t.Run("empty slice", func(t *testing.T) {
 		var configs MemberConfigs
-		err := configs.Validate()
+		err := configs.Validate(context.Background())
 		assert.NoError(t, err)
 	})
 
@@ -129,7 +130,7 @@ func TestMemberConfigs_Validate(t *testing.T) {
 			},
 		}
 
-		err := configs.Validate()
+		err := configs.Validate(context.Background())
 		assert.NoError(t, err)
 	})
 
@@ -153,7 +154,7 @@ func TestMemberConfigs_Validate(t *testing.T) {
 			},
 		}
 
-		err := configs.Validate()
+		err := configs.Validate(context.Background())
 		assert.ErrorIs(t, err, ErrIDEmpty)
 	})
 
@@ -177,7 +178,7 @@ func TestMemberConfigs_Validate(t *testing.T) {
 			},
 		}
 
-		err := configs.Validate()
+		err := configs.Validate(context.Background())
 		assert.ErrorIs(t, err, ErrVolumePathEmpty)
 	})
 
@@ -201,7 +202,7 @@ func TestMemberConfigs_Validate(t *testing.T) {
 			},
 		}
 
-		err := configs.Validate()
+		err := configs.Validate(context.Background())
 		// Should return the first error encountered
 		assert.ErrorIs(t, err, ErrVolumePathEmpty)
 	})
@@ -218,7 +219,7 @@ func TestMemberConfigs_Validate(t *testing.T) {
 			},
 		}
 
-		err := configs.Validate()
+		err := configs.Validate(context.Background())
 		assert.NoError(t, err)
 	})
 
@@ -242,7 +243,7 @@ func TestMemberConfigs_Validate(t *testing.T) {
 			},
 		}
 
-		err := configs.Validate()
+		err := configs.Validate(context.Background())
 		assert.NoError(t, err)
 	})
 }

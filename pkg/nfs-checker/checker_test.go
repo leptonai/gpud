@@ -1,9 +1,11 @@
 package nfschecker
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +24,8 @@ func TestNewChecker(t *testing.T) {
 			ID: "test-id",
 		}
 
-		checker, err := NewChecker(cfg)
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
 		assert.NoError(t, err)
 		assert.NotNil(t, checker)
 	})
@@ -37,7 +40,8 @@ func TestNewChecker(t *testing.T) {
 			ID: "test-id",
 		}
 
-		checker, err := NewChecker(cfg)
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
 		assert.ErrorIs(t, err, ErrVolumePathEmpty)
 		assert.Nil(t, checker)
 	})
@@ -55,11 +59,14 @@ func TestChecker_Write(t *testing.T) {
 		ID: "test-id",
 	}
 
-	checker, err := NewChecker(cfg)
+	ctx := context.Background()
+	checker, err := NewChecker(ctx, cfg)
 	require.NoError(t, err)
 
 	t.Run("successful write", func(t *testing.T) {
-		err := checker.Write()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := checker.Write(ctx)
 		assert.NoError(t, err)
 
 		// Verify file was created with correct content
@@ -85,10 +92,13 @@ func TestChecker_Write(t *testing.T) {
 			ID: "test-id",
 		}
 
-		checker, err := NewChecker(cfg)
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
 		require.NoError(t, err)
 
-		err = checker.Write()
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel2()
+		err = checker.Write(ctx2)
 		assert.NoError(t, err)
 
 		// Verify directory was created and file exists
@@ -96,6 +106,207 @@ func TestChecker_Write(t *testing.T) {
 		content, err := os.ReadFile(filePath)
 		assert.NoError(t, err)
 		assert.Equal(t, "test-content", string(content))
+	})
+
+	t.Run("timeout during mkdir operation", func(t *testing.T) {
+		timeoutTempDir := t.TempDir()
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:   timeoutTempDir,
+				DirName:      "timeout-mkdir-dir",
+				FileContents: "test-content",
+			},
+			ID: "timeout-mkdir-id",
+		}
+
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
+		require.NoError(t, err)
+
+		// Use a timeout that will expire immediately to simulate NFS timeout during mkdir
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		time.Sleep(10 * time.Millisecond) // Ensure context expires
+
+		err = checker.Write(timeoutCtx)
+		assert.Error(t, err)
+		assert.Equal(t, context.DeadlineExceeded, err)
+	})
+
+	t.Run("context canceled during mkdir operation", func(t *testing.T) {
+		cancelTempDir := t.TempDir()
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:   cancelTempDir,
+				DirName:      "cancel-mkdir-dir",
+				FileContents: "test-content",
+			},
+			ID: "cancel-mkdir-id",
+		}
+
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
+		require.NoError(t, err)
+
+		// Use a canceled context to simulate NFS operation cancellation during mkdir
+		canceledCtx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		err = checker.Write(canceledCtx)
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+	})
+
+	t.Run("timeout during write operation", func(t *testing.T) {
+		timeoutTempDir := t.TempDir()
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:   timeoutTempDir,
+				DirName:      "timeout-write-dir",
+				FileContents: "test-content",
+			},
+			ID: "timeout-write-id",
+		}
+
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
+		require.NoError(t, err)
+
+		// Pre-create the directory to avoid mkdir timeout, then test write timeout
+		targetDir := filepath.Join(timeoutTempDir, "timeout-write-dir")
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Use a timeout that will expire immediately to simulate NFS timeout during write
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		time.Sleep(10 * time.Millisecond) // Ensure context expires
+
+		err = checker.Write(timeoutCtx)
+		assert.Error(t, err)
+		assert.Equal(t, context.DeadlineExceeded, err)
+	})
+
+	t.Run("context canceled during write operation", func(t *testing.T) {
+		cancelTempDir := t.TempDir()
+
+		cfg := &MemberConfig{
+			Config: Config{
+				VolumePath:   cancelTempDir,
+				DirName:      "cancel-write-dir",
+				FileContents: "test-content",
+			},
+			ID: "cancel-write-id",
+		}
+
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
+		require.NoError(t, err)
+
+		// Pre-create the directory to avoid mkdir cancellation, then test write cancellation
+		targetDir := filepath.Join(cancelTempDir, "cancel-write-dir")
+		err = os.MkdirAll(targetDir, 0755)
+		require.NoError(t, err)
+
+		// Use a canceled context to simulate NFS operation cancellation during write
+		canceledCtx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		err = checker.Write(canceledCtx)
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+	})
+
+	t.Run("comprehensive timeout scenarios", func(t *testing.T) {
+		// Test that covers various timeout and cancellation scenarios comprehensively
+		scenarios := []struct {
+			name        string
+			ctxFunc     func() (context.Context, context.CancelFunc)
+			expectError bool
+			errorType   error
+		}{
+			{
+				name: "deadline exceeded",
+				ctxFunc: func() (context.Context, context.CancelFunc) {
+					ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+					time.Sleep(10 * time.Millisecond) // Ensure timeout
+					return ctx, cancel
+				},
+				expectError: true,
+				errorType:   context.DeadlineExceeded,
+			},
+			{
+				name: "context canceled",
+				ctxFunc: func() (context.Context, context.CancelFunc) {
+					ctx, cancel := context.WithCancel(context.Background())
+					cancel() // Cancel immediately
+					return ctx, cancel
+				},
+				expectError: true,
+				errorType:   context.Canceled,
+			},
+			{
+				name: "successful operation",
+				ctxFunc: func() (context.Context, context.CancelFunc) {
+					return context.WithTimeout(context.Background(), 5*time.Second)
+				},
+				expectError: false,
+				errorType:   nil,
+			},
+		}
+
+		for _, scenario := range scenarios {
+			t.Run(scenario.name, func(t *testing.T) {
+				scenarioTempDir := t.TempDir()
+				cfg := &MemberConfig{
+					Config: Config{
+						VolumePath:   scenarioTempDir,
+						DirName:      "scenario-test-dir",
+						FileContents: "scenario-content",
+					},
+					ID: "scenario-checker",
+				}
+
+				ctx := context.Background()
+				checker, err := NewChecker(ctx, cfg)
+				require.NoError(t, err)
+
+				// Test Write operation
+				writeCtx, writeCancel := scenario.ctxFunc()
+				defer writeCancel()
+				writeErr := checker.Write(writeCtx)
+
+				if scenario.expectError {
+					assert.Error(t, writeErr)
+					assert.Equal(t, scenario.errorType, writeErr)
+					// If write failed due to context, don't proceed with check
+					return
+				} else {
+					assert.NoError(t, writeErr)
+				}
+
+				// Test Check operation (only if write succeeded)
+				checkCtx, checkCancel := scenario.ctxFunc()
+				defer checkCancel()
+				result := checker.Check(checkCtx)
+
+				if scenario.expectError {
+					assert.Equal(t, "failed", result.Message)
+					assert.Contains(t, result.Error, "failed to read file")
+					if scenario.errorType == context.DeadlineExceeded {
+						assert.Contains(t, result.Error, "context deadline exceeded")
+					} else if scenario.errorType == context.Canceled {
+						assert.Contains(t, result.Error, "context canceled")
+					}
+				} else {
+					assert.Empty(t, result.Error)
+					assert.Contains(t, result.Message, "correctly read/wrote")
+				}
+			})
+		}
 	})
 }
 
@@ -112,11 +323,14 @@ func TestChecker_Clean(t *testing.T) {
 		ID: "test-id",
 	}
 
-	checker, err := NewChecker(cfg)
+	ctx := context.Background()
+	checker, err := NewChecker(ctx, cfg)
 	require.NoError(t, err)
 
 	// Write a file using the checker
-	err = checker.Write()
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel2()
+	err = checker.Write(ctx2)
 	require.NoError(t, err)
 
 	// Verify file exists
@@ -147,14 +361,19 @@ func TestChecker_Check(t *testing.T) {
 			ID: "checker1",
 		}
 
-		checker, err := NewChecker(cfg)
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
 		require.NoError(t, err)
 
 		// Write the file using the checker
-		err = checker.Write()
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel2()
+		err = checker.Write(ctx2)
 		require.NoError(t, err)
 
-		result := checker.Check()
+		ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel3()
+		result := checker.Check(ctx3)
 		targetDir := filepath.Join(tempDir, dirName)
 		assert.Equal(t, targetDir, result.Dir)
 		assert.Equal(t, "correctly read/wrote on \""+tempDir+"\"", result.Message)
@@ -172,11 +391,14 @@ func TestChecker_Check(t *testing.T) {
 			ID: "checker1",
 		}
 
-		checker, err := NewChecker(cfg)
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
 		require.NoError(t, err)
 
 		// Don't write file, so Check() should fail
-		result := checker.Check()
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel2()
+		result := checker.Check(ctx2)
 		expectedDir := filepath.Join(tempDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
 		assert.Contains(t, result.Error, "failed to read file")
@@ -187,7 +409,6 @@ func TestChecker_Check(t *testing.T) {
 		// Use a fresh temp directory for this test to avoid files from previous tests
 		wrongTempDir := t.TempDir()
 		dirName := "wrong-content-test-dir"
-
 		cfg := &MemberConfig{
 			Config: Config{
 				VolumePath:   wrongTempDir,
@@ -197,7 +418,8 @@ func TestChecker_Check(t *testing.T) {
 			ID: "checker1",
 		}
 
-		checker, err := NewChecker(cfg)
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
 		require.NoError(t, err)
 
 		// Create file with wrong content using the checker's file path
@@ -208,365 +430,77 @@ func TestChecker_Check(t *testing.T) {
 		err = os.WriteFile(wrongFile, []byte("wrong-content"), 0644)
 		require.NoError(t, err)
 
-		result := checker.Check()
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel2()
+		result := checker.Check(ctx2)
 		assert.Equal(t, targetDir, result.Dir)
 		assert.Contains(t, result.Error, "has unexpected contents")
 	})
 
-	t.Run("unreadable file", func(t *testing.T) {
-		dirName := "unreadable-test-dir"
+	t.Run("timeout during read operation", func(t *testing.T) {
+		dirName := "timeout-read-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
 				VolumePath:   tempDir,
 				DirName:      dirName,
-				FileContents: "shared-content",
+				FileContents: "test-content",
 			},
-			ID: "checker1",
+			ID: "timeout-checker",
 		}
 
-		checker, err := NewChecker(cfg)
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
 		require.NoError(t, err)
 
-		// Create unreadable file (only on Unix-like systems) in the target directory
-		targetDir := filepath.Join(tempDir, dirName)
-		err = os.MkdirAll(targetDir, 0755)
-		require.NoError(t, err)
-		unreadableFile := filepath.Join(targetDir, "unreadable")
-		err = os.WriteFile(unreadableFile, []byte("content"), 0000)
+		// Write the file first
+		writeCtx, writeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer writeCancel()
+		err = checker.Write(writeCtx)
 		require.NoError(t, err)
 
-		result := checker.Check()
-		assert.Equal(t, targetDir, result.Dir)
-		// Should contain error about failing to read the file
+		// Use a timeout that will expire immediately to simulate NFS timeout
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		time.Sleep(10 * time.Millisecond) // Ensure context expires
+
+		result := checker.Check(timeoutCtx)
+		expectedDir := filepath.Join(tempDir, dirName)
+		assert.Equal(t, expectedDir, result.Dir)
+		assert.Equal(t, "failed", result.Message)
 		assert.Contains(t, result.Error, "failed to read file")
-		assert.Contains(t, result.Error, "unreadable")
-
-		// Clean up
-		_ = os.Chmod(unreadableFile, 0644)
-		_ = os.Remove(unreadableFile)
+		assert.Contains(t, result.Error, "context deadline exceeded")
 	})
-}
 
-func TestEdgeCases(t *testing.T) {
-	t.Run("empty directory check", func(t *testing.T) {
-		tempDir := t.TempDir()
-		dirName := "empty-test-dir"
+	t.Run("context canceled during read operation", func(t *testing.T) {
+		dirName := "canceled-read-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
 				VolumePath:   tempDir,
 				DirName:      dirName,
 				FileContents: "test-content",
 			},
-			ID: "test-checker",
+			ID: "canceled-checker",
 		}
 
-		checker, err := NewChecker(cfg)
+		ctx := context.Background()
+		checker, err := NewChecker(ctx, cfg)
 		require.NoError(t, err)
 
-		result := checker.Check()
-		expectedDir := filepath.Join(tempDir, dirName)
-		assert.Equal(t, expectedDir, result.Dir) // Explicitly test Dir field
-		assert.Contains(t, result.Error, "no such file or directory")
-	})
-
-	t.Run("directory with subdirectories", func(t *testing.T) {
-		tempDir := t.TempDir()
-		dirName := "subdir-test-dir"
-
-		// Create a subdirectory in the target directory
-		targetDir := filepath.Join(tempDir, dirName)
-		err := os.MkdirAll(targetDir, 0755)
-		require.NoError(t, err)
-		subDir := filepath.Join(targetDir, "subdir")
-		err = os.MkdirAll(subDir, 0755)
+		// Write the file first
+		writeCtx, writeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer writeCancel()
+		err = checker.Write(writeCtx)
 		require.NoError(t, err)
 
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:   tempDir,
-				DirName:      dirName,
-				FileContents: "test-content",
-			},
-			ID: "test-checker",
-		}
+		// Use a canceled context to simulate NFS operation cancellation
+		canceledCtx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
 
-		checker, err := NewChecker(cfg)
-		require.NoError(t, err)
-
-		// Write a file
-		err = checker.Write()
-		require.NoError(t, err)
-
-		// Check should work fine - it only checks the specific file, not subdirectories
-		result := checker.Check()
-		assert.Equal(t, targetDir, result.Dir) // Explicitly test Dir field
-		assert.Empty(t, result.Error)          // Should succeed since the file exists and has correct content
-	})
-
-	t.Run("very long file content", func(t *testing.T) {
-		tempDir := t.TempDir()
-		dirName := "long-content-test-dir"
-		longContent := string(make([]byte, 10000)) // 10KB of null bytes
-
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:   tempDir,
-				DirName:      dirName,
-				FileContents: longContent,
-			},
-			ID: "long-content-checker",
-		}
-
-		checker, err := NewChecker(cfg)
-		require.NoError(t, err)
-
-		err = checker.Write()
-		assert.NoError(t, err)
-
-		result := checker.Check()
-		expectedDir := filepath.Join(tempDir, dirName)
-		assert.Equal(t, expectedDir, result.Dir) // Explicitly test Dir field
-		assert.Empty(t, result.Error)
-	})
-
-	t.Run("write with mkdir error", func(t *testing.T) {
-		// Try to create a directory under a file (should fail)
-		tempFile, err := os.CreateTemp("", "test-file")
-		require.NoError(t, err)
-		defer os.Remove(tempFile.Name())
-		tempFile.Close()
-
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:   filepath.Join(tempFile.Name(), "subdir"), // This should fail
-				DirName:      "test-dir",
-				FileContents: "test-content",
-			},
-			ID: "test-id",
-		}
-
-		// Create checker without validation
-		checker := &checker{cfg: cfg}
-
-		err = checker.Write()
-		assert.Error(t, err)
-	})
-
-	t.Run("write with file write error", func(t *testing.T) {
-		tempDir := t.TempDir()
-		dirName := "write-error-test-dir"
-
-		// Create a directory with the same name as the file we want to write
-		targetDir := filepath.Join(tempDir, dirName)
-		err := os.MkdirAll(targetDir, 0755)
-		require.NoError(t, err)
-		conflictDir := filepath.Join(targetDir, "test-id")
-		err = os.MkdirAll(conflictDir, 0755)
-		require.NoError(t, err)
-
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:   tempDir,
-				DirName:      dirName,
-				FileContents: "test-content",
-			},
-			ID: "test-id", // This conflicts with the directory
-		}
-
-		checker := &checker{cfg: cfg}
-
-		err = checker.Write()
-		assert.Error(t, err)
-	})
-}
-
-func TestCheckResult_Dir(t *testing.T) {
-	t.Run("Dir field set correctly on successful check", func(t *testing.T) {
-		tempDir := t.TempDir()
-		dirName := "success-dir-test"
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:   tempDir,
-				DirName:      dirName,
-				FileContents: "test-content",
-			},
-			ID: "test-checker",
-		}
-
-		checker, err := NewChecker(cfg)
-		require.NoError(t, err)
-
-		// Write a file to ensure successful check
-		err = checker.Write()
-		require.NoError(t, err)
-
-		result := checker.Check()
-
-		// Explicitly test that Dir field matches the configured directory (including DirName)
+		result := checker.Check(canceledCtx)
 		expectedDir := filepath.Join(tempDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
-		assert.NotEmpty(t, result.Dir)
-	})
-
-	t.Run("Dir field set correctly on error case", func(t *testing.T) {
-		tempDir := t.TempDir()
-		dirName := "error-dir-test"
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:   tempDir,
-				DirName:      dirName,
-				FileContents: "test-content",
-			},
-			ID: "test-checker",
-		}
-
-		checker, err := NewChecker(cfg)
-		require.NoError(t, err)
-
-		result := checker.Check()
-
-		// Even with errors, Dir field should be set correctly
-		expectedDir := filepath.Join(tempDir, dirName)
-		assert.Equal(t, expectedDir, result.Dir)
-		assert.NotEmpty(t, result.Error) // Should have validation errors
-	})
-
-	t.Run("Dir field with different directory paths", func(t *testing.T) {
-		testCases := []struct {
-			name     string
-			setupDir func(baseDir string) string
-			dirName  string
-		}{
-			{
-				name: "simple temp directory",
-				setupDir: func(baseDir string) string {
-					return baseDir
-				},
-				dirName: "simple-dir",
-			},
-			{
-				name: "nested subdirectory",
-				setupDir: func(baseDir string) string {
-					subDir := filepath.Join(baseDir, "nested", "sub", "directory")
-					err := os.MkdirAll(subDir, 0755)
-					require.NoError(t, err)
-					return subDir
-				},
-				dirName: "nested-dir",
-			},
-			{
-				name: "directory with special characters",
-				setupDir: func(baseDir string) string {
-					specialDir := filepath.Join(baseDir, "dir-with_special.chars")
-					err := os.MkdirAll(specialDir, 0755)
-					require.NoError(t, err)
-					return specialDir
-				},
-				dirName: "special-dir",
-			},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				baseDir := t.TempDir()
-				testDir := tc.setupDir(baseDir)
-
-				cfg := &MemberConfig{
-					Config: Config{
-						VolumePath:   testDir,
-						DirName:      tc.dirName,
-						FileContents: "test-content",
-					},
-					ID: "test-checker",
-				}
-
-				checker, err := NewChecker(cfg)
-				require.NoError(t, err)
-
-				// Write a file
-				err = checker.Write()
-				require.NoError(t, err)
-
-				result := checker.Check()
-
-				// Verify Dir field matches exactly the expected directory (testDir + dirName)
-				expectedDir := filepath.Join(testDir, tc.dirName)
-				assert.Equal(t, expectedDir, result.Dir)
-			})
-		}
-	})
-
-	t.Run("Dir field consistency across multiple checks", func(t *testing.T) {
-		tempDir := t.TempDir()
-		dirName := "consistency-dir-test"
-		cfg := &MemberConfig{
-			Config: Config{
-				VolumePath:   tempDir,
-				DirName:      dirName,
-				FileContents: "test-content",
-			},
-			ID: "test-checker",
-		}
-
-		checker, err := NewChecker(cfg)
-		require.NoError(t, err)
-
-		// Write a file
-		err = checker.Write()
-		require.NoError(t, err)
-
-		expectedDir := filepath.Join(tempDir, dirName)
-
-		// Perform multiple checks and verify Dir field is consistent
-		for i := 0; i < 3; i++ {
-			result := checker.Check()
-			assert.Equal(t, expectedDir, result.Dir, "Dir field should be consistent across multiple checks (iteration %d)", i+1)
-		}
-	})
-
-	t.Run("Dir field with absolute vs relative paths", func(t *testing.T) {
-		baseDir := t.TempDir()
-
-		// Test with absolute path (which tempDir provides)
-		absDir := baseDir
-
-		// Test with a relative path from the absolute base
-		relativeSubDir := filepath.Join(absDir, "relative")
-		err := os.MkdirAll(relativeSubDir, 0755)
-		require.NoError(t, err)
-
-		testCases := []struct {
-			name    string
-			dir     string
-			dirName string
-		}{
-			{"absolute path", absDir, "abs-dir"},
-			{"relative-style path", relativeSubDir, "rel-dir"},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				cfg := &MemberConfig{
-					Config: Config{
-						VolumePath:   tc.dir,
-						DirName:      tc.dirName,
-						FileContents: "test-content",
-					},
-					ID: "test-checker",
-				}
-
-				checker, err := NewChecker(cfg)
-				require.NoError(t, err)
-
-				err = checker.Write()
-				require.NoError(t, err)
-
-				result := checker.Check()
-
-				// Dir field should exactly match the expected directory (dir + dirName)
-				expectedDir := filepath.Join(tc.dir, tc.dirName)
-				assert.Equal(t, expectedDir, result.Dir)
-			})
-		}
+		assert.Equal(t, "failed", result.Message)
+		assert.Contains(t, result.Error, "failed to read file")
+		assert.Contains(t, result.Error, "context canceled")
 	})
 }

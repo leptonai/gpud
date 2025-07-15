@@ -1,9 +1,12 @@
 package nfschecker
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
+
+	pkgfile "github.com/leptonai/gpud/pkg/file"
 )
 
 // Config is a common configuration for all the NFS checker group
@@ -31,9 +34,9 @@ type Config struct {
 type Configs []Config
 
 // Validate validates the group configurations.
-func (cfgs Configs) Validate() error {
+func (cfgs Configs) Validate(ctx context.Context) error {
 	for _, cfg := range cfgs {
-		if err := cfg.ValidateAndMkdir(); err != nil {
+		if err := cfg.ValidateAndMkdir(ctx); err != nil {
 			return err
 		}
 	}
@@ -62,7 +65,7 @@ var (
 
 // ValidateAndMkdir validates the configuration
 // and creates the target directory if it does not exist.
-func (c *Config) ValidateAndMkdir() error {
+func (c *Config) ValidateAndMkdir(ctx context.Context) error {
 	if c.VolumePath == "" {
 		return ErrVolumePathEmpty
 	}
@@ -72,15 +75,15 @@ func (c *Config) ValidateAndMkdir() error {
 		return ErrVolumePathNotAbs
 	}
 
-	if _, err := os.Stat(c.VolumePath); os.IsNotExist(err) {
+	if _, err := pkgfile.StatWithTimeout(ctx, c.VolumePath); os.IsNotExist(err) {
 		return ErrVolumePathNotExists
 	} else if err != nil {
 		return err
 	}
 
 	dir := filepath.Join(c.VolumePath, c.DirName)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+	if _, err := pkgfile.StatWithTimeout(ctx, dir); os.IsNotExist(err) {
+		if err := pkgfile.MkdirAllWithTimeout(ctx, dir, 0755); err != nil {
 			return err
 		}
 	} else if err != nil {

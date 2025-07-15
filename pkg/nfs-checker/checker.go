@@ -2,10 +2,12 @@
 package nfschecker
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -13,10 +15,10 @@ import (
 // by writing a file and reading other files in the same directory.
 type Checker interface {
 	// Write writes a file to the directory with the ID as the file name.
-	Write() error
+	Write(ctx context.Context) error
 	// Check checks the directory and returns the result,
 	// based on the configuration.
-	Check() CheckResult
+	Check(ctx context.Context) CheckResult
 	// Clean cleans up the files in the directory with the TTL.
 	Clean() error
 }
@@ -37,8 +39,8 @@ type CheckResult struct {
 }
 
 // NewChecker creates a new checker with the given configuration.
-func NewChecker(cfg *MemberConfig) (Checker, error) {
-	if err := cfg.Validate(); err != nil {
+func NewChecker(ctx context.Context, cfg *MemberConfig) (Checker, error) {
+	if err := cfg.Validate(ctx); err != nil {
 		return nil, err
 	}
 	return &checker{
@@ -53,16 +55,16 @@ type checker struct {
 }
 
 // Write writes a file to the directory with the ID as the file name.
-func (c *checker) Write() error {
+func (c *checker) Write(ctx context.Context) error {
 	// make sure the directory is writable
 	// permission bit "0755" is used to allow the group to read the files
 	// and the owner to read and write the files.
-	if err := os.MkdirAll(c.cfg.VolumePath, 0755); err != nil {
+	if err := pkgfile.MkdirAllWithTimeout(ctx, c.cfg.VolumePath, 0755); err != nil {
 		return err
 	}
 
 	file := c.cfg.fileSelf()
-	if err := os.WriteFile(file, []byte(c.cfg.FileContents), 0644); err != nil {
+	if err := pkgfile.WriteFileWithTimeout(ctx, file, []byte(c.cfg.FileContents), 0644); err != nil {
 		return err
 	}
 
@@ -72,7 +74,7 @@ func (c *checker) Write() error {
 
 // Check checks the directory and returns the result,
 // based on the configuration.
-func (c *checker) Check() CheckResult {
+func (c *checker) Check(ctx context.Context) CheckResult {
 	dir := filepath.Join(c.cfg.VolumePath, c.cfg.DirName)
 	file := c.cfg.fileSelf()
 
@@ -80,7 +82,7 @@ func (c *checker) Check() CheckResult {
 		Dir: dir,
 	}
 
-	contents, err := os.ReadFile(file)
+	contents, err := pkgfile.ReadFileWithTimeout(ctx, file)
 	if err != nil {
 		result.Message = "failed"
 		result.Error = fmt.Sprintf("failed to read file %s: %s", file, err)

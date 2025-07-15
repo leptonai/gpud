@@ -1,6 +1,7 @@
 package nfschecker
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -66,7 +67,8 @@ func TestGroupConfig_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.ValidateAndMkdir()
+			ctx := context.Background()
+			err := tt.config.ValidateAndMkdir(ctx)
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
@@ -99,7 +101,8 @@ func TestGroupConfig_ValidateStatError(t *testing.T) {
 			FileContents: "test-content",
 		}
 
-		err = config.ValidateAndMkdir()
+		ctx := context.Background()
+	err = config.ValidateAndMkdir(ctx)
 		// Should return the os.Stat error (not ErrDirNotExists)
 		assert.Error(t, err)
 		assert.NotErrorIs(t, err, ErrVolumePathNotExists)
@@ -118,7 +121,8 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 			FileContents: longContent,
 		}
 
-		err := config.ValidateAndMkdir()
+		ctx := context.Background()
+	err := config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -134,7 +138,8 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 			FileContents: "test-content",
 		}
 
-		err = config.ValidateAndMkdir()
+		ctx := context.Background()
+	err = config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -150,7 +155,8 @@ func TestGroupConfig_ValidateEdgeCases(t *testing.T) {
 			FileContents: "test-content",
 		}
 
-		err = config.ValidateAndMkdir()
+		ctx := context.Background()
+	err = config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 }
@@ -167,7 +173,8 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 			FileContents: specialContent,
 		}
 
-		err := config.ValidateAndMkdir()
+		ctx := context.Background()
+	err := config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -180,7 +187,8 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 			FileContents: unicodeContent,
 		}
 
-		err := config.ValidateAndMkdir()
+		ctx := context.Background()
+	err := config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -193,7 +201,8 @@ func TestGroupConfig_ValidateSpecialCharacters(t *testing.T) {
 			FileContents: multilineContent,
 		}
 
-		err := config.ValidateAndMkdir()
+		ctx := context.Background()
+	err := config.ValidateAndMkdir(ctx)
 		assert.NoError(t, err)
 	})
 }
@@ -219,7 +228,8 @@ func TestGroupConfigs_Validate(t *testing.T) {
 
 	t.Run("empty slice", func(t *testing.T) {
 		var configs Configs
-		err := configs.Validate()
+		ctx := context.Background()
+		err := configs.Validate(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -237,7 +247,8 @@ func TestGroupConfigs_Validate(t *testing.T) {
 			},
 		}
 
-		err := configs.Validate()
+		ctx := context.Background()
+		err := configs.Validate(ctx)
 		assert.NoError(t, err)
 	})
 
@@ -255,7 +266,8 @@ func TestGroupConfigs_Validate(t *testing.T) {
 			},
 		}
 
-		err := configs.Validate()
+		ctx := context.Background()
+		err := configs.Validate(ctx)
 		assert.ErrorIs(t, err, ErrVolumePathEmpty)
 	})
 
@@ -273,7 +285,8 @@ func TestGroupConfigs_Validate(t *testing.T) {
 			},
 		}
 
-		err := configs.Validate()
+		ctx := context.Background()
+		err := configs.Validate(ctx)
 		// Should return the first error encountered
 		assert.ErrorIs(t, err, ErrVolumePathEmpty)
 	})
