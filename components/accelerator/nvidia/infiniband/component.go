@@ -277,10 +277,11 @@ func (c *component) Check() components.CheckResult {
 
 	evaluateHealthStateWithThresholds(thresholds, sysClassIBPorts, cr)
 
-	// regardless of thresholds, check ib flap/drop events
-	// returns until events are marked as processed/discarded
-	// by set healthy event
-	if c.ibPortsStore != nil {
+	// we only check ib port drop/flaps
+	// if and only if there is an ongoing threshold breach
+	// (thus need to know why)
+	// while we still track them in the db
+	if c.ibPortsStore != nil && len(cr.unhealthyIBPorts) > 0 {
 		// we DO NOT discard past events until the user explicitly
 		// inspected and set healthy, in order to not miss critical events
 		// this will return empty, once the user inspected and set healthy (to be tombstoned)
@@ -387,6 +388,8 @@ func (c *component) Check() components.CheckResult {
 				}
 			}
 		}
+	} else {
+		log.Logger.Debugw("no events store set or no unhealthy ib port thus skipped ib port flap/drop event processing")
 	}
 
 	return cr
