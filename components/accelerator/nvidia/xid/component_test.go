@@ -3,6 +3,8 @@ package xid
 import (
 	"context"
 	"errors"
+	"regexp"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -504,6 +506,88 @@ func TestCheck(t *testing.T) {
 		data := result.(*checkResult)
 		assert.Len(t, data.FoundErrors, 1)
 		assert.Equal(t, 31, data.FoundErrors[0].Xid)
+	})
+
+	t.Run("with XID 63 and 64 errors that should be skipped", func(t *testing.T) {
+		// Using a properly implemented mock
+		mockedNVML := createMockNVMLInstance()
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockedNVML,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+			return []kmsg.Message{
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:01:00): 63, Row remapping pending",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:02:00): 64, Row remapping failure",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:03:00): 31, GPU has fallen off the bus",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:04:00): 63, Row remapping pending again",
+				},
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		// Should only find XID 31, not 63 or 64
+		assert.Len(t, data.FoundErrors, 1)
+		assert.Equal(t, 31, data.FoundErrors[0].Xid)
+		assert.Contains(t, result.Summary(), "matched 1 xid errors from 4 kmsg(s)")
+
+		// Verify that XID 63 and 64 are not in the found errors
+		for _, foundErr := range data.FoundErrors {
+			assert.NotEqual(t, 63, foundErr.Xid, "XID 63 should be skipped")
+			assert.NotEqual(t, 64, foundErr.Xid, "XID 64 should be skipped")
+		}
+	})
+
+	t.Run("with only XID 63 and 64 errors", func(t *testing.T) {
+		// Using a properly implemented mock
+		mockedNVML := createMockNVMLInstance()
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockedNVML,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+			return []kmsg.Message{
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:01:00): 63, Row remapping pending",
+				},
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message:   "NVRM: Xid (PCI:0000:02:00): 64, Row remapping failure",
+				},
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+
+		// Should find no errors since both XID 63 and 64 are skipped
+		assert.Len(t, data.FoundErrors, 0)
+		assert.Contains(t, result.Summary(), "matched 0 xid errors from 2 kmsg(s)")
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 	})
 }
 
@@ -1013,4 +1097,112 @@ func TestCheckResult_getError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStartWithXID63And64Skipping(t *testing.T) {
+	// initialize component
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	assert.NoError(t, err)
+
+	rebootEventStore := pkghost.NewRebootEventStore(store)
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       store,
+		RebootEventStore: rebootEventStore,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	c := comp.(*component)
+
+	// If eventBucket is nil, create it manually for testing
+	if c.eventBucket == nil {
+		c.eventBucket, err = store.Bucket(Name)
+		assert.NoError(t, err)
+	}
+
+	// Setup a test channel for events to avoid using kmsg
+	kmsgCh := make(chan kmsg.Message, 10)
+
+	// Start the component with a short update period
+	go c.start(kmsgCh, 100*time.Millisecond)
+
+	defer func() {
+		if err := comp.Close(); err != nil {
+			t.Error("failed to close component")
+		}
+	}()
+
+	// Send various XID messages including 63 and 64
+	testMessages := []kmsg.Message{
+		{
+			Timestamp: metav1.NewTime(time.Now()),
+			Message:   "NVRM: Xid (PCI:0000:01:00): 63, Row remapping pending",
+		},
+		{
+			Timestamp: metav1.NewTime(time.Now().Add(1 * time.Second)),
+			Message:   "NVRM: Xid (PCI:0000:02:00): 31, GPU has fallen off the bus",
+		},
+		{
+			Timestamp: metav1.NewTime(time.Now().Add(2 * time.Second)),
+			Message:   "NVRM: Xid (PCI:0000:03:00): 64, Row remapping failure",
+		},
+		{
+			Timestamp: metav1.NewTime(time.Now().Add(3 * time.Second)),
+			Message:   "NVRM: Xid (PCI:0000:04:00): 79, GPU has fallen off the bus",
+		},
+		{
+			Timestamp: metav1.NewTime(time.Now().Add(4 * time.Second)),
+			Message:   "NVRM: Xid (PCI:0000:05:00): 63, Row remapping pending again",
+		},
+	}
+
+	// Send all test messages
+	for _, msg := range testMessages {
+		kmsgCh <- msg
+	}
+
+	// Wait for processing
+	time.Sleep(2 * time.Second)
+
+	// Check that only non-63/64 XIDs were processed
+	events, err := comp.Events(ctx, time.Now().Add(-1*time.Hour))
+	assert.NoError(t, err)
+
+	// Count events by XID by parsing the message
+	xidCounts := make(map[int]int)
+	xidRegex := regexp.MustCompile(`XID (\d+)`)
+	for _, event := range events {
+		if event.Name == EventNameErrorXid {
+			if matches := xidRegex.FindStringSubmatch(event.Message); len(matches) > 1 {
+				if xid, err := strconv.Atoi(matches[1]); err == nil {
+					xidCounts[xid]++
+				}
+			}
+		}
+	}
+
+	// Verify that XID 63 and 64 were not stored
+	assert.Equal(t, 0, xidCounts[63], "XID 63 should not be stored in events")
+	assert.Equal(t, 0, xidCounts[64], "XID 64 should not be stored in events")
+
+	// Verify that other XIDs were stored
+	assert.Greater(t, xidCounts[31], 0, "XID 31 should be stored in events")
+	assert.Greater(t, xidCounts[79], 0, "XID 79 should be stored in events")
+
+	// Also verify through component state
+	states := comp.LastHealthStates()
+	assert.NotNil(t, states)
+
+	// The component should be unhealthy due to XID 79 (fatal error)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 }

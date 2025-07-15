@@ -247,6 +247,22 @@ func (c *component) Check() components.CheckResult {
 		if xidErr == nil {
 			continue
 		}
+
+		// row remapping pending/failure (Xid 63/64)
+		// can also be detected by NVML API (vs. kmsg scanning)
+		// thus we discard Xid 63/64 in favor of row remapping checks
+		// especially, NVIDIA row remapping pending can happen >3 times
+		// which warrants system reboots, before reaching its row remapping
+		// failures threshold which requires hardware inspection
+		// in other words, we do not want to blindly suggest hw inspection
+		// from Xid 63/64, while row remmaping pending may self-resolve
+		// after >3 times of system reboots
+		// this is why we here discard Xid 63/64 in favor of row remapping checks
+		if xidErr.Xid == 63 || xidErr.Xid == 64 {
+			log.Logger.Warnw("discarding Xid 63/64 in favor of remapped-rows component", "xid", xidErr.Xid, "deviceUUID", xidErr.DeviceUUID)
+			continue
+		}
+
 		cr.FoundErrors = append(cr.FoundErrors, FoundError{
 			Kmsg:     kmsg,
 			XidError: *xidErr,
@@ -416,6 +432,21 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			xidErr := Match(message.Message)
 			if xidErr == nil {
 				log.Logger.Debugw("not xid event, skip", "kmsg", message)
+				continue
+			}
+
+			// row remapping pending/failure (Xid 63/64)
+			// can also be detected by NVML API (vs. kmsg scanning)
+			// thus we discard Xid 63/64 in favor of row remapping checks
+			// especially, NVIDIA row remapping pending can happen >3 times
+			// which warrants system reboots, before reaching its row remapping
+			// failures threshold which requires hardware inspection
+			// in other words, we do not want to blindly suggest hw inspection
+			// from Xid 63/64, while row remmaping pending may self-resolve
+			// after >3 times of system reboots
+			// this is why we here discard Xid 63/64 in favor of row remapping checks
+			if xidErr.Xid == 63 || xidErr.Xid == 64 {
+				log.Logger.Warnw("discarding Xid 63/64 in favor of remapped-rows component", "xid", xidErr.Xid, "deviceUUID", xidErr.DeviceUUID)
 				continue
 			}
 
