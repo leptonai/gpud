@@ -48,7 +48,8 @@ func TestNewChecker(t *testing.T) {
 }
 
 func TestChecker_Write(t *testing.T) {
-	tempDir := t.TempDir()
+	tempDir, err := os.MkdirTemp(t.TempDir(), "test")
+	require.NoError(t, err)
 
 	cfg := &MemberConfig{
 		Config: Config{
@@ -109,7 +110,8 @@ func TestChecker_Write(t *testing.T) {
 	})
 
 	t.Run("timeout during mkdir operation", func(t *testing.T) {
-		timeoutTempDir := t.TempDir()
+		timeoutTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -135,7 +137,8 @@ func TestChecker_Write(t *testing.T) {
 	})
 
 	t.Run("context canceled during mkdir operation", func(t *testing.T) {
-		cancelTempDir := t.TempDir()
+		cancelTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -160,7 +163,8 @@ func TestChecker_Write(t *testing.T) {
 	})
 
 	t.Run("timeout during write operation", func(t *testing.T) {
-		timeoutTempDir := t.TempDir()
+		timeoutTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -191,7 +195,8 @@ func TestChecker_Write(t *testing.T) {
 	})
 
 	t.Run("context canceled during write operation", func(t *testing.T) {
-		cancelTempDir := t.TempDir()
+		cancelTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -260,7 +265,9 @@ func TestChecker_Write(t *testing.T) {
 
 		for _, scenario := range scenarios {
 			t.Run(scenario.name, func(t *testing.T) {
-				scenarioTempDir := t.TempDir()
+				scenarioTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+				require.NoError(t, err)
+
 				cfg := &MemberConfig{
 					Config: Config{
 						VolumePath:   scenarioTempDir,
@@ -314,7 +321,9 @@ func TestChecker_Write(t *testing.T) {
 }
 
 func TestChecker_Clean(t *testing.T) {
-	tempDir := t.TempDir()
+	tempDir, err := os.MkdirTemp(t.TempDir(), "test")
+	require.NoError(t, err)
+
 	dirName := "clean-test-dir"
 
 	cfg := &MemberConfig{
@@ -351,7 +360,8 @@ func TestChecker_Clean(t *testing.T) {
 }
 
 func TestChecker_Check(t *testing.T) {
-	tempDir := t.TempDir()
+	tempDir, err := os.MkdirTemp(t.TempDir(), "test")
+	require.NoError(t, err)
 
 	t.Run("successful check with expected files", func(t *testing.T) {
 		dirName := "success-test-dir"
@@ -512,7 +522,8 @@ func TestChecker_Check(t *testing.T) {
 
 // TestChecker_Check_TimeoutErrorField tests the TimeoutError field in CheckResult
 func TestChecker_Check_TimeoutErrorField(t *testing.T) {
-	tempDir := t.TempDir()
+	tempDir, err := os.MkdirTemp(t.TempDir(), "test")
+	require.NoError(t, err)
 
 	t.Run("timeout error sets TimeoutError to true", func(t *testing.T) {
 		dirName := "timeout-error-test-dir"
@@ -724,7 +735,9 @@ func TestChecker_TimeoutErrorField_ComprehensiveScenarios(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			tempDir := t.TempDir()
+			tempDir, err := os.MkdirTemp(t.TempDir(), "test")
+			require.NoError(t, err)
+
 			cfg := &MemberConfig{
 				Config: Config{
 					VolumePath:   tempDir,
