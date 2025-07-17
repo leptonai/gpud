@@ -17,6 +17,9 @@ func TestDefaultFsTypeFuncs(t *testing.T) {
 	t.Run("DefaultNFSFsTypeFunc", func(t *testing.T) {
 		assert.False(t, DefaultNFSFsTypeFunc("fuse.juicefs"))
 		assert.True(t, DefaultNFSFsTypeFunc("wekafs"))
+		assert.True(t, DefaultNFSFsTypeFunc("virtiofs"))
+		assert.True(t, DefaultNFSFsTypeFunc("nfs"))
+		assert.True(t, DefaultNFSFsTypeFunc("nfs4"))
 		assert.False(t, DefaultNFSFsTypeFunc("ext4"))
 		assert.False(t, DefaultNFSFsTypeFunc(""))
 	})
