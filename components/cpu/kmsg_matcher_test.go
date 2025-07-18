@@ -8,97 +8,114 @@ import (
 
 func TestHasBlockedTooLong(t *testing.T) {
 	tests := []struct {
-		name     string
-		line     string
-		expected bool
+		name            string
+		line            string
+		expectedMatch   bool
+		expectedProcess string
 	}{
 		{
-			name:     "task blocked message",
-			line:     "INFO: task kcompactd1:1177 blocked for more than 120 seconds.",
-			expected: true,
+			name:            "task blocked message",
+			line:            "INFO: task kcompactd1:1177 blocked for more than 120 seconds.",
+			expectedMatch:   true,
+			expectedProcess: "kcompactd1:1177",
 		},
 		{
-			name:     "another task blocked message 1",
-			line:     "task jfsmount:136986 blocked for more than 120 seconds.",
-			expected: true,
+			name:            "another task blocked message 1",
+			line:            "task jfsmount:136986 blocked for more than 120 seconds.",
+			expectedMatch:   true,
+			expectedProcess: "jfsmount:136986",
 		},
 		{
-			name:     "another task blocked message 2",
-			line:     "INFO: task jfsmount:136986 blocked for more than 120 seconds.",
-			expected: true,
+			name:            "another task blocked message 2",
+			line:            "INFO: task jfsmount:136986 blocked for more than 120 seconds.",
+			expectedMatch:   true,
+			expectedProcess: "jfsmount:136986",
 		},
 		{
-			name:     "another task blocked message 3",
-			line:     "[Sun Jan  5 20:25:34 2025] INFO: task jfsmount:136986 blocked for more than 120 seconds.",
-			expected: true,
+			name:            "another task blocked message 3",
+			line:            "[Sun Jan  5 20:25:34 2025] INFO: task jfsmount:136986 blocked for more than 120 seconds.",
+			expectedMatch:   true,
+			expectedProcess: "jfsmount:136986",
 		},
 		{
-			name:     "another task blocked message 3 with different seconds",
-			line:     "[Sun Jan  5 20:25:34 2025] INFO: task jfsmount:136986 blocked for more than 999 seconds.",
-			expected: true,
+			name:            "another task blocked message 3 with different seconds",
+			line:            "[Sun Jan  5 20:25:34 2025] INFO: task jfsmount:136986 blocked for more than 999 seconds.",
+			expectedMatch:   true,
+			expectedProcess: "jfsmount:136986",
 		},
 		{
-			name:     "non-matching message 1",
-			line:     "INFO: task running normally",
-			expected: false,
+			name:            "non-matching message 1",
+			line:            "INFO: task running normally",
+			expectedMatch:   false,
+			expectedProcess: "",
 		},
 		{
-			name:     "non-matching message 2",
-			line:     "task running normally",
-			expected: false,
+			name:            "non-matching message 2",
+			line:            "task running normally",
+			expectedMatch:   false,
+			expectedProcess: "",
 		},
 		{
-			name:     "empty string",
-			line:     "",
-			expected: false,
+			name:            "empty string",
+			line:            "",
+			expectedMatch:   false,
+			expectedProcess: "",
 		},
 		{
-			name:     "different time period",
-			line:     "INFO: task xyz blocked for more than 60 seconds.",
-			expected: false,
+			name:            "different time period",
+			line:            "INFO: task xyz blocked for more than 60 seconds.",
+			expectedMatch:   false,
+			expectedProcess: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := HasBlockedTooLong(tt.line)
-			assert.Equal(t, tt.expected, got, "HasBlockedTooLong(%q)", tt.line)
+			processInfo, ok := HasBlockedTooLong(tt.line)
+			assert.Equal(t, tt.expectedMatch, ok, "HasBlockedTooLong(%q) match", tt.line)
+			assert.Equal(t, tt.expectedProcess, processInfo, "HasBlockedTooLong(%q) processInfo", tt.line)
 		})
 	}
 }
 
 func TestHasSoftLockup(t *testing.T) {
 	tests := []struct {
-		name     string
-		line     string
-		expected bool
+		name            string
+		line            string
+		expectedMatch   bool
+		expectedProcess string
 	}{
 		{
-			name:     "cuda event handler lockup",
-			line:     "[Sun Jan  5 18:37:06 2025] watchdog: BUG: soft lockup - CPU#0 stuck for 27s! [cuda-EvtHandlr:2255424]",
-			expected: true,
+			name:            "cuda event handler lockup",
+			line:            "[Sun Jan  5 18:37:06 2025] watchdog: BUG: soft lockup - CPU#0 stuck for 27s! [cuda-EvtHandlr:2255424]",
+			expectedMatch:   true,
+			expectedProcess: "cuda-EvtHandlr:2255424",
 		},
 		{
-			name:     "python process lockup",
-			line:     "[Sun Jan  5 18:28:55 2025] watchdog: BUG: soft lockup - CPU#18 stuck for 27s! [python3:2254956]",
-			expected: true,
+			name:            "python process lockup",
+			line:            "[Sun Jan  5 18:28:55 2025] watchdog: BUG: soft lockup - CPU#18 stuck for 27s! [python3:2254956]",
+			expectedMatch:   true,
+			expectedProcess: "python3:2254956",
 		},
 		{
-			name:     "non-matching message",
-			line:     "normal CPU operation",
-			expected: false,
+			name:            "non-matching message",
+			line:            "normal CPU operation",
+			expectedMatch:   false,
+			expectedProcess: "",
 		},
 		{
-			name:     "empty string",
-			line:     "",
-			expected: false,
+			name:            "empty string",
+			line:            "",
+			expectedMatch:   false,
+			expectedProcess: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := HasSoftLockup(tt.line)
-			assert.Equal(t, tt.expected, got, "HasSoftLockup(%q)", tt.line)
+			processInfo, ok := HasSoftLockup(tt.line)
+			assert.Equal(t, tt.expectedMatch, ok, "HasSoftLockup(%q) match", tt.line)
+			assert.Equal(t, tt.expectedProcess, processInfo, "HasSoftLockup(%q) processInfo", tt.line)
 		})
 	}
 }
@@ -114,25 +131,25 @@ func TestMatch(t *testing.T) {
 			name:        "blocked too long",
 			line:        "INFO: task kcompactd1:1177 blocked for more than 120 seconds.",
 			wantName:    eventBlockedTooLong,
-			wantMessage: messageBlockedTooLong,
+			wantMessage: "CPU task blocked for more than 120 seconds (kcompactd1:1177)",
 		},
 		{
 			name:        "blocked too long with timestamp",
 			line:        "[Sun Jan  5 20:25:34 2025] INFO: task jfsmount:136986 blocked for more than 120 seconds.",
 			wantName:    eventBlockedTooLong,
-			wantMessage: messageBlockedTooLong,
+			wantMessage: "CPU task blocked for more than 120 seconds (jfsmount:136986)",
 		},
 		{
 			name:        "soft lockup",
 			line:        "[Sun Jan  5 18:37:06 2025] watchdog: BUG: soft lockup - CPU#0 stuck for 27s! [cuda-EvtHandlr:2255424]",
 			wantName:    eventSoftLockup,
-			wantMessage: messageSoftLockup,
+			wantMessage: "CPU soft lockup detected, not releasing for a period of time (cuda-EvtHandlr:2255424)",
 		},
 		{
 			name:        "soft lockup with different process",
 			line:        "[Sun Jan  5 18:28:55 2025] watchdog: BUG: soft lockup - CPU#18 stuck for 27s! [python3:2254956]",
 			wantName:    eventSoftLockup,
-			wantMessage: messageSoftLockup,
+			wantMessage: "CPU soft lockup detected, not releasing for a period of time (python3:2254956)",
 		},
 		{
 			name:        "no match",
@@ -172,16 +189,23 @@ func TestGetMatches(t *testing.T) {
 	// Verify the soft lockup matcher
 	lockupMatch := matches[1]
 	assert.Equal(t, eventSoftLockup, lockupMatch.eventName)
+	assert.Equal(t, regexSoftLockup, lockupMatch.regex)
 	assert.Equal(t, messageSoftLockup, lockupMatch.message)
 
 	// Test the check functions
 	validBlockedInput := "[Sun Jan  5 20:25:34 2025] INFO: task jfsmount:136986 blocked for more than 120 seconds."
-	assert.True(t, blockedMatch.check(validBlockedInput))
+	processInfo, ok := blockedMatch.check(validBlockedInput)
+	assert.True(t, ok)
+	assert.Equal(t, "jfsmount:136986", processInfo)
 
 	validLockupInput := "[Sun Jan  5 18:37:06 2025] watchdog: BUG: soft lockup - CPU#0 stuck for 27s! [cuda-EvtHandlr:2255424]"
-	assert.True(t, lockupMatch.check(validLockupInput))
+	processInfo, ok = lockupMatch.check(validLockupInput)
+	assert.True(t, ok)
+	assert.Equal(t, "cuda-EvtHandlr:2255424", processInfo)
 
 	invalidInput := "some random log message"
-	assert.False(t, blockedMatch.check(invalidInput))
-	assert.False(t, lockupMatch.check(invalidInput))
+	_, ok = blockedMatch.check(invalidInput)
+	assert.False(t, ok)
+	_, ok = lockupMatch.check(invalidInput)
+	assert.False(t, ok)
 }
