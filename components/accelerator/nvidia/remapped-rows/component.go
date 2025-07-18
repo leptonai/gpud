@@ -193,35 +193,26 @@ func (c *component) Check() components.CheckResult {
 			metricRemappingFailed.With(prometheus.Labels{"uuid": uuid}).Set(float64(0.0))
 		}
 
-		if c.eventBucket != nil && remappedRows.RemappingPending {
+		if remappedRows.RemappingPending {
 			log.Logger.Warnw("inserting event for remapping pending", "uuid", uuid)
-			cr.suggestedActions = &apiv1.SuggestedActions{
-				Description: "row remapping pending requires GPU reset or system reboot",
-				RepairActions: []apiv1.RepairActionType{
-					apiv1.RepairActionTypeRebootSystem,
-				},
+			// Only set suggested action if we don't already have a more severe one (RMA takes precedence)
+			if cr.suggestedActions == nil || cr.suggestedActions.RepairActions[0] != apiv1.RepairActionTypeHardwareInspection {
+				cr.suggestedActions = &apiv1.SuggestedActions{
+					Description: "row remapping pending requires GPU reset or system reboot",
+					RepairActions: []apiv1.RepairActionType{
+						apiv1.RepairActionTypeRebootSystem,
+					},
+				}
 			}
 
-			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
-			cr.err = c.eventBucket.Insert(
-				cctx,
-				eventstore.Event{
-					Time:    cr.ts,
-					Name:    "row_remapping_pending",
-					Type:    string(apiv1.EventTypeWarning),
-					Message: fmt.Sprintf("%s detected pending row remapping", uuid),
-				},
-			)
-			ccancel()
-			if cr.err != nil {
-				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = "error inserting event for remapping pending"
-				log.Logger.Warnw(cr.reason, "uuid", uuid, "pciBusID", dev.PCIBusID(), "error", cr.err)
-			}
+			// no need to track these as events
+			// because NVML simply returns remapping pending
+			// whenever there's a pending remapping
 		}
 
-		if c.eventBucket != nil && remappedRows.RemappingFailed {
+		if remappedRows.RemappingFailed {
 			log.Logger.Warnw("inserting event for remapping failed", "uuid", uuid)
+			// RMA always takes precedence over other actions
 			cr.suggestedActions = &apiv1.SuggestedActions{
 				Description: "row remapping failure requires hardware inspection",
 				RepairActions: []apiv1.RepairActionType{
@@ -229,22 +220,9 @@ func (c *component) Check() components.CheckResult {
 				},
 			}
 
-			cctx, ccancel := context.WithTimeout(c.ctx, 10*time.Second)
-			cr.err = c.eventBucket.Insert(
-				cctx,
-				eventstore.Event{
-					Time:    cr.ts,
-					Name:    "row_remapping_failed",
-					Type:    string(apiv1.EventTypeWarning),
-					Message: fmt.Sprintf("%s detected failed row remapping", uuid),
-				},
-			)
-			ccancel()
-			if cr.err != nil {
-				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = "error inserting event for remapping failed"
-				log.Logger.Warnw(cr.reason, "uuid", uuid, "pciBusID", dev.PCIBusID(), "error", cr.err)
-			}
+			// no need to track these as events
+			// because NVML simply returns remapping pending
+			// whenever there's a pending remapping
 		}
 
 		if remappedRows.QualifiesForRMA() {

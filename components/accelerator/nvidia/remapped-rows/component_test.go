@@ -385,8 +385,8 @@ func TestEvents(t *testing.T) {
 	assert.Len(t, events, 2)
 }
 
-// Test that CheckOnce properly generates and persists events
-func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
+// Test that CheckOnce properly detects and reports remapping issues
+func TestCheckOnceRemappingIssueDetection(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -462,7 +462,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 				RemappingPending:                 false,
 			}, nil
 		case "GPU2":
-			// Remapping pending - should generate an event
+			// Remapping pending - should be detected and reported
 			return nvml.RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 0,
@@ -470,7 +470,7 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 				RemappingPending:                 true,
 			}, nil
 		case "GPU3":
-			// Remapping failed - should generate an event
+			// Remapping failed - should be detected and reported
 			return nvml.RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 2,
@@ -485,63 +485,20 @@ func TestCheckOnceEventsGeneratedAndPersisted(t *testing.T) {
 	// Run Check instead of CheckOnce
 	c.Check()
 
-	// Give a short time for any async operations to complete
-	time.Sleep(50 * time.Millisecond)
+	// Verify health states without checking for events
+	states := c.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 
-	// Get events from the database with a timeout context to avoid hanging
-	queryCtx, queryCancel := context.WithTimeout(ctx, 5*time.Second)
-	events, err := eventBucket.Get(queryCtx, time.Time{})
-	queryCancel()
-	require.NoError(t, err)
+	// Verify the component detects both pending and failed remapping issues
+	assert.Contains(t, states[0].Reason, "needs reset")
+	assert.Contains(t, states[0].Reason, "qualifies for RMA")
 
-	// We should have at least 2 events
-	if len(events) < 2 {
-		t.Logf("Expected at least 2 events, but got %d: %#v", len(events), events)
-		// Insert test events directly to ensure bucket works
-		testEvent1 := eventstore.Event{
-			Time:    time.Now(),
-			Name:    "row_remapping_pending",
-			Type:    string(apiv1.EventTypeWarning),
-			Message: "GPU2 detected pending row remapping",
-		}
-		testEvent2 := eventstore.Event{
-			Time:    time.Now(),
-			Name:    "row_remapping_failed",
-			Type:    string(apiv1.EventTypeWarning),
-			Message: "GPU3 detected failed row remapping",
-		}
-
-		err = eventBucket.Insert(ctx, testEvent1)
-		require.NoError(t, err)
-		err = eventBucket.Insert(ctx, testEvent2)
-		require.NoError(t, err)
-
-		// Try to get events again
-		events, err = eventBucket.Get(queryCtx, time.Time{})
-		require.NoError(t, err)
-	}
-
-	require.GreaterOrEqual(t, len(events), 2, "Expected at least 2 events to be generated")
-
-	// Find events by name
-	var pendingEvent, failedEvent *eventstore.Event
-	for i := range events {
-		if events[i].Name == "row_remapping_pending" {
-			pendingEvent = &events[i]
-		} else if events[i].Name == "row_remapping_failed" {
-			failedEvent = &events[i]
-		}
-	}
-
-	// Verify the pending event
-	require.NotNil(t, pendingEvent, "Expected 'row_remapping_pending' event to be generated")
-	assert.Equal(t, string(apiv1.EventTypeWarning), pendingEvent.Type)
-	assert.Contains(t, pendingEvent.Message, "detected pending row remapping")
-
-	// Verify the failed event
-	require.NotNil(t, failedEvent, "Expected 'row_remapping_failed' event to be generated")
-	assert.Equal(t, string(apiv1.EventTypeWarning), failedEvent.Type)
-	assert.Contains(t, failedEvent.Message, "detected failed row remapping")
+	// Verify suggested actions are set appropriately
+	require.NotNil(t, states[0].SuggestedActions)
+	// RMA should take precedence over reset for suggested actions
+	assert.Equal(t, "row remapping failure requires hardware inspection", states[0].SuggestedActions.Description)
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, states[0].SuggestedActions.RepairActions)
 }
 
 // Test error handling during event persistence
@@ -654,7 +611,7 @@ func TestEventsWithDB(t *testing.T) {
 	require.NoError(t, err)
 	defer eventBucket.Close()
 
-	// Insert test events directly into the database
+	// Insert test events directly into the database to test Events() method
 	testEvent1 := eventstore.Event{
 		Time:    time.Now().Add(-30 * time.Minute),
 		Name:    "test_event",
@@ -673,9 +630,37 @@ func TestEventsWithDB(t *testing.T) {
 	err = eventBucket.Insert(ctx, testEvent2)
 	require.NoError(t, err)
 
-	// Instead of creating a real component, mock the Events method directly
-	// since we just want to test retrieving events from the database
-	events, err := eventBucket.Get(ctx, since)
+	// Create a component to test the Events() method
+	getDevicesFunc := func() map[string]device.Device {
+		return make(map[string]device.Device)
+	}
+	getProductNameFunc := func() string {
+		return "NVIDIA Test GPU"
+	}
+	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
+		return nvml.MemoryErrorManagementCapabilities{
+			RowRemapping: true,
+		}
+	}
+
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc:                           getDevicesFunc,
+		getProductNameFunc:                       getProductNameFunc,
+		getMemoryErrorManagementCapabilitiesFunc: getMemoryErrorManagementCapabilitiesFunc,
+	}
+
+	mockStore := &mockEventStore{bucket: eventBucket}
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: nvmlInstance,
+		EventStore:   mockStore,
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+
+	// Test the Events() method
+	events, err := comp.Events(ctx, since)
 	require.NoError(t, err)
 	assert.Len(t, events, 2)
 
@@ -1179,22 +1164,9 @@ func TestStateTransitions(t *testing.T) {
 	assert.Nil(t, c.lastCheckResult.suggestedActions, "Back to Healthy state should have nil suggestedActions")
 	assert.Nil(t, states[0].SuggestedActions, "Back to Healthy state should have nil SuggestedActions in HealthState")
 
-	// Verify that events were generated for state transitions
-	events, err := eventBucket.Get(ctx, time.Time{})
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, len(events), 2, "Expected at least 2 events for the state transitions")
-
-	// Check that we have both pending and failed events
-	var hasPending, hasFailed bool
-	for _, e := range events {
-		if e.Name == "row_remapping_pending" {
-			hasPending = true
-		} else if e.Name == "row_remapping_failed" {
-			hasFailed = true
-		}
-	}
-	assert.True(t, hasPending, "Expected a row_remapping_pending event")
-	assert.True(t, hasFailed, "Expected a row_remapping_failed event")
+	// Verify that all state transitions were properly handled
+	// No events are generated for remapping states as per the component design
+	// The component provides health states and suggested actions instead
 }
 
 // Test for checking threshold behavior for row remapping
@@ -1410,12 +1382,11 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	assert.Contains(t, states[0].Reason, "needs reset")
 	assert.Contains(t, states[0].Reason, "qualifies for RMA")
 
-	// Check events were generated
-	events, err := eventBucket.Get(ctx, time.Time{})
-	require.NoError(t, err)
-
-	// Should have at least 2 events (one for pending, one for failed)
-	assert.GreaterOrEqual(t, len(events), 2)
+	// Verify suggested actions are set appropriately
+	// RMA should take precedence over reset for suggested actions
+	require.NotNil(t, states[0].SuggestedActions)
+	assert.Equal(t, "row remapping failure requires hardware inspection", states[0].SuggestedActions.Description)
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, states[0].SuggestedActions.RepairActions)
 }
 
 // Test handling of errors in GPU accessors
@@ -1635,7 +1606,7 @@ func TestComponentWithNoNVML(t *testing.T) {
 	assert.Nil(t, events, "Events() should return nil events with nil eventBucket")
 }
 
-// TestCheckSuggestedActionsWithNilEventBucket verifies that suggestedActions are not set if eventBucket is nil.
+// TestCheckSuggestedActionsWithNilEventBucket verifies that suggestedActions are set based on remapping state, regardless of eventBucket availability.
 func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1689,16 +1660,19 @@ func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
 	checkRes, ok := result.(*checkResult)
 	require.True(t, ok, "Check result should be of type *checkResult")
 
-	// Verify that suggestedActions is nil because eventBucket is nil
-	assert.Nil(t, checkRes.suggestedActions, "suggestedActions should be nil when eventBucket is nil, even if remapping is pending")
+	// Verify that suggestedActions is still set even when eventBucket is nil
+	// The component sets suggested actions based on remapping state, not event bucket availability
+	assert.NotNil(t, checkRes.suggestedActions, "suggestedActions should be set based on remapping state, regardless of eventBucket")
+	assert.Equal(t, "row remapping pending requires GPU reset or system reboot", checkRes.suggestedActions.Description)
 
 	// Also verify through LastHealthStates
 	healthStates := c.LastHealthStates()
 	require.Len(t, healthStates, 1)
-	assert.Nil(t, healthStates[0].SuggestedActions, "HealthState.SuggestedActions should be nil when eventBucket is nil")
-	// The component should still report unhealthy due to pending remapping, but without a suggestion
+	assert.NotNil(t, healthStates[0].SuggestedActions, "HealthState.SuggestedActions should be set based on remapping state")
+	// The component should report unhealthy due to pending remapping, with appropriate suggestion
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, healthStates[0].Health)
 	assert.Contains(t, healthStates[0].Reason, "needs reset")
+	assert.Equal(t, "row remapping pending requires GPU reset or system reboot", healthStates[0].SuggestedActions.Description)
 
 	// Test Events() method when eventBucket is nil - this was already tested above in TestComponentWithNoNVML
 	// but this test specifically sets up c.eventBucket = nil (or verifies it from New() with nil EventStore)
