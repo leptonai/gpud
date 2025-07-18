@@ -158,8 +158,7 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				&cli.IntFlag{
 					Name:  "auto-update-exit-code",
-					Usage: "specifies the exit code to exit with when auto updating (default: -1 to disable exit code)",
-					Value: -1,
+					Usage: "specifies the exit code to exit with when auto updating (set -1 to disable exit code)",
 				},
 				cli.StringFlag{
 					Name:  "plugin-specs-file",

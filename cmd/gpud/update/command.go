@@ -40,7 +40,12 @@ func Command(cliContext *cli.Context) error {
 		url = version.DefaultURLPrefix
 	}
 
-	return pkgupdate.Update(ver, url)
+	if err = pkgupdate.UpdateExecutable(ver, url, true); err != nil {
+		return err
+	}
+
+	fmt.Printf("gpud updated to %s -- please restart gpud to finish the update\n", ver)
+	return nil
 }
 
 func CommandCheck(cliContext *cli.Context) error {
