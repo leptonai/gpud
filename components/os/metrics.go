@@ -6,17 +6,30 @@ import (
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
-const SubSystem = "os_fd"
+const (
+	subSystemGo = "os_go"
+	subSystemFD = "os_fd"
+)
 
 var (
 	componentLabel = prometheus.Labels{
 		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
+	metricGoroutines = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "",
+			Subsystem: subSystemGo,
+			Name:      "goroutines",
+			Help:      "tracks the total number of goroutines",
+		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
+	).MustCurryWith(componentLabel)
+
 	metricAllocatedFileHandles = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "allocated_file_handles",
 			Help:      "tracks the total number of allocated file handles (e.g., /proc/sys/fs/file-nr on Linux)",
 		},
@@ -26,7 +39,7 @@ var (
 	metricRunningPIDs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "running_pids",
 			Help:      "tracks the total number of running pids, current file descriptor usage",
 		},
@@ -36,7 +49,7 @@ var (
 	metricLimit = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "limit",
 			Help:      "tracks the current system-wide file descriptor limit (e.g., /proc/sys/fs/file-max on Linux)",
 		},
@@ -46,7 +59,7 @@ var (
 	metricAllocatedFileHandlesPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "allocated_file_handles_percent",
 			Help:      "tracks the current file descriptor allocation percentage (allocated_file_handles / limit in percentage)",
 		},
@@ -56,7 +69,7 @@ var (
 	metricUsedPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "used_percent",
 			Help:      "tracks the current file descriptor usage percentage (running_pids / limit in percentage)",
 		},
@@ -66,7 +79,7 @@ var (
 	metricThresholdRunningPIDs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "threshold_running_pids",
 			Help:      "tracks the current file descriptor threshold running pids",
 		},
@@ -75,7 +88,7 @@ var (
 	metricThresholdRunningPIDsPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "threshold_running_pids_percent",
 			Help:      "tracks the current file descriptor threshold running pids percentage",
 		},
@@ -85,7 +98,7 @@ var (
 	metricThresholdAllocatedFileHandles = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "threshold_allocated_file_handles",
 			Help:      "tracks the current file descriptor threshold allocated file handles",
 		},
@@ -94,7 +107,7 @@ var (
 	metricThresholdAllocatedFileHandlesPercent = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "threshold_allocated_file_handles_percent",
 			Help:      "tracks the current file descriptor threshold allocated percentage",
 		},
@@ -104,7 +117,7 @@ var (
 	metricZombieProcesses = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
-			Subsystem: SubSystem,
+			Subsystem: subSystemFD,
 			Name:      "zombie_processes",
 			Help:      "tracks the total number of zombie processes",
 		},
@@ -114,6 +127,7 @@ var (
 
 func init() {
 	pkgmetrics.MustRegister(
+		metricGoroutines,
 		metricAllocatedFileHandles,
 		metricRunningPIDs,
 		metricLimit,
