@@ -112,7 +112,7 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.D
 		NumMetrics: uint32(len(metricIDs)),
 		Sample1:    sample1,
 		Sample2:    sample2,
-		Metrics:    [98]nvml.GpmMetric{},
+		Metrics:    [210]nvml.GpmMetric{},
 	}
 	for i := range metricIDs {
 		gpmMetric.Metrics[i].MetricId = uint32(metricIDs[i])
