@@ -55,17 +55,12 @@ type Config struct {
 	disabledComponents map[string]any `json:"-"`
 }
 
-var ErrInvalidAutoUpdateExitCode = errors.New("auto_update_exit_code is only valid when auto_update is enabled")
-
 func (config *Config) Validate() error {
 	if config.Address == "" {
 		return errors.New("address is required")
 	}
 	if config.RetentionPeriod.Duration < time.Minute {
 		return fmt.Errorf("retention_period must be at least 1 minute, got %d", config.RetentionPeriod.Duration)
-	}
-	if !config.EnableAutoUpdate && config.AutoUpdateExitCode != -1 {
-		return ErrInvalidAutoUpdateExitCode
 	}
 
 	return nil

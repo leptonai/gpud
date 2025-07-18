@@ -3,12 +3,10 @@ package update
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -17,18 +15,9 @@ import (
 
 const DefaultUpdateURL = "https://pkg.gpud.dev/"
 
-func Update(ver, url string) error {
-	return update(ver, url, true, true)
-}
-
-// Updates the gpud binary by only downloading the tarball and unpacking it,
-// without restarting the service or requiring root.
-func UpdateOnlyBinary(ver, url string) error {
-	return update(ver, url, false, false)
-}
-
-func update(ver, url string, requireRoot bool, useSystemd bool) error {
-	log.Logger.Infow("starting gpud update", "version", ver, "url", url, "requireRoot", requireRoot, "useSystemd", useSystemd)
+// UpdateExecutable updates the GPUd binary executable itself.
+func UpdateExecutable(ver, url string, requireRoot bool) error {
+	log.Logger.Infow("starting gpud update", "version", ver, "url", url, "requireRoot", requireRoot)
 
 	if requireRoot {
 		if err := osutil.RequireRoot(); err != nil {
@@ -56,21 +45,6 @@ func update(ver, url string, requireRoot bool, useSystemd bool) error {
 
 	if err := os.Remove(dlPath); err != nil {
 		log.Logger.Errorw("failed to cleanup the downloaded update tarball", "error", err)
-	}
-
-	if useSystemd {
-		if err := RestartGPUdSystemdUnit(); err != nil {
-			if strings.Contains(err.Error(), "signal: terminated") {
-				// an expected error
-				log.Logger.Infof("gpud binary updated successfully. Waiting complete of systemd restart.")
-			} else if errors.Is(err, errors.ErrUnsupported) {
-				log.Logger.Errorf("gpud binary updated successfully. Please restart gpud to finish the update.")
-			} else {
-				log.Logger.Errorf("gpud binary updated successfully, but failed to restart gpud: %s. Please restart gpud to finish the update.", err)
-			}
-		} else {
-			log.Logger.Infow("completed gpud update", "version", ver)
-		}
 	}
 
 	return nil
