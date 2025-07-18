@@ -12,12 +12,14 @@ import (
 )
 
 func TestNewChecker(t *testing.T) {
-	tempDir := t.TempDir()
+	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	t.Run("valid config", func(t *testing.T) {
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:   tempDir,
+				VolumePath:   tmpDir,
 				DirName:      "test-dir",
 				FileContents: "test-content",
 			},
@@ -48,11 +50,13 @@ func TestNewChecker(t *testing.T) {
 }
 
 func TestChecker_Write(t *testing.T) {
-	tempDir := t.TempDir()
+	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	cfg := &MemberConfig{
 		Config: Config{
-			VolumePath:   tempDir,
+			VolumePath:   tmpDir,
 			DirName:      "test-dir",
 			FileContents: "test-content",
 		},
@@ -70,14 +74,14 @@ func TestChecker_Write(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Verify file was created with correct content
-		filePath := filepath.Join(tempDir, "test-dir", "test-id")
+		filePath := filepath.Join(tmpDir, "test-dir", "test-id")
 		content, err := os.ReadFile(filePath)
 		assert.NoError(t, err)
 		assert.Equal(t, "test-content", string(content))
 	})
 
 	t.Run("write to non-existent directory", func(t *testing.T) {
-		subDir := filepath.Join(tempDir, "subdir")
+		subDir := filepath.Join(tmpDir, "subdir")
 
 		// Create the directory first
 		err := os.MkdirAll(subDir, 0755)
@@ -109,7 +113,9 @@ func TestChecker_Write(t *testing.T) {
 	})
 
 	t.Run("timeout during mkdir operation", func(t *testing.T) {
-		timeoutTempDir := t.TempDir()
+		timeoutTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
+		defer os.RemoveAll(timeoutTempDir)
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -135,7 +141,9 @@ func TestChecker_Write(t *testing.T) {
 	})
 
 	t.Run("context canceled during mkdir operation", func(t *testing.T) {
-		cancelTempDir := t.TempDir()
+		cancelTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
+		defer os.RemoveAll(cancelTempDir)
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -160,7 +168,9 @@ func TestChecker_Write(t *testing.T) {
 	})
 
 	t.Run("timeout during write operation", func(t *testing.T) {
-		timeoutTempDir := t.TempDir()
+		timeoutTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
+		defer os.RemoveAll(timeoutTempDir)
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -191,7 +201,9 @@ func TestChecker_Write(t *testing.T) {
 	})
 
 	t.Run("context canceled during write operation", func(t *testing.T) {
-		cancelTempDir := t.TempDir()
+		cancelTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
+		defer os.RemoveAll(cancelTempDir)
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -260,7 +272,9 @@ func TestChecker_Write(t *testing.T) {
 
 		for _, scenario := range scenarios {
 			t.Run(scenario.name, func(t *testing.T) {
-				scenarioTempDir := t.TempDir()
+				scenarioTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+				require.NoError(t, err)
+
 				cfg := &MemberConfig{
 					Config: Config{
 						VolumePath:   scenarioTempDir,
@@ -314,12 +328,15 @@ func TestChecker_Write(t *testing.T) {
 }
 
 func TestChecker_Clean(t *testing.T) {
-	tempDir := t.TempDir()
+	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
 	dirName := "clean-test-dir"
 
 	cfg := &MemberConfig{
 		Config: Config{
-			VolumePath:   tempDir,
+			VolumePath:   tmpDir,
 			DirName:      dirName,
 			FileContents: "test-content",
 		},
@@ -337,7 +354,7 @@ func TestChecker_Clean(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify file exists
-	file := filepath.Join(tempDir, dirName, "test-id")
+	file := filepath.Join(tmpDir, dirName, "test-id")
 	_, err = os.Stat(file)
 	assert.NoError(t, err)
 
@@ -351,13 +368,15 @@ func TestChecker_Clean(t *testing.T) {
 }
 
 func TestChecker_Check(t *testing.T) {
-	tempDir := t.TempDir()
+	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	t.Run("successful check with expected files", func(t *testing.T) {
 		dirName := "success-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:   tempDir,
+				VolumePath:   tmpDir,
 				DirName:      dirName,
 				FileContents: "test-content",
 			},
@@ -377,9 +396,9 @@ func TestChecker_Check(t *testing.T) {
 		ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel3()
 		result := checker.Check(ctx3)
-		targetDir := filepath.Join(tempDir, dirName)
+		targetDir := filepath.Join(tmpDir, dirName)
 		assert.Equal(t, targetDir, result.Dir)
-		assert.Equal(t, "correctly read/wrote on \""+tempDir+"\"", result.Message)
+		assert.Equal(t, "correctly read/wrote on \""+tmpDir+"\"", result.Message)
 		assert.Empty(t, result.Error)
 	})
 
@@ -387,7 +406,7 @@ func TestChecker_Check(t *testing.T) {
 		dirName := "not-found-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:   tempDir,
+				VolumePath:   tmpDir,
 				DirName:      dirName,
 				FileContents: "test-content",
 			},
@@ -402,7 +421,7 @@ func TestChecker_Check(t *testing.T) {
 		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel2()
 		result := checker.Check(ctx2)
-		expectedDir := filepath.Join(tempDir, dirName)
+		expectedDir := filepath.Join(tmpDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
 		assert.Contains(t, result.Error, "failed to read file")
 		assert.Contains(t, result.Error, "no such file or directory")
@@ -444,7 +463,7 @@ func TestChecker_Check(t *testing.T) {
 		dirName := "timeout-read-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:   tempDir,
+				VolumePath:   tmpDir,
 				DirName:      dirName,
 				FileContents: "test-content",
 			},
@@ -467,7 +486,7 @@ func TestChecker_Check(t *testing.T) {
 		time.Sleep(10 * time.Millisecond) // Ensure context expires
 
 		result := checker.Check(timeoutCtx)
-		expectedDir := filepath.Join(tempDir, dirName)
+		expectedDir := filepath.Join(tmpDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
 		assert.Equal(t, "failed", result.Message)
 		assert.Contains(t, result.Error, "failed to read file")
@@ -479,7 +498,7 @@ func TestChecker_Check(t *testing.T) {
 		dirName := "canceled-read-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:   tempDir,
+				VolumePath:   tmpDir,
 				DirName:      dirName,
 				FileContents: "test-content",
 			},
@@ -501,7 +520,7 @@ func TestChecker_Check(t *testing.T) {
 		cancel() // Cancel immediately
 
 		result := checker.Check(canceledCtx)
-		expectedDir := filepath.Join(tempDir, dirName)
+		expectedDir := filepath.Join(tmpDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
 		assert.Equal(t, "failed", result.Message)
 		assert.Contains(t, result.Error, "failed to read file")
@@ -512,13 +531,15 @@ func TestChecker_Check(t *testing.T) {
 
 // TestChecker_Check_TimeoutErrorField tests the TimeoutError field in CheckResult
 func TestChecker_Check_TimeoutErrorField(t *testing.T) {
-	tempDir := t.TempDir()
+	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	t.Run("timeout error sets TimeoutError to true", func(t *testing.T) {
 		dirName := "timeout-error-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:   tempDir,
+				VolumePath:   tmpDir,
 				DirName:      dirName,
 				FileContents: "test-content",
 			},
@@ -541,7 +562,7 @@ func TestChecker_Check_TimeoutErrorField(t *testing.T) {
 		time.Sleep(10 * time.Millisecond) // Ensure context expires
 
 		result := checker.Check(timeoutCtx)
-		expectedDir := filepath.Join(tempDir, dirName)
+		expectedDir := filepath.Join(tmpDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
 		assert.Equal(t, "failed", result.Message)
 		assert.Contains(t, result.Error, "failed to read file")
@@ -553,7 +574,7 @@ func TestChecker_Check_TimeoutErrorField(t *testing.T) {
 		dirName := "canceled-error-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:   tempDir,
+				VolumePath:   tmpDir,
 				DirName:      dirName,
 				FileContents: "test-content",
 			},
@@ -575,7 +596,7 @@ func TestChecker_Check_TimeoutErrorField(t *testing.T) {
 		cancel() // Cancel immediately
 
 		result := checker.Check(canceledCtx)
-		expectedDir := filepath.Join(tempDir, dirName)
+		expectedDir := filepath.Join(tmpDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
 		assert.Equal(t, "failed", result.Message)
 		assert.Contains(t, result.Error, "failed to read file")
@@ -587,7 +608,7 @@ func TestChecker_Check_TimeoutErrorField(t *testing.T) {
 		dirName := "not-found-error-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:   tempDir,
+				VolumePath:   tmpDir,
 				DirName:      dirName,
 				FileContents: "test-content",
 			},
@@ -602,7 +623,7 @@ func TestChecker_Check_TimeoutErrorField(t *testing.T) {
 		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel2()
 		result := checker.Check(ctx2)
-		expectedDir := filepath.Join(tempDir, dirName)
+		expectedDir := filepath.Join(tmpDir, dirName)
 		assert.Equal(t, expectedDir, result.Dir)
 		assert.Equal(t, "failed", result.Message)
 		assert.Contains(t, result.Error, "failed to read file")
@@ -614,7 +635,7 @@ func TestChecker_Check_TimeoutErrorField(t *testing.T) {
 		dirName := "success-error-test-dir"
 		cfg := &MemberConfig{
 			Config: Config{
-				VolumePath:   tempDir,
+				VolumePath:   tmpDir,
 				DirName:      dirName,
 				FileContents: "test-content",
 			},
@@ -634,9 +655,9 @@ func TestChecker_Check_TimeoutErrorField(t *testing.T) {
 		ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel3()
 		result := checker.Check(ctx3)
-		targetDir := filepath.Join(tempDir, dirName)
+		targetDir := filepath.Join(tmpDir, dirName)
 		assert.Equal(t, targetDir, result.Dir)
-		assert.Equal(t, "correctly read/wrote on \""+tempDir+"\"", result.Message)
+		assert.Equal(t, "correctly read/wrote on \""+tmpDir+"\"", result.Message)
 		assert.Empty(t, result.Error)
 		assert.False(t, result.TimeoutError, "TimeoutError should be false for successful operation")
 	})
@@ -724,7 +745,9 @@ func TestChecker_TimeoutErrorField_ComprehensiveScenarios(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			tempDir := t.TempDir()
+			tempDir, err := os.MkdirTemp(t.TempDir(), "test")
+			require.NoError(t, err)
+
 			cfg := &MemberConfig{
 				Config: Config{
 					VolumePath:   tempDir,

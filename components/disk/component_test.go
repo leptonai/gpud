@@ -444,10 +444,11 @@ func TestMountTargetUsages(t *testing.T) {
 	}
 
 	t.Run("track mount target", func(t *testing.T) {
-		// Create a temp dir to use as mount target
-		tempDir := t.TempDir()
+		tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
 
-		c := createTestComponent(ctx, []string{}, []string{tempDir})
+		c := createTestComponent(ctx, []string{}, []string{tmpDir})
 		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -468,15 +469,16 @@ func TestMountTargetUsages(t *testing.T) {
 
 		assert.NotNil(t, lastCheckResult)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
-		assert.Contains(t, lastCheckResult.MountTargetUsages, tempDir)
-		assert.Equal(t, mockMountOutput, lastCheckResult.MountTargetUsages[tempDir])
+		assert.Contains(t, lastCheckResult.MountTargetUsages, tmpDir)
+		assert.Equal(t, mockMountOutput, lastCheckResult.MountTargetUsages[tmpDir])
 	})
 
 	t.Run("mount target error handling", func(t *testing.T) {
-		// Create a temp dir to use as mount target
-		tempDir := t.TempDir()
+		tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
 
-		c := createTestComponent(ctx, []string{}, []string{tempDir})
+		c := createTestComponent(ctx, []string{}, []string{tmpDir})
 		defer c.Close()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
