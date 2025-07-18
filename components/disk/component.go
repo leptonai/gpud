@@ -22,6 +22,7 @@ import (
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgfile "github.com/leptonai/gpud/pkg/file"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -49,14 +50,19 @@ type component struct {
 
 	mountPointsToTrackUsage map[string]struct{}
 
-	eventBucket eventstore.Bucket
-	kmsgSyncer  *kmsg.Syncer
+	rebootEventStore pkghost.RebootEventStore
+	eventBucket      eventstore.Bucket
+	kmsgSyncer       *kmsg.Syncer
+
+	// lookback period to query the past reboot + disk failure events
+	lookbackPeriod time.Duration
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
 
 const defaultRetryInterval = 5 * time.Second
+const defaultLookbackPeriod = 3 * 24 * time.Hour
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
@@ -65,6 +71,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cancel: ccancel,
 
 		retryInterval: defaultRetryInterval,
+
+		rebootEventStore: gpudInstance.RebootEventStore,
+		lookbackPeriod:   defaultLookbackPeriod,
 
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultExt4FsTypeFunc))
@@ -182,6 +191,159 @@ func (c *component) Close() error {
 	}
 
 	return nil
+}
+
+func (c *component) recordDiskFailureEvent(cr *checkResult, eventName string, message string) error {
+	ev := eventstore.Event{
+		Component: Name,
+		Time:      cr.ts,
+		Name:      eventName,
+		Type:      string(apiv1.EventTypeWarning),
+		Message:   message,
+	}
+
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+	found, err := c.eventBucket.Find(cctx, ev)
+	ccancel()
+	if err != nil {
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error finding disk failure event"
+		log.Logger.Warnw(cr.reason, "error", cr.err)
+		return err
+	}
+
+	if found != nil {
+		log.Logger.Infow("disk failure event already found in db", "event", eventName)
+		return nil
+	}
+
+	// persist in event store (as it hasn't been)
+	if err := c.eventBucket.Insert(c.ctx, ev); err != nil {
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error inserting disk failure event"
+		log.Logger.Warnw(cr.reason, "error", cr.err)
+		return err
+	}
+
+	log.Logger.Infow("inserted disk failure event to db", "event", eventName)
+	return nil
+}
+
+// evaluateSuggestedActions determines repair actions based on reboot history and disk failure events.
+// Suggests up to 2 reboots, otherwise suggests hardware inspection.
+//
+// Logic mirrors GPU counts component:
+// - Case 1: First disk failure (no previous reboots) → suggest reboot
+// - Case 2: Disk failure after 1 reboot → suggest second reboot
+// - Case 3: Disk failure after 2+ reboots → suggest hardware inspection
+func evaluateSuggestedActions(cr *checkResult, rebootEvents eventstore.Events, diskFailureEvents eventstore.Events) {
+	// since we just inserted the failure event before calling evaluateSuggestedActions
+	// this should never happen... but handle just in case!
+	if len(diskFailureEvents) == 0 {
+		cr.err = errors.New("no disk failure event found after insert")
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "no disk failure event found after insert"
+		log.Logger.Warnw(cr.reason, "error", cr.err)
+		return
+	}
+
+	if len(rebootEvents) == 0 {
+		// case 1. disk failure (first time); suggest "reboot"
+		// (no previous reboot found)
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		}
+		log.Logger.Warnw("disk failure event found but no reboot event found -- suggesting reboot")
+		return
+	}
+
+	// edge case:
+	// we just inserted above, before calling evaluateSuggestedActions
+	// assume reboot (if ever) happened before disk failure
+	// if there's no following disk failure event after reboot,
+	// we should ignore (reboot could have been triggered just now!)
+	firstRebootTime := rebootEvents[0].Time
+	firstFailureTime := diskFailureEvents[0].Time
+	if firstRebootTime.After(firstFailureTime) {
+		log.Logger.Warnw("no disk failure event found after reboot -- suggesting none")
+		return
+	}
+
+	// now it's guaranteed that we have at least
+	// one sequence of "disk failure -> reboot"
+	if len(rebootEvents) == 1 || len(diskFailureEvents) == 1 {
+		// there's been only one reboot event,
+		// so now we know there's only one possible sequence of
+		// "disk failure -> reboot"
+		//
+		// case 2.
+		// disk failure -> reboot
+		// -> disk failure; suggest second "reboot"
+		// (after first reboot, we still get disk failure)
+		//
+		// or there's been only one reboot + only one disk failure event; suggest second "reboot"
+		// (after first reboot, we still get disk failure)
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		}
+		log.Logger.Warnw("disk failure event found -- suggesting reboot", "rebootCount", len(rebootEvents), "failureCount", len(diskFailureEvents))
+		return
+	}
+
+	// now that we have >=2 reboot events AND >=2 disk failure events
+	// just check if there's been >=2 sequences of "reboot -> failure"
+	// since it's possible that "reboot -> reboot -> failure -> failure"
+	// which should only count as one sequence of "reboot -> failure"
+	failureToReboot := make(map[time.Time]time.Time)
+
+	for i := 0; i < len(diskFailureEvents); i++ {
+		failureTime := diskFailureEvents[i].Time
+
+		for j := 0; j < len(rebootEvents); j++ {
+			rebootTime := rebootEvents[j].Time
+
+			if failureTime.Before(rebootTime) {
+				continue
+			}
+
+			if _, ok := failureToReboot[failureTime]; ok {
+				// already seen this failure event with a corresponding reboot event
+				continue
+			}
+
+			failureToReboot[failureTime] = rebootTime
+		}
+	}
+
+	// case 3.
+	// disk failure -> reboot
+	// -> disk failure -> reboot
+	// -> disk failure; suggest "hw inspection"
+	// (after >=2 reboots, we still get disk failure)
+	if len(failureToReboot) >= 2 {
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeHardwareInspection,
+			},
+		}
+		log.Logger.Warnw("multiple reboot -> disk failure event sequences found -- suggesting hw inspection", "rebootCount", len(rebootEvents), "failureCount", len(failureToReboot))
+		return
+	}
+
+	// only one valid sequence of "reboot -> disk failure"
+	// still suggest "reboot"
+	cr.suggestedActions = &apiv1.SuggestedActions{
+		RepairActions: []apiv1.RepairActionType{
+			apiv1.RepairActionTypeRebootSystem,
+		},
+	}
+	log.Logger.Warnw("only one valid sequence of 'reboot -> disk failure' found -- suggesting reboot", "rebootCount", len(rebootEvents), "failureCount", len(diskFailureEvents))
 }
 
 func (c *component) Check() components.CheckResult {
@@ -340,6 +502,83 @@ func (c *component) Check() components.CheckResult {
 
 	log.Logger.Debugw(cr.reason, "extPartitions", len(cr.ExtPartitions), "nfsPartitions", len(cr.NFSPartitions), "blockDevices", len(cr.BlockDevices))
 
+	// Check for disk failure events from kmsg (only if event store is available)
+	if c.eventBucket != nil && c.rebootEventStore != nil {
+		// Query recent events to check for disk failures
+		recentEvents, err := c.eventBucket.Get(c.ctx, cr.ts.Add(-5*time.Minute))
+		if err != nil {
+			log.Logger.Warnw("failed to get recent events", "error", err)
+		} else {
+			// Check if we have any of the three critical disk failure events
+			var foundFailure bool
+			var failureEventName string
+			var failureMessage string
+
+			for _, ev := range recentEvents {
+				switch ev.Name {
+				case eventRAIDArrayFailure:
+					foundFailure = true
+					failureEventName = ev.Name // Use the original event name
+					failureMessage = "RAID array failure detected"
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					cr.reason = failureMessage
+				case eventFilesystemReadOnly:
+					foundFailure = true
+					failureEventName = ev.Name // Use the original event name
+					failureMessage = "Filesystem remounted read-only"
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					cr.reason = failureMessage
+				case eventNVMePathFailure:
+					foundFailure = true
+					failureEventName = ev.Name // Use the original event name
+					failureMessage = "NVMe path failure detected"
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					cr.reason = failureMessage
+				}
+
+				if foundFailure {
+					break
+				}
+			}
+
+			// If we found a disk failure, record it and evaluate suggested actions
+			if foundFailure {
+				if err := c.recordDiskFailureEvent(cr, failureEventName, failureMessage); err != nil {
+					// Error already handled in recordDiskFailureEvent
+					return cr
+				}
+
+				// Look up past events to derive the suggested actions
+				rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, cr.ts.Add(-c.lookbackPeriod))
+				if err != nil {
+					cr.err = err
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					log.Logger.Warnw("failed to get reboot events", "error", cr.err)
+					return cr
+				}
+
+				diskFailureEvents, err := c.eventBucket.Get(c.ctx, cr.ts.Add(-c.lookbackPeriod))
+				if err != nil {
+					cr.err = err
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					log.Logger.Warnw("failed to get disk failure events", "error", cr.err)
+					return cr
+				}
+
+				// Filter disk failure events to only include the hardware-related ones
+				var hardwareFailureEvents eventstore.Events
+				for _, ev := range diskFailureEvents {
+					if ev.Name == eventRAIDArrayFailure || ev.Name == eventFilesystemReadOnly || ev.Name == eventNVMePathFailure {
+						hardwareFailureEvents = append(hardwareFailureEvents, ev)
+					}
+				}
+
+				// Evaluate the suggested actions (along with the reboot history)
+				evaluateSuggestedActions(cr, rebootEvents, hardwareFailureEvents)
+			}
+		}
+	}
+
 	return cr
 }
 
@@ -464,6 +703,8 @@ type checkResult struct {
 
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
+	// tracks the suggested actions for the last check
+	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
 }
@@ -552,6 +793,13 @@ func (cr *checkResult) getError() string {
 	return cr.err.Error()
 }
 
+func (cr *checkResult) getSuggestedActions() *apiv1.SuggestedActions {
+	if cr == nil {
+		return nil
+	}
+	return cr.suggestedActions
+}
+
 func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
@@ -566,12 +814,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.getSuggestedActions(),
 	}
 
 	if len(cr.ExtPartitions) > 0 && len(cr.BlockDevices) > 0 {
