@@ -12,9 +12,9 @@ import (
 )
 
 func TestStatWithTimeout_Success(t *testing.T) {
-	// Create a temporary directory for testing
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	// Create a file in the directory
 	testFile := filepath.Join(tmpDir, "testfile")
@@ -32,9 +32,9 @@ func TestStatWithTimeout_Success(t *testing.T) {
 }
 
 func TestStatWithTimeout_Timeout(t *testing.T) {
-	// Create a temporary directory for testing
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	// Create a file in the directory
 	testFile := filepath.Join(tmpDir, "testfile")
@@ -54,9 +54,9 @@ func TestStatWithTimeout_Timeout(t *testing.T) {
 }
 
 func TestStatWithTimeout_ContextCanceled(t *testing.T) {
-	// Create a temporary directory for testing
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	// Create a file in the directory
 	testFile := filepath.Join(tmpDir, "testfile")
@@ -89,6 +89,7 @@ func TestMkdirAllWithTimeout_Success(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	testPath := filepath.Join(tmpDir, "test", "nested", "dir")
 
@@ -109,6 +110,7 @@ func TestMkdirAllWithTimeout_Timeout(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	// Test timeout scenario
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
@@ -125,6 +127,7 @@ func TestWriteFileWithTimeout_Success(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	testFile := filepath.Join(tmpDir, "test.txt")
 	testData := []byte("test content")
@@ -146,6 +149,7 @@ func TestWriteFileWithTimeout_Timeout(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	// Test timeout scenario
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
@@ -162,6 +166,7 @@ func TestWriteFileWithTimeout_Canceled(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	// Test canceled context scenario
 	ctx, cancel := context.WithCancel(context.Background())
@@ -177,6 +182,7 @@ func TestReadFileWithTimeout_Success(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	testFile := filepath.Join(tmpDir, "test.txt")
 	testData := []byte("test content")
@@ -197,6 +203,7 @@ func TestReadFileWithTimeout_FileNotFound(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	// Test file not found
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -211,6 +218,7 @@ func TestReadFileWithTimeout_Timeout(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	testFile := filepath.Join(tmpDir, "test.txt")
 	require.NoError(t, os.WriteFile(testFile, []byte("content"), 0644))
@@ -230,6 +238,7 @@ func TestReadFileWithTimeout_Canceled(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	testFile := filepath.Join(tmpDir, "test.txt")
 	require.NoError(t, os.WriteFile(testFile, []byte("content"), 0644))
@@ -250,6 +259,7 @@ func TestAllOperationsWithContextScenarios(t *testing.T) {
 
 	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
 	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
 
 	tests := []struct {
 		name      string
