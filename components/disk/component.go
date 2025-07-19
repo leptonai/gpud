@@ -509,7 +509,7 @@ func (c *component) Check() components.CheckResult {
 		if err != nil {
 			log.Logger.Warnw("failed to get recent events", "error", err)
 		} else {
-			// Check if we have any of the three critical disk failure events
+			// Check if we have any critical disk failure events
 			var foundFailure bool
 			var failureEventName string
 			var failureMessage string
@@ -532,6 +532,30 @@ func (c *component) Check() components.CheckResult {
 					foundFailure = true
 					failureEventName = ev.Name // Use the original event name
 					failureMessage = "NVMe path failure detected"
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					cr.reason = failureMessage
+				case eventNVMeTimeout:
+					foundFailure = true
+					failureEventName = ev.Name // Use the original event name
+					failureMessage = "NVME controller timeout detected"
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					cr.reason = failureMessage
+				case eventNVMeDeviceDisabled:
+					foundFailure = true
+					failureEventName = ev.Name // Use the original event name
+					failureMessage = "NVME device disabled after reset failure"
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					cr.reason = failureMessage
+				case eventBeyondEndOfDevice:
+					foundFailure = true
+					failureEventName = ev.Name // Use the original event name
+					failureMessage = "I/O beyond device boundaries detected"
+					cr.health = apiv1.HealthStateTypeUnhealthy
+					cr.reason = failureMessage
+				case eventBufferIOError:
+					foundFailure = true
+					failureEventName = ev.Name // Use the original event name
+					failureMessage = "Buffer I/O error detected"
 					cr.health = apiv1.HealthStateTypeUnhealthy
 					cr.reason = failureMessage
 				}
@@ -568,7 +592,13 @@ func (c *component) Check() components.CheckResult {
 				// Filter disk failure events to only include the hardware-related ones
 				var hardwareFailureEvents eventstore.Events
 				for _, ev := range diskFailureEvents {
-					if ev.Name == eventRAIDArrayFailure || ev.Name == eventFilesystemReadOnly || ev.Name == eventNVMePathFailure {
+					if ev.Name == eventRAIDArrayFailure ||
+						ev.Name == eventFilesystemReadOnly ||
+						ev.Name == eventNVMePathFailure ||
+						ev.Name == eventNVMeTimeout ||
+						ev.Name == eventNVMeDeviceDisabled ||
+						ev.Name == eventBeyondEndOfDevice ||
+						ev.Name == eventBufferIOError {
 						hardwareFailureEvents = append(hardwareFailureEvents, ev)
 					}
 				}
