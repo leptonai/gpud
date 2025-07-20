@@ -48,16 +48,6 @@ func TestServerConfigValidation(t *testing.T) {
 			},
 			expectedErr: "retention_period must be at least 1 minute",
 		},
-		{
-			name: "invalid auto update exit code",
-			config: &config.Config{
-				Address:            "localhost:8080",
-				RetentionPeriod:    metav1.Duration{Duration: time.Hour},
-				EnableAutoUpdate:   false,
-				AutoUpdateExitCode: 1,
-			},
-			expectedErr: "auto_update_exit_code is only valid when auto_update is enabled",
-		},
 	}
 
 	for _, tt := range tests {

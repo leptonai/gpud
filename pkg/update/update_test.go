@@ -14,7 +14,7 @@ func TestUpdate(t *testing.T) {
 	}
 
 	// Should fail with non-root error
-	err := Update("0.0.1", DefaultUpdateURL)
+	err := UpdateExecutable("0.0.1", DefaultUpdateURL, true)
 	if err == nil {
 		t.Error("Expected error when running Update as non-root")
 	}
@@ -23,7 +23,7 @@ func TestUpdate(t *testing.T) {
 // TestUpdateOnlyBinary tests the UpdateOnlyBinary function signature
 func TestUpdateOnlyBinary(t *testing.T) {
 	// This should fail with download error
-	err := UpdateOnlyBinary("0.0.1", DefaultUpdateURL)
+	err := UpdateExecutable("0.0.1", DefaultUpdateURL, false)
 	if err == nil {
 		t.Error("Expected error when running UpdateOnlyBinary")
 	}

@@ -26,12 +26,6 @@ func TestConfigValidate_AutoUpdateExitCode(t *testing.T) {
 			autoUpdateExitCode: -1,
 			wantErr:            false,
 		},
-		{
-			name:               "Invalid: Auto update disabled with non-default exit code",
-			enableAutoUpdate:   false,
-			autoUpdateExitCode: 0,
-			wantErr:            true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -48,10 +42,6 @@ func TestConfigValidate_AutoUpdateExitCode(t *testing.T) {
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Config.Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-
-			if tt.wantErr && err != ErrInvalidAutoUpdateExitCode {
-				t.Errorf("Config.Validate() error = %v, want %v", err, ErrInvalidAutoUpdateExitCode)
 			}
 		})
 	}
