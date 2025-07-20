@@ -51,11 +51,16 @@ var (
 		"/usr/lib/aarch64-linux-gnu",
 		"/usr/lib/x86_64-linux-gnu/nvidia/current",
 		"/usr/lib/aarch64-linux-gnu/nvidia/current",
+		// Note(Yangqing): the following path is added to support the case of Jetson Orin where
+		// the libraries are installed in /usr/lib/aarch64-linux-gnu/nvidia without the "current" symlink.
+		"/usr/lib/aarch64-linux-gnu/nvidia",
 		"/lib64",
 		"/lib/x86_64-linux-gnu",
 		"/lib/aarch64-linux-gnu",
 		"/lib/x86_64-linux-gnu/nvidia/current",
 		"/lib/aarch64-linux-gnu/nvidia/current",
+		// Note(Yangqing): similar to the "/usr/lib/aarch64-linux-gnu/nvidia" above.
+		"/lib/aarch64-linux-gnu/nvidia",
 	}
 )
 
