@@ -27,6 +27,10 @@ type mockRebootEventStore struct {
 	events eventstore.Events
 }
 
+func (m *mockRebootEventStore) RecordRebootReason(ctx context.Context, reason string) error {
+	return nil
+}
+
 func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }
@@ -37,6 +41,10 @@ func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.T
 
 // errRebootEventStore is a mock implementation that always returns an error
 type errRebootEventStore struct{}
+
+func (m *errRebootEventStore) RecordRebootReason(ctx context.Context, reason string) error {
+	return errors.New("mock event store error")
+}
 
 func (m *errRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil

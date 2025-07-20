@@ -3,7 +3,7 @@ package host
 import (
 	"context"
 	"fmt"
-	"sort"
+	"strings"
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -14,11 +14,20 @@ import (
 const (
 	EventBucketName = "os"
 	EventNameReboot = "reboot"
+
+	// EventNameRebootReason is the event name for the reboot request.
+	// Only the known events by the session will be recorded.
+	// Other reboot events are not tracked by these events.
+	EventNameRebootReason = "reboot_reason"
 )
 
 // RebootEventStore is the interface for the reboot event store.
 // It is used to record and query reboot events.
 type RebootEventStore interface {
+	// RecordRebootReason records a reboot reason, when we definitely know
+	// why reboot is triggered.
+	RecordRebootReason(ctx context.Context, reason string) error
+
 	// RecordReboot records a reboot event, with the event name [EventNameReboot],
 	// in the bucket [EventBucketName].
 	RecordReboot(ctx context.Context) error
@@ -44,12 +53,41 @@ func NewRebootEventStore(eventStore eventstore.Store) RebootEventStore {
 	}
 }
 
+func (s *rebootEventStore) RecordRebootReason(ctx context.Context, reason string) error {
+	return recordReason(ctx, s.eventStore, time.Now().UTC(), reason)
+}
+
 func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
 	return recordEvent(ctx, s.eventStore, time.Now().UTC(), s.getLastRebootTime)
 }
 
 func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return getEvents(ctx, s.eventStore, since)
+}
+
+func recordReason(ctx context.Context, rebootEventStore eventstore.Store, now time.Time, reason string) error {
+	curRebootEvent := eventstore.Event{
+		Time:    now,
+		Name:    EventNameRebootReason,
+		Type:    string(apiv1.EventTypeInfo),
+		Message: reason,
+	}
+
+	bucket, err := rebootEventStore.Bucket(EventBucketName, eventstore.WithDisablePurge())
+	if err != nil {
+		return err
+	}
+	defer bucket.Close()
+
+	existing, err := bucket.Find(ctx, curRebootEvent)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return nil
+	}
+
+	return bucket.Insert(ctx, curRebootEvent)
 }
 
 func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now time.Time, getLastRebootTime func(context.Context) (time.Time, error)) error {
@@ -131,16 +169,24 @@ func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time
 	all := make(eventstore.Events, 0, len(allOSEvents)/2)
 	for _, ev := range allOSEvents {
 		// The returned events should NOT include other events from the "os" component (e.g., kmsg watcher).
-		if ev.Name != EventNameReboot {
-			continue
+		switch ev.Name {
+		case EventNameReboot:
+			all = append(all, ev)
+
+		case EventNameRebootReason:
+			// "allOSEvents" are already sorted in the descending order of timestamp (latest event first)
+			// thus we just update the last event
+			if len(all) > 0 {
+				lastEv := all[len(all)-1]
+				if !strings.Contains(lastEv.Message, ev.Message) {
+					lastEv.Message += fmt.Sprintf(" (reboot reason: %s)", ev.Message)
+					all[len(all)-1] = lastEv
+				}
+			}
 		}
-		all = append(all, ev)
 	}
 
-	// The returned events are in the descending order of timestamp (latest event first).
-	sort.Slice(all, func(i, j int) bool {
-		return all[i].Time.After(all[j].Time)
-	})
+	// The returned events are already in the descending order of timestamp (latest event first).
 
 	return all, nil
 }

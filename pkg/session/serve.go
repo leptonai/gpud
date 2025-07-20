@@ -123,6 +123,10 @@ func (s *Session) serve() {
 
 		switch payload.Method {
 		case "reboot":
+			if err := s.rebootEventStore.RecordRebootReason(s.ctx, "reboot requested by session"); err != nil {
+				log.Logger.Warnw("failed to record reboot reason", "error", err)
+			}
+
 			// To inform the control plane that the reboot request has been processed, reboot after 10 seconds.
 			err := pkghost.Reboot(s.ctx, pkghost.WithDelaySeconds(10))
 			if err != nil {

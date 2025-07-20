@@ -497,6 +497,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
+			session.WithRebootEventStore(s.gpudInstance.RebootEventStore),
 			session.WithMetricsStore(metricsStore),
 			session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
 				return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)
@@ -555,6 +556,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
+				session.WithRebootEventStore(s.gpudInstance.RebootEventStore),
 				session.WithMetricsStore(metricsStore),
 				session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
 					return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)

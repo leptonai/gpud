@@ -893,6 +893,10 @@ type mockRebootEventStore struct {
 	getRebootEventsError error
 }
 
+func (m *mockRebootEventStore) RecordRebootReason(ctx context.Context, reason string) error {
+	return nil
+}
+
 func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if m.getRebootEventsError != nil {
 		return nil, m.getRebootEventsError

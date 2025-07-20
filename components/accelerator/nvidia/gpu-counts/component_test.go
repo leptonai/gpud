@@ -88,6 +88,10 @@ type mockRebootEventStore struct {
 // Ensure mockRebootEventStore implements pkghost.RebootEventStore
 var _ pkghost.RebootEventStore = (*mockRebootEventStore)(nil)
 
+func (m *mockRebootEventStore) RecordRebootReason(ctx context.Context, reason string) error {
+	return nil
+}
+
 func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
 	return nil
 }

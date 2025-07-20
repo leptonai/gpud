@@ -19,6 +19,7 @@ import (
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -36,6 +37,7 @@ type Op struct {
 	autoUpdateExitCode  int
 	componentsRegistry  components.Registry
 	nvmlInstance        nvidianvml.Instance
+	rebootEventStore    pkghost.RebootEventStore
 	metricsStore        pkgmetrics.Store
 	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
 	faultInjector       pkgfaultinjector.Injector
@@ -99,6 +101,12 @@ func WithNvidiaInstance(nvmlInstance nvidianvml.Instance) OpOption {
 	}
 }
 
+func WithRebootEventStore(rebootEventStore pkghost.RebootEventStore) OpOption {
+	return func(op *Op) {
+		op.rebootEventStore = rebootEventStore
+	}
+}
+
 func WithMetricsStore(metricsStore pkgmetrics.Store) OpOption {
 	return func(op *Op) {
 		op.metricsStore = metricsStore
@@ -150,6 +158,7 @@ type Session struct {
 	setDefaultNFSGroupConfigsFunc      func(cfgs pkgnfschecker.Configs)
 
 	nvmlInstance       nvidianvml.Instance
+	rebootEventStore   pkghost.RebootEventStore
 	metricsStore       pkgmetrics.Store
 	componentsRegistry components.Registry
 	processRunner      process.Runner
@@ -220,6 +229,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		setDefaultNFSGroupConfigsFunc:      componentsnfs.SetDefaultConfigs,
 
 		nvmlInstance:       op.nvmlInstance,
+		rebootEventStore:   op.rebootEventStore,
 		metricsStore:       op.metricsStore,
 		componentsRegistry: op.componentsRegistry,
 		processRunner:      process.NewExclusiveRunner(),
