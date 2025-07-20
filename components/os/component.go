@@ -24,6 +24,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	pkghostevents "github.com/leptonai/gpud/pkg/host/events"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
@@ -54,7 +55,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	rebootEventStore pkghost.RebootEventStore
+	rebootEventStore pkghostevents.RebootsStore
 	eventBucket      eventstore.Bucket
 	kmsgSyncer       *kmsg.Syncer
 
@@ -190,7 +191,7 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 				// to prevent duplicate events
 				// since "reboot" events and "os" events
 				// share the same event store bucket "os"
-				if ev.Name == pkghost.EventNameReboot {
+				if ev.Name == pkghostevents.RebootEventName {
 					continue
 				}
 				events = append(events, ev.ToEvent())
@@ -204,7 +205,7 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	// only the "reboot" events from the "os" bucket
 	// thus there should be no overlap between "eventBucket" and "rebootEventStore"
 	if c.rebootEventStore != nil {
-		rebootEvents, err := c.rebootEventStore.GetRebootEvents(ctx, since)
+		rebootEvents, err := c.rebootEventStore.Get(ctx, since)
 		if err != nil {
 			return nil, err
 		}

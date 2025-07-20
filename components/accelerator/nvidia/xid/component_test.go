@@ -15,7 +15,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
+	pkghostevents "github.com/leptonai/gpud/pkg/host/events"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
@@ -170,7 +170,9 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	bucket, err := store.Bucket(pkghostevents.RebootBucketName)
+	assert.NoError(t, err)
+	rebootEventStore := pkghostevents.NewRebootsStore(bucket)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -208,7 +210,9 @@ func TestXIDComponent_Events(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	bucket, err := store.Bucket(pkghostevents.RebootBucketName)
+	assert.NoError(t, err)
+	rebootEventStore := pkghostevents.NewRebootsStore(bucket)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -276,7 +280,9 @@ func TestXIDComponent_States(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	bucket, err := store.Bucket(pkghostevents.RebootBucketName)
+	assert.NoError(t, err)
+	rebootEventStore := pkghostevents.NewRebootsStore(bucket)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -735,7 +741,9 @@ func TestUpdateCurrentState(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	bucket, err := store.Bucket(pkghostevents.RebootBucketName)
+	assert.NoError(t, err)
+	rebootEventStore := pkghostevents.NewRebootsStore(bucket)
 
 	gpudInstance := &components.GPUdInstance{
 		RootCtx:          ctx,
@@ -1106,7 +1114,9 @@ func TestHandleEventChannel(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	bucket, err := store.Bucket(pkghostevents.RebootBucketName)
+	assert.NoError(t, err)
+	rebootEventStore := pkghostevents.NewRebootsStore(bucket)
 
 	// Create a mock NVML instance for testing
 	mockedNVML := createMockNVMLInstance()
@@ -1226,7 +1236,9 @@ func TestStartWithXID63And64Skipping(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	bucket, err := store.Bucket(pkghostevents.RebootBucketName)
+	assert.NoError(t, err)
+	rebootEventStore := pkghostevents.NewRebootsStore(bucket)
 
 	// Create a mock NVML instance with row remapping support
 	mockedNVML := createMockNVMLInstanceWithRowRemapping()
@@ -1338,7 +1350,9 @@ func TestStartWithXID63And64NotSkippedWhenNoRowRemapping(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	bucket, err := store.Bucket(pkghostevents.RebootBucketName)
+	assert.NoError(t, err)
+	rebootEventStore := pkghostevents.NewRebootsStore(bucket)
 
 	// Create a mock NVML instance WITHOUT row remapping support
 	mockedNVML := createMockNVMLInstance()

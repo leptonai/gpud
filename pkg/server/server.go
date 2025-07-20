@@ -38,6 +38,7 @@ import (
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	pkghostevents "github.com/leptonai/gpud/pkg/host/events"
 	"github.com/leptonai/gpud/pkg/httputil"
 	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/log"
@@ -58,6 +59,8 @@ type Server struct {
 
 	dbRW *sql.DB
 	dbRO *sql.DB
+
+	rebootBucket eventstore.Bucket
 
 	// initRegistry is the registry for init plugins
 	// that runs before the regular components
@@ -133,11 +136,15 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to open events database: %w", err)
 	}
 
-	rebootEventStore := pkghost.NewRebootEventStore(eventStore)
+	rebootBucket, err := eventStore.Bucket(pkghostevents.RebootBucketName, eventstore.WithDisablePurge())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reboot bucket: %w", err)
+	}
+	rebootEventStore := pkghostevents.NewRebootsStore(rebootBucket)
 
 	// only record once when we create the server instance
 	cctx, ccancel := context.WithTimeout(ctx, time.Minute)
-	err = rebootEventStore.RecordReboot(cctx)
+	err = rebootEventStore.Record(cctx)
 	ccancel()
 	if err != nil {
 		log.Logger.Errorw("failed to record reboot", "error", err)
@@ -166,6 +173,8 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 
 		dbRW: dbRW,
 		dbRO: dbRO,
+
+		rebootBucket: rebootBucket,
 
 		fifoPath: fifoPath,
 
@@ -344,6 +353,10 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 func (s *Server) Stop() {
 	if s.session != nil {
 		s.session.Stop()
+	}
+
+	if s.rebootBucket != nil {
+		s.rebootBucket.Close()
 	}
 
 	if s.componentsRegistry != nil {
