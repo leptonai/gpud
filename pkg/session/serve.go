@@ -118,7 +118,7 @@ func (s *Session) serve() {
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 
-		needExit := -1
+		restartExitCode := -1
 		response := &Response{}
 
 		switch payload.Method {
@@ -257,22 +257,19 @@ func (s *Session) serve() {
 						response.Error = uerr.Error()
 						break
 					}
-					uerr := update.Update(nextVersion, update.DefaultUpdateURL)
-					if uerr != nil {
-						response.Error = uerr.Error()
-					}
-					break
 				}
 
-				if s.autoUpdateExitCode != -1 {
-					uerr := update.UpdateOnlyBinary(nextVersion, update.DefaultUpdateURL)
-					if uerr != nil {
-						response.Error = uerr.Error()
-					}
-					if response.Error == "" {
-						needExit = s.autoUpdateExitCode
-						log.Logger.Infow("scheduling auto exit for auto update", "code", needExit)
-					}
+				// even if it's systemd managed, it's using "Restart=always"
+				// thus we simply exit the process to trigger the restart
+				// do not use "systemctl restart gpud.service"
+				// as it immediately restarts the service,
+				// failing to respond to the control plane
+				uerr := update.UpdateExecutable(nextVersion, update.DefaultUpdateURL, systemdManaged)
+				if uerr != nil {
+					response.Error = uerr.Error()
+				} else {
+					restartExitCode = s.autoUpdateExitCode
+					log.Logger.Infow("scheduled process exit for auto update", "code", restartExitCode)
 				}
 			}
 
@@ -411,7 +408,8 @@ func (s *Session) serve() {
 		case "setPluginSpecs":
 			exitCode := s.processSetPluginSpecs(ctx, response, payload.CustomPluginSpecs)
 			if exitCode != nil {
-				needExit = *exitCode
+				restartExitCode = *exitCode
+				log.Logger.Infow("scheduled process exit for plugin specs update", "code", restartExitCode)
 			}
 
 		case "getPluginSpecs":
@@ -436,15 +434,20 @@ func (s *Session) serve() {
 			log.WithData(response),
 		)
 
-		if needExit != -1 {
+		if restartExitCode != -1 {
 			go func() {
-				log.Logger.Infow("exiting with code", "code", needExit)
+				log.Logger.Infow("process exiting as scheduled", "code", restartExitCode)
 				select {
 				case <-s.ctx.Done():
 				case <-time.After(10 * time.Second):
 					// enough time to send response back to control plane
 				}
 
+				s.auditLogger.Log(
+					log.WithKind("AutoUpdateRestart"),
+					log.WithAuditID(body.ReqID),
+					log.WithMachineID(s.machineID),
+				)
 				os.Exit(s.autoUpdateExitCode)
 			}()
 		}
