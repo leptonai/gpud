@@ -30,16 +30,8 @@ var (
 	// Kernel panic regex patterns
 	// ref. https://cloud.google.com/compute/docs/troubleshooting/kernel-panic
 	kernelPanicStartRegexps = []*regexp.Regexp{
-		// e.g., Kernel panic - not syncing: hung_task: blocked tasks
-		regexp.MustCompile(`Kernel panic - not syncing: hung_task: blocked tasks`),
-		// e.g., Kernel Panic - not syncing: VFS: Unable to mount root fs on unknown-block(0,0)
-		regexp.MustCompile(`Kernel [Pp]anic - not syncing: VFS: Unable to mount root fs on unknown-block\(\d+,\d+\)`),
-		// e.g., Kernel panic - not syncing: NMI: Not continuing
-		regexp.MustCompile(`Kernel panic - not syncing: NMI: Not continuing`),
-		// e.g., Kernel panic - not syncing: out of memory. panic_on_oom is selected
-		regexp.MustCompile(`Kernel panic - not syncing: out of memory\. panic_on_oom is selected`),
-		// e.g., Kernel panic - not syncing: Fatal Machine check
-		regexp.MustCompile(`Kernel panic - not syncing: Fatal Machine check`),
+		// Match "Kernel panic" or "Kernel Panic" (case insensitive for 'P')
+		regexp.MustCompile(`Kernel [Pp]anic`),
 	}
 
 	// e.g., CPU: 24 PID: 1364 Comm: khungtaskd Tainted: P           OE     5.15.0-1053-nvidia #54-Ubuntu
@@ -77,22 +69,34 @@ func createKernelPanicMatchFunc() func(line string) (eventName string, message s
 	// Track state across multiple lines
 	readingPanicMessages := false
 	var panicCurrentInstance *KernelPanicInstance
+	linesReadSincePanicStart := 0
+	const maxLinesAfterPanicStart = 10 // Look for CPU/PID info within 10 lines
 
 	return func(line string) (eventName string, message string) {
 		// Check if this is the start of a new kernel panic
 		isNewPanicStart := checkIfStartOfPanicMessages(line)
 
 		if isNewPanicStart {
+			// If we were already reading panic messages but found a new panic,
+			// return the previous panic event without CPU/PID info
+			if readingPanicMessages {
+				eventName = eventNameKernelPanic
+				message = "Kernel panic detected (no CPU/PID info found)"
+			}
+
 			// Start tracking a new panic event
 			readingPanicMessages = true
 			panicCurrentInstance = &KernelPanicInstance{}
-			return "", ""
+			linesReadSincePanicStart = 0
+			return eventName, message
 		}
 
 		// If not reading panic messages, ignore this line
 		if !readingPanicMessages {
 			return "", ""
 		}
+
+		linesReadSincePanicStart++
 
 		// Try to extract CPU and PID information
 		cpuPIDFound := extractCPUandPID(line, panicCurrentInstance)
@@ -104,6 +108,19 @@ func createKernelPanicMatchFunc() func(line string) (eventName string, message s
 			// Reset state
 			readingPanicMessages = false
 			panicCurrentInstance = nil
+			linesReadSincePanicStart = 0
+			return eventName, message
+		}
+
+		// If we've read too many lines without finding CPU/PID, return the panic event anyway
+		if linesReadSincePanicStart >= maxLinesAfterPanicStart {
+			eventName = eventNameKernelPanic
+			message = "Kernel panic detected (no CPU/PID info found)"
+
+			// Reset state
+			readingPanicMessages = false
+			panicCurrentInstance = nil
+			linesReadSincePanicStart = 0
 			return eventName, message
 		}
 

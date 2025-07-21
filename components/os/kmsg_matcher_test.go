@@ -458,11 +458,11 @@ func TestKernelPanicHelperFunctions(t *testing.T) {
 			{"[  456.789012] Kernel panic - not syncing: Fatal Machine check", true},
 
 			// Non-matching patterns
-			{"Kernel panic - not syncing: something else", false},
+			{"Kernel panic - not syncing: something else", true}, // matches Kernel [Pp]anic regex
 			{"Some other log message", false},
 			{"panic: something", false},
-			{"VFS: Unable to mount root fs", false},                     // missing "Kernel panic" prefix
-			{"Kernel panic - syncing: hung_task: blocked tasks", false}, // missing "not"
+			{"VFS: Unable to mount root fs", false},                    // missing "Kernel panic" prefix
+			{"Kernel panic - syncing: hung_task: blocked tasks", true}, // matches Kernel [Pp]anic regex
 		}
 
 		for _, tt := range tests {
@@ -685,7 +685,7 @@ func TestKernelPanicStatefulMatcher(t *testing.T) {
 			}{
 				{"Kernel panic - not syncing: out of memory. panic_on_oom is selected", "", ""},
 				{"Some log", "", ""},
-				{"Kernel panic - not syncing: hung_task: blocked tasks", "", ""}, // New panic starts
+				{"Kernel panic - not syncing: hung_task: blocked tasks", eventNameKernelPanic, "Kernel panic detected (no CPU/PID info found)"}, // New panic starts, returns previous incomplete panic
 				{"CPU: 5 PID: 500 Comm: test3", eventNameKernelPanic, "Kernel panic detected - CPU: 5, PID: 500, Process: test3"},
 			},
 		},
