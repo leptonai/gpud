@@ -46,6 +46,8 @@ const (
 
 	defaultMaxRunningPIDsPctDegraded  = 80.0
 	defaultMaxRunningPIDsPctUnhealthy = 95.0
+
+	defaultLookbackPeriod = 3 * 24 * time.Hour
 )
 
 var _ components.Component = &component{}
@@ -62,6 +64,7 @@ type component struct {
 	zombieProcessCountThresholdDegraded  int
 	zombieProcessCountThresholdUnhealthy int
 
+	getTimeNowFunc                func() time.Time
 	getHostUptimeFunc             func(ctx context.Context) (uint64, error)
 	getFileHandlesFunc            func() (uint64, uint64, error)
 	countRunningPIDsFunc          func() (uint64, error)
@@ -84,6 +87,9 @@ type component struct {
 	maxRunningPIDsPctDegraded  float64
 	maxRunningPIDsPctUnhealthy float64
 
+	// lookback period to query the past reboot + kernel panic events
+	lookbackPeriod time.Duration
+
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
@@ -100,6 +106,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		zombieProcessCountThresholdDegraded:  defaultZombieProcessCountThresholdDegraded,
 		zombieProcessCountThresholdUnhealthy: defaultZombieProcessCountThresholdUnhealthy,
 
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		getHostUptimeFunc:             host.UptimeWithContext,
 		getFileHandlesFunc:            file.GetFileHandles,
 		countRunningPIDsFunc:          process.CountRunningPids,
@@ -115,6 +124,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		maxRunningPIDs:             DefaultMaxRunningPIDs,
 		maxRunningPIDsPctDegraded:  defaultMaxRunningPIDsPctDegraded,
 		maxRunningPIDsPctUnhealthy: defaultMaxRunningPIDsPctUnhealthy,
+
+		lookbackPeriod: defaultLookbackPeriod,
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -243,7 +254,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking os")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 
 		VirtualizationEnvironment: pkghost.VirtualizationEnv(),
 		SystemManufacturer:        pkghost.SystemManufacturer(),
@@ -431,6 +442,13 @@ func (c *component) Check() components.CheckResult {
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "ok"
 
+	// Check for kernel panic events and apply reboot history logic
+	// NOTE: if kernel panic events are found right after this,
+	// we won't be able to detect but next iteration will do so
+	if c.eventBucket != nil && c.rebootEventStore != nil {
+		c.checkKernelPanicWithRebootHistory(cr)
+	}
+
 	return cr
 }
 
@@ -611,4 +629,160 @@ func calcUsagePct(usage, limit uint64) float64 {
 		return float64(usage) / float64(limit) * 100
 	}
 	return 0
+}
+
+func (c *component) checkKernelPanicWithRebootHistory(cr *checkResult) {
+	// Look up kernel panic events from the past lookback period
+	now := c.getTimeNowFunc()
+	since := now.Add(-c.lookbackPeriod)
+
+	allEvents, err := c.eventBucket.Get(c.ctx, since)
+	if err != nil {
+		log.Logger.Warnw("failed to get events for kernel panic check", "error", err)
+		return
+	}
+
+	// Filter to get only kernel panic events
+	var kernelPanicEvents eventstore.Events
+	for _, ev := range allEvents {
+		if ev.Name == eventNameKernelPanic {
+			kernelPanicEvents = append(kernelPanicEvents, ev)
+		}
+	}
+
+	// If no kernel panic events, nothing to do
+	if len(kernelPanicEvents) == 0 {
+		return
+	}
+
+	// Found kernel panic events, get reboot events
+	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, since)
+	if err != nil {
+		log.Logger.Warnw("failed to get reboot events for kernel panic check", "error", err)
+		return
+	}
+
+	// Get the most recent kernel panic event
+	var mostRecentPanic eventstore.Event
+	for _, ev := range kernelPanicEvents {
+		if mostRecentPanic.Time.IsZero() || ev.Time.After(mostRecentPanic.Time) {
+			mostRecentPanic = ev
+		}
+	}
+
+	// Check if there's a reboot after the most recent kernel panic
+	rebootAfterPanic := false
+	for _, reboot := range rebootEvents {
+		if reboot.Time.After(mostRecentPanic.Time) {
+			rebootAfterPanic = true
+			break
+		}
+	}
+
+	// If there's been a reboot after the last panic, system might have recovered
+	if rebootAfterPanic {
+		return
+	}
+
+	// Set unhealthy state due to kernel panic
+	cr.health = apiv1.HealthStateTypeUnhealthy
+	cr.reason = "kernel panic detected"
+
+	// Evaluate suggested actions based on reboot history
+	evaluateKernelPanicSuggestedActions(cr, rebootEvents, kernelPanicEvents)
+}
+
+// evaluateKernelPanicSuggestedActions suggests up to reboot up to twice, otherwise, suggest hw inspection
+//
+// case 0.
+// kernel panic* -> reboot
+// -> no kernel panic;
+// whether there was kernel panic in the past, if there's no kernel panic now,
+// no action needed (reboot may have resolved the issue)
+//
+// case 1. kernel panic (first time); suggest "reboot"
+// (no previous reboot found)
+//
+// case 2.
+// kernel panic -> reboot
+// -> kernel panic; suggest second "reboot"
+// (after first reboot, we still get kernel panic)
+//
+// case 3.
+// kernel panic -> reboot
+// -> kernel panic -> reboot
+// -> kernel panic; suggest "hw inspection"
+// (after >=2 reboots, we still get kernel panic)
+func evaluateKernelPanicSuggestedActions(cr *checkResult, rebootEvents eventstore.Events, kernelPanicEvents eventstore.Events) {
+	if len(kernelPanicEvents) == 0 {
+		// This should not happen as we already checked, but handle just in case
+		return
+	}
+
+	if len(rebootEvents) == 0 {
+		// case 1. kernel panic (first time); suggest "reboot"
+		// (no previous reboot found)
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		}
+		log.Logger.Warnw("kernel panic event found but no reboot event found -- suggesting reboot")
+		return
+	}
+
+	// Check for sequences of "kernel panic -> reboot"
+	// We need to find how many times we had a kernel panic followed by a reboot
+	kernelPanicToReboot := make(map[time.Time]time.Time)
+
+	for i := 0; i < len(kernelPanicEvents); i++ {
+		panicTime := kernelPanicEvents[i].Time
+
+		for j := 0; j < len(rebootEvents); j++ {
+			rebootTime := rebootEvents[j].Time
+
+			// Find reboots that happened after this kernel panic
+			if rebootTime.After(panicTime) {
+				// Check if there's another kernel panic after this reboot
+				hasSubsequentPanic := false
+				for k := 0; k < len(kernelPanicEvents); k++ {
+					if kernelPanicEvents[k].Time.After(rebootTime) {
+						hasSubsequentPanic = true
+						break
+					}
+				}
+
+				if hasSubsequentPanic {
+					if _, ok := kernelPanicToReboot[panicTime]; !ok {
+						kernelPanicToReboot[panicTime] = rebootTime
+						break // Only map to the first reboot after panic
+					}
+				}
+			}
+		}
+	}
+
+	// case 3.
+	// kernel panic -> reboot
+	// -> kernel panic -> reboot
+	// -> kernel panic; suggest "hw inspection"
+	// (after >=2 reboots, we still get kernel panic)
+	if len(kernelPanicToReboot) >= 2 {
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeHardwareInspection,
+			},
+		}
+		log.Logger.Warnw("multiple kernel panic -> reboot sequences found -- suggesting hw inspection", "rebootCount", len(rebootEvents), "kernelPanicCount", len(kernelPanicEvents))
+		return
+	}
+
+	// case 2. or only one valid sequence of "kernel panic -> reboot"
+	// still suggest "reboot"
+	cr.suggestedActions = &apiv1.SuggestedActions{
+		RepairActions: []apiv1.RepairActionType{
+			apiv1.RepairActionTypeRebootSystem,
+		},
+	}
+	log.Logger.Warnw("kernel panic event found -- suggesting reboot", "rebootCount", len(rebootEvents), "kernelPanicCount", len(kernelPanicEvents))
 }
