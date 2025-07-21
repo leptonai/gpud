@@ -62,6 +62,7 @@ type component struct {
 	zombieProcessCountThresholdDegraded  int
 	zombieProcessCountThresholdUnhealthy int
 
+	getTimeNowFunc                func() time.Time
 	getHostUptimeFunc             func(ctx context.Context) (uint64, error)
 	getFileHandlesFunc            func() (uint64, uint64, error)
 	countRunningPIDsFunc          func() (uint64, error)
@@ -100,6 +101,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		zombieProcessCountThresholdDegraded:  defaultZombieProcessCountThresholdDegraded,
 		zombieProcessCountThresholdUnhealthy: defaultZombieProcessCountThresholdUnhealthy,
 
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		getHostUptimeFunc:             host.UptimeWithContext,
 		getFileHandlesFunc:            file.GetFileHandles,
 		countRunningPIDsFunc:          process.CountRunningPids,
@@ -243,7 +247,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking os")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 
 		VirtualizationEnvironment: pkghost.VirtualizationEnv(),
 		SystemManufacturer:        pkghost.SystemManufacturer(),
