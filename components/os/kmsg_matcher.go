@@ -18,6 +18,9 @@ const (
 	messageVFSFileMaxLimitReached   = "VFS file-max limit reached"
 
 	// Kernel panic event constants
+	// if "/proc/sys/kernel/panic" is set >0, the system auto-reboots
+	// thus no need to set suggested action or health state
+	// ref. https://cloud.google.com/compute/docs/troubleshooting/kernel-panic
 	eventNameKernelPanic = "kernel_panic"
 )
 
@@ -25,8 +28,19 @@ var (
 	compiledVFSFileMaxLimitReached = regexp.MustCompile(regexVFSFileMaxLimitReached)
 
 	// Kernel panic regex patterns
-	// e.g., Kernel panic - not syncing: hung_task: blocked tasks
-	kernelPanicStartRegexp = regexp.MustCompile(`Kernel panic - not syncing: hung_task: blocked tasks`)
+	// ref. https://cloud.google.com/compute/docs/troubleshooting/kernel-panic
+	kernelPanicStartRegexps = []*regexp.Regexp{
+		// e.g., Kernel panic - not syncing: hung_task: blocked tasks
+		regexp.MustCompile(`Kernel panic - not syncing: hung_task: blocked tasks`),
+		// e.g., Kernel Panic - not syncing: VFS: Unable to mount root fs on unknown-block(0,0)
+		regexp.MustCompile(`Kernel [Pp]anic - not syncing: VFS: Unable to mount root fs on unknown-block\(\d+,\d+\)`),
+		// e.g., Kernel panic - not syncing: NMI: Not continuing
+		regexp.MustCompile(`Kernel panic - not syncing: NMI: Not continuing`),
+		// e.g., Kernel panic - not syncing: out of memory. panic_on_oom is selected
+		regexp.MustCompile(`Kernel panic - not syncing: out of memory\. panic_on_oom is selected`),
+		// e.g., Kernel panic - not syncing: Fatal Machine check
+		regexp.MustCompile(`Kernel panic - not syncing: Fatal Machine check`),
+	}
 
 	// e.g., CPU: 24 PID: 1364 Comm: khungtaskd Tainted: P           OE     5.15.0-1053-nvidia #54-Ubuntu
 	kernelPanicCPUPIDRegexp = regexp.MustCompile(`CPU: (\d+) PID: (\d+) Comm: (\S+)`)
@@ -49,8 +63,6 @@ type KernelPanicInstance struct {
 	CPU int
 	// Process name (e.g., "khungtaskd")
 	ProcessName string
-	// Kernel taint flags
-	TaintFlags string
 }
 
 func (k *KernelPanicInstance) Summary() string {
@@ -84,7 +96,7 @@ func createKernelPanicMatchFunc() func(line string) (eventName string, message s
 
 		// Try to extract CPU and PID information
 		cpuPIDFound := extractCPUandPID(line, panicCurrentInstance)
-		if cpuPIDFound && panicCurrentInstance.PID != 0 {
+		if cpuPIDFound && panicCurrentInstance.PID >= 0 {
 			// We have the info we need - panic event is complete
 			eventName = eventNameKernelPanic
 			message = panicCurrentInstance.Summary()
@@ -102,7 +114,12 @@ func createKernelPanicMatchFunc() func(line string) (eventName string, message s
 
 // Helper functions for kernel panic detection
 func checkIfStartOfPanicMessages(line string) bool {
-	return kernelPanicStartRegexp.MatchString(line)
+	for _, regex := range kernelPanicStartRegexps {
+		if regex.MatchString(line) {
+			return true
+		}
+	}
+	return false
 }
 
 func extractCPUandPID(line string, instance *KernelPanicInstance) bool {
@@ -124,11 +141,6 @@ func extractCPUandPID(line string, instance *KernelPanicInstance) bool {
 	instance.PID = pid
 
 	instance.ProcessName = matches[3]
-
-	// Extract taint flags if present
-	if taints := regexp.MustCompile(`Tainted: ([^\s]+)`).FindStringSubmatch(line); len(taints) > 1 {
-		instance.TaintFlags = taints[1]
-	}
 
 	return true
 }
