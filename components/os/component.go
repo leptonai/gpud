@@ -267,6 +267,8 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
+	metricGoroutines.With(prometheus.Labels{}).Set(float64(runtime.NumGoroutine()))
+
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
 	uptime, err := c.getHostUptimeFunc(cctx)
 	ccancel()

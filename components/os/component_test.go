@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"testing"
 	"time"
 
@@ -2146,6 +2147,7 @@ func TestComponent_MetricsUpdate(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	// Register our metrics with the mock registry
+	registry.MustRegister(metricGoroutines)
 	registry.MustRegister(metricAllocatedFileHandles)
 	registry.MustRegister(metricRunningPIDs)
 	registry.MustRegister(metricLimit)
@@ -2224,16 +2226,17 @@ func TestComponent_MetricsUpdate(t *testing.T) {
 	// Note: In a real test, you would need to verify the actual values
 	// This test is primarily to verify that metrics are registered and receive updates
 	metricNames := []string{
-		"os_fd_allocated_file_handles",
-		"os_fd_running_pids",
-		"os_fd_limit",
-		"os_fd_allocated_file_handles_percent",
-		"os_fd_used_percent",
-		"os_fd_threshold_running_pids",
-		"os_fd_threshold_running_pids_percent",
-		"os_fd_threshold_allocated_file_handles",
-		"os_fd_threshold_allocated_file_handles_percent",
-		"os_fd_zombie_processes",
+		"os_self_goroutines",
+		"os_allocated_file_handles",
+		"os_running_pids",
+		"os_limit",
+		"os_allocated_file_handles_percent",
+		"os_used_percent",
+		"os_threshold_running_pids",
+		"os_threshold_running_pids_percent",
+		"os_threshold_allocated_file_handles",
+		"os_threshold_allocated_file_handles_percent",
+		"os_zombie_processes",
 	}
 
 	for _, name := range metricNames {
@@ -2242,6 +2245,76 @@ func TestComponent_MetricsUpdate(t *testing.T) {
 		// A more thorough test would verify the actual values
 		assert.NotNil(t, metric, "Metric %s should be registered", name)
 	}
+}
+
+// TestComponent_GoroutinesMetricValue tests that goroutines metric tracks the actual runtime.NumGoroutine() value
+func TestComponent_GoroutinesMetricValue(t *testing.T) {
+	// Create a mock registry to capture metrics
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(metricGoroutines)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c, err := New(&components.GPUdInstance{
+		RootCtx: ctx,
+	})
+	assert.NoError(t, err)
+	defer c.Close()
+
+	comp := c.(*component)
+
+	// Set up minimal mock functions to avoid other errors
+	comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
+		return map[string][]process.ProcessStatus{
+			procs.Running: make([]process.ProcessStatus, 10),
+		}, nil
+	}
+	comp.getFileHandlesFunc = func() (uint64, uint64, error) {
+		return 1000, 0, nil
+	}
+	comp.countRunningPIDsFunc = func() (uint64, error) {
+		return 1000, nil
+	}
+	comp.getUsageFunc = func() (uint64, error) {
+		return 500, nil
+	}
+	comp.getLimitFunc = func() (uint64, error) {
+		return 10000, nil
+	}
+	comp.checkFileHandlesSupportedFunc = func() bool {
+		return true
+	}
+	comp.checkFDLimitSupportedFunc = func() bool {
+		return true
+	}
+
+	// Record goroutine count before check
+	goroutinesBefore := runtime.NumGoroutine()
+
+	// Run the check
+	_ = comp.Check()
+
+	// Gather metrics from the registry
+	metrics, err := registry.Gather()
+	assert.NoError(t, err)
+
+	// Find the goroutines metric
+	var goroutinesMetric *prometheusdto.MetricFamily
+	for _, m := range metrics {
+		if m.GetName() == "os_self_goroutines" {
+			goroutinesMetric = m
+			break
+		}
+	}
+
+	assert.NotNil(t, goroutinesMetric, "Goroutines metric should be registered")
+	assert.Len(t, goroutinesMetric.GetMetric(), 1, "Should have exactly one metric value")
+
+	// Verify the metric value is reasonable (should be close to what we recorded before)
+	metricValue := goroutinesMetric.GetMetric()[0].GetGauge().GetValue()
+	assert.True(t, metricValue >= float64(goroutinesBefore-5), "Goroutines metric should be close to actual count (got %.0f, expected ~%d)", metricValue, goroutinesBefore)
+	assert.True(t, metricValue <= float64(goroutinesBefore+10), "Goroutines metric should be close to actual count (got %.0f, expected ~%d)", metricValue, goroutinesBefore)
 }
 
 // TestComponent_MacOSSpecificHandling tests the macOS-specific fallbacks
