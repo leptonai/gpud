@@ -43,7 +43,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		assert.Equal(t, "XIDComponent is healthy", state.Reason)
 	})
 
-	mockDevice := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:9b:00")
+	mockDevice := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:9b:00.0")
 
 	t.Run("critical xid", func(t *testing.T) {
 		events := eventstore.Events{

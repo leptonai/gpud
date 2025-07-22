@@ -17,7 +17,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
-	nvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
@@ -774,7 +774,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	}
 
 	// First, process the event through resolveXIDEvent to ensure correct format
-	xid94Event = resolveXIDEvent(xid94Event)
+	xid94Event = resolveXIDEvent(xid94Event, nil)
 
 	err = c.eventBucket.Insert(ctx, xid94Event)
 	assert.NoError(t, err)
@@ -803,7 +803,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	}
 
 	// Process the event through resolveXIDEvent
-	xid79Event = resolveXIDEvent(xid79Event)
+	xid79Event = resolveXIDEvent(xid79Event, nil)
 
 	err = c.eventBucket.Insert(ctx, xid79Event)
 	assert.NoError(t, err)
@@ -1054,7 +1054,7 @@ func TestResolveXIDEvent(t *testing.T) {
 	}
 
 	// Resolve the event
-	resolvedEvent := resolveXIDEvent(testEvent)
+	resolvedEvent := resolveXIDEvent(testEvent, nil)
 
 	// Check that the event was properly resolved
 	assert.Equal(t, EventNameErrorXid, resolvedEvent.Name)
@@ -1077,7 +1077,7 @@ func TestResolveXIDEvent(t *testing.T) {
 		},
 	}
 
-	resolvedInvalidEvent := resolveXIDEvent(invalidEvent)
+	resolvedInvalidEvent := resolveXIDEvent(invalidEvent, nil)
 	assert.Equal(t, invalidEvent, resolvedInvalidEvent)
 }
 

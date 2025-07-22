@@ -37,7 +37,7 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 		event := events[i]
 		log.Logger.Debugf("EvolveHealthyState: event: %v %v %+v %+v %+v", event.Time, event.Name, lastSuggestedAction, xidRebootMap, lastXidErr)
 		if event.Name == EventNameErrorXid {
-			resolvedEvent := resolveXIDEvent(event)
+			resolvedEvent := resolveXIDEvent(event, devices)
 			var currXidErr xidErrorEventDetail
 			if err := json.Unmarshal([]byte(resolvedEvent.ExtraInfo[EventKeyErrorXidData]), &currXidErr); err != nil {
 				log.Logger.Errorf("failed to unmarshal event %s %s extra info: %s", resolvedEvent.Name, resolvedEvent.Message, err)
@@ -87,25 +87,7 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 	if lastXidErr == nil {
 		reason = "XIDComponent is healthy"
 	} else {
-		busID := strings.TrimPrefix(lastXidErr.DeviceUUID, "PCI:")
-		var uuid string
-		for k, v := range devices {
-			if v.PCIBusID() == busID {
-				uuid = k
-				break
-			}
-		}
-		var suffix string
-		if uuid != "" {
-			suffix = fmt.Sprintf("GPU %s UUID:%s", lastXidErr.DeviceUUID, uuid)
-		} else {
-			suffix = fmt.Sprintf("GPU %s", lastXidErr.DeviceUUID)
-		}
-		if xidDetail, ok := xid.GetDetail(int(lastXidErr.Xid)); ok {
-			reason = fmt.Sprintf("XID %d (%s) detected on %s", lastXidErr.Xid, xidDetail.Name, suffix)
-		} else {
-			reason = fmt.Sprintf("XID %d detected on %s", lastXidErr.Xid, suffix)
-		}
+		reason = newXIDErrorReason(int(lastXidErr.Xid), lastXidErr.DeviceUUID, devices)
 	}
 	return apiv1.HealthState{
 		Name:             StateNameErrorXid,
@@ -113,6 +95,35 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 		Reason:           reason,
 		SuggestedActions: lastSuggestedAction,
 	}
+}
+
+func newXIDErrorReason(xidVal int, deviceID string, devices map[string]device.Device) string {
+	var suffix string
+	uuid := convertBusIDToUUID(deviceID, devices)
+	if uuid != "" {
+		suffix = fmt.Sprintf("GPU %s UUID:%s", deviceID, uuid)
+	} else {
+		suffix = fmt.Sprintf("GPU %s", deviceID)
+	}
+	var reason string
+	if xidDetail, ok := xid.GetDetail(xidVal); ok {
+		reason = fmt.Sprintf("XID %d (%s) detected on %s", xidVal, xidDetail.Name, suffix)
+	} else {
+		reason = fmt.Sprintf("XID %d detected on %s", xidVal, suffix)
+	}
+	return reason
+}
+
+func convertBusIDToUUID(busID string, devices map[string]device.Device) string {
+	busID = fmt.Sprintf("%s.", strings.TrimPrefix(busID, "PCI:"))
+	var uuid string
+	for k, v := range devices {
+		if strings.HasPrefix(v.PCIBusID(), busID) {
+			uuid = k
+			break
+		}
+	}
+	return uuid
 }
 
 func translateToStateHealth(health int) apiv1.HealthStateType {
@@ -131,7 +142,7 @@ func translateToStateHealth(health int) apiv1.HealthStateType {
 	}
 }
 
-func resolveXIDEvent(event eventstore.Event) eventstore.Event {
+func resolveXIDEvent(event eventstore.Event, devices map[string]device.Device) eventstore.Event {
 	ret := event
 	if event.ExtraInfo != nil {
 		if currXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorXidData]); err == nil {
@@ -140,7 +151,7 @@ func resolveXIDEvent(event eventstore.Event) eventstore.Event {
 				return ret
 			}
 			ret.Type = string(detail.EventType)
-			ret.Message = fmt.Sprintf("XID %d(%s) detected on %s", currXid, detail.Name, event.ExtraInfo[EventKeyDeviceUUID])
+			ret.Message = newXIDErrorReason(currXid, event.ExtraInfo[EventKeyDeviceUUID], devices)
 
 			xidErr := xidErrorEventDetail{
 				Time:                      metav1.NewTime(event.Time),

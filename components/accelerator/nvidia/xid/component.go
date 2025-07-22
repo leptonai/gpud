@@ -171,7 +171,7 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 
 	var ret apiv1.Events
 	for _, event := range events {
-		ev := resolveXIDEvent(event)
+		ev := resolveXIDEvent(event, c.devices)
 		ret = append(ret, ev.ToEvent())
 	}
 	return ret, nil
