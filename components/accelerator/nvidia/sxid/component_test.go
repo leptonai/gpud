@@ -14,7 +14,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
+	pkghostevents "github.com/leptonai/gpud/pkg/host/events"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
@@ -37,7 +37,7 @@ func createTestEvent(timestamp time.Time) eventstore.Event {
 }
 
 // createGPUdInstance creates a mock GPUdInstance for testing
-func createGPUdInstance(ctx context.Context, rebootEventStore pkghost.RebootEventStore, eventStore eventstore.Store) *components.GPUdInstance {
+func createGPUdInstance(ctx context.Context, rebootEventStore pkghostevents.RebootsStore, eventStore eventstore.Store) *components.GPUdInstance {
 	return &components.GPUdInstance{
 		RootCtx:          ctx,
 		EventStore:       eventStore,
@@ -52,7 +52,9 @@ func initComponentForTest(ctx context.Context, t *testing.T) (*component, func()
 	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
 	assert.NoError(t, err)
 
-	rebootEventStore := pkghost.NewRebootEventStore(store)
+	bucket, err := store.Bucket(pkghostevents.RebootBucketName)
+	assert.NoError(t, err)
+	rebootEventStore := pkghostevents.NewRebootsStore(bucket)
 
 	gpudInstance := createGPUdInstance(ctx, rebootEventStore, store)
 	comp, err := New(gpudInstance)
@@ -887,20 +889,20 @@ func TestSXIDComponent_UpdateCurrentState_RebootError(t *testing.T) {
 	assert.Contains(t, state.Error, "failed to get reboot events")
 }
 
-// mockRebootEventStore implements pkghost.RebootEventStore for testing
+// mockRebootEventStore implements pkghostevents.RebootsStore for testing
 type mockRebootEventStore struct {
 	rebootEvents         eventstore.Events
 	getRebootEventsError error
 }
 
-func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockRebootEventStore) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	if m.getRebootEventsError != nil {
 		return nil, m.getRebootEventsError
 	}
 	return m.rebootEvents, nil
 }
 
-func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *mockRebootEventStore) Record(ctx context.Context) error {
 	return nil
 }
 

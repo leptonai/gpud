@@ -15,7 +15,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
+	pkghostevents "github.com/leptonai/gpud/pkg/host/events"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -38,7 +38,7 @@ type component struct {
 
 	nvmlInstance nvidianvml.Instance
 
-	rebootEventStore pkghost.RebootEventStore
+	rebootEventStore pkghostevents.RebootsStore
 	eventBucket      eventstore.Bucket
 
 	getCountLspci     func(ctx context.Context) (int, error)
@@ -227,7 +227,7 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	// look up past events to derive the suggested actions
-	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, cr.ts.Add(-c.lookbackPeriod))
+	rebootEvents, err := c.rebootEventStore.Get(c.ctx, cr.ts.Add(-c.lookbackPeriod))
 	if err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
