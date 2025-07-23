@@ -13,6 +13,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/log/streamer"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
@@ -34,12 +35,18 @@ func TestComponentEvents(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	w, err := newWatcher([][]string{
-		{"tail", "testdata/fabricmanager.log"},
-		{"sleep 1"},
-	})
+	// Create the processor using streamer
+	processor, err := streamer.New(
+		ctx,
+		[][]string{
+			{"tail", "testdata/fabricmanager.log"},
+			{"sleep", "1"},
+		},
+		Match,
+		ParseFabricManagerLog,
+		bucket,
+	)
 	require.NoError(t, err)
-	llp := newLogLineProcessor(ctx, w, Match, bucket)
 
 	comp := &component{
 		ctx:    ctx,
@@ -50,8 +57,8 @@ func TestComponentEvents(t *testing.T) {
 		checkFMExistsFunc:       func() bool { return true },
 		checkFMActiveFunc:       func() bool { return true },
 
-		eventBucket:      bucket,
-		logLineProcessor: llp,
+		eventBucket:  bucket,
+		logProcessor: processor,
 	}
 	defer comp.Close()
 
@@ -81,37 +88,10 @@ func TestComponentEvents(t *testing.T) {
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
 
-// mockWatcher implements the watcher interface for testing
-type mockWatcher struct {
-	ch chan logLine
-}
-
-func newMockWatcher() *mockWatcher {
-	return &mockWatcher{
-		ch: make(chan logLine),
-	}
-}
-
-func (w *mockWatcher) watch() <-chan logLine {
-	return w.ch
-}
-
-func (w *mockWatcher) close() {
-	close(w.ch)
-}
-
-// mockMatchFunc implements the matchFunc interface for testing
-func mockMatchFunc(line string) (eventName string, message string) {
-	if line == "test-error-line" {
-		return "test-error", "This is a test error"
-	}
-	return "", ""
-}
-
 func TestEventsWithNoProcessor(t *testing.T) {
 	t.Parallel()
 
-	// Create a component with no logLineProcessor
+	// Create a component with no processor
 	comp := &component{
 		ctx:    context.Background(),
 		cancel: func() {},
@@ -139,19 +119,22 @@ func TestEventsWithProcessor(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Create a mock watcher
-	mockW := newMockWatcher()
-
 	// Create events store
 	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
 	bucket, err := store.Bucket(Name)
 	require.NoError(t, err)
 
-	// Create a processor
-	llp := newLogLineProcessor(ctx, mockW, mockMatchFunc, bucket)
+	// Create a processor using streamer with a test command that exits immediately
+	processor, err := streamer.New(
+		ctx,
+		[][]string{{"echo", "test"}}, // Simple command that exits
+		Match,
+		ParseFabricManagerLog,
+		bucket,
+	)
+	require.NoError(t, err)
 
-	// Create component with processor
 	comp := &component{
 		ctx:    ctx,
 		cancel: cancel,
@@ -159,9 +142,10 @@ func TestEventsWithProcessor(t *testing.T) {
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 
-		eventBucket:      bucket,
-		logLineProcessor: llp,
+		eventBucket:  bucket,
+		logProcessor: processor,
 	}
+	defer comp.Close()
 
 	// Insert a test event directly into the store
 	testEvent := eventstore.Event{
@@ -292,7 +276,6 @@ func TestComponentClose(t *testing.T) {
 
 	// Setup mock components
 	ctx, cancel := context.WithCancel(context.Background())
-	mockW := newMockWatcher()
 
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
@@ -302,13 +285,11 @@ func TestComponentClose(t *testing.T) {
 	bucket, err := store.Bucket(Name)
 	require.NoError(t, err)
 
-	llp := newLogLineProcessor(ctx, mockW, mockMatchFunc, bucket)
-
 	comp := &component{
-		ctx:              ctx,
-		cancel:           cancel,
-		logLineProcessor: llp,
-		eventBucket:      bucket,
+		ctx:          ctx,
+		cancel:       cancel,
+		logProcessor: nil, // Not needed for close test
+		eventBucket:  bucket,
 	}
 
 	// Test Close
