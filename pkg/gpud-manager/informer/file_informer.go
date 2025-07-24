@@ -14,11 +14,128 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-type fileInformer struct{}
+type fileInformer struct {
+	packagesDir string
+	rootDir     string
+}
 
 func NewFileInformer() chan packages.PackageInfo {
-	i := &fileInformer{}
+	i := &fileInformer{
+		packagesDir: "/var/lib/gpud/packages",
+		rootDir:     "/var/lib/gpud/",
+	}
 	return i.Start()
+}
+
+func NewFileInformerWithConfig(packagesDir, rootDir string) chan packages.PackageInfo {
+	i := &fileInformer{
+		packagesDir: packagesDir,
+		rootDir:     rootDir,
+	}
+	return i.Start()
+}
+
+func (f *fileInformer) listPackages() ([]byte, error) {
+	return exec.Command("ls", f.packagesDir).CombinedOutput()
+}
+
+func (f *fileInformer) processInitialPackages(c chan packages.PackageInfo) {
+	out, err := f.listPackages()
+	if err == nil {
+		for _, pkgName := range strings.Split(string(out), "\n") {
+			if pkgName == "" {
+				continue
+			}
+			scriptPath := filepath.Join(f.packagesDir, pkgName, "init.sh")
+			version, dependencies, totalTime, err := resolvePackage(scriptPath)
+			if err != nil {
+				log.Logger.Errorf("resolve package failed: %v", err)
+				continue
+			}
+
+			c <- packages.PackageInfo{
+				Name:          pkgName,
+				ScriptPath:    scriptPath,
+				TargetVersion: version,
+				Dependency:    dependencies,
+				TotalTime:     totalTime,
+			}
+		}
+	}
+}
+
+func (f *fileInformer) handleWatcherEvents(watcher *fsnotify.Watcher, c chan packages.PackageInfo) {
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				continue
+			}
+			f.handleFileEvent(watcher, event, c)
+		case wErr, ok := <-watcher.Errors:
+			if !ok {
+				continue
+			}
+			log.Logger.Errorf("Error: %s", wErr)
+		}
+	}
+}
+
+func (f *fileInformer) handleFileEvent(watcher interface{}, event fsnotify.Event, c chan packages.PackageInfo) {
+	if event.Op&fsnotify.Create == fsnotify.Create {
+		fileInfo, err := os.Stat(event.Name)
+		if err == nil && fileInfo.IsDir() {
+			log.Logger.Infof("New directory created: %s", event.Name)
+			if w, ok := watcher.(*fsnotify.Watcher); ok {
+				if aErr := addDirectory(w, event.Name); aErr != nil {
+					log.Logger.Error(aErr)
+				}
+			}
+		}
+		return
+	}
+	if event.Op&fsnotify.Remove == fsnotify.Remove {
+		fileInfo, err := os.Stat(event.Name)
+		if os.IsNotExist(err) || (err == nil && fileInfo.IsDir()) {
+			if w, ok := watcher.(*fsnotify.Watcher); ok {
+				if rErr := w.Remove(event.Name); rErr != nil {
+					log.Logger.Debug(rErr)
+				}
+			}
+		}
+	}
+
+	if event.Op&fsnotify.Write != fsnotify.Write {
+		return
+	}
+	path := event.Name
+	if !strings.HasPrefix(path, f.packagesDir) {
+		return
+	}
+	elems := strings.Split(path, "/")
+	// Calculate expected number of elements: packagesDir elements + packageName + init.sh
+	packagesElems := strings.Split(f.packagesDir, "/")
+	expectedElems := len(packagesElems) + 2 // +1 for package name, +1 for init.sh
+	if len(elems) != expectedElems {
+		return
+	}
+	fileName := elems[len(elems)-1] // Last element should be init.sh
+	if fileName != "init.sh" {
+		return
+	}
+
+	version, dependencies, totalTime, err := resolvePackage(path)
+	if err != nil {
+		log.Logger.Errorf("resolve package failed: %v", err)
+		return
+	}
+	c <- packages.PackageInfo{
+		Name:          elems[len(elems)-2], // Second-to-last element is the package name
+		ScriptPath:    path,
+		TargetVersion: version,
+		Dependency:    dependencies,
+		TotalTime:     totalTime,
+	}
 }
 
 func (f *fileInformer) Start() chan packages.PackageInfo {
@@ -34,92 +151,11 @@ func (f *fileInformer) Start() chan packages.PackageInfo {
 				log.Logger.Error(err)
 			}
 		}()
-		out, err := exec.Command("ls", "/var/lib/gpud/packages").CombinedOutput()
-		if err == nil {
-			for _, pkgName := range strings.Split(string(out), "\n") {
-				if pkgName == "" {
-					continue
-				}
-				scriptPath := fmt.Sprintf("/var/lib/gpud/packages/%s/init.sh", pkgName)
-				version, dependencies, totalTime, err := resolvePackage(scriptPath)
-				if err != nil {
-					log.Logger.Errorf("resolve package failed: %v", err)
-					continue
-				}
-
-				c <- packages.PackageInfo{
-					Name:          pkgName,
-					ScriptPath:    scriptPath,
-					TargetVersion: version,
-					Dependency:    dependencies,
-					TotalTime:     totalTime,
-				}
-			}
-		}
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					continue
-				}
-				if event.Op&fsnotify.Create == fsnotify.Create {
-					fileInfo, err := os.Stat(event.Name)
-					if err == nil && fileInfo.IsDir() {
-						log.Logger.Infof("New directory created: %s", event.Name)
-						if aErr := addDirectory(watcher, event.Name); aErr != nil {
-							log.Logger.Error(aErr)
-						}
-					}
-					continue
-				}
-				if event.Op&fsnotify.Remove == fsnotify.Remove {
-					fileInfo, err := os.Stat(event.Name)
-					if os.IsNotExist(err) || (err == nil && fileInfo.IsDir()) {
-						if rErr := watcher.Remove(event.Name); rErr != nil {
-							log.Logger.Debug(rErr)
-						}
-					}
-				}
-
-				if event.Op&fsnotify.Write != fsnotify.Write {
-					continue
-				}
-				path := event.Name
-				if !strings.HasPrefix(path, "/var/lib/gpud/packages") {
-					continue
-				}
-				elems := strings.Split(path, "/")
-				if len(elems) != 7 {
-					continue
-				}
-				fileName := elems[6]
-				if fileName != "init.sh" {
-					continue
-				}
-
-				version, dependencies, totalTime, err := resolvePackage(path)
-				if err != nil {
-					log.Logger.Errorf("resolve package failed: %v", err)
-					continue
-				}
-				c <- packages.PackageInfo{
-					Name:          elems[5],
-					ScriptPath:    path,
-					TargetVersion: version,
-					Dependency:    dependencies,
-					TotalTime:     totalTime,
-				}
-			case wErr, ok := <-watcher.Errors:
-				if !ok {
-					continue
-				}
-				log.Logger.Errorf("Error: %s", wErr)
-			}
-		}
+		f.processInitialPackages(c)
+		f.handleWatcherEvents(watcher, c)
 	}()
 
-	rootDir := "/var/lib/gpud/"
-	err = addDirectory(watcher, rootDir)
+	err = addDirectory(watcher, f.rootDir)
 	if err != nil {
 		log.Logger.Error(err)
 	}
