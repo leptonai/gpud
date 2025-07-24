@@ -9,7 +9,7 @@ import (
 )
 
 func TestGetLimit(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -35,7 +35,7 @@ func TestGetLimit(t *testing.T) {
 }
 
 func TestGetFileHandles(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 

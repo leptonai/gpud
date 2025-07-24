@@ -41,4 +41,34 @@ func TestDefaultFsTypeFuncs(t *testing.T) {
 		assert.False(t, DefaultDeviceTypeFunc("loop"))
 		assert.False(t, DefaultDeviceTypeFunc(""))
 	})
+
+	t.Run("DefaultMountPointFunc", func(t *testing.T) {
+		// Test empty mount point
+		assert.False(t, DefaultMountPointFunc(""))
+
+		// Test normal mount points
+		assert.True(t, DefaultMountPointFunc("/"))
+		assert.True(t, DefaultMountPointFunc("/home"))
+		assert.True(t, DefaultMountPointFunc("/var"))
+		assert.True(t, DefaultMountPointFunc("/usr"))
+		assert.True(t, DefaultMountPointFunc("/opt"))
+		assert.True(t, DefaultMountPointFunc("/mnt"))
+		assert.True(t, DefaultMountPointFunc("/mnt/data"))
+
+		// Test provider-specific mount points that should be filtered
+		assert.False(t, DefaultMountPointFunc("/mnt/cloud-metadata"))
+		assert.False(t, DefaultMountPointFunc("/mnt/cloud-metadata/"))
+		assert.False(t, DefaultMountPointFunc("/mnt/cloud-metadata/instance"))
+
+		// Test edge cases - similar but different paths
+		assert.True(t, DefaultMountPointFunc("/mnt/customfs"))
+		assert.True(t, DefaultMountPointFunc("/mnt/customfs/"))
+		assert.True(t, DefaultMountPointFunc("/mnt/customfs/subfolder"))
+		assert.True(t, DefaultMountPointFunc("/mnt/customfs-data"))
+		assert.False(t, DefaultMountPointFunc("/mnt/cloud-metadata-backup")) // /mnt/cloud-metadata is a prefix
+		assert.True(t, DefaultMountPointFunc("/mnt/custom"))
+		assert.True(t, DefaultMountPointFunc("/mnt/cloud"))
+		assert.True(t, DefaultMountPointFunc("/customfs"))
+		assert.True(t, DefaultMountPointFunc("/cloud-metadata"))
+	})
 }

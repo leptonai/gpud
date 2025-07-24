@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -422,4 +423,57 @@ func TestGetSystemResourceRootVolumeTotal_Validation(t *testing.T) {
 	assert.True(t, volQty.Cmp(maxSize) <= 0, "Volume should be less than 100TB")
 
 	t.Logf("Root volume: %s (parsed: %d bytes)", volume, volQty.Value())
+}
+
+// TestGetMachineDiskInfo_FilterEmptyMountPoints tests that GetMachineDiskInfo filters out empty mount points
+func TestGetMachineDiskInfo_FilterEmptyMountPoints(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("Test only runs on Linux or macOS")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	info, err := GetMachineDiskInfo(ctx)
+	if err != nil {
+		t.Skipf("Could not get disk info: %v", err)
+	}
+
+	assert.NotNil(t, info)
+
+	// Verify no block devices have empty mount points
+	for _, device := range info.BlockDevices {
+		if device.MountPoint == "" {
+			t.Errorf("Device %s has empty mount point, should be filtered out", device.Name)
+		}
+	}
+
+	t.Logf("Verified %d block devices all have non-empty mount points", len(info.BlockDevices))
+}
+
+// TestGetMachineDiskInfo_FilterProviderSpecificPaths tests filtering of provider-specific mount points
+func TestGetMachineDiskInfo_FilterProviderSpecificPaths(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
+		t.Skip("Test only runs on Linux or macOS")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	info, err := GetMachineDiskInfo(ctx)
+	if err != nil {
+		t.Skipf("Could not get disk info: %v", err)
+	}
+
+	assert.NotNil(t, info)
+
+	// Verify no provider-specific mount points
+	for _, device := range info.BlockDevices {
+		assert.False(t, strings.HasPrefix(device.MountPoint, "/mnt/customfs"),
+			"Device %s has provider-specific mount point %s", device.Name, device.MountPoint)
+		assert.False(t, strings.HasPrefix(device.MountPoint, "/mnt/cloud-metadata"),
+			"Device %s has provider-specific mount point %s", device.Name, device.MountPoint)
+	}
+
+	t.Logf("Verified %d block devices have no provider-specific mount points", len(info.BlockDevices))
 }

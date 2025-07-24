@@ -36,7 +36,11 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 	deviceToPartitions := make(map[string]Partitions)
 	for _, p := range partitions {
 		if !op.matchFuncFstype(p.Fstype) {
-			log.Logger.Debugw("skipping partition", "fstype", p.Fstype, "device", p.Device, "mountPoint", p.Mountpoint)
+			log.Logger.Debugw("skipping partition due to mismatch fstype", "fstype", p.Fstype, "device", p.Device, "mountPoint", p.Mountpoint)
+			continue
+		}
+		if !op.matchFuncMountPoint(p.Mountpoint) {
+			log.Logger.Debugw("skipping partition due to missing mount point", "fstype", p.Fstype, "device", p.Device, "mountPoint", p.Mountpoint)
 			continue
 		}
 

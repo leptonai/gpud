@@ -8,6 +8,7 @@ import (
 type Op struct {
 	matchFuncFstype     MatchFunc
 	matchFuncDeviceType MatchFunc
+	matchFuncMountPoint MatchFunc
 	skipUsage           bool
 	statTimeout         time.Duration
 }
@@ -33,6 +34,12 @@ func (op *Op) applyOpts(opts []OpOption) error {
 		}
 	}
 
+	if op.matchFuncMountPoint == nil {
+		op.matchFuncMountPoint = func(_ string) bool {
+			return true
+		}
+	}
+
 	if op.statTimeout == 0 {
 		op.statTimeout = 5 * time.Second
 	}
@@ -49,6 +56,14 @@ func WithFstype(matchFunc MatchFunc) OpOption {
 func WithDeviceType(matchFunc MatchFunc) OpOption {
 	return func(op *Op) {
 		op.matchFuncDeviceType = matchFunc
+	}
+}
+
+// WithMountPoint is used to filter out devices.
+// This is useful for filtering out devices that are not mounted, such as swap devices.
+func WithMountPoint(matchFunc MatchFunc) OpOption {
+	return func(op *Op) {
+		op.matchFuncMountPoint = matchFunc
 	}
 }
 
@@ -88,4 +103,17 @@ func DefaultNFSFsTypeFunc(fsType string) bool {
 
 func DefaultDeviceTypeFunc(dt string) bool {
 	return dt == "disk" || dt == "lvm" || dt == "part"
+}
+
+func DefaultMountPointFunc(mountPoint string) bool {
+	if mountPoint == "" {
+		return false
+	}
+
+	// ref. https://docs.nebius.com/cli/compute-vm#create
+	if strings.HasPrefix(mountPoint, "/mnt/cloud-metadata") {
+		return false
+	}
+
+	return true
 }

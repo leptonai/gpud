@@ -343,6 +343,10 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 
 	rs := make([]apiv1.MachineDiskDevice, 0, len(flattened))
 	for _, bd := range flattened {
+		if bd.MountPoint == "" {
+			continue
+		}
+
 		rs = append(rs, apiv1.MachineDiskDevice{
 			Name:       bd.Name,
 			Type:       bd.Type,
@@ -367,6 +371,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 		nfsParts, err := disk.GetPartitions(
 			ctx,
 			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
+			disk.WithMountPoint(disk.DefaultMountPointFunc),
 
 			// statfs on nfs can incur network I/O or impact disk I/O performance
 			// do not track usage for nfs partitions

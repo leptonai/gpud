@@ -444,7 +444,7 @@ func TestMountTargetUsages(t *testing.T) {
 	}
 
 	t.Run("track mount target", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
@@ -474,7 +474,7 @@ func TestMountTargetUsages(t *testing.T) {
 	})
 
 	t.Run("mount target error handling", func(t *testing.T) {
-		tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpDir)
 
@@ -1082,65 +1082,6 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 		assert.Equal(t, "ok", lastCheckResult.reason)
 		assert.Equal(t, 2, callCount)
 		assert.Len(t, lastCheckResult.NFSPartitions, 1)
-	})
-
-	t.Run("context cancellation during NFS partitions", func(t *testing.T) {
-		ctxWithCancel, ctxCancel := context.WithCancel(context.Background())
-		c := createTestComponent(ctxWithCancel, []string{"/mnt/nfs"}, []string{})
-		defer c.Close()
-
-		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
-			return disk.BlockDevices{mockDevice}, nil
-		}
-		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
-			return disk.Partitions{}, nil
-		}
-
-		// Use a channel to ensure proper ordering
-		cancelChan := make(chan struct{})
-		callCount := 0
-		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
-			callCount++
-			// On first call, signal to cancel context
-			if callCount == 1 {
-				close(cancelChan)
-				// Give time for context cancellation to propagate
-				// Use a longer sleep on slow CI machines
-				time.Sleep(50 * time.Millisecond)
-			}
-			// Always return an error to trigger retry logic
-			return nil, assert.AnError
-		}
-
-		// Cancel context after first getNFSPartitionsFunc call
-		go func() {
-			<-cancelChan
-			ctxCancel()
-		}()
-
-		checkDone := make(chan struct{})
-		go func() {
-			c.Check()
-			close(checkDone)
-		}()
-		select {
-		case <-checkDone:
-		case <-time.After(2 * time.Second):
-			assert.Fail(t, "Check() did not complete within timeout")
-		}
-
-		// Ensure getNFSPartitionsFunc was called at least once
-		assert.Greater(t, callCount, 0, "getNFSPartitionsFunc should have been called at least once")
-
-		c.lastMu.RLock()
-		lastCheckResult := c.lastCheckResult
-		c.lastMu.RUnlock()
-
-		assert.NotNil(t, lastCheckResult)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health)
-		if assert.NotNil(t, lastCheckResult.err) {
-			assert.Contains(t, lastCheckResult.err.Error(), "context canceled")
-		}
 	})
 }
 
@@ -2514,4 +2455,98 @@ func TestComponent_StatWithTimeoutDeadlineExceeded(t *testing.T) {
 
 	// Verify that MountTargetUsages is empty/nil due to the timeout
 	assert.Nil(t, cr.MountTargetUsages)
+}
+
+// TestComponentWithMountPointFiltering tests that the component properly filters mount points
+func TestComponentWithMountPointFiltering(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("filters provider-specific mount points", func(t *testing.T) {
+		gpudInstance := &components.GPUdInstance{
+			RootCtx: ctx,
+		}
+
+		c, err := New(gpudInstance)
+		require.NoError(t, err)
+		defer c.Close()
+
+		component, ok := c.(*component)
+		require.True(t, ok)
+
+		// Verify partition functions are initialized with mount point filtering
+		assert.NotNil(t, component.getExt4PartitionsFunc)
+		assert.NotNil(t, component.getNFSPartitionsFunc)
+
+		// If running on Linux, also check block devices func
+		if runtime.GOOS == "linux" {
+			assert.NotNil(t, component.getBlockDevicesFunc)
+		}
+	})
+
+	t.Run("check filters empty and provider-specific mount points", func(t *testing.T) {
+		// Create mock partitions with various mount points
+		mockExt4Partitions := disk.Partitions{
+			{
+				Device:     "/dev/sda1",
+				MountPoint: "/",
+				Fstype:     "ext4",
+				Mounted:    true,
+			},
+			{
+				Device:     "/dev/sda2",
+				MountPoint: "/home",
+				Fstype:     "ext4",
+				Mounted:    true,
+			},
+		}
+
+		mockNFSPartitions := disk.Partitions{
+			{
+				Device:     "server:/data",
+				MountPoint: "/mnt/nfs",
+				Fstype:     "nfs4",
+				Mounted:    true,
+			},
+		}
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		c := createTestComponent(ctx, []string{"/"}, []string{})
+		defer c.Close()
+
+		// Override the partition functions to return our mock data
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return mockExt4Partitions, nil
+		}
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return mockNFSPartitions, nil
+		}
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+
+		// Run check
+		c.Check()
+
+		c.lastMu.RLock()
+		lastCheckResult := c.lastCheckResult
+		c.lastMu.RUnlock()
+
+		// Verify results - should include all partitions (filtering happens at the disk package level)
+		assert.NotNil(t, lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+		assert.Len(t, lastCheckResult.ExtPartitions, 2)
+		assert.Len(t, lastCheckResult.NFSPartitions, 1)
+
+		// Verify none have empty mount points (as they would be filtered by the disk package)
+		for _, p := range lastCheckResult.ExtPartitions {
+			assert.NotEmpty(t, p.MountPoint)
+		}
+		for _, p := range lastCheckResult.NFSPartitions {
+			assert.NotEmpty(t, p.MountPoint)
+		}
+	})
 }

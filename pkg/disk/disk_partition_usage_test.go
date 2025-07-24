@@ -202,41 +202,56 @@ func TestPartitions_RenderTable(t *testing.T) {
 
 func TestOpApplyOpts(t *testing.T) {
 	tests := []struct {
-		name             string
-		opts             []OpOption
-		wantFstypeMatch  bool
-		wantDevTypeMatch bool
+		name                string
+		opts                []OpOption
+		wantFstypeMatch     bool
+		wantDevTypeMatch    bool
+		wantMountPointMatch bool
 	}{
 		{
-			name:             "no options",
-			opts:             nil,
-			wantFstypeMatch:  true, // Default should match everything
-			wantDevTypeMatch: true, // Default should match everything
+			name:                "no options",
+			opts:                nil,
+			wantFstypeMatch:     true, // Default should match everything
+			wantDevTypeMatch:    true, // Default should match everything
+			wantMountPointMatch: true, // Default should match everything
 		},
 		{
 			name: "with fstype matcher",
 			opts: []OpOption{
 				WithFstype(func(fs string) bool { return fs == "ext4" }),
 			},
-			wantFstypeMatch:  false, // Our test will use "xfs"
-			wantDevTypeMatch: true,  // Default should match everything
+			wantFstypeMatch:     false, // Our test will use "xfs"
+			wantDevTypeMatch:    true,  // Default should match everything
+			wantMountPointMatch: true,  // Default should match everything
 		},
 		{
 			name: "with device type matcher",
 			opts: []OpOption{
 				WithDeviceType(func(dt string) bool { return dt == "disk" }),
 			},
-			wantFstypeMatch:  true,  // Default should match everything
-			wantDevTypeMatch: false, // Our test will use "part"
+			wantFstypeMatch:     true,  // Default should match everything
+			wantDevTypeMatch:    false, // Our test will use "part"
+			wantMountPointMatch: true,  // Default should match everything
 		},
 		{
-			name: "with both matchers",
+			name: "with mount point matcher",
+			opts: []OpOption{
+				WithMountPoint(func(mp string) bool { return mp == "/" }),
+			},
+			wantFstypeMatch:     true,  // Default should match everything
+			wantDevTypeMatch:    true,  // Default should match everything
+			wantMountPointMatch: false, // Our test will use "/home"
+		},
+		{
+			name: "with all matchers",
 			opts: []OpOption{
 				WithFstype(func(fs string) bool { return fs == "ext4" }),
 				WithDeviceType(func(dt string) bool { return dt == "disk" }),
+				WithMountPoint(func(mp string) bool { return mp == "/" }),
 			},
-			wantFstypeMatch:  false, // Our test will use "xfs"
-			wantDevTypeMatch: false, // Our test will use "part"
+			wantFstypeMatch:     false, // Our test will use "xfs"
+			wantDevTypeMatch:    false, // Our test will use "part"
+			wantMountPointMatch: false, // Our test will use "/home"
 		},
 	}
 
@@ -255,6 +270,11 @@ func TestOpApplyOpts(t *testing.T) {
 			// Test device type matcher
 			if got := op.matchFuncDeviceType("part"); got != tt.wantDevTypeMatch {
 				t.Errorf("matchFuncDeviceType(part) = %v, want %v", got, tt.wantDevTypeMatch)
+			}
+
+			// Test mount point matcher
+			if got := op.matchFuncMountPoint("/home"); got != tt.wantMountPointMatch {
+				t.Errorf("matchFuncMountPoint(/home) = %v, want %v", got, tt.wantMountPointMatch)
 			}
 		})
 	}
@@ -452,4 +472,115 @@ func TestPartition_StatTimedOut_JSON(t *testing.T) {
 	if !unmarshaledPartition.StatTimedOut {
 		t.Error("unmarshaled partition should have StatTimedOut=true")
 	}
+}
+
+func TestGetPartitions_WithMountPointFilter(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Define a custom mount point filter that only accepts specific mount points
+	customMountPointFilter := func(mountPoint string) bool {
+		return mountPoint == "/" || mountPoint == "/home"
+	}
+
+	// Test with custom mount point filter
+	partitions, err := GetPartitions(ctx,
+		WithFstype(DefaultFsTypeFunc),
+		WithMountPoint(customMountPointFilter))
+	if err != nil {
+		t.Fatalf("failed to get partitions with mount point filter: %v", err)
+	}
+
+	// Verify all returned partitions match the filter
+	for _, p := range partitions {
+		if p.MountPoint != "" && !customMountPointFilter(p.MountPoint) {
+			t.Errorf("partition %s has mount point %s which doesn't match filter",
+				p.Device, p.MountPoint)
+		}
+	}
+
+	t.Logf("Found %d partitions with custom mount point filter", len(partitions))
+}
+
+func TestGetPartitions_FilterOutEmptyMountPoints(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Test with default mount point filter
+	partitions, err := GetPartitions(ctx,
+		WithFstype(DefaultFsTypeFunc),
+		WithMountPoint(DefaultMountPointFunc))
+	if err != nil {
+		t.Fatalf("failed to get partitions: %v", err)
+	}
+
+	// Verify no partitions have empty mount points
+	for _, p := range partitions {
+		if p.MountPoint == "" {
+			t.Errorf("partition %s has empty mount point, should be filtered out", p.Device)
+		}
+	}
+
+	t.Logf("Verified %d partitions all have non-empty mount points", len(partitions))
+}
+
+func TestGetPartitions_FilterProviderSpecificMountPoints(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Test with default mount point filter
+	partitions, err := GetPartitions(ctx,
+		WithFstype(DefaultFsTypeFunc),
+		WithMountPoint(DefaultMountPointFunc))
+	if err != nil {
+		t.Fatalf("failed to get partitions: %v", err)
+	}
+
+	// Verify no provider-specific mount points are included
+	for _, p := range partitions {
+		if strings.HasPrefix(p.MountPoint, "/mnt/customfs") {
+			t.Errorf("partition %s has provider-specific mount point %s, should be filtered out",
+				p.Device, p.MountPoint)
+		}
+		if strings.HasPrefix(p.MountPoint, "/mnt/cloud-metadata") {
+			t.Errorf("partition %s has provider-specific mount point %s, should be filtered out",
+				p.Device, p.MountPoint)
+		}
+	}
+
+	t.Logf("Verified %d partitions have no provider-specific mount points", len(partitions))
+}
+
+func TestGetPartitions_CombinedFilters(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Test with both fstype and mount point filters
+	partitions, err := GetPartitions(ctx,
+		WithFstype(DefaultExt4FsTypeFunc),
+		WithMountPoint(DefaultMountPointFunc))
+	if err != nil {
+		t.Fatalf("failed to get partitions with combined filters: %v", err)
+	}
+
+	// Verify all partitions match both filters
+	for _, p := range partitions {
+		// Check fstype
+		if !DefaultExt4FsTypeFunc(p.Fstype) {
+			t.Errorf("partition %s has fstype %s, doesn't match ext4 filter",
+				p.Device, p.Fstype)
+		}
+
+		// Check mount point
+		if !DefaultMountPointFunc(p.MountPoint) {
+			t.Errorf("partition %s has mount point %s, doesn't match mount point filter",
+				p.Device, p.MountPoint)
+		}
+	}
+
+	t.Logf("Found %d ext4 partitions with valid mount points", len(partitions))
 }
