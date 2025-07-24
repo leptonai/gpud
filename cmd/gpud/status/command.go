@@ -3,6 +3,8 @@ package status
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/urfave/cli"
@@ -10,6 +12,7 @@ import (
 	clientv1 "github.com/leptonai/gpud/client/v1"
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
+	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	"github.com/leptonai/gpud/pkg/process"
@@ -102,15 +105,17 @@ func Command(cliContext *cli.Context) error {
 
 	statusWatch := cliContext.Bool("watch")
 
+	var lastPackageStatus packages.PackageStatuses
 	for {
+		var err error
 		cctx, ccancel := context.WithTimeout(rootCtx, 15*time.Second)
-		packageStatus, err := clientv1.GetPackageStatus(cctx, fmt.Sprintf("https://localhost:%d%s", config.DefaultGPUdPort, server.URLPathAdminPackages))
+		lastPackageStatus, err = clientv1.GetPackageStatus(cctx, fmt.Sprintf("https://localhost:%d%s", config.DefaultGPUdPort, server.URLPathAdminPackages))
 		ccancel()
 		if err != nil {
 			fmt.Printf("%s failed to get package status: %v\n", cmdcommon.WarningSign, err)
 			return err
 		}
-		if len(packageStatus) == 0 {
+		if len(lastPackageStatus) == 0 {
 			fmt.Printf("no packages found\n")
 			return nil
 		}
@@ -119,7 +124,7 @@ func Command(cliContext *cli.Context) error {
 		}
 		var totalTime int64
 		var progress int64
-		for _, status := range packageStatus {
+		for _, status := range lastPackageStatus {
 			totalTime += status.TotalTime.Milliseconds()
 			progress += status.TotalTime.Milliseconds() * int64(status.Progress) / 100
 		}
@@ -133,6 +138,15 @@ func Command(cliContext *cli.Context) error {
 			break
 		}
 		time.Sleep(3 * time.Second)
+	}
+
+	// Display the detailed package status table
+	lastPackageStatus.RenderTable(os.Stdout)
+
+	println()
+	fmt.Printf("See the following logs to check more details:\n")
+	for _, pkg := range lastPackageStatus {
+		fmt.Printf("tail -100 %s\n", filepath.Join(filepath.Dir(pkg.ScriptPath), "install.log"))
 	}
 
 	return nil
