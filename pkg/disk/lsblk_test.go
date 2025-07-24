@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/dustin/go-humanize"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -309,4 +310,216 @@ func TestCustomUint64_MarshalJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetBlockDevicesWithMountPointFilter(t *testing.T) {
+	t.Parallel()
+
+	// Create a temporary file for mock lsblk output
+	tmpfile, err := os.CreateTemp("", "lsblk-test-*.json")
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+
+	jsonData := `{
+		"blockdevices": [
+			{
+				"name": "/dev/vda1",
+				"type": "part",
+				"size": 8001563222016,
+				"mountpoint": "/",
+				"fstype": "ext4"
+			},
+			{
+				"name": "/dev/vda2",
+				"type": "part",
+				"size": 1073741824,
+				"mountpoint": "",
+				"fstype": "swap"
+			},
+			{
+				"name": "/dev/vda3",
+				"type": "part",
+				"size": 1073741824,
+				"mountpoint": "/mnt/customfs",
+				"fstype": "virtiofs"
+			},
+			{
+				"name": "/dev/vda4",
+				"type": "part",
+				"size": 1073741824,
+				"mountpoint": "/mnt/cloud-metadata",
+				"fstype": "virtiofs"
+			},
+			{
+				"name": "/dev/vda5",
+				"type": "part",
+				"size": 1073741824,
+				"mountpoint": "/home",
+				"fstype": "ext4"
+			}
+		]
+	}`
+
+	// Test with parseLsblkJSON directly (no mount point filtering at parse level)
+	blks, err := parseLsblkJSON([]byte(jsonData))
+	require.NoError(t, err)
+	require.Len(t, blks, 5) // All devices are parsed
+
+	// Test filtering logic that would be applied by getBlockDevicesWithLsblk
+	op := &Op{}
+	err = op.applyOpts([]OpOption{WithMountPoint(DefaultMountPointFunc)})
+	require.NoError(t, err)
+
+	filteredBlks := make(BlockDevices, 0)
+	for _, blk := range blks {
+		if op.matchFuncMountPoint(blk.MountPoint) {
+			filteredBlks = append(filteredBlks, blk)
+		}
+	}
+
+	// Should have 3 devices (/, /home, /mnt/customfs)
+	// Only empty mount points and /mnt/cloud-metadata are filtered out
+	require.Len(t, filteredBlks, 3)
+
+	// Verify the correct devices were kept
+	mountPoints := make(map[string]bool)
+	for _, blk := range filteredBlks {
+		mountPoints[blk.MountPoint] = true
+	}
+
+	assert.True(t, mountPoints["/"], "Should include root mount point")
+	assert.True(t, mountPoints["/home"], "Should include /home mount point")
+	assert.True(t, mountPoints["/mnt/customfs"], "Should include /mnt/customfs")
+	assert.False(t, mountPoints[""], "Should not include empty mount point")
+	assert.False(t, mountPoints["/mnt/cloud-metadata"], "Should not include /mnt/cloud-metadata")
+}
+
+func TestGetBlockDevicesWithCustomMountPointFilter(t *testing.T) {
+	t.Parallel()
+
+	// Custom filter that only accepts root
+	rootOnlyFilter := func(mountPoint string) bool {
+		return mountPoint == "/"
+	}
+
+	jsonData := `{
+		"blockdevices": [
+			{
+				"name": "/dev/vda1",
+				"type": "part",
+				"size": 8001563222016,
+				"mountpoint": "/",
+				"fstype": "ext4"
+			},
+			{
+				"name": "/dev/vda2",
+				"type": "part",
+				"size": 1073741824,
+				"mountpoint": "/home",
+				"fstype": "ext4"
+			},
+			{
+				"name": "/dev/vda3",
+				"type": "part",
+				"size": 1073741824,
+				"mountpoint": "/var",
+				"fstype": "ext4"
+			}
+		]
+	}`
+
+	// Parse all devices first
+	blks, err := parseLsblkJSON([]byte(jsonData))
+	require.NoError(t, err)
+	require.Len(t, blks, 3)
+
+	// Apply custom mount point filter
+	op := &Op{}
+	err = op.applyOpts([]OpOption{WithMountPoint(rootOnlyFilter)})
+	require.NoError(t, err)
+
+	filteredBlks := make(BlockDevices, 0)
+	for _, blk := range blks {
+		if op.matchFuncMountPoint(blk.MountPoint) {
+			filteredBlks = append(filteredBlks, blk)
+		}
+	}
+
+	// Should only have 1 device (/)
+	require.Len(t, filteredBlks, 1)
+	assert.Equal(t, "/", filteredBlks[0].MountPoint)
+	assert.Equal(t, "/dev/vda1", filteredBlks[0].Name)
+}
+
+func TestGetBlockDevicesCombinedFilters(t *testing.T) {
+	t.Parallel()
+
+	jsonData := `{
+		"blockdevices": [
+			{
+				"name": "/dev/vda1",
+				"type": "part",
+				"size": 8001563222016,
+				"mountpoint": "/",
+				"fstype": "ext4"
+			},
+			{
+				"name": "/dev/vda2",
+				"type": "disk",
+				"size": 1073741824,
+				"mountpoint": "/data",
+				"fstype": "ext4"
+			},
+			{
+				"name": "/dev/vda3",
+				"type": "part",
+				"size": 1073741824,
+				"mountpoint": "/mnt/customfs",
+				"fstype": "virtiofs"
+			},
+			{
+				"name": "/dev/vda4",
+				"type": "loop",
+				"size": 1073741824,
+				"mountpoint": "/snap",
+				"fstype": "squashfs"
+			}
+		]
+	}`
+
+	// Parse with device type filter only (mount point filter is applied later)
+	blks, err := parseLsblkJSON([]byte(jsonData),
+		WithDeviceType(func(dt string) bool {
+			return dt == "part" || dt == "disk"
+		}))
+	require.NoError(t, err)
+
+	// After device type filtering, should have 3 devices (vda1, vda2, vda3)
+	require.Len(t, blks, 3)
+
+	// Now apply mount point filter manually (as done in getBlockDevicesWithLsblk)
+	op := &Op{}
+	err = op.applyOpts([]OpOption{WithMountPoint(DefaultMountPointFunc)})
+	require.NoError(t, err)
+
+	filteredBlks := make(BlockDevices, 0)
+	for _, blk := range blks {
+		if op.matchFuncMountPoint(blk.MountPoint) {
+			filteredBlks = append(filteredBlks, blk)
+		}
+	}
+
+	// Should have 3 devices: vda1 (part, /), vda2 (disk, /data), and vda3 (part, /mnt/customfs)
+	// Only /mnt/cloud-metadata is filtered by mount point, vda4 was already filtered by device type
+	require.Len(t, filteredBlks, 3)
+
+	names := make(map[string]bool)
+	for _, blk := range filteredBlks {
+		names[blk.Name] = true
+	}
+
+	assert.True(t, names["/dev/vda1"], "Should include vda1")
+	assert.True(t, names["/dev/vda2"], "Should include vda2")
+	assert.True(t, names["/dev/vda3"], "Should include vda3 (/mnt/customfs is allowed)")
+	assert.False(t, names["/dev/vda4"], "Should not include vda4 (filtered by device type)")
 }

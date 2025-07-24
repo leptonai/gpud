@@ -79,12 +79,12 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		lookbackPeriod:   defaultLookbackPeriod,
 
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
-			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultExt4FsTypeFunc))
+			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultExt4FsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
 		},
 		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			// statfs on nfs can incur network I/O or impact disk I/O performance
 			// do not track usage for nfs partitions
-			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultNFSFsTypeFunc))
+			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
 		},
 
 		findMntFunc: disk.FindMnt,
@@ -100,6 +100,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				ctx,
 				disk.WithFstype(disk.DefaultFsTypeFunc),
 				disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
+				disk.WithMountPoint(disk.DefaultMountPointFunc),
 			)
 		}
 	}

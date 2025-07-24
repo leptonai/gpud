@@ -12,7 +12,7 @@ import (
 )
 
 func TestStatWithTimeout_Success(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -32,7 +32,7 @@ func TestStatWithTimeout_Success(t *testing.T) {
 }
 
 func TestStatWithTimeout_Timeout(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -54,7 +54,7 @@ func TestStatWithTimeout_Timeout(t *testing.T) {
 }
 
 func TestStatWithTimeout_ContextCanceled(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -87,7 +87,7 @@ func TestStatWithTimeout_NonExistentFile(t *testing.T) {
 func TestMkdirAllWithTimeout_Success(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -108,7 +108,7 @@ func TestMkdirAllWithTimeout_Success(t *testing.T) {
 func TestMkdirAllWithTimeout_Timeout(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -125,7 +125,7 @@ func TestMkdirAllWithTimeout_Timeout(t *testing.T) {
 func TestWriteFileWithTimeout_Success(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -147,7 +147,7 @@ func TestWriteFileWithTimeout_Success(t *testing.T) {
 func TestWriteFileWithTimeout_Timeout(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -164,7 +164,7 @@ func TestWriteFileWithTimeout_Timeout(t *testing.T) {
 func TestWriteFileWithTimeout_Canceled(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -180,7 +180,7 @@ func TestWriteFileWithTimeout_Canceled(t *testing.T) {
 func TestReadFileWithTimeout_Success(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -201,7 +201,7 @@ func TestReadFileWithTimeout_Success(t *testing.T) {
 func TestReadFileWithTimeout_FileNotFound(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -216,7 +216,7 @@ func TestReadFileWithTimeout_FileNotFound(t *testing.T) {
 func TestReadFileWithTimeout_Timeout(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -236,7 +236,7 @@ func TestReadFileWithTimeout_Timeout(t *testing.T) {
 func TestReadFileWithTimeout_Canceled(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -257,7 +257,7 @@ func TestReadFileWithTimeout_Canceled(t *testing.T) {
 func TestAllOperationsWithContextScenarios(t *testing.T) {
 	t.Parallel()
 
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 

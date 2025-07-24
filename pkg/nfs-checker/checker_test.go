@@ -12,7 +12,7 @@ import (
 )
 
 func TestNewChecker(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -50,7 +50,7 @@ func TestNewChecker(t *testing.T) {
 }
 
 func TestChecker_Write(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -328,7 +328,7 @@ func TestChecker_Write(t *testing.T) {
 }
 
 func TestChecker_Clean(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -368,7 +368,7 @@ func TestChecker_Clean(t *testing.T) {
 }
 
 func TestChecker_Check(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -531,7 +531,7 @@ func TestChecker_Check(t *testing.T) {
 
 // TestChecker_Check_TimeoutErrorField tests the TimeoutError field in CheckResult
 func TestChecker_Check_TimeoutErrorField(t *testing.T) {
-	tmpDir, err := os.MkdirTemp(t.TempDir(), "test")
+	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 

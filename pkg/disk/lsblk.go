@@ -102,7 +102,27 @@ func getBlockDevicesWithLsblk(
 		return nil, fmt.Errorf("failed to run lsblk command: %w", err)
 	}
 
-	return parseFunc(b, opts...)
+	devs, err := parseFunc(b, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+	if op.matchFuncMountPoint != nil {
+		devs2 := make(BlockDevices, 0)
+		for _, dev := range devs {
+			if !op.matchFuncMountPoint(dev.MountPoint) {
+				continue
+			}
+			devs2 = append(devs2, dev)
+		}
+		devs = devs2
+	}
+
+	return devs, nil
 }
 
 const (
