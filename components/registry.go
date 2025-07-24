@@ -41,6 +41,13 @@ type GPUdInstance struct {
 
 	MountPoints  []string
 	MountTargets []string
+
+	FailureInjector *FailureInjector
+}
+
+type FailureInjector struct {
+	GPUUUIDsWithRowRemappingPending []string
+	GPUUUIDsWithRowRemappingFailed  []string
 }
 
 // InitFunc is the function that initializes a component.
