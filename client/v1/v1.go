@@ -577,6 +577,7 @@ func ReadMetrics(rd io.Reader, opts ...OpOption) (v1.GPUdComponentMetrics, error
 func createDefaultHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}

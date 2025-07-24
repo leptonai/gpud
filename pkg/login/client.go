@@ -40,7 +40,11 @@ func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+		},
+	}
 	httpResp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err

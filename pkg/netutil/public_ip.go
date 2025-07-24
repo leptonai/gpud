@@ -34,6 +34,7 @@ var publicIPDiscoverURLs = []string{
 func discoverPublicIP(url string) (string, error) {
 	// Create a transport that forces IPv4
 	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		// Force IPv4 by using tcp4 network
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return (&net.Dialer{
