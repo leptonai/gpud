@@ -72,6 +72,8 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 		MountPoints:  []string{"/"},
 		MountTargets: []string{"/var/lib/kubelet"},
+
+		FailureInjector: op.failureInjector,
 	}
 
 	for _, c := range all.All() {

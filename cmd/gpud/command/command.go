@@ -191,6 +191,16 @@ sudo rm /etc/systemd/system/gpud.service
 					Value:  "",
 					Hidden: true, // only for testing
 				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-row-remapping-pending",
+					Usage:  "set the comma-separated gpu uuids with row remapping pending",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-row-remapping-failed",
+					Usage:  "set the comma-separated gpu uuids with row remapping failed",
+					Hidden: true, // only for testing
+				},
 			},
 		},
 		{
@@ -435,6 +445,16 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:   "infiniband-class-root-dir",
 					Usage:  "sets the infiniband class root directory (leave empty for default)",
 					Value:  "",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-row-remapping-pending",
+					Usage:  "set the comma-separated gpu uuids with row remapping pending",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-row-remapping-failed",
+					Usage:  "set the comma-separated gpu uuids with row remapping failed",
 					Hidden: true, // only for testing
 				},
 			},

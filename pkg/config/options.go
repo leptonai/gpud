@@ -1,12 +1,15 @@
 package config
 
 import (
+	"github.com/leptonai/gpud/components"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	infinibandclass "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/class"
 )
 
 type Op struct {
 	pkgconfigcommon.ToolOverwrites
+
+	FailureInjector *components.FailureInjector
 }
 
 type OpOption func(*Op)
@@ -27,5 +30,11 @@ func (op *Op) ApplyOpts(opts []OpOption) error {
 func WithInfinibandClassRootDir(p string) OpOption {
 	return func(op *Op) {
 		op.InfinibandClassRootDir = p
+	}
+}
+
+func WithFailureInjector(injector *components.FailureInjector) OpOption {
+	return func(op *Op) {
+		op.FailureInjector = injector
 	}
 }

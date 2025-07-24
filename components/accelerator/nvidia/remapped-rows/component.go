@@ -35,6 +35,9 @@ type component struct {
 	nvmlInstance        nvidianvml.Instance
 	getRemappedRowsFunc func(uuid string, dev device.Device) (nvidianvml.RemappedRows, error)
 
+	gpuUUIDsWithRowRemappingPending map[string]any
+	gpuUUIDsWithRowRemappingFailed  map[string]any
+
 	eventBucket eventstore.Bucket
 
 	lastMu          sync.RWMutex
@@ -44,10 +47,12 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                 cctx,
-		cancel:              ccancel,
-		nvmlInstance:        gpudInstance.NVMLInstance,
-		getRemappedRowsFunc: nvml.GetRemappedRows,
+		ctx:                             cctx,
+		cancel:                          ccancel,
+		nvmlInstance:                    gpudInstance.NVMLInstance,
+		getRemappedRowsFunc:             nvml.GetRemappedRows,
+		gpuUUIDsWithRowRemappingPending: make(map[string]any),
+		gpuUUIDsWithRowRemappingFailed:  make(map[string]any),
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -56,6 +61,15 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		if err != nil {
 			ccancel()
 			return nil, err
+		}
+	}
+
+	if gpudInstance != nil && gpudInstance.FailureInjector != nil {
+		for _, uuid := range gpudInstance.FailureInjector.GPUUUIDsWithRowRemappingPending {
+			c.gpuUUIDsWithRowRemappingPending[uuid] = nil
+		}
+		for _, uuid := range gpudInstance.FailureInjector.GPUUUIDsWithRowRemappingFailed {
+			c.gpuUUIDsWithRowRemappingFailed[uuid] = nil
 		}
 	}
 
@@ -177,26 +191,39 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Warnw(cr.reason, "uuid", uuid, "pciBusID", dev.PCIBusID(), "error", cr.err)
 			continue
 		}
-		cr.RemappedRows = append(cr.RemappedRows, remappedRows)
 
 		metricUncorrectableErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(remappedRows.RemappedDueToCorrectableErrors))
 
 		if remappedRows.RemappingPending {
 			metricRemappingPending.With(prometheus.Labels{"uuid": uuid}).Set(float64(1.0))
 		} else {
+			if _, ok := c.gpuUUIDsWithRowRemappingPending[uuid]; ok {
+				log.Logger.Warnw("marking row remapping pending to inject failures", "uuid", uuid)
+				remappedRows.RemappingPending = true
+			} else {
+				log.Logger.Debugw("row remapping pending", "uuid", uuid)
+			}
 			metricRemappingPending.With(prometheus.Labels{"uuid": uuid}).Set(float64(0.0))
 		}
 
 		if remappedRows.RemappingFailed {
 			metricRemappingFailed.With(prometheus.Labels{"uuid": uuid}).Set(float64(1.0))
 		} else {
+			if _, ok := c.gpuUUIDsWithRowRemappingFailed[uuid]; ok {
+				log.Logger.Warnw("marking row remapping failed to inject failures", "uuid", uuid)
+				remappedRows.RemappingFailed = true
+			} else {
+				log.Logger.Debugw("row remapping failed", "uuid", uuid)
+			}
 			metricRemappingFailed.With(prometheus.Labels{"uuid": uuid}).Set(float64(0.0))
 		}
 
+		cr.RemappedRows = append(cr.RemappedRows, remappedRows)
+
 		if remappedRows.RemappingPending {
-			log.Logger.Warnw("inserting event for remapping pending", "uuid", uuid)
 			// Only set suggested action if we don't already have a more severe one (RMA takes precedence)
 			if cr.suggestedActions == nil || cr.suggestedActions.RepairActions[0] != apiv1.RepairActionTypeHardwareInspection {
+				log.Logger.Warnw("suggesting reboot for row remapping pending", "uuid", uuid)
 				cr.suggestedActions = &apiv1.SuggestedActions{
 					Description: "row remapping pending requires GPU reset or system reboot",
 					RepairActions: []apiv1.RepairActionType{
@@ -211,8 +238,8 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		if remappedRows.RemappingFailed {
-			log.Logger.Warnw("inserting event for remapping failed", "uuid", uuid)
 			// RMA always takes precedence over other actions
+			log.Logger.Warnw("suggesting hw inspection for row remapping failed", "uuid", uuid)
 			cr.suggestedActions = &apiv1.SuggestedActions{
 				Description: "row remapping failure requires hardware inspection",
 				RepairActions: []apiv1.RepairActionType{
