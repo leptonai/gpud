@@ -10,9 +10,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shirou/gopsutil/v4/disk"
 
 	pkgfile "github.com/leptonai/gpud/pkg/file"
@@ -64,7 +66,12 @@ func GetPartitions(ctx context.Context, opts ...OpOption) (Partitions, error) {
 		}
 
 		if part.Mounted && !op.skipUsage {
+			now := time.Now()
 			part.Usage, err = GetUsage(ctx, p.Mountpoint)
+			took := time.Since(now)
+			metricGetUsageSeconds.With(prometheus.Labels{"mount_point": p.Mountpoint}).Observe(took.Seconds())
+			log.Logger.Debugw("get usage", "mountPoint", p.Mountpoint, "took", took)
+
 			if err != nil {
 				// mount point is gone
 				// e.g., "no such file or directory"
