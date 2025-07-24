@@ -2304,6 +2304,90 @@ func TestComponent_GetPartitionsTimeoutIntegration(t *testing.T) {
 	}
 }
 
+// TestComponent_LookbackPeriodUsage tests that the lookback period is used for getting recent events
+func TestComponent_LookbackPeriodUsage(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock event store and bucket
+	mockEventStore := new(mockEventStore)
+	mockBucket := new(mockEventBucket)
+	mockEventStore.On("Bucket", Name).Return(mockBucket, nil)
+	mockBucket.On("Close").Return()
+
+	// Mock reboot event store (using existing implementation from component_suggested_actions_test.go)
+	mockRebootStore := &mockRebootEventStore{
+		events: eventstore.Events{}, // Empty events for this test
+		err:    nil,
+	}
+
+	// Custom lookback period for testing
+	customLookbackPeriod := 6 * time.Hour
+
+	// Create GPUd instance with mock event store
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       mockEventStore,
+		RebootEventStore: mockRebootStore,
+		MountPoints:      []string{},
+		MountTargets:     []string{},
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+	defer comp.Close()
+
+	// Get the component and set custom lookback period
+	c := comp.(*component)
+	c.lookbackPeriod = customLookbackPeriod
+
+	// Verify that both eventBucket and rebootEventStore are set
+	assert.NotNil(t, c.eventBucket, "eventBucket should be set")
+	assert.NotNil(t, c.rebootEventStore, "rebootEventStore should be set")
+
+	// Set up mock functions
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{
+			{
+				Device:     "/dev/sda1",
+				MountPoint: "/",
+				Usage: &disk.Usage{
+					TotalBytes: 1000,
+					FreeBytes:  500,
+					UsedBytes:  500,
+				},
+			},
+		}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+
+	// Capture the time parameter passed to Get()
+	var capturedSinceTime time.Time
+	mockBucket.On("Get", mock.Anything, mock.MatchedBy(func(since time.Time) bool {
+		capturedSinceTime = since
+		return true
+	})).Return(eventstore.Events{}, nil)
+
+	// Run Check
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify that Get was called with the correct lookback period
+	expectedSinceTime := cr.ts.Add(-customLookbackPeriod)
+	timeDiff := capturedSinceTime.Sub(expectedSinceTime)
+	if timeDiff < 0 {
+		timeDiff = -timeDiff
+	}
+	assert.Less(t, timeDiff, time.Second, "Get should be called with lookback period time")
+
+	mockBucket.AssertCalled(t, "Get", mock.Anything, mock.Anything)
+}
+
 // TestComponent_ContextErrorTypes verifies different context error types are handled correctly
 func TestComponent_ContextErrorTypes(t *testing.T) {
 	t.Parallel()

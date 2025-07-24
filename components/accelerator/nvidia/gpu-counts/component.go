@@ -5,7 +5,6 @@ package gpucounts
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -243,7 +242,9 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	// evaluate the suggested actions (along with the reboot history)
-	evaluateSuggestedActions(cr, rebootEvents, gpuMismatchEvents)
+	if len(gpuMismatchEvents) > 0 {
+		cr.suggestedActions = eventstore.EvaluateSuggestedActions(rebootEvents, gpuMismatchEvents, 2)
+	}
 
 	return cr
 }
@@ -307,113 +308,6 @@ func (c *component) recordMismatchEvent(cr *checkResult) error {
 // -> gpu count mismatch -> reboot
 // -> gpu count mismatch; suggest "hw inspection"
 // (after >=2 reboots, we still get gpu count mismatch)
-func evaluateSuggestedActions(cr *checkResult, rebootEvents eventstore.Events, gpuMismatchEvents eventstore.Events) {
-	// since we just inserted the mismatch event before calling [evaluateSuggestedActions]
-	// this should never happen... but handle just in case!
-	if len(gpuMismatchEvents) == 0 {
-		cr.err = errors.New("no gpu count mismatch event found after insert")
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "no gpu count mismatch event found after insert"
-		log.Logger.Warnw(cr.reason, "error", cr.err)
-		return
-	}
-
-	if len(rebootEvents) == 0 {
-		// case 1. gpu count mismatch (first time); suggest "reboot"
-		// (no previous reboot found)
-		cr.suggestedActions = &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{
-				apiv1.RepairActionTypeRebootSystem,
-			},
-		}
-		log.Logger.Warnw("gpu count mismatch event found but no reboot event found -- suggesting reboot")
-		return
-	}
-
-	// edge case:
-	// we just inserted above, before calling [evaluateSuggestedActions]
-	// assume reboot (if ever) happened before gpu count mismatch
-	// if there's no following gpu count mismatch event after reboot,
-	// we should ignore (reboot could have been triggered just now!)
-	firstRebootTime := rebootEvents[0].Time
-	firstMismatchTime := gpuMismatchEvents[0].Time
-	if firstRebootTime.After(firstMismatchTime) {
-		log.Logger.Warnw("no gpu count mismatch event found after reboot -- suggesting none")
-		return
-	}
-
-	// now it's guaranteed that we have at least
-	// one sequence of "gpu count mismatch -> reboot"
-	if len(rebootEvents) == 1 || len(gpuMismatchEvents) == 1 {
-		// there's been only one reboot event,
-		// so now we know there's only one possible sequence of
-		// "gpu count mismatch -> reboot"
-		//
-		// case 2.
-		// gpu count mismatch -> reboot
-		// -> gpu count mismatch; suggest second "reboot"
-		// (after first reboot, we still get gpu count mismatch)
-		//
-		// or there's been only one reboot + only one gpu count mismatch event; suggest second "reboot"
-		// (after first reboot, we still get gpu count mismatch)
-		cr.suggestedActions = &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{
-				apiv1.RepairActionTypeRebootSystem,
-			},
-		}
-		log.Logger.Warnw("gpu count mismatch event found -- suggesting reboot", "rebootCount", len(rebootEvents), "mismatchCount", len(gpuMismatchEvents))
-		return
-	}
-
-	// now that we have >=2 reboot events AND >=2 gpu count mismatch events
-	// just check if there's been >=2 sequences of "reboot -> mismatch"
-	// since it's possible that "reboot -> reboot -> mismatch -> mismatch"
-	// which should only count as one sequence of "reboot -> mismatch"
-	mismatchToReboot := make(map[time.Time]time.Time)
-
-	for i := 0; i < len(gpuMismatchEvents); i++ {
-		mismatchTime := gpuMismatchEvents[i].Time
-
-		for j := 0; j < len(rebootEvents); j++ {
-			rebootTime := rebootEvents[j].Time
-
-			if mismatchTime.Before(rebootTime) {
-				continue
-			}
-
-			if _, ok := mismatchToReboot[mismatchTime]; ok {
-				// already seen this mismatch event with a corresponding reboot event
-				continue
-			}
-
-			mismatchToReboot[mismatchTime] = rebootTime
-		}
-	}
-
-	// case 3.
-	// gpu count mismatch -> reboot
-	// -> gpu count mismatch -> reboot
-	// -> gpu count mismatch; suggest "hw inspection"
-	// (after >=2 reboots, we still get gpu count mismatch)
-	if len(mismatchToReboot) >= 2 {
-		cr.suggestedActions = &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{
-				apiv1.RepairActionTypeHardwareInspection,
-			},
-		}
-		log.Logger.Warnw("multiple reboot -> gpu count mismatch event sequences found -- suggesting hw inspection", "rebootCount", len(rebootEvents), "mismatchCount", len(mismatchToReboot))
-		return
-	}
-
-	// only one valid sequence of "reboot -> gpu count mismatch"
-	// still suggest "reboot"
-	cr.suggestedActions = &apiv1.SuggestedActions{
-		RepairActions: []apiv1.RepairActionType{
-			apiv1.RepairActionTypeRebootSystem,
-		},
-	}
-	log.Logger.Warnw("only one valid sequence of 'reboot -> gpu count mismatch' found -- suggesting reboot", "rebootCount", len(rebootEvents), "mismatchCount", len(gpuMismatchEvents))
-}
 
 const reasonThresholdNotSetSkipped = "GPU count thresholds not set, skipping"
 

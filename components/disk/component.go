@@ -22,6 +22,7 @@ import (
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgfile "github.com/leptonai/gpud/pkg/file"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -49,14 +50,22 @@ type component struct {
 
 	mountPointsToTrackUsage map[string]struct{}
 
-	eventBucket eventstore.Bucket
-	kmsgSyncer  *kmsg.Syncer
+	rebootEventStore pkghost.RebootEventStore
+	eventBucket      eventstore.Bucket
+	kmsgSyncer       *kmsg.Syncer
+
+	// lookbackPeriod defines how far back to query historical reboot and disk failure events
+	// when evaluating suggested repair actions. Default is 3 days.
+	lookbackPeriod time.Duration
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
 
-const defaultRetryInterval = 5 * time.Second
+const (
+	defaultRetryInterval  = 5 * time.Second
+	defaultLookbackPeriod = 3 * 24 * time.Hour // 3 days
+)
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
@@ -65,6 +74,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cancel: ccancel,
 
 		retryInterval: defaultRetryInterval,
+
+		rebootEventStore: gpudInstance.RebootEventStore,
+		lookbackPeriod:   defaultLookbackPeriod,
 
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultExt4FsTypeFunc))
@@ -340,6 +352,96 @@ func (c *component) Check() components.CheckResult {
 
 	log.Logger.Debugw(cr.reason, "extPartitions", len(cr.ExtPartitions), "nfsPartitions", len(cr.NFSPartitions), "blockDevices", len(cr.BlockDevices))
 
+	// Check for disk failure events from kmsg (only if event store is available)
+	if c.eventBucket != nil && c.rebootEventStore != nil {
+		// Query recent events to check for disk failures
+		recentEvents, err := c.eventBucket.Get(c.ctx, cr.ts.Add(-c.lookbackPeriod))
+		if err != nil {
+			cr.err = err
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "failed to get recent events"
+			log.Logger.Warnw(cr.reason, "error", cr.err)
+			return cr
+		}
+
+		// Filter recent events to only include the hardware-related disk failure events
+		// Group events by type for individual evaluation
+		raidFailureEvents := make(eventstore.Events, 0)
+		fsReadOnlyEvents := make(eventstore.Events, 0)
+		nvmePathFailureEvents := make(eventstore.Events, 0)
+		var failureReasons []string
+
+		for _, ev := range recentEvents {
+			switch ev.Name {
+			case eventRAIDArrayFailure:
+				raidFailureEvents = append(raidFailureEvents, ev)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				failureReasons = append(failureReasons, "RAID array failure detected")
+			case eventFilesystemReadOnly:
+				fsReadOnlyEvents = append(fsReadOnlyEvents, ev)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				failureReasons = append(failureReasons, "Filesystem remounted read-only")
+			case eventNVMePathFailure:
+				nvmePathFailureEvents = append(nvmePathFailureEvents, ev)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				failureReasons = append(failureReasons, "NVMe path failure detected")
+			}
+		}
+
+		// Append failure reasons to existing reason if any failures were detected
+		if len(failureReasons) > 0 {
+			newReason := strings.Join(failureReasons, ", ")
+			if cr.reason != "" {
+				cr.reason += "; " + newReason
+			} else {
+				cr.reason = newReason
+			}
+		}
+
+		// If we found disk failures, evaluate suggested actions for each type
+		hasFailures := len(raidFailureEvents) > 0 || len(fsReadOnlyEvents) > 0 || len(nvmePathFailureEvents) > 0
+		if hasFailures {
+			// Look up past events to derive the suggested actions
+			rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, cr.ts.Add(-c.lookbackPeriod))
+			if err != nil {
+				cr.err = err
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				log.Logger.Warnw("failed to get reboot events", "error", cr.err)
+				return cr
+			}
+
+			// Evaluate suggested actions for each event type
+			var allSuggestedActions []*apiv1.SuggestedActions
+
+			// Process RAID failure events
+			if len(raidFailureEvents) > 0 {
+				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, raidFailureEvents, 2)
+				if suggestedActions != nil {
+					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				}
+			}
+
+			// Process filesystem read-only events
+			if len(fsReadOnlyEvents) > 0 {
+				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, fsReadOnlyEvents, 2)
+				if suggestedActions != nil {
+					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				}
+			}
+
+			// Process NVMe path failure events
+			if len(nvmePathFailureEvents) > 0 {
+				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, nvmePathFailureEvents, 2)
+				if suggestedActions != nil {
+					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				}
+			}
+
+			// Aggregate suggested actions with HW_INSPECTION priority
+			cr.suggestedActions = eventstore.AggregateSuggestedActions(allSuggestedActions)
+		}
+	}
+
 	return cr
 }
 
@@ -464,6 +566,8 @@ type checkResult struct {
 
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
+	// tracks the suggested actions for the last check
+	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
 }
@@ -552,6 +656,13 @@ func (cr *checkResult) getError() string {
 	return cr.err.Error()
 }
 
+func (cr *checkResult) getSuggestedActions() *apiv1.SuggestedActions {
+	if cr == nil {
+		return nil
+	}
+	return cr.suggestedActions
+}
+
 func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	if cr == nil {
 		return apiv1.HealthStates{
@@ -566,12 +677,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.getSuggestedActions(),
 	}
 
 	if len(cr.ExtPartitions) > 0 && len(cr.BlockDevices) > 0 {
