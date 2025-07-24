@@ -197,11 +197,11 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				c.packageStatus[pkg.Name].Progress = 100
 				c.packageStatus[pkg.Name].IsInstalled = true
 				c.Unlock()
-				log.Logger.Debugf("[package controller]: %v already installed", pkg.Name)
+				log.Logger.Debugw("[package controller] already installed", "name", pkg.Name)
 				continue
 			}
 
-			log.Logger.Warnf("[package controller]: %v not installed, installing", pkg.Name, "error", err)
+			log.Logger.Warnw("[package controller] not installed, installing", "name", pkg.Name, "error", err)
 			go func() {
 				var eta time.Duration
 				c.Lock()
