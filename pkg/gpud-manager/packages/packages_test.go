@@ -165,3 +165,201 @@ func getJSONTag(v interface{}, fieldName string) string {
 	}
 	return tag
 }
+
+func TestPackageStatuses_RenderTable(t *testing.T) {
+	tests := []struct {
+		name     string
+		statuses PackageStatuses
+		contains []string
+	}{
+		{
+			name:     "empty package statuses",
+			statuses: PackageStatuses{},
+			contains: []string{
+				"PACKAGE NAME",
+				"STATUS",
+				"PROGRESS",
+				"VERSION",
+				"TIME ELAPSED",
+				"EST",
+			},
+		},
+		{
+			name: "single package installing",
+			statuses: PackageStatuses{
+				{
+					Name:           "nvidia-driver",
+					IsInstalled:    false,
+					Installing:     true,
+					Progress:       50,
+					TotalTime:      10 * time.Minute,
+					CurrentVersion: "525.89.02",
+					TargetVersion:  "535.104.05",
+				},
+			},
+			contains: []string{
+				"nvidia-driver",
+				"Installing",
+				"[==========          ] 50%",
+				"525.89.02 → 535.104.05",
+			},
+		},
+		{
+			name: "multiple packages with different states",
+			statuses: PackageStatuses{
+				{
+					Name:           "cuda-toolkit",
+					IsInstalled:    true,
+					Installing:     false,
+					Progress:       100,
+					TotalTime:      5 * time.Minute,
+					CurrentVersion: "12.1",
+					TargetVersion:  "12.1",
+				},
+				{
+					Name:           "nvidia-container-toolkit",
+					IsInstalled:    false,
+					Installing:     false,
+					Progress:       0,
+					TotalTime:      0,
+					CurrentVersion: "",
+					TargetVersion:  "1.14.3",
+				},
+			},
+			contains: []string{
+				"cuda-toolkit",
+				"✅",
+				"[====================] 100%",
+				"12.1",
+				"nvidia-container-toolkit",
+				"Not Installed",
+				"[                    ] 0%",
+				"N/A",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf strings.Builder
+			tt.statuses.RenderTable(&buf)
+			output := buf.String()
+
+			for _, expected := range tt.contains {
+				assert.Contains(t, output, expected)
+			}
+		})
+	}
+}
+
+func TestCreateProgressBar(t *testing.T) {
+	tests := []struct {
+		name     string
+		progress int
+		width    int
+		expected string
+	}{
+		{
+			name:     "0% progress",
+			progress: 0,
+			width:    20,
+			expected: "[                    ]",
+		},
+		{
+			name:     "50% progress",
+			progress: 50,
+			width:    20,
+			expected: "[==========          ]",
+		},
+		{
+			name:     "100% progress",
+			progress: 100,
+			width:    20,
+			expected: "[====================]",
+		},
+		{
+			name:     "25% progress with 10 width",
+			progress: 25,
+			width:    10,
+			expected: "[==        ]",
+		},
+		{
+			name:     "negative progress (should be 0)",
+			progress: -10,
+			width:    20,
+			expected: "[                    ]",
+		},
+		{
+			name:     "over 100% progress (should be capped at 100)",
+			progress: 150,
+			width:    20,
+			expected: "[====================]",
+		},
+		{
+			name:     "33% progress",
+			progress: 33,
+			width:    20,
+			expected: "[======              ]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := createProgressBar(tt.progress, tt.width)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestPackageStatuses_RenderTable_ProgressStates(t *testing.T) {
+	// Test specific progress states and time calculations
+	statuses := PackageStatuses{
+		{
+			Name:           "package-at-start",
+			IsInstalled:    false,
+			Installing:     true,
+			Progress:       0,
+			TotalTime:      10 * time.Minute,
+			CurrentVersion: "1.0.0",
+			TargetVersion:  "2.0.0",
+		},
+		{
+			Name:           "package-in-progress",
+			IsInstalled:    false,
+			Installing:     true,
+			Progress:       75,
+			TotalTime:      20 * time.Minute,
+			CurrentVersion: "1.0.0",
+			TargetVersion:  "2.0.0",
+		},
+		{
+			Name:           "package-completed",
+			IsInstalled:    true,
+			Installing:     false,
+			Progress:       100,
+			TotalTime:      15 * time.Minute,
+			CurrentVersion: "2.0.0",
+			TargetVersion:  "2.0.0",
+		},
+	}
+
+	var buf strings.Builder
+	statuses.RenderTable(&buf)
+	output := buf.String()
+
+	// Check for specific status indicators
+	expectedStrings := []string{
+		"package-at-start",
+		"Not started",
+		"package-in-progress",
+		"Installing",
+		"[===============     ] 75%",
+		"package-completed",
+		"✅",
+		"Complete",
+	}
+
+	for _, expected := range expectedStrings {
+		assert.Contains(t, output, expected)
+	}
+}
