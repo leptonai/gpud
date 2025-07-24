@@ -142,7 +142,11 @@ func sendNotification(endpoint string, req apiv1.NotificationRequest, token stri
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	client := &http.Client{}
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+		},
+	}
 	response, err := client.Do(httpReq)
 	if err != nil {
 		return err

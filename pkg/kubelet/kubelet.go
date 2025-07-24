@@ -70,6 +70,7 @@ func parsePodsFromKubeletReadOnlyPort(r io.Reader) (*corev1.PodList, error) {
 
 func defaultHTTPClient() *http.Client {
 	tr := &http.Transport{
+		Proxy:              http.ProxyFromEnvironment,
 		DisableCompression: true,
 	}
 	return &http.Client{
