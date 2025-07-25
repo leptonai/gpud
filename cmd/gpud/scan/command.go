@@ -8,6 +8,8 @@ import (
 	"github.com/urfave/cli"
 	"go.uber.org/zap"
 
+	"github.com/leptonai/gpud/cmd/gpud/common"
+	gpudcomponents "github.com/leptonai/gpud/components"
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
@@ -25,11 +27,13 @@ func CreateCommand() func(*cli.Context) error {
 			cliContext.String("infiniband-expected-port-states"),
 			cliContext.String("nfs-checker-configs"),
 			cliContext.String("infiniband-class-root-dir"),
+			cliContext.String("gpu-uuids-with-row-remapping-pending"),
+			cliContext.String("gpu-uuids-with-row-remapping-failed"),
 		)
 	}
 }
 
-func cmdScan(logLevel string, gpuCount int, infinibandExpectedPortStates string, nfsCheckerConfigs string, ibClassRootDir string) error {
+func cmdScan(logLevel string, gpuCount int, infinibandExpectedPortStates string, nfsCheckerConfigs string, ibClassRootDir string, gpuUUIDsWithRowRemappingPendingRaw string, gpuUUIDsWithRowRemappingFailedRaw string) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
 		return err
@@ -66,8 +70,15 @@ func cmdScan(logLevel string, gpuCount int, infinibandExpectedPortStates string,
 		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
 	}
 
+	gpuUUIDsWithRowRemappingPending := common.ParseGPUUUIDs(gpuUUIDsWithRowRemappingPendingRaw)
+	gpuUUIDsWithRowRemappingFailed := common.ParseGPUUUIDs(gpuUUIDsWithRowRemappingFailedRaw)
+
 	opts := []scan.OpOption{
 		scan.WithInfinibandClassRootDir(ibClassRootDir),
+		scan.WithFailureInjector(&gpudcomponents.FailureInjector{
+			GPUUUIDsWithRowRemappingPending: gpuUUIDsWithRowRemappingPending,
+			GPUUUIDsWithRowRemappingFailed:  gpuUUIDsWithRowRemappingFailed,
+		}),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error
 		opts = append(opts, scan.WithDebug(true))
