@@ -1117,7 +1117,7 @@ func (m *mockIBPortsStore) Scan() error {
 }
 
 // TestComponentReadClass_12PortsMeetingThresholdsWithEvents tests scenario with 12 total ports
-// where 8 ports meet thresholds, and some ports have drop/flap events that should be ignored
+// where 8 ports meet thresholds, and some ports have drop/flap events that now always cause unhealthy state
 func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
 	if _, err := os.Stat(origClassDir); err != nil {
@@ -1187,9 +1187,11 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 		}
 
 		// Initial state - all 8 IB ports are active by default in test data
+		// But we have historical events, so it should be unhealthy
 		cr := c.Check()
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
-		assert.Equal(t, "ok; no infiniband port issue", cr.Summary())
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+		assert.Contains(t, cr.Summary(), "device(s) down too long: mlx5_4")
+		assert.Contains(t, cr.Summary(), "device(s) flapping between ACTIVE<>DOWN: mlx5_5")
 
 		// Now simulate scenario: Some ports down/flapping but still meeting threshold
 		// mlx5_4 and mlx5_5 have events but we still have 6 active ports
@@ -1213,10 +1215,11 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 		timeNow = timeNow.Add(30 * time.Second)
 		cr = c.Check()
 
-		// Should be HEALTHY because we have 6 active ports meeting the threshold
-		// Events should NOT be processed
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
-		assert.Equal(t, "ok; no infiniband port issue", cr.Summary())
+		// Should be UNHEALTHY because there are historical events, even though thresholds are met
+		// Events are now always processed regardless of threshold status
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+		assert.Contains(t, cr.Summary(), "device(s) down too long: mlx5_4")
+		assert.Contains(t, cr.Summary(), "device(s) flapping between ACTIVE<>DOWN: mlx5_5")
 
 		// Verify that the events were NOT added to the event bucket
 		// (In real component, events are only processed when unhealthyIBPorts is non-empty)
@@ -1416,13 +1419,13 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 		timeNow = timeNow.Add(30 * time.Second)
 		cr := c.Check()
 
-		// Should be HEALTHY because we have exactly 6 ports at 400 Gb/s meeting the threshold
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
-		assert.Equal(t, "ok; no infiniband port issue", cr.Summary())
+		// Should be UNHEALTHY because we have historical events, even though thresholds are met
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+		assert.Contains(t, cr.Summary(), "device(s) down too long: mlx5_1, mlx5_7")
+		assert.Contains(t, cr.Summary(), "device(s) flapping between ACTIVE<>DOWN: mlx5_2, mlx5_8")
 
-		// Verify events were NOT processed
-		// Note: In the real implementation, events would not be processed because
-		// unhealthyIBPorts is empty when thresholds are met
+		// Verify events were processed
+		// With the new implementation, events are always processed regardless of threshold status
 	})
 
 	// Test case 2: Threshold NOT met (need 7 ports but only have 6) - should be unhealthy and process events
@@ -1603,13 +1606,13 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 		timeNow = timeNow.Add(30 * time.Second)
 		cr := c.Check()
 
-		// Should be HEALTHY because we have exactly 4 ports at 400 Gb/s meeting the threshold
-		// Even though half the ports are down with events, they should be ignored
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
-		assert.Equal(t, "ok; no infiniband port issue", cr.Summary())
+		// Should be UNHEALTHY because we have historical events, even though thresholds are met
+		// Events are now always processed regardless of whether thresholds are met
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+		assert.Contains(t, cr.Summary(), "device(s) down too long: mlx5_1, mlx5_5")
+		assert.Contains(t, cr.Summary(), "device(s) flapping between ACTIVE<>DOWN: mlx5_4, mlx5_7")
 
-		// Verify events were NOT processed
-		// Note: In the real implementation, events would not be processed because
-		// unhealthyIBPorts is empty when thresholds are met, even with many down ports
+		// Verify events were processed
+		// With the new implementation, events are always processed regardless of threshold status
 	})
 }

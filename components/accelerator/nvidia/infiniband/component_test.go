@@ -1480,10 +1480,11 @@ func TestComponentCheckWithLastEventsError(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, data)
 
-	// Should still complete successfully despite LastEvents error
-	// The error is logged but doesn't fail the check
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
-	assert.Equal(t, reasonNoIbPortIssue, data.reason)
+	// Should be unhealthy when LastEvents fails
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.Equal(t, "error getting ib flap/drop events", data.reason)
+	assert.NotNil(t, data.err)
+	assert.Equal(t, "database connection failed", data.err.Error())
 }
 
 func TestComponentCheckWithNilIBPortsStore(t *testing.T) {
@@ -1809,6 +1810,111 @@ func TestComponentCheckWithEventFindError(t *testing.T) {
 }
 
 // Tests for different event types (Drop/Flap)
+func TestComponentCheckHealthyPortsWithHistoricalEvents(t *testing.T) {
+	t.Parallel()
+
+	// Test case: All ports are currently healthy (meeting thresholds)
+	// BUT there are historical flap/drop events that haven't been cleared
+	// Expected: Component should be unhealthy due to historical events
+	cctx, ccancel := context.WithCancel(context.Background())
+	defer ccancel()
+
+	mockBucket := createMockEventBucket()
+
+	// Create a mock store with historical events
+	mockStore := &testIBPortsStore{
+		events: []infinibandstore.Event{
+			{
+				Time: time.Now().UTC().Add(-time.Hour), // Event from 1 hour ago
+				Port: infiniband.IBPort{
+					Device: "mlx5_0",
+					Port:   1,
+				},
+				EventType:   infinibandstore.EventTypeIbPortFlap,
+				EventReason: "mlx5_0 port 1 flap event from 1 hour ago",
+			},
+			{
+				Time: time.Now().UTC().Add(-30 * time.Minute), // Event from 30 min ago
+				Port: infiniband.IBPort{
+					Device: "mlx5_1",
+					Port:   1,
+				},
+				EventType:   infinibandstore.EventTypeIbPortDrop,
+				EventReason: "mlx5_1 port 1 drop event from 30 minutes ago",
+			},
+		},
+	}
+
+	c := &component{
+		ctx:            cctx,
+		cancel:         ccancel,
+		eventBucket:    mockBucket,
+		ibPortsStore:   mockStore,
+		requestTimeout: 5 * time.Second,
+		nvmlInstance:   &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			return infiniband.ExpectedPortStates{
+				AtLeastPorts: 2,   // We have 2 healthy ports
+				AtLeastRate:  400, // Both ports meet this rate
+			}
+		},
+		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+			// Return all healthy ports that meet thresholds
+			return infinibandclass.Devices{
+				{
+					Name: "mlx5_0",
+					Ports: []infinibandclass.Port{
+						{
+							Port:      1,
+							Name:      "1",
+							State:     "Active",
+							PhysState: "LinkUp",
+							RateGBSec: 400,
+							LinkLayer: "Infiniband",
+							Counters: infinibandclass.Counters{
+								LinkDowned: new(uint64),
+							},
+						},
+					},
+				},
+				{
+					Name: "mlx5_1",
+					Ports: []infinibandclass.Port{
+						{
+							Port:      1,
+							Name:      "1",
+							State:     "Active",
+							PhysState: "LinkUp",
+							RateGBSec: 400,
+							LinkLayer: "Infiniband",
+							Counters: infinibandclass.Counters{
+								LinkDowned: new(uint64),
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	result := c.Check()
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	require.NotNil(t, data)
+
+	// Should be unhealthy due to historical events, even though current ports are healthy
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.Contains(t, data.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_0")
+	assert.Contains(t, data.reason, "device(s) down too long: mlx5_1")
+
+	// Suggested actions should include hardware inspection
+	assert.NotNil(t, data.suggestedActions)
+	assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeHardwareInspection)
+}
+
 func TestComponentCheckWithUnknownEventTypeDefaultCase(t *testing.T) {
 	t.Parallel()
 
