@@ -237,6 +237,162 @@ func TestHasNVMePathFailure(t *testing.T) {
 	}
 }
 
+func TestHasNVMeTimeout(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{
+			name: "NVME timeout - real example",
+			line: "[Sun Jun 29 19:20:26 2025] nvme nvme4: I/O tag 22 (2016) opcode 0x2 (Admin Cmd) QID 0 timeout, reset controller",
+			want: true,
+		},
+		{
+			name: "NVME timeout without timestamp",
+			line: "nvme nvme0: I/O tag 10 (1234) opcode 0x1 (Read) QID 1 timeout, reset controller",
+			want: true,
+		},
+		{
+			name: "NVME timeout different device",
+			line: "nvme nvme10: I/O tag 99 (5678) opcode 0x2 (Admin Cmd) QID 0 timeout, reset controller",
+			want: true,
+		},
+		{
+			name: "No match - different nvme message",
+			line: "nvme nvme0: pci function 0000:01:00.0",
+			want: false,
+		},
+		{
+			name: "No match - partial message",
+			line: "nvme nvme0: I/O timeout",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, HasNVMeTimeout(tt.line), "HasNVMeTimeout()")
+		})
+	}
+}
+
+func TestHasNVMeDeviceDisabled(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{
+			name: "NVME device disabled - real example",
+			line: "[Sun Jun 29 19:28:36 2025] nvme nvme4: Disabling device after reset failure: -19",
+			want: true,
+		},
+		{
+			name: "NVME device disabled without timestamp",
+			line: "nvme nvme0: Disabling device after reset failure: -5",
+			want: true,
+		},
+		{
+			name: "NVME device disabled different device",
+			line: "nvme nvme10: Disabling device after reset failure: -19",
+			want: true,
+		},
+		{
+			name: "No match - different nvme message",
+			line: "nvme nvme0: pci function 0000:01:00.0",
+			want: false,
+		},
+		{
+			name: "No match - partial message",
+			line: "nvme nvme0: Disabling device",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, HasNVMeDeviceDisabled(tt.line), "HasNVMeDeviceDisabled()")
+		})
+	}
+}
+
+func TestHasBeyondEndOfDevice(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{
+			name: "Beyond end of device - real example",
+			line: "[Sun Jun 29 19:29:39 2025] kworker/u203:1: attempt to access beyond end of device",
+			want: true,
+		},
+		{
+			name: "Beyond end of device without timestamp",
+			line: "kernel: attempt to access beyond end of device",
+			want: true,
+		},
+		{
+			name: "Beyond end of device with different prefix",
+			line: "kworker/u100:0: attempt to access beyond end of device",
+			want: true,
+		},
+		{
+			name: "No match - different message",
+			line: "device is working normally",
+			want: false,
+		},
+		{
+			name: "No match - partial message",
+			line: "attempt to access device",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, HasBeyondEndOfDevice(tt.line), "HasBeyondEndOfDevice()")
+		})
+	}
+}
+
+func TestHasBufferIOError(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{
+			name: "Buffer I/O error - real example",
+			line: "[Sun Jun 29 19:29:39 2025] Buffer I/O error on dev dm-0, logical block 1308098575, lost async page write",
+			want: true,
+		},
+		{
+			name: "Buffer I/O error different device",
+			line: "Buffer I/O error on dev sda1, logical block 123456, lost async page write",
+			want: true,
+		},
+		{
+			name: "Buffer I/O error with nvme device",
+			line: "Buffer I/O error on dev nvme0n1p1, logical block 789012, lost sync page read",
+			want: true,
+		},
+		{
+			name: "No match - different error message",
+			line: "General I/O error detected",
+			want: false,
+		},
+		{
+			name: "No match - partial message",
+			line: "Buffer I/O error on dev dm-0",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, HasBufferIOError(tt.line), "HasBufferIOError()")
+		})
+	}
+}
+
 func TestMatch(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -321,6 +477,30 @@ func TestMatch(t *testing.T) {
 			line:          "",
 			wantEventName: "",
 			wantMessage:   "",
+		},
+		{
+			name:          "NVME timeout - real log example",
+			line:          "[Sun Jun 29 19:20:26 2025] nvme nvme4: I/O tag 22 (2016) opcode 0x2 (Admin Cmd) QID 0 timeout, reset controller",
+			wantEventName: eventNVMeTimeout,
+			wantMessage:   messageNVMeTimeout,
+		},
+		{
+			name:          "NVME device disabled - real log example",
+			line:          "[Sun Jun 29 19:28:36 2025] nvme nvme4: Disabling device after reset failure: -19",
+			wantEventName: eventNVMeDeviceDisabled,
+			wantMessage:   messageNVMeDeviceDisabled,
+		},
+		{
+			name:          "Beyond end of device - real log example",
+			line:          "[Sun Jun 29 19:29:39 2025] kworker/u203:1: attempt to access beyond end of device",
+			wantEventName: eventBeyondEndOfDevice,
+			wantMessage:   messageBeyondEndOfDevice,
+		},
+		{
+			name:          "Buffer I/O error - real log example",
+			line:          "[Sun Jun 29 19:29:39 2025] Buffer I/O error on dev dm-0, logical block 1308098575, lost async page write",
+			wantEventName: eventBufferIOError,
+			wantMessage:   messageBufferIOError,
 		},
 	}
 	for _, tt := range tests {

@@ -370,8 +370,11 @@ func (c *component) Check() components.CheckResult {
 		raidFailureEvents := make(eventstore.Events, 0)
 		fsReadOnlyEvents := make(eventstore.Events, 0)
 		nvmePathFailureEvents := make(eventstore.Events, 0)
+		nvmeTimeoutEvents := make(eventstore.Events, 0)
+		nvmeDeviceDisabledEvents := make(eventstore.Events, 0)
+		beyondEndOfDeviceEvents := make(eventstore.Events, 0)
+		bufferIOErrorEvents := make(eventstore.Events, 0)
 		var failureReasons []string
-
 		for _, ev := range recentEvents {
 			switch ev.Name {
 			case eventRAIDArrayFailure:
@@ -386,6 +389,22 @@ func (c *component) Check() components.CheckResult {
 				nvmePathFailureEvents = append(nvmePathFailureEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				failureReasons = append(failureReasons, "NVMe path failure detected")
+			case eventNVMeTimeout:
+				nvmeTimeoutEvents = append(nvmeTimeoutEvents, ev)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				failureReasons = append(failureReasons, "NVME controller timeout detected")
+			case eventNVMeDeviceDisabled:
+				nvmeDeviceDisabledEvents = append(nvmeDeviceDisabledEvents, ev)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				failureReasons = append(failureReasons, "NVME device disabled after reset failure")
+			case eventBeyondEndOfDevice:
+				beyondEndOfDeviceEvents = append(beyondEndOfDeviceEvents, ev)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				failureReasons = append(failureReasons, "I/O beyond device boundaries detected")
+			case eventBufferIOError:
+				bufferIOErrorEvents = append(bufferIOErrorEvents, ev)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				failureReasons = append(failureReasons, "Buffer I/O error detected on device")
 			}
 		}
 
@@ -400,7 +419,13 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		// If we found disk failures, evaluate suggested actions for each type
-		hasFailures := len(raidFailureEvents) > 0 || len(fsReadOnlyEvents) > 0 || len(nvmePathFailureEvents) > 0
+		hasFailures := len(raidFailureEvents) > 0 ||
+			len(fsReadOnlyEvents) > 0 ||
+			len(nvmePathFailureEvents) > 0 ||
+			len(nvmeTimeoutEvents) > 0 ||
+			len(nvmeDeviceDisabledEvents) > 0 ||
+			len(beyondEndOfDeviceEvents) > 0 ||
+			len(bufferIOErrorEvents) > 0
 		if hasFailures {
 			// Look up past events to derive the suggested actions
 			rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, cr.ts.Add(-c.lookbackPeriod))
@@ -433,6 +458,38 @@ func (c *component) Check() components.CheckResult {
 			// Process NVMe path failure events
 			if len(nvmePathFailureEvents) > 0 {
 				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, nvmePathFailureEvents, 2)
+				if suggestedActions != nil {
+					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				}
+			}
+
+			// Process NVME controller timeout events
+			if len(nvmeTimeoutEvents) > 0 {
+				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, nvmeTimeoutEvents, 2)
+				if suggestedActions != nil {
+					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				}
+			}
+
+			// Process NVME device disabled events
+			if len(nvmeDeviceDisabledEvents) > 0 {
+				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, nvmeDeviceDisabledEvents, 2)
+				if suggestedActions != nil {
+					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				}
+			}
+
+			// Process I/O beyond device boundaries events
+			if len(beyondEndOfDeviceEvents) > 0 {
+				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, beyondEndOfDeviceEvents, 2)
+				if suggestedActions != nil {
+					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				}
+			}
+
+			// Process buffer I/O error events
+			if len(bufferIOErrorEvents) > 0 {
+				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, bufferIOErrorEvents, 2)
 				if suggestedActions != nil {
 					allSuggestedActions = append(allSuggestedActions, suggestedActions)
 				}
