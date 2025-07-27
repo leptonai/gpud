@@ -209,6 +209,8 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 
 		MountPoints:  []string{"/"},
 		MountTargets: []string{"/var/lib/kubelet"},
+
+		FailureInjector: config.FailureInjector,
 	}
 	if s.gpudInstance.MachineID == "" {
 		s.gpudInstance.MachineID = pkghost.MachineID()

@@ -490,3 +490,25 @@ func TestRegisterAlreadyRegisteredError(t *testing.T) {
 	assert.Contains(t, err.Error(), compName)
 	assert.Contains(t, err.Error(), "already registered")
 }
+
+// Test FailureInjector struct
+func TestFailureInjector(t *testing.T) {
+	// Test empty FailureInjector
+	emptyInjector := &FailureInjector{}
+	assert.Empty(t, emptyInjector.GPUUUIDsWithRowRemappingPending)
+	assert.Empty(t, emptyInjector.GPUUUIDsWithRowRemappingFailed)
+
+	// Test FailureInjector with values
+	pendingUUIDs := []string{"GPU-pending-1", "GPU-pending-2"}
+	failedUUIDs := []string{"GPU-failed-1", "GPU-failed-2"}
+
+	injector := &FailureInjector{
+		GPUUUIDsWithRowRemappingPending: pendingUUIDs,
+		GPUUUIDsWithRowRemappingFailed:  failedUUIDs,
+	}
+
+	assert.Equal(t, pendingUUIDs, injector.GPUUUIDsWithRowRemappingPending)
+	assert.Equal(t, failedUUIDs, injector.GPUUUIDsWithRowRemappingFailed)
+	assert.Len(t, injector.GPUUUIDsWithRowRemappingPending, 2)
+	assert.Len(t, injector.GPUUUIDsWithRowRemappingFailed, 2)
+}

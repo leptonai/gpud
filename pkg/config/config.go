@@ -9,6 +9,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/leptonai/gpud/components"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 )
 
@@ -53,6 +54,9 @@ type Config struct {
 	Components         []string       `json:"components"`
 	selectedComponents map[string]any `json:"-"`
 	disabledComponents map[string]any `json:"-"`
+
+	// FailureInjector is the failure injector.
+	FailureInjector *components.FailureInjector `json:"-"`
 }
 
 func (config *Config) Validate() error {

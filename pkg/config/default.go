@@ -46,6 +46,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		NvidiaToolOverwrites: nvidiacommon.ToolOverwrites{
 			InfinibandClassRootDir: options.InfinibandClassRootDir,
 		},
+		FailureInjector: options.FailureInjector,
 	}
 
 	if cfg.State == "" {
