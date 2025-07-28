@@ -1681,3 +1681,53 @@ func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
 	assert.NoError(t, errClient, "Events() should not error with nil eventBucket in TestCheckSuggestedActionsWithNilEventBucket")
 	assert.Nil(t, eventsClient, "Events() should return nil events with nil eventBucket in TestCheckSuggestedActionsWithNilEventBucket")
 }
+
+// Test failure injection initialization
+func TestNewWithFailureInjector(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock NVML instance
+	nvmlInstance := &mockNVMLInstance{
+		getDevicesFunc: func() map[string]device.Device {
+			return make(map[string]device.Device)
+		},
+		getProductNameFunc: func() string {
+			return "NVIDIA Test GPU"
+		},
+		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
+			return nvml.MemoryErrorManagementCapabilities{
+				RowRemapping: true,
+			}
+		},
+	}
+
+	// Create failure injector with test UUIDs
+	failureInjector := &components.FailureInjector{
+		GPUUUIDsWithRowRemappingPending: []string{"GPU-pending-uuid"},
+		GPUUUIDsWithRowRemappingFailed:  []string{"GPU-failed-uuid"},
+	}
+
+	// Create GPUdInstance with failure injector
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:         ctx,
+		NVMLInstance:    nvmlInstance,
+		FailureInjector: failureInjector,
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+	require.NotNil(t, comp)
+
+	// Get the underlying component
+	c := comp.(*component)
+
+	// Verify failure injection UUIDs are stored
+	_, hasPendingUUID := c.gpuUUIDsWithRowRemappingPending["GPU-pending-uuid"]
+	assert.True(t, hasPendingUUID, "Expected pending UUID to be stored")
+
+	_, hasFailedUUID := c.gpuUUIDsWithRowRemappingFailed["GPU-failed-uuid"]
+	assert.True(t, hasFailedUUID, "Expected failed UUID to be stored")
+
+	// Verify component properties
+	assert.Equal(t, Name, comp.Name())
+}
