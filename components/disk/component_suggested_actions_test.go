@@ -603,3 +603,87 @@ func (m *simpleMockEventBucket) Latest(ctx context.Context) (*eventstore.Event, 
 func (m *simpleMockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
 	return 0, nil
 }
+
+// TestComponent_Check_DeduplicationAndSorting tests that duplicate failure reasons are deduplicated and sorted
+func TestComponent_Check_DeduplicationAndSorting(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	now := time.Now()
+
+	// Create a test event store
+	eventBucket := &simpleMockEventBucket{}
+
+	// Insert multiple disk failure events including duplicates
+	events := []struct {
+		name    string
+		time    time.Time
+		message string
+	}{
+		{eventRAIDArrayFailure, now.Add(-30 * time.Minute), "First RAID failure"},
+		{eventRAIDArrayFailure, now.Add(-25 * time.Minute), "Second RAID failure"}, // Duplicate type
+		{eventFilesystemReadOnly, now.Add(-20 * time.Minute), "First FS read-only"},
+		{eventNVMePathFailure, now.Add(-15 * time.Minute), "NVMe failure"},
+		{eventFilesystemReadOnly, now.Add(-10 * time.Minute), "Second FS read-only"}, // Duplicate type
+		{eventBufferIOError, now.Add(-5 * time.Minute), "Buffer I/O error"},
+		{eventRAIDArrayFailure, now.Add(-2 * time.Minute), "Third RAID failure"}, // Another duplicate
+	}
+
+	for _, evt := range events {
+		err := eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      evt.time,
+			Name:      evt.name,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   evt.message,
+		})
+		require.NoError(t, err)
+	}
+
+	// Create mock reboot event store
+	mockRebootStore := &mockRebootEventStore{
+		events: eventstore.Events{},
+	}
+
+	// Create component
+	c := &component{
+		ctx:              ctx,
+		rebootEventStore: mockRebootStore,
+		eventBucket:      eventBucket,
+		lookbackPeriod:   time.Hour, // 1 hour lookback
+		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{
+				{
+					Device:     "/dev/sda1",
+					MountPoint: "/",
+					Fstype:     "ext4",
+					Usage: &disk.Usage{
+						TotalBytes: 100 * 1024 * 1024 * 1024,
+						FreeBytes:  50 * 1024 * 1024 * 1024,
+						UsedBytes:  50 * 1024 * 1024 * 1024,
+					},
+				},
+			}, nil
+		},
+		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		},
+	}
+
+	// Run check
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Should be unhealthy
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+
+	// Verify reasons are deduplicated and sorted lexicographically
+	// Expected order (sorted alphabetically):
+	// 1. Buffer I/O error detected on device
+	// 2. Filesystem remounted read-only
+	// 3. NVMe path failure detected
+	// 4. RAID array failure detected
+	expectedReason := "Buffer I/O error detected on device, Filesystem remounted read-only, NVMe path failure detected, RAID array failure detected"
+	assert.Equal(t, expectedReason, cr.reason)
+}
