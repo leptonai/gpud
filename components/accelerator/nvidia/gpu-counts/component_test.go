@@ -345,6 +345,42 @@ func TestComponent_Events(t *testing.T) {
 	assert.Nil(t, events)
 }
 
+// TestComponent_Events_Simple tests the Events method with different time values
+func TestComponent_Events_Simple(t *testing.T) {
+	tests := []struct {
+		name  string
+		since time.Time
+	}{
+		{
+			name:  "events since 1 hour ago",
+			since: time.Now().Add(-time.Hour),
+		},
+		{
+			name:  "events since 1 day ago",
+			since: time.Now().Add(-24 * time.Hour),
+		},
+		{
+			name:  "events since epoch",
+			since: time.Unix(0, 0),
+		},
+		{
+			name:  "events since future time",
+			since: time.Now().Add(time.Hour),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			c := &component{}
+
+			events, err := c.Events(ctx, tt.since)
+			assert.NoError(t, err)
+			assert.Nil(t, events)
+		})
+	}
+}
+
 // TestComponent_Close tests the Close method
 func TestComponent_Close(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
