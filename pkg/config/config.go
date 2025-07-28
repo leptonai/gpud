@@ -56,7 +56,7 @@ type Config struct {
 	disabledComponents map[string]any `json:"-"`
 
 	// FailureInjector is the failure injector.
-	FailureInjector *components.FailureInjector `json:"-"`
+	FailureInjector *components.FailureInjector `json:"failure_injector,omitempty"`
 }
 
 func (config *Config) Validate() error {
