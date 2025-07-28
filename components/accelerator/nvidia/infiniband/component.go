@@ -175,6 +175,23 @@ func (c *component) Close() error {
 	return nil
 }
 
+// Check evaluates the health of InfiniBand ports by:
+// 1. Checking current port states against configured thresholds
+// 2. Processing historical port events based on threshold status:
+//   - Flap events: Always processed (indicate intermittent connectivity issues)
+//   - Drop events: Only processed when thresholds are NOT met (prevents flagging dormant ports)
+//
+// 3. Returning unhealthy if either:
+//   - Current state violates thresholds, OR
+//   - Flap events exist (always), OR
+//   - Drop events exist AND thresholds are not met
+//
+// This logic ensures that dormant/unused ports beyond the required threshold are not flagged
+// as problematic. For example, if only 8 ports are required but the machine has 12 ports total
+// with 4 being dormant/down, those 4 ports will not trigger drop event alerts as long as the
+// 8 required ports are healthy.
+//
+// Historical events require manual inspection and clearing via SetHealthy to reset state.
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu infiniband")
 
@@ -277,17 +294,21 @@ func (c *component) Check() components.CheckResult {
 
 	evaluateHealthStateWithThresholds(thresholds, sysClassIBPorts, cr)
 
-	// we only check ib port drop/flaps
-	// if and only if there is an ongoing threshold breach
-	// (thus need to know why)
-	// while we still track them in the db
-	if c.ibPortsStore != nil && len(cr.unhealthyIBPorts) > 0 {
-		// we DO NOT discard past events until the user explicitly
-		// inspected and set healthy, in order to not miss critical events
+	// Check for IB port drop/flap events
+	// Note: Drop events are only processed when thresholds are not met to avoid
+	// flagging dormant ports that are beyond the required threshold count
+	if c.ibPortsStore != nil {
+		// we DO NOT discard past latestIbportEvents until the user explicitly
+		// inspected and set healthy, in order to not miss critical latestIbportEvents
 		// this will return empty, once the user inspected and set healthy (to be tombstoned)
-		events, err := c.ibPortsStore.LastEvents(zeroTime)
+		latestIbportEvents, err := c.ibPortsStore.LastEvents(zeroTime)
 		if err != nil {
 			log.Logger.Warnw("error getting ib flap/drop events", "error", err)
+			// Set unhealthy state when we can't retrieve event history
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "error getting ib flap/drop events"
+			cr.err = err
+			return cr
 		}
 
 		// above "ibPortsStore.LastEvents" only returns the last event per device and per port
@@ -296,34 +317,55 @@ func (c *component) Check() components.CheckResult {
 		// and may still happen (thus I am emitting the event!)
 		// to signal that the hw inspection is required and set healthy is required
 
-		if len(events) > 0 {
+		// there are events that have not been purged yet
+		// thus whether thresholds are breached or not,
+		// we surface this
+		// so that these will be enabled
+		// if and only if admin manually calls
+		// set healthy on the infiniband component
+		if len(latestIbportEvents) > 0 {
 			// we convert ib events to gpud events again
 			// so that gpud events have detail information
 			// while /states have static information
 			// since "ibPortsStore.LastEvents" returns only the last event
 			// inserting them here as gpud events will have minimum redundancy
 			// (e.g., timewindow moves forward for each iteration of check)
-			gpudEvents := []eventstore.Event{}
+			dropAndFlapEvents := []eventstore.Event{}
 			ibDropDevs := []string{}
 			ibFlapDevs := []string{}
-			for _, event := range events {
-				gpudEvent := eventstore.Event{
-					Component: Name,
-					Time:      event.Time,
-					Name:      event.EventType,
-					Type:      string(apiv1.EventTypeWarning),
-					Message:   event.EventReason,
-				}
-
+			for _, event := range latestIbportEvents {
 				switch event.EventType {
 				case infinibandstore.EventTypeIbPortDrop:
-					log.Logger.Warnw(event.EventReason)
-					gpudEvents = append(gpudEvents, gpudEvent)
-					ibDropDevs = append(ibDropDevs, event.Port.Device)
+					// Skip IB port drop checks if threshold checks are passing.
+					// We only process drop events when there are ports failing threshold checks.
+					// This prevents marking excessive/stale IB ports beyond the thresholds as problematic
+					// when they are not meant to be used (e.g., only need 8 ports but a machine may have
+					// 12 ports total with 4 being dormant thus down, in this case we should not mark
+					// such 4 ports as IB port drop).
+					if len(cr.unhealthyIBPorts) > 0 {
+						log.Logger.Warnw(event.EventReason)
+						gpudEvent := eventstore.Event{
+							Component: Name,
+							Time:      event.Time,
+							Name:      event.EventType,
+							Type:      string(apiv1.EventTypeWarning),
+							Message:   event.EventReason,
+						}
+						dropAndFlapEvents = append(dropAndFlapEvents, gpudEvent)
+						ibDropDevs = append(ibDropDevs, event.Port.Device)
+					}
 
 				case infinibandstore.EventTypeIbPortFlap:
+					// Always process flap events
 					log.Logger.Warnw(event.EventReason)
-					gpudEvents = append(gpudEvents, gpudEvent)
+					gpudEvent := eventstore.Event{
+						Component: Name,
+						Time:      event.Time,
+						Name:      event.EventType,
+						Type:      string(apiv1.EventTypeWarning),
+						Message:   event.EventReason,
+					}
+					dropAndFlapEvents = append(dropAndFlapEvents, gpudEvent)
 					ibFlapDevs = append(ibFlapDevs, event.Port.Device)
 
 				default:
@@ -331,9 +373,9 @@ func (c *component) Check() components.CheckResult {
 				}
 			}
 
-			if len(gpudEvents) > 0 {
-				sort.Slice(gpudEvents, func(i, j int) bool {
-					return gpudEvents[i].Time.Before(gpudEvents[j].Time)
+			if len(dropAndFlapEvents) > 0 {
+				sort.Slice(dropAndFlapEvents, func(i, j int) bool {
+					return dropAndFlapEvents[i].Time.Before(dropAndFlapEvents[j].Time)
 				})
 				sort.Strings(ibDropDevs)
 				sort.Strings(ibFlapDevs)
@@ -361,13 +403,15 @@ func (c *component) Check() components.CheckResult {
 				}
 
 				cr.health = apiv1.HealthStateTypeUnhealthy
+				log.Logger.Warnw(cr.reason)
+
 				cr.suggestedActions = &apiv1.SuggestedActions{
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeHardwareInspection,
 					},
 				}
 
-				for _, gpudEvent := range gpudEvents {
+				for _, gpudEvent := range dropAndFlapEvents {
 					cctx, ccancel := context.WithTimeout(c.ctx, c.requestTimeout)
 					prev, err := c.eventBucket.Find(cctx, gpudEvent)
 					ccancel()
@@ -389,7 +433,7 @@ func (c *component) Check() components.CheckResult {
 			}
 		}
 	} else {
-		log.Logger.Debugw("no events store set or no unhealthy ib port thus skipped ib port flap/drop event processing")
+		log.Logger.Debugw("no events store set, skipped ib port flap/drop event processing")
 	}
 
 	return cr

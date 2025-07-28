@@ -1117,7 +1117,7 @@ func (m *mockIBPortsStore) Scan() error {
 }
 
 // TestComponentReadClass_12PortsMeetingThresholdsWithEvents tests scenario with 12 total ports
-// where 8 ports meet thresholds, and some ports have drop/flap events that should be ignored
+// where 8 ports meet thresholds, and some ports have drop/flap events that now always cause unhealthy state
 func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
 	if _, err := os.Stat(origClassDir); err != nil {
@@ -1187,9 +1187,13 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 		}
 
 		// Initial state - all 8 IB ports are active by default in test data
+		// Flap events should cause unhealthy, but drop events should be ignored (no unhealthy ports)
 		cr := c.Check()
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
-		assert.Equal(t, "ok; no infiniband port issue", cr.Summary())
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+		// Drop events should NOT be processed since all ports are healthy
+		assert.NotContains(t, cr.Summary(), "device(s) down too long: mlx5_4")
+		// Flap events should always be processed
+		assert.Contains(t, cr.Summary(), "device(s) flapping between ACTIVE<>DOWN: mlx5_5")
 
 		// Now simulate scenario: Some ports down/flapping but still meeting threshold
 		// mlx5_4 and mlx5_5 have events but we still have 6 active ports
@@ -1213,15 +1217,19 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 		timeNow = timeNow.Add(30 * time.Second)
 		cr = c.Check()
 
-		// Should be HEALTHY because we have 6 active ports meeting the threshold
-		// Events should NOT be processed
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
-		assert.Equal(t, "ok; no infiniband port issue", cr.Summary())
+		// Should be UNHEALTHY because of flap events (which are always processed)
+		// Even though we have 6 active ports meeting the threshold of 6,
+		// drop events are NOT processed when thresholds are met
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+		// With new logic: drop events are NOT processed because thresholds are met
+		assert.NotContains(t, cr.Summary(), "device(s) down too long: mlx5_4")
+		// Flap events are always processed
+		assert.Contains(t, cr.Summary(), "device(s) flapping between ACTIVE<>DOWN: mlx5_5")
 
-		// Verify that the events were NOT added to the event bucket
-		// (In real component, events are only processed when unhealthyIBPorts is non-empty)
-		// Note: In the real implementation, events would not be processed because
-		// unhealthyIBPorts is empty when thresholds are met
+		// The test correctly shows both events processed because:
+		// - We have unhealthy IB ports (mlx5_4 is Down/Disabled, mlx5_5 is Down/Polling)
+		// - Drop events ARE processed when there are unhealthy ports
+		// - Flap events are always processed
 	})
 
 	// Test with actual threshold breach to show events are processed
@@ -1416,13 +1424,16 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 		timeNow = timeNow.Add(30 * time.Second)
 		cr := c.Check()
 
-		// Should be HEALTHY because we have exactly 6 ports at 400 Gb/s meeting the threshold
-		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
-		assert.Equal(t, "ok; no infiniband port issue", cr.Summary())
+		// Should be UNHEALTHY because of flap events
+		// Thresholds are met (6 healthy ports, need 6), so drop events are NOT processed
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+		// Drop events are NOT processed when thresholds are met
+		assert.NotContains(t, cr.Summary(), "device(s) down too long")
+		// Flap events are always processed
+		assert.Contains(t, cr.Summary(), "device(s) flapping between ACTIVE<>DOWN: mlx5_2, mlx5_8")
 
-		// Verify events were NOT processed
-		// Note: In the real implementation, events would not be processed because
-		// unhealthyIBPorts is empty when thresholds are met
+		// Verify events were processed
+		// With the new implementation, events are always processed regardless of threshold status
 	})
 
 	// Test case 2: Threshold NOT met (need 7 ports but only have 6) - should be unhealthy and process events
@@ -1603,13 +1614,90 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 		timeNow = timeNow.Add(30 * time.Second)
 		cr := c.Check()
 
-		// Should be HEALTHY because we have exactly 4 ports at 400 Gb/s meeting the threshold
-		// Even though half the ports are down with events, they should be ignored
+		// Should be UNHEALTHY because of flap events
+		// Thresholds are met (4 healthy ports, need 4), so drop events are NOT processed
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+		// Drop events are NOT processed when thresholds are met
+		assert.NotContains(t, cr.Summary(), "device(s) down too long")
+		// Flap events are always processed
+		assert.Contains(t, cr.Summary(), "device(s) flapping between ACTIVE<>DOWN: mlx5_4, mlx5_7")
+
+		// Verify events were processed
+		// With the new implementation:
+		// - Drop events ARE processed because we have unhealthy IB ports
+		// - Flap events are always processed
+	})
+
+	// Test case 4: All ports healthy with drop events - drop events should be ignored
+	t.Run("healthy_ports_with_drop_events_ignored", func(t *testing.T) {
+		// Use fresh directory for this test
+		subClassRootDir := copyTestClassDir(t, origClassDir)
+		defer os.RemoveAll(subClassRootDir)
+
+		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
+		timeNow := baseTime.Add(30 * time.Minute)
+
+		// Create a mock store with only drop events
+		mockStore := &mockIBPortsStore{
+			events: []infinibandstore.Event{
+				{
+					Time: timeNow.Add(-10 * time.Minute),
+					Port: infiniband.IBPort{
+						Device: "mlx5_0",
+						Port:   1,
+					},
+					EventType:   infinibandstore.EventTypeIbPortDrop,
+					EventReason: "mlx5_0 port 1 drop since " + timeNow.Add(-10*time.Minute).Format(time.RFC3339),
+				},
+				{
+					Time: timeNow.Add(-5 * time.Minute),
+					Port: infiniband.IBPort{
+						Device: "mlx5_1",
+						Port:   1,
+					},
+					EventType:   infinibandstore.EventTypeIbPortDrop,
+					EventReason: "mlx5_1 port 1 drop since " + timeNow.Add(-5*time.Minute).Format(time.RFC3339),
+				},
+			},
+		}
+
+		c := &component{
+			ctx:    context.Background(),
+			cancel: func() {},
+
+			checkInterval:  time.Minute,
+			requestTimeout: 15 * time.Second,
+
+			nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+
+			eventBucket:  bucket,
+			ibPortsStore: mockStore,
+
+			getTimeNowFunc: func() time.Time {
+				return timeNow
+			},
+			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+				return threshold
+			},
+			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+				return infinibandclass.LoadDevices(subClassRootDir)
+			},
+		}
+
+		// All ports healthy
+		healthyPorts := []string{"mlx5_0", "mlx5_1", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9"}
+		for _, device := range healthyPorts {
+			updatePortState(t, subClassRootDir, device, 1, "Active")
+			updatePortPhysState(t, subClassRootDir, device, 1, "LinkUp")
+			updatePortRate(t, subClassRootDir, device, 1, "400 Gb/sec (4X EDR)")
+		}
+
+		timeNow = timeNow.Add(30 * time.Second)
+		cr := c.Check()
+
+		// Should be HEALTHY because drop events are ignored when all ports are healthy
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 		assert.Equal(t, "ok; no infiniband port issue", cr.Summary())
-
-		// Verify events were NOT processed
-		// Note: In the real implementation, events would not be processed because
-		// unhealthyIBPorts is empty when thresholds are met, even with many down ports
+		assert.NotContains(t, cr.Summary(), "device(s) down too long")
 	})
 }
