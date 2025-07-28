@@ -1,0 +1,101 @@
+[Feb 25 2025 13:59:45] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:1fdba18d7da4ef9e status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:99c9f23d49236386 Flags:0
+
+[Feb 25 2025 13:59:45] [INFO] [tid 1808] multicast group 0 is freed.
+[Feb 25 2025 13:59:45] [INFO] [tid 1808] successfully released multicast team with handle 11081654703155798918.
+[Feb 25 2025 14:01:18] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:73a12417a65c5380 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:6319a3aba7f6e5de 31097ec5a3e76df4 637952d4c378a0cb 38a349b0822bc98e 438f462c275448f1 ee763d5a17b601c6 25a497ff4a934d86 76ad688ef704327
+
+[Feb 25 2025 14:01:18] [INFO] [tid 1808] multicast group 0 is allocated.
+[Feb 25 2025 14:01:18] [INFO] [tid 1808] successfully setup multicast team for request id 8331980469606044544.
+[Feb 25 2025 14:01:18] [INFO] [tid 1584] Sending inband response message:  Message header details: magic Id:adbc request Id:73a12417a65c5380 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:7777bfab5a11aea8 Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Feb 25 2025 14:02:58] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:c5dca92d96977da6 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:6319a3aba7f6e5de 31097ec5a3e76df4 637952d4c378a0cb 38a349b0822bc98e ee763d5a17b601c6 76ad688ef704327 25a497ff4a934d86 438f462c275448f1
+
+[Feb 25 2025 14:02:58] [INFO] [tid 1808] multicast group 1 is allocated.
+[Feb 25 2025 14:02:58] [INFO] [tid 1808] successfully setup multicast team for request id 14257456533613280678.
+[Feb 25 2025 14:02:58] [INFO] [tid 1584] Sending inband response message:  Message header details: magic Id:adbc request Id:c5dca92d96977da6 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:7be4cbdfbc4d0a3b Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Feb 27 2025 07:09:52] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:582b43bf1d4cac35 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:7be4cbdfbc4d0a3b Flags:0
+
+[Feb 27 2025 07:09:52] [INFO] [tid 1808] multicast group 1 is freed.
+[Feb 27 2025 07:09:52] [INFO] [tid 1808] successfully released multicast team with handle 8927484523152476731.
+[Feb 27 2025 07:09:52] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:7bee64660e09dfed status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:7777bfab5a11aea8 Flags:0
+
+[Feb 27 2025 07:09:52] [INFO] [tid 1808] multicast group 0 is freed.
+[Feb 27 2025 07:09:52] [INFO] [tid 1808] successfully released multicast team with handle 8608559955413413544.
+[Feb 27 2025 07:21:23] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:1bcd3ede7649107b status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:6319a3aba7f6e5de 31097ec5a3e76df4 637952d4c378a0cb ee763d5a17b601c6 438f462c275448f1 76ad688ef704327 25a497ff4a934d86 38a349b0822bc98e
+
+[Feb 27 2025 07:21:23] [INFO] [tid 1808] multicast group 0 is allocated.
+[Feb 27 2025 07:21:23] [INFO] [tid 1808] successfully setup multicast team for request id 2003326534437900411.
+[Feb 27 2025 07:21:23] [INFO] [tid 1584] Sending inband response message:  Message header details: magic Id:adbc request Id:1bcd3ede7649107b status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:407e7aa6a6635aaf Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Feb 27 2025 07:23:02] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:936f7a6b93a4e6e0 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:6319a3aba7f6e5de 31097ec5a3e76df4 637952d4c378a0cb 25a497ff4a934d86 38a349b0822bc98e 438f462c275448f1 ee763d5a17b601c6 76ad688ef704327
+
+[Feb 27 2025 07:23:02] [INFO] [tid 1808] multicast group 1 is allocated.
+[Feb 27 2025 07:23:02] [INFO] [tid 1808] successfully setup multicast team for request id 10623844648447436512.
+[Feb 27 2025 07:23:02] [INFO] [tid 1584] Sending inband response message:  Message header details: magic Id:adbc request Id:936f7a6b93a4e6e0 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:a41603815c31d7a2 Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Feb 27 2025 11:16:31] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:d60459902af1ceaa status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:407e7aa6a6635aaf Flags:0
+
+[Feb 27 2025 11:16:31] [INFO] [tid 1808] multicast group 0 is freed.
+[Feb 27 2025 11:16:31] [INFO] [tid 1808] successfully released multicast team with handle 4647286721667619503.
+[Feb 27 2025 11:16:35] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:658b00dfdae0ac4e status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:a41603815c31d7a2 Flags:0
+
+[Feb 27 2025 11:16:35] [INFO] [tid 1808] multicast group 1 is freed.
+[Feb 27 2025 11:16:35] [INFO] [tid 1808] successfully released multicast team with handle 11823641725840250786.
+[Feb 27 2025 11:17:09] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:30264a22f1b9af48 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:6319a3aba7f6e5de 31097ec5a3e76df4 637952d4c378a0cb 38a349b0822bc98e 25a497ff4a934d86 76ad688ef704327 ee763d5a17b601c6 438f462c275448f1
+
+[Feb 27 2025 11:17:09] [INFO] [tid 1808] multicast group 0 is allocated.
+[Feb 27 2025 11:17:09] [INFO] [tid 1808] successfully setup multicast team for request id 3469542076880367432.
+[Feb 27 2025 11:17:09] [INFO] [tid 1584] Sending inband response message:  Message header details: magic Id:adbc request Id:30264a22f1b9af48 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:b2d3d63e98dc86b3 Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Feb 27 2025 11:18:46] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:f0bf676b4084434a status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:6319a3aba7f6e5de 31097ec5a3e76df4 637952d4c378a0cb 38a349b0822bc98e 76ad688ef704327 438f462c275448f1 25a497ff4a934d86 ee763d5a17b601c6
+
+[Feb 27 2025 11:18:46] [INFO] [tid 1808] multicast group 1 is allocated.
+[Feb 27 2025 11:18:46] [INFO] [tid 1808] successfully setup multicast team for request id 17347697999996011338.
+[Feb 27 2025 11:18:46] [INFO] [tid 1584] Sending inband response message:  Message header details: magic Id:adbc request Id:f0bf676b4084434a status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:1466d9846d9c91ab Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Feb 27 2025 14:03:13] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:ab218408058b3556 status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:b2d3d63e98dc86b3 Flags:0
+
+[Feb 27 2025 14:03:13] [INFO] [tid 1808] multicast group 0 is freed.
+[Feb 27 2025 14:03:13] [INFO] [tid 1808] successfully released multicast team with handle 12885878523178026675.
+[Feb 27 2025 14:03:21] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:670df08c903be28d status:0 type:4 length:14
+Message payload details:Team release request: Team Handle:1466d9846d9c91ab Flags:0
+
+[Feb 27 2025 14:03:21] [INFO] [tid 1808] multicast group 1 is freed.
+[Feb 27 2025 14:03:21] [INFO] [tid 1808] successfully released multicast team with handle 1470101491180933547.
+[Feb 27 2025 14:08:27] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:31ad10caf811131d status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:6319a3aba7f6e5de 31097ec5a3e76df4 637952d4c378a0cb 38a349b0822bc98e 438f462c275448f1 76ad688ef704327 25a497ff4a934d86 ee763d5a17b601c6
+
+[Feb 27 2025 14:08:27] [INFO] [tid 1808] multicast group 0 is allocated.
+[Feb 27 2025 14:08:27] [INFO] [tid 1808] successfully setup multicast team for request id 3579535742760719133.
+[Feb 27 2025 14:08:27] [INFO] [tid 1584] Sending inband response message:  Message header details: magic Id:adbc request Id:31ad10caf811131d status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:93c7f931b6570d8d Flags:0 Address Base:c000000000000 Address Size:60000000
+
+[Feb 27 2025 14:10:02] [INFO] [tid 1803] Received an inband message:  Message header details: magic Id:adbc request Id:fd892a54b49d70d9 status:0 type:2 length:56
+Message payload details:Team setup request: Allocation Size:60000000 Flags:0 Number of GPUs:8 GPU Handles:6319a3aba7f6e5de 31097ec5a3e76df4 637952d4c378a0cb 38a349b0822bc98e 438f462c275448f1 76ad688ef704327 ee763d5a17b601c6 25a497ff4a934d86
+
+[Feb 27 2025 14:10:02] [INFO] [tid 1808] multicast group 1 is allocated.
+[Feb 27 2025 14:10:02] [INFO] [tid 1808] successfully setup multicast team for request id 18269179906700964057.
+[Feb 27 2025 14:10:02] [INFO] [tid 1584] Sending inband response message:  Message header details: magic Id:adbc request Id:fd892a54b49d70d9 status:0 type:3 length:24
+Message payload details:Team setup response: Team Handle:a5ca69ee2fc092 Flags:0 Address Base:c008000000000 Address Size:60000000
+
+[Feb 27 2025 15:10:02] [ERROR] [tid 12727] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 61
+

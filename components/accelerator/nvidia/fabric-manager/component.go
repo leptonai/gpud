@@ -5,6 +5,7 @@ package fabricmanager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/log/streamer"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
 	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
@@ -35,8 +37,8 @@ type component struct {
 	checkFMExistsFunc func() bool
 	checkFMActiveFunc func() bool
 
-	eventBucket      eventstore.Bucket
-	logLineProcessor *logLineProcessor
+	eventBucket  eventstore.Bucket
+	logProcessor streamer.Processor
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -83,12 +85,26 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 
 	if c.checkFMExistsFunc() && c.eventBucket != nil {
-		w, err := newWatcher(defaultWatchCommands)
+		// default log file location is LOG_FILE_NAME=∕var∕log∕fabricmanager.log
+		// ref. https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
+		defaultLogFileName := "/var/log/fabricmanager.log"
+		defaultWatchCommands := [][]string{
+			{fmt.Sprintf("tail -f %s || true", defaultLogFileName)},
+		}
+
+		// Create the processor with fabric manager specific parsing and matching
+		var err error
+		c.logProcessor, err = streamer.New(
+			cctx,
+			defaultWatchCommands,
+			Match,
+			ParseFabricManagerLog,
+			c.eventBucket,
+		)
 		if err != nil {
 			ccancel()
 			return nil, err
 		}
-		c.logLineProcessor = newLogLineProcessor(cctx, w, Match, c.eventBucket)
 	}
 
 	return c, nil
@@ -138,10 +154,10 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	if c.logLineProcessor == nil {
+	if c.logProcessor == nil {
 		return nil, nil
 	}
-	return c.logLineProcessor.getEvents(ctx, since)
+	return c.logProcessor.Events(ctx, since)
 }
 
 func (c *component) Close() error {
@@ -149,8 +165,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.logLineProcessor != nil {
-		c.logLineProcessor.close()
+	if c.logProcessor != nil {
+		c.logProcessor.Close()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()
