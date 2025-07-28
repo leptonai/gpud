@@ -19,31 +19,32 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	pkghostevents "github.com/leptonai/gpud/pkg/host/events"
 	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-// mockRebootEventStore is a mock implementation of the RebootEventStore interface
+// mockRebootEventStore is a mock implementation of the RebootsStore interface
 type mockRebootEventStore struct {
 	events eventstore.Events
 }
 
-func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *mockRebootEventStore) Record(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockRebootEventStore) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return m.events, nil
 }
 
 // errRebootEventStore is a mock implementation that always returns an error
 type errRebootEventStore struct{}
 
-func (m *errRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *errRebootEventStore) Record(ctx context.Context) error {
 	return nil
 }
 
-func (m *errRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *errRebootEventStore) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return nil, errors.New("mock event store error")
 }
 
@@ -270,7 +271,7 @@ func TestComponent(t *testing.T) {
 
 		// Get events directly from the mock reboot store
 		since := time.Now().Add(-1 * time.Hour)
-		events, err := c.rebootEventStore.GetRebootEvents(ctx, since)
+		events, err := c.rebootEventStore.Get(ctx, since)
 		assert.NoError(t, err)
 		assert.Len(t, events, 1)
 
@@ -415,12 +416,12 @@ func TestMockRebootEventStore(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Test RecordReboot
-	err := mock.RecordReboot(ctx)
+	// Test Record
+	err := mock.Record(ctx)
 	assert.NoError(t, err)
 
-	// Test GetRebootEvents
-	events, err := mock.GetRebootEvents(ctx, time.Now().Add(-2*time.Hour))
+	// Test Get
+	events, err := mock.Get(ctx, time.Now().Add(-2*time.Hour))
 	assert.NoError(t, err)
 	assert.Len(t, events, 1)
 	assert.Equal(t, "reboot", events[0].Name)
@@ -1208,7 +1209,7 @@ func TestComponent_EventsWithMockBucket(t *testing.T) {
 			var events apiv1.Events
 
 			// Get reboot events directly instead of using component.Events
-			rebootEvents, err := mockStore.GetRebootEvents(ctx, since)
+			rebootEvents, err := mockStore.Get(ctx, since)
 			if err != nil {
 				return nil, err
 			}
@@ -1232,7 +1233,7 @@ func TestComponent_EventsWithMockBucket(t *testing.T) {
 
 		// Again directly testing the error case without using component.Events
 		getEvents := func(ctx context.Context, since time.Time) (apiv1.Events, error) {
-			rebootEvents, err := errorStore.GetRebootEvents(ctx, since)
+			rebootEvents, err := errorStore.Get(ctx, since)
 			if err != nil {
 				return nil, err
 			}
@@ -1343,7 +1344,7 @@ func TestComponent_EventsNilSafe(t *testing.T) {
 		}
 
 		if comp.rebootEventStore != nil {
-			rebootEvents, err := comp.rebootEventStore.GetRebootEvents(ctx, since)
+			rebootEvents, err := comp.rebootEventStore.Get(ctx, since)
 			if err != nil {
 				return nil, err
 			}
@@ -3753,7 +3754,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    testTime.Add(-1 * time.Hour),
-					Name:    pkghost.EventNameReboot, // This should be filtered out
+					Name:    pkghostevents.RebootEventName, // This should be filtered out
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Reboot event from eventBucket",
 				},
@@ -3787,7 +3788,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    testTime.Add(-1 * time.Hour),
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Reboot event from rebootEventStore",
 				},
@@ -3804,7 +3805,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
 		assert.Len(t, events, 1)
-		assert.Equal(t, pkghost.EventNameReboot, events[0].Name)
+		assert.Equal(t, pkghostevents.RebootEventName, events[0].Name)
 		assert.Equal(t, "Reboot event from rebootEventStore", events[0].Message)
 	})
 
@@ -3814,7 +3815,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    testTime.Add(-90 * time.Minute),
-					Name:    pkghost.EventNameReboot, // This should be filtered out
+					Name:    pkghostevents.RebootEventName, // This should be filtered out
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Duplicate reboot event from eventBucket",
 				},
@@ -3832,7 +3833,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    testTime.Add(-45 * time.Minute),
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Reboot event from rebootEventStore",
 				},
@@ -3857,7 +3858,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		eventNames := make(map[string]int)
 		for _, event := range events {
 			eventNames[event.Name]++
-			if event.Name == pkghost.EventNameReboot {
+			if event.Name == pkghostevents.RebootEventName {
 				assert.Equal(t, "Reboot event from rebootEventStore", event.Message)
 			} else if event.Name == "disk-error" {
 				assert.Equal(t, "Disk error event", event.Message)
@@ -3865,7 +3866,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		}
 
 		// Ensure only one reboot event (from rebootEventStore, not eventBucket)
-		assert.Equal(t, 1, eventNames[pkghost.EventNameReboot])
+		assert.Equal(t, 1, eventNames[pkghostevents.RebootEventName])
 		assert.Equal(t, 1, eventNames["disk-error"])
 	})
 
@@ -3874,13 +3875,13 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    testTime.Add(-2 * time.Hour),
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "First reboot event from eventBucket",
 				},
 				{
 					Time:    testTime.Add(-90 * time.Minute),
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Second reboot event from eventBucket",
 				},
@@ -3918,7 +3919,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    testTime.Add(-1 * time.Hour),
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Reboot event from rebootEventStore",
 				},
@@ -3938,7 +3939,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
 		assert.Len(t, events, 1)
-		assert.Equal(t, pkghost.EventNameReboot, events[0].Name)
+		assert.Equal(t, pkghostevents.RebootEventName, events[0].Name)
 		assert.Equal(t, "Reboot event from rebootEventStore", events[0].Message)
 	})
 
@@ -3951,7 +3952,7 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    testTime.Add(-1 * time.Hour),
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Reboot event from rebootEventStore",
 				},
@@ -4058,13 +4059,13 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    newerTime, // -2 hours (should be 2nd in sorted result)
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "System reboot event",
 				},
 				{
 					Time:    oldestTime, // -4 hours (should be 4th in sorted result)
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Older system reboot event",
 				},
@@ -4090,14 +4091,14 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		assert.Equal(t, "memory-warning", events[0].Name, "Newest event should be first")
 		assert.Equal(t, newestTime.Unix(), events[0].Time.Time.Unix(), "First event should have newest timestamp")
 
-		assert.Equal(t, pkghost.EventNameReboot, events[1].Name, "Second newest event should be reboot")
+		assert.Equal(t, pkghostevents.RebootEventName, events[1].Name, "Second newest event should be reboot")
 		assert.Equal(t, newerTime.Unix(), events[1].Time.Time.Unix(), "Second event should have second newest timestamp")
 		assert.Equal(t, "System reboot event", events[1].Message)
 
 		assert.Equal(t, "disk-error", events[2].Name, "Third newest event should be disk-error")
 		assert.Equal(t, olderTime.Unix(), events[2].Time.Time.Unix(), "Third event should have third newest timestamp")
 
-		assert.Equal(t, pkghost.EventNameReboot, events[3].Name, "Oldest event should be older reboot")
+		assert.Equal(t, pkghostevents.RebootEventName, events[3].Name, "Oldest event should be older reboot")
 		assert.Equal(t, oldestTime.Unix(), events[3].Time.Time.Unix(), "Fourth event should have oldest timestamp")
 		assert.Equal(t, "Older system reboot event", events[3].Message)
 
@@ -4134,7 +4135,7 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    sameTime,
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Reboot at same time",
 				},
@@ -4172,13 +4173,13 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    oldestTime, // Older timestamp
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "First reboot",
 				},
 				{
 					Time:    newestTime, // Newer timestamp
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "Second reboot",
 				},
@@ -4200,11 +4201,11 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		assert.Len(t, events, 2, "Should have 2 reboot events")
 
 		// Verify sorting: newer event first
-		assert.Equal(t, pkghost.EventNameReboot, events[0].Name)
+		assert.Equal(t, pkghostevents.RebootEventName, events[0].Name)
 		assert.Equal(t, "Second reboot", events[0].Message, "Newer reboot should be first")
 		assert.Equal(t, newestTime.Unix(), events[0].Time.Time.Unix())
 
-		assert.Equal(t, pkghost.EventNameReboot, events[1].Name)
+		assert.Equal(t, pkghostevents.RebootEventName, events[1].Name)
 		assert.Equal(t, "First reboot", events[1].Message, "Older reboot should be second")
 		assert.Equal(t, oldestTime.Unix(), events[1].Time.Time.Unix())
 
@@ -4279,7 +4280,7 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			events: eventstore.Events{
 				{
 					Time:    newerTime, // -2 hours
-					Name:    pkghost.EventNameReboot,
+					Name:    pkghostevents.RebootEventName,
 					Type:    string(apiv1.EventTypeWarning),
 					Message: "System reboot event",
 				},
@@ -4301,7 +4302,7 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		assert.Len(t, events, 2, "Should have 2 events total")
 
 		// Verify sorting: reboot event (newer) should be first
-		assert.Equal(t, pkghost.EventNameReboot, events[0].Name, "Newer reboot event should be first")
+		assert.Equal(t, pkghostevents.RebootEventName, events[0].Name, "Newer reboot event should be first")
 		assert.Equal(t, newerTime.Unix(), events[0].Time.Time.Unix())
 
 		assert.Equal(t, "io-error", events[1].Name, "Older non-reboot event should be second")
