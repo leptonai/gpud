@@ -157,7 +157,16 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	if err != nil {
 		return nil, err
 	}
-	return evs.Events(), nil
+
+	// Filter to only return kmsg events for PCI power and port module temperature
+	allEvents := evs.Events()
+	filteredEvents := make(apiv1.Events, 0, len(allEvents))
+	for _, ev := range allEvents {
+		if ev.Name == eventPCIPowerInsufficient || ev.Name == eventPortModuleHighTemperature {
+			filteredEvents = append(filteredEvents, ev)
+		}
+	}
+	return filteredEvents, nil
 }
 
 func (c *component) Close() error {
@@ -324,13 +333,11 @@ func (c *component) Check() components.CheckResult {
 		// if and only if admin manually calls
 		// set healthy on the infiniband component
 		if len(latestIbportEvents) > 0 {
-			// we convert ib events to gpud events again
-			// so that gpud events have detail information
-			// while /states have static information
-			// since "ibPortsStore.LastEvents" returns only the last event
-			// inserting them here as gpud events will have minimum redundancy
-			// (e.g., timewindow moves forward for each iteration of check)
-			dropAndFlapEvents := []eventstore.Event{}
+			// Note: We do not persist IB port drop/flap events in the gpud event store
+			// because the health state evaluation already surfaces them with historical
+			// information. The ibPortsStore maintains the complete history of these events
+			// and surfaces them through the health state until explicitly cleared via SetHealthy.
+			// This avoids redundant event storage while ensuring critical events are not missed.
 			ibDropDevs := []string{}
 			ibFlapDevs := []string{}
 			for _, event := range latestIbportEvents {
@@ -344,28 +351,12 @@ func (c *component) Check() components.CheckResult {
 					// such 4 ports as IB port drop).
 					if len(cr.unhealthyIBPorts) > 0 {
 						log.Logger.Warnw(event.EventReason)
-						gpudEvent := eventstore.Event{
-							Component: Name,
-							Time:      event.Time,
-							Name:      event.EventType,
-							Type:      string(apiv1.EventTypeWarning),
-							Message:   event.EventReason,
-						}
-						dropAndFlapEvents = append(dropAndFlapEvents, gpudEvent)
 						ibDropDevs = append(ibDropDevs, event.Port.Device)
 					}
 
 				case infinibandstore.EventTypeIbPortFlap:
 					// Always process flap events
 					log.Logger.Warnw(event.EventReason)
-					gpudEvent := eventstore.Event{
-						Component: Name,
-						Time:      event.Time,
-						Name:      event.EventType,
-						Type:      string(apiv1.EventTypeWarning),
-						Message:   event.EventReason,
-					}
-					dropAndFlapEvents = append(dropAndFlapEvents, gpudEvent)
 					ibFlapDevs = append(ibFlapDevs, event.Port.Device)
 
 				default:
@@ -373,10 +364,7 @@ func (c *component) Check() components.CheckResult {
 				}
 			}
 
-			if len(dropAndFlapEvents) > 0 {
-				sort.Slice(dropAndFlapEvents, func(i, j int) bool {
-					return dropAndFlapEvents[i].Time.Before(dropAndFlapEvents[j].Time)
-				})
+			if len(ibDropDevs) > 0 || len(ibFlapDevs) > 0 {
 				sort.Strings(ibDropDevs)
 				sort.Strings(ibFlapDevs)
 
@@ -409,26 +397,6 @@ func (c *component) Check() components.CheckResult {
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeHardwareInspection,
 					},
-				}
-
-				for _, gpudEvent := range dropAndFlapEvents {
-					cctx, ccancel := context.WithTimeout(c.ctx, c.requestTimeout)
-					prev, err := c.eventBucket.Find(cctx, gpudEvent)
-					ccancel()
-
-					if err != nil {
-						log.Logger.Warnw("error finding event", "error", err)
-					} else if prev == nil {
-						// new event
-						cctx, ccancel := context.WithTimeout(c.ctx, c.requestTimeout)
-						err = c.eventBucket.Insert(cctx, gpudEvent)
-						ccancel()
-						if err != nil {
-							log.Logger.Warnw("error inserting event", "error", err)
-						}
-					} else {
-						log.Logger.Infow("event already exists -- skipped inserting", "event", gpudEvent)
-					}
 				}
 			}
 		}
