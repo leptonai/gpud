@@ -345,7 +345,7 @@ func TestCheckOnce(t *testing.T) {
 
 		assert.NotNil(t, lastCheckResult)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
-		assert.Equal(t, "no ext4/nfs partition found", lastCheckResult.reason)
+		assert.Equal(t, "ok", lastCheckResult.reason)
 	})
 }
 
@@ -1027,7 +1027,7 @@ func TestNFSPartitionsRetrieval(t *testing.T) {
 
 		assert.NotNil(t, lastCheckResult)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
-		assert.Equal(t, "no ext4/nfs partition found", lastCheckResult.reason)
+		assert.Equal(t, "ok", lastCheckResult.reason)
 	})
 }
 
@@ -2189,7 +2189,7 @@ func TestComponent_MountTargetTimeoutHandling(t *testing.T) {
 	// The mount target doesn't exist, so StatWithTimeout should return an error
 	// The component should handle this gracefully and continue (not set health to unhealthy)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should remain healthy even when mount target stat fails")
-	assert.Equal(t, "no ext4/nfs partition found", cr.reason, "Should indicate no partitions found")
+	assert.Equal(t, "ok", cr.reason, "Should return ok even when mount target stat fails")
 }
 
 // TestComponent_GetPartitionsTimeoutIntegration tests integration with GetPartitions timeout behavior
@@ -2451,7 +2451,7 @@ func TestComponent_StatWithTimeoutDeadlineExceeded(t *testing.T) {
 	// Verify that component remains healthy despite timeout
 	// (the timeout is logged but doesn't affect overall health)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "no ext4/nfs partition found", cr.reason)
+	assert.Equal(t, "ok", cr.reason)
 
 	// Verify that MountTargetUsages is empty/nil due to the timeout
 	assert.Nil(t, cr.MountTargetUsages)

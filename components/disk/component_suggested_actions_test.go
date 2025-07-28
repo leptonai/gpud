@@ -360,9 +360,9 @@ func TestComponent_Check_SuggestedActions(t *testing.T) {
 	cr, ok := result.(*checkResult)
 	require.True(t, ok)
 
-	// Should be healthy initially (no recent failures)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "no ext4/nfs partition found", cr.reason)
+	// Should detect the RAID array failure and be unhealthy
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "RAID array failure detected", cr.reason)
 }
 
 // TestComponent_Check_NoSpaceLeftNotSuggested tests that eventNoSpaceLeft doesn't trigger reboot

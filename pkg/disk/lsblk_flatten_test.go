@@ -15,6 +15,7 @@ func TestParseFlatten(t *testing.T) {
 		"lsblk.2.json": 10,
 		"lsblk.3.json": 20,
 		"lsblk.4.json": 39,
+		"lsblk.5.json": 11,
 	} {
 		dat, err := os.ReadFile("testdata/" + f)
 		require.NoError(t, err)
