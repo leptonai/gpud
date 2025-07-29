@@ -106,22 +106,6 @@ func getBlockDevicesWithLsblk(
 	if err != nil {
 		return nil, err
 	}
-
-	op := &Op{}
-	if err := op.applyOpts(opts); err != nil {
-		return nil, err
-	}
-	if op.matchFuncMountPoint != nil {
-		devs2 := make(BlockDevices, 0)
-		for _, dev := range devs {
-			if !op.matchFuncMountPoint(dev.MountPoint) {
-				continue
-			}
-			devs2 = append(devs2, dev)
-		}
-		devs = devs2
-	}
-
 	if len(devs) == 0 {
 		log.Logger.Warnw("no block device found from lsblk command", "lsblk", lsblkBin, "flags", flags, "output", string(b))
 	}
@@ -230,19 +214,28 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 
 	devs := make(BlockDevices, 0)
 	for _, parentDev := range rawDevs {
-		if !op.matchFuncFstype(parentDev.FSType) {
-			continue
-		}
-		if !op.matchFuncDeviceType(parentDev.Type) {
-			continue
-		}
+		log.Logger.Debugw("parent block device", "dev", parentDev.Name, "fstype", parentDev.FSType, "type", parentDev.Type, "mount_point", parentDev.MountPoint)
 
+		// Check if parent matches filters
+		parentMatches := op.matchFuncFstype(parentDev.FSType) &&
+			op.matchFuncDeviceType(parentDev.Type) &&
+			op.matchFuncMountPoint(parentDev.MountPoint)
+
+		// Always process children, regardless of parent matching
 		children := make([]BlockDevice, 0)
 		for _, child := range parentDev.Children {
+			log.Logger.Debugw("child block device", "dev", child.Name, "fstype", child.FSType, "type", child.Type, "mount_point", child.MountPoint)
+
 			if !op.matchFuncFstype(child.FSType) {
+				log.Logger.Debugw("skipping child block device", "dev", child.Name, "fstype", child.FSType)
 				continue
 			}
 			if !op.matchFuncDeviceType(child.Type) {
+				log.Logger.Debugw("skipping child block device", "dev", child.Name, "type", child.Type)
+				continue
+			}
+			if !op.matchFuncMountPoint(child.MountPoint) {
+				log.Logger.Debugw("skipping child block device", "dev", child.Name, "mount_point", child.MountPoint)
 				continue
 			}
 
@@ -251,12 +244,22 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 		}
 		parentDev.Children = children
 
-		devs = append(devs, parentDev)
+		// Include parent if it matches filters OR has matching children
+		if parentMatches || len(children) > 0 {
+			if !parentMatches {
+				log.Logger.Debugw("including parent block device because it has matching children", "dev", parentDev.Name, "children_count", len(children))
+			}
+			devs = append(devs, parentDev)
+		} else {
+			log.Logger.Debugw("skipping parent block device (no match and no matching children)", "dev", parentDev.Name)
+		}
 	}
 
 	sort.Slice(devs, func(i, j int) bool {
 		return devs[i].Name < devs[j].Name
 	})
+	log.Logger.Debugw("parsed block devices", "devs", len(devs))
+
 	return devs, nil
 }
 
