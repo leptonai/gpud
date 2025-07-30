@@ -122,6 +122,10 @@ func getBlockDevicesWithLsblk(
 		devs = devs2
 	}
 
+	if len(devs) == 0 {
+		log.Logger.Warnw("no block device found from lsblk command", "lsblk", lsblkBin, "flags", flags, "output", string(b))
+	}
+
 	return devs, nil
 }
 
