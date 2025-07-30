@@ -234,43 +234,49 @@ func (c *component) Check() components.CheckResult {
 		nvmeDeviceDisabledEvents := make(eventstore.Events, 0)
 		beyondEndOfDeviceEvents := make(eventstore.Events, 0)
 		bufferIOErrorEvents := make(eventstore.Events, 0)
+		superblockWriteErrorEvents := make(eventstore.Events, 0)
 		failureReasons := make(map[string]string)
 		for _, ev := range recentEvents {
 			switch ev.Name {
 			case eventRAIDArrayFailure:
 				raidFailureEvents = append(raidFailureEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons[eventRAIDArrayFailure] = "RAID array failure detected"
+				failureReasons[eventRAIDArrayFailure] = messageRAIDArrayFailure
 
 			case eventFilesystemReadOnly:
 				fsReadOnlyEvents = append(fsReadOnlyEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons[eventFilesystemReadOnly] = "Filesystem remounted read-only"
+				failureReasons[eventFilesystemReadOnly] = messageFilesystemReadOnly
 
 			case eventNVMePathFailure:
 				nvmePathFailureEvents = append(nvmePathFailureEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons[eventNVMePathFailure] = "NVMe path failure detected"
+				failureReasons[eventNVMePathFailure] = messageNVMePathFailure
 
 			case eventNVMeTimeout:
 				nvmeTimeoutEvents = append(nvmeTimeoutEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons[eventNVMeTimeout] = "NVME controller timeout detected"
+				failureReasons[eventNVMeTimeout] = messageNVMeTimeout
 
 			case eventNVMeDeviceDisabled:
 				nvmeDeviceDisabledEvents = append(nvmeDeviceDisabledEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons[eventNVMeDeviceDisabled] = "NVME device disabled after reset failure"
+				failureReasons[eventNVMeDeviceDisabled] = messageNVMeDeviceDisabled
 
 			case eventBeyondEndOfDevice:
 				beyondEndOfDeviceEvents = append(beyondEndOfDeviceEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons[eventBeyondEndOfDevice] = "I/O beyond device boundaries detected"
+				failureReasons[eventBeyondEndOfDevice] = messageBeyondEndOfDevice
 
 			case eventBufferIOError:
 				bufferIOErrorEvents = append(bufferIOErrorEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons[eventBufferIOError] = "Buffer I/O error detected on device"
+				failureReasons[eventBufferIOError] = messageBufferIOError
+
+			case eventSuperblockWriteError:
+				superblockWriteErrorEvents = append(superblockWriteErrorEvents, ev)
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				failureReasons[eventSuperblockWriteError] = messageSuperblockWriteError
 			}
 		}
 
@@ -286,7 +292,8 @@ func (c *component) Check() components.CheckResult {
 			len(nvmeTimeoutEvents) > 0 ||
 			len(nvmeDeviceDisabledEvents) > 0 ||
 			len(beyondEndOfDeviceEvents) > 0 ||
-			len(bufferIOErrorEvents) > 0
+			len(bufferIOErrorEvents) > 0 ||
+			len(superblockWriteErrorEvents) > 0
 		if hasFailures {
 			// Look up past events to derive the suggested actions
 			rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, cr.ts.Add(-c.lookbackPeriod))
@@ -371,6 +378,17 @@ func (c *component) Check() components.CheckResult {
 				} else {
 					// e.g., failure -> reboot -> no failure
 					delete(failureReasons, eventBufferIOError)
+				}
+			}
+
+			// Process superblock write error events
+			if len(superblockWriteErrorEvents) > 0 {
+				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, superblockWriteErrorEvents, 2)
+				if suggestedActions != nil {
+					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				} else {
+					// e.g., failure -> reboot -> no failure
+					delete(failureReasons, eventSuperblockWriteError)
 				}
 			}
 

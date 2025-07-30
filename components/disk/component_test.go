@@ -2550,3 +2550,715 @@ func TestComponentWithMountPointFiltering(t *testing.T) {
 		}
 	})
 }
+
+// TestComponent_SuperblockWriteErrorDetection tests detection and health evaluation of superblock write errors
+func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	now := time.Now()
+
+	t.Run("single superblock write error makes component unhealthy", func(t *testing.T) {
+		// Create a test event store
+		eventBucket := &simpleMockEventBucket{}
+
+		// Insert a superblock write error event
+		err := eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-30 * time.Minute),
+			Name:      eventSuperblockWriteError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "I/O error while writing superblock",
+		})
+		require.NoError(t, err)
+
+		// Create mock reboot event store
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{}, // No reboots
+		}
+
+		// Create component
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: mockRebootStore,
+			eventBucket:      eventBucket,
+			lookbackPeriod:   time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should detect superblock write error and be unhealthy
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, "I/O error while writing superblock", cr.reason)
+
+		// Should suggest reboot since no previous reboots
+		assert.NotNil(t, cr.suggestedActions)
+		assert.Len(t, cr.suggestedActions.RepairActions, 1)
+		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
+	})
+
+	t.Run("multiple superblock write error events", func(t *testing.T) {
+		// Create a test event store
+		eventBucket := &simpleMockEventBucket{}
+
+		// Insert multiple superblock write error events
+		events := []time.Time{
+			now.Add(-60 * time.Minute),
+			now.Add(-45 * time.Minute),
+			now.Add(-30 * time.Minute),
+		}
+
+		for _, eventTime := range events {
+			err := eventBucket.Insert(ctx, eventstore.Event{
+				Component: Name,
+				Time:      eventTime,
+				Name:      eventSuperblockWriteError,
+				Type:      string(apiv1.EventTypeWarning),
+				Message:   "I/O error while writing superblock",
+			})
+			require.NoError(t, err)
+		}
+
+		// Create mock reboot event store with one reboot before failures
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    now.Add(-90 * time.Minute), // Reboot before failures
+					Name:    "reboot",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "system reboot detected",
+				},
+			},
+		}
+
+		// Create component
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: mockRebootStore,
+			eventBucket:      eventBucket,
+			lookbackPeriod:   2 * time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should detect superblock write errors and be unhealthy
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, "I/O error while writing superblock", cr.reason)
+
+		// Should suggest reboot since multiple failures after one reboot doesn't meet threshold
+		assert.NotNil(t, cr.suggestedActions)
+		assert.Len(t, cr.suggestedActions.RepairActions, 1)
+		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
+	})
+
+	t.Run("superblock write errors resolved after reboot", func(t *testing.T) {
+		// Create a test event store
+		eventBucket := &simpleMockEventBucket{}
+
+		// Insert superblock write error before reboot
+		err := eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-60 * time.Minute), // Before reboot
+			Name:      eventSuperblockWriteError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "I/O error while writing superblock",
+		})
+		require.NoError(t, err)
+
+		// Create mock reboot event store with reboot after failure
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    now.Add(-30 * time.Minute), // Reboot after failure
+					Name:    "reboot",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "system reboot detected",
+				},
+			},
+		}
+
+		// Create component
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: mockRebootStore,
+			eventBucket:      eventBucket,
+			lookbackPeriod:   2 * time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should be healthy since reboot resolved the issue
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
+		assert.Nil(t, cr.suggestedActions)
+	})
+}
+
+// TestComponent_SuperblockWriteErrorWithMixedEventTypes tests superblock write errors with other error types
+func TestComponent_SuperblockWriteErrorWithMixedEventTypes(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	now := time.Now()
+
+	t.Run("superblock write error with buffer I/O error", func(t *testing.T) {
+		// Create a test event store
+		eventBucket := &simpleMockEventBucket{}
+
+		// Insert superblock write error events
+		err := eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-30 * time.Minute),
+			Name:      eventSuperblockWriteError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "I/O error while writing superblock",
+		})
+		require.NoError(t, err)
+
+		// Insert buffer I/O error as well
+		err = eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-25 * time.Minute),
+			Name:      eventBufferIOError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "Buffer I/O error detected on device",
+		})
+		require.NoError(t, err)
+
+		// Create mock reboot event store
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{}, // No reboots
+		}
+
+		// Create component
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: mockRebootStore,
+			eventBucket:      eventBucket,
+			lookbackPeriod:   time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should be unhealthy with both error types in reason
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Contains(t, cr.reason, "I/O error while writing superblock")
+		assert.Contains(t, cr.reason, "Buffer I/O error detected on device")
+
+		// Should suggest reboot since no previous reboots
+		assert.NotNil(t, cr.suggestedActions)
+		assert.Len(t, cr.suggestedActions.RepairActions, 1)
+		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
+	})
+
+	t.Run("multiple error types sorted lexicographically", func(t *testing.T) {
+		// Create a test event store
+		eventBucket := &simpleMockEventBucket{}
+
+		// Insert various error types including superblock write error
+		events := []struct {
+			name    string
+			message string
+		}{
+			{eventSuperblockWriteError, "I/O error while writing superblock"},
+			{eventBufferIOError, "Buffer I/O error detected on device"},
+			{eventFilesystemReadOnly, "Filesystem remounted read-only"},
+			{eventNVMePathFailure, "NVMe path failure detected"},
+		}
+
+		for i, evt := range events {
+			err := eventBucket.Insert(ctx, eventstore.Event{
+				Component: Name,
+				Time:      now.Add(-time.Duration(10*(i+1)) * time.Minute),
+				Name:      evt.name,
+				Type:      string(apiv1.EventTypeWarning),
+				Message:   evt.message,
+			})
+			require.NoError(t, err)
+		}
+
+		// Create mock reboot event store
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{}, // No reboots
+		}
+
+		// Create component
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: mockRebootStore,
+			eventBucket:      eventBucket,
+			lookbackPeriod:   time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should be unhealthy
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+
+		// Verify reasons are sorted lexicographically
+		expectedReason := "Buffer I/O error detected on device, I/O error while writing superblock, NVMe device has no available path, I/O failing, filesystem remounted as read-only due to errors"
+		assert.Equal(t, expectedReason, cr.reason)
+
+		// Should suggest reboot since no previous reboots for multiple error types
+		assert.NotNil(t, cr.suggestedActions)
+		assert.Len(t, cr.suggestedActions.RepairActions, 1)
+		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
+	})
+}
+
+// TestComponent_SuperblockWriteErrorSuggestedActions tests suggested actions logic specifically for superblock write errors
+func TestComponent_SuperblockWriteErrorSuggestedActions(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	now := time.Now()
+
+	t.Run("persistent superblock write errors trigger HW inspection", func(t *testing.T) {
+		// Create a test event store
+		eventBucket := &simpleMockEventBucket{}
+
+		// Insert superblock write error events that persist after reboots
+		err := eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-4 * time.Hour), // First failure
+			Name:      eventSuperblockWriteError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "I/O error while writing superblock",
+		})
+		require.NoError(t, err)
+
+		err = eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-1 * time.Hour), // Second failure after reboot
+			Name:      eventSuperblockWriteError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "I/O error while writing superblock",
+		})
+		require.NoError(t, err)
+
+		// Create mock reboot event store with two reboots
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{
+				{
+					Time:    now.Add(-5 * time.Hour), // First reboot
+					Name:    "reboot",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "system reboot detected",
+				},
+				{
+					Time:    now.Add(-2 * time.Hour), // Second reboot after first failure
+					Name:    "reboot",
+					Type:    string(apiv1.EventTypeWarning),
+					Message: "system reboot detected",
+				},
+			},
+		}
+
+		// Create component
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: mockRebootStore,
+			eventBucket:      eventBucket,
+			lookbackPeriod:   6 * time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should be unhealthy
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, "I/O error while writing superblock", cr.reason)
+
+		// Should suggest hardware inspection since failures persist after reboots
+		assert.NotNil(t, cr.suggestedActions)
+		assert.Len(t, cr.suggestedActions.RepairActions, 1)
+		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, cr.suggestedActions.RepairActions[0])
+	})
+
+	t.Run("no suggested actions when event store fails", func(t *testing.T) {
+		// Create a component with eventBucket but no rebootEventStore to simulate error
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: nil, // This will cause an error in the Check method
+			eventBucket:      &simpleMockEventBucket{},
+			lookbackPeriod:   time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should be healthy since no events can be processed
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
+		assert.Nil(t, cr.suggestedActions)
+	})
+}
+
+// TestComponent_SuperblockWriteErrorEventStoreErrors tests error handling in event store operations
+func TestComponent_SuperblockWriteErrorEventStoreErrors(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	t.Run("event bucket get error", func(t *testing.T) {
+		// Create a mock event bucket that returns an error
+		mockBucket := new(mockEventBucket)
+		expectedErr := errors.New("event bucket get error")
+		mockBucket.On("Get", mock.Anything, mock.Anything).Return(nil, expectedErr)
+		mockBucket.On("Close").Return().Maybe()
+
+		// Create mock reboot event store
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{}, // No reboots
+		}
+
+		// Create component
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: mockRebootStore,
+			eventBucket:      mockBucket,
+			lookbackPeriod:   time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should be unhealthy due to event store error
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, "failed to get recent events", cr.reason)
+		assert.Equal(t, expectedErr, cr.err)
+		assert.Nil(t, cr.suggestedActions)
+
+		mockBucket.AssertCalled(t, "Get", mock.Anything, mock.Anything)
+	})
+
+	t.Run("reboot event store error", func(t *testing.T) {
+		// Create a test event store with superblock write error
+		eventBucket := &simpleMockEventBucket{}
+		err := eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      time.Now().Add(-30 * time.Minute),
+			Name:      eventSuperblockWriteError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "I/O error while writing superblock",
+		})
+		require.NoError(t, err)
+
+		// Create mock reboot event store that returns an error
+		expectedErr := errors.New("reboot event store error")
+		mockRebootStore := &mockRebootEventStore{
+			err: expectedErr,
+		}
+
+		// Create component
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: mockRebootStore,
+			eventBucket:      eventBucket,
+			lookbackPeriod:   time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should be unhealthy due to reboot event store error
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Equal(t, expectedErr, cr.err)
+		assert.Nil(t, cr.suggestedActions)
+	})
+}
+
+// TestComponent_SuperblockWriteErrorIntegration tests end-to-end integration with real examples
+func TestComponent_SuperblockWriteErrorIntegration(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	now := time.Now()
+
+	t.Run("real-world scenario with buffer I/O and superblock errors", func(t *testing.T) {
+		// Create a test event store
+		eventBucket := &simpleMockEventBucket{}
+
+		// Insert events similar to the user's real examples
+		// [83028.888615] Buffer I/O error on dev dm-0, logical block 0, lost sync page write
+		// [83028.888618] EXT4-fs (dm-0): I/O error while writing superblock
+		err := eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-30 * time.Minute),
+			Name:      eventBufferIOError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "Buffer I/O error detected on device",
+		})
+		require.NoError(t, err)
+
+		err = eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-29 * time.Minute), // 3 seconds later, like in real logs
+			Name:      eventSuperblockWriteError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "I/O error while writing superblock",
+		})
+		require.NoError(t, err)
+
+		// Multiple occurrences like in real logs
+		err = eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-25 * time.Minute),
+			Name:      eventBufferIOError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "Buffer I/O error detected on device",
+		})
+		require.NoError(t, err)
+
+		err = eventBucket.Insert(ctx, eventstore.Event{
+			Component: Name,
+			Time:      now.Add(-24 * time.Minute),
+			Name:      eventSuperblockWriteError,
+			Type:      string(apiv1.EventTypeWarning),
+			Message:   "I/O error while writing superblock",
+		})
+		require.NoError(t, err)
+
+		// Create mock reboot event store
+		mockRebootStore := &mockRebootEventStore{
+			events: eventstore.Events{}, // No reboots
+		}
+
+		// Create component
+		c := &component{
+			ctx:              ctx,
+			rebootEventStore: mockRebootStore,
+			eventBucket:      eventBucket,
+			lookbackPeriod:   time.Hour,
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{{Name: "dm-0", Type: "dm"}}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/dm-0",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		// Run check
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should be unhealthy with both error types
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+
+		// Should contain both error messages in sorted order
+		expectedReason := "Buffer I/O error detected on device, I/O error while writing superblock"
+		assert.Equal(t, expectedReason, cr.reason)
+
+		// Should suggest reboot for initial occurrence
+		assert.NotNil(t, cr.suggestedActions)
+		assert.Len(t, cr.suggestedActions.RepairActions, 1)
+		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
+	})
+}
