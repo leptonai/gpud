@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -233,37 +234,37 @@ func (c *component) Check() components.CheckResult {
 		nvmeDeviceDisabledEvents := make(eventstore.Events, 0)
 		beyondEndOfDeviceEvents := make(eventstore.Events, 0)
 		bufferIOErrorEvents := make(eventstore.Events, 0)
-		var failureReasons []string
+		failureReasons := make(map[string]any)
 		for _, ev := range recentEvents {
 			switch ev.Name {
 			case eventRAIDArrayFailure:
 				raidFailureEvents = append(raidFailureEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons = append(failureReasons, "RAID array failure detected")
+				failureReasons["RAID array failure detected"] = true
 			case eventFilesystemReadOnly:
 				fsReadOnlyEvents = append(fsReadOnlyEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons = append(failureReasons, "Filesystem remounted read-only")
+				failureReasons["Filesystem remounted read-only"] = true
 			case eventNVMePathFailure:
 				nvmePathFailureEvents = append(nvmePathFailureEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons = append(failureReasons, "NVMe path failure detected")
+				failureReasons["NVMe path failure detected"] = true
 			case eventNVMeTimeout:
 				nvmeTimeoutEvents = append(nvmeTimeoutEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons = append(failureReasons, "NVME controller timeout detected")
+				failureReasons["NVME controller timeout detected"] = true
 			case eventNVMeDeviceDisabled:
 				nvmeDeviceDisabledEvents = append(nvmeDeviceDisabledEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons = append(failureReasons, "NVME device disabled after reset failure")
+				failureReasons["NVME device disabled after reset failure"] = true
 			case eventBeyondEndOfDevice:
 				beyondEndOfDeviceEvents = append(beyondEndOfDeviceEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons = append(failureReasons, "I/O beyond device boundaries detected")
+				failureReasons["I/O beyond device boundaries detected"] = true
 			case eventBufferIOError:
 				bufferIOErrorEvents = append(bufferIOErrorEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons = append(failureReasons, "Buffer I/O error detected on device")
+				failureReasons["Buffer I/O error detected on device"] = true
 			}
 		}
 
@@ -274,7 +275,14 @@ func (c *component) Check() components.CheckResult {
 				cr.reason = ""
 			}
 
-			newReason := strings.Join(failureReasons, ", ")
+			// Sort the keys lexicographically
+			var sortedReasons []string
+			for reason := range failureReasons {
+				sortedReasons = append(sortedReasons, reason)
+			}
+			sort.Strings(sortedReasons)
+
+			newReason := strings.Join(sortedReasons, ", ")
 			if cr.reason != "" {
 				cr.reason += "; " + newReason
 			} else {
