@@ -523,3 +523,150 @@ func TestGetBlockDevicesCombinedFilters(t *testing.T) {
 	assert.True(t, names["/dev/vda3"], "Should include vda3 (/mnt/customfs is allowed)")
 	assert.False(t, names["/dev/vda4"], "Should not include vda4 (filtered by device type)")
 }
+
+func TestParseLsblkJSONWithParentNullMountpoint(t *testing.T) {
+	t.Parallel()
+
+	// Test with lsblk.5.json data which has nvme0n1 with null mountpoint
+	// but children with valid mountpoints
+	dat, err := os.ReadFile("testdata/lsblk.5.json")
+	require.NoError(t, err)
+
+	// Parse with default filters used in components/disk/component.go
+	blks, err := parseLsblkJSON(dat,
+		WithFstype(DefaultFsTypeFunc),
+		WithDeviceType(DefaultDeviceTypeFunc),
+		WithMountPoint(DefaultMountPointFunc),
+	)
+	require.NoError(t, err)
+
+	// Find the nvme0n1 device
+	var nvmeDevice *BlockDevice
+	for i := range blks {
+		if blks[i].Name == "/dev/nvme0n1" {
+			nvmeDevice = &blks[i]
+			break
+		}
+	}
+
+	// Should find nvme0n1 because it has children with valid mountpoints
+	require.NotNil(t, nvmeDevice, "nvme0n1 should be included because it has children with valid mountpoints")
+
+	// Check that it has at least one child (should have nvme0n1p2 with ext4 and mountpoint /)
+	require.True(t, len(nvmeDevice.Children) > 0, "nvme0n1 should have at least one child")
+
+	// Verify nvme0n1p2 is included (ext4, mountpoint /)
+	foundP2 := false
+	for _, child := range nvmeDevice.Children {
+		if child.Name == "/dev/nvme0n1p2" {
+			foundP2 = true
+			assert.Equal(t, "ext4", child.FSType)
+			assert.Equal(t, "/", child.MountPoint)
+			assert.Equal(t, "part", child.Type)
+			break
+		}
+	}
+	assert.True(t, foundP2, "nvme0n1p2 should be included in children")
+
+	// Verify vfat partitions are excluded due to fstype filter
+	for _, child := range nvmeDevice.Children {
+		assert.NotEqual(t, "vfat", child.FSType, "vfat partitions should be filtered out by DefaultFsTypeFunc")
+	}
+}
+
+func TestParseLsblkJSONParentChildFiltering(t *testing.T) {
+	t.Parallel()
+
+	jsonData := `{
+		"blockdevices": [
+			{
+				"name": "/dev/sda",
+				"type": "disk",
+				"size": 1000000000,
+				"mountpoint": null,
+				"fstype": null,
+				"children": [
+					{
+						"name": "/dev/sda1",
+						"type": "part",
+						"size": 500000000,
+						"mountpoint": "/",
+						"fstype": "ext4"
+					},
+					{
+						"name": "/dev/sda2",
+						"type": "part",
+						"size": 500000000,
+						"mountpoint": "/home",
+						"fstype": "ext4"
+					}
+				]
+			},
+			{
+				"name": "/dev/sdb",
+				"type": "disk",
+				"size": 2000000000,
+				"mountpoint": null,
+				"fstype": null,
+				"children": [
+					{
+						"name": "/dev/sdb1",
+						"type": "part",
+						"size": 2000000000,
+						"mountpoint": null,
+						"fstype": "ntfs"
+					}
+				]
+			},
+			{
+				"name": "/dev/sdc",
+				"type": "disk",
+				"size": 3000000000,
+				"mountpoint": "/data",
+				"fstype": "ext4",
+				"children": []
+			}
+		]
+	}`
+
+	// Test 1: With filters that exclude unmounted devices
+	blks, err := parseLsblkJSON([]byte(jsonData),
+		WithMountPoint(func(mp string) bool { return mp != "" }),
+		WithFstype(func(fs string) bool { return fs == "" || fs == "ext4" }),
+		WithDeviceType(func(dt string) bool { return dt == "disk" || dt == "part" }),
+	)
+	require.NoError(t, err)
+
+	// Should have:
+	// - sda (because it has children with valid mountpoints)
+	// - sdc (because it itself has a mountpoint)
+	// Not sdb (no mountpoint and children don't match filters)
+	assert.Len(t, blks, 2, "Should have 2 devices")
+
+	// Check sda
+	var sda *BlockDevice
+	for i := range blks {
+		if blks[i].Name == "/dev/sda" {
+			sda = &blks[i]
+			break
+		}
+	}
+	require.NotNil(t, sda, "sda should be included")
+	assert.Len(t, sda.Children, 2, "sda should have 2 children")
+
+	// Check sdc
+	var sdc *BlockDevice
+	for i := range blks {
+		if blks[i].Name == "/dev/sdc" {
+			sdc = &blks[i]
+			break
+		}
+	}
+	require.NotNil(t, sdc, "sdc should be included")
+	assert.Empty(t, sdc.Children, "sdc should have no children")
+
+	// sdb should not be included
+	for _, blk := range blks {
+		assert.NotEqual(t, "/dev/sdb", blk.Name, "sdb should not be included")
+	}
+}
