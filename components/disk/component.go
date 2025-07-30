@@ -234,61 +234,50 @@ func (c *component) Check() components.CheckResult {
 		nvmeDeviceDisabledEvents := make(eventstore.Events, 0)
 		beyondEndOfDeviceEvents := make(eventstore.Events, 0)
 		bufferIOErrorEvents := make(eventstore.Events, 0)
-		failureReasons := make(map[string]any)
+		failureReasons := make(map[string]string)
 		for _, ev := range recentEvents {
 			switch ev.Name {
 			case eventRAIDArrayFailure:
 				raidFailureEvents = append(raidFailureEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons["RAID array failure detected"] = true
+				failureReasons[eventRAIDArrayFailure] = "RAID array failure detected"
+
 			case eventFilesystemReadOnly:
 				fsReadOnlyEvents = append(fsReadOnlyEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons["Filesystem remounted read-only"] = true
+				failureReasons[eventFilesystemReadOnly] = "Filesystem remounted read-only"
+
 			case eventNVMePathFailure:
 				nvmePathFailureEvents = append(nvmePathFailureEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons["NVMe path failure detected"] = true
+				failureReasons[eventNVMePathFailure] = "NVMe path failure detected"
+
 			case eventNVMeTimeout:
 				nvmeTimeoutEvents = append(nvmeTimeoutEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons["NVME controller timeout detected"] = true
+				failureReasons[eventNVMeTimeout] = "NVME controller timeout detected"
+
 			case eventNVMeDeviceDisabled:
 				nvmeDeviceDisabledEvents = append(nvmeDeviceDisabledEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons["NVME device disabled after reset failure"] = true
+				failureReasons[eventNVMeDeviceDisabled] = "NVME device disabled after reset failure"
+
 			case eventBeyondEndOfDevice:
 				beyondEndOfDeviceEvents = append(beyondEndOfDeviceEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons["I/O beyond device boundaries detected"] = true
+				failureReasons[eventBeyondEndOfDevice] = "I/O beyond device boundaries detected"
+
 			case eventBufferIOError:
 				bufferIOErrorEvents = append(bufferIOErrorEvents, ev)
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				failureReasons["Buffer I/O error detected on device"] = true
+				failureReasons[eventBufferIOError] = "Buffer I/O error detected on device"
 			}
 		}
 
-		// Append failure reasons to existing reason if any failures were detected
-		if len(failureReasons) > 0 {
-			// reset since it's not healhty, not "ok" anymore
-			if cr.reason == "ok" {
-				cr.reason = ""
-			}
-
-			// Sort the keys lexicographically
-			var sortedReasons []string
-			for reason := range failureReasons {
-				sortedReasons = append(sortedReasons, reason)
-			}
-			sort.Strings(sortedReasons)
-
-			newReason := strings.Join(sortedReasons, ", ")
-			if cr.reason != "" {
-				cr.reason += "; " + newReason
-			} else {
-				cr.reason = newReason
-			}
-		}
+		// Evaluate suggested actions for each event type
+		// this remains null if no failures are detected
+		// especially the case where no failure after reboot is detected
+		var allSuggestedActions []*apiv1.SuggestedActions
 
 		// If we found disk failures, evaluate suggested actions for each type
 		hasFailures := len(raidFailureEvents) > 0 ||
@@ -308,14 +297,14 @@ func (c *component) Check() components.CheckResult {
 				return cr
 			}
 
-			// Evaluate suggested actions for each event type
-			var allSuggestedActions []*apiv1.SuggestedActions
-
 			// Process RAID failure events
 			if len(raidFailureEvents) > 0 {
 				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, raidFailureEvents, 2)
 				if suggestedActions != nil {
 					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				} else {
+					// e.g., failure -> reboot -> no failure
+					delete(failureReasons, eventRAIDArrayFailure)
 				}
 			}
 
@@ -324,6 +313,9 @@ func (c *component) Check() components.CheckResult {
 				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, fsReadOnlyEvents, 2)
 				if suggestedActions != nil {
 					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				} else {
+					// e.g., failure -> reboot -> no failure
+					delete(failureReasons, eventFilesystemReadOnly)
 				}
 			}
 
@@ -332,6 +324,9 @@ func (c *component) Check() components.CheckResult {
 				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, nvmePathFailureEvents, 2)
 				if suggestedActions != nil {
 					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				} else {
+					// e.g., failure -> reboot -> no failure
+					delete(failureReasons, eventNVMePathFailure)
 				}
 			}
 
@@ -340,6 +335,9 @@ func (c *component) Check() components.CheckResult {
 				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, nvmeTimeoutEvents, 2)
 				if suggestedActions != nil {
 					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				} else {
+					// e.g., failure -> reboot -> no failure
+					delete(failureReasons, eventNVMeTimeout)
 				}
 			}
 
@@ -348,6 +346,9 @@ func (c *component) Check() components.CheckResult {
 				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, nvmeDeviceDisabledEvents, 2)
 				if suggestedActions != nil {
 					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				} else {
+					// e.g., failure -> reboot -> no failure
+					delete(failureReasons, eventNVMeDeviceDisabled)
 				}
 			}
 
@@ -356,6 +357,9 @@ func (c *component) Check() components.CheckResult {
 				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, beyondEndOfDeviceEvents, 2)
 				if suggestedActions != nil {
 					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				} else {
+					// e.g., failure -> reboot -> no failure
+					delete(failureReasons, eventBeyondEndOfDevice)
 				}
 			}
 
@@ -364,13 +368,43 @@ func (c *component) Check() components.CheckResult {
 				suggestedActions := eventstore.EvaluateSuggestedActions(rebootEvents, bufferIOErrorEvents, 2)
 				if suggestedActions != nil {
 					allSuggestedActions = append(allSuggestedActions, suggestedActions)
+				} else {
+					// e.g., failure -> reboot -> no failure
+					delete(failureReasons, eventBufferIOError)
 				}
 			}
 
 			// Aggregate suggested actions with HW_INSPECTION priority
 			cr.suggestedActions = eventstore.AggregateSuggestedActions(allSuggestedActions)
 		}
+
+		// Append failure reasons to existing reason if any failures were detected
+		if len(failureReasons) > 0 {
+			// reset since it's not healhty, not "ok" anymore
+			if cr.reason == "ok" {
+				cr.reason = ""
+			}
+
+			// Sort the keys lexicographically
+			var sortedReasons []string
+			for _, reason := range failureReasons {
+				sortedReasons = append(sortedReasons, reason)
+			}
+			sort.Strings(sortedReasons)
+
+			newReason := strings.Join(sortedReasons, ", ")
+			if cr.reason != "" {
+				cr.reason += "; " + newReason
+			} else {
+				cr.reason = newReason
+			}
+		} else if hasFailures {
+			// If we had failures initially but all were resolved after reboot,
+			// reset the health state back to healthy
+			cr.health = apiv1.HealthStateTypeHealthy
+		}
 	}
+
 	if c.getBlockDevicesFunc != nil {
 		if !c.fetchBlockDevices(cr) {
 			return cr
