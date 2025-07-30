@@ -474,7 +474,7 @@ func TestCheckWithNewCheckerError(t *testing.T) {
 	cr := result.(*checkResult)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
-	assert.Contains(t, result.Summary(), "failed to find mount target device")
+	assert.Contains(t, result.Summary(), "invalid nfs group configs")
 	assert.NotNil(t, cr.err)
 }
 

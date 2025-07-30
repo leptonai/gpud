@@ -168,17 +168,17 @@ func TestProcessUpdateConfig(t *testing.T) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for nfs config")
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
-				t.Error("setDefaultNFSGroupConfigsFunc should not be called for invalid config")
+				// This function should be called even for invalid configs to allow user to fix them
 			},
 			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
 				t.Error("setDefaultGPUCountsFunc should not be called for nfs config")
 			},
-			expectedError:                         "volume path is empty",
+			expectedError:                         "", // validation errors are logged but not returned as errors
 			expectedIbExpectedPortStatesCalled:    false,
-			expectedNFSGroupConfigsCalled:         false,
+			expectedNFSGroupConfigsCalled:         true,
 			expectedGPUCountsCalled:               false,
 			expectedIbExpectedPortStatesCallCount: 0,
-			expectedNFSGroupConfigsCallCount:      0,
+			expectedNFSGroupConfigsCallCount:      1, // function should be called even for invalid configs
 			expectedGPUCountsCallCount:            0,
 		},
 		{
@@ -427,7 +427,7 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 			name:          "nfs - empty object in array with validation error",
 			componentName: "nfs",
 			configValue:   `[{}]`,
-			expectedError: "volume path is empty",
+			expectedError: "", // validation errors are logged but not returned as errors
 		},
 		{
 			name:          "infiniband - invalid field type",
@@ -445,7 +445,7 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 			name:          "nfs - invalid field type",
 			componentName: "nfs",
 			configValue:   `[{"num_expected_files": "invalid"}]`,
-			expectedError: "volume path is empty",
+			expectedError: "", // validation errors are logged but not returned as errors
 		},
 	}
 

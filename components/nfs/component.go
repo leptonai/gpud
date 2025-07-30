@@ -147,6 +147,23 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
+	memberConfigs := groupConfigs.GetMemberConfigs(c.machineID)
+	timeoutCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+	err := c.validateMemberConfigs(timeoutCtx, memberConfigs)
+	cancel()
+	if err != nil {
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeDegraded
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			cr.reason = "NFS validation timed out - server may be unresponsive"
+		} else {
+			cr.reason = "invalid nfs group configs"
+		}
+		log.Logger.Warnw(cr.reason, "error", err)
+		return cr
+	}
+
 	// verify the volume path is an nfs mount point
 	for _, groupConfig := range groupConfigs {
 		dev, fsType, err := c.findMntTargetDevice(groupConfig.VolumePath)
@@ -164,23 +181,6 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 		log.Logger.Infow("nfs mount point found", "volume_path", groupConfig.VolumePath, "device", dev, "fs_type", fsType)
-	}
-
-	memberConfigs := groupConfigs.GetMemberConfigs(c.machineID)
-	timeoutCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
-	err := c.validateMemberConfigs(timeoutCtx, memberConfigs)
-	cancel()
-	if err != nil {
-		cr.err = err
-		cr.health = apiv1.HealthStateTypeDegraded
-
-		if errors.Is(err, context.DeadlineExceeded) {
-			cr.reason = "NFS validation timed out - server may be unresponsive"
-		} else {
-			cr.reason = "invalid nfs group configs"
-		}
-		log.Logger.Warnw(cr.reason, "error", err)
-		return cr
 	}
 
 	msg := make([]string, 0, len(memberConfigs))

@@ -3,6 +3,7 @@ package nfschecker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -59,7 +60,7 @@ func (cfgs Configs) GetMemberConfigs(machineID string) MemberConfigs {
 var (
 	ErrVolumePathEmpty     = errors.New("volume path is empty")
 	ErrVolumePathNotAbs    = errors.New("volume path is not absolute")
-	ErrVolumePathNotExists = errors.New("volume path does not exist and cannot be created")
+	ErrVolumePathNotExists = errors.New("volume path does not exist")
 	ErrFileContentsEmpty   = errors.New("file content is empty")
 )
 
@@ -76,7 +77,7 @@ func (c *Config) ValidateAndMkdir(ctx context.Context) error {
 	}
 
 	if _, err := pkgfile.StatWithTimeout(ctx, c.VolumePath); os.IsNotExist(err) {
-		return ErrVolumePathNotExists
+		return fmt.Errorf("%q %w", c.VolumePath, ErrVolumePathNotExists)
 	} else if err != nil {
 		return err
 	}
