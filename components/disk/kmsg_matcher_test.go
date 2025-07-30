@@ -393,6 +393,75 @@ func TestHasBufferIOError(t *testing.T) {
 	}
 }
 
+func TestHasSuperblockWriteError(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{
+			name: "EXT4 superblock write error - real example",
+			line: "[83028.888618] EXT4-fs (dm-0): I/O error while writing superblock",
+			want: true,
+		},
+		{
+			name: "EXT4 superblock write error without timestamp",
+			line: "EXT4-fs (dm-0): I/O error while writing superblock",
+			want: true,
+		},
+		{
+			name: "EXT4 superblock write error different device",
+			line: "EXT4-fs (sda1): I/O error while writing superblock",
+			want: true,
+		},
+		{
+			name: "EXT4 superblock write error with kernel prefix",
+			line: "kernel: EXT4-fs (nvme0n1p1): I/O error while writing superblock",
+			want: true,
+		},
+		{
+			name: "Generic superblock write error without filesystem prefix",
+			line: "I/O error while writing superblock",
+			want: true,
+		},
+		{
+			name: "XFS superblock write error",
+			line: "XFS (sda1): I/O error while writing superblock",
+			want: true,
+		},
+		{
+			name: "BTRFS superblock write error",
+			line: "BTRFS: I/O error while writing superblock",
+			want: true,
+		},
+		{
+			name: "No match - different EXT4 error",
+			line: "EXT4-fs (dm-0): metadata_csum_seed is not necessary",
+			want: false,
+		},
+		{
+			name: "No match - partial message",
+			line: "EXT4-fs (dm-0): I/O error while reading",
+			want: false,
+		},
+		{
+			name: "No match - different I/O error",
+			line: "EXT4-fs (dm-0): I/O error while reading superblock",
+			want: false,
+		},
+		{
+			name: "No match - empty string",
+			line: "",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, HasSuperblockWriteError(tt.line), "HasSuperblockWriteError()")
+		})
+	}
+}
+
 func TestMatch(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -501,6 +570,30 @@ func TestMatch(t *testing.T) {
 			line:          "[Sun Jun 29 19:29:39 2025] Buffer I/O error on dev dm-0, logical block 1308098575, lost async page write",
 			wantEventName: eventBufferIOError,
 			wantMessage:   messageBufferIOError,
+		},
+		{
+			name:          "Buffer I/O error - lost sync page write",
+			line:          "[83028.888615] Buffer I/O error on dev dm-0, logical block 0, lost sync page write",
+			wantEventName: eventBufferIOError,
+			wantMessage:   messageBufferIOError,
+		},
+		{
+			name:          "Superblock write error - real log example",
+			line:          "[83028.888618] EXT4-fs (dm-0): I/O error while writing superblock",
+			wantEventName: eventSuperblockWriteError,
+			wantMessage:   messageSuperblockWriteError,
+		},
+		{
+			name:          "Superblock write error without timestamp",
+			line:          "EXT4-fs (dm-0): I/O error while writing superblock",
+			wantEventName: eventSuperblockWriteError,
+			wantMessage:   messageSuperblockWriteError,
+		},
+		{
+			name:          "Generic superblock write error",
+			line:          "I/O error while writing superblock",
+			wantEventName: eventSuperblockWriteError,
+			wantMessage:   messageSuperblockWriteError,
 		},
 	}
 	for _, tt := range tests {

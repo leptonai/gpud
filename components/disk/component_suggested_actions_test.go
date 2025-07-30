@@ -362,7 +362,7 @@ func TestComponent_Check_SuggestedActions(t *testing.T) {
 
 	// Should detect the RAID array failure and be unhealthy
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "RAID array failure detected", cr.reason)
+	assert.Equal(t, "RAID array has failed due to disk failure", cr.reason)
 }
 
 // TestComponent_Check_NoSpaceLeftNotSuggested tests that eventNoSpaceLeft doesn't trigger reboot
@@ -681,9 +681,9 @@ func TestComponent_Check_DeduplicationAndSorting(t *testing.T) {
 	// Verify reasons are deduplicated and sorted lexicographically
 	// Expected order (sorted alphabetically):
 	// 1. Buffer I/O error detected on device
-	// 2. Filesystem remounted read-only
-	// 3. NVMe path failure detected
-	// 4. RAID array failure detected
-	expectedReason := "Buffer I/O error detected on device, Filesystem remounted read-only, NVMe path failure detected, RAID array failure detected"
+	// 2. NVMe device has no available path, I/O failing
+	// 3. RAID array has failed due to disk failure
+	// 4. filesystem remounted as read-only due to errors
+	expectedReason := "Buffer I/O error detected on device, NVMe device has no available path, I/O failing, RAID array has failed due to disk failure, filesystem remounted as read-only due to errors"
 	assert.Equal(t, expectedReason, cr.reason)
 }

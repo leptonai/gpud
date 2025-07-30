@@ -402,13 +402,13 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		// Should be unhealthy because NVMe failure persists
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-		assert.Contains(t, cr.reason, "NVMe path failure detected")
+		assert.Contains(t, cr.reason, "NVMe device has no available path, I/O failing")
 		assert.NotNil(t, cr.suggestedActions)
 		assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 
 		// Should NOT contain the resolved failures
-		assert.NotContains(t, cr.reason, "RAID array failure")
-		assert.NotContains(t, cr.reason, "Filesystem remounted read-only")
+		assert.NotContains(t, cr.reason, "RAID array has failed due to disk failure")
+		assert.NotContains(t, cr.reason, "filesystem remounted as read-only due to errors")
 	})
 
 	// Test case: No disk events - verify healthy state

@@ -54,17 +54,24 @@ const (
 	eventBufferIOError   = "buffer_io_error"
 	regexBufferIOError   = `Buffer I/O error on dev [^ ]+, logical block [0-9]+`
 	messageBufferIOError = `Buffer I/O error detected on device`
+
+	// e.g.,
+	// EXT4-fs (dm-0): I/O error while writing superblock
+	eventSuperblockWriteError   = "superblock_write_error"
+	regexSuperblockWriteError   = `I/O error while writing superblock`
+	messageSuperblockWriteError = `I/O error while writing superblock`
 )
 
 var (
-	compiledNoSpaceLeft        = regexp.MustCompile(regexNoSpaceLeft)
-	compiledRAIDArrayFailure   = regexp.MustCompile(regexRAIDArrayFailure)
-	compiledFilesystemReadOnly = regexp.MustCompile(regexFilesystemReadOnly)
-	compiledNVMePathFailure    = regexp.MustCompile(regexNVMePathFailure)
-	compiledNVMeTimeout        = regexp.MustCompile(regexNVMeTimeout)
-	compiledNVMeDeviceDisabled = regexp.MustCompile(regexNVMeDeviceDisabled)
-	compiledBeyondEndOfDevice  = regexp.MustCompile(regexBeyondEndOfDevice)
-	compiledBufferIOError      = regexp.MustCompile(regexBufferIOError)
+	compiledNoSpaceLeft          = regexp.MustCompile(regexNoSpaceLeft)
+	compiledRAIDArrayFailure     = regexp.MustCompile(regexRAIDArrayFailure)
+	compiledFilesystemReadOnly   = regexp.MustCompile(regexFilesystemReadOnly)
+	compiledNVMePathFailure      = regexp.MustCompile(regexNVMePathFailure)
+	compiledNVMeTimeout          = regexp.MustCompile(regexNVMeTimeout)
+	compiledNVMeDeviceDisabled   = regexp.MustCompile(regexNVMeDeviceDisabled)
+	compiledBeyondEndOfDevice    = regexp.MustCompile(regexBeyondEndOfDevice)
+	compiledBufferIOError        = regexp.MustCompile(regexBufferIOError)
+	compiledSuperblockWriteError = regexp.MustCompile(regexSuperblockWriteError)
 )
 
 // Returns true if the line indicates that the disk has no space left.
@@ -131,6 +138,14 @@ func HasBufferIOError(line string) bool {
 	return false
 }
 
+// Returns true if the line indicates superblock write error.
+func HasSuperblockWriteError(line string) bool {
+	if match := compiledSuperblockWriteError.FindStringSubmatch(line); match != nil {
+		return true
+	}
+	return false
+}
+
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {
@@ -157,5 +172,6 @@ func getMatches() []match {
 		{check: HasNVMeDeviceDisabled, eventName: eventNVMeDeviceDisabled, regex: regexNVMeDeviceDisabled, message: messageNVMeDeviceDisabled},
 		{check: HasBeyondEndOfDevice, eventName: eventBeyondEndOfDevice, regex: regexBeyondEndOfDevice, message: messageBeyondEndOfDevice},
 		{check: HasBufferIOError, eventName: eventBufferIOError, regex: regexBufferIOError, message: messageBufferIOError},
+		{check: HasSuperblockWriteError, eventName: eventSuperblockWriteError, regex: regexSuperblockWriteError, message: messageSuperblockWriteError},
 	}
 }
