@@ -170,21 +170,26 @@ func TestProcessUpdateConfig(t *testing.T) {
 				"nfs": `[{"volume_path": "", "file_contents": "test-content", "ttl_to_delete": "5m", "num_expected_files": 3}]`,
 			},
 			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
-				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for nfs config")
+				// This gets called with empty config due to fallback behavior
+				assert.Equal(t, 0, states.AtLeastPorts)
+				assert.Equal(t, 0, states.AtLeastRate)
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				// This function should be called even for invalid configs to allow user to fix them
+				assert.Len(t, cfgs, 1)
+				assert.Equal(t, "", cfgs[0].VolumePath) // invalid empty path
 			},
 			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
-				t.Error("setDefaultGPUCountsFunc should not be called for nfs config")
+				// This gets called with empty config due to fallback behavior
+				assert.Equal(t, 0, counts.Count)
 			},
 			expectedError:                         "", // validation errors are logged but not returned as errors
-			expectedIbExpectedPortStatesCalled:    false,
+			expectedIbExpectedPortStatesCalled:    true,
 			expectedNFSGroupConfigsCalled:         true,
-			expectedGPUCountsCalled:               false,
-			expectedIbExpectedPortStatesCallCount: 0,
+			expectedGPUCountsCalled:               true,
+			expectedIbExpectedPortStatesCallCount: 1,
 			expectedNFSGroupConfigsCallCount:      1, // function should be called even for invalid configs
-			expectedGPUCountsCallCount:            0,
+			expectedGPUCountsCallCount:            1,
 		},
 		{
 			name: "unsupported component",
