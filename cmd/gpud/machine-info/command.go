@@ -73,6 +73,19 @@ func Command(cliContext *cli.Context) error {
 	if providerInfo == nil {
 		fmt.Printf("%s failed to find provider (%v)\n", cmdcommon.WarningSign, err)
 	} else {
+		if providerInfo.PrivateIP == "" {
+			if machineInfo != nil && machineInfo.NICInfo != nil {
+				for _, iface := range machineInfo.NICInfo.PrivateIPInterfaces {
+					if iface.IP == "" {
+						continue
+					}
+					if iface.Addr.IsPrivate() && iface.Addr.Is4() {
+						providerInfo.PrivateIP = iface.IP
+						break
+					}
+				}
+			}
+		}
 		fmt.Printf("%s successfully found provider %s\n", cmdcommon.CheckMark, providerInfo.Provider)
 		providerInfo.RenderTable(os.Stdout)
 	}
