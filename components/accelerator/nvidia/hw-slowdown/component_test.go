@@ -695,33 +695,6 @@ func TestComponentEvents(t *testing.T) {
 	assert.NoError(t, err)
 	defer bucket.Close()
 
-	// Insert test events
-	testEvents := eventstore.Events{
-		{
-			Time:    time.Now().Add(-2 * time.Hour),
-			Name:    "hw_slowdown",
-			Type:    string(apiv1.EventTypeWarning),
-			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
-				"gpu_uuid": "gpu-0",
-			},
-		},
-		{
-			Time:    time.Now().Add(-1 * time.Hour),
-			Name:    "hw_slowdown",
-			Type:    string(apiv1.EventTypeWarning),
-			Message: "HW Slowdown detected",
-			ExtraInfo: map[string]string{
-				"gpu_uuid": "gpu-1",
-			},
-		},
-	}
-
-	for _, event := range testEvents {
-		err := bucket.Insert(ctx, event)
-		assert.NoError(t, err)
-	}
-
 	// Create mock device
 	mockDevice := testutil.NewMockDevice(
 		&mock.Device{
@@ -770,17 +743,17 @@ func TestComponentEvents(t *testing.T) {
 		},
 	}
 
-	// Filter by time to get events within the last 3 hours
+	// Test that Events always returns nil
 	since := time.Now().Add(-3 * time.Hour)
 	events, err := c.Events(ctx, since)
 	assert.NoError(t, err)
-	assert.Len(t, events, 2)
+	assert.Nil(t, events)
 
-	// Filter by time to get events within the last 90 minutes
+	// Test with different time range
 	since = time.Now().Add(-90 * time.Minute)
 	events, err = c.Events(ctx, since)
 	assert.NoError(t, err)
-	assert.Len(t, events, 1)
+	assert.Nil(t, events)
 }
 
 // TestHighFrequencySlowdownEvents tests that a high frequency of hardware slowdown events
@@ -1405,6 +1378,7 @@ func TestComponentEventsWithNilBucket(t *testing.T) {
 		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 	}
 
+	// Events should always return nil regardless of eventBucket state
 	events, err := c.Events(ctx, time.Now().Add(-1*time.Hour))
 	assert.NoError(t, err)
 	assert.Nil(t, events)

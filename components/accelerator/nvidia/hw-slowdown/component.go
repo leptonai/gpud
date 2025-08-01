@@ -134,14 +134,10 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 }
 
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	if c.eventBucket == nil {
-		return nil, nil
-	}
-	evs, err := c.eventBucket.Get(ctx, since)
-	if err != nil {
-		return nil, err
-	}
-	return evs.Events(), nil
+	// hw slowdown events are ONLY used internally within this package
+	// solely to evaluate the suggested actions
+	// so we don't need to return any events externally
+	return nil, nil
 }
 
 func (c *component) Close() error {
