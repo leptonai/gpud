@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"sort"
@@ -485,7 +484,7 @@ func (c *component) Check() components.CheckResult {
 			if errors.Is(err, context.DeadlineExceeded) {
 				log.Logger.Warnw("stat operation timed out for mount target, may indicate unresponsive filesystem", "target", target, "error", err)
 			} else {
-				log.Logger.Errorw("failed to check mount target", "target", target, "error", err)
+				log.Logger.Warnw("failed to check mount target", "target", target, "error", err)
 			}
 			continue
 		}
@@ -499,7 +498,7 @@ func (c *component) Check() components.CheckResult {
 			mntOut, err := c.findMntFunc(cctx, target)
 			ccancel()
 			if err != nil {
-				log.Logger.Errorw("failed to find mnt", "error", err)
+				log.Logger.Warnw("failed to find mnt", "error", err)
 
 				select {
 				case <-c.ctx.Done():
@@ -548,22 +547,6 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
-	for _, p := range cr.NFSPartitions {
-		if p.StatTimedOut {
-			if cr.reason == "ok" {
-				cr.reason = ""
-			}
-			if cr.reason != "" {
-				cr.reason += "; "
-			}
-			cr.reason += fmt.Sprintf("%s not mounted and stat timed out", p.MountPoint)
-			if cr.health == apiv1.HealthStateTypeHealthy {
-				cr.health = apiv1.HealthStateTypeDegraded
-			}
-			break
-		}
-	}
-
 	log.Logger.Debugw(cr.reason, "extPartitions", len(cr.ExtPartitions), "nfsPartitions", len(cr.NFSPartitions), "blockDevices", len(cr.BlockDevices))
 
 	return cr
@@ -579,7 +562,7 @@ func (c *component) fetchBlockDevices(cr *checkResult) bool {
 		blks, err := c.getBlockDevicesFunc(cctx)
 		ccancel()
 		if err != nil {
-			log.Logger.Errorw("failed to get block devices", "error", err)
+			log.Logger.Warnw("failed to get block devices", "error", err)
 
 			select {
 			case <-c.ctx.Done():
@@ -629,7 +612,7 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 		parts, err := c.getExt4PartitionsFunc(cctx)
 		ccancel()
 		if err != nil {
-			log.Logger.Errorw("failed to get ext4 partitions", "error", err)
+			log.Logger.Warnw("failed to get ext4 partitions", "error", err)
 
 			select {
 			case <-c.ctx.Done():
@@ -668,7 +651,7 @@ func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 		parts, err := c.getNFSPartitionsFunc(cctx)
 		ccancel()
 		if err != nil {
-			log.Logger.Errorw("failed to get nfs partitions", "error", err)
+			log.Logger.Warnw("failed to get nfs partitions", "error", err)
 
 			select {
 			case <-c.ctx.Done():
@@ -682,7 +665,16 @@ func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 			continue
 		}
 
-		cr.NFSPartitions = parts
+		// possible that some partitions were just un-mounted
+		// thus stat call times out
+		for _, p := range parts {
+			if p.StatTimedOut {
+				log.Logger.Warnw("stat timed out for nfs partition", "device", p.Device, "mount_point", p.MountPoint)
+				continue
+			}
+			cr.NFSPartitions = append(cr.NFSPartitions, p)
+		}
+
 		if prevFailed {
 			log.Logger.Infow("successfully got nfs partitions after retries", "num_partitions", len(parts))
 		}
