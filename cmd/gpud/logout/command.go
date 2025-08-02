@@ -3,6 +3,8 @@ package logout
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/urfave/cli"
@@ -54,5 +56,24 @@ func Command(cliContext *cli.Context) error {
 	log.Logger.Debugw("successfully deleted metadata")
 
 	fmt.Printf("%s successfully logged out\n", cmdcommon.CheckMark)
+	fmt.Printf("\nPlease run 'rm -rf %s/gpud*' to remove the state file (otherwise, re-login may contain stale health data)\n\n", filepath.Dir(stateFile))
+
+	if cliContext.Bool("reset-state") {
+		log.Logger.Warnw("deleting state files", "state-file", stateFile)
+		if err := os.RemoveAll(stateFile); err != nil {
+			return err
+		}
+		if err := os.RemoveAll(stateFile + "-wal"); err != nil {
+			return err
+		}
+		if err := os.RemoveAll(stateFile + "-shm"); err != nil {
+			return err
+		}
+		if err := os.RemoveAll(filepath.Join(filepath.Dir(stateFile), "packages")); err != nil {
+			return err
+		}
+		log.Logger.Infow("successfully deleted state files", "state-file", stateFile)
+	}
+
 	return nil
 }

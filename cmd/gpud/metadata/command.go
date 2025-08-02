@@ -74,7 +74,7 @@ func Command(cliContext *cli.Context) error {
 	defer dbRW.Close()
 	log.Logger.Debugw("successfully opened state file for writing")
 
-	log.Logger.Debugw("deleting metadata data")
+	log.Logger.Debugw("setting metadata", "key", setKey, "value", setValue)
 	if err := pkgmetadata.SetMetadata(rootCtx, dbRW, setKey, setValue); err != nil {
 		return fmt.Errorf("failed to update metadata: %w", err)
 	}
