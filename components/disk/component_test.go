@@ -115,6 +115,15 @@ func createTestComponent(ctx context.Context, mountPoints, mountTargets []string
 	return ct
 }
 
+// createTestComponentWithTime creates a test component with a fixed time function for deterministic testing
+func createTestComponentWithTime(ctx context.Context, mountPoints, mountTargets []string, fixedTime time.Time) *component {
+	c := createTestComponent(ctx, mountPoints, mountTargets)
+	c.getTimeNowFunc = func() time.Time {
+		return fixedTime
+	}
+	return c
+}
+
 func TestComponentName(t *testing.T) {
 	ctx := context.Background()
 	c := createTestComponent(ctx, []string{}, []string{})
@@ -148,6 +157,15 @@ func TestNewComponent(t *testing.T) {
 	// Check if mount points are correctly added to the tracking map
 	assert.Contains(t, c.mountPointsToTrackUsage, "/mnt/test1")
 	assert.Contains(t, c.mountPointsToTrackUsage, "/mnt/test2")
+
+	// Verify that getTimeNowFunc is properly initialized
+	assert.NotNil(t, c.getTimeNowFunc)
+
+	// Test that the time function returns a valid time
+	ts1 := c.getTimeNowFunc()
+	time.Sleep(10 * time.Millisecond)
+	ts2 := c.getTimeNowFunc()
+	assert.True(t, ts2.After(ts1), "getTimeNowFunc should return increasing timestamps")
 }
 
 func TestComponentStart(t *testing.T) {
@@ -593,6 +611,52 @@ func TestCheck(t *testing.T) {
 	fmt.Println(rs.String())
 }
 
+// TestCheckWithFixedTime tests the Check method with a fixed timestamp
+func TestCheckWithFixedTime(t *testing.T) {
+	ctx := context.Background()
+	fixedTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+
+	c := createTestComponentWithTime(ctx, []string{}, []string{}, fixedTime)
+	defer c.Close()
+
+	// Mock the partition functions to return predictable data
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{
+			{
+				Device:     "/dev/sda1",
+				MountPoint: "/",
+				Usage: &disk.Usage{
+					TotalBytes: 1000,
+					FreeBytes:  500,
+					UsedBytes:  500,
+				},
+			},
+		}, nil
+	}
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{
+			{
+				Name: "sda",
+				Type: "disk",
+			},
+		}, nil
+	}
+
+	// Perform check
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify the timestamp is correctly set
+	assert.Equal(t, fixedTime, cr.ts)
+
+	// Verify health states use the fixed timestamp
+	healthStates := cr.HealthStates()
+	assert.Len(t, healthStates, 1)
+	assert.Equal(t, fixedTime, healthStates[0].Time.Time)
+}
+
 // TestCheckResultString tests the String method of checkResult
 func TestCheckResultString(t *testing.T) {
 	t.Run("nil checkResult", func(t *testing.T) {
@@ -762,6 +826,9 @@ func TestFindMntRetryLogic(t *testing.T) {
 				cancel:              cancel,
 				findMntFunc:         mockFindMntFunc,
 				statWithTimeoutFunc: pkgfile.StatWithTimeout,
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
 				getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 					return disk.Partitions{
 						{
@@ -831,6 +898,9 @@ func TestMountTargetUsagesInitialization(t *testing.T) {
 		ctx:                 ctx,
 		cancel:              cancel,
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
 			return &disk.FindMntOutput{
 				Filesystems: []disk.FoundMnt{
@@ -903,6 +973,9 @@ func TestFindMntLogging(t *testing.T) {
 		ctx:                 ctx,
 		cancel:              cancel,
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
 			callCount++
 			if callCount == 1 {
@@ -1668,8 +1741,11 @@ func TestComponentClose_EventHandling(t *testing.T) {
 			ctx:                 cctx,
 			cancel:              ccancel,
 			statWithTimeoutFunc: pkgfile.StatWithTimeout,
-			eventBucket:         mockBucket,
-			kmsgSyncer:          nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+			getTimeNowFunc: func() time.Time {
+				return time.Now().UTC()
+			},
+			eventBucket: mockBucket,
+			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
 		}
 
 		err := c.Close()
@@ -1688,17 +1764,17 @@ func TestComponentClose_EventHandling(t *testing.T) {
 			ctx:                 cctx,
 			cancel:              ccancel,
 			statWithTimeoutFunc: pkgfile.StatWithTimeout,
-			eventBucket:         nil,
-			kmsgSyncer:          nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+			getTimeNowFunc: func() time.Time {
+				return time.Now().UTC()
+			},
+			eventBucket: nil,
+			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
 		}
 
 		err := c.Close()
 		assert.NoError(t, err)
 		// No eventBucket.Close() should be called. kmsgSyncer.Close() path also not taken.
 	})
-
-	// The subtest "closeWithBothEventBucketAndKmsgSyncerNil" is identical to the one above.
-	// It can be removed for consolidation.
 }
 
 // TestComponent_StatTimedOut_SetsHealthDegraded tests that the component health state is set to degraded when StatTimedOut=true
@@ -2583,6 +2659,9 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 			rebootEventStore: mockRebootStore,
 			eventBucket:      eventBucket,
 			lookbackPeriod:   time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -2659,6 +2738,9 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 			rebootEventStore: mockRebootStore,
 			eventBucket:      eventBucket,
 			lookbackPeriod:   2 * time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -2727,6 +2809,9 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 			rebootEventStore: mockRebootStore,
 			eventBucket:      eventBucket,
 			lookbackPeriod:   2 * time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -2802,6 +2887,9 @@ func TestComponent_SuperblockWriteErrorWithMixedEventTypes(t *testing.T) {
 			rebootEventStore: mockRebootStore,
 			eventBucket:      eventBucket,
 			lookbackPeriod:   time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -2876,6 +2964,9 @@ func TestComponent_SuperblockWriteErrorWithMixedEventTypes(t *testing.T) {
 			rebootEventStore: mockRebootStore,
 			eventBucket:      eventBucket,
 			lookbackPeriod:   time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -2970,6 +3061,9 @@ func TestComponent_SuperblockWriteErrorSuggestedActions(t *testing.T) {
 			rebootEventStore: mockRebootStore,
 			eventBucket:      eventBucket,
 			lookbackPeriod:   6 * time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3013,6 +3107,9 @@ func TestComponent_SuperblockWriteErrorSuggestedActions(t *testing.T) {
 			rebootEventStore: nil, // This will cause an error in the Check method
 			eventBucket:      &simpleMockEventBucket{},
 			lookbackPeriod:   time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3051,6 +3148,8 @@ func TestComponent_SuperblockWriteErrorEventStoreErrors(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	now := time.Now()
+
 	t.Run("event bucket get error", func(t *testing.T) {
 		// Create a mock event bucket that returns an error
 		mockBucket := new(mockEventBucket)
@@ -3069,6 +3168,9 @@ func TestComponent_SuperblockWriteErrorEventStoreErrors(t *testing.T) {
 			rebootEventStore: mockRebootStore,
 			eventBucket:      mockBucket,
 			lookbackPeriod:   time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3128,6 +3230,9 @@ func TestComponent_SuperblockWriteErrorEventStoreErrors(t *testing.T) {
 			rebootEventStore: mockRebootStore,
 			eventBucket:      eventBucket,
 			lookbackPeriod:   time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3223,6 +3328,9 @@ func TestComponent_SuperblockWriteErrorIntegration(t *testing.T) {
 			rebootEventStore: mockRebootStore,
 			eventBucket:      eventBucket,
 			lookbackPeriod:   time.Hour,
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "dm-0", Type: "dm"}}, nil
 			},

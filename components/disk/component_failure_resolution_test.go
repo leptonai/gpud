@@ -44,6 +44,9 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 			eventBucket:             mockBucket,
 			rebootEventStore:        mockRebootStore,
 			mountPointsToTrackUsage: map[string]struct{}{},
+			getTimeNowFunc: func() time.Time {
+				return now
+			},
 			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 				return disk.Partitions{}, nil
 			},
@@ -516,6 +519,9 @@ func TestFailureReasonMapCleanup(t *testing.T) {
 		eventBucket:             mockBucket,
 		rebootEventStore:        mockRebootStore,
 		mountPointsToTrackUsage: map[string]struct{}{},
+		getTimeNowFunc: func() time.Time {
+			return now
+		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		},

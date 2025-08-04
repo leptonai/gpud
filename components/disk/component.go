@@ -39,6 +39,8 @@ type component struct {
 
 	retryInterval time.Duration
 
+	getTimeNowFunc func() time.Time
+
 	getBlockDevicesFunc func(ctx context.Context) (disk.BlockDevices, error)
 
 	getExt4PartitionsFunc func(ctx context.Context) (disk.Partitions, error)
@@ -75,6 +77,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cancel: ccancel,
 
 		retryInterval: defaultRetryInterval,
+
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 
 		rebootEventStore: gpudInstance.RebootEventStore,
 		lookbackPeriod:   defaultLookbackPeriod,
@@ -202,7 +208,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking disk")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "ok",
