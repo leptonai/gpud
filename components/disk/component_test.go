@@ -1715,7 +1715,7 @@ func TestComponent_StatTimedOut_SetsHealthDegraded(t *testing.T) {
 		MountPoint:   "/mnt/nfs",
 		Fstype:       "nfs4",
 		Mounted:      false,
-		StatTimedOut: true, // This should trigger degraded health state
+		StatTimedOut: true, // This partition should now be filtered out
 		Usage:        nil,
 	}
 
@@ -1739,11 +1739,11 @@ func TestComponent_StatTimedOut_SetsHealthDegraded(t *testing.T) {
 	c.lastMu.RUnlock()
 
 	assert.NotNil(t, lastCheckResult)
-	assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
-	assert.Contains(t, lastCheckResult.reason, "not mounted and stat timed out")
-	assert.Contains(t, lastCheckResult.reason, "/mnt/nfs")
-	assert.Len(t, lastCheckResult.NFSPartitions, 1)
-	assert.True(t, lastCheckResult.NFSPartitions[0].StatTimedOut)
+	// Updated expectation: Health should remain healthy since timed out partitions are filtered
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+	assert.Equal(t, "ok", lastCheckResult.reason)
+	// The partition with StatTimedOut should be filtered out
+	assert.Len(t, lastCheckResult.NFSPartitions, 0)
 }
 
 // TestComponent_StatTimedOut_MultiplePartitions tests behavior with multiple partitions where some have StatTimedOut=true
@@ -1773,7 +1773,7 @@ func TestComponent_StatTimedOut_MultiplePartitions(t *testing.T) {
 		MountPoint:   "/mnt/nfs2",
 		Fstype:       "nfs4",
 		Mounted:      false,
-		StatTimedOut: true, // This should trigger degraded health state
+		StatTimedOut: true, // This partition will be filtered out
 		Usage:        nil,
 	}
 
@@ -1797,25 +1797,15 @@ func TestComponent_StatTimedOut_MultiplePartitions(t *testing.T) {
 	c.lastMu.RUnlock()
 
 	assert.NotNil(t, lastCheckResult)
-	assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
-	assert.Contains(t, lastCheckResult.reason, "not mounted and stat timed out")
-	assert.Contains(t, lastCheckResult.reason, "/mnt/nfs2")
-	assert.Len(t, lastCheckResult.NFSPartitions, 2)
+	// Health should remain healthy since timed out partitions are filtered
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+	assert.Equal(t, "ok", lastCheckResult.reason)
+	// Only the partition without StatTimedOut should be included
+	assert.Len(t, lastCheckResult.NFSPartitions, 1)
 
-	// Find the partitions and verify their StatTimedOut values
-	var partition1, partition2 *disk.Partition
-	for i := range lastCheckResult.NFSPartitions {
-		if lastCheckResult.NFSPartitions[i].MountPoint == "/mnt/nfs1" {
-			partition1 = &lastCheckResult.NFSPartitions[i]
-		} else if lastCheckResult.NFSPartitions[i].MountPoint == "/mnt/nfs2" {
-			partition2 = &lastCheckResult.NFSPartitions[i]
-		}
-	}
-
-	assert.NotNil(t, partition1)
-	assert.NotNil(t, partition2)
-	assert.False(t, partition1.StatTimedOut)
-	assert.True(t, partition2.StatTimedOut)
+	// Verify only the healthy partition is included
+	assert.Equal(t, "/mnt/nfs1", lastCheckResult.NFSPartitions[0].MountPoint)
+	assert.False(t, lastCheckResult.NFSPartitions[0].StatTimedOut)
 }
 
 // TestComponent_StatTimedOut_False_HealthyState tests that the component health state remains healthy when StatTimedOut=false
@@ -1988,8 +1978,11 @@ func TestComponent_StatTimedOut_ReasonMessage(t *testing.T) {
 			c.lastMu.RUnlock()
 
 			assert.NotNil(t, lastCheckResult)
-			assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
-			assert.Equal(t, tt.expectedMsg, lastCheckResult.reason)
+			// With the new behavior, health remains healthy and timed out partitions are filtered
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+			assert.Equal(t, "ok", lastCheckResult.reason)
+			// The partition with StatTimedOut should be filtered out
+			assert.Len(t, lastCheckResult.NFSPartitions, 0)
 		})
 	}
 }
@@ -2137,19 +2130,17 @@ func TestComponent_TimeoutScenarios_CompleteFlow(t *testing.T) {
 			result := c.Check()
 			cr, ok := result.(*checkResult)
 			require.True(t, ok, "result should be checkResult")
-			require.Len(t, cr.NFSPartitions, 1, "should have one NFS partition")
-
-			nfsPartition := cr.NFSPartitions[0]
 
 			if scenario.expectError {
-				// Verify StatTimedOut is set and health is degraded
-				assert.True(t, nfsPartition.StatTimedOut, "StatTimedOut should be true for scenario: %s", scenario.description)
-				assert.False(t, nfsPartition.Mounted, "Mounted should be false when StatTimedOut is true")
-				assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded when StatTimedOut is true")
-				assert.Contains(t, cr.reason, "not mounted and stat timed out", "Reason should mention timeout")
-				assert.Contains(t, cr.reason, "/mnt/nfs-test", "Reason should mention the mount point")
+				// With the new behavior, partitions with StatTimedOut=true are filtered out
+				assert.Len(t, cr.NFSPartitions, 0, "partitions with StatTimedOut should be filtered out")
+				// Health should remain healthy even when partitions are filtered
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should remain healthy when timed out partitions are filtered")
+				assert.Equal(t, "ok", cr.reason, "Reason should be ok when timed out partitions are filtered")
 			} else {
-				// Verify normal operation
+				// Verify normal operation - partition should be included
+				require.Len(t, cr.NFSPartitions, 1, "should have one NFS partition for successful operation")
+				nfsPartition := cr.NFSPartitions[0]
 				assert.False(t, nfsPartition.StatTimedOut, "StatTimedOut should be false for successful operation")
 				assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should be healthy for successful operation")
 				assert.Equal(t, "ok", cr.reason, "Reason should be ok for successful operation")
@@ -2226,23 +2217,17 @@ func TestComponent_GetPartitionsTimeoutIntegration(t *testing.T) {
 	cr, ok := result.(*checkResult)
 	require.True(t, ok, "result should be checkResult")
 
-	// Check if any NFS partitions have StatTimedOut and verify health state
-	hasStatTimedOut := false
+	// Check that NFS partitions with StatTimedOut are filtered out
+	// With the new behavior, partitions with StatTimedOut=true should not be included in NFSPartitions
 	for _, p := range cr.NFSPartitions {
-		if p.StatTimedOut {
-			hasStatTimedOut = true
-			t.Logf("Found NFS partition with StatTimedOut=true: %s at %s", p.Device, p.MountPoint)
-			assert.False(t, p.Mounted, "StatTimedOut partition should not be mounted")
-		}
+		assert.False(t, p.StatTimedOut, "Partitions with StatTimedOut=true should be filtered out")
 	}
 
-	if hasStatTimedOut {
-		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded when any NFS partition has StatTimedOut")
-		assert.Contains(t, cr.reason, "stat timed out", "Reason should mention timeout")
-	} else {
-		t.Log("No partitions with StatTimedOut found in this test run")
-		// This is expected as the system may not have NFS partitions or timeouts may not occur
-	}
+	// Health should remain healthy regardless of filtered partitions
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should remain healthy even if some NFS partitions timed out")
+	assert.Equal(t, "ok", cr.reason, "Reason should be ok when timed out partitions are filtered")
+
+	t.Log("Test completed - any partitions with StatTimedOut would have been filtered out")
 }
 
 // TestComponent_LookbackPeriodUsage tests that the lookback period is used for getting recent events
@@ -2394,15 +2379,17 @@ func TestComponent_ContextErrorTypes(t *testing.T) {
 			result := c.Check()
 			cr, ok := result.(*checkResult)
 			require.True(t, ok)
-			require.Len(t, cr.NFSPartitions, 1)
-
-			partition := cr.NFSPartitions[0]
 
 			if tt.expectSet {
-				assert.True(t, partition.StatTimedOut, "StatTimedOut should be true for %s", tt.name)
-				assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded")
-				assert.Contains(t, cr.reason, "stat timed out", "Reason should mention timeout")
+				// With the new behavior, partitions with StatTimedOut=true are filtered out
+				assert.Len(t, cr.NFSPartitions, 0, "partitions with StatTimedOut should be filtered out")
+				// Health should remain healthy even when partitions are filtered
+				assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should remain healthy")
+				assert.Equal(t, "ok", cr.reason, "Reason should be ok")
 			} else {
+				// Partition without StatTimedOut should be included
+				require.Len(t, cr.NFSPartitions, 1)
+				partition := cr.NFSPartitions[0]
 				assert.False(t, partition.StatTimedOut, "StatTimedOut should be false for %s", tt.name)
 				assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should be healthy")
 				assert.Equal(t, "ok", cr.reason, "Reason should be ok")
@@ -3260,5 +3247,398 @@ func TestComponent_SuperblockWriteErrorIntegration(t *testing.T) {
 		assert.NotNil(t, cr.suggestedActions)
 		assert.Len(t, cr.suggestedActions.RepairActions, 1)
 		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
+	})
+}
+
+// TestFetchNFSPartitions_StatTimedOutFiltering tests the new NFS partition filtering logic
+func TestFetchNFSPartitions_StatTimedOutFiltering(t *testing.T) {
+	t.Run("filters out partitions with StatTimedOut=true", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Create test partitions with mixed StatTimedOut values
+		testPartitions := disk.Partitions{
+			{
+				Device:       "192.168.1.100:/share1",
+				MountPoint:   "/mnt/nfs1",
+				Fstype:       "nfs",
+				StatTimedOut: false,
+				Usage: &disk.Usage{
+					TotalBytes: 1000,
+					FreeBytes:  500,
+					UsedBytes:  500,
+				},
+			},
+			{
+				Device:       "192.168.1.100:/share2",
+				MountPoint:   "/mnt/nfs2",
+				Fstype:       "nfs",
+				StatTimedOut: true, // This should be filtered out
+				Usage: &disk.Usage{
+					TotalBytes: 2000,
+					FreeBytes:  1000,
+					UsedBytes:  1000,
+				},
+			},
+			{
+				Device:       "192.168.1.100:/share3",
+				MountPoint:   "/mnt/nfs3",
+				Fstype:       "nfs",
+				StatTimedOut: false,
+				Usage: &disk.Usage{
+					TotalBytes: 3000,
+					FreeBytes:  1500,
+					UsedBytes:  1500,
+				},
+			},
+		}
+
+		c := &component{
+			ctx:           ctx,
+			retryInterval: time.Millisecond,
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return testPartitions, nil
+			},
+		}
+
+		cr := &checkResult{}
+		success := c.fetchNFSPartitions(cr)
+
+		assert.True(t, success)
+		assert.Len(t, cr.NFSPartitions, 2) // Only 2 partitions should be included
+		assert.Equal(t, "/mnt/nfs1", cr.NFSPartitions[0].MountPoint)
+		assert.Equal(t, "/mnt/nfs3", cr.NFSPartitions[1].MountPoint)
+
+		// Verify the filtered partition is not included
+		for _, p := range cr.NFSPartitions {
+			assert.False(t, p.StatTimedOut)
+			assert.NotEqual(t, "/mnt/nfs2", p.MountPoint)
+		}
+	})
+
+	t.Run("all partitions have StatTimedOut=true", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Create test partitions all with StatTimedOut=true
+		testPartitions := disk.Partitions{
+			{
+				Device:       "192.168.1.100:/share1",
+				MountPoint:   "/mnt/nfs1",
+				Fstype:       "nfs",
+				StatTimedOut: true,
+			},
+			{
+				Device:       "192.168.1.100:/share2",
+				MountPoint:   "/mnt/nfs2",
+				Fstype:       "nfs",
+				StatTimedOut: true,
+			},
+		}
+
+		c := &component{
+			ctx:           ctx,
+			retryInterval: time.Millisecond,
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return testPartitions, nil
+			},
+		}
+
+		cr := &checkResult{}
+		success := c.fetchNFSPartitions(cr)
+
+		assert.True(t, success)
+		assert.Len(t, cr.NFSPartitions, 0) // No partitions should be included
+	})
+
+	t.Run("no partitions have StatTimedOut", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Create test partitions with StatTimedOut=false
+		testPartitions := disk.Partitions{
+			{
+				Device:       "192.168.1.100:/share1",
+				MountPoint:   "/mnt/nfs1",
+				Fstype:       "nfs",
+				StatTimedOut: false,
+				Usage: &disk.Usage{
+					TotalBytes: 1000,
+					FreeBytes:  500,
+					UsedBytes:  500,
+				},
+			},
+			{
+				Device:       "192.168.1.100:/share2",
+				MountPoint:   "/mnt/nfs2",
+				Fstype:       "nfs",
+				StatTimedOut: false,
+				Usage: &disk.Usage{
+					TotalBytes: 2000,
+					FreeBytes:  1000,
+					UsedBytes:  1000,
+				},
+			},
+		}
+
+		c := &component{
+			ctx:           ctx,
+			retryInterval: time.Millisecond,
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return testPartitions, nil
+			},
+		}
+
+		cr := &checkResult{}
+		success := c.fetchNFSPartitions(cr)
+
+		assert.True(t, success)
+		assert.Len(t, cr.NFSPartitions, 2) // All partitions should be included
+		assert.Equal(t, testPartitions[0].MountPoint, cr.NFSPartitions[0].MountPoint)
+		assert.Equal(t, testPartitions[1].MountPoint, cr.NFSPartitions[1].MountPoint)
+	})
+
+	t.Run("empty partitions list", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		c := &component{
+			ctx:           ctx,
+			retryInterval: time.Millisecond,
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{}, nil
+			},
+		}
+
+		cr := &checkResult{}
+		success := c.fetchNFSPartitions(cr)
+
+		assert.True(t, success)
+		assert.Len(t, cr.NFSPartitions, 0)
+	})
+}
+
+// TestFetchNFSPartitions_RetryLogic tests the retry behavior
+func TestFetchNFSPartitions_RetryLogic(t *testing.T) {
+	t.Run("succeeds after retry", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		attemptCount := 0
+		testPartitions := disk.Partitions{
+			{
+				Device:       "192.168.1.100:/share1",
+				MountPoint:   "/mnt/nfs1",
+				Fstype:       "nfs",
+				StatTimedOut: false,
+			},
+		}
+
+		c := &component{
+			ctx:           ctx,
+			retryInterval: time.Millisecond,
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				attemptCount++
+				if attemptCount < 3 {
+					return nil, errors.New("temporary error")
+				}
+				return testPartitions, nil
+			},
+		}
+
+		cr := &checkResult{}
+		success := c.fetchNFSPartitions(cr)
+
+		assert.True(t, success)
+		assert.Equal(t, 3, attemptCount)
+		assert.Len(t, cr.NFSPartitions, 1)
+	})
+
+	t.Run("context canceled during retry", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		c := &component{
+			ctx:           ctx,
+			retryInterval: time.Millisecond,
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				// Cancel context after first attempt
+				cancel()
+				return nil, errors.New("error")
+			},
+		}
+
+		cr := &checkResult{}
+		success := c.fetchNFSPartitions(cr)
+
+		assert.False(t, success)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.NotNil(t, cr.err)
+	})
+
+	t.Run("all retries fail", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		attemptCount := 0
+		c := &component{
+			ctx:           ctx,
+			retryInterval: time.Millisecond,
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				attemptCount++
+				return nil, errors.New("persistent error")
+			},
+		}
+
+		cr := &checkResult{}
+		success := c.fetchNFSPartitions(cr)
+
+		assert.True(t, success)          // fetchNFSPartitions always returns true unless context is canceled
+		assert.Equal(t, 5, attemptCount) // Should attempt 5 times
+		assert.Len(t, cr.NFSPartitions, 0)
+	})
+}
+
+// TestCheck_NFSStatTimeoutHandling tests that the Check function no longer marks the component as degraded for NFS stat timeouts
+func TestCheck_NFSStatTimeoutHandling(t *testing.T) {
+	t.Run("NFS stat timeout does not affect health state", func(t *testing.T) {
+		ctx := context.Background()
+
+		// Create partitions with StatTimedOut
+		nfsPartitionsWithTimeout := disk.Partitions{
+			{
+				Device:       "192.168.1.100:/share1",
+				MountPoint:   "/mnt/nfs1",
+				Fstype:       "nfs",
+				StatTimedOut: true,
+			},
+			{
+				Device:       "192.168.1.100:/share2",
+				MountPoint:   "/mnt/nfs2",
+				Fstype:       "nfs",
+				StatTimedOut: false,
+				Usage: &disk.Usage{
+					TotalBytes: 1000,
+					FreeBytes:  500,
+					UsedBytes:  500,
+				},
+			},
+		}
+
+		c := &component{
+			ctx: ctx,
+			mountPointsToTrackUsage: map[string]struct{}{
+				"/":         {},
+				"/mnt/nfs2": {},
+			},
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{
+					{Name: "sda", Type: "disk"},
+				}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return nfsPartitionsWithTimeout, nil
+			},
+			statWithTimeoutFunc: func(ctx context.Context, path string) (os.FileInfo, error) {
+				return nil, nil // Mock successful stat
+			},
+			findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+				return &disk.FindMntOutput{}, nil
+			},
+		}
+
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Health should remain healthy despite NFS stat timeout
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
+
+		// Only the partition without timeout should be included
+		assert.Len(t, cr.NFSPartitions, 1)
+		assert.Equal(t, "/mnt/nfs2", cr.NFSPartitions[0].MountPoint)
+		assert.False(t, cr.NFSPartitions[0].StatTimedOut)
+	})
+
+	t.Run("multiple NFS timeouts do not create multiple error messages", func(t *testing.T) {
+		ctx := context.Background()
+
+		// Create multiple partitions with StatTimedOut
+		nfsPartitionsWithTimeout := disk.Partitions{
+			{
+				Device:       "192.168.1.100:/share1",
+				MountPoint:   "/mnt/nfs1",
+				Fstype:       "nfs",
+				StatTimedOut: true,
+			},
+			{
+				Device:       "192.168.1.100:/share2",
+				MountPoint:   "/mnt/nfs2",
+				Fstype:       "nfs",
+				StatTimedOut: true,
+			},
+			{
+				Device:       "192.168.1.100:/share3",
+				MountPoint:   "/mnt/nfs3",
+				Fstype:       "nfs",
+				StatTimedOut: true,
+			},
+		}
+
+		c := &component{
+			ctx: ctx,
+			mountPointsToTrackUsage: map[string]struct{}{
+				"/": {},
+			},
+			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+				return disk.BlockDevices{
+					{Name: "sda", Type: "disk"},
+				}, nil
+			},
+			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return disk.Partitions{
+					{
+						Device:     "/dev/sda1",
+						MountPoint: "/",
+						Usage: &disk.Usage{
+							TotalBytes: 1000,
+							FreeBytes:  500,
+							UsedBytes:  500,
+						},
+					},
+				}, nil
+			},
+			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+				return nfsPartitionsWithTimeout, nil
+			},
+			statWithTimeoutFunc: func(ctx context.Context, path string) (os.FileInfo, error) {
+				return nil, nil
+			},
+			findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+				return &disk.FindMntOutput{}, nil
+			},
+		}
+
+		result := c.Check()
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
+
+		// Should remain healthy with no NFS partitions included
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
+		assert.Len(t, cr.NFSPartitions, 0)
 	})
 }
