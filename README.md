@@ -70,6 +70,12 @@ You can also start with the standalone mode and later switch to the managed opti
 ```bash
 # when the token is ready, run the following command
 sudo gpud login --token <LEPTON_AI_TOKEN>
+
+# to logout
+sudo gpud logout
+
+# to logout and reset the state file
+sudo gpud logout --reset-state
 ```
 
 #### Run GPUd with Kubernetes
