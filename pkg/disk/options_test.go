@@ -60,6 +60,25 @@ func TestDefaultFsTypeFuncs(t *testing.T) {
 		assert.False(t, DefaultMountPointFunc("/mnt/cloud-metadata/"))
 		assert.False(t, DefaultMountPointFunc("/mnt/cloud-metadata/instance"))
 
+		// Test kubelet mount points that should be filtered
+		assert.False(t, DefaultMountPointFunc("/kubelet/pods"))
+		assert.False(t, DefaultMountPointFunc("/kubelet/pods/"))
+		assert.False(t, DefaultMountPointFunc("/kubelet/pods/volume"))
+		assert.False(t, DefaultMountPointFunc("/var/lib/kubelet/pods"))
+		assert.False(t, DefaultMountPointFunc("/var/lib/kubelet/pods/pod-id"))
+		assert.False(t, DefaultMountPointFunc("/var/lib/kubelet/pods/pod-id/volumes"))
+		assert.False(t, DefaultMountPointFunc("/var/lib/kubelet/pods/pod-id/volumes/kubernetes.io~nfs"))
+		assert.False(t, DefaultMountPointFunc("/data/kubelet/pods/volume"))
+
+		// Test edge cases - similar but different paths that should NOT be filtered
+		assert.True(t, DefaultMountPointFunc("/kubelet"))
+		assert.True(t, DefaultMountPointFunc("/kubelet/config"))
+		assert.True(t, DefaultMountPointFunc("/var/lib/kubelet"))
+		assert.True(t, DefaultMountPointFunc("/var/lib/kubelet/config"))
+		assert.True(t, DefaultMountPointFunc("/kubelet-data"))
+		assert.True(t, DefaultMountPointFunc("/kubeletpods")) // no separator
+		assert.True(t, DefaultMountPointFunc("/custom/kubelet"))
+
 		// Test edge cases - similar but different paths
 		assert.True(t, DefaultMountPointFunc("/mnt/customfs"))
 		assert.True(t, DefaultMountPointFunc("/mnt/customfs/"))

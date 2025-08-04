@@ -1816,7 +1816,7 @@ func TestComponent_StatTimedOut_SetsHealthDegraded(t *testing.T) {
 
 	assert.NotNil(t, lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
-	assert.Contains(t, lastCheckResult.reason, "not mounted and stat timed out")
+	assert.Contains(t, lastCheckResult.reason, "stat timed out (possible connection issue)")
 	assert.Contains(t, lastCheckResult.reason, "/mnt/nfs")
 	assert.Len(t, lastCheckResult.NFSPartitions, 1)
 	assert.True(t, lastCheckResult.NFSPartitions[0].StatTimedOut)
@@ -1874,7 +1874,7 @@ func TestComponent_StatTimedOut_MultiplePartitions(t *testing.T) {
 
 	assert.NotNil(t, lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
-	assert.Contains(t, lastCheckResult.reason, "not mounted and stat timed out")
+	assert.Contains(t, lastCheckResult.reason, "stat timed out (possible connection issue)")
 	assert.Contains(t, lastCheckResult.reason, "/mnt/nfs2")
 	assert.Len(t, lastCheckResult.NFSPartitions, 2)
 
@@ -2019,17 +2019,17 @@ func TestComponent_StatTimedOut_ReasonMessage(t *testing.T) {
 		{
 			name:        "short mount point",
 			mountPoint:  "/mnt/nfs",
-			expectedMsg: "/mnt/nfs not mounted and stat timed out",
+			expectedMsg: "/mnt/nfs stat timed out (possible connection issue)",
 		},
 		{
 			name:        "long mount point",
 			mountPoint:  "/mnt/very/long/path/to/nfs/mount",
-			expectedMsg: "/mnt/very/long/path/to/nfs/mount not mounted and stat timed out",
+			expectedMsg: "/mnt/very/long/path/to/nfs/mount stat timed out (possible connection issue)",
 		},
 		{
 			name:        "root mount point",
 			mountPoint:  "/",
-			expectedMsg: "/ not mounted and stat timed out",
+			expectedMsg: "/ stat timed out (possible connection issue)",
 		},
 	}
 
@@ -2222,7 +2222,7 @@ func TestComponent_TimeoutScenarios_CompleteFlow(t *testing.T) {
 				assert.True(t, nfsPartition.StatTimedOut, "StatTimedOut should be true for scenario: %s", scenario.description)
 				assert.False(t, nfsPartition.Mounted, "Mounted should be false when StatTimedOut is true")
 				assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded when StatTimedOut is true")
-				assert.Contains(t, cr.reason, "not mounted and stat timed out", "Reason should mention timeout")
+				assert.Contains(t, cr.reason, "stat timed out (possible connection issue)", "Reason should mention timeout")
 				assert.Contains(t, cr.reason, "/mnt/nfs-test", "Reason should mention the mount point")
 			} else {
 				// Verify normal operation

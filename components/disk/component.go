@@ -562,7 +562,7 @@ func (c *component) Check() components.CheckResult {
 			if cr.reason != "" {
 				cr.reason += "; "
 			}
-			cr.reason += fmt.Sprintf("%s not mounted and stat timed out", p.MountPoint)
+			cr.reason += fmt.Sprintf("%s stat timed out (possible connection issue)", p.MountPoint)
 			if cr.health == apiv1.HealthStateTypeHealthy {
 				cr.health = apiv1.HealthStateTypeDegraded
 			}

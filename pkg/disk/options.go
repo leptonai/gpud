@@ -115,5 +115,10 @@ func DefaultMountPointFunc(mountPoint string) bool {
 		return false
 	}
 
+	// in case pod volume mounted on NFS
+	if strings.Contains(mountPoint, "/kubelet/pods") {
+		return false
+	}
+
 	return true
 }
