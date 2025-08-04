@@ -347,6 +347,9 @@ func TestComponent_Check_SuggestedActions(t *testing.T) {
 		rebootEventStore: mockRebootStore,
 		eventBucket:      eventBucket,
 		lookbackPeriod:   96 * time.Hour,
+		getTimeNowFunc: func() time.Time {
+			return now
+		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		},
@@ -396,6 +399,9 @@ func TestComponent_Check_NoSpaceLeftNotSuggested(t *testing.T) {
 		rebootEventStore: mockRebootStore,
 		eventBucket:      eventBucket,
 		lookbackPeriod:   96 * time.Hour,
+		getTimeNowFunc: func() time.Time {
+			return now
+		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		},
@@ -509,6 +515,9 @@ func TestLookbackPeriod(t *testing.T) {
 		rebootEventStore: mockRebootStore,
 		eventBucket:      eventBucket,
 		lookbackPeriod:   3 * 24 * time.Hour, // 3 days
+		getTimeNowFunc: func() time.Time {
+			return now
+		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			// Return at least one partition so the component doesn't exit early
 			return disk.Partitions{
@@ -651,6 +660,9 @@ func TestComponent_Check_DeduplicationAndSorting(t *testing.T) {
 		rebootEventStore: mockRebootStore,
 		eventBucket:      eventBucket,
 		lookbackPeriod:   time.Hour, // 1 hour lookback
+		getTimeNowFunc: func() time.Time {
+			return now
+		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{
 				{
