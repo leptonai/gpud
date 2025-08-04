@@ -2,7 +2,9 @@ package session
 
 import (
 	"encoding/json"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -17,9 +19,13 @@ func TestProcessUpdateConfig_NFSSpecific(t *testing.T) {
 		tempDir := t.TempDir()
 
 		var capturedConfigs pkgnfschecker.Configs
+		var wg sync.WaitGroup
+		wg.Add(1)
+
 		s := &Session{
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				capturedConfigs = cfgs
+				wg.Done()
 			},
 		}
 
@@ -41,6 +47,19 @@ func TestProcessUpdateConfig_NFSSpecific(t *testing.T) {
 		resp := &Response{}
 		s.processUpdateConfig(configMap, resp)
 
+		// Wait for async processing
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// Processing completed
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timeout waiting for NFS config processing")
+		}
+
 		assert.Empty(t, resp.Error)
 		assert.Equal(t, config, capturedConfigs)
 	})
@@ -48,11 +67,14 @@ func TestProcessUpdateConfig_NFSSpecific(t *testing.T) {
 	t.Run("invalid nfs config still gets set", func(t *testing.T) {
 		var capturedConfigs pkgnfschecker.Configs
 		functionCalled := false
+		var wg sync.WaitGroup
+		wg.Add(1)
 
 		s := &Session{
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				functionCalled = true
 				capturedConfigs = cfgs
+				wg.Done()
 			},
 		}
 
@@ -74,6 +96,19 @@ func TestProcessUpdateConfig_NFSSpecific(t *testing.T) {
 
 		resp := &Response{}
 		s.processUpdateConfig(configMap, resp)
+
+		// Wait for async processing
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// Processing completed
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timeout waiting for NFS config processing")
+		}
 
 		// Error should be empty as validation failure is only logged
 		assert.Empty(t, resp.Error)
@@ -132,9 +167,13 @@ func TestProcessUpdateConfig_NFSSpecific(t *testing.T) {
 		tempDir := t.TempDir()
 
 		validationCompleted := false
+		var wg sync.WaitGroup
+		wg.Add(1)
+
 		s := &Session{
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				validationCompleted = true
+				wg.Done()
 			},
 		}
 
@@ -155,6 +194,19 @@ func TestProcessUpdateConfig_NFSSpecific(t *testing.T) {
 
 		resp := &Response{}
 		s.processUpdateConfig(configMap, resp)
+
+		// Wait for async processing
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// Processing completed
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timeout waiting for NFS config processing")
+		}
 
 		assert.Empty(t, resp.Error)
 		assert.True(t, validationCompleted)
@@ -216,9 +268,17 @@ func TestProcessUpdateConfig_NFSJSONEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			functionCalled := false
+			var wg sync.WaitGroup
+			if tt.expectFunction {
+				wg.Add(1)
+			}
+
 			s := &Session{
 				setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 					functionCalled = true
+					if tt.expectFunction {
+						wg.Done()
+					}
 				},
 			}
 
@@ -228,6 +288,21 @@ func TestProcessUpdateConfig_NFSJSONEdgeCases(t *testing.T) {
 
 			resp := &Response{}
 			s.processUpdateConfig(configMap, resp)
+
+			if tt.expectFunction && !tt.expectError {
+				// Wait for async processing
+				done := make(chan struct{})
+				go func() {
+					wg.Wait()
+					close(done)
+				}()
+				select {
+				case <-done:
+					// Processing completed
+				case <-time.After(10 * time.Second):
+					t.Fatal("Timeout waiting for NFS config processing")
+				}
+			}
 
 			if tt.expectError {
 				assert.NotEmpty(t, resp.Error)

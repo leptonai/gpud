@@ -2,7 +2,9 @@ package session
 
 import (
 	"encoding/json"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -264,6 +266,17 @@ func TestProcessUpdateConfig(t *testing.T) {
 			nfsCallCount := 0
 			gpuCallCount := 0
 
+			// Add wait group for async NFS processing
+			var wg sync.WaitGroup
+			hasNFSConfig := false
+			for componentName := range tt.configMap {
+				if componentName == "nfs" {
+					hasNFSConfig = true
+					wg.Add(1)
+					break
+				}
+			}
+
 			// Create session with mock functions
 			s := &Session{
 				setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
@@ -276,6 +289,9 @@ func TestProcessUpdateConfig(t *testing.T) {
 					nfsCallCount++
 					if tt.setDefaultNFSGroupConfigsFunc != nil {
 						tt.setDefaultNFSGroupConfigsFunc(cfgs)
+					}
+					if hasNFSConfig {
+						wg.Done()
 					}
 				},
 				setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
@@ -302,6 +318,21 @@ func TestProcessUpdateConfig(t *testing.T) {
 			// Call the method under test
 			s.processUpdateConfig(tt.configMap, resp)
 
+			// Wait for async NFS processing to complete
+			if hasNFSConfig && s.setDefaultNFSGroupConfigsFunc != nil && tt.expectedError == "" {
+				done := make(chan struct{})
+				go func() {
+					wg.Wait()
+					close(done)
+				}()
+				select {
+				case <-done:
+					// NFS processing completed
+				case <-time.After(10 * time.Second):
+					t.Fatal("Timeout waiting for NFS config processing")
+				}
+			}
+
 			// Verify error
 			if tt.expectedError != "" {
 				assert.Contains(t, resp.Error, tt.expectedError)
@@ -324,6 +355,9 @@ func TestProcessUpdateConfig(t *testing.T) {
 		nfsCallCount := 0
 		gpuCallCount := 0
 
+		var wg sync.WaitGroup
+		wg.Add(1)
+
 		s := &Session{
 			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
 				ibCallCount++
@@ -336,6 +370,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Len(t, cfgs, 1)
 				assert.Equal(t, tempDir, cfgs[0].VolumePath)
 				assert.Equal(t, "test-content", cfgs[0].FileContents)
+				wg.Done()
 			},
 			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
 				gpuCallCount++
@@ -351,6 +386,19 @@ func TestProcessUpdateConfig(t *testing.T) {
 		resp := &Response{}
 		s.processUpdateConfig(configMap, resp)
 
+		// Wait for async NFS processing
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// NFS processing completed
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timeout waiting for NFS config processing")
+		}
+
 		assert.Empty(t, resp.Error)
 		assert.Equal(t, 1, ibCallCount, "Unexpected infiniband function call count")
 		assert.Equal(t, 1, nfsCallCount, "Unexpected NFS function call count")
@@ -364,6 +412,9 @@ func TestProcessUpdateConfig(t *testing.T) {
 		nfsCallCount := 0
 		gpuCallCount := 0
 
+		var wg sync.WaitGroup
+		wg.Add(1)
+
 		s := &Session{
 			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
 				ibCallCount++
@@ -375,6 +426,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Len(t, cfgs, 1)
 				assert.Equal(t, tempDir, cfgs[0].VolumePath)
 				assert.Equal(t, "multi-content", cfgs[0].FileContents)
+				wg.Done()
 			},
 			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
 				gpuCallCount++
@@ -390,6 +442,19 @@ func TestProcessUpdateConfig(t *testing.T) {
 
 		resp := &Response{}
 		s.processUpdateConfig(configMap, resp)
+
+		// Wait for async NFS processing
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// NFS processing completed
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timeout waiting for NFS config processing")
+		}
 
 		assert.Empty(t, resp.Error)
 		assert.Equal(t, 1, ibCallCount, "Unexpected infiniband function call count")
@@ -570,9 +635,13 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		assert.NoError(t, err)
 
 		var actualConfigs pkgnfschecker.Configs
+		var wg sync.WaitGroup
+		wg.Add(1)
+
 		s := &Session{
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				actualConfigs = cfgs
+				wg.Done()
 			},
 		}
 
@@ -582,6 +651,19 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 
 		resp := &Response{}
 		s.processUpdateConfig(configMap, resp)
+
+		// Wait for async processing
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// Processing completed
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timeout waiting for NFS config processing")
+		}
 
 		assert.Empty(t, resp.Error)
 		assert.Len(t, actualConfigs, 1)
@@ -610,9 +692,13 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		assert.NoError(t, err)
 
 		var actualConfigs pkgnfschecker.Configs
+		var wg sync.WaitGroup
+		wg.Add(1)
+
 		s := &Session{
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				actualConfigs = cfgs
+				wg.Done()
 			},
 		}
 
@@ -622,6 +708,19 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 
 		resp := &Response{}
 		s.processUpdateConfig(configMap, resp)
+
+		// Wait for async processing
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// Processing completed
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timeout waiting for NFS config processing")
+		}
 
 		assert.Empty(t, resp.Error)
 		assert.Len(t, actualConfigs, 2)

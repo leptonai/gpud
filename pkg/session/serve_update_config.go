@@ -56,17 +56,20 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 				return
 			}
 
-			// Create a context with timeout for validation
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err := updateCfgs.Validate(ctx)
-			cancel()
-			if err != nil {
-				log.Logger.Warnw("invalid nfs config but proceeding with update to allow the user to fix the config", "error", err)
-			}
+			// if NFS validation takes too long, it can block other session requests
+			// so we set a timeout and do it async
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				err := updateCfgs.Validate(ctx)
+				cancel()
+				if err != nil {
+					log.Logger.Warnw("invalid nfs config but proceeding with update to allow the user to fix the config", "error", err)
+				}
 
-			if s.setDefaultNFSGroupConfigsFunc != nil {
-				s.setDefaultNFSGroupConfigsFunc(updateCfgs)
-			}
+				if s.setDefaultNFSGroupConfigsFunc != nil {
+					s.setDefaultNFSGroupConfigsFunc(updateCfgs)
+				}
+			}()
 
 		default:
 			log.Logger.Warnw("unsupported component for updateConfig", "component", componentName)
