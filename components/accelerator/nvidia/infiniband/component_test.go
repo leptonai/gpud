@@ -869,21 +869,6 @@ func TestNewWithCustomToolOverwrites(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestSetHealthy(t *testing.T) {
-	t.Parallel()
-
-	cctx, ccancel := context.WithCancel(context.Background())
-	defer ccancel()
-
-	c := &component{
-		ctx:    cctx,
-		cancel: ccancel,
-	}
-
-	err := c.SetHealthy()
-	assert.NoError(t, err)
-}
-
 func TestCheckWithClassDevicesSuccess(t *testing.T) {
 	t.Parallel()
 
