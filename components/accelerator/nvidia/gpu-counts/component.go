@@ -40,6 +40,8 @@ type component struct {
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
 
+	getTimeNowFunc func() time.Time
+
 	getCountLspci     func(ctx context.Context) (int, error)
 	getThresholdsFunc func() ExpectedGPUCounts
 
@@ -59,6 +61,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		nvmlInstance: gpudInstance.NVMLInstance,
 
 		rebootEventStore: gpudInstance.RebootEventStore,
+
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 
 		getCountLspci: func(ctx context.Context) (int, error) {
 			devs, err := nvidiaquery.ListPCIGPUs(ctx)
@@ -150,7 +156,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu counts")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 
 	defer func() {

@@ -2,6 +2,7 @@ package nfschecker
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -113,9 +114,14 @@ func TestChecker_Write(t *testing.T) {
 	})
 
 	t.Run("timeout during mkdir operation", func(t *testing.T) {
-		timeoutTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		// Use os.MkdirTemp directly instead of t.TempDir() to have full control over cleanup
+		timeoutTempDir, err := os.MkdirTemp("", "test-timeout-mkdir-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(timeoutTempDir)
+		// Ensure cleanup happens even if test fails
+		defer func() {
+			// Force remove all contents to prevent "directory not empty" errors
+			os.RemoveAll(timeoutTempDir)
+		}()
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -137,13 +143,18 @@ func TestChecker_Write(t *testing.T) {
 
 		err = checker.Write(timeoutCtx)
 		assert.Error(t, err)
-		assert.Equal(t, context.DeadlineExceeded, err)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
 	t.Run("context canceled during mkdir operation", func(t *testing.T) {
-		cancelTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		// Use os.MkdirTemp directly instead of t.TempDir() to have full control over cleanup
+		cancelTempDir, err := os.MkdirTemp("", "test-cancel-mkdir-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(cancelTempDir)
+		// Ensure cleanup happens even if test fails
+		defer func() {
+			// Force remove all contents to prevent "directory not empty" errors
+			os.RemoveAll(cancelTempDir)
+		}()
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -164,13 +175,18 @@ func TestChecker_Write(t *testing.T) {
 
 		err = checker.Write(canceledCtx)
 		assert.Error(t, err)
-		assert.Equal(t, context.Canceled, err)
+		assert.ErrorIs(t, err, context.Canceled)
 	})
 
 	t.Run("timeout during write operation", func(t *testing.T) {
-		timeoutTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		// Use os.MkdirTemp directly instead of t.TempDir() to have full control over cleanup
+		timeoutTempDir, err := os.MkdirTemp("", "test-timeout-write-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(timeoutTempDir)
+		// Ensure cleanup happens even if test fails
+		defer func() {
+			// Force remove all contents to prevent "directory not empty" errors
+			os.RemoveAll(timeoutTempDir)
+		}()
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -197,13 +213,18 @@ func TestChecker_Write(t *testing.T) {
 
 		err = checker.Write(timeoutCtx)
 		assert.Error(t, err)
-		assert.Equal(t, context.DeadlineExceeded, err)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
 	t.Run("context canceled during write operation", func(t *testing.T) {
-		cancelTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+		// Use os.MkdirTemp directly instead of t.TempDir() to have full control over cleanup
+		cancelTempDir, err := os.MkdirTemp("", "test-cancel-write-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(cancelTempDir)
+		// Ensure cleanup happens even if test fails
+		defer func() {
+			// Force remove all contents to prevent "directory not empty" errors
+			os.RemoveAll(cancelTempDir)
+		}()
 
 		cfg := &MemberConfig{
 			Config: Config{
@@ -229,7 +250,7 @@ func TestChecker_Write(t *testing.T) {
 
 		err = checker.Write(canceledCtx)
 		assert.Error(t, err)
-		assert.Equal(t, context.Canceled, err)
+		assert.ErrorIs(t, err, context.Canceled)
 	})
 
 	t.Run("comprehensive timeout scenarios", func(t *testing.T) {
@@ -272,8 +293,14 @@ func TestChecker_Write(t *testing.T) {
 
 		for _, scenario := range scenarios {
 			t.Run(scenario.name, func(t *testing.T) {
-				scenarioTempDir, err := os.MkdirTemp(t.TempDir(), "test")
+				// Use os.MkdirTemp directly instead of t.TempDir() to have full control over cleanup
+				scenarioTempDir, err := os.MkdirTemp("", "test-scenario-*")
 				require.NoError(t, err)
+				// Ensure cleanup happens even if test fails
+				defer func() {
+					// Force remove all contents to prevent "directory not empty" errors
+					os.RemoveAll(scenarioTempDir)
+				}()
 
 				cfg := &MemberConfig{
 					Config: Config{
@@ -310,10 +337,10 @@ func TestChecker_Write(t *testing.T) {
 				if scenario.expectError {
 					assert.Equal(t, "failed", result.Message)
 					assert.Contains(t, result.Error, "failed to read file")
-					if scenario.errorType == context.DeadlineExceeded {
+					if errors.Is(scenario.errorType, context.DeadlineExceeded) {
 						assert.Contains(t, result.Error, "context deadline exceeded")
 						assert.True(t, result.TimeoutError, "TimeoutError should be true for context.DeadlineExceeded")
-					} else if scenario.errorType == context.Canceled {
+					} else if errors.Is(scenario.errorType, context.Canceled) {
 						assert.Contains(t, result.Error, "context canceled")
 						assert.False(t, result.TimeoutError, "TimeoutError should be false for context.Canceled")
 					}
@@ -745,8 +772,14 @@ func TestChecker_TimeoutErrorField_ComprehensiveScenarios(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
-			tempDir, err := os.MkdirTemp(t.TempDir(), "test")
+			// Use os.MkdirTemp directly instead of t.TempDir() to have full control over cleanup
+			tempDir, err := os.MkdirTemp("", "test-timeout-error-*")
 			require.NoError(t, err)
+			// Ensure cleanup happens even if test fails
+			defer func() {
+				// Force remove all contents to prevent "directory not empty" errors
+				os.RemoveAll(tempDir)
+			}()
 
 			cfg := &MemberConfig{
 				Config: Config{

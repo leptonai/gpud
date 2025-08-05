@@ -13,8 +13,6 @@ import (
 )
 
 func TestProcessUpdateConfig_NFSSpecific(t *testing.T) {
-	t.Parallel()
-
 	t.Run("valid nfs config passes validation", func(t *testing.T) {
 		tempDir := t.TempDir()
 
@@ -139,7 +137,13 @@ func TestProcessUpdateConfig_NFSSpecific(t *testing.T) {
 		}
 
 		resp := &Response{}
+
+		// Start the process
 		s.processUpdateConfig(configMap, resp)
+
+		// Wait a bit for the async goroutine to complete validation
+		// Since the function is nil, we just need to wait for validation to finish
+		time.Sleep(500 * time.Millisecond)
 
 		// Should not panic and no error
 		assert.Empty(t, resp.Error)
