@@ -50,6 +50,8 @@ type component struct {
 
 	nvmlInstance nvidianvml.Instance
 
+	getTimeNowFunc func() time.Time
+
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
 	kmsgWatcher      kmsg.Watcher
@@ -67,9 +69,14 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:              cctx,
-		cancel:           ccancel,
-		nvmlInstance:     gpudInstance.NVMLInstance,
+		ctx:          cctx,
+		cancel:       ccancel,
+		nvmlInstance: gpudInstance.NVMLInstance,
+
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+
 		rebootEventStore: gpudInstance.RebootEventStore,
 
 		extraEventCh: make(chan *eventstore.Event, 256),
@@ -196,7 +203,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu sxid")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -448,14 +455,16 @@ func (c *component) updateCurrentState() error {
 		return nil
 	}
 
+	now := c.getTimeNowFunc()
+
 	var rebootErr string
-	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, time.Now().Add(-DefaultRetentionPeriod))
+	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, now.Add(-DefaultRetentionPeriod))
 	if err != nil {
 		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
 		log.Logger.Errorw("failed to get reboot events", "error", err)
 	}
 
-	localEvents, err := c.eventBucket.Get(c.ctx, time.Now().Add(-DefaultRetentionPeriod))
+	localEvents, err := c.eventBucket.Get(c.ctx, now.Add(-DefaultRetentionPeriod))
 	if err != nil {
 		return fmt.Errorf("failed to get all events: %w", err)
 	}
