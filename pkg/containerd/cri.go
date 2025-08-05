@@ -302,6 +302,8 @@ func convertToPodSandboxes(listPodSandboxResp *runtimeapi.ListPodSandboxResponse
 			ID:        podSandbox.Id,
 			Name:      podSandbox.Metadata.Name,
 			Namespace: podSandbox.Metadata.Namespace,
+
+			CreatedAt: podSandbox.CreatedAt,
 			State:     podSandbox.State.String(),
 
 			// to be filled in later
@@ -350,20 +352,34 @@ func convertToPodSandboxes(listPodSandboxResp *runtimeapi.ListPodSandboxResponse
 // Simplified version of k8s.io/cri-api/pkg/apis/runtime/v1.PodSandbox.
 // ref. https://pkg.go.dev/k8s.io/cri-api/pkg/apis/runtime/v1#ListPodSandboxResponse
 type PodSandbox struct {
-	ID         string                      `json:"id,omitempty"`
-	Namespace  string                      `json:"namespace,omitempty"`
-	Name       string                      `json:"name,omitempty"`
-	State      string                      `json:"state,omitempty"`
+	ID        string `json:"id,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	Name      string `json:"name,omitempty"`
+
+	// Creation time of the container in nanoseconds.
+	CreatedAt int64 `json:"created_at,omitempty"`
+
+	// State of the PodSandbox.
+	// e.g., "SANDBOX_READY" or "SANDBOX_NOTREADY".
+	// ref. https://pkg.go.dev/k8s.io/cri-api/pkg/apis/runtime/v1#PodSandboxState
+	State string `json:"state,omitempty"`
+
 	Containers []PodSandboxContainerStatus `json:"containers,omitempty"`
 }
 
 // ref. https://pkg.go.dev/k8s.io/cri-api/pkg/apis/runtime/v1#ContainerStatus
 type PodSandboxContainerStatus struct {
-	ID        string `json:"id,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Image     string `json:"image,omitempty"`
-	CreatedAt int64  `json:"created_at,omitempty"`
-	State     string `json:"state,omitempty"`
+	ID    string `json:"id,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Image string `json:"image,omitempty"`
+
+	// Creation time of the container in nanoseconds.
+	CreatedAt int64 `json:"created_at,omitempty"`
+
+	// State of the container.
+	// e.g., "CONTAINER_CREATED", "CONTAINER_RUNNING", "CONTAINER_EXITED", "CONTAINER_UNKNOWN".
+	// ref. https://pkg.go.dev/k8s.io/cri-api/pkg/apis/runtime/v1#ContainerState
+	State string `json:"state,omitempty"`
 }
 
 // IsErrUnimplemented checks if the error is due to the unimplemented service.

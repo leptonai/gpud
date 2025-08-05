@@ -20,11 +20,75 @@ import (
 	"github.com/leptonai/gpud/components"
 	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
 	"github.com/leptonai/gpud/pkg/log"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
+
+// Mock NVML instance for testing
+type mockNVMLInstance struct {
+	nvmlExists  bool
+	productName string
+}
+
+func (m *mockNVMLInstance) NVMLExists() bool {
+	return m.nvmlExists
+}
+
+func (m *mockNVMLInstance) ProductName() string {
+	return m.productName
+}
+
+func (m *mockNVMLInstance) Architecture() string {
+	return "mock-architecture"
+}
+
+func (m *mockNVMLInstance) Library() nvmllib.Library {
+	return nil
+}
+
+func (m *mockNVMLInstance) Devices() map[string]device.Device {
+	return nil
+}
+
+func (m *mockNVMLInstance) Brand() string {
+	return "NVIDIA"
+}
+
+func (m *mockNVMLInstance) DriverVersion() string {
+	return "470.00"
+}
+
+func (m *mockNVMLInstance) DriverMajor() int {
+	return 470
+}
+
+func (m *mockNVMLInstance) CUDAVersion() string {
+	return "11.4"
+}
+
+func (m *mockNVMLInstance) FabricManagerSupported() bool {
+	return false
+}
+
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+	return nvidianvml.MemoryErrorManagementCapabilities{}
+}
+
+func (m *mockNVMLInstance) Shutdown() error {
+	return nil
+}
 
 func Test_componentStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	c := &component{ctx: ctx, cancel: cancel, checkDependencyInstalledFunc: func() bool { return true }}
+	c := &component{
+		ctx:                          ctx,
+		cancel:                       cancel,
+		checkDependencyInstalledFunc: func() bool { return true },
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+	}
 	err := c.Start()
 	assert.NoError(t, err)
 	assert.NoError(t, c.Close())
@@ -32,7 +96,14 @@ func Test_componentStart(t *testing.T) {
 
 func TestComponentBasics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	c := &component{ctx: ctx, cancel: cancel, checkDependencyInstalledFunc: func() bool { return true }}
+	c := &component{
+		ctx:                          ctx,
+		cancel:                       cancel,
+		checkDependencyInstalledFunc: func() bool { return true },
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+	}
 
 	// Test component name
 	assert.Equal(t, Name, c.Name())
@@ -1282,6 +1353,9 @@ func TestComponentWithEmptyEndpoint(t *testing.T) {
 		endpoint: "",
 		// Add the default endpoint to be used when empty
 		checkDependencyInstalledFunc: func() bool { return true },
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	// Set a default endpoint value since that's what the component does
@@ -1631,6 +1705,9 @@ func TestComponentStartError(t *testing.T) {
 	c := &component{
 		ctx:    ctx,
 		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	// Cancel before starting to simulate an error case
@@ -1828,6 +1905,9 @@ func TestCheckOnceListSandboxGrpcError(t *testing.T) {
 		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 			return nil, testGrpcError // Simulate gRPC error
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		endpoint: "unix:///mock/containerd.sock",
 	}
 
@@ -1854,6 +1934,9 @@ func TestCheckOnceSocketNotExists(t *testing.T) {
 		},
 		checkSocketExistsFunc: func() bool {
 			return false // Socket does not exist
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
 		},
 		endpoint: "unix:///mock/endpoint",
 	}
@@ -1889,6 +1972,9 @@ func TestCheckOnceSocketNotExistsComprehensive(t *testing.T) {
 		},
 		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 			return nil, nil // This shouldn't be called
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
 		},
 		endpoint: "unix:///nonexistent/socket",
 	}
@@ -1926,6 +2012,9 @@ func Test_checkContainerdRunningFunc(t *testing.T) {
 		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 			return nil, nil // This shouldn't be called
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		endpoint: "unix:///nonexistent/socket",
 	}
 
@@ -1936,6 +2025,207 @@ func Test_checkContainerdRunningFunc(t *testing.T) {
 	assert.False(t, comp.lastCheckResult.health == apiv1.HealthStateTypeHealthy)
 	assert.Equal(t, "containerd installed but not running", comp.lastCheckResult.reason)
 	assert.Nil(t, comp.lastCheckResult.err)
+}
+
+// TestNVMLValidationWithContainerToolkit tests the NVML validation with nvidia-container-toolkit logic
+func TestNVMLValidationWithContainerToolkit(t *testing.T) {
+	tests := []struct {
+		name                              string
+		nvmlInstance                      nvidianvml.Instance
+		getContainerdConfigFunc           func() ([]byte, error)
+		pods                              []pkgcontainerd.PodSandbox
+		getTimeNowFunc                    func() time.Time
+		containerToolkitCreationThreshold time.Duration
+		expectedHealth                    apiv1.HealthStateType
+		expectedReason                    string
+	}{
+		{
+			name: "nvml with nvidia config and container toolkit present and running long enough",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-abc123",
+					State: "SANDBOX_READY",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_RUNNING",
+							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "nvml without nvidia config but container toolkit present and running long enough",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.runc]"), nil
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-def456",
+					State: "SANDBOX_READY",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_RUNNING",
+							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "nvml with container toolkit but not running long enough",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-ghi789",
+					State: "SANDBOX_READY",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_RUNNING",
+							CreatedAt: time.Now().Add(-5 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "nvml with container toolkit but container not running",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-jkl012",
+					State: "SANDBOX_READY",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_EXITED",
+							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "nvml with container toolkit pod but pod not ready",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-notready",
+					State: "SANDBOX_NOTREADY",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_RUNNING",
+							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			c := &component{
+				ctx:    ctx,
+				cancel: cancel,
+
+				nvmlInstance:                      tt.nvmlInstance,
+				getContainerdConfigFunc:           tt.getContainerdConfigFunc,
+				getTimeNowFunc:                    tt.getTimeNowFunc,
+				containerToolkitCreationThreshold: tt.containerToolkitCreationThreshold,
+
+				// Mock all dependencies as successful
+				checkDependencyInstalledFunc: func() bool {
+					return true
+				},
+				checkSocketExistsFunc: func() bool {
+					return true
+				},
+				checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+					return true, nil
+				},
+				checkContainerdRunningFunc: func(context.Context) bool {
+					return true
+				},
+				listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
+					return tt.pods, nil
+				},
+			}
+
+			cr := c.Check()
+			checkResult, ok := cr.(*checkResult)
+			require.True(t, ok, "Expected checkResult type")
+
+			assert.Equal(t, tt.expectedHealth, checkResult.health, "Health state should match expected")
+			assert.Contains(t, checkResult.reason, tt.expectedReason, "Reason should contain expected text")
+		})
+	}
 }
 
 func Test_listAllSandboxesFunc(t *testing.T) {
@@ -1975,6 +2265,9 @@ func Test_listAllSandboxesFunc(t *testing.T) {
 				},
 			}, nil
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		endpoint: "unix:///nonexistent/socket",
 	}
 
@@ -2010,6 +2303,9 @@ func Test_listAllSandboxesFunc_with_error(t *testing.T) {
 		},
 		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 			return nil, errors.New("test error")
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
 		},
 		endpoint: "unix:///nonexistent/socket",
 	}
@@ -2357,7 +2653,10 @@ func TestCheckWithNilFunctions(t *testing.T) {
 				checkServiceActiveFunc:       tt.checkServiceActiveFunc,
 				checkContainerdRunningFunc:   tt.checkContainerdRunningFunc,
 				listAllSandboxesFunc:         tt.listAllSandboxesFunc,
-				endpoint:                     "unix:///mock/endpoint",
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
+				endpoint: "unix:///mock/endpoint",
 			}
 
 			// Run Check method
@@ -2411,6 +2710,9 @@ func TestCheckServiceActiveError(t *testing.T) {
 		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
 			return false, testError
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		endpoint: "unix:///mock/endpoint",
 	}
 
@@ -2460,6 +2762,9 @@ func TestComponentCheckWithContextDeadline(t *testing.T) {
 		checkContainerdRunningFunc: func(ctx context.Context) bool {
 			return false
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		endpoint: "unix:///mock/endpoint",
 	}
 
@@ -2497,6 +2802,9 @@ func TestCheckWhenContainerdCRINotEnabled(t *testing.T) {
 		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 			return nil, status.Error(codes.Unimplemented, "unknown service runtime.v1.RuntimeService")
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	// Call the Check method
@@ -2507,4 +2815,445 @@ func TestCheckWhenContainerdCRINotEnabled(t *testing.T) {
 	assert.True(t, ok, "Expected checkResult type")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
 	assert.Equal(t, "containerd installed and active but containerd CRI is not enabled", checkResult.reason)
+}
+
+func TestNVMLValidation(t *testing.T) {
+	tests := []struct {
+		name                    string
+		nvmlInstance            nvidianvml.Instance
+		getContainerdConfigFunc func() ([]byte, error)
+		expectedHealth          apiv1.HealthStateType
+		expectedReason          string
+	}{
+		{
+			name:         "nvml instance is nil",
+			nvmlInstance: nil,
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("nvidia"), nil
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+		},
+		{
+			name: "nvml does not exist",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  false,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("nvidia"), nil
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+		},
+		{
+			name: "product name is empty",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("nvidia"), nil
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+		},
+		{
+			name: "getContainerdConfigFunc is nil - skips config check",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: nil,
+			expectedHealth:          apiv1.HealthStateTypeHealthy,
+			expectedReason:          "ok",
+		},
+		{
+			name: "config read error",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return nil, errors.New("config file not found")
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+		},
+		{
+			name: "config contains nvidia - healthy",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"
+  runtime_engine = ""
+  runtime_root = ""
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  privileged_without_host_devices = false
+  runtime_engine = ""
+  runtime_root = ""
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+		},
+		{
+			name: "config does not contain nvidia - healthy, only logs warning",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"
+  runtime_engine = ""
+  runtime_root = ""`
+				return []byte(config), nil
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+		},
+		{
+			name: "config missing required nvidia runtime - healthy, only logs warning",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("some other config without that gpu runtime"), nil
+			},
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "ok",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			c := &component{
+				ctx:    ctx,
+				cancel: cancel,
+
+				nvmlInstance:            tt.nvmlInstance,
+				getContainerdConfigFunc: tt.getContainerdConfigFunc,
+
+				// Mock all dependencies as successful to focus on NVML validation
+				checkDependencyInstalledFunc: func() bool {
+					return true
+				},
+				checkSocketExistsFunc: func() bool {
+					return true
+				},
+				checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+					return true, nil
+				},
+				checkContainerdRunningFunc: func(context.Context) bool {
+					return true
+				},
+				listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
+					return []pkgcontainerd.PodSandbox{}, nil
+				},
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
+			}
+
+			cr := c.Check()
+			checkResult, ok := cr.(*checkResult)
+			require.True(t, ok, "Expected checkResult type")
+
+			assert.Equal(t, tt.expectedHealth, checkResult.health, "Health state should match expected")
+			assert.Equal(t, tt.expectedReason, checkResult.reason, "Reason should match expected")
+		})
+	}
+}
+
+func TestNVMLValidationIntegration(t *testing.T) {
+	// This test verifies the complete flow including the NVML check integration
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Test case where NVML exists, GPU detected, but config missing nvidia
+	c := &component{
+		ctx:    ctx,
+		cancel: cancel,
+
+		nvmlInstance: &mockNVMLInstance{
+			nvmlExists:  true,
+			productName: "Tesla V100-SXM2-32GB",
+		},
+		getContainerdConfigFunc: func() ([]byte, error) {
+			// Return a config that doesn't contain "nvidia"
+			return []byte(`[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"
+  runtime_engine = ""
+  runtime_root = ""`), nil
+		},
+
+		// All other checks pass
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkSocketExistsFunc: func() bool {
+			return true
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return true, nil
+		},
+		checkContainerdRunningFunc: func(context.Context) bool {
+			return true
+		},
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
+			return []pkgcontainerd.PodSandbox{}, nil
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+	}
+
+	cr := c.Check()
+	checkResult, ok := cr.(*checkResult)
+	require.True(t, ok, "Expected checkResult type")
+
+	// Should be healthy - the new logic only logs warnings, doesn't change health state
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
+	assert.Equal(t, "ok", checkResult.reason)
+
+	// Verify health states
+	healthStates := checkResult.HealthStates()
+	require.Len(t, healthStates, 1)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthStates[0].Health)
+	assert.Equal(t, Name, healthStates[0].Component)
+}
+
+// TestContainerToolkitValidation tests the nvidia-container-toolkit validation logic
+func TestContainerToolkitValidation(t *testing.T) {
+	tests := []struct {
+		name                              string
+		nvmlInstance                      nvidianvml.Instance
+		pods                              []pkgcontainerd.PodSandbox
+		getTimeNowFunc                    func() time.Time
+		containerToolkitCreationThreshold time.Duration
+		expectedHealth                    apiv1.HealthStateType
+		expectedReason                    string
+	}{
+		{
+			name:         "no nvml instance - skips container toolkit check",
+			nvmlInstance: nil,
+			pods: []pkgcontainerd.PodSandbox{
+				{Name: "regular-pod", Containers: []pkgcontainerd.PodSandboxContainerStatus{{Name: "regular-container"}}},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "nvml exists but no product name - skips container toolkit check",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "",
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{Name: "regular-pod", Containers: []pkgcontainerd.PodSandboxContainerStatus{{Name: "regular-container"}}},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "no pods - skips container toolkit check",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			pods: []pkgcontainerd.PodSandbox{},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "container toolkit daemonset not found - logs warning",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name: "regular-pod",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{Name: "regular-container"},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "container toolkit found and running long enough",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-xyz",
+					State: "SANDBOX_READY",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_RUNNING",
+							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "container toolkit found but not running long enough",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-abc",
+					State: "SANDBOX_READY",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_RUNNING",
+							CreatedAt: time.Now().Add(-3 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "container toolkit found but container not running",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-def",
+					State: "SANDBOX_READY",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_EXITED",
+							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
+			name: "container toolkit daemonset found but pod not ready",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-notready",
+					State: "SANDBOX_NOTREADY",
+					Containers: []pkgcontainerd.PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_RUNNING",
+							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			c := &component{
+				ctx:    ctx,
+				cancel: cancel,
+
+				nvmlInstance:                      tt.nvmlInstance,
+				getTimeNowFunc:                    tt.getTimeNowFunc,
+				containerToolkitCreationThreshold: tt.containerToolkitCreationThreshold,
+				getContainerdConfigFunc: func() ([]byte, error) {
+					// Return config with nvidia to avoid the nvidia config warning
+					return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+				},
+
+				// Mock all dependencies as successful to focus on container toolkit validation
+				checkDependencyInstalledFunc: func() bool {
+					return true
+				},
+				checkSocketExistsFunc: func() bool {
+					return true
+				},
+				checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+					return true, nil
+				},
+				checkContainerdRunningFunc: func(context.Context) bool {
+					return true
+				},
+				listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
+					return tt.pods, nil
+				},
+			}
+
+			cr := c.Check()
+			checkResult, ok := cr.(*checkResult)
+			require.True(t, ok, "Expected checkResult type")
+
+			assert.Equal(t, tt.expectedHealth, checkResult.health, "Health state should match expected")
+			assert.Contains(t, checkResult.reason, tt.expectedReason, "Reason should contain expected text")
+		})
+	}
 }

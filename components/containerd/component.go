@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
 	"github.com/leptonai/gpud/pkg/kubelet"
 	"github.com/leptonai/gpud/pkg/log"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 
@@ -32,6 +35,12 @@ var _ components.Component = &component{}
 type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	nvmlInstance nvidianvml.Instance
+
+	getTimeNowFunc                    func() time.Time
+	containerToolkitCreationThreshold time.Duration
+	getContainerdConfigFunc           func() ([]byte, error)
 
 	checkDependencyInstalledFunc func() bool
 	checkSocketExistsFunc        func() bool
@@ -50,6 +59,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
+
+		nvmlInstance: gpudInstance.NVMLInstance,
+
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		containerToolkitCreationThreshold: 10 * time.Minute,
+		getContainerdConfigFunc: func() ([]byte, error) {
+			return os.ReadFile("/etc/containerd/config.toml")
+		},
 
 		checkDependencyInstalledFunc: pkgcontainerd.CheckContainerdInstalled,
 		checkSocketExistsFunc:        pkgcontainerd.CheckSocketExists,
@@ -118,7 +137,7 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking containerd pods", "endpoint", c.endpoint)
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -206,6 +225,62 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 	log.Logger.Debugw(cr.reason, "count", len(cr.Pods))
+
+	if c.nvmlInstance != nil &&
+		c.nvmlInstance.NVMLExists() &&
+		c.nvmlInstance.ProductName() != "" &&
+		len(cr.Pods) > 0 &&
+		c.getContainerdConfigFunc != nil {
+
+		// check "nvidia-container-toolkit-daemonset" pod
+		// whose containers include "nvidia-container-toolkit-ctr"
+		// which performs containerd.toml configuration updates
+		// if the gpu-operator is running successfully
+		toolkitCtrCreatedAt := time.Time{}
+
+		for _, pod := range cr.Pods {
+			if !strings.Contains(pod.Name, "nvidia-container-toolkit-daemonset") {
+				continue
+			}
+			if pod.State != "SANDBOX_READY" {
+				continue
+			}
+			toolkitCtrCreatedAt = time.Unix(0, pod.CreatedAt)
+			break
+		}
+
+		if toolkitCtrCreatedAt.IsZero() {
+			// TODO: expose this as a reason
+			reason := "nvidia GPUs found but nvidia-container-toolkit is not found"
+
+			log.Logger.Warnw(reason)
+		} else {
+			now := c.getTimeNowFunc()
+			elapsed := now.Sub(toolkitCtrCreatedAt)
+
+			// been running long enough
+			if elapsed > c.containerToolkitCreationThreshold {
+				config, err := c.getContainerdConfigFunc()
+				if err != nil {
+					// TODO: mark this unhealthy once stable
+					log.Logger.Errorw("error getting containerd config", "error", err)
+
+				} else if !bytes.Contains(config, []byte("nvidia")) {
+					// TODO: mark this unhealthy once stable
+					// cr.health = apiv1.HealthStateTypeUnhealthy
+
+					// TODO: expose this as a reason
+					reason := "nvidia GPUs found but containerd config does not contain nvidia"
+
+					log.Logger.Warnw(reason)
+				} else {
+					log.Logger.Debugw("containerd config contains nvidia")
+				}
+			} else {
+				log.Logger.Debugw("nvidia-container-toolkit is running but not long enough", "elapsed", elapsed)
+			}
+		}
+	}
 
 	return cr
 }
