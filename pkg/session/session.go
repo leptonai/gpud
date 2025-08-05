@@ -310,10 +310,12 @@ func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessio
 	req.Header.Set("X-GPUD-Machine-ID", machineID)
 	req.Header.Set("X-GPUD-Session-Type", sessionType)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
 	// Depreciated headers
 	req.Header.Set("machine_id", machineID)
 	req.Header.Set("session_type", sessionType)
 	req.Header.Set("token", token)
+
 	return req, nil
 }
 
@@ -331,31 +333,35 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *coo
 
 	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "write", s.token, reader)
 	if err != nil {
-		log.Logger.Debugf("session writer: error creating request: %v", err)
+		log.Logger.Warnw("session writer: error creating request", "error", err)
 		return
 	}
 
 	client := createHTTPClient(jar)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Logger.Debugf("session writer: error making request: %v", err)
+		log.Logger.Warnw("session writer: error making request", "error", err)
 		return
 	}
-	log.Logger.Debugf("session writer: http closed, resp: %v %v", resp.Status, resp.StatusCode)
+
+	log.Logger.Debugw("session writer: http closed", "status", resp.Status, "statusCode", resp.StatusCode)
 }
 
 func (s *Session) handleWriterPipe(writer *io.PipeWriter, closec, finish chan any) {
 	defer close(finish)
 	defer writer.Close()
-	log.Logger.Debug("session writer: pipe handler started")
+
+	log.Logger.Debugw("session writer: pipe handler started")
 	for {
 		select {
 		case <-s.closer.Done():
-			log.Logger.Debug("session writer: session closed, closing pipe handler")
+			log.Logger.Debugw("session writer: session closed, closing pipe handler")
 			return
+
 		case <-closec:
-			log.Logger.Debug("session writer: request finished, closing pipe handler")
+			log.Logger.Debugw("session writer: request finished, closing pipe handler")
 			return
+
 		case body := <-s.writer:
 			if err := s.writeBodyToPipe(writer, body); err != nil {
 				if errors.Is(err, io.ErrClosedPipe) {
@@ -369,14 +375,16 @@ func (s *Session) handleWriterPipe(writer *io.PipeWriter, closec, finish chan an
 func (s *Session) writeBodyToPipe(writer *io.PipeWriter, body Body) error {
 	bytes, err := json.Marshal(body)
 	if err != nil {
-		log.Logger.Errorf("session writer: failed to marshal body: %v", err)
+		log.Logger.Errorw("session writer: failed to marshal body", "error", err)
 		return err
 	}
+
 	if _, err := writer.Write(bytes); err != nil {
-		log.Logger.Errorf("session writer: failed to write to pipe: %v", err)
+		log.Logger.Errorw("session writer: failed to write to pipe", "error", err)
 		return err
 	}
-	log.Logger.Debug("session writer: body written to pipe")
+
+	log.Logger.Debugw("session writer: body written to pipe")
 	return nil
 }
 
@@ -392,7 +400,7 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 
 	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "read", s.token, nil)
 	if err != nil {
-		log.Logger.Debugf("session reader: error creating request: %v", err)
+		log.Logger.Debugw("session reader: error creating request", "error", err)
 		close(pipeFinishCh)
 		return
 	}
@@ -400,12 +408,13 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	client := createHTTPClient(jar)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Logger.Debugf("session reader: error making request: %v, retrying", err)
+		log.Logger.Warnw("session reader: error making request -- retrying", "error", err)
 		close(pipeFinishCh)
 		return
 	}
+
 	if resp.StatusCode != http.StatusOK {
-		log.Logger.Debugf("session reader: request resp not ok: %v %v, retrying", resp.StatusCode, resp.Status)
+		log.Logger.Warnw("session reader: request resp not ok -- retrying", "status", resp.Status, "statusCode", resp.StatusCode)
 		close(pipeFinishCh)
 		return
 	}
@@ -454,9 +463,10 @@ func (s *Session) processReaderResponse(resp *http.Response, goroutineCloseCh, p
 	for {
 		var content Body
 		if err := decoder.Decode(&content); err != nil {
-			log.Logger.Errorf("session reader: error decoding response: %v", err)
+			log.Logger.Errorw("session reader: error decoding response", "error", err)
 			break
 		}
+
 		if !s.tryWriteToReader(content) {
 			return
 		}
@@ -484,14 +494,16 @@ func (s *Session) tryWriteToReader(content Body) bool {
 		return true
 
 	default:
-		log.Logger.Errorw("session reader: reader channel full, dropping message")
+		log.Logger.Errorw("session reader: reader channel full, dropping message -- WARNING: THIS CAN MAKE GPUd UNRESPONSIVE TO CONTROL PLANE REQUESTS (OFFLINE)")
 		return true
 	}
 }
 
 func (s *Session) handleReaderPipe(respBody io.ReadCloser, closec, finish chan any) {
 	defer close(finish)
-	log.Logger.Debug("session reader: pipe handler started")
+
+	log.Logger.Debugw("session reader: pipe handler started")
+
 	threshold := 2 * time.Minute
 	ticker := time.NewTicker(1 * time.Second)
 	defer func() {
@@ -501,14 +513,16 @@ func (s *Session) handleReaderPipe(respBody io.ReadCloser, closec, finish chan a
 	for {
 		select {
 		case <-s.closer.Done():
-			log.Logger.Debug("session reader: session closed, closing read pipe handler")
+			log.Logger.Debugw("session reader: session closed, closing read pipe handler")
 			return
+
 		case <-closec:
-			log.Logger.Debug("session reader: request finished, closing read pipe handler")
+			log.Logger.Debugw("session reader: request finished, closing read pipe handler")
 			return
+
 		case <-ticker.C:
 			if time.Since(s.getLastPackageTimestamp()) > threshold {
-				log.Logger.Debugf("session reader: exceed read wait timeout, closing read pipe handler")
+				log.Logger.Debugw("session reader: exceed read wait timeout, closing read pipe handler")
 				return
 			}
 		}
@@ -519,8 +533,10 @@ func (s *Session) Stop() {
 	select {
 	case <-s.ctx.Done():
 		return
+
 	default:
-		log.Logger.Debug("closing session...")
+		log.Logger.Debugw("closing session...")
+
 		s.cancel()
 		s.closer.Close()
 		close(s.reader)
