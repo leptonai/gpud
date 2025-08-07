@@ -58,6 +58,7 @@ func Command(cliContext *cli.Context) error {
 	retentionPeriod := cliContext.Duration("retention-period")
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
+	versionFile := cliContext.String("version-file")
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
 
 	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
@@ -130,6 +131,7 @@ func Command(cliContext *cli.Context) error {
 
 	cfg.EnableAutoUpdate = enableAutoUpdate
 	cfg.AutoUpdateExitCode = autoUpdateExitCode
+	cfg.VersionFile = versionFile
 
 	cfg.PluginSpecsFile = pluginSpecsFile
 

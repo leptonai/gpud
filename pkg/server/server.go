@@ -50,6 +50,7 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
+	pkgupdate "github.com/leptonai/gpud/pkg/update"
 )
 
 // Server is the gpud main daemon
@@ -339,6 +340,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	userToken := &UserToken{}
 	go s.updateToken(ctx, metricsSQLiteStore, userToken)
 	go s.startListener(nvmlInstance, syncer, config, router, cert)
+	go updateFromVersionFile(ctx, config.AutoUpdateExitCode, config.VersionFile)
 
 	return s, nil
 }
@@ -656,5 +658,25 @@ func (s *Server) startListener(nvmlInstance nvidianvml.Instance, metricsSyncer *
 	if err := srv.ListenAndServeTLS("", ""); err != nil {
 		log.Logger.Warnw("gpud serve failed", "address", config.Address, "error", err)
 		stdos.Exit(1)
+	}
+}
+
+func updateFromVersionFile(ctx context.Context, autoExitCode int, versionFile string) {
+	if autoExitCode == -1 || versionFile == "" {
+		log.Logger.Infow("auto update is disabled, skipping version file check", "autoExitCode", autoExitCode, "versionFile", versionFile)
+		return
+	}
+
+	log.Logger.Infow("auto update is enabled, checking version file", "autoExitCode", autoExitCode, "versionFile", versionFile)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second):
+		}
+
+		if err := pkgupdate.UpdateTargetVersion(versionFile, autoExitCode); err != nil {
+			log.Logger.Errorw("failed to update from version file", "error", err)
+		}
 	}
 }

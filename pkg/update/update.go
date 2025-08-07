@@ -16,8 +16,8 @@ import (
 const DefaultUpdateURL = "https://pkg.gpud.dev/"
 
 // UpdateExecutable updates the GPUd binary executable itself.
-func UpdateExecutable(ver, url string, requireRoot bool) error {
-	log.Logger.Infow("starting gpud update", "version", ver, "url", url, "requireRoot", requireRoot)
+func UpdateExecutable(targetVersion string, url string, requireRoot bool) error {
+	log.Logger.Infow("starting gpud update", "targetVersion", targetVersion, "url", url, "requireRoot", requireRoot)
 
 	if requireRoot {
 		if err := osutil.RequireRoot(); err != nil {
@@ -27,7 +27,7 @@ func UpdateExecutable(ver, url string, requireRoot bool) error {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	dlPath, err := downloadLinuxTarball(ctx, ver, url)
+	dlPath, err := downloadLinuxTarball(ctx, targetVersion, url)
 	cancel()
 	if err != nil {
 		return err

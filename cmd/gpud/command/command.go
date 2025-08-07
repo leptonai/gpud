@@ -25,6 +25,7 @@ import (
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
 	pkgconfig "github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
+	pkgupdate "github.com/leptonai/gpud/pkg/update"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -159,6 +160,11 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.IntFlag{
 					Name:  "auto-update-exit-code",
 					Usage: "specifies the exit code to exit with when auto updating (set -1 to disable exit code)",
+				},
+				cli.StringFlag{
+					Name:  "version-file",
+					Usage: "specifies the version file to use for auto update (leave empty to disable auto update)",
+					Value: pkgupdate.DefaultVersionFile,
 				},
 				cli.StringFlag{
 					Name:  "plugin-specs-file",
