@@ -1,0 +1,186 @@
+Panic#1 Part1
+<5>[   13.717163] audit: type=1400 audit(1753325017.312:11): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/usr/sbin/cups-browsed" pid=1036 comm="apparmor_parser"
+<6>[   13.826897] RAPL PMU: API unit is 2^-32 Joules, 1 fixed counters, 163840 ms ovfl timer
+<6>[   13.826900] RAPL PMU: hw unit of domain package 2^-16 Joules
+<6>[   13.832973] kvm: Nested Virtualization enabled
+<6>[   13.832976] SVM: kvm: Nested Paging enabled
+<6>[   13.832990] SVM: Virtual VMLOAD VMSAVE supported
+<6>[   13.832991] SVM: Virtual GIF supported
+<6>[   13.863865] MCE: In-kernel MCE decoding enabled.
+<6>[   13.868078] EDAC amd64: MCT channel count: 4
+<6>[   13.868252] EDAC MC0: Giving out device to module amd64_edac controller F19h_M10h: DEV 0000:00:18.3 (INTERRUPT)
+<6>[   13.868254] EDAC amd64: F19h_M10h detected (node 0).
+<7>[   13.868280] EDAC MC: UMC0 chip selects:
+<6>[   13.868281] EDAC amd64: MC: 0: 16384MB 1: 16384MB
+<6>[   13.868282] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868308] EDAC MC: UMC1 chip selects:
+<6>[   13.868309] EDAC amd64: MC: 0:     0MB 1:     0MB
+<6>[   13.868310] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868335] EDAC MC: UMC2 chip selects:
+<6>[   13.868336] EDAC amd64: MC: 0:     0MB 1:     0MB
+<6>[   13.868337] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868373] EDAC MC: UMC3 chip selects:
+<6>[   13.868374] EDAC amd64: MC: 0: 16384MB 1: 16384MB
+<6>[   13.868375] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868442] EDAC MC: UMC4 chip selects:
+<6>[   13.868442] EDAC amd64: MC: 0:     0MB 1:     0MB
+<6>[   13.868451] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868475] EDAC MC: UMC5 chip selects:
+<6>[   13.868477] EDAC amd64: MC: 0:     0MB 1:     0MB
+<6>[   13.868480] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868507] EDAC MC: UMC6 chip selects:
+<6>[   13.868508] EDAC amd64: MC: 0: 16384MB 1: 16384MB
+<6>[   13.868509] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868535] EDAC MC: UMC7 chip selects:
+<6>[   13.868536] EDAC amd64: MC: 0:     0MB 1:     0MB
+<6>[   13.868537] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868563] EDAC MC: UMC8 chip selects:
+<6>[   13.868564] EDAC amd64: MC: 0:     0MB 1:     0MB
+<6>[   13.868565] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868591] EDAC MC: UMC9 chip selects:
+<6>[   13.868591] EDAC amd64: MC: 0: 16384MB 1: 16384MB
+<6>[   13.868593] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868618] EDAC MC: UMC10 chip selects:
+<6>[   13.868619] EDAC amd64: MC: 0:     0MB 1:     0MB
+<6>[   13.868620] EDAC amd64: MC: 2:     0MB 3:     0MB
+<7>[   13.868646] EDAC MC: UMC11 chip selects:
+<6>[   13.868647] EDAC amd64: MC: 0:     0MB 1:     0MB
+<6>[   13.868648] EDAC amd64: MC: 2:     0MB 3:     0MB
+<6>[   13.868649] EDAC amd64: using x16 syndromes.
+<6>[   13.868663] EDAC PCI0: Giving out device to module amd64_edac controller EDAC PCI controller: DEV 0000:00:18.0 (POLLED)
+<6>[   13.868664] AMD64 EDAC driver v3.5.0
+<6>[   13.903573] intel_rapl_common: Found RAPL domain package
+<6>[   13.903576] intel_rapl_common: Found RAPL domain core
+<6>[   13.995110] ipmi_si IPI0001:00: IPMI message handler: Found new BMC (man_id: 0x00c1d6, prod_id: 0x2013, dev_id: 0x20)
+<6>[   14.109256] ipmi_si IPI0001:00: IPMI kcs interface initialized
+<6>[   14.110869] ipmi_ssif: IPMI SSIF Interface driver
+<6>[   14.952018] mlx5_core 0000:41:00.0 enp65s0f0np0: Link up
+<6>[   14.957355] IPv6: ADDRCONF(NETDEV_CHANGE): enp65s0f0np0: link becomes ready
+<6>[   17.926256] EXT4-fs (nvme0n1p2): resizing filesystem from 2489856 to 781256448 blocks
+<6>[   20.342970] EXT4-fs (nvme0n1p2): resized filesystem to 781256448
+<4>[   21.242478] kauditd_printk_skb: 46 callbacks suppressed
+<5>[   21.242487] audit: type=1400 audit(1753325024.836:58): apparmor="DENIED" operation="open" profile="/usr/sbin/ntpd" name="/snap/bin/" pid=1368 comm="ntpd" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+<5>[   21.245792] audit: type=1400 audit(1753325024.840:59): apparmor="DENIED" operation="open" profile="/usr/sbin/ntpd" name="/etc/ssl/openssl.cnf" pid=1410 comm="ntpd" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+<6>[   21.346140] loop3: detected capacity change from 0 to 8
+<5>[   21.446185] audit: type=1400 audit(1753325025.040:60): apparmor="DENIED" operation="capable" profile="/usr/sbin/cupsd" pid=1537 comm="cupsd" capability=12  capname="net_admin"
+<5>[   21.496875] audit: type=1400 audit(1753325025.092:61): apparmor="DENIED" operation="capable" profile="/usr/sbin/cups-browsed" pid=1574 comm="cups-browsed" capability=23  capname="sys_nice"
+<5>[   21.502279] audit: type=1400 audit(1753325025.096:62): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="/usr/lib/snapd/snap-confine" pid=1494 comm="apparmor_parser"
+<6>[   21.542224] NFSD: Using nfsdcld client tracking operations.
+<6>[   21.542227] NFSD: no clients to reclaim, skipping NFSv4 grace period (net f0000000)
+<5>[   21.545265] audit: type=1400 audit(1753325025.140:63): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="/usr/lib/snapd/snap-confine//mount-namespace-capture-helper" pid=1494 comm="apparmor_parser"
+<5>[   21.646073] audit: type=1400 audit(1753325025.240:64): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="/snap/snapd/21759/usr/lib/snapd/snap-confine" pid=1629 comm="apparmor_parser"
+<5>[   21.646081] audit: type=1400 audit(1753325025.240:65): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="/snap/snapd/21759/usr/lib/snapd/snap-confine//mount-namespace-capture-helper" pid=1629 comm="apparmor_parser"
+<5>[   21.762751] audit: type=1400 audit(1753325025.356:66): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.hook.install" pid=1637 comm="apparmor_parser"
+<5>[   21.788336] audit: type=1400 audit(1753325025.380:67): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.benchmark" pid=1632 comm="apparmor_parser"
+<7>[   32.537626] rfkill: input handler disabled
+<6>[  626.752069] loop3: detected capacity change from 0 to 100952
+<4>[  627.009056] kauditd_printk_skb: 12 callbacks suppressed
+<5>[  627.009062] audit: type=1400 audit(1753325631.019:80): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/snap/snapd/24792/usr/lib/snapd/snap-confine" pid=5221 comm="apparmor_parser"
+<5>[  627.009844] audit: type=1400 audit(1753325631.019:81): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/snap/snapd/24792/usr/lib/snapd/snap-confine//mount-namespace-capture-helper" pid=5221 comm="apparmor_parser"
+<5>[  627.027844] audit: type=1400 audit(1753325631.039:82): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="snap-update-ns.lxd" pid=5223 comm="apparmor_parser"
+<5>[  627.031572] audit: type=1400 audit(1753325631.043:83): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="snap.lxd.hook.install" pid=5230 comm="apparmor_parser"
+<5>[  627.031585] audit: type=1400 audit(1753325631.043:84): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="snap.lxd.activate" pid=5224 comm="apparmor_parser"
+<5>[  627.031875] audit: type=1400 audit(1753325631.043:85): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="snap.lxd.check-kernel" pid=5227 comm="apparmor_parser"
+<5>[  627.032377] audit: type=1400 audit(1753325631.043:86): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="snap.lxd.benchmark" pid=5225 comm="apparmor_parser"
+<5>[  627.032411] audit: type=1400 audit(1753325631.043:87): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="snap.lxd.buginfo" pid=5226 comm="apparmor_parser"
+<5>[  627.033693] audit: type=1400 audit(1753325631.043:88): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="snap.lxd.daemon" pid=5228 comm="apparmor_parser"
+<5>[  627.033709] audit: type=1400 audit(1753325631.043:89): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="snap.lxd.hook.configure" pid=5229 comm="apparmor_parser"
+<6>[  631.104201] loop4: detected capacity change from 0 to 8
+<6>[  637.717659] loop4: detected capacity change from 0 to 183096
+<4>[  638.415203] kauditd_printk_skb: 22 callbacks suppressed
+<5>[  638.415205] audit: type=1400 audit(1753325642.428:112): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="/snap/snapd/24792/usr/lib/snapd/snap-confine" pid=5792 comm="apparmor_parser"
+<5>[  638.453497] audit: type=1400 audit(1753325642.468:113): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="/snap/snapd/24792/usr/lib/snapd/snap-confine//mount-namespace-capture-helper" pid=5792 comm="apparmor_parser"
+<5>[  638.523739] audit: type=1400 audit(1753325642.536:114): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.hook.install" pid=5800 comm="apparmor_parser"
+<5>[  638.531942] audit: type=1400 audit(1753325642.544:115): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.benchmark" pid=5795 comm="apparmor_parser"
+<5>[  638.532440] audit: type=1400 audit(1753325642.544:116): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.activate" pid=5794 comm="apparmor_parser"
+<5>[  638.534227] audit: type=1400 audit(1753325642.548:117): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.lxd" pid=5804 comm="apparmor_parser"
+<5>[  638.534484] audit: type=1400 audit(1753325642.548:118): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.hook.remove" pid=5801 comm="apparmor_parser"
+<5>[  638.534740] audit: type=1400 audit(1753325642.548:119): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.lxc-to-lxd" pid=5803 comm="apparmor_parser"
+<5>[  638.535238] audit: type=1400 audit(1753325642.548:120): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.migrate" pid=5805 comm="apparmor_parser"
+<5>[  638.535513] audit: type=1400 audit(1753325642.548:121): apparmor="STATUS" operation="profile_replace" profile="unconfined" name="snap.lxd.lxc" pid=5802 comm="apparmor_parser"
+<30>[ 1096.413471] systemd[1]: systemd 249.11-0ubuntu3.12 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT +GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY -P11KIT -QRENCODE +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+<30>[ 1096.431866] systemd[1]: Detected architecture x86-64.
+<28>[ 1096.481089] systemd[1]: Configuration file /run/systemd/system/netplan-ovs-cleanup.service is marked world-inaccessible. This has no effect as configuration data is accessible via APIs without restrictions. Proceeding anyway.
+<28>[ 1096.490300] systemd[1]: /lib/systemd/system/snapd.service:23: Unknown key name 'RestartMode' in section 'Service', ignoring.
+<4>[ 1126.588387] nvidia: loading out-of-tree module taints kernel.
+<4>[ 1126.588405] nvidia: module license 'NVIDIA' taints kernel.
+<4>[ 1126.588408] Disabling lock debugging due to kernel taint
+<5>[ 1126.600902] nvidia: module verification failed: signature and/or required key missing - tainting kernel
+<6>[ 1126.627856] nvidia-nvlink: Nvlink Core is being initialized, major device number 507
+<3>[ 1126.627862] 
+<6>[ 1126.629435] nvidia 0000:01:00.0: enabling device (0000 -> 0002)
+<4>[ 1126.635824] NVRM: loading NVIDIA UNIX x86_64 Kernel Module  550.144.03  Mon Dec 30 17:44:08 UTC 2024
+<4>[ 1126.656828] nvidia_uvm: module uses symbols from proprietary module nvidia, inheriting taint.
+<6>[ 1126.661994] nvidia-uvm: Loaded the UVM driver, major device number 505.
+<6>[ 1126.667809] nvidia-modeset: Loading NVIDIA Kernel Mode Setting Driver for UNIX platforms  550.144.03  Mon Dec 30 17:10:10 UTC 2024
+<6>[ 1126.671378] [drm] [nvidia-drm] [GPU ID 0x00000100] Loading driver
+<6>[ 1126.671381] [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:01:00.0 on minor 1
+<6>[ 1126.675259] [drm] [nvidia-drm] [GPU ID 0x00000100] Unloading driver
+<6>[ 1126.783333] nvidia-modeset: Unloading
+<6>[ 1126.848343] nvidia-uvm: Unloaded the UVM driver.
+<6>[ 1126.911991] nvidia-nvlink: Unregistered Nvlink Core, major device number 507
+<6>[ 1137.356713] nvidia-nvlink: Nvlink Core is being initialized, major device number 507
+<3>[ 1137.356721] NVRM: loading NVIDIA UNIX x86_64 Kernel Module  550.144.03  Mon Dec 30 17:44:08 UTC 2024
+<6>[ 1137.368681] nvidia-modeset: Loading NVIDIA Kernel Mode Setting Driver for UNIX platforms  550.144.03  Mon Dec 30 17:10:10 UTC 2024
+<6>[ 1137.371616] [drm] [nvidia-drm] [GPU ID 0x00000100] Loading driver
+<6>[ 1137.371619] [drm] Initialized nvidia-drm 0.0.0 20160202 for 0000:01:00.0 on minor 1
+<4>[ 1140.475887] nvidia_uvm: module uses symbols from proprietary module nvidia, inheriting taint.
+<6>[ 1140.481064] nvidia-uvm: Loaded the UVM driver, major device number 505.
+<4>[ 1321.166014] kauditd_printk_skb: 6 callbacks suppressed
+<5>[ 1321.166019] audit: type=1400 audit(1753326325.166:128): apparmor="STATUS" operation="profile_load" profile="unconfined" name="cri-containerd.apparmor.d" pid=50634 comm="apparmor_parser"
+<6>[ 1360.478056] wireguard: WireGuard 1.0.0 loaded. See www.wireguard.com for information.
+<6>[ 1360.478058] wireguard: Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+<6>[ 1368.464746] Initializing XFRM netlink socket
+<6>[ 1370.857992] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+<6>[ 1370.858123] IPv6: ADDRCONF(NETDEV_CHANGE): calieca09323333: link becomes ready
+<6>[ 1384.184139] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+<6>[ 1384.184297] IPv6: ADDRCONF(NETDEV_CHANGE): cali1e70e89bf90: link becomes ready
+<6>[ 1384.910925] IPv6: ADDRCONF(NETDEV_CHANGE): cali3098ec91b83: link becomes ready
+<6>[ 1392.501279] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+<6>[ 1392.501363] IPv6: ADDRCONF(NETDEV_CHANGE): cali7d4ec2fc14a: link becomes ready
+<6>[ 1393.305485] IPv6: ADDRCONF(NETDEV_CHANGE): cali674693d8ef8: link becomes ready
+<6>[ 1416.163754] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+<6>[ 1416.163815] IPv6: ADDRCONF(NETDEV_CHANGE): cali8c5eb220bdc: link becomes ready
+<6>[ 1417.159056] IPv6: ADDRCONF(NETDEV_CHANGE): cali7ef50ddc900: link becomes ready
+<6>[ 1417.187795] IPv6: ADDRCONF(NETDEV_CHANGE): cali7ef50ddc900: link becomes ready
+<6>[ 1417.945801] IPv6: ADDRCONF(NETDEV_CHANGE): cali01e0181a2ff: link becomes ready
+<6>[ 1418.726681] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+<6>[ 1418.726739] IPv6: ADDRCONF(NETDEV_CHANGE): cali19dde7ac08b: link becomes ready
+<6>[ 1423.408560] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+<6>[ 1423.408642] IPv6: ADDRCONF(NETDEV_CHANGE): caliaad2a044d42: link becomes ready
+<6>[ 1443.378280] IPv6: ADDRCONF(NETDEV_CHANGE): eth0: link becomes ready
+<6>[ 1443.378365] IPv6: ADDRCONF(NETDEV_CHANGE): cali337bd15bb2c: link becomes ready
+<6>[ 2971.420575] crash_test: Module loaded
+<0>[ 3098.275469] Kernel panic - not syncing: Test panic triggered by crash_test module
+<4>[ 3098.275474] CPU: 5 PID: 190097 Comm: tee Tainted: P           OE     5.15.0-136-generic #147-Ubuntu
+<4>[ 3098.275478] Hardware name: ASRockRack 1U1G-GENOA/M3/N/GENOAD8QM3-NL, BIOS 2.07.NV01 03/27/2024
+<4>[ 3098.275480] Call Trace:
+<4>[ 3098.275482]  <TASK>
+<4>[ 3098.275486]  show_stack+0x52/0x5c
+<4>[ 3098.275492]  dump_stack_lvl+0x4a/0x63
+<4>[ 3098.275496]  dump_stack+0x10/0x16
+<4>[ 3098.275499]  panic+0x15c/0x33b
+<4>[ 3098.275505]  crash_write.cold+0x1d/0x1d [crash_test]
+<4>[ 3098.275509]  proc_reg_write+0x5b/0xa0
+<4>[ 3098.275513]  ? __cond_resched+0x1a/0x50
+<4>[ 3098.275517]  vfs_write+0xc4/0x270
+<4>[ 3098.275521]  ksys_write+0x67/0xf0
+<4>[ 3098.275524]  __x64_sys_write+0x19/0x20
+<4>[ 3098.275527]  x64_sys_call+0x47c/0x1fa0
+<4>[ 3098.275530]  do_syscall_64+0x56/0xb0
+<4>[ 3098.275533]  ? srso_alias_return_thunk+0x5/0x7f
+<4>[ 3098.275537]  ? syscall_exit_to_user_mode+0x2c/0x50
+<4>[ 3098.275539]  ? x64_sys_call+0x1a55/0x1fa0
+<4>[ 3098.275541]  ? srso_alias_return_thunk+0x5/0x7f
+<4>[ 3098.275543]  ? do_syscall_64+0x63/0xb0
+<4>[ 3098.275545]  entry_SYSCALL_64_after_hwframe+0x6c/0xd6
+<4>[ 3098.275548] RIP: 0033:0x7fb4de1d5887
+<4>[ 3098.275551] Code: 10 00 f7 d8 64 89 02 48 c7 c0 ff ff ff ff eb b7 0f 1f 00 f3 0f 1e fa 64 8b 04 25 18 00 00 00 85 c0 75 10 b8 01 00 00 00 0f 05 <48> 3d 00 f0 ff ff 77 51 c3 48 83 ec 28 48 89 54 24 18 48 89 74 24
+<4>[ 3098.275553] RSP: 002b:00007ffd95ac10b8 EFLAGS: 00000246 ORIG_RAX: 0000000000000001
+<4>[ 3098.275556] RAX: ffffffffffffffda RBX: 0000000000000002 RCX: 00007fb4de1d5887
+<4>[ 3098.275558] RDX: 0000000000000002 RSI: 00007ffd95ac11f0 RDI: 0000000000000003
+<4>[ 3098.275560] RBP: 00007ffd95ac11f0 R08: 0000000000000002 R09: 0000000000000001
+<4>[ 3098.275561] R10: 00000000000001b6 R11: 0000000000000246 R12: 0000000000000002
+<4>[ 3098.275562] R13: 00005654aa6934a0 R14: 00007fb4de2d7a00 R15: 0000000000000002
+<4>[ 3098.275566]  </TASK>
+<0>[ 3098.275598] Kernel Offset: 0x38e00000 from 0xffffffff81000000 (relocation range: 0xffffffff80000000-0xffffffffbfffffff)
