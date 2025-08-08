@@ -250,10 +250,14 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		if toolkitCtrCreatedAt.IsZero() {
-			// TODO: expose this as a reason
-			reason := "nvidia GPUs found but nvidia-container-toolkit is not found"
+			reason := "nvidia GPUs found but nvidia-container-toolkit pod is not found"
 
+			if cr.reason != "" {
+				cr.reason += "; "
+			}
+			cr.reason += reason
 			log.Logger.Warnw(reason)
+
 		} else {
 			now := c.getTimeNowFunc()
 			elapsed := now.Sub(toolkitCtrCreatedAt)
@@ -262,22 +266,29 @@ func (c *component) Check() components.CheckResult {
 			if elapsed > c.containerToolkitCreationThreshold {
 				config, err := c.getContainerdConfigFunc()
 				if err != nil {
-					// TODO: mark this unhealthy once stable
-					log.Logger.Errorw("error getting containerd config", "error", err)
+					reason := "error getting containerd config"
+
+					if cr.reason != "" {
+						cr.reason += "; "
+					}
+					cr.reason += reason
+					log.Logger.Warnw(reason)
 
 				} else if !bytes.Contains(config, []byte("nvidia")) {
-					// TODO: mark this unhealthy once stable
-					// cr.health = apiv1.HealthStateTypeUnhealthy
+					reason := "nvidia GPUs and nvidia-container-toolkit pod found but containerd config does not contain nvidia"
 
-					// TODO: expose this as a reason
-					reason := "nvidia GPUs found but containerd config does not contain nvidia"
-
+					if cr.reason != "" {
+						cr.reason += "; "
+					}
+					cr.reason += reason
 					log.Logger.Warnw(reason)
+
+					cr.health = apiv1.HealthStateTypeUnhealthy
 				} else {
 					log.Logger.Debugw("containerd config contains nvidia")
 				}
 			} else {
-				log.Logger.Debugw("nvidia-container-toolkit is running but not long enough", "elapsed", elapsed)
+				log.Logger.Debugw("nvidia-container-toolkit pod is running but not long enough", "elapsed", elapsed)
 			}
 		}
 	}
