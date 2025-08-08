@@ -42,6 +42,10 @@ type Config struct {
 	// Set -1 to disable the auto update by exit code.
 	AutoUpdateExitCode int `json:"auto_update_exit_code"`
 
+	// VersionFile is the file that contains the target version.
+	// If empty, the version file is not used.
+	VersionFile string `json:"version_file"`
+
 	// A list of nvidia tool command paths to overwrite the default paths.
 	NvidiaToolOverwrites pkgconfigcommon.ToolOverwrites `json:"nvidia_tool_overwrites"`
 
