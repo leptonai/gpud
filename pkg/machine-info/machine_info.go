@@ -192,10 +192,11 @@ func GetProvider(publicIP string) *providers.Info {
 	if err != nil {
 		log.Logger.Warnw("failed to detect provider", "error", err)
 	} else {
-		log.Logger.Debugw("provider info", "provider", providerInfo, "error", err)
+		log.Logger.Infow("provider detection result", "provider", providerInfo)
 	}
 
 	if providerInfo == nil {
+		log.Logger.Infow("providerInfo is nil, creating default")
 		providerInfo = &providers.Info{
 			Provider: "unknown",
 		}
@@ -204,23 +205,38 @@ func GetProvider(publicIP string) *providers.Info {
 		providerInfo.PublicIP = publicIP
 	}
 	if providerInfo.Provider == "" {
+		log.Logger.Infow("providerInfo.Provider is empty, setting to unknown")
 		providerInfo.Provider = "unknown"
 	}
 
+	log.Logger.Infow("provider after initial detection", "provider", providerInfo.Provider, "publicIP", providerInfo.PublicIP)
+
 	if providerInfo.Provider != "unknown" {
+		log.Logger.Infow("returning detected provider", "provider", providerInfo.Provider)
 		return providerInfo
 	}
 
 	if publicIP != "" {
 		// fallback to ASN lookup
-		log.Logger.Debugw("fallback to ASN lookup for provider", "publicIP", publicIP)
+		log.Logger.Infow("fallback to ASN lookup for provider", "publicIP", publicIP)
 		asnResult, err := asn.GetASLookup(publicIP)
 		if err != nil {
+			log.Logger.Warnw("ASN lookup failed", "error", err, "publicIP", publicIP)
 			return providerInfo
 		}
 
-		log.Logger.Debugw("ASN lookup result", "asnResult", asnResult)
-		providerInfo.Provider = asn.NormalizeASNName(asnResult.AsnName)
+		log.Logger.Infow("ASN lookup result", "asnResult", asnResult, "asnName", asnResult.AsnName)
+		normalizedProvider := asn.NormalizeASNName(asnResult.AsnName)
+		log.Logger.Infow("normalized provider name", "normalizedProvider", normalizedProvider)
+
+		// Ensure we don't set an empty provider
+		if normalizedProvider != "" {
+			providerInfo.Provider = normalizedProvider
+		} else {
+			log.Logger.Warnw("normalized provider is empty, keeping unknown")
+		}
+	} else {
+		log.Logger.Warnw("no public IP provided for ASN lookup")
 	}
 
 	if providerInfo.Provider == "nebius" && providerInfo.InstanceID == "" {
@@ -231,6 +247,13 @@ func GetProvider(publicIP string) *providers.Info {
 			providerInfo.InstanceID = instanceID
 		}
 	}
+
+	log.Logger.Infow("GetProvider returning",
+		"provider", providerInfo.Provider,
+		"publicIP", providerInfo.PublicIP,
+		"privateIP", providerInfo.PrivateIP,
+		"instanceID", providerInfo.InstanceID,
+	)
 
 	return providerInfo
 }
