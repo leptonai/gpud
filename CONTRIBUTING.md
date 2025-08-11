@@ -19,6 +19,25 @@ make all
 ./bin/gpud -h
 ```
 
+## Building with Docker
+
+### Prerequisites
+
+- Docker with `buildx` enabled.
+- Access to a container registry (e.g., Docker Hub, NVCR) if you plan to push images.
+
+### Building the Linux Container Image
+
+Use Docker with `buildx` enabled to build an image for your machine's native architecture.
+
+```bash
+docker buildx build \
+  --platform "linux/$(docker info -f '{{.ClientInfo.Arch}}')" \
+  --load \
+  --build-arg GPUD_VERSION="v0.6.0" \
+  -t your-registry/gpud:v0.6.0 .
+```
+
 ## Testing
 
 We highly recommend writing tests for new features or bug fixes and ensure all tests passing before submitting a PR.

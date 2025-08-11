@@ -1,0 +1,102 @@
+# Default values for GPUd.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# String to override the release name.
+nameOverride: ""
+# String to override the fully qualified application name.
+fullnameOverride: ""
+
+image:
+  repository: gpud
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+# Application-specific arguments for the GPUd container.
+gpud:
+  args:
+    - "run"
+    - "--listen-address=0.0.0.0:15132"
+    - "--log-level=info"
+    - "--endpoint=gpud-manager-prod01.dgxc-lepton.nvidia.com"
+    - "--enable-auto-update=false"
+    - "--auto-update-exit-code=0"
+  # Telemetry and usage data collection settings.
+  telemetry:
+    # Set to false to disable collection of anonymous usage data.
+    enabled: false
+
+# Reference to one or more secrets to be used for pulling images from private registries.
+imagePullSecrets: []
+
+# Additional annotations to add to the pod.
+podAnnotations: {}
+
+# A Service can be created for the DaemonSet, e.g., for Prometheus scraping.
+service:
+  enabled: false
+  type: ClusterIP
+  port: 80
+
+# Liveness and Readiness probes.
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 15132
+    scheme: HTTPS
+# No readinessProbe is defined
+
+updateStrategy:
+  rollingUpdate:
+    # This MUST be an integer for a DaemonSet. It cannot be a percentage.
+    maxUnavailable: 1
+
+# Container-level security context.
+securityContext:
+  # WARNING: This chart requires privileged access to the host node.
+  privileged: false
+
+# Pod-level security context.
+podSecurityContext: {}
+  # fsGroup: 2000
+
+# Resource requests and limits for the container.
+resources:
+  limits:
+    cpu: 1
+    memory: 1Gi
+  requests:
+    cpu: 10m
+    memory: 10Mi
+
+# How long to wait in seconds for the pod to shut down gracefully.
+terminationGracePeriodSeconds: 10
+
+serviceAccount:
+  # Specifies whether a service account should be created.
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account.
+  annotations: {}
+  # The name of the service account to use. If not set and create is true, a name is generated.
+  name: ""
+
+# Additional volumes for the pod, e.g., for custom configuration files.
+volumes: []
+# Additional volume mounts for the container.
+volumeMounts: []
+
+# Node selector, tolerations, and affinity for pod scheduling.
+nodeSelector: {}
+tolerations:
+  - operator: "Exists"
+# By default, this chart only schedules pods on nodes with NVIDIA GPUs.
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: nvidia.com/gpu.product
+          operator: Exists
