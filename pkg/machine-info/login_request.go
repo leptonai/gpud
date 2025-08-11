@@ -70,10 +70,21 @@ func createLoginRequest(
 	if err != nil {
 		log.Logger.Errorw("failed to get public ip", "error", err)
 	}
+	log.Logger.Debugw("detected public IP", "publicIP", req.Network.PublicIP)
+
 	detectedProvider := getProviderFunc(req.Network.PublicIP)
+	log.Logger.Debugw("provider detection completed",
+		"provider", detectedProvider.Provider,
+		"providerInstanceID", detectedProvider.InstanceID,
+		"publicIP", detectedProvider.PublicIP)
+
 	req.Provider = detectedProvider.Provider
 	req.ProviderInstanceID = detectedProvider.InstanceID
 	req.Network.PublicIP = detectedProvider.PublicIP
+
+	log.Logger.Debugw("login request provider fields set",
+		"provider", req.Provider,
+		"providerInstanceID", req.ProviderInstanceID)
 
 	req.MachineInfo, err = getMachineInfoFunc(nvmlInstance)
 	if err != nil {
