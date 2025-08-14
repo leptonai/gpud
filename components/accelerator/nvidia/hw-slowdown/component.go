@@ -250,28 +250,19 @@ func (c *component) Check() components.CheckResult {
 		if _, ok := c.gpuUUIDsWithHWSlowdown[uuid]; ok {
 			log.Logger.Warnw("marking HW slowdown to inject failures", "uuid", uuid)
 			clockEvents.HWSlowdown = true
-			if clockEvents.Reasons == nil {
-				clockEvents.Reasons = []string{}
-			}
-			clockEvents.Reasons = append(clockEvents.Reasons, "HW slowdown injected for testing")
+			clockEvents.HWSlowdownReasons = append(clockEvents.HWSlowdownReasons, "HW slowdown injected for testing")
 		}
 
 		if _, ok := c.gpuUUIDsWithHWSlowdownThermal[uuid]; ok {
 			log.Logger.Warnw("marking HW slowdown thermal to inject failures", "uuid", uuid)
 			clockEvents.HWSlowdownThermal = true
-			if clockEvents.Reasons == nil {
-				clockEvents.Reasons = []string{}
-			}
-			clockEvents.Reasons = append(clockEvents.Reasons, "HW slowdown thermal injected for testing")
+			clockEvents.HWSlowdownReasons = append(clockEvents.HWSlowdownReasons, "HW slowdown thermal injected for testing")
 		}
 
 		if _, ok := c.gpuUUIDsWithHWSlowdownPowerBrake[uuid]; ok {
 			log.Logger.Warnw("marking HW slowdown power brake to inject failures", "uuid", uuid)
 			clockEvents.HWSlowdownPowerBrake = true
-			if clockEvents.Reasons == nil {
-				clockEvents.Reasons = []string{}
-			}
-			clockEvents.Reasons = append(clockEvents.Reasons, "HW slowdown power brake injected for testing")
+			clockEvents.HWSlowdownReasons = append(clockEvents.HWSlowdownReasons, "HW slowdown power brake injected for testing")
 		}
 
 		if clockEvents.HWSlowdown {
@@ -424,7 +415,7 @@ func (cr *checkResult) String() string {
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"GPU UUID", "HW Slowdown", "HW Slowdown Thermal", "HW Slowdown Power Brake", "Reasons"})
 	for _, event := range cr.ClockEvents {
-		table.Append([]string{event.UUID, fmt.Sprintf("%t", event.HWSlowdown), fmt.Sprintf("%t", event.HWSlowdownThermal), fmt.Sprintf("%t", event.HWSlowdownPowerBrake), strings.Join(event.Reasons, ", ")})
+		table.Append([]string{event.UUID, fmt.Sprintf("%t", event.HWSlowdown), fmt.Sprintf("%t", event.HWSlowdownThermal), fmt.Sprintf("%t", event.HWSlowdownPowerBrake), strings.Join(event.HWSlowdownReasons, ", ")})
 	}
 	table.Render()
 
