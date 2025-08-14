@@ -1582,14 +1582,14 @@ func TestFailureInjection(t *testing.T) {
 				if expectedReasons, ok := tc.expectedReasonsContain[uuid]; ok {
 					for _, expectedReason := range expectedReasons {
 						found := false
-						for _, reason := range event.Reasons {
+						for _, reason := range event.HWSlowdownReasons {
 							if reason == expectedReason {
 								found = true
 								break
 							}
 						}
 						assert.True(t, found,
-							"GPU %s should have reason '%s' in %v", uuid, expectedReason, event.Reasons)
+							"GPU %s should have reason '%s' in %v", uuid, expectedReason, event.HWSlowdownReasons)
 					}
 				}
 			}
