@@ -20,12 +20,14 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgfile "github.com/leptonai/gpud/pkg/file"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
 
 // Name is the ID of the disk component.
@@ -40,6 +42,8 @@ type component struct {
 	retryInterval time.Duration
 
 	getTimeNowFunc func() time.Time
+
+	getGroupConfigsFunc func() pkgnfschecker.Configs
 
 	getBlockDevicesFunc func(ctx context.Context) (disk.BlockDevices, error)
 
@@ -81,6 +85,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
+
+		getGroupConfigsFunc: nfs.GetDefaultConfigs,
 
 		rebootEventStore: gpudInstance.RebootEventStore,
 		lookbackPeriod:   defaultLookbackPeriod,
@@ -437,8 +443,16 @@ func (c *component) Check() components.CheckResult {
 	if !c.fetchExt4Partitions(cr) {
 		return cr
 	}
-	if !c.fetchNFSPartitions(cr) {
-		return cr
+
+	// Check if NFS configs are set before attempting to fetch NFS partitions
+	groupConfigs := c.getGroupConfigsFunc()
+	if len(groupConfigs) == 0 {
+		log.Logger.Infow("skipping NFS partitions check as no NFS configs are set")
+		cr.NFSPartitions = disk.Partitions{}
+	} else {
+		if !c.fetchNFSPartitions(cr) {
+			return cr
+		}
 	}
 
 	devToUsage := make(map[string]disk.Usage)

@@ -11,6 +11,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
 
 // TestDiskFailureResolutionAfterReboot tests that when disk failures occur before a reboot
@@ -46,6 +47,9 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 			mountPointsToTrackUsage: map[string]struct{}{},
 			getTimeNowFunc: func() time.Time {
 				return now
+			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
 			},
 			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 				return disk.Partitions{}, nil
@@ -521,6 +525,9 @@ func TestFailureReasonMapCleanup(t *testing.T) {
 		mountPointsToTrackUsage: map[string]struct{}{},
 		getTimeNowFunc: func() time.Time {
 			return now
+		},
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{}
 		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
