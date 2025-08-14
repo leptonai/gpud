@@ -207,6 +207,21 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "set the comma-separated gpu uuids with row remapping failed",
 					Hidden: true, // only for testing
 				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-hw-slowdown",
+					Usage:  "set the comma-separated gpu uuids with hw slowdown",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-hw-slowdown-thermal",
+					Usage:  "set the comma-separated gpu uuids with hw slowdown thermal",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-hw-slowdown-power-brake",
+					Usage:  "set the comma-separated gpu uuids with hw slowdown power brake",
+					Hidden: true, // only for testing
+				},
 			},
 		},
 		{
@@ -461,6 +476,21 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-row-remapping-failed",
 					Usage:  "set the comma-separated gpu uuids with row remapping failed",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-hw-slowdown",
+					Usage:  "set the comma-separated gpu uuids with hw slowdown",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-hw-slowdown-thermal",
+					Usage:  "set the comma-separated gpu uuids with hw slowdown thermal",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-hw-slowdown-power-brake",
+					Usage:  "set the comma-separated gpu uuids with hw slowdown power brake",
 					Hidden: true, // only for testing
 				},
 			},

@@ -102,11 +102,23 @@ func Command(cliContext *cli.Context) error {
 	gpuUUIDsWithRowRemappingFailedRaw := cliContext.String("gpu-uuids-with-row-remapping-failed")
 	gpuUUIDsWithRowRemappingFailed := common.ParseGPUUUIDs(gpuUUIDsWithRowRemappingFailedRaw)
 
+	gpuUUIDsWithHWSlowdownRaw := cliContext.String("gpu-uuids-with-hw-slowdown")
+	gpuUUIDsWithHWSlowdown := common.ParseGPUUUIDs(gpuUUIDsWithHWSlowdownRaw)
+
+	gpuUUIDsWithHWSlowdownThermalRaw := cliContext.String("gpu-uuids-with-hw-slowdown-thermal")
+	gpuUUIDsWithHWSlowdownThermal := common.ParseGPUUUIDs(gpuUUIDsWithHWSlowdownThermalRaw)
+
+	gpuUUIDsWithHWSlowdownPowerBrakeRaw := cliContext.String("gpu-uuids-with-hw-slowdown-power-brake")
+	gpuUUIDsWithHWSlowdownPowerBrake := common.ParseGPUUUIDs(gpuUUIDsWithHWSlowdownPowerBrakeRaw)
+
 	configOpts := []config.OpOption{
 		config.WithInfinibandClassRootDir(ibClassRootDir),
 		config.WithFailureInjector(&gpudcomponents.FailureInjector{
-			GPUUUIDsWithRowRemappingPending: gpuUUIDsWithRowRemappingPending,
-			GPUUUIDsWithRowRemappingFailed:  gpuUUIDsWithRowRemappingFailed,
+			GPUUUIDsWithRowRemappingPending:  gpuUUIDsWithRowRemappingPending,
+			GPUUUIDsWithRowRemappingFailed:   gpuUUIDsWithRowRemappingFailed,
+			GPUUUIDsWithHWSlowdown:           gpuUUIDsWithHWSlowdown,
+			GPUUUIDsWithHWSlowdownThermal:    gpuUUIDsWithHWSlowdownThermal,
+			GPUUUIDsWithHWSlowdownPowerBrake: gpuUUIDsWithHWSlowdownPowerBrake,
 		}),
 	}
 
