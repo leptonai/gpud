@@ -2046,7 +2046,10 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []pkgcontainerd.PodSandbox{
 				{
@@ -2079,23 +2082,17 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 			},
 			pods: []pkgcontainerd.PodSandbox{
 				{
-					Name:  "nvidia-container-toolkit-daemonset-def456",
-					State: "SANDBOX_READY",
-					Containers: []pkgcontainerd.PodSandboxContainerStatus{
-						{
-							Name:      "nvidia-container-toolkit-ctr",
-							State:     "CONTAINER_RUNNING",
-							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
-						},
-					},
+					Name:      "nvidia-container-toolkit-daemonset-def456",
+					State:     "SANDBOX_READY",
+					CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
 				},
 			},
 			getTimeNowFunc: func() time.Time {
 				return time.Now()
 			},
 			containerToolkitCreationThreshold: 10 * time.Minute,
-			expectedHealth:                    apiv1.HealthStateTypeHealthy,
-			expectedReason:                    "ok",
+			expectedHealth:                    apiv1.HealthStateTypeUnhealthy,
+			expectedReason:                    "nvidia GPUs and nvidia-container-toolkit pod found but containerd config does not contain nvidia",
 		},
 		{
 			name: "nvml with container toolkit but not running long enough",
@@ -2104,7 +2101,10 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []pkgcontainerd.PodSandbox{
 				{
@@ -2133,7 +2133,10 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []pkgcontainerd.PodSandbox{
 				{
@@ -2162,19 +2165,16 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []pkgcontainerd.PodSandbox{
 				{
-					Name:  "nvidia-container-toolkit-daemonset-notready",
-					State: "SANDBOX_NOTREADY",
-					Containers: []pkgcontainerd.PodSandboxContainerStatus{
-						{
-							Name:      "nvidia-container-toolkit-ctr",
-							State:     "CONTAINER_RUNNING",
-							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
-						},
-					},
+					Name:      "nvidia-container-toolkit-daemonset-notready",
+					State:     "SANDBOX_NOTREADY",
+					CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
 				},
 			},
 			getTimeNowFunc: func() time.Time {
@@ -2182,7 +2182,55 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 			},
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
-			expectedReason:                    "ok",
+			expectedReason:                    "nvidia GPUs found but nvidia-container-toolkit pod is not found",
+		},
+		{
+			name: "nvml with nvidia GPUs but no container toolkit pod",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:  "some-other-pod",
+					State: "SANDBOX_READY",
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "nvidia GPUs found but nvidia-container-toolkit pod is not found",
+		},
+		{
+			name: "nvml with config error when checking containerd config",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return nil, errors.New("config read error")
+			},
+			pods: []pkgcontainerd.PodSandbox{
+				{
+					Name:      "nvidia-container-toolkit-daemonset-xyz",
+					State:     "SANDBOX_READY",
+					CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
+				},
+			},
+			getTimeNowFunc: func() time.Time {
+				return time.Now()
+			},
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "error getting containerd config",
 		},
 	}
 
@@ -2216,6 +2264,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 					return tt.pods, nil
 				},
+				endpoint: "unix:///var/run/containerd/containerd.sock",
 			}
 
 			cr := c.Check()
@@ -2223,7 +2272,13 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 			require.True(t, ok, "Expected checkResult type")
 
 			assert.Equal(t, tt.expectedHealth, checkResult.health, "Health state should match expected")
-			assert.Contains(t, checkResult.reason, tt.expectedReason, "Reason should contain expected text")
+			if tt.expectedReason != "" && tt.expectedReason != "ok" {
+				assert.Contains(t, checkResult.reason, tt.expectedReason, "Reason should contain expected text")
+			} else if tt.expectedReason == "ok" {
+				// For "ok" cases, check that reason starts with "ok" or is exactly "ok"
+				assert.True(t, checkResult.reason == "ok" || (len(checkResult.reason) >= 2 && checkResult.reason[:2] == "ok"),
+					"Reason should be 'ok' or start with 'ok', got: %s", checkResult.reason)
+			}
 		})
 	}
 }
@@ -2887,7 +2942,9 @@ func TestNVMLValidation(t *testing.T) {
 				productName: "Tesla V100",
 			},
 			getContainerdConfigFunc: func() ([]byte, error) {
-				config := `[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
   runtime_type = "io.containerd.runc.v2"
   runtime_engine = ""
   runtime_root = ""
@@ -3226,8 +3283,11 @@ func TestContainerToolkitValidation(t *testing.T) {
 				getTimeNowFunc:                    tt.getTimeNowFunc,
 				containerToolkitCreationThreshold: tt.containerToolkitCreationThreshold,
 				getContainerdConfigFunc: func() ([]byte, error) {
-					// Return config with nvidia to avoid the nvidia config warning
-					return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.nvidia]"), nil
+					// Return config with both nvidia settings to avoid the nvidia config warning
+					config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+					return []byte(config), nil
 				},
 
 				// Mock all dependencies as successful to focus on container toolkit validation
@@ -3246,6 +3306,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 				listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
 					return tt.pods, nil
 				},
+				endpoint: "unix:///var/run/containerd/containerd.sock",
 			}
 
 			cr := c.Check()
@@ -3253,7 +3314,13 @@ func TestContainerToolkitValidation(t *testing.T) {
 			require.True(t, ok, "Expected checkResult type")
 
 			assert.Equal(t, tt.expectedHealth, checkResult.health, "Health state should match expected")
-			assert.Contains(t, checkResult.reason, tt.expectedReason, "Reason should contain expected text")
+			if tt.expectedReason != "" && tt.expectedReason != "ok" {
+				assert.Contains(t, checkResult.reason, tt.expectedReason, "Reason should contain expected text")
+			} else if tt.expectedReason == "ok" {
+				// For "ok" cases, check that reason starts with "ok" or is exactly "ok"
+				assert.True(t, checkResult.reason == "ok" || (len(checkResult.reason) >= 2 && checkResult.reason[:2] == "ok"),
+					"Reason should be 'ok' or start with 'ok', got: %s", checkResult.reason)
+			}
 		})
 	}
 }
