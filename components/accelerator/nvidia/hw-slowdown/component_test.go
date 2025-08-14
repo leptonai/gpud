@@ -1383,3 +1383,302 @@ func TestComponentEventsWithNilBucket(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, events)
 }
+
+// TestFailureInjection tests the failure injection functionality for HW slowdown
+func TestFailureInjection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                   string
+		injectedHWSlowdown     []string
+		injectedThermal        []string
+		injectedPowerBrake     []string
+		expectedHWSlowdown     map[string]bool
+		expectedThermal        map[string]bool
+		expectedPowerBrake     map[string]bool
+		expectedReasonsContain map[string][]string
+	}{
+		{
+			name:               "inject HW slowdown only",
+			injectedHWSlowdown: []string{"gpu-0"},
+			injectedThermal:    []string{},
+			injectedPowerBrake: []string{},
+			expectedHWSlowdown: map[string]bool{"gpu-0": true, "gpu-1": false},
+			expectedThermal:    map[string]bool{"gpu-0": false, "gpu-1": false},
+			expectedPowerBrake: map[string]bool{"gpu-0": false, "gpu-1": false},
+			expectedReasonsContain: map[string][]string{
+				"gpu-0": {"HW slowdown injected for testing"},
+			},
+		},
+		{
+			name:               "inject thermal slowdown only",
+			injectedHWSlowdown: []string{},
+			injectedThermal:    []string{"gpu-1"},
+			injectedPowerBrake: []string{},
+			expectedHWSlowdown: map[string]bool{"gpu-0": false, "gpu-1": false},
+			expectedThermal:    map[string]bool{"gpu-0": false, "gpu-1": true},
+			expectedPowerBrake: map[string]bool{"gpu-0": false, "gpu-1": false},
+			expectedReasonsContain: map[string][]string{
+				"gpu-1": {"HW slowdown thermal injected for testing"},
+			},
+		},
+		{
+			name:               "inject power brake slowdown only",
+			injectedHWSlowdown: []string{},
+			injectedThermal:    []string{},
+			injectedPowerBrake: []string{"gpu-0"},
+			expectedHWSlowdown: map[string]bool{"gpu-0": false, "gpu-1": false},
+			expectedThermal:    map[string]bool{"gpu-0": false, "gpu-1": false},
+			expectedPowerBrake: map[string]bool{"gpu-0": true, "gpu-1": false},
+			expectedReasonsContain: map[string][]string{
+				"gpu-0": {"HW slowdown power brake injected for testing"},
+			},
+		},
+		{
+			name:               "inject multiple types of slowdown",
+			injectedHWSlowdown: []string{"gpu-0", "gpu-1"},
+			injectedThermal:    []string{"gpu-0"},
+			injectedPowerBrake: []string{"gpu-1"},
+			expectedHWSlowdown: map[string]bool{"gpu-0": true, "gpu-1": true},
+			expectedThermal:    map[string]bool{"gpu-0": true, "gpu-1": false},
+			expectedPowerBrake: map[string]bool{"gpu-0": false, "gpu-1": true},
+			expectedReasonsContain: map[string][]string{
+				"gpu-0": {"HW slowdown injected for testing", "HW slowdown thermal injected for testing"},
+				"gpu-1": {"HW slowdown injected for testing", "HW slowdown power brake injected for testing"},
+			},
+		},
+		{
+			name:                   "no injection",
+			injectedHWSlowdown:     []string{},
+			injectedThermal:        []string{},
+			injectedPowerBrake:     []string{},
+			expectedHWSlowdown:     map[string]bool{"gpu-0": false, "gpu-1": false},
+			expectedThermal:        map[string]bool{"gpu-0": false, "gpu-1": false},
+			expectedPowerBrake:     map[string]bool{"gpu-0": false, "gpu-1": false},
+			expectedReasonsContain: map[string][]string{},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+
+			// Create mock devices
+			mockDevice0 := testutil.NewMockDevice(
+				&mock.Device{
+					GetUUIDFunc: func() (string, nvml.Return) {
+						return "gpu-0", nvml.SUCCESS
+					},
+				},
+				"test-arch", "test-brand", "test-cuda", "test-pci-0",
+			)
+			mockDevice1 := testutil.NewMockDevice(
+				&mock.Device{
+					GetUUIDFunc: func() (string, nvml.Return) {
+						return "gpu-1", nvml.SUCCESS
+					},
+				},
+				"test-arch", "test-brand", "test-cuda", "test-pci-1",
+			)
+
+			mockDevices := map[string]device.Device{
+				"gpu-0": mockDevice0,
+				"gpu-1": mockDevice1,
+			}
+
+			// Create mock NVML instance
+			mockNVML := createMockNVMLInstance(mockDevices)
+
+			// Set up test database
+			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+			defer cleanup()
+
+			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+			assert.NoError(t, err)
+			bucket, err := store.Bucket("test_injection")
+			assert.NoError(t, err)
+			defer bucket.Close()
+
+			// Create component with failure injection
+			c := &component{
+				ctx:                              ctx,
+				cancel:                           cancel,
+				nvmlInstance:                     mockNVML,
+				evaluationWindow:                 DefaultStateHWSlowdownEvaluationWindow,
+				threshold:                        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+				eventBucket:                      bucket,
+				gpuUUIDsWithHWSlowdown:           make(map[string]any),
+				gpuUUIDsWithHWSlowdownThermal:    make(map[string]any),
+				gpuUUIDsWithHWSlowdownPowerBrake: make(map[string]any),
+				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+					// Return clean state - injection should override these
+					return nvidianvml.ClockEvents{
+						UUID:                 uuid,
+						Time:                 metav1.Time{Time: time.Now().UTC()},
+						HWSlowdown:           false,
+						HWSlowdownThermal:    false,
+						HWSlowdownPowerBrake: false,
+						Supported:            true,
+					}, nil
+				},
+				getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+					return true, nil
+				},
+				getSystemDriverVersionFunc: func() (string, error) {
+					return "535.104.05", nil
+				},
+				parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+					return 535, 104, 5, nil
+				},
+				checkClockEventsSupportedFunc: func(major int) bool {
+					return major >= 535
+				},
+			}
+
+			// Populate failure injection maps
+			for _, uuid := range tc.injectedHWSlowdown {
+				c.gpuUUIDsWithHWSlowdown[uuid] = nil
+			}
+			for _, uuid := range tc.injectedThermal {
+				c.gpuUUIDsWithHWSlowdownThermal[uuid] = nil
+			}
+			for _, uuid := range tc.injectedPowerBrake {
+				c.gpuUUIDsWithHWSlowdownPowerBrake[uuid] = nil
+			}
+
+			// Run the check
+			result := c.Check()
+			cr := result.(*checkResult)
+
+			// Verify the injected states
+			assert.NotNil(t, cr)
+			assert.Equal(t, 2, len(cr.ClockEvents), "Should have results for 2 GPUs")
+
+			// Check each GPU's results
+			for _, event := range cr.ClockEvents {
+				uuid := event.UUID
+
+				// Verify HW slowdown state
+				if expected, ok := tc.expectedHWSlowdown[uuid]; ok {
+					assert.Equal(t, expected, event.HWSlowdown,
+						"GPU %s HWSlowdown should be %v", uuid, expected)
+				}
+
+				// Verify thermal state
+				if expected, ok := tc.expectedThermal[uuid]; ok {
+					assert.Equal(t, expected, event.HWSlowdownThermal,
+						"GPU %s HWSlowdownThermal should be %v", uuid, expected)
+				}
+
+				// Verify power brake state
+				if expected, ok := tc.expectedPowerBrake[uuid]; ok {
+					assert.Equal(t, expected, event.HWSlowdownPowerBrake,
+						"GPU %s HWSlowdownPowerBrake should be %v", uuid, expected)
+				}
+
+				// Verify reasons contain expected strings
+				if expectedReasons, ok := tc.expectedReasonsContain[uuid]; ok {
+					for _, expectedReason := range expectedReasons {
+						found := false
+						for _, reason := range event.Reasons {
+							if reason == expectedReason {
+								found = true
+								break
+							}
+						}
+						assert.True(t, found,
+							"GPU %s should have reason '%s' in %v", uuid, expectedReason, event.Reasons)
+					}
+				}
+			}
+
+			// Verify health state is still healthy (injection doesn't immediately affect health)
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		})
+	}
+}
+
+// TestFailureInjectionFromGPUdInstance tests initializing component with failure injection from GPUdInstance
+func TestFailureInjectionFromGPUdInstance(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                    string
+		failureInjector         *components.FailureInjector
+		expectedHWSlowdownUUIDs map[string]bool
+		expectedThermalUUIDs    map[string]bool
+		expectedPowerBrakeUUIDs map[string]bool
+	}{
+		{
+			name: "with failure injector",
+			failureInjector: &components.FailureInjector{
+				GPUUUIDsWithHWSlowdown:           []string{"gpu-0", "gpu-2"},
+				GPUUUIDsWithHWSlowdownThermal:    []string{"gpu-1"},
+				GPUUUIDsWithHWSlowdownPowerBrake: []string{"gpu-2", "gpu-3"},
+			},
+			expectedHWSlowdownUUIDs: map[string]bool{"gpu-0": true, "gpu-2": true},
+			expectedThermalUUIDs:    map[string]bool{"gpu-1": true},
+			expectedPowerBrakeUUIDs: map[string]bool{"gpu-2": true, "gpu-3": true},
+		},
+		{
+			name:                    "no failure injector",
+			failureInjector:         nil,
+			expectedHWSlowdownUUIDs: map[string]bool{},
+			expectedThermalUUIDs:    map[string]bool{},
+			expectedPowerBrakeUUIDs: map[string]bool{},
+		},
+		{
+			name: "empty failure injector",
+			failureInjector: &components.FailureInjector{
+				GPUUUIDsWithHWSlowdown:           []string{},
+				GPUUUIDsWithHWSlowdownThermal:    []string{},
+				GPUUUIDsWithHWSlowdownPowerBrake: []string{},
+			},
+			expectedHWSlowdownUUIDs: map[string]bool{},
+			expectedThermalUUIDs:    map[string]bool{},
+			expectedPowerBrakeUUIDs: map[string]bool{},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			// Create GPUdInstance with failure injector
+			instance := &components.GPUdInstance{
+				RootCtx:         context.Background(),
+				NVMLInstance:    &mockNVMLInstance{nvmlExists: true, productName: "Test GPU"},
+				FailureInjector: tc.failureInjector,
+			}
+
+			// Create component
+			comp, err := New(instance)
+			assert.NoError(t, err)
+			assert.NotNil(t, comp)
+
+			c, ok := comp.(*component)
+			assert.True(t, ok)
+
+			// Verify the failure injection maps were populated correctly
+			for uuid, expected := range tc.expectedHWSlowdownUUIDs {
+				_, exists := c.gpuUUIDsWithHWSlowdown[uuid]
+				assert.Equal(t, expected, exists, "UUID %s in HWSlowdown map", uuid)
+			}
+
+			for uuid, expected := range tc.expectedThermalUUIDs {
+				_, exists := c.gpuUUIDsWithHWSlowdownThermal[uuid]
+				assert.Equal(t, expected, exists, "UUID %s in Thermal map", uuid)
+			}
+
+			for uuid, expected := range tc.expectedPowerBrakeUUIDs {
+				_, exists := c.gpuUUIDsWithHWSlowdownPowerBrake[uuid]
+				assert.Equal(t, expected, exists, "UUID %s in PowerBrake map", uuid)
+			}
+
+			// Clean up
+			err = comp.Close()
+			assert.NoError(t, err)
+		})
+	}
+}
