@@ -12,6 +12,7 @@ import (
 	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
+	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
 
 // mockRebootEventStore implements pkghost.RebootEventStore for testing
@@ -350,6 +351,9 @@ func TestComponent_Check_SuggestedActions(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return now
 		},
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{}
+		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		},
@@ -401,6 +405,9 @@ func TestComponent_Check_NoSpaceLeftNotSuggested(t *testing.T) {
 		lookbackPeriod:   96 * time.Hour,
 		getTimeNowFunc: func() time.Time {
 			return now
+		},
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{}
 		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
@@ -517,6 +524,9 @@ func TestLookbackPeriod(t *testing.T) {
 		lookbackPeriod:   3 * 24 * time.Hour, // 3 days
 		getTimeNowFunc: func() time.Time {
 			return now
+		},
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{}
 		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			// Return at least one partition so the component doesn't exit early
@@ -662,6 +672,9 @@ func TestComponent_Check_DeduplicationAndSorting(t *testing.T) {
 		lookbackPeriod:   time.Hour, // 1 hour lookback
 		getTimeNowFunc: func() time.Time {
 			return now
+		},
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{}
 		},
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{

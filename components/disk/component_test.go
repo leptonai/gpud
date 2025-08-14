@@ -20,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/kmsg"
+	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
 
 // mockEventStore implements a mock for eventstore.Store
@@ -110,6 +111,13 @@ func createTestComponent(ctx context.Context, mountPoints, mountTargets []string
 	// Initialize statWithTimeoutFunc with real implementation for tests that don't override it
 	if ct.statWithTimeoutFunc == nil {
 		ct.statWithTimeoutFunc = pkgfile.StatWithTimeout
+	}
+
+	// Initialize getGroupConfigsFunc to return empty configs by default
+	if ct.getGroupConfigsFunc == nil {
+		ct.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{}
+		}
 	}
 
 	return ct
@@ -829,6 +837,9 @@ func TestFindMntRetryLogic(t *testing.T) {
 				getTimeNowFunc: func() time.Time {
 					return time.Now().UTC()
 				},
+				getGroupConfigsFunc: func() pkgnfschecker.Configs {
+					return pkgnfschecker.Configs{}
+				},
 				getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 					return disk.Partitions{
 						{
@@ -900,6 +911,9 @@ func TestMountTargetUsagesInitialization(t *testing.T) {
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
+		},
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{}
 		},
 		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
 			return &disk.FindMntOutput{
@@ -975,6 +989,9 @@ func TestFindMntLogging(t *testing.T) {
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
+		},
+		getGroupConfigsFunc: func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{}
 		},
 		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
 			callCount++
@@ -1054,6 +1071,13 @@ func TestNFSPartitionsRetrieval(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
 		defer c.Close()
 
+		// Provide non-empty configs to enable NFS checking
+		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{VolumePath: "/mnt/nfs"},
+			}
+		}
+
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{mockDevice}, nil
 		}
@@ -1102,6 +1126,44 @@ func TestNFSPartitionsRetrieval(t *testing.T) {
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
 		assert.Equal(t, "ok", lastCheckResult.reason)
 	})
+
+	t.Run("skip NFS partitions when no configs", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{}, []string{})
+		defer c.Close()
+
+		// Ensure configs are empty (this is default, but explicit for clarity)
+		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{}
+		}
+
+		// Track if getNFSPartitionsFunc was called
+		nfsPartitionsCalled := false
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			nfsPartitionsCalled = true
+			return disk.Partitions{mockNFSPartition}, nil
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
+
+		c.Check()
+
+		// Verify getNFSPartitionsFunc was NOT called
+		assert.False(t, nfsPartitionsCalled, "getNFSPartitionsFunc should not be called when configs are empty")
+
+		c.lastMu.RLock()
+		lastCheckResult := c.lastCheckResult
+		c.lastMu.RUnlock()
+
+		assert.NotNil(t, lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health)
+		assert.Equal(t, "ok", lastCheckResult.reason)
+		assert.Empty(t, lastCheckResult.NFSPartitions, "NFSPartitions should be empty when configs are empty")
+	})
 }
 
 // TestNFSPartitionsErrorRetry tests error handling and retry logic for NFS partitions
@@ -1127,6 +1189,13 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 	t.Run("retry on NFS partition error", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
 		defer c.Close()
+
+		// Provide non-empty configs to enable NFS checking
+		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{VolumePath: "/mnt/nfs"},
+			}
+		}
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{mockDevice}, nil
@@ -1174,6 +1243,13 @@ func TestNFSMetricsTracking(t *testing.T) {
 
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
 	defer c.Close()
+
+	// Provide non-empty configs to enable NFS checking
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{VolumePath: "/mnt/nfs"},
+		}
+	}
 
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{
@@ -1238,6 +1314,13 @@ func TestCombinedPartitions(t *testing.T) {
 	c := createTestComponent(ctx, []string{"/mnt/data1", "/mnt/nfs"}, []string{})
 	defer c.Close()
 
+	// Provide non-empty configs to enable NFS checking
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{VolumePath: "/mnt/nfs"},
+		}
+	}
+
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{mockDevice}, nil
 	}
@@ -1283,6 +1366,13 @@ func TestDeviceUsagesWithNFS(t *testing.T) {
 
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
 	defer c.Close()
+
+	// Provide non-empty configs to enable NFS checking
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{VolumePath: "/mnt/nfs"},
+		}
+	}
 
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{mockDevice}, nil
@@ -1744,6 +1834,9 @@ func TestComponentClose_EventHandling(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
 			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
+			},
 			eventBucket: mockBucket,
 			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
 		}
@@ -1766,6 +1859,9 @@ func TestComponentClose_EventHandling(t *testing.T) {
 			statWithTimeoutFunc: pkgfile.StatWithTimeout,
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
+			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
 			},
 			eventBucket: nil,
 			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
@@ -1798,6 +1894,16 @@ func TestComponent_StatTimedOut_SetsHealthDegraded(t *testing.T) {
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
 	defer c.Close()
 
+	// Provide non-empty NFS configs to ensure NFS partitions are checked
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   "/mnt/nfs",
+				DirName:      ".gpud-nfs-checker",
+				FileContents: "test",
+			},
+		}
+	}
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{mockDevice}, nil
 	}
@@ -1856,6 +1962,21 @@ func TestComponent_StatTimedOut_MultiplePartitions(t *testing.T) {
 	c := createTestComponent(ctx, []string{"/mnt/nfs1", "/mnt/nfs2"}, []string{})
 	defer c.Close()
 
+	// Provide non-empty NFS configs to ensure NFS partitions are checked
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   "/mnt/nfs1",
+				DirName:      ".gpud-nfs-checker",
+				FileContents: "test",
+			},
+			{
+				VolumePath:   "/mnt/nfs2",
+				DirName:      ".gpud-nfs-checker",
+				FileContents: "test",
+			},
+		}
+	}
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{mockDevice}, nil
 	}
@@ -1919,6 +2040,16 @@ func TestComponent_StatTimedOut_False_HealthyState(t *testing.T) {
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
 	defer c.Close()
 
+	// Provide non-empty NFS configs to ensure NFS partitions are checked
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   "/mnt/nfs",
+				DirName:      ".gpud-nfs-checker",
+				FileContents: "test",
+			},
+		}
+	}
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{mockDevice}, nil
 	}
@@ -1977,6 +2108,16 @@ func TestComponent_StatTimedOut_ExtPartitionsIgnored(t *testing.T) {
 	c := createTestComponent(ctx, []string{"/mnt/ext4", "/mnt/nfs"}, []string{})
 	defer c.Close()
 
+	// Provide non-empty NFS configs to ensure NFS partitions are checked
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   "/mnt/nfs",
+				DirName:      ".gpud-nfs-checker",
+				FileContents: "test",
+			},
+		}
+	}
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{mockDevice}, nil
 	}
@@ -2047,6 +2188,16 @@ func TestComponent_StatTimedOut_ReasonMessage(t *testing.T) {
 			c := createTestComponent(ctx, []string{tt.mountPoint}, []string{})
 			defer c.Close()
 
+			// Provide non-empty NFS configs to ensure NFS partitions are checked
+			c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{
+					{
+						VolumePath:   tt.mountPoint,
+						DirName:      ".gpud-nfs-checker",
+						FileContents: "test",
+					},
+				}
+			}
 			c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{mockDevice}, nil
 			}
@@ -2170,6 +2321,17 @@ func TestComponent_TimeoutScenarios_CompleteFlow(t *testing.T) {
 			// Create test component with NFS mount points
 			c := createTestComponent(ctx, []string{}, []string{"/mnt/nfs-test"})
 			defer c.Close()
+
+			// Provide non-empty NFS configs to ensure NFS partitions are checked
+			c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{
+					{
+						VolumePath:   "/mnt/nfs-test",
+						DirName:      ".gpud-nfs-checker",
+						FileContents: "test",
+					},
+				}
+			}
 
 			// Mock functions to simulate the timeout scenario
 			c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -2440,6 +2602,17 @@ func TestComponent_ContextErrorTypes(t *testing.T) {
 			c := createTestComponent(ctx, []string{}, []string{})
 			defer c.Close()
 
+			// Provide non-empty NFS configs to ensure NFS partitions are checked
+			c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{
+					{
+						VolumePath:   "/mnt/test-nfs",
+						DirName:      ".gpud-nfs-checker",
+						FileContents: "test",
+					},
+				}
+			}
+
 			c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{
 					{Name: "mock-device", Type: "disk"},
@@ -2593,6 +2766,16 @@ func TestComponentWithMountPointFiltering(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/"}, []string{})
 		defer c.Close()
 
+		// Provide non-empty NFS configs to ensure NFS partitions are checked
+		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{
+					VolumePath:   "/mnt/nfs",
+					DirName:      ".gpud-nfs-checker",
+					FileContents: "test",
+				},
+			}
+		}
 		// Override the partition functions to return our mock data
 		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
 			return mockExt4Partitions, nil
@@ -2661,6 +2844,9 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 			lookbackPeriod:   time.Hour,
 			getTimeNowFunc: func() time.Time {
 				return now
+			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
 			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
@@ -2741,6 +2927,9 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return now
 			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -2811,6 +3000,9 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 			lookbackPeriod:   2 * time.Hour,
 			getTimeNowFunc: func() time.Time {
 				return now
+			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
 			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
@@ -2890,6 +3082,9 @@ func TestComponent_SuperblockWriteErrorWithMixedEventTypes(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return now
 			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -2966,6 +3161,9 @@ func TestComponent_SuperblockWriteErrorWithMixedEventTypes(t *testing.T) {
 			lookbackPeriod:   time.Hour,
 			getTimeNowFunc: func() time.Time {
 				return now
+			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
 			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
@@ -3064,6 +3262,9 @@ func TestComponent_SuperblockWriteErrorSuggestedActions(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return now
 			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3109,6 +3310,9 @@ func TestComponent_SuperblockWriteErrorSuggestedActions(t *testing.T) {
 			lookbackPeriod:   time.Hour,
 			getTimeNowFunc: func() time.Time {
 				return now
+			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
 			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
@@ -3171,6 +3375,9 @@ func TestComponent_SuperblockWriteErrorEventStoreErrors(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return now
 			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
+			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3232,6 +3439,9 @@ func TestComponent_SuperblockWriteErrorEventStoreErrors(t *testing.T) {
 			lookbackPeriod:   time.Hour,
 			getTimeNowFunc: func() time.Time {
 				return now
+			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
 			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
@@ -3330,6 +3540,9 @@ func TestComponent_SuperblockWriteErrorIntegration(t *testing.T) {
 			lookbackPeriod:   time.Hour,
 			getTimeNowFunc: func() time.Time {
 				return now
+			},
+			getGroupConfigsFunc: func() pkgnfschecker.Configs {
+				return pkgnfschecker.Configs{}
 			},
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "dm-0", Type: "dm"}}, nil
