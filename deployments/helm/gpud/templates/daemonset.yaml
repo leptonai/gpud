@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "gpud.fullname" . }}
+  labels:
+    {{- include "gpud.labels" . | nindent 4 }}
+spec:
+  # The selector determines which pods the DaemonSet manages.
+  # It must match the labels in the pod template.
+  selector:
+    matchLabels:
+      {{- include "gpud.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.updateStrategy.rollingUpdate.maxUnavailable }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      # Allows for custom pod annotations.
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        # These labels are used by the DaemonSet's selector.
+        {{- include "gpud.selectorLabels" . | nindent 8 }}
+    spec:
+      # --- Pod Identity & Security ---
+      serviceAccountName: {{ include "gpud.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      # --- Node-level Settings & Lifecycle ---
+      # Required for the driver to interact with the host's network stack.
+      hostNetwork: true
+      # Required for the driver to inspect processes on the host.
+      hostPID: true
+      restartPolicy: Always
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+
+      # --- Scheduling ---
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      # --- Storage ---
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      # --- Containers ---
+      containers:
+        - name: {{ .Chart.Name }}
+          # Uses the image tag from values.yaml, but defaults to the chart's appVersion if not set.
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+
+          args:
+            {{- toYaml .Values.gpud.args | nindent 12 }}
+
+          env:
+            - name: GPUD_NO_USAGE_STATS
+              value: {{ not .Values.gpud.telemetry.enabled | quote }}
+
+          {{- if .Values.service.enabled }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          {{- end }}
+
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          # No readinessProbe is defined
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

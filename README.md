@@ -80,7 +80,7 @@ sudo gpud logout --reset-state
 
 #### Run GPUd with Kubernetes
 
-See [gpud helm chart](./charts/gpud/README.md) to deploy GPUd in your Kubernetes cluster.
+The recommended way to deploy GPUd on Kubernetes is with our official [Helm chart](./deployments/helm/gpud/README.md).
 
 #### If your system doesn't have systemd
 
@@ -137,3 +137,7 @@ When GPUd is registered with the Lepton platform, the platform will automaticall
 - [Install GPUd](./docs/INSTALL.md)
 - [GPUd components](./docs/COMPONENTS.md)
 - [GPUd architecture](./docs/ARCHITECTURE.md)
+
+## Contributing
+
+Please see the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
