@@ -146,7 +146,12 @@ func Command(cliContext *cli.Context) error {
 	println()
 	fmt.Printf("See the following logs to check more details:\n")
 	for _, pkg := range lastPackageStatus {
-		fmt.Printf("tail -100 %s\n", filepath.Join(filepath.Dir(pkg.ScriptPath), "install.log"))
+		file := filepath.Join(filepath.Dir(pkg.ScriptPath), "install.log")
+		if _, err := os.Stat(file); err == nil {
+			fmt.Printf("tail -100 %s\n", file)
+		} else {
+			fmt.Printf("# %s %q (pending installation)\n", cmdcommon.InProgress, file)
+		}
 	}
 
 	return nil
