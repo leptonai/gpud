@@ -1,0 +1,126 @@
+
+########################################
+# set up internal "test-custom-checks" repo
+- plugin_name: nv-plugin-install-test-custom-checks
+  plugin_type: init
+  run_mode: auto # set to "manual" to only trigger manually
+  timeout: 5m
+
+  health_state_plugin:
+    steps:
+      - name: Install Python
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            # do not mask errors
+            set -o pipefail
+            # treat unset variables as an error
+            set -o nounset
+            # exit script whenever it errs
+            set -o errexit
+            if ! command -v /usr/sbin/uv &>/dev/null; then
+              curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/sbin sh
+            fi
+            if ! /usr/sbin/uv python --version &>/dev/null || [ -z "$(/usr/sbin/uv python --version 2>/dev/null)" ]; then
+              echo "installing python 3.10"
+              /usr/sbin/uv python install 3.10 --verbose
+            else
+              echo "skipped python install"
+            fi
+      - name: Test python script with uv
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            cat > /tmp/hello.py << 'EOF'
+            print("Hello, World!")
+            EOF
+            uv run /tmp/hello.py
+            rm -f /tmp/hello.py
+      - name: Install test-custom-checks repo
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            #!/bin/bash
+            # do not mask errors
+            set -o pipefail
+            # treat unset variables as an error
+            set -o nounset
+            # exit script whenever it errs
+            set -o errexit
+            cd /var/local/test-custom-checks
+            /usr/sbin/uv venv
+            source /var/local/test-custom-checks/.venv/bin/activate && \
+            /usr/sbin/uv pip install ".[dev]"
+########################################
+
+########################################
+# health check with component list
+- plugin_name: my-plugin
+  plugin_type: component_list
+  run_mode: auto # set to "manual" to only trigger manually
+  timeout: 2m
+  interval: 15m
+
+  component_list:
+    - health_checks.hw_drv_gpu_clock_idle#auto[gpu,my-plugin]:--idle_util 70 --idle_mem 70
+
+  health_state_plugin:
+    parser:
+      json_paths:
+        - query: "$.name"
+          field: name
+        - query: "$.result"
+          field: result
+        - query: "$.error"
+          field: error
+        - query: "$.passed"
+          field: passed
+          expect:
+            # regex to match "true" case-insensitively
+            regex: "(?i)^true$"
+        - query: "$.runtime"
+          field: runtime
+        # ref. "health_checks/base_check.py"
+        - query: "$.action"
+          field: action
+          suggested_actions:
+            REBOOT_SYSTEM:
+              regex: "(?i).*reboot.*"
+        - query: "$.suggestion"
+          field: suggestion
+          suggested_actions:
+            REBOOT_SYSTEM:
+              regex: "(?i).*reboot.*"
+        - query: "$.commands"
+          field: commands
+
+    steps:
+      - name: Run health check
+        run_bash_script:
+          content_type: plaintext
+          script: |
+            #!/bin/bash
+            # do not mask errors
+            set -o pipefail
+            # treat unset variables as an error
+            set -o nounset
+            # exit script whenever it errs
+            set -o errexit
+            cat > /tmp/my-plugin-${NAME}.bash << 'EOF'
+            cd /var/local/test-custom-checks
+            source /var/local/test-custom-checks/.venv/bin/activate && \
+            python3 -m ${NAME} ${PAR}
+            exit_code=$?
+            if [[ $exit_code -ne 0 ]]; then
+              echo "fail"
+            else
+              echo "success"
+            fi
+            exit $exit_code
+            EOF
+            bash /tmp/my-plugin-${NAME}.bash
+            exit_code=$?
+            rm -f /tmp/my-plugin-${NAME}.bash
+            exit $exit_code
+########################################
+
