@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"runtime"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	prometheusdto "github.com/prometheus/client_model/go"
 	procs "github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -3766,12 +3768,23 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -3839,13 +3852,24 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
 			RebootEventStore: mockRebootStore,
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -3893,12 +3917,23 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -3925,13 +3960,24 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
 			RebootEventStore: mockRebootStore,
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -3958,13 +4004,24 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
 			RebootEventStore: mockRebootStore,
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -3988,13 +4045,24 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 
 		errRebootStore := &errRebootEventStore{}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
 			RebootEventStore: errRebootStore,
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -4071,13 +4139,24 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
 			RebootEventStore: mockRebootStore,
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -4141,13 +4220,24 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
 			RebootEventStore: mockRebootStore,
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -4185,13 +4275,24 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
 			RebootEventStore: mockRebootStore,
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -4236,13 +4337,24 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			events: eventstore.Events{},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
 			RebootEventStore: mockRebootStore,
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 
@@ -4286,13 +4398,24 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			},
 		}
 
-		comp, err := New(&components.GPUdInstance{
+		// Create temporary database for pstore
+		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+		defer cleanup()
+
+		// Create temporary pstore directory
+		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpPstoreDir)
+
+		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
+			DBRW:    dbRW,
+			DBRO:    dbRO,
 			EventStore: &mockEventStore{
 				bucket: mockBucket,
 			},
 			RebootEventStore: mockRebootStore,
-		})
+		}, tmpPstoreDir)
 		assert.NoError(t, err)
 		defer comp.Close()
 

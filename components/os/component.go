@@ -27,6 +27,7 @@ import (
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/pstore"
 )
 
 // Name is the ID of the OS component.
@@ -57,6 +58,7 @@ type component struct {
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
 	kmsgSyncer       *kmsg.Syncer
+	pstoreStore      pstore.Store
 
 	countProcessesByStatusFunc           func(ctx context.Context) (map[string][]process.ProcessStatus, error)
 	zombieProcessCountThresholdDegraded  int
@@ -90,6 +92,10 @@ type component struct {
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	return newComponent(gpudInstance, pstore.DefaultPstoreDir)
+}
+
+func newComponent(gpudInstance *components.GPUdInstance, pstoreDir string) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
 		ctx:    cctx,
@@ -135,6 +141,46 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				ccancel()
 				return nil, err
 			}
+		}
+
+		// only need to initialize once
+		// since pstore logs are only updated on kernel panic and reboot
+		c.pstoreStore, err = pstore.New(pstoreDir, gpudInstance.DBRW, gpudInstance.DBRO, "os_pstore", 3*24*time.Hour)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+		if err := c.pstoreStore.Scan(cctx, createKernelPanicMatchFunc()); err != nil {
+			ccancel()
+			return nil, err
+		}
+		events, err := c.pstoreStore.Get(cctx, c.getTimeNowFunc().Add(-3*24*time.Hour))
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+		log.Logger.Infow("pstore events", "count", len(events))
+		for _, ev := range events {
+			converted := eventstore.Event{
+				Component: Name,
+				Time:      time.Unix(ev.Timestamp, 0),
+				Name:      ev.EventName,
+				Type:      string(apiv1.EventTypeWarning),
+				Message:   ev.Message,
+			}
+			found, err := c.eventBucket.Find(cctx, converted)
+			if err != nil {
+				ccancel()
+				return nil, err
+			}
+			if found != nil {
+				continue
+			}
+			if err := c.eventBucket.Insert(cctx, converted); err != nil {
+				ccancel()
+				return nil, err
+			}
+			log.Logger.Infow("inserted pstore event", "event", converted)
 		}
 	}
 

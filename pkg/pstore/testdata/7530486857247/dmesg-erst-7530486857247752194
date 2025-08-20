@@ -1,0 +1,227 @@
+Panic#1 Part2
+<6>[    2.608284] mlx5_core 0000:41:00.1: 63.008 Gb/s available PCIe bandwidth (8.0 GT/s PCIe x8 link)
+<6>[    2.646272] usb 1-2: New USB device found, idVendor=174c, idProduct=2074, bcdDevice= 2.00
+<6>[    2.649092] usb 1-2: New USB device strings: Mfr=2, Product=3, SerialNumber=0
+<6>[    2.652017] usb 1-2: Product: ASM107x
+<6>[    2.654976] usb 1-2: Manufacturer: Asmedia
+<6>[    2.704754] hub 1-2:1.0: USB hub found
+<6>[    2.708295] hub 1-2:1.0: 4 ports detected
+<6>[    2.720465] usb 1-1.3: new high-speed USB device number 4 using xhci_hcd
+<6>[    2.839773] usb 1-1.3: New USB device found, idVendor=046b, idProduct=ffb0, bcdDevice= 1.00
+<6>[    2.842949] usb 1-1.3: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+<6>[    2.846072] usb 1-1.3: Product: Virtual Ethernet.
+<6>[    2.849144] usb 1-1.3: Manufacturer: American Megatrends Inc.
+<6>[    2.852180] usb 1-1.3: SerialNumber: 1234567890.
+<6>[    2.875476] ata3: SATA link down (SStatus 0 SControl 300)
+<6>[    2.954065] mlx5_core 0000:41:00.1: E-Switch: Total vports 10, per vport: max uc(128) max mc(2048)
+<6>[    2.962781] mlx5_core 0000:41:00.1: Port module event: module 1, Cable unplugged
+<6>[    2.976510] usb 1-1.4: new high-speed USB device number 5 using xhci_hcd
+<6>[    2.990563] mlx5_core 0000:41:00.1: MLX5E: StrdRq(0) RqSz(1024) StrdSz(256) RxCqeCmprss(0)
+<6>[    3.079024] usb 1-1.4: New USB device found, idVendor=046b, idProduct=ff10, bcdDevice= 5.04
+<6>[    3.082470] usb 1-1.4: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+<6>[    3.085964] usb 1-1.4: Product: Virtual Mouse Gadget
+<6>[    3.089482] usb 1-1.4: Manufacturer: American Megatrends Inc.
+<6>[    3.092973] usb 1-1.4: SerialNumber: 0123456789
+<6>[    3.191185] ata4: SATA link down (SStatus 0 SControl 300)
+<6>[    3.264492] usb 1-1.6: new high-speed USB device number 6 using xhci_hcd
+<6>[    3.294397] mlx5_core 0000:41:00.1: Supported tc offload range - chains: 4294967294, prios: 4294967295
+<6>[    3.371028] usb 1-1.6: New USB device found, idVendor=046b, idProduct=ff10, bcdDevice= 5.04
+<6>[    3.374992] usb 1-1.6: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+<6>[    3.378989] usb 1-1.6: Product: Virtual Keyboard Gadget
+<6>[    3.383060] usb 1-1.6: Manufacturer: American Megatrends Inc.
+<6>[    3.387049] usb 1-1.6: SerialNumber: 0123456789
+<6>[    3.507055] ata5: SATA link down (SStatus 0 SControl 300)
+<6>[    3.822683] ata6: SATA link down (SStatus 0 SControl 300)
+<6>[    4.139232] ata7: SATA link down (SStatus 0 SControl 300)
+<6>[    4.455233] ata8: SATA link down (SStatus 0 SControl 300)
+<6>[    4.771253] ata10: SATA link down (SStatus 0 SControl 300)
+<6>[    5.086971] ata11: SATA link down (SStatus 0 SControl 300)
+<6>[    5.403183] ata12: SATA link down (SStatus 0 SControl 300)
+<6>[    5.719257] ata13: SATA link down (SStatus 0 SControl 300)
+<6>[    6.034865] ata14: SATA link down (SStatus 0 SControl 300)
+<6>[    6.351278] ata15: SATA link down (SStatus 0 SControl 300)
+<6>[    6.667291] ata16: SATA link down (SStatus 0 SControl 300)
+<6>[    6.983347] ata18: SATA link down (SStatus 0 SControl 300)
+<6>[    7.299222] ata19: SATA link down (SStatus 0 SControl 300)
+<6>[    7.615340] ata20: SATA link down (SStatus 0 SControl 300)
+<6>[    7.931340] ata21: SATA link down (SStatus 0 SControl 300)
+<6>[    8.247346] ata22: SATA link down (SStatus 0 SControl 300)
+<6>[    8.563247] ata23: SATA link down (SStatus 0 SControl 300)
+<6>[    8.879287] ata24: SATA link down (SStatus 0 SControl 300)
+<6>[    9.195331] ata26: SATA link down (SStatus 0 SControl 300)
+<6>[    9.511250] ata27: SATA link down (SStatus 0 SControl 300)
+<6>[    9.827252] ata28: SATA link down (SStatus 0 SControl 300)
+<6>[   10.143253] ata29: SATA link down (SStatus 0 SControl 300)
+<6>[   10.459208] ata30: SATA link down (SStatus 0 SControl 300)
+<6>[   10.775252] ata31: SATA link down (SStatus 0 SControl 300)
+<6>[   11.091250] ata32: SATA link down (SStatus 0 SControl 300)
+<6>[   11.109472] Console: switching to colour dummy device 80x25
+<6>[   11.109698] ast 0000:cc:00.0: [drm] P2A bridge disabled, using default configuration
+<6>[   11.109703] ast 0000:cc:00.0: [drm] AST 2600 detected
+<6>[   11.109708] ast 0000:cc:00.0: [drm] Analog VGA only
+<6>[   11.109711] ast 0000:cc:00.0: [drm] dram MCLK=396 Mhz type=1 bus_width=16
+<6>[   11.109984] [drm] Initialized ast 0.1.0 20120228 for 0000:cc:00.0 on minor 0
+<6>[   11.110211] mlx5_core 0000:41:00.0 enp65s0f0np0: renamed from eth0
+<6>[   11.112676] fbcon: astdrmfb (fb0) is primary device
+<6>[   11.121649] hid: raw HID events driver (C) Jiri Kosina
+<6>[   11.122179] Console: switching to colour frame buffer device 128x48
+<6>[   11.122592] ast 0000:cc:00.0: [drm] fb0: astdrmfb frame buffer device
+<6>[   11.131826] usbcore: registered new interface driver usbhid
+<6>[   11.131838] usbhid: USB HID core driver
+<6>[   11.134262] input: American Megatrends Inc. Virtual Mouse Gadget as /devices/pci0000:c0/0000:c0:07.1/0000:cd:00.4/usb1/1-1/1-1.4/1-1.4:1.0/0003:046B:FF10.0001/input/input1
+<6>[   11.134886] hid-generic 0003:046B:FF10.0001: input,hidraw0: USB HID v1.01 Mouse [American Megatrends Inc. Virtual Mouse Gadget] on usb-0000:cd:00.4-1.4/input0
+<6>[   11.135541] input: American Megatrends Inc. Virtual Keyboard Gadget as /devices/pci0000:c0/0000:c0:07.1/0000:cd:00.4/usb1/1-1/1-1.6/1-1.6:1.0/0003:046B:FF10.0002/input/input2
+<6>[   11.136127] hid-generic 0003:046B:FF10.0002: input,hidraw1: USB HID v1.01 Keyboard [American Megatrends Inc. Virtual Keyboard Gadget] on usb-0000:cd:00.4-1.6/input0
+<6>[   11.188857] cdc_ether 1-1.3:2.0 eth0: register 'cdc_ether' at usb-0000:cd:00.4-1.3, CDC Ethernet Device, 82:8c:fc:a8:df:e8
+<6>[   11.189305] usbcore: registered new interface driver cdc_ether
+<6>[   11.189698] mlx5_core 0000:41:00.1 enp65s0f1np1: renamed from eth1
+<6>[   11.228905] cdc_ether 1-1.3:2.0 enx828cfca8dfe8: renamed from eth0
+<6>[   11.552446] raid6: avx512x4 gen() 40764 MB/s
+<6>[   11.620457] raid6: avx512x4 xor()  7369 MB/s
+<6>[   11.688458] raid6: avx512x2 gen() 44529 MB/s
+<6>[   11.756457] raid6: avx512x2 xor() 30886 MB/s
+<6>[   11.824457] raid6: avx512x1 gen() 41789 MB/s
+<6>[   11.892457] raid6: avx512x1 xor() 28712 MB/s
+<6>[   11.960454] raid6: avx2x4   gen() 48104 MB/s
+<6>[   12.028457] raid6: avx2x4   xor()  4982 MB/s
+<6>[   12.096457] raid6: avx2x2   gen() 46889 MB/s
+<6>[   12.164457] raid6: avx2x2   xor() 35030 MB/s
+<6>[   12.232457] raid6: avx2x1   gen() 38473 MB/s
+<6>[   12.300457] raid6: avx2x1   xor() 29644 MB/s
+<6>[   12.368457] raid6: sse2x4   gen() 22716 MB/s
+<6>[   12.436458] raid6: sse2x4   xor()  3195 MB/s
+<6>[   12.504457] raid6: sse2x2   gen() 16128 MB/s
+<6>[   12.572457] raid6: sse2x2   xor() 14003 MB/s
+<6>[   12.640459] raid6: sse2x1   gen() 10621 MB/s
+<6>[   12.708458] raid6: sse2x1   xor()  7808 MB/s
+<6>[   12.708735] raid6: using algorithm avx2x4 gen() 48104 MB/s
+<6>[   12.708984] raid6: .... xor() 4982 MB/s, rmw enabled
+<6>[   12.709220] raid6: using avx512x2 recovery algorithm
+<6>[   12.717976] xor: automatically using best checksumming function   avx       
+<6>[   12.725969] async_tx: api initialized (async)
+<6>[   12.784254] Btrfs loaded, crc32c=crc32c-intel, zoned=yes, fsverity=yes
+<6>[   12.833946] EXT4-fs (nvme0n1p2): mounted filesystem with ordered data mode. Opts: (null). Quota mode: none.
+<30>[   12.976992] systemd[1]: Inserted module 'autofs4'
+<30>[   13.002969] systemd[1]: systemd 249.11-0ubuntu3.12 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT +GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY -P11KIT -QRENCODE +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+<30>[   13.024520] systemd[1]: Detected architecture x86-64.
+<30>[   13.045688] systemd[1]: Hostname set to <localhost>.
+<28>[   13.148762] systemd[1]: Configuration file /run/systemd/system/netplan-ovs-cleanup.service is marked world-inaccessible. This has no effect as configuration data is accessible via APIs without restrictions. Proceeding anyway.
+<28>[   13.171721] systemd[1]: /lib/systemd/system/snapd.service:23: Unknown key name 'RestartMode' in section 'Service', ignoring.
+<30>[   13.208806] systemd[1]: Queued start job for default target Graphical Interface.
+<30>[   13.212192] systemd[1]: Created slice Slice /system/modprobe.
+<30>[   13.213612] systemd[1]: Created slice Slice /system/systemd-fsck.
+<30>[   13.214762] systemd[1]: Created slice User and Session Slice.
+<30>[   13.215589] systemd[1]: Started ntp-systemd-netif.path.
+<30>[   13.216423] systemd[1]: Started Forward Password Requests to Wall Directory Watch.
+<30>[   13.217364] systemd[1]: Set up automount Arbitrary Executable File Formats File System Automount Point.
+<30>[   13.218216] systemd[1]: Reached target Slice Units.
+<30>[   13.218974] systemd[1]: Reached target Mounting snaps.
+<30>[   13.219776] systemd[1]: Reached target Swaps.
+<30>[   13.220581] systemd[1]: Reached target System Time Set.
+<30>[   13.221407] systemd[1]: Reached target Local Verity Protected Volumes.
+<30>[   13.222280] systemd[1]: Listening on Device-mapper event daemon FIFOs.
+<30>[   13.223172] systemd[1]: Listening on LVM2 poll daemon socket.
+<30>[   13.224020] systemd[1]: Listening on multipathd control socket.
+<30>[   13.229051] systemd[1]: Listening on RPCbind Server Activation Socket.
+<30>[   13.230439] systemd[1]: Listening on Syslog Socket.
+<30>[   13.231366] systemd[1]: Listening on fsck to fsckd communication Socket.
+<30>[   13.232166] systemd[1]: Listening on initctl Compatibility Named Pipe.
+<30>[   13.233122] systemd[1]: Listening on Journal Audit Socket.
+<30>[   13.233962] systemd[1]: Listening on Journal Socket (/dev/log).
+<30>[   13.234815] systemd[1]: Listening on Journal Socket.
+<30>[   13.235644] systemd[1]: Listening on Network Service Netlink Socket.
+<30>[   13.236524] systemd[1]: Listening on udev Control Socket.
+<30>[   13.237334] systemd[1]: Listening on udev Kernel Socket.
+<30>[   13.238846] systemd[1]: Mounting Huge Pages File System...
+<30>[   13.240396] systemd[1]: Mounting POSIX Message Queue File System...
+<30>[   13.241973] systemd[1]: Mounting NFSD configuration filesystem...
+<30>[   13.243710] systemd[1]: Mounting Kernel Debug File System...
+<30>[   13.245447] systemd[1]: Mounting Kernel Trace File System...
+<30>[   13.248122] systemd[1]: Starting Journal Service...
+<30>[   13.249124] systemd[1]: Condition check resulted in Kernel Module supporting RPCSEC_GSS being skipped.
+<30>[   13.250378] systemd[1]: Starting Set the console keyboard layout...
+<30>[   13.251996] systemd[1]: Starting Create List of Static Device Nodes...
+<30>[   13.253514] systemd[1]: Starting Monitoring of LVM2 mirrors, snapshots etc. using dmeventd or progress polling...
+<30>[   13.254923] systemd[1]: Condition check resulted in LXD - agent being skipped.
+<30>[   13.256021] systemd[1]: Starting Load Kernel Module configfs...
+<30>[   13.257683] systemd[1]: Starting Load Kernel Module drm...
+<30>[   13.259558] systemd[1]: Starting Load Kernel Module efi_pstore...
+<30>[   13.261204] systemd[1]: Starting Load Kernel Module fuse...
+<30>[   13.262083] systemd[1]: Condition check resulted in OpenVSwitch configuration for cleanup being skipped.
+<30>[   13.262573] systemd[1]: Condition check resulted in File System Check on Root Device being skipped.
+<30>[   13.263816] systemd[1]: Starting Load Kernel Modules...
+<30>[   13.268664] systemd[1]: Starting Remount Root and Kernel File Systems...
+<30>[   13.270370] systemd[1]: Starting Coldplug All udev Devices...
+<30>[   13.272523] systemd[1]: Mounted Huge Pages File System.
+<30>[   13.273493] systemd[1]: Mounted POSIX Message Queue File System.
+<6>[   13.273811] EXT4-fs (nvme0n1p2): re-mounted. Opts: (null). Quota mode: none.
+<30>[   13.275431] systemd[1]: Mounted Kernel Debug File System.
+<30>[   13.276373] systemd[1]: Mounted Kernel Trace File System.
+<30>[   13.277479] systemd[1]: Finished Create List of Static Device Nodes.
+<30>[   13.278486] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+<30>[   13.279147] systemd[1]: Finished Load Kernel Module configfs.
+<6>[   13.279315] RPC: Registered named UNIX socket transport module.
+<6>[   13.279785] lp: driver loaded but no devices found
+<6>[   13.279859] RPC: Registered udp transport module.
+<4>[   13.280618] pstore: ignoring unexpected backend 'efi'
+<6>[   13.280696] RPC: Registered tcp transport module.
+<6>[   13.281331] RPC: Registered tcp NFSv4.1 backchannel transport module.
+<30>[   13.282453] systemd[1]: modprobe@drm.service: Deactivated successfully.
+<30>[   13.283057] systemd[1]: Finished Load Kernel Module drm.
+<6>[   13.283231] ppdev: user-space parallel port driver
+<30>[   13.284345] systemd[1]: modprobe@efi_pstore.service: Deactivated successfully.
+<30>[   13.284889] systemd[1]: Finished Load Kernel Module efi_pstore.
+<30>[   13.285862] systemd[1]: modprobe@fuse.service: Deactivated successfully.
+<30>[   13.286579] systemd[1]: Finished Load Kernel Module fuse.
+<30>[   13.287673] systemd[1]: Finished Remount Root and Kernel File Systems.
+<30>[   13.302182] systemd[1]: Mounting FUSE Control File System...
+<30>[   13.304671] systemd[1]: Mounting Kernel Configuration File System...
+<30>[   13.306460] systemd[1]: Starting Device-Mapper Multipath Device Controller...
+<30>[   13.307388] systemd[1]: Condition check resulted in Platform Persistent Storage Archival being skipped.
+<30>[   13.308619] systemd[1]: Starting Load/Save Random Seed...
+<30>[   13.310415] systemd[1]: Starting Create System Users...
+<30>[   13.312203] systemd[1]: Mounted FUSE Control File System.
+<6>[   13.313078] alua: device handler registered
+<30>[   13.313109] systemd[1]: Mounted Kernel Configuration File System.
+<6>[   13.315004] emc: device handler registered
+<30>[   13.315071] systemd[1]: Finished Load Kernel Modules.
+<30>[   13.316632] systemd[1]: Finished Set the console keyboard layout.
+<6>[   13.317143] rdac: device handler registered
+<30>[   13.318728] systemd[1]: Starting Apply Kernel Variables...
+<30>[   13.320086] systemd[1]: Mounted NFSD configuration filesystem.
+<30>[   13.321760] systemd[1]: Finished Load/Save Random Seed.
+<30>[   13.322724] systemd[1]: Condition check resulted in First Boot Complete being skipped.
+<30>[   13.323822] systemd[1]: Finished Create System Users.
+<30>[   13.325562] systemd[1]: Starting Create Static Device Nodes in /dev...
+<30>[   13.329150] systemd[1]: Finished Apply Kernel Variables.
+<30>[   13.334848] systemd[1]: Finished Create Static Device Nodes in /dev.
+<30>[   13.337491] systemd[1]: Starting Rule-based Manager for Device Events and Files...
+<30>[   13.349922] systemd[1]: Started Device-Mapper Multipath Device Controller.
+<30>[   13.363304] systemd[1]: Started Journal Service.
+<46>[   13.369025] systemd-journald[840]: Received client request to flush runtime journal.
+<6>[   13.416432] loop0: detected capacity change from 0 to 130960
+<6>[   13.417952] loop1: detected capacity change from 0 to 178256
+<6>[   13.419518] loop2: detected capacity change from 0 to 79520
+<6>[   13.586779] IPMI message handler: version 39.2
+<6>[   13.588369] ipmi device interface
+<6>[   13.591311] ipmi_si: IPMI System Interface driver
+<6>[   13.591340] ipmi_si dmi-ipmi-si.0: ipmi_platform: probing via SMBIOS
+<6>[   13.591343] ipmi_platform: ipmi_si: SMBIOS: io 0xca2 regsize 1 spacing 1 irq 0
+<6>[   13.591345] ipmi_si: Adding SMBIOS-specified kcs state machine
+<6>[   13.591782] ipmi_si IPI0001:00: ipmi_platform: probing via ACPI
+<6>[   13.591975] ipmi_si IPI0001:00: ipmi_platform: [io  0x0ca2] regsize 1 spacing 1 irq 0
+<6>[   13.605383] ipmi_si dmi-ipmi-si.0: Removing SMBIOS-specified kcs state machine in favor of ACPI
+<6>[   13.605387] ipmi_si: Adding ACPI-specified kcs state machine
+<6>[   13.606428] ipmi_si: Trying ACPI-specified kcs state machine at i/o address 0xca2, slave address 0x20, irq 0
+<6>[   13.610518] ccp 0000:03:00.5: enabling device (0000 -> 0002)
+<6>[   13.613969] ccp 0000:03:00.5: SEV: memory encryption not enabled by BIOS
+<5>[   13.613973] ccp 0000:03:00.5: psp enabled
+<5>[   13.715408] audit: type=1400 audit(1753325017.308:2): apparmor="STATUS" operation="profile_load" profile="unconfined" name="libreoffice-senddoc" pid=1032 comm="apparmor_parser"
+<5>[   13.715664] audit: type=1400 audit(1753325017.308:3): apparmor="STATUS" operation="profile_load" profile="unconfined" name="libreoffice-xpdfimport" pid=1034 comm="apparmor_parser"
+<5>[   13.716482] audit: type=1400 audit(1753325017.308:4): apparmor="STATUS" operation="profile_load" profile="unconfined" name="lsb_release" pid=1022 comm="apparmor_parser"
+<5>[   13.716487] audit: type=1400 audit(1753325017.308:5): apparmor="STATUS" operation="profile_load" profile="unconfined" name="nvidia_modprobe" pid=1023 comm="apparmor_parser"
+<5>[   13.716601] audit: type=1400 audit(1753325017.308:6): apparmor="STATUS" operation="profile_load" profile="unconfined" name="nvidia_modprobe//kmod" pid=1023 comm="apparmor_parser"
+<5>[   13.716714] audit: type=1400 audit(1753325017.308:7): apparmor="STATUS" operation="profile_load" profile="unconfined" name="libreoffice-oosplash" pid=1031 comm="apparmor_parser"
+<5>[   13.716879] audit: type=1400 audit(1753325017.312:8): apparmor="STATUS" operation="profile_load" profile="unconfined" name="/usr/bin/man" pid=1029 comm="apparmor_parser"
+<5>[   13.717003] audit: type=1400 audit(1753325017.312:9): apparmor="STATUS" operation="profile_load" profile="unconfined" name="man_filter" pid=1029 comm="apparmor_parser"
+<5>[   13.717074] audit: type=1400 audit(1753325017.312:10): apparmor="STATUS" operation="profile_load" profile="unconfined" name="man_groff" pid=1029 comm="apparmor_parser"
