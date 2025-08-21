@@ -31,9 +31,9 @@ func (devs DeviceUsages) RenderTable(wr io.Writer) {
 		table.Append([]string{
 			dev.DeviceName,
 			dev.MountPoint,
-			humanize.Bytes(dev.TotalBytes),
-			humanize.Bytes(dev.UsedBytes),
-			humanize.Bytes(dev.FreeBytes),
+			humanize.IBytes(dev.TotalBytes),
+			humanize.IBytes(dev.UsedBytes),
+			humanize.IBytes(dev.FreeBytes),
 		})
 	}
 	table.Render()

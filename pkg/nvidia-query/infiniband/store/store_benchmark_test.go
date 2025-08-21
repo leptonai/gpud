@@ -181,7 +181,7 @@ func TestSimulatedEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read db size: %v", err)
 	}
-	t.Logf("DB size before compaction: %s", humanize.Bytes(size))
+	t.Logf("DB size before compaction: %s", humanize.IBytes(size))
 
 	// Compact the database
 	if err := sqlite.Compact(ctx, dbRW); err != nil {
@@ -193,7 +193,7 @@ func TestSimulatedEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read db size: %v", err)
 	}
-	t.Logf("DB size after compaction: %s", humanize.Bytes(size))
+	t.Logf("DB size after compaction: %s", humanize.IBytes(size))
 
 	// Simulate purging old data (purge data older than 3 days)
 	t.Logf("Starting purge operation...")
@@ -212,7 +212,7 @@ func TestSimulatedEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read db size after purge: %v", err)
 	}
-	t.Logf("DB size after purge (before compaction): %s", humanize.Bytes(size))
+	t.Logf("DB size after purge (before compaction): %s", humanize.IBytes(size))
 
 	// Compact the database again after purging
 	if err := sqlite.Compact(ctx, dbRW); err != nil {
@@ -224,7 +224,7 @@ func TestSimulatedEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read db size after purge and compaction: %v", err)
 	}
-	t.Logf("Final DB size after purge and compaction: %s", humanize.Bytes(size))
+	t.Logf("Final DB size after purge and compaction: %s", humanize.IBytes(size))
 
 	// Test event scanning functionality with realistic data
 	t.Logf("Running event scanning to detect drops and flaps...")
@@ -251,7 +251,7 @@ func TestSimulatedEvents(t *testing.T) {
 
 	t.Logf("Benchmark completed: %d days of realistic cluster data with %d IB ports ingested every %d seconds",
 		daysToIngest, len(deviceNames), intervalSeconds)
-	t.Logf("Storage efficiency: Purged %d rows, final storage size: %s", purged, humanize.Bytes(size))
+	t.Logf("Storage efficiency: Purged %d rows, final storage size: %s", purged, humanize.IBytes(size))
 	t.Logf("Event detection: Found %d total events across all ports", len(events))
 }
 

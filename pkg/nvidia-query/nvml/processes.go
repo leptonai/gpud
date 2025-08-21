@@ -199,7 +199,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 			// "Amount of used GPU memory in bytes."
 			// ref. https://docs.nvidia.com/deploy/nvml-api/structnvmlProcessInfo__t.html#structnvmlProcessInfo__t
 			GPUUsedMemoryBytes:          proc.UsedGpuMemory,
-			GPUUsedMemoryBytesHumanized: humanize.Bytes(proc.UsedGpuMemory),
+			GPUUsedMemoryBytesHumanized: humanize.IBytes(proc.UsedGpuMemory),
 		})
 	}
 

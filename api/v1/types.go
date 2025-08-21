@@ -310,7 +310,7 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 		table.Append([]string{"CPU Logical Cores", fmt.Sprintf("%d", i.CPUInfo.LogicalCores)})
 	}
 	if i.MemoryInfo != nil {
-		table.Append([]string{"Memory Total", humanize.Bytes(i.MemoryInfo.TotalBytes)})
+		table.Append([]string{"Memory Total", humanize.IBytes(i.MemoryInfo.TotalBytes)})
 	}
 
 	table.Append([]string{"CUDA Version", i.CUDAVersion})
@@ -442,8 +442,8 @@ func (di *MachineDiskInfo) RenderTable(wr io.Writer) {
 				blk.Name,
 				blk.Type,
 				blk.FSType,
-				humanize.Bytes(uint64(blk.Used)),
-				humanize.Bytes(uint64(blk.Size)),
+				humanize.IBytes(uint64(blk.Used)),
+				humanize.IBytes(uint64(blk.Size)),
 				blk.MountPoint,
 				strings.Join(blk.Parents, "\n"),
 				strings.Join(blk.Children, "\n"),

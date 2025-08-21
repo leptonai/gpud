@@ -733,8 +733,8 @@ func TestCheckResultString(t *testing.T) {
 		assert.Contains(t, result, "FREE")
 		assert.Contains(t, result, "USED")
 
-		assert.Contains(t, result, "GB") // Total size in GB
-		assert.Contains(t, result, "MB") // Free and used sizes in MB or GB
+		assert.Contains(t, result, "GiB") // Total size in GiB
+		assert.Contains(t, result, "MiB") // Free and used sizes in MiB or GiB
 	})
 
 	t.Run("mixed valid and nil Usage", func(t *testing.T) {

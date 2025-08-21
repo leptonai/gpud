@@ -27,7 +27,7 @@ func Test_processLineBPFJITAllocExec(t *testing.T) {
 	expected := uint64(3977216)
 	assert.Equal(t, expected, totalSize)
 
-	t.Logf("totalSize: %s", humanize.Bytes(totalSize))
+	t.Logf("totalSize: %s", humanize.IBytes(totalSize))
 }
 
 func Test_readBPFJITBufferBytes_Success(t *testing.T) {
@@ -38,7 +38,7 @@ func Test_readBPFJITBufferBytes_Success(t *testing.T) {
 	expected := uint64(3977216)
 	assert.Equal(t, expected, totalSize)
 
-	t.Logf("totalSize: %s", humanize.Bytes(totalSize))
+	t.Logf("totalSize: %s", humanize.IBytes(totalSize))
 }
 
 func Test_readBPFJITBufferBytes_FileNotFound(t *testing.T) {

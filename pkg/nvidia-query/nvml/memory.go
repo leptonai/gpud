@@ -75,10 +75,10 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 		}
 	}
 
-	mem.TotalHumanized = humanize.Bytes(mem.TotalBytes)
-	mem.ReservedHumanized = humanize.Bytes(mem.ReservedBytes)
-	mem.FreeHumanized = humanize.Bytes(mem.FreeBytes)
-	mem.UsedHumanized = humanize.Bytes(mem.UsedBytes)
+	mem.TotalHumanized = humanize.IBytes(mem.TotalBytes)
+	mem.ReservedHumanized = humanize.IBytes(mem.ReservedBytes)
+	mem.FreeHumanized = humanize.IBytes(mem.FreeBytes)
+	mem.UsedHumanized = humanize.IBytes(mem.UsedBytes)
 
 	if mem.TotalBytes > 0 {
 		mem.UsedPercent = fmt.Sprintf("%.2f", float64(mem.UsedBytes)/float64(mem.TotalBytes)*100)
