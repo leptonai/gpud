@@ -188,7 +188,7 @@ func (c *component) Check() components.CheckResult {
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "ok"
-	log.Logger.Debugw(cr.reason, "used", humanize.Bytes(cr.UsedBytes), "total", humanize.Bytes(cr.TotalBytes))
+	log.Logger.Debugw(cr.reason, "used", humanize.IBytes(cr.UsedBytes), "total", humanize.IBytes(cr.TotalBytes))
 
 	return cr
 }
@@ -235,12 +235,12 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.Append([]string{"Total", humanize.Bytes(cr.TotalBytes)})
-	table.Append([]string{"Used", humanize.Bytes(cr.UsedBytes)})
+	table.Append([]string{"Total", humanize.IBytes(cr.TotalBytes)})
+	table.Append([]string{"Used", humanize.IBytes(cr.UsedBytes)})
 	table.Append([]string{"Used %", cr.UsedPercent + " %"})
-	table.Append([]string{"Available", humanize.Bytes(cr.AvailableBytes)})
+	table.Append([]string{"Available", humanize.IBytes(cr.AvailableBytes)})
 	if runtime.GOOS == "linux" {
-		table.Append([]string{"BPF JIT Buffer", humanize.Bytes(cr.BPFJITBufferBytes)})
+		table.Append([]string{"BPF JIT Buffer", humanize.IBytes(cr.BPFJITBufferBytes)})
 	}
 	table.Render()
 

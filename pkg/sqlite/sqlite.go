@@ -112,7 +112,7 @@ func RunCompact(ctx context.Context, dbFile string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read state file size: %w", err)
 	}
-	log.Logger.Infow("state file size before compact", "size", humanize.Bytes(dbSize))
+	log.Logger.Infow("state file size before compact", "size", humanize.IBytes(dbSize))
 
 	if err := Compact(ctx, dbRW); err != nil {
 		return fmt.Errorf("failed to compact state file: %w", err)
@@ -122,7 +122,7 @@ func RunCompact(ctx context.Context, dbFile string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read state file size: %w", err)
 	}
-	log.Logger.Infow("state file size after compact", "size", humanize.Bytes(dbSize))
+	log.Logger.Infow("state file size after compact", "size", humanize.IBytes(dbSize))
 
 	return nil
 }

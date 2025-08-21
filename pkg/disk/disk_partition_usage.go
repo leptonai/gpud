@@ -133,9 +133,9 @@ func (parts Partitions) RenderTable(wr io.Writer) {
 		used := "n/a"
 		free := "n/a"
 		if part.Usage != nil {
-			total = humanize.Bytes(part.Usage.TotalBytes)
-			used = humanize.Bytes(part.Usage.UsedBytes)
-			free = humanize.Bytes(part.Usage.FreeBytes)
+			total = humanize.IBytes(part.Usage.TotalBytes)
+			used = humanize.IBytes(part.Usage.UsedBytes)
+			free = humanize.IBytes(part.Usage.FreeBytes)
 		}
 
 		table.Append([]string{

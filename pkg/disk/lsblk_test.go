@@ -57,7 +57,7 @@ func TestParse(t *testing.T) {
 		blks.RenderTable(os.Stdout)
 
 		totalBytes := blks.GetTotalBytes()
-		t.Logf("Total bytes: %s", humanize.Bytes(totalBytes))
+		t.Logf("Total bytes: %s", humanize.IBytes(totalBytes))
 	}
 }
 
@@ -88,7 +88,7 @@ func TestParseWithMultipleDevices(t *testing.T) {
 			continue
 		}
 
-		t.Logf("Device: %s, Size: %s", blk.Name, humanize.Bytes(blk.Size.Uint64))
+		t.Logf("Device: %s, Size: %s", blk.Name, humanize.IBytes(blk.Size.Uint64))
 	}
 }
 
@@ -110,7 +110,7 @@ func TestParsePairs(t *testing.T) {
 
 		blks.RenderTable(os.Stdout)
 		totalBytes := blks.GetTotalBytes()
-		t.Logf("Total bytes: %s", humanize.Bytes(totalBytes))
+		t.Logf("Total bytes: %s", humanize.IBytes(totalBytes))
 	}
 }
 

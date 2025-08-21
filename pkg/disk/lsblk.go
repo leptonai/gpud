@@ -398,7 +398,7 @@ func (blks BlockDevices) RenderTable(wr io.Writer) {
 			"",
 			blk.Type,
 			blk.FSType,
-			humanize.Bytes(blk.Size.Uint64),
+			humanize.IBytes(blk.Size.Uint64),
 			blk.MountPoint,
 		})
 
@@ -408,7 +408,7 @@ func (blks BlockDevices) RenderTable(wr io.Writer) {
 				child.ParentDeviceName,
 				child.Type,
 				child.FSType,
-				humanize.Bytes(child.Size.Uint64),
+				humanize.IBytes(child.Size.Uint64),
 				child.MountPoint,
 			})
 		}
