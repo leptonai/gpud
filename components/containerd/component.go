@@ -403,7 +403,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 
 func danglingPodCount(containerdPods []pkgcontainerd.PodSandbox, kubeletPods []kubelet.PodStatus) int {
 	var danglingCount int
-	if kubeletPods == nil {
+	if len(kubeletPods) == 0 {
 		return danglingCount
 	}
 	podMap := make(map[string]struct{})
