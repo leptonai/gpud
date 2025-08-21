@@ -166,7 +166,7 @@ func TestMachineInfo_RenderTable(t *testing.T) {
 				"OS Image", "Ubuntu 20.04.3 LTS",
 				"Container Root Disk", "/dev/nvme0n1p1",
 				"NAME", "TYPE", "FSTYPE", "SIZE", "MOUNT POINT",
-				"/dev/nvme0n1p1", "part", "ext4", "537 GB", "/",
+				"/dev/nvme0n1p1", "part", "ext4", "500 GiB", "/",
 			},
 		},
 		{
@@ -207,7 +207,7 @@ func TestMachineInfo_RenderTable(t *testing.T) {
 				"Container Root Disk", "/dev/nvme0n1p1",
 				"UUID", "SN", "MINOR ID",
 				"GPU-abc123", "SN12345", "0",
-				"/dev/nvme0n1p1", "part", "ext4", "537 GB", "/",
+				"/dev/nvme0n1p1", "part", "ext4", "500 GiB", "/",
 			},
 		},
 	}
@@ -342,7 +342,7 @@ func TestMachineDiskInfo_RenderTable(t *testing.T) {
 			},
 			wantContains: []string{
 				"NAME", "TYPE", "FSTYPE", "SIZE", "MOUNT POINT", "PARENTS", "CHILDREN",
-				"/dev/nvme0n1p1", "part", "ext4", "537 GB", "/",
+				"/dev/nvme0n1p1", "part", "ext4", "500 GiB", "/",
 			},
 		},
 		{
@@ -376,9 +376,9 @@ func TestMachineDiskInfo_RenderTable(t *testing.T) {
 			},
 			wantContains: []string{
 				"NAME", "TYPE", "FSTYPE", "SIZE", "MOUNT POINT", "PARENTS", "CHILDREN",
-				"/dev/nvme0n1", "disk", "1.1 TB", "/dev/nvme0n1p1", "/dev/nvme0n1p2",
-				"/dev/nvme0n1p1", "part", "ext4", "107 GB", "/boot", "/dev/nvme0n1",
-				"/dev/nvme0n1p2", "part", "ext4", "966 GB", "/", "/dev/nvme0n1",
+				"/dev/nvme0n1", "disk", "1000 GiB", "/dev/nvme0n1p1", "/dev/nvme0n1p2",
+				"/dev/nvme0n1p1", "part", "ext4", "100 GiB", "/boot", "/dev/nvme0n1",
+				"/dev/nvme0n1p2", "part", "ext4", "900 GiB", "/", "/dev/nvme0n1",
 			},
 		},
 	}
