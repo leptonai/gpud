@@ -38,6 +38,7 @@ type Op struct {
 	nvmlInstance        nvidianvml.Instance
 	metricsStore        pkgmetrics.Store
 	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
+	pluginsInitFailed   bool
 	faultInjector       pkgfaultinjector.Injector
 }
 
@@ -111,6 +112,12 @@ func WithSavePluginSpecsFunc(savePluginSpecsFunc func(context.Context, pkgcustom
 	}
 }
 
+func WithPluginsInitFailed(pluginsInitFailed bool) OpOption {
+	return func(op *Op) {
+		op.pluginsInitFailed = pluginsInitFailed
+	}
+}
+
 func WithFaultInjector(faultInjector pkgfaultinjector.Injector) OpOption {
 	return func(op *Op) {
 		op.faultInjector = faultInjector
@@ -165,7 +172,9 @@ type Session struct {
 	autoUpdateExitCode int
 
 	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
-	faultInjector       pkgfaultinjector.Injector
+	pluginsInitFailed   bool
+
+	faultInjector pkgfaultinjector.Injector
 
 	lastPackageTimestampMu sync.RWMutex
 	lastPackageTimestamp   time.Time
@@ -227,7 +236,9 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		components: cps,
 
 		savePluginSpecsFunc: op.savePluginSpecsFunc,
-		faultInjector:       op.faultInjector,
+		pluginsInitFailed:   op.pluginsInitFailed,
+
+		faultInjector: op.faultInjector,
 
 		enableAutoUpdate:   op.enableAutoUpdate,
 		autoUpdateExitCode: op.autoUpdateExitCode,

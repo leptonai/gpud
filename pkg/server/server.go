@@ -87,8 +87,11 @@ type Server struct {
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
 
-	pluginSpecsFile string
-	faultInjector   pkgfaultinjector.Injector
+	pluginSpecsFile     string
+	pluginsInitFailFast bool
+	// set to true if any init plugin returns unhealthy state
+	pluginsInitFailed bool
+	faultInjector     pkgfaultinjector.Injector
 }
 
 type UserToken struct {
@@ -173,7 +176,8 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		enableAutoUpdate:   config.EnableAutoUpdate,
 		autoUpdateExitCode: config.AutoUpdateExitCode,
 
-		pluginSpecsFile: config.PluginSpecsFile,
+		pluginSpecsFile:     config.PluginSpecsFile,
+		pluginsInitFailFast: config.PluginsInitFailFast,
 	}
 	defer func() {
 		if retErr != nil {
@@ -269,9 +273,17 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	for _, c := range s.initRegistry.All() {
 		rs := c.Check()
 		if rs.HealthStateType() != apiv1.HealthStateTypeHealthy {
-			return nil, fmt.Errorf("failed to start init plugin %s: %s", c.Name(), rs.Summary())
+			s.pluginsInitFailed = true
+
+			errMsg := fmt.Sprintf("init plugin %s returned unhealthy state: %s", c.Name(), rs.Summary())
+			if s.pluginsInitFailFast {
+				return nil, fmt.Errorf("failed to start init plugin %s: %s", c.Name(), rs.Summary())
+			}
+			// Default behavior: log and continue (may fail if user misconfigures init plugins)
+			log.Logger.Errorw(errMsg, "plugin", c.Name(), "summary", rs.Summary())
+		} else {
+			log.Logger.Infow("successfully executed init plugin", "name", c.Name(), "summary", rs.Summary())
 		}
-		log.Logger.Infow("successfully executed init plugin", "name", c.Name(), "summary", rs.Summary())
 
 		debugger, ok := rs.(components.CheckResultDebugger)
 		if ok {
@@ -505,6 +517,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
 				return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)
 			}),
+			session.WithPluginsInitFailed(s.pluginsInitFailed),
 			session.WithFaultInjector(s.faultInjector),
 		)
 		if err != nil {
@@ -563,6 +576,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
 					return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)
 				}),
+				session.WithPluginsInitFailed(s.pluginsInitFailed),
 				session.WithFaultInjector(s.faultInjector),
 			)
 			if err != nil {

@@ -3600,10 +3600,48 @@ func TestSaveSpecs(t *testing.T) {
 			expectError:    true,
 		},
 		{
-			name:           "empty specs",
-			path:           filepath.Join(tempDir, "empty-specs.yaml"),
+			name:           "empty specs to non-existent file",
+			path:           filepath.Join(tempDir, "empty-specs-no-create.yaml"),
 			newSpecs:       Specs{},
-			expectedResult: true,
+			expectedResult: false, // Should not create file for empty specs
+			expectError:    false,
+			verifyFile: func(t *testing.T, path string) {
+				// Verify file was NOT created
+				_, err := os.Stat(path)
+				assert.True(t, os.IsNotExist(err))
+			},
+		},
+		{
+			name: "empty specs to existing file",
+			setupFile: func(path string) error {
+				existingSpecs := Specs{
+					{
+						PluginName: "to-be-removed",
+						PluginType: SpecTypeComponent,
+						RunMode:    "auto",
+						Timeout:    metav1.Duration{Duration: 30 * time.Second},
+						HealthStatePlugin: &Plugin{
+							Steps: []Step{
+								{
+									Name: "test-step",
+									RunBashScript: &RunBashScript{
+										ContentType: "plaintext",
+										Script:      "echo 'will be removed'",
+									},
+								},
+							},
+						},
+					},
+				}
+				data, err := yaml.Marshal(existingSpecs)
+				if err != nil {
+					return err
+				}
+				return os.WriteFile(path, data, 0644)
+			},
+			path:           filepath.Join(tempDir, "empty-specs-overwrite.yaml"),
+			newSpecs:       Specs{},
+			expectedResult: true, // File exists, so it will be overwritten
 			expectError:    false,
 			verifyFile: func(t *testing.T, path string) {
 				content, err := os.ReadFile(path)
@@ -3799,13 +3837,39 @@ func TestSaveSpecsEdgeCases(t *testing.T) {
 		assert.False(t, result)
 	})
 
-	t.Run("nil specs", func(t *testing.T) {
-		path := filepath.Join(tempDir, "nil-specs.yaml")
+	t.Run("nil specs creates empty file when file exists", func(t *testing.T) {
+		// First create a file with some content
+		path := filepath.Join(tempDir, "nil-specs-existing.yaml")
+		existingSpecs := Specs{
+			{
+				PluginName: "existing-plugin",
+				PluginType: SpecTypeComponent,
+				RunMode:    "auto",
+				Timeout:    metav1.Duration{Duration: 30 * time.Second},
+				HealthStatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'existing'",
+							},
+						},
+					},
+				},
+			},
+		}
+		data, err := yaml.Marshal(existingSpecs)
+		assert.NoError(t, err)
+		err = os.WriteFile(path, data, 0644)
+		assert.NoError(t, err)
+
+		// Now save nil specs to the existing file
 		result, err := SaveSpecs(path, nil)
 		assert.NoError(t, err)
-		assert.True(t, result)
+		assert.True(t, result) // File exists, so it will be overwritten
 
-		// Verify the file contains an empty array
+		// Verify the file now contains an empty array
 		content, err := os.ReadFile(path)
 		assert.NoError(t, err)
 
@@ -3813,6 +3877,100 @@ func TestSaveSpecsEdgeCases(t *testing.T) {
 		err = yaml.Unmarshal(content, &savedSpecs)
 		assert.NoError(t, err)
 		assert.Len(t, savedSpecs, 0)
+	})
+
+	t.Run("non-existent file with empty specs", func(t *testing.T) {
+		// Test case for when file does not exist and newSpecs is empty
+		// This specifically tests lines 110-116 in SaveSpecs
+		nonExistentFile := filepath.Join(tempDir, "non-existent-empty.yaml")
+
+		// Ensure the file doesn't exist
+		_, err := os.Stat(nonExistentFile)
+		assert.True(t, os.IsNotExist(err))
+
+		// Test with empty specs (zero length)
+		emptySpecs := Specs{}
+		result, err := SaveSpecs(nonExistentFile, emptySpecs)
+
+		// Should return false (no update) and no error
+		assert.NoError(t, err)
+		assert.False(t, result)
+
+		// Verify the file was not created
+		_, err = os.Stat(nonExistentFile)
+		assert.True(t, os.IsNotExist(err))
+	})
+
+	t.Run("non-existent file with nil specs", func(t *testing.T) {
+		// Test case for when file does not exist and newSpecs is nil
+		// This also tests lines 110-116 in SaveSpecs
+		nonExistentFile := filepath.Join(tempDir, "non-existent-nil.yaml")
+
+		// Ensure the file doesn't exist
+		_, err := os.Stat(nonExistentFile)
+		assert.True(t, os.IsNotExist(err))
+
+		// Test with nil specs (also has length 0)
+		var nilSpecs Specs = nil
+		result, err := SaveSpecs(nonExistentFile, nilSpecs)
+
+		// Should return false (no update) and no error
+		assert.NoError(t, err)
+		assert.False(t, result)
+
+		// Verify the file was not created
+		_, err = os.Stat(nonExistentFile)
+		assert.True(t, os.IsNotExist(err))
+	})
+
+	t.Run("non-existent file with non-empty specs", func(t *testing.T) {
+		// Test the opposite case - file doesn't exist but specs are provided
+		// This ensures we're testing the full logic of lines 110-116
+		nonExistentFile := filepath.Join(tempDir, "non-existent-with-specs.yaml")
+
+		// Ensure the file doesn't exist
+		_, err := os.Stat(nonExistentFile)
+		assert.True(t, os.IsNotExist(err))
+
+		// Test with non-empty specs
+		specs := Specs{
+			{
+				PluginName: "test-plugin",
+				PluginType: SpecTypeComponent,
+				RunMode:    "auto",
+				Timeout:    metav1.Duration{Duration: 30 * time.Second},
+				HealthStatePlugin: &Plugin{
+					Steps: []Step{
+						{
+							Name: "test-step",
+							RunBashScript: &RunBashScript{
+								ContentType: "plaintext",
+								Script:      "echo 'hello'",
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := SaveSpecs(nonExistentFile, specs)
+
+		// Should return true (file created) and no error
+		assert.NoError(t, err)
+		assert.True(t, result)
+
+		// Verify the file was created
+		_, err = os.Stat(nonExistentFile)
+		assert.NoError(t, err)
+
+		// Verify content
+		content, err := os.ReadFile(nonExistentFile)
+		assert.NoError(t, err)
+
+		var savedSpecs Specs
+		err = yaml.Unmarshal(content, &savedSpecs)
+		assert.NoError(t, err)
+		assert.Len(t, savedSpecs, 1)
+		assert.Equal(t, "test-plugin", savedSpecs[0].PluginName)
 	})
 }
 

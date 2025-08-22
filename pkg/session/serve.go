@@ -411,6 +411,10 @@ func (s *Session) serve() {
 				restartExitCode = *exitCode
 				log.Logger.Infow("scheduled process exit for plugin specs update", "code", restartExitCode)
 			}
+			if s.pluginsInitFailed && restartExitCode == -1 {
+				restartExitCode = 0
+				log.Logger.Infow("scheduled process exit to retry init plugins", "code", restartExitCode)
+			}
 
 		case "getPluginSpecs":
 			s.processGetPluginSpecs(response)

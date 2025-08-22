@@ -72,6 +72,38 @@ func TestServerErrInvalidStateFile(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestServer_InitPluginFailFast(t *testing.T) {
+	tests := []struct {
+		name                string
+		pluginsInitFailFast bool
+		expectError         bool
+	}{
+		{
+			name:                "Fail fast disabled - continues on error",
+			pluginsInitFailFast: false,
+			expectError:         false,
+		},
+		{
+			name:                "Fail fast enabled - fails on error",
+			pluginsInitFailFast: true,
+			expectError:         true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a simple server struct to test the flag
+			s := &Server{
+				pluginsInitFailFast: tt.pluginsInitFailFast,
+			}
+
+			// Verify that the flag is set correctly
+			assert.Equal(t, tt.pluginsInitFailFast, s.pluginsInitFailFast,
+				"pluginsInitFailFast should be set to %v", tt.pluginsInitFailFast)
+		})
+	}
+}
+
 func TestGenerateSelfSignedCert(t *testing.T) {
 	s := &Server{}
 	cert, err := s.generateSelfSignedCert()

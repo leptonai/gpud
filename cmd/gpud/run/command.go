@@ -60,6 +60,7 @@ func Command(cliContext *cli.Context) error {
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
 	versionFile := cliContext.String("version-file")
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
+	pluginsInitFailFast := cliContext.Bool("plugins-init-fail-fast")
 
 	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
 	components := cliContext.String("components")
@@ -146,6 +147,7 @@ func Command(cliContext *cli.Context) error {
 	cfg.VersionFile = versionFile
 
 	cfg.PluginSpecsFile = pluginSpecsFile
+	cfg.PluginsInitFailFast = pluginsInitFailFast
 
 	if components != "" {
 		cfg.Components = strings.Split(components, ",")

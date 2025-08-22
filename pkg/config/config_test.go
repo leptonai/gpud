@@ -675,6 +675,40 @@ func TestConfig_ShouldDisable_EarlyReturnBehavior(t *testing.T) {
 	}
 }
 
+func TestConfig_PluginsInitFailFast(t *testing.T) {
+	tests := []struct {
+		name                string
+		pluginsInitFailFast bool
+	}{
+		{
+			name:                "Default: fail fast disabled",
+			pluginsInitFailFast: false,
+		},
+		{
+			name:                "Fail fast enabled",
+			pluginsInitFailFast: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Address:             "localhost:8080",
+				RetentionPeriod:     metav1.Duration{Duration: time.Hour},
+				PluginsInitFailFast: tt.pluginsInitFailFast,
+			}
+
+			err := cfg.Validate()
+			if err != nil {
+				t.Errorf("Config.Validate() error = %v", err)
+			}
+			if cfg.PluginsInitFailFast != tt.pluginsInitFailFast {
+				t.Errorf("Config.PluginsInitFailFast = %v, want %v", cfg.PluginsInitFailFast, tt.pluginsInitFailFast)
+			}
+		})
+	}
+}
+
 func TestConfig_WildcardAndAll_EdgeCases(t *testing.T) {
 	t.Run("ShouldEnable with wildcard and all mixed with regular components", func(t *testing.T) {
 		cfg := &Config{

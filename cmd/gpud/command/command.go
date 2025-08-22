@@ -176,7 +176,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "sets the components to enable (comma-separated, leave empty for default to enable all components, set 'none' or any other non-matching value to disable all components, prefix component name with '-' to disable it)",
 					Value: "",
 				},
-
+				cli.BoolFlag{
+					Name:  "plugins-init-fail-fast",
+					Usage: "fail fast if init plugins return unhealthy state (default: false, logs error and continues)",
+				},
 				&cli.IntFlag{
 					Name:  "gpu-count",
 					Usage: "specifies the expected GPU count",

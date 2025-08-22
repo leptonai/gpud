@@ -52,6 +52,11 @@ type Config struct {
 	// PluginSpecsFile is the file that contains the plugin specs.
 	PluginSpecsFile string `json:"plugin_specs_file"`
 
+	// PluginsInitFailFast controls whether init plugin failures should cause gpud to exit.
+	// If true, fail fast when init plugins return unhealthy state.
+	// If false (default), log errors and continue.
+	PluginsInitFailFast bool `json:"plugins_init_fail_fast"`
+
 	// Components specifies the components to enable.
 	// Leave empty, "*", or "all" to enable all components.
 	// Or prefix component names with "-" to disable them.
