@@ -9,7 +9,6 @@ import (
 	cmdcustomplugins "github.com/leptonai/gpud/cmd/gpud/custom-plugins"
 	cmddown "github.com/leptonai/gpud/cmd/gpud/down"
 	cmdinjectfault "github.com/leptonai/gpud/cmd/gpud/inject-fault"
-	cmdjoin "github.com/leptonai/gpud/cmd/gpud/join"
 	cmdlistplugins "github.com/leptonai/gpud/cmd/gpud/list-plugins"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	cmdlogout "github.com/leptonai/gpud/cmd/gpud/logout"
@@ -662,60 +661,6 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:  "public-ip",
 					Usage: "can specify public ip for machine",
-				},
-			},
-		},
-		// DEPRECATED: use "gpud up" instead
-		{
-			Name:   "join",
-			Usage:  "join gpud machine into a lepton cluster",
-			Action: cmdjoin.Command,
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:  "log-level,l",
-					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-				},
-				cli.StringFlag{
-					Name:   "cluster-name",
-					Usage:  "[DEPRECATED] cluster name for control plane (e.g.: lepton-prod-0)",
-					Value:  "",
-					Hidden: true,
-				},
-				cli.StringFlag{
-					Name:  "provider",
-					Usage: "provider of the machine",
-				},
-				cli.StringFlag{
-					Name:  "provider-instance-id",
-					Usage: "provider instance id of the machine",
-				},
-				cli.StringFlag{
-					Name:  "node-group",
-					Usage: "node group to join",
-				},
-				cli.StringFlag{
-					Name:  "public-ip",
-					Usage: "can specify public ip for machine",
-				},
-				cli.StringFlag{
-					Name:  "private-ip",
-					Usage: "can specify private ip for internal network",
-				},
-				cli.BoolTFlag{
-					Name:  "skip-interactive",
-					Usage: "use detected value instead of prompting for user input",
-				},
-				cli.StringFlag{
-					Name:  "extra-info",
-					Usage: "base64 encoded extra info to pass to control plane",
-				},
-				cli.StringFlag{
-					Name:  "region",
-					Usage: "specify the region of the machine",
-				},
-				cli.StringFlag{
-					Name:  "gpu-product",
-					Usage: "specify the GPU shape of the machine",
 				},
 			},
 		},
