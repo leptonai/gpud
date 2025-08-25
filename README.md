@@ -21,88 +21,88 @@ Most importantly, GPUd operates with minimal CPU and memory overhead in a non-cr
 
 ## Get Started
 
+The fastest way to see `gpud` in action is to watch our 40-second demo video below. For more detailed guides, see our [Tutorials page](./docs/TUTORIALS.md).
+
 <a href="https://www.youtube.com/watch?v=sq-7_Zrv7-8" target="_blank">
 <img src="https://i3.ytimg.com/vi/sq-7_Zrv7-8/maxresdefault.jpg" alt="gpud-2025-06-01-01-install-and-scan" />
 </a>
 
-See [Tutorials](./docs/TUTORIALS.md) for more.
-
 ### Installation
 
-To install from the official release on Linux and amd64 (x86_64) machine:
+To install from the official release on Linux amd64 (x86_64) machine:
 
 ```bash
 curl -fsSL https://pkg.gpud.dev/install.sh | sh
 ```
 
-To specify a version
+To specify a version:
 
 ```bash
 curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.6.0
 ```
 
-Note that the install script doesn't support other architectures (arm64) and OSes (macos), yet.
+Note that the install script does not currenlty support other architectures (e.g., arm64) and OSes (e.g., macOS).
 
-### Run GPUd with Lepton Platform
+---
 
-Sign up at [lepton.ai](https://www.lepton.ai/) and get the workspace token from the ["Settings" and "Tokens" page](https://dashboard.lepton.ai/workspace-redirect/settings/api-tokens):
+### Run GPUd on a Host
 
-<img src="./assets/gpud-lepton.ai-machines-settings.png" width="80%" alt="GPUd lepton.ai machines settings">
+This section covers running `gpud` directly on a host machine.
 
-Copy the token and pass it to the `gpud up --token` flag:
+#### With `systemd` (Recommended for Linux)
 
-```bash
-sudo gpud up --token <LEPTON_AI_TOKEN>
-```
-
-You can go to the [dashboard](https://dashboard.lepton.ai/workspace-redirect/machines/self-managed-nodes) to check the self-managed machine status.
-
-### Run GPUd standalone
-
-For linux, run the following command to start the service:
+**Start the service:**
 
 ```bash
-sudo gpud up
+sudo gpud up [--token <LEPTON_AI_TOKEN>]
 ```
 
-You can also start with the standalone mode and later switch to the managed option:
+> **Note:** The optional `--token` connects `gpud` to the Lepton Platform. You can get a token from the [Settings > Tokens page](https://dashboard.lepton.ai/workspace-redirect/settings/api-tokens) on your dashboard. You can then view your machine's status on the [self-managed nodes dashboard](https://dashboard.lepton.ai/workspace-redirect/machines/self-managed-nodes).
 
-```bash
-# when the token is ready, run the following command
-sudo gpud login --token <LEPTON_AI_TOKEN>
-
-# to logout
-sudo gpud logout
-
-# to logout and reset the state file
-sudo gpud logout --reset-state
-```
-
-#### Run GPUd with Kubernetes
-
-The recommended way to deploy GPUd on Kubernetes is with our official [Helm chart](./deployments/helm/gpud/README.md).
-
-#### If your system doesn't have systemd
-
-To run on Mac (without systemd):
-
-```bash
-gpud run
-```
-
-Or
-
-```bash
-nohup sudo /usr/local/bin run &>> <your log file path> &
-```
-
-### Stop and uninstall
+**Stop the service:**
 
 ```bash
 sudo gpud down
-sudo rm /usr/local/bin
+```
+
+**Uninstall:**
+
+```bash
+sudo rm /usr/local/bin/gpud
 sudo rm /etc/systemd/system/gpud.service
 ```
+
+#### Without `systemd` (e.g., macOS)
+
+**Run in the foreground:**
+
+```bash
+gpud run [--token <LEPTON_AI_TOKEN>]
+```
+
+**Run in the background:**
+
+```bash
+nohup sudo /usr/local/bin/gpud run [--token <LEPTON_AI_TOKEN>] &>> <your_log_file_path> &
+```
+
+**Uninstall:**
+
+```bash
+sudo rm /usr/local/bin/gpud
+```
+
+---
+
+### Run GPUd with Kubernetes
+
+The recommended way to deploy GPUd on Kubernetes is with our official [Helm chart](./deployments/helm/gpud/README.md).
+
+### Build with Docker
+
+A Dockerfile is provided to build a container image from source. For complete instructions, please see our [Docker guide in CONTRIBUTING.md](CONTRIBUTING.md#building-with-docker).
+
+---
 
 ## Key Features
 
@@ -129,7 +129,7 @@ If you opt-in to log in to the Lepton AI platform, to assist you with more helpf
 
 GPUd is still in active development, regularly releasing new versions for critical bug fixes and new features. We strongly recommend always being on the latest version of GPUd.
 
-When GPUd is registered with the Lepton platform, the platform will automatically update GPUd to the latest version. To disable such auto-updates, if GPUd is run with systemd (default option for the `gpud up` command), you may add the flag `FLAGS="--enable-auto-update=false"` to the `/etc/default/gpud` environment file and restart the service.
+When GPUd is registered with the Lepton platform, the platform will automatically update GPUd to the latest version. To disable such auto-updates, if GPUd is run with `systemd` (default option for the `gpud up` command), you may add the flag `FLAGS="--enable-auto-update=false"` to the `/etc/default/gpud` environment file and restart the service.
 
 ## Learn more
 
