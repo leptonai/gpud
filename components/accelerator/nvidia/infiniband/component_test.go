@@ -2194,6 +2194,195 @@ func TestComponentCheckDropEventsIgnoredWhenHealthy(t *testing.T) {
 	assert.Len(t, events, 0)
 }
 
+func TestComponentCheckThresholdMismatchNoHardwareInspection(t *testing.T) {
+	t.Parallel()
+
+	// Test case: Ports don't meet threshold requirements (count or rate)
+	// Expected: Component should be unhealthy but NOT suggest hardware inspection
+	// since port mismatches often self-recover
+	cctx, ccancel := context.WithCancel(context.Background())
+	defer ccancel()
+
+	mockBucket := createMockEventBucket()
+
+	c := &component{
+		ctx:          cctx,
+		cancel:       ccancel,
+		eventBucket:  mockBucket,
+		ibPortsStore: nil, // No events store, pure threshold evaluation
+		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			return infiniband.ExpectedPortStates{
+				AtLeastPorts: 8, // Require 8 ports
+				AtLeastRate:  400,
+			}
+		},
+		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+			// Return only 4 ports, not meeting the 8 port requirement
+			return infinibandclass.Devices{
+				{
+					Name: "mlx5_0",
+					Ports: []infinibandclass.Port{
+						{
+							Port:      1,
+							Name:      "1",
+							State:     "Active",
+							PhysState: "LinkUp",
+							RateGBSec: 400,
+							LinkLayer: "Infiniband",
+							Counters: infinibandclass.Counters{
+								LinkDowned: new(uint64),
+							},
+						},
+					},
+				},
+				{
+					Name: "mlx5_1",
+					Ports: []infinibandclass.Port{
+						{
+							Port:      1,
+							Name:      "1",
+							State:     "Active",
+							PhysState: "LinkUp",
+							RateGBSec: 400,
+							LinkLayer: "Infiniband",
+							Counters: infinibandclass.Counters{
+								LinkDowned: new(uint64),
+							},
+						},
+					},
+				},
+				{
+					Name: "mlx5_2",
+					Ports: []infinibandclass.Port{
+						{
+							Port:      1,
+							Name:      "1",
+							State:     "Active",
+							PhysState: "LinkUp",
+							RateGBSec: 400,
+							LinkLayer: "Infiniband",
+							Counters: infinibandclass.Counters{
+								LinkDowned: new(uint64),
+							},
+						},
+					},
+				},
+				{
+					Name: "mlx5_3",
+					Ports: []infinibandclass.Port{
+						{
+							Port:      1,
+							Name:      "1",
+							State:     "Active",
+							PhysState: "LinkUp",
+							RateGBSec: 400,
+							LinkLayer: "Infiniband",
+							Counters: infinibandclass.Counters{
+								LinkDowned: new(uint64),
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	result := c.Check()
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	require.NotNil(t, data)
+
+	// Should be unhealthy due to insufficient ports
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.Contains(t, data.reason, "only 4 port(s) are active")
+	assert.Contains(t, data.reason, "expect >=8 port(s)")
+
+	// IMPORTANT: Should NOT suggest hardware inspection for threshold mismatches
+	// as these often self-recover
+	assert.Nil(t, data.suggestedActions, "Should NOT suggest hardware inspection for port/rate threshold mismatches")
+}
+
+func TestComponentCheckRateMismatchNoHardwareInspection(t *testing.T) {
+	t.Parallel()
+
+	// Test case: Ports don't meet rate requirements
+	// Expected: Component should be unhealthy but NOT suggest hardware inspection
+	cctx, ccancel := context.WithCancel(context.Background())
+	defer ccancel()
+
+	mockBucket := createMockEventBucket()
+
+	c := &component{
+		ctx:          cctx,
+		cancel:       ccancel,
+		eventBucket:  mockBucket,
+		ibPortsStore: nil, // No events store, pure threshold evaluation
+		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			return infiniband.ExpectedPortStates{
+				AtLeastPorts: 2,
+				AtLeastRate:  400, // Require 400 Gb/s
+			}
+		},
+		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+			// Return ports with insufficient rate
+			return infinibandclass.Devices{
+				{
+					Name: "mlx5_0",
+					Ports: []infinibandclass.Port{
+						{
+							Port:      1,
+							Name:      "1",
+							State:     "Active",
+							PhysState: "LinkUp",
+							RateGBSec: 200, // Only 200 Gb/s, not meeting 400 requirement
+							LinkLayer: "Infiniband",
+							Counters: infinibandclass.Counters{
+								LinkDowned: new(uint64),
+							},
+						},
+					},
+				},
+				{
+					Name: "mlx5_1",
+					Ports: []infinibandclass.Port{
+						{
+							Port:      1,
+							Name:      "1",
+							State:     "Active",
+							PhysState: "LinkUp",
+							RateGBSec: 200, // Only 200 Gb/s, not meeting 400 requirement
+							LinkLayer: "Infiniband",
+							Counters: infinibandclass.Counters{
+								LinkDowned: new(uint64),
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	result := c.Check()
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	require.NotNil(t, data)
+
+	// Should be unhealthy due to insufficient rate
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.Contains(t, data.reason, "only 0 port(s) are active and >=400 Gb/s")
+
+	// IMPORTANT: Should NOT suggest hardware inspection for rate mismatches
+	assert.Nil(t, data.suggestedActions, "Should NOT suggest hardware inspection for rate threshold mismatches")
+}
+
 func TestComponentCheckDropEventsProcessedWhenUnhealthy(t *testing.T) {
 	t.Parallel()
 
