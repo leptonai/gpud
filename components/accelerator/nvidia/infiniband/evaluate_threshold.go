@@ -42,13 +42,14 @@ func evaluateHealthStateWithThresholds(thresholds infiniband.ExpectedPortStates,
 
 	unhealthy, err := infiniband.EvaluatePortsAndRate(ibports, atLeastPorts, atLeastRate)
 	if err != nil {
+		cr.unhealthyIBPorts = unhealthy
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.suggestedActions = &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
-		}
 		cr.reason = err.Error()
 
-		cr.unhealthyIBPorts = unhealthy
+		// NOTE: do not set suggested actions to "apiv1.RepairActionTypeHardwareInspection" here
+		// since this port mismatch often self-recovers
+		// "apiv1.RepairActionTypeHardwareInspection" is reserved for irrecoverable hardware issues
+
 		return
 	}
 

@@ -95,6 +95,39 @@ func TestEvaluateHealthStateWithThresholdsComprehensive(t *testing.T) {
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedReason: reasonNoIbPortIssue,
 		},
+		{
+			name:       "insufficient ports should NOT suggest hardware inspection",
+			thresholds: infiniband.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 200},
+			ibports: []infiniband.IBPort{
+				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
+				{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
+			},
+			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
+			expectedReason:    "only 2 port(s) are active and >=200 Gb/s, expect >=4 port(s)",
+			shouldHaveActions: false, // No hardware inspection for port count mismatch
+		},
+		{
+			name:       "insufficient rate should NOT suggest hardware inspection",
+			thresholds: infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400},
+			ibports: []infiniband.IBPort{
+				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
+				{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
+			},
+			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
+			expectedReason:    "only 0 port(s) are active and >=400 Gb/s, expect >=2 port(s)",
+			shouldHaveActions: false, // No hardware inspection for rate mismatch
+		},
+		{
+			name:       "disabled ports should NOT suggest hardware inspection",
+			thresholds: infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 200},
+			ibports: []infiniband.IBPort{
+				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
+				{Device: "mlx5_1", State: "Down", PhysicalState: "Disabled", RateGBSec: 0, LinkLayer: "Infiniband"},
+			},
+			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
+			expectedReason:    "only 1 port(s) are active and >=200 Gb/s, expect >=2 port(s); 1 device(s) physical state Disabled (mlx5_1)",
+			shouldHaveActions: false, // No hardware inspection for disabled ports
+		},
 	}
 
 	for _, tt := range tests {
