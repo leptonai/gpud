@@ -19,24 +19,86 @@ make all
 ./bin/gpud -h
 ```
 
+---
+
 ## Building with Docker
 
 ### Prerequisites
 
 - Docker with `buildx` enabled.
-- Access to a container registry (e.g., Docker Hub, NVCR) if you plan to push images.
+- Access to a container registry (e.g., Docker Hub, NGC) if you plan to push images.
 
-### Building the Linux Container Image
+### Local builds (for Testing)
 
-Use Docker with `buildx` enabled to build an image for your machine's native architecture.
+This is the fastest way to build an image for your local machine's architecture to test changes. The `--load` flag makes the image immediately available in your local Docker library.
+
+```bash
+# Set local build variables
+export IMAGE_NAME="gpud"
+export GIT_TAG="v0.6.0"
+export OS_NAME="ubuntu"
+export OS_VERSION="22.04"
+export CUDA_VERSION="12.4.1"
+
+# Create the full tag and build the image
+export FULL_TAG="${IMAGE_NAME}:${GIT_TAG#v}-cuda${CUDA_VERSION}-${OS_NAME}${OS_VERSION}"
+
+docker buildx build \
+  --build-arg GPUD_VERSION=${GIT_TAG} \
+  --build-arg OS_NAME=${OS_NAME} \
+  --build-arg OS_VERSION=${OS_VERSION} \
+  --build-arg CUDA_VERSION=${CUDA_VERSION} \
+  --tag ${FULL_TAG} \
+  --no-cache \
+  --load .
+```
+
+---
+
+### Multi-platform builds (for Releases)
+
+This process builds a multi-platform image and pushes it directly to a container registry. The image tag should clearly state its dependencies.
+
+1. Log in to your container registry
+You must be logged in to the registry where you intend to push the image.
+
+```bash
+# Example for NVIDIA's NGC container registry 
+docker login nvcr.io
+```
+
+2. Define Build variables and Tag
+
+```bash
+# The repository for the image (e.g., nvcr.io/leptonai/gpud)
+export IMAGE_REPO="your-registry/gpud"
+# The git tag version
+export GIT_TAG="v0.6.0"
+# Critical dependencies
+export OS_NAME="ubuntu"
+export OS_VERSION="22.04"
+export CUDA_VERSION="12.4.1"
+
+# A specific, fully discriptive tag
+export FULL_TAG="${IMAGE_REPO}:${GIT_TAG#v}-cuda${CUDA_VERSION}-${OS_NAME}${OS_VERSION}"
+```
+
+3. Build and Push the image
+
+This single command builds for both `amd64` and `arm64`, tags the resulting manifest, and pushes it to the registry.
 
 ```bash
 docker buildx build \
-  --platform "linux/$(docker info -f '{{.ClientInfo.Arch}}')" \
-  --load \
-  --build-arg GPUD_VERSION="v0.6.0" \
-  -t your-registry/gpud:v0.6.0 .
+  --platform linux/amd64,linux/arm64 \
+  --build-arg GPUD_VERSION=${GIT_TAG} \
+  --build-arg OS_NAME=${OS_NAME} \
+  --build-arg OS_VERSION=${OS_VERSION} \
+  --build-arg CUDA_VERSION=${CUDA_VERSION} \
+  --tag ${FULL_TAG} \
+  --push .
 ```
+
+---
 
 ## Testing
 
