@@ -107,6 +107,12 @@ func SaveSpecs(path string, newSpecs Specs) (bool, error) {
 		}
 		// already exists, but not the same as the new specs
 		// still need to overwrite the file
+	} else {
+		// no prev file/specs and empty new specs
+		// thus no need to write anything
+		if len(newSpecs) == 0 {
+			return false, nil
+		}
 	}
 
 	b, err := yaml.Marshal(newSpecs)
