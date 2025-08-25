@@ -22,6 +22,7 @@ gpud:
     - "--endpoint=gpud-manager-prod01.dgxc-lepton.nvidia.com"
     - "--enable-auto-update=false"
     - "--auto-update-exit-code=0"
+    # - "--gpu-count=8"
   # Telemetry and usage data collection settings.
   telemetry:
     # Set to false to disable collection of anonymous usage data.
@@ -55,7 +56,8 @@ updateStrategy:
 # Container-level security context.
 securityContext:
   # WARNING: This chart requires privileged access to the host node.
-  privileged: false
+  privileged: true
+  runAsUser: 0
 
 # Pod-level security context.
 podSecurityContext: {}
@@ -83,10 +85,8 @@ serviceAccount:
   # The name of the service account to use. If not set and create is true, a name is generated.
   name: ""
 
-# Additional volumes for the pod, e.g., for custom configuration files.
-volumes: []
-# Additional volume mounts for the container.
-volumeMounts: []
+# The name of the runtime class to use for the pod (e.g., "nvidia").
+runtimeClassName: null
 
 # Node selector, tolerations, and affinity for pod scheduling.
 nodeSelector: {}

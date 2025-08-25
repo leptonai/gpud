@@ -45,6 +45,8 @@ spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
 
       # --- Scheduling ---
+      # Mark this pod as a critical add-on to prevent eviction.
+      priorityClassName: "system-node-critical"
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -59,9 +61,28 @@ spec:
       {{- end }}
 
       # --- Storage ---
-      {{- with .Values.volumes }}
       volumes:
-        {{- toYaml . | nindent 8 }}
+        - name: host-dev
+          hostPath:
+            path: /dev
+        - name: lib-gpud
+          hostPath:
+            path: /var/lib/gpud
+        - name: host-machine-id
+          hostPath:
+            path: /etc/machine-id
+            type: FileOrCreate
+        - name: host-dev-mem
+          hostPath:
+            path: /dev/mem
+            type: CharDevice
+        - name: host-kubelet-vol
+          hostPath:
+            path: /var/lib/kubelet
+            type: DirectoryOrCreate
+
+      {{- if .Values.runtimeClassName }}
+      runtimeClassName: {{ .Values.runtimeClassName }}
       {{- end }}
 
       # --- Containers ---
@@ -93,7 +114,17 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
 
-          {{- with .Values.volumeMounts }}
           volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            - name: host-dev
+              mountPath: /dev
+            - name: lib-gpud
+              mountPath: /var/lib/gpud
+            - name: host-machine-id
+              mountPath: /etc/machine-id
+              readOnly: true
+            - name: host-dev-mem
+              mountPath: /dev/mem
+              readOnly: true
+            - name: host-kubelet-vol
+              mountPath: /var/lib/kubelet
+              readOnly: true
