@@ -58,8 +58,12 @@ func (ps PackageStatuses) RenderTable(wr io.Writer) {
 		}
 
 		// Create progress bar
-		progressBar := createProgressBar(status.Progress, 20)
-		progressText := fmt.Sprintf("%s %d%%", progressBar, status.Progress)
+		displayProgress := status.Progress
+		if !status.IsInstalled && !status.Installing {
+			displayProgress = 0
+		}
+		progressBar := createProgressBar(displayProgress, 20)
+		progressText := fmt.Sprintf("%s %d%%", progressBar, displayProgress)
 
 		// Calculate time elapsed and time left
 		var timeElapsed, timeLeft string

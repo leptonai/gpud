@@ -237,6 +237,39 @@ func TestPackageStatuses_RenderTable(t *testing.T) {
 				"N/A",
 			},
 		},
+		{
+			name: "uninstalled package with non-zero progress should show 0%",
+			statuses: PackageStatuses{
+				{
+					Name:           "nvidia-driver",
+					IsInstalled:    false,
+					Installing:     false,
+					Progress:       100, // This should be overridden to 0%
+					TotalTime:      10 * time.Minute,
+					CurrentVersion: "",
+					TargetVersion:  "570.158.01",
+				},
+				{
+					Name:           "kubelet",
+					IsInstalled:    false,
+					Installing:     false,
+					Progress:       50, // This should also be overridden to 0%
+					TotalTime:      5 * time.Minute,
+					CurrentVersion: "",
+					TargetVersion:  "1.32.8",
+				},
+			},
+			contains: []string{
+				"nvidia-driver",
+				"Not Installed",
+				"[                    ] 0%", // Should show 0% not 100%
+				"570.158.01",
+				"kubelet",
+				"Not Installed",
+				"[                    ] 0%", // Should show 0% not 50%
+				"1.32.8",
+			},
+		},
 	}
 
 	for _, tt := range tests {
