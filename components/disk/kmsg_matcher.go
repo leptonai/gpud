@@ -6,12 +6,6 @@ import (
 
 const (
 	// e.g.,
-	// [Sun Dec  8 09:23:39 2024] systemd-journald[889]: Failed to open system journal: No space left on device
-	eventNoSpaceLeft   = "no_space_left"
-	regexNoSpaceLeft   = `No space left`
-	messageNoSpaceLeft = `no disk space left`
-
-	// e.g.,
 	// md/raid0md0: Disk failure on nvme0n1p1 detected, failing array.
 	eventRAIDArrayFailure   = "raid_array_failure"
 	regexRAIDArrayFailure   = `md/raid.*: Disk failure on .* detected, failing array`
@@ -63,7 +57,6 @@ const (
 )
 
 var (
-	compiledNoSpaceLeft          = regexp.MustCompile(regexNoSpaceLeft)
 	compiledRAIDArrayFailure     = regexp.MustCompile(regexRAIDArrayFailure)
 	compiledFilesystemReadOnly   = regexp.MustCompile(regexFilesystemReadOnly)
 	compiledNVMePathFailure      = regexp.MustCompile(regexNVMePathFailure)
@@ -73,14 +66,6 @@ var (
 	compiledBufferIOError        = regexp.MustCompile(regexBufferIOError)
 	compiledSuperblockWriteError = regexp.MustCompile(regexSuperblockWriteError)
 )
-
-// Returns true if the line indicates that the disk has no space left.
-func HasNoSpaceLeft(line string) bool {
-	if match := compiledNoSpaceLeft.FindStringSubmatch(line); match != nil {
-		return true
-	}
-	return false
-}
 
 // Returns true if the line indicates a RAID array failure.
 func HasRAIDArrayFailure(line string) bool {
@@ -164,7 +149,6 @@ type match struct {
 
 func getMatches() []match {
 	return []match{
-		{check: HasNoSpaceLeft, eventName: eventNoSpaceLeft, regex: regexNoSpaceLeft, message: messageNoSpaceLeft},
 		{check: HasRAIDArrayFailure, eventName: eventRAIDArrayFailure, regex: regexRAIDArrayFailure, message: messageRAIDArrayFailure},
 		{check: HasFilesystemReadOnly, eventName: eventFilesystemReadOnly, regex: regexFilesystemReadOnly, message: messageFilesystemReadOnly},
 		{check: HasNVMePathFailure, eventName: eventNVMePathFailure, regex: regexNVMePathFailure, message: messageNVMePathFailure},
