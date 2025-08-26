@@ -840,6 +840,8 @@ func TestFindMntRetryLogic(t *testing.T) {
 				getGroupConfigsFunc: func() pkgnfschecker.Configs {
 					return pkgnfschecker.Configs{}
 				},
+				usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+				usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 				getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 					return disk.Partitions{
 						{
@@ -915,6 +917,8 @@ func TestMountTargetUsagesInitialization(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{}
 		},
+		usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+		usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
 			return &disk.FindMntOutput{
 				Filesystems: []disk.FoundMnt{
@@ -993,6 +997,8 @@ func TestFindMntLogging(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{}
 		},
+		usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+		usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
 			callCount++
 			if callCount == 1 {
@@ -1837,8 +1843,10 @@ func TestComponentClose_EventHandling(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
-			eventBucket: mockBucket,
-			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
+			eventBucket:                    mockBucket,
+			kmsgSyncer:                     nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
 		}
 
 		err := c.Close()
@@ -1863,8 +1871,10 @@ func TestComponentClose_EventHandling(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
-			eventBucket: nil,
-			kmsgSyncer:  nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
+			eventBucket:                    nil,
+			kmsgSyncer:                     nil, // Changed from &kmsg.Syncer{} to nil to avoid panic
 		}
 
 		err := c.Close()
@@ -2848,6 +2858,8 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -2930,6 +2942,8 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3004,6 +3018,8 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3085,6 +3101,8 @@ func TestComponent_SuperblockWriteErrorWithMixedEventTypes(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3165,6 +3183,8 @@ func TestComponent_SuperblockWriteErrorWithMixedEventTypes(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3265,6 +3285,8 @@ func TestComponent_SuperblockWriteErrorSuggestedActions(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3314,6 +3336,8 @@ func TestComponent_SuperblockWriteErrorSuggestedActions(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3443,6 +3467,8 @@ func TestComponent_SuperblockWriteErrorEventStoreErrors(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
@@ -3544,6 +3570,8 @@ func TestComponent_SuperblockWriteErrorIntegration(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
+			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
+			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
 			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "dm-0", Type: "dm"}}, nil
 			},
@@ -3582,4 +3610,453 @@ func TestComponent_SuperblockWriteErrorIntegration(t *testing.T) {
 		assert.Len(t, cr.suggestedActions.RepairActions, 1)
 		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
 	})
+}
+
+// TestDiskUsageThresholds tests disk usage threshold detection for degraded and unhealthy states
+func TestDiskUsageThresholds(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("ext4 partition exceeds degraded threshold", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
+		defer c.Close()
+
+		// Set thresholds for testing
+		c.usedSpaceThresholdPctDegraded = 0.80  // 80%
+		c.usedSpaceThresholdPctUnhealthy = 0.95 // 95%
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		// Create partition with 85% usage (exceeds degraded but not unhealthy)
+		mockPartition := disk.Partition{
+			Device:     "/dev/sda1",
+			MountPoint: "/mnt/data1",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 100, // 100GB
+				UsedBytes:  1024 * 1024 * 1024 * 85,  // 85GB (85% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 15,  // 15GB
+			},
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
+		assert.Contains(t, cr.reason, "/dev/sda1 (/mnt/data1): 85.0% used exceeds 80.0% threshold (100.00GB total)")
+		assert.NotContains(t, cr.reason, "95.0%") // Should not mention unhealthy threshold
+	})
+
+	t.Run("ext4 partition exceeds unhealthy threshold", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
+		defer c.Close()
+
+		// Set thresholds for testing
+		c.usedSpaceThresholdPctDegraded = 0.80  // 80%
+		c.usedSpaceThresholdPctUnhealthy = 0.95 // 95%
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		// Create partition with 96% usage (exceeds unhealthy threshold)
+		mockPartition := disk.Partition{
+			Device:     "/dev/sda1",
+			MountPoint: "/mnt/data1",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 100, // 100GB
+				UsedBytes:  1024 * 1024 * 1024 * 96,  // 96GB (96% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 4,   // 4GB
+			},
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Contains(t, cr.reason, "/dev/sda1 (/mnt/data1): 96.0% used exceeds 95.0% threshold (100.00GB total)")
+		assert.NotContains(t, cr.reason, "80.0%") // Should not mention degraded threshold
+	})
+
+	t.Run("nfs partition exceeds degraded threshold", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+		defer c.Close()
+
+		// Set thresholds for testing
+		c.usedSpaceThresholdPctDegraded = 0.80  // 80%
+		c.usedSpaceThresholdPctUnhealthy = 0.95 // 95%
+
+		// Provide non-empty configs to enable NFS checking
+		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{VolumePath: "/mnt/nfs"},
+			}
+		}
+
+		mockDevice := disk.BlockDevice{
+			Name: "nfs",
+			Type: "disk",
+		}
+
+		// Create NFS partition with 82% usage (exceeds degraded but not unhealthy)
+		mockNFSPartition := disk.Partition{
+			Device:     "192.168.1.100:/shared",
+			MountPoint: "/mnt/nfs",
+			Fstype:     "nfs4",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 200, // 200GB
+				UsedBytes:  1024 * 1024 * 1024 * 164, // 164GB (82% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 36,  // 36GB
+			},
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockNFSPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
+		assert.Contains(t, cr.reason, "192.168.1.100:/shared (/mnt/nfs): 82.0% used exceeds 80.0% threshold (200.00GB total)")
+	})
+
+	t.Run("nfs partition exceeds unhealthy threshold", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+		defer c.Close()
+
+		// Set thresholds for testing
+		c.usedSpaceThresholdPctDegraded = 0.80  // 80%
+		c.usedSpaceThresholdPctUnhealthy = 0.95 // 95%
+
+		// Provide non-empty configs to enable NFS checking
+		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{VolumePath: "/mnt/nfs"},
+			}
+		}
+
+		mockDevice := disk.BlockDevice{
+			Name: "nfs",
+			Type: "disk",
+		}
+
+		// Create NFS partition with 97% usage (exceeds unhealthy threshold)
+		mockNFSPartition := disk.Partition{
+			Device:     "192.168.1.100:/shared",
+			MountPoint: "/mnt/nfs",
+			Fstype:     "nfs4",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 500, // 500GB
+				UsedBytes:  1024 * 1024 * 1024 * 485, // 485GB (97% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 15,  // 15GB
+			},
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{}, nil
+		}
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockNFSPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		assert.Contains(t, cr.reason, "192.168.1.100:/shared (/mnt/nfs): 97.0% used exceeds 95.0% threshold (500.00GB total)")
+	})
+
+	t.Run("multiple partitions with mixed thresholds", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/data1", "/mnt/data2", "/mnt/nfs"}, []string{})
+		defer c.Close()
+
+		// Set thresholds for testing
+		c.usedSpaceThresholdPctDegraded = 0.80  // 80%
+		c.usedSpaceThresholdPctUnhealthy = 0.95 // 95%
+
+		// Provide non-empty configs to enable NFS checking
+		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{VolumePath: "/mnt/nfs"},
+			}
+		}
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		// Partition 1: 85% usage (degraded)
+		mockPartition1 := disk.Partition{
+			Device:     "/dev/sda1",
+			MountPoint: "/mnt/data1",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 100, // 100GB
+				UsedBytes:  1024 * 1024 * 1024 * 85,  // 85GB (85% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 15,  // 15GB
+			},
+		}
+
+		// Partition 2: 96% usage (unhealthy)
+		mockPartition2 := disk.Partition{
+			Device:     "/dev/sda2",
+			MountPoint: "/mnt/data2",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 200, // 200GB
+				UsedBytes:  1024 * 1024 * 1024 * 192, // 192GB (96% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 8,   // 8GB
+			},
+		}
+
+		// NFS partition: 70% usage (healthy)
+		mockNFSPartition := disk.Partition{
+			Device:     "192.168.1.100:/shared",
+			MountPoint: "/mnt/nfs",
+			Fstype:     "nfs4",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 300, // 300GB
+				UsedBytes:  1024 * 1024 * 1024 * 210, // 210GB (70% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 90,  // 90GB
+			},
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition1, mockPartition2}, nil
+		}
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockNFSPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		// Should be unhealthy because one partition exceeds unhealthy threshold
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		// Should only contain the unhealthy partition, not the degraded one
+		assert.Contains(t, cr.reason, "/dev/sda2 (/mnt/data2): 96.0% used exceeds 95.0% threshold (200.00GB total)")
+		assert.NotContains(t, cr.reason, "/dev/sda1") // Degraded partition should not be mentioned when there's an unhealthy one
+		assert.NotContains(t, cr.reason, "/mnt/nfs")  // Healthy partition should not be mentioned
+	})
+
+	t.Run("partition with nil usage", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
+		defer c.Close()
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		// Create partition with nil usage
+		mockPartition := disk.Partition{
+			Device:     "/dev/sda1",
+			MountPoint: "/mnt/data1",
+			Usage:      nil, // nil usage should be skipped
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
+	})
+
+	t.Run("partition with zero total bytes", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
+		defer c.Close()
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		// Create partition with zero total bytes
+		mockPartition := disk.Partition{
+			Device:     "/dev/sda1",
+			MountPoint: "/mnt/data1",
+			Usage: &disk.Usage{
+				TotalBytes: 0, // Zero total bytes should be skipped
+				UsedBytes:  0,
+				FreeBytes:  0,
+			},
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
+	})
+
+	t.Run("default thresholds", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
+		defer c.Close()
+
+		// Verify default thresholds are set correctly
+		assert.Equal(t, 0.99, c.usedSpaceThresholdPctDegraded)   // 99%
+		assert.Equal(t, 0.995, c.usedSpaceThresholdPctUnhealthy) // 99.5%
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		// Create partition with 99.2% usage (between degraded and unhealthy with defaults)
+		totalBytes := uint64(1024 * 1024 * 1024 * 100)   // 100GB
+		usedBytes := uint64(float64(totalBytes) * 0.992) // 99.2% usage
+		mockPartition := disk.Partition{
+			Device:     "/dev/sda1",
+			MountPoint: "/mnt/data1",
+			Usage: &disk.Usage{
+				TotalBytes: totalBytes,
+				UsedBytes:  usedBytes,
+				FreeBytes:  totalBytes - usedBytes,
+			},
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
+		assert.Contains(t, cr.reason, "99.2% used exceeds 99.0% threshold")
+	})
+
+	t.Run("combined with other failure reasons", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/mnt/data1", "/mnt/nfs"}, []string{})
+		defer c.Close()
+
+		// Set thresholds for testing
+		c.usedSpaceThresholdPctDegraded = 0.80  // 80%
+		c.usedSpaceThresholdPctUnhealthy = 0.95 // 95%
+
+		// Provide non-empty configs to enable NFS checking
+		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+			return pkgnfschecker.Configs{
+				{VolumePath: "/mnt/nfs"},
+			}
+		}
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		// Create partition with 96% usage (unhealthy)
+		mockPartition := disk.Partition{
+			Device:     "/dev/sda1",
+			MountPoint: "/mnt/data1",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 100, // 100GB
+				UsedBytes:  1024 * 1024 * 1024 * 96,  // 96GB (96% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 4,   // 4GB
+			},
+		}
+
+		// Create NFS partition with timeout (should add degraded state)
+		mockNFSPartition := disk.Partition{
+			Device:       "192.168.1.100:/shared",
+			MountPoint:   "/mnt/nfs",
+			Fstype:       "nfs4",
+			StatTimedOut: true,
+			Usage:        nil,
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockNFSPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		// Should be unhealthy due to disk usage
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+		// Should contain both reasons
+		assert.Contains(t, cr.reason, "/dev/sda1 (/mnt/data1): 96.0% used exceeds 95.0% threshold")
+		assert.Contains(t, cr.reason, "stat timed out (possible connection issue)")
+	})
+}
+
+// TestHumanizeBytes tests the humanizeBytes function
+func TestHumanizeBytes(t *testing.T) {
+	tests := []struct {
+		name     string
+		bytes    uint64
+		expected string
+	}{
+		{"zero bytes", 0, "0B"},
+		{"less than 1KB", 512, "512B"},
+		{"exactly 1KB", 1024, "1.00KB"},
+		{"1.5KB", 1536, "1.50KB"},
+		{"exactly 1MB", 1024 * 1024, "1.00MB"},
+		{"100MB", 100 * 1024 * 1024, "100.00MB"},
+		{"exactly 1GB", 1024 * 1024 * 1024, "1.00GB"},
+		{"100GB", 100 * 1024 * 1024 * 1024, "100.00GB"},
+		{"1.5GB", 1024*1024*1024 + 512*1024*1024, "1.50GB"},
+		{"exactly 1TB", 1024 * 1024 * 1024 * 1024, "1.00TB"},
+		{"exactly 1PB", 1024 * 1024 * 1024 * 1024 * 1024, "1.00PB"},
+		{"exactly 1EB", 1024 * 1024 * 1024 * 1024 * 1024 * 1024, "1.00EB"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := humanizeBytes(tt.bytes)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
