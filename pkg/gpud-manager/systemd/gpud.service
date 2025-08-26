@@ -27,6 +27,47 @@ KillMode=control-group
 TimeoutStartSec=300
 CPUAccounting=true
 MemoryAccounting=true
+
+# Resource limits to prevent runaway processes
+# Baseline usage in production (128-core system): ~0.3% CPU (of total system), ~150MB RAM
+# CPU usage context: 0.3% in top = 0.3% of all cores combined
+# On a 128-core system, 0.3% total = ~38% of one core
+# 
+# CPU limit: 100% of one core (allows full core utilization while preventing runaway)
+# This provides headroom for:
+# - Initialization spikes
+# - Periodic intensive operations (scanning, health checks)
+# - Multiple component polling cycles overlapping
+# On a 128-core system: 100% of one core = 0.78% of total capacity
+# This is ~2.6x the baseline usage, providing reasonable headroom
+#
+# CPUQuota=100% = 1 full core
+# CPUQuota=200% = 2 full cores
+# CPUQuota=500% = 5 full cores
+#
+# TODO: Re-enable CPU limits after optimizing for driver installation operations
+# CPU limits are currently disabled as they can throttle system driver installations
+# which may require burst CPU usage for compilation and system operations
+# CPUQuota=100%
+
+# Memory limit: 500MB (3.3x current usage for operational headroom)
+# Baseline ~150MB allows for:
+# - Temporary spikes during data collection
+# - Growth with more components enabled
+# - Buffer for goroutine/memory leak detection before restart
+MemoryMax=500M
+# Memory warning at 80% of limit (400MB)
+MemoryHigh=400M
+
+# Action when memory limit is hit - restart the service
+# This protects against memory leaks and runaway goroutines
+# Note: OOMPolicy requires systemd 243+
+OOMPolicy=kill
+
+# Restart on any failure including resource limit violations
+RestartPreventExitStatus=
+RestartForceExitStatus=SIGKILL
+
 User=root
 Group=root
 LimitNOFILE=40000
