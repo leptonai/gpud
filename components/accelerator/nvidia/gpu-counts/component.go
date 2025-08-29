@@ -136,8 +136,26 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	// gpu count mismatch events are ONLY used internally within this package
 	// solely to evaluate the suggested actions
-	// so we don't need to return any events externally
-	return nil, nil
+	// so we don't need to return any events externally, except "SetHealthy"
+	if c.eventBucket == nil {
+		return nil, nil
+	}
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+
+	var setHealthyEvents eventstore.Events
+	for _, ev := range evs {
+		if ev.Name == "SetHealthy" {
+			setHealthyEvents = append(setHealthyEvents, ev)
+		}
+	}
+	if len(setHealthyEvents) == 0 {
+		return nil, nil
+	}
+
+	return setHealthyEvents.Events(), nil
 }
 
 func (c *component) Close() error {
