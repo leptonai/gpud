@@ -162,7 +162,7 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	allEvents := evs.Events()
 	filteredEvents := make(apiv1.Events, 0, len(allEvents))
 	for _, ev := range allEvents {
-		if ev.Name == eventPCIPowerInsufficient || ev.Name == eventPortModuleHighTemperature {
+		if ev.Name == eventPCIPowerInsufficient || ev.Name == eventPortModuleHighTemperature || ev.Name == "SetHealthy" {
 			filteredEvents = append(filteredEvents, ev)
 		}
 	}
