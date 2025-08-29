@@ -243,22 +243,22 @@ func TestCheckOnce(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+			storeV2, err := eventstore.NewV2(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events")
+			bucketV2, err := storeV2.BucketV2("test_events")
 			assert.NoError(t, err)
-			defer bucket.Close()
+			defer bucketV2.Close()
 
 			// Create mock NVML instance
 			mockNVML := createMockNVMLInstance(tc.mockDevices)
 
 			c := &component{
-				ctx:              ctx,
-				cancel:           cancel,
-				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-				eventBucket:      bucket,
-				nvmlInstance:     mockNVML,
+				ctx:                        ctx,
+				cancel:                     cancel,
+				freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+				freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+				eventBucket:                bucketV2,
+				nvmlInstance:               mockNVML,
 				// Initialize lastCheckResult to avoid nil pointer dereference
 				lastCheckResult: &checkResult{
 					ts:     time.Now().UTC(),
@@ -283,6 +283,9 @@ func TestCheckOnce(t *testing.T) {
 				checkClockEventsSupportedFunc: func(major int) bool {
 					return major >= 535
 				},
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
 			}
 
 			// Run the check
@@ -295,7 +298,7 @@ func TestCheckOnce(t *testing.T) {
 			assert.Equal(t, len(tc.mockDevices), len(c.lastCheckResult.ClockEvents))
 
 			// Get events from the bucket
-			events, err := bucket.Get(ctx, time.Now().UTC().Add(-time.Hour))
+			events, err := bucketV2.Get(ctx, time.Now().UTC().Add(-time.Hour))
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectEvents, len(events))
 
@@ -320,11 +323,11 @@ func TestComponentStates(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	storeV2, err := eventstore.NewV2(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_states")
+	bucketV2, err := storeV2.BucketV2("test_states")
 	assert.NoError(t, err)
-	defer bucket.Close()
+	defer bucketV2.Close()
 
 	// Create mock device
 	mockDevice := testutil.NewMockDevice(
@@ -357,18 +360,18 @@ func TestComponentStates(t *testing.T) {
 	}
 
 	for _, event := range testEvents {
-		err := bucket.Insert(ctx, event)
+		err := bucketV2.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
 	// Create component with test data
 	c := &component{
-		ctx:              ctx,
-		cancel:           cancel,
-		evaluationWindow: 10 * time.Minute,
-		threshold:        0.1,
-		eventBucket:      bucket,
-		nvmlInstance:     mockNVML,
+		ctx:                        ctx,
+		cancel:                     cancel,
+		freqPerMinEvaluationWindow: 10 * time.Minute,
+		freqPerMinThreshold:        0.1,
+		eventBucket:                bucketV2,
+		nvmlInstance:               mockNVML,
 		lastCheckResult: &checkResult{
 			ts:     time.Now(),
 			health: apiv1.HealthStateTypeHealthy,
@@ -486,13 +489,13 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
-			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+			storeV2, err := eventstore.NewV2(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_events")
+			bucketV2, err := storeV2.BucketV2("test_events")
 			assert.NoError(t, err)
-			defer bucket.Close()
+			defer bucketV2.Close()
 
-			err = tc.setupStore(bucket, ctx)
+			err = tc.setupStore(bucketV2, ctx)
 			assert.NoError(t, err)
 
 			// Create mock NVML instance
@@ -512,12 +515,12 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			mockNVML := createMockNVMLInstance(mockDevices)
 
 			c := &component{
-				ctx:              ctx,
-				cancel:           cancel,
-				evaluationWindow: tc.window,
-				threshold:        tc.thresholdPerMinute,
-				eventBucket:      bucket,
-				nvmlInstance:     mockNVML,
+				ctx:                        ctx,
+				cancel:                     cancel,
+				freqPerMinEvaluationWindow: tc.window,
+				freqPerMinThreshold:        tc.thresholdPerMinute,
+				eventBucket:                bucketV2,
+				nvmlInstance:               mockNVML,
 				lastCheckResult: &checkResult{
 					ts:     time.Now().UTC(),
 					health: apiv1.HealthStateTypeHealthy,
@@ -611,11 +614,11 @@ func TestComponentStart(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	storeV2, err := eventstore.NewV2(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events")
+	bucketV2, err := storeV2.BucketV2("test_events")
 	assert.NoError(t, err)
-	defer bucket.Close()
+	defer bucketV2.Close()
 
 	// Create mock devices
 	mockDevice := testutil.NewMockDevice(
@@ -635,12 +638,12 @@ func TestComponentStart(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	c := &component{
-		ctx:              ctx,
-		cancel:           cancel,
-		nvmlInstance:     mockNVML,
-		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-		eventBucket:      bucket,
+		ctx:                        ctx,
+		cancel:                     cancel,
+		nvmlInstance:               mockNVML,
+		freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+		eventBucket:                bucketV2,
 		lastCheckResult: &checkResult{
 			ts:     time.Now().UTC(),
 			health: apiv1.HealthStateTypeHealthy,
@@ -669,6 +672,9 @@ func TestComponentStart(t *testing.T) {
 		checkClockEventsSupportedFunc: func(major int) bool {
 			return major >= 535
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	err = c.Start()
@@ -689,11 +695,11 @@ func TestComponentEvents(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	storeV2, err := eventstore.NewV2(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events")
+	bucketV2, err := storeV2.BucketV2("test_events")
 	assert.NoError(t, err)
-	defer bucket.Close()
+	defer bucketV2.Close()
 
 	// Create mock device
 	mockDevice := testutil.NewMockDevice(
@@ -713,12 +719,12 @@ func TestComponentEvents(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	c := &component{
-		ctx:              ctx,
-		cancel:           cancel,
-		evaluationWindow: 10 * time.Minute,
-		threshold:        0.1,
-		eventBucket:      bucket,
-		nvmlInstance:     mockNVML,
+		ctx:                        ctx,
+		cancel:                     cancel,
+		freqPerMinEvaluationWindow: 10 * time.Minute,
+		freqPerMinThreshold:        0.1,
+		eventBucket:                bucketV2,
+		nvmlInstance:               mockNVML,
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 			return nvidianvml.ClockEvents{
 				UUID:                 uuid,
@@ -768,11 +774,11 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	storeV2, err := eventstore.NewV2(dbRW, dbRO, eventstore.DefaultRetention)
 	assert.NoError(t, err)
-	bucket, err := store.Bucket("test_events")
+	bucketV2, err := storeV2.BucketV2("test_events")
 	assert.NoError(t, err)
-	defer bucket.Close()
+	defer bucketV2.Close()
 
 	// Create mock device
 	mockDevice := testutil.NewMockDevice(
@@ -797,12 +803,15 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 
 	// Create component for testing
 	c := &component{
-		ctx:              ctx,
-		cancel:           cancel,
-		evaluationWindow: window,
-		threshold:        thresholdFrequency,
-		eventBucket:      bucket,
-		nvmlInstance:     mockNVML,
+		ctx:                        ctx,
+		cancel:                     cancel,
+		freqPerMinEvaluationWindow: window,
+		freqPerMinThreshold:        thresholdFrequency,
+		eventBucket:                bucketV2,
+		nvmlInstance:               mockNVML,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 			return nvidianvml.ClockEvents{
 				UUID:                 uuid,
@@ -856,7 +865,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 				"gpu_uuid": "gpu-0",
 			},
 		}
-		err := bucket.Insert(ctx, event)
+		err := bucketV2.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
 
@@ -870,6 +879,11 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 	assert.Contains(t, states[0].Reason, "hw slowdown events frequency per minute")
 	assert.Contains(t, states[0].Reason, "exceeded threshold")
+
+	// Verify that suggestedActions is set with hardware inspection
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.NotNil(t, states[0].SuggestedActions.RepairActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeHardwareInspection)
 }
 
 // TestDataMethods tests the Data struct methods
@@ -970,7 +984,6 @@ func TestNewComponent(t *testing.T) {
 	tests := []struct {
 		name            string
 		nvmlInstance    nvidianvml.Instance
-		eventStore      eventstore.Store
 		expectErr       bool
 		expectErrMsg    string
 		expectNil       bool
@@ -979,7 +992,6 @@ func TestNewComponent(t *testing.T) {
 		{
 			name:            "nil nvml instance",
 			nvmlInstance:    nil,
-			eventStore:      nil,
 			expectErr:       false,
 			expectNil:       false,
 			expectBucketNil: true,
@@ -987,7 +999,6 @@ func TestNewComponent(t *testing.T) {
 		{
 			name:            "with nvml instance but no event store",
 			nvmlInstance:    &mockNVMLInstance{nvmlExists: true},
-			eventStore:      nil,
 			expectErr:       false,
 			expectNil:       false,
 			expectBucketNil: true,
@@ -1000,7 +1011,6 @@ func TestNewComponent(t *testing.T) {
 			instance := &components.GPUdInstance{
 				RootCtx:      context.Background(),
 				NVMLInstance: tc.nvmlInstance,
-				EventStore:   tc.eventStore,
 			}
 
 			comp, err := New(instance)
@@ -1309,13 +1319,16 @@ func TestCheckEdgeCases(t *testing.T) {
 			defer cancel()
 
 			c := &component{
-				ctx:              ctx,
-				cancel:           cancel,
-				nvmlInstance:     tc.nvmlInstance,
-				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+				ctx:                        ctx,
+				cancel:                     cancel,
+				nvmlInstance:               tc.nvmlInstance,
+				freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+				freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 				lastCheckResult: &checkResult{
 					health: apiv1.HealthStateTypeHealthy, // Initialize with a default state
+				},
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
 				},
 			}
 
@@ -1371,17 +1384,81 @@ func TestComponentEventsWithNilBucket(t *testing.T) {
 	defer cancel()
 
 	c := &component{
-		ctx:              ctx,
-		cancel:           cancel,
-		eventBucket:      nil,
-		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+		ctx:                        ctx,
+		cancel:                     cancel,
+		eventBucket:                nil,
+		freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 	}
 
 	// Events should always return nil regardless of eventBucket state
 	events, err := c.Events(ctx, time.Now().Add(-1*time.Hour))
 	assert.NoError(t, err)
 	assert.Nil(t, events)
+}
+
+// TestComponentEventsWithBucket tests the Events method with an event bucket
+func TestComponentEventsWithBucket(t *testing.T) {
+	t.Parallel()
+
+	// Setup test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	storeV2, err := eventstore.NewV2(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucketV2, err := storeV2.BucketV2("test_events")
+	assert.NoError(t, err)
+	defer bucketV2.Close()
+
+	c := &component{
+		ctx:                        ctx,
+		cancel:                     cancel,
+		eventBucket:                bucketV2,
+		freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+	}
+
+	// Insert a SetHealthy event
+	setHealthyEvent := eventstore.Event{
+		Component: Name,
+		Time:      time.Now().UTC(),
+		Name:      "SetHealthy",
+		Type:      string(apiv1.EventTypeInfo),
+	}
+	err = bucketV2.Insert(ctx, setHealthyEvent)
+	assert.NoError(t, err)
+
+	// Insert a HW slowdown event
+	hwSlowdownEvent := eventstore.Event{
+		Component: Name,
+		Time:      time.Now().UTC().Add(-5 * time.Minute),
+		Name:      nvidianvml.EventNameHWSlowdown,
+		Type:      string(apiv1.EventTypeWarning),
+		Message:   "HW slowdown detected",
+	}
+	err = bucketV2.Insert(ctx, hwSlowdownEvent)
+	assert.NoError(t, err)
+
+	// Events should return only SetHealthy events
+	since := time.Now().Add(-1 * time.Hour)
+	events, err := c.Events(ctx, since)
+	assert.NoError(t, err)
+	assert.NotNil(t, events)
+	assert.Len(t, events, 1)
+	assert.Equal(t, "SetHealthy", events[0].Name)
+	assert.Equal(t, apiv1.EventTypeInfo, events[0].Type)
+
+	// Test with no SetHealthy events - purge all including future events
+	_, err = bucketV2.Purge(ctx, time.Now().Add(1*time.Hour).Unix())
+	assert.NoError(t, err)
+
+	events, err = c.Events(ctx, since)
+	assert.NoError(t, err)
+	assert.Empty(t, events)
 }
 
 // TestFailureInjection tests the failure injection functionality for HW slowdown
@@ -1495,23 +1572,26 @@ func TestFailureInjection(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
 
-			store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+			storeV2, err := eventstore.NewV2(dbRW, dbRO, eventstore.DefaultRetention)
 			assert.NoError(t, err)
-			bucket, err := store.Bucket("test_injection")
+			bucketV2, err := storeV2.BucketV2("test_injection")
 			assert.NoError(t, err)
-			defer bucket.Close()
+			defer bucketV2.Close()
 
 			// Create component with failure injection
 			c := &component{
 				ctx:                              ctx,
 				cancel:                           cancel,
 				nvmlInstance:                     mockNVML,
-				evaluationWindow:                 DefaultStateHWSlowdownEvaluationWindow,
-				threshold:                        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-				eventBucket:                      bucket,
+				freqPerMinEvaluationWindow:       DefaultStateHWSlowdownEvaluationWindow,
+				freqPerMinThreshold:              DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+				eventBucket:                      bucketV2,
 				gpuUUIDsWithHWSlowdown:           make(map[string]any),
 				gpuUUIDsWithHWSlowdownThermal:    make(map[string]any),
 				gpuUUIDsWithHWSlowdownPowerBrake: make(map[string]any),
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
 				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
 					// Return clean state - injection should override these
 					return nvidianvml.ClockEvents{
@@ -1598,6 +1678,130 @@ func TestFailureInjection(t *testing.T) {
 			assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		})
 	}
+}
+
+// TestThresholdExceededWithSuggestedActions tests that when HW slowdown threshold is exceeded,
+// the component sets the suggestedActions field with hardware inspection repair action
+func TestThresholdExceededWithSuggestedActions(t *testing.T) {
+	t.Parallel()
+
+	// Setup test database
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	storeV2, err := eventstore.NewV2(dbRW, dbRO, eventstore.DefaultRetention)
+	assert.NoError(t, err)
+	bucketV2, err := storeV2.BucketV2("test_events")
+	assert.NoError(t, err)
+	defer bucketV2.Close()
+
+	// Create mock device
+	mockDevice := testutil.NewMockDevice(
+		&mock.Device{
+			GetUUIDFunc: func() (string, nvml.Return) {
+				return "gpu-0", nvml.SUCCESS
+			},
+		},
+		"test-arch", "test-brand", "test-cuda", "test-pci",
+	)
+
+	mockDevices := map[string]device.Device{
+		"gpu-0": mockDevice,
+	}
+
+	// Create mock NVML instance
+	mockNVML := createMockNVMLInstance(mockDevices)
+
+	// Create component with short evaluation window and low threshold for testing
+	testWindow := 5 * time.Minute
+	testThreshold := 1.0 // 1 event per minute threshold
+	baseTime := time.Now().UTC()
+
+	c := &component{
+		ctx:                        ctx,
+		cancel:                     cancel,
+		freqPerMinEvaluationWindow: testWindow,
+		freqPerMinThreshold:        testThreshold,
+		eventBucket:                bucketV2,
+		nvmlInstance:               mockNVML,
+		getTimeNowFunc: func() time.Time {
+			// Return consistent time for testing
+			return baseTime
+		},
+		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+			// First check will detect HW slowdown
+			return nvidianvml.ClockEvents{
+				UUID:                 uuid,
+				Time:                 metav1.Time{Time: baseTime},
+				HWSlowdown:           true,
+				HWSlowdownThermal:    false,
+				HWSlowdownPowerBrake: false,
+				Supported:            true,
+				HWSlowdownReasons:    []string{"GPU slowdown detected"},
+			}, nil
+		},
+		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+			return true, nil
+		},
+		getSystemDriverVersionFunc: func() (string, error) {
+			return "535.104.05", nil
+		},
+		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+			return 535, 104, 5, nil
+		},
+		checkClockEventsSupportedFunc: func(major int) bool {
+			return major >= 535
+		},
+	}
+
+	// First check - insert initial HW slowdown event
+	result := c.Check()
+	cr := result.(*checkResult)
+	assert.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "First event should not trigger unhealthy state")
+
+	// Insert multiple HW slowdown events to exceed threshold
+	// For 5 minute window with 1.0 threshold, we need more than 5 events in different minutes
+	// Insert events within the last 5 minutes, one per minute
+	for i := 0; i < 6; i++ {
+		event := eventstore.Event{
+			Time:    baseTime.Add(-time.Duration(i*50) * time.Second), // Spread across 5 minutes
+			Name:    nvidianvml.EventNameHWSlowdown,
+			Type:    string(apiv1.EventTypeWarning),
+			Message: fmt.Sprintf("HW Slowdown detected %d", i),
+			ExtraInfo: map[string]string{
+				"gpu_uuid": "gpu-0",
+			},
+		}
+		err := bucketV2.Insert(ctx, event)
+		assert.NoError(t, err)
+	}
+
+	// Second check - should detect threshold exceeded
+	result = c.Check()
+	cr = result.(*checkResult)
+	assert.NotNil(t, cr)
+
+	// Verify unhealthy state
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health, "Should be unhealthy after threshold exceeded")
+	assert.Contains(t, cr.reason, "exceeded threshold")
+
+	// Verify suggestedActions is set
+	assert.NotNil(t, cr.suggestedActions, "suggestedActions should not be nil")
+	assert.NotNil(t, cr.suggestedActions.RepairActions, "RepairActions should not be nil")
+	assert.Equal(t, 1, len(cr.suggestedActions.RepairActions), "Should have exactly one repair action")
+	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, cr.suggestedActions.RepairActions[0],
+		"Should suggest hardware inspection")
+
+	// Also verify through LastHealthStates
+	states := c.LastHealthStates()
+	assert.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeHardwareInspection)
 }
 
 // TestFailureInjectionFromGPUdInstance tests initializing component with failure injection from GPUdInstance
