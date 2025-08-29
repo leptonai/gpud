@@ -19,6 +19,7 @@ limitations under the License.
 package disk
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -42,13 +43,13 @@ func TestParse(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		blks, err := parseLsblkJSON(dat)
+		blks, err := parseLsblkJSON(context.Background(), dat)
 		if err != nil {
 			t.Fatal(err)
 		}
 		blks.RenderTable(os.Stdout)
 
-		blks, err = parseLsblkJSON(dat, WithDeviceType(func(deviceType string) bool {
+		blks, err = parseLsblkJSON(context.Background(), dat, WithDeviceType(func(deviceType string) bool {
 			return deviceType == "disk"
 		}))
 		if err != nil {
@@ -69,13 +70,13 @@ func TestParseWithMultipleDevices(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	blks, err := parseLsblkJSON(dat)
+	blks, err := parseLsblkJSON(context.Background(), dat)
 	if err != nil {
 		t.Fatal(err)
 	}
 	blks.RenderTable(os.Stdout)
 
-	blks, err = parseLsblkJSON(dat, WithDeviceType(func(deviceType string) bool {
+	blks, err = parseLsblkJSON(context.Background(), dat, WithDeviceType(func(deviceType string) bool {
 		return deviceType == "disk"
 	}))
 	if err != nil {
@@ -101,7 +102,7 @@ func TestParsePairs(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		blks, err := parseLsblkPairs(dat, WithDeviceType(func(deviceType string) bool {
+		blks, err := parseLsblkPairs(context.Background(), dat, WithDeviceType(func(deviceType string) bool {
 			return deviceType == "disk"
 		}))
 		if err != nil {
@@ -165,7 +166,7 @@ func TestCheckVersion(t *testing.T) {
 		tt := tt // capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			flags, _, err := decideLsblkFlag(tt.input)
+			flags, _, err := decideLsblkFlag(context.Background(), tt.input)
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
@@ -361,7 +362,7 @@ func TestGetBlockDevicesWithMountPointFilter(t *testing.T) {
 	}`
 
 	// Test with parseLsblkJSON directly (no mount point filtering at parse level)
-	blks, err := parseLsblkJSON([]byte(jsonData))
+	blks, err := parseLsblkJSON(context.Background(), []byte(jsonData))
 	require.NoError(t, err)
 	require.Len(t, blks, 5) // All devices are parsed
 
@@ -429,7 +430,7 @@ func TestGetBlockDevicesWithCustomMountPointFilter(t *testing.T) {
 	}`
 
 	// Parse all devices first
-	blks, err := parseLsblkJSON([]byte(jsonData))
+	blks, err := parseLsblkJSON(context.Background(), []byte(jsonData))
 	require.NoError(t, err)
 	require.Len(t, blks, 3)
 
@@ -488,7 +489,7 @@ func TestGetBlockDevicesCombinedFilters(t *testing.T) {
 	}`
 
 	// Parse with device type filter only (mount point filter is applied later)
-	blks, err := parseLsblkJSON([]byte(jsonData),
+	blks, err := parseLsblkJSON(context.Background(), []byte(jsonData),
 		WithDeviceType(func(dt string) bool {
 			return dt == "part" || dt == "disk"
 		}))
@@ -533,7 +534,7 @@ func TestParseLsblkJSONWithParentNullMountpoint(t *testing.T) {
 	require.NoError(t, err)
 
 	// Parse with default filters used in components/disk/component.go
-	blks, err := parseLsblkJSON(dat,
+	blks, err := parseLsblkJSON(context.Background(), dat,
 		WithFstype(DefaultFsTypeFunc),
 		WithDeviceType(DefaultDeviceTypeFunc),
 		WithMountPoint(DefaultMountPointFunc),
@@ -630,7 +631,7 @@ func TestParseLsblkJSONParentChildFiltering(t *testing.T) {
 	}`
 
 	// Test 1: With filters that exclude unmounted devices
-	blks, err := parseLsblkJSON([]byte(jsonData),
+	blks, err := parseLsblkJSON(context.Background(), []byte(jsonData),
 		WithMountPoint(func(mp string) bool { return mp != "" }),
 		WithFstype(func(fs string) bool { return fs == "" || fs == "ext4" }),
 		WithDeviceType(func(dt string) bool { return dt == "disk" || dt == "part" }),
