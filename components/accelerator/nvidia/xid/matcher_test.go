@@ -140,6 +140,69 @@ func TestMatch(t *testing.T) {
 			input:     "NVRM: Xid error: xyz, invalid data",
 			expectNil: true,
 		},
+		{
+			name:           "XID 149 NETIR_LINK_EVT Fatal error",
+			input:          "[171167.620236] NVRM: Xid (PCI:0009:01:00): 149, NETIR_LINK_EVT  Fatal   XC0 i0 Link 01 (0x021425c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectNil:      false,
+			expectedXid:    149,
+			expectedDevice: "PCI:0009:01:00",
+		},
+		{
+			name:           "XID 154 GPU recovery action changed",
+			input:          "[171167.621162] NVRM: Xid (PCI:0009:01:00): 154, GPU recovery action changed from 0x0 (None) to 0x4 (Drain and Reset)",
+			expectNil:      false,
+			expectedXid:    154,
+			expectedDevice: "PCI:0009:01:00",
+		},
+		{
+			name:           "XID 149 with different device",
+			input:          "[171167.630899] NVRM: Xid (PCI:0008:01:00): 149, NETIR_LINK_EVT  Fatal   XC0 i0 Link 01 (0x021425c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectNil:      false,
+			expectedXid:    149,
+			expectedDevice: "PCI:0008:01:00",
+		},
+		{
+			name:           "XID 154 with different recovery action",
+			input:          "[171167.897562] NVRM: Xid (PCI:0019:01:00): 154, GPU recovery action changed from 0x4 (Drain and Reset) to 0x1 (GPU Reset Required)",
+			expectNil:      false,
+			expectedXid:    154,
+			expectedDevice: "PCI:0019:01:00",
+		},
+		{
+			name:           "XID 149 different link number",
+			input:          "[171167.969026] NVRM: Xid (PCI:0009:01:00): 149, NETIR_LINK_EVT  Fatal   XC0 i0 Link 00 (0x021405c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectNil:      false,
+			expectedXid:    149,
+			expectedDevice: "PCI:0009:01:00",
+		},
+		{
+			name:           "XID 149 Link 15",
+			input:          "[171168.109293] NVRM: Xid (PCI:0009:01:00): 149, NETIR_LINK_EVT  Fatal   XC0 i0 Link 15 (0x0215e5c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectNil:      false,
+			expectedXid:    149,
+			expectedDevice: "PCI:0009:01:00",
+		},
+		{
+			name:           "XID 149 Link 14",
+			input:          "[171168.409446] NVRM: Xid (PCI:0008:01:00): 149, NETIR_LINK_EVT  Fatal   XC0 i0 Link 14 (0x0215c5c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectNil:      false,
+			expectedXid:    149,
+			expectedDevice: "PCI:0008:01:00",
+		},
+		{
+			name:           "XID 154 GPU1 recovery action",
+			input:          "[171168.537473] NVRM: Xid (PCI:0018:01:00): 154, GPU recovery action changed from 0x4 (Drain and Reset) to 0x1 (GPU Reset Required)",
+			expectNil:      false,
+			expectedXid:    154,
+			expectedDevice: "PCI:0018:01:00",
+		},
+		{
+			name:           "XID 154 GPU0 recovery action",
+			input:          "[171168.601459] NVRM: Xid (PCI:0008:01:00): 154, GPU recovery action changed from 0x4 (Drain and Reset) to 0x1 (GPU Reset Required)",
+			expectNil:      false,
+			expectedXid:    154,
+			expectedDevice: "PCI:0008:01:00",
+		},
 	}
 
 	for _, tt := range tests {
@@ -184,7 +247,7 @@ func TestXidError_YAML(t *testing.T) {
 			xidErr: XidError{
 				Xid:        79,
 				DeviceUUID: "PCI:0000:05:00",
-				Detail:     &xid.Detail{Description: "GPU has fallen off the bus"},
+				Detail:     &xid.Detail{Name: "GPU has fallen off the bus"},
 			},
 			wantErr: false,
 		},
