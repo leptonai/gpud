@@ -3,8 +3,8 @@ module github.com/leptonai/gpud
 go 1.24.5
 
 require (
-	github.com/NVIDIA/go-nvlib v0.7.3
-	github.com/NVIDIA/go-nvml v0.12.9-0
+	github.com/NVIDIA/go-nvlib v0.8.0
+	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/docker/docker v25.0.6+incompatible
