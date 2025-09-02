@@ -563,6 +563,18 @@ func (s *Session) getHealthStates(payload Request) (apiv1.GPUdComponentHealthSta
 	// avoiding timezone parsing issues with "uptime -s"
 	bootTimeUnix := pkghost.BootTimeUnixSeconds()
 	rebootTime := time.Unix(int64(bootTimeUnix), 0)
+
+	// Sanity check: if boot time is 0 or in the future, use zero time
+	// This prevents accidentally setting components to initializing
+	now := time.Now().UTC()
+	if bootTimeUnix == 0 || rebootTime.After(now) {
+		log.Logger.Warnw("invalid boot time detected, using zero time",
+			"bootTimeUnix", bootTimeUnix,
+			"rebootTime", rebootTime,
+			"now", now,
+		)
+		rebootTime = time.Time{} // Zero time will prevent initializing state
+	}
 	for _, componentName := range allComponents {
 		go func(name string) {
 			statesBuf <- s.getStatesFromComponent(name, rebootTime)
@@ -685,7 +697,15 @@ func getStatesFromComponentWithDeps(
 	currState.States = state
 
 	elapsedSinceReboot := time.Since(lastRebootTime)
-	resetToInitializing := elapsedSinceReboot < initializeGracePeriod
+	// Only reset to initializing if:
+	// 1. We're within the grace period (5 minutes)
+	// 2. The elapsed time is positive (not in the future)
+	// 3. The reboot time is reasonable (not Unix epoch)
+	resetToInitializing := elapsedSinceReboot < initializeGracePeriod &&
+		elapsedSinceReboot >= 0 &&
+		!lastRebootTime.IsZero() &&
+		lastRebootTime.Unix() > 0
+
 	for i, componentState := range currState.States {
 		if componentState.Health == apiv1.HealthStateTypeHealthy {
 			continue

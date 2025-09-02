@@ -179,6 +179,30 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 				apiv1.HealthStateTypeUnhealthy, // Should NOT be initializing at boundary
 			},
 		},
+		{
+			name:            "future_reboot_time_protection",
+			componentName:   "future-reboot-comp",
+			lastRebootTime:  time.Now().Add(1 * time.Hour), // Future time (should be protected)
+			componentExists: true,
+			mockHealthStates: apiv1.HealthStates{
+				{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Component failing"},
+			},
+			expectedHealthTypes: []apiv1.HealthStateType{
+				apiv1.HealthStateTypeUnhealthy, // Should NOT be initializing with future time
+			},
+		},
+		{
+			name:            "unix_epoch_protection",
+			componentName:   "epoch-comp",
+			lastRebootTime:  time.Unix(1, 0), // Near Unix epoch (1970)
+			componentExists: true,
+			mockHealthStates: apiv1.HealthStates{
+				{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Component failing"},
+			},
+			expectedHealthTypes: []apiv1.HealthStateType{
+				apiv1.HealthStateTypeUnhealthy, // Should NOT be initializing with ancient time
+			},
+		},
 	}
 
 	for _, tt := range tests {
