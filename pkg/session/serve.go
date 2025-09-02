@@ -28,6 +28,7 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/pkg/update"
+	"github.com/leptonai/gpud/pkg/uptime"
 )
 
 const (
@@ -649,8 +650,28 @@ func (s *Session) getMetricsFromComponent(ctx context.Context, componentName str
 	return currMetrics
 }
 
+// getComponentFunc is a function type for getting a component by name
+type getComponentFunc func(string) components.Component
+
+// getProcessStartTimeFunc is a function type for getting process start time
+type getProcessStartTimeFunc func() (uint64, error)
+
 func (s *Session) getStatesFromComponent(componentName string, lastRebootTime time.Time) apiv1.ComponentHealthStates {
-	component := s.componentsRegistry.Get(componentName)
+	return getStatesFromComponentWithDeps(
+		componentName,
+		lastRebootTime,
+		s.componentsRegistry.Get,
+		uptime.GetCurrentProcessStartTimeInUnixTime,
+	)
+}
+
+func getStatesFromComponentWithDeps(
+	componentName string,
+	lastRebootTime time.Time,
+	getComponent getComponentFunc,
+	getProcessStartTime getProcessStartTimeFunc,
+) apiv1.ComponentHealthStates {
+	component := getComponent(componentName)
 	if component == nil {
 		log.Logger.Errorw("failed to get component",
 			"operation", "GetStates",
@@ -669,21 +690,62 @@ func (s *Session) getStatesFromComponent(componentName string, lastRebootTime ti
 	log.Logger.Debugw("successfully got states", "component", componentName)
 	currState.States = state
 
-	for i, componentState := range currState.States {
-		if componentState.Health != apiv1.HealthStateTypeHealthy {
-			if lastRebootTime.IsZero() {
-				continue
-			}
-			if time.Since(lastRebootTime) < initializeGracePeriod {
-				log.Logger.Warnw("set unhealthy state initializing due to recent reboot", "component", componentName)
-				currState.States[i].Health = apiv1.HealthStateTypeInitializing
-			}
+	elapsedSinceReboot := time.Since(lastRebootTime)
+	recentReboot := elapsedSinceReboot < initializeGracePeriod
+	resetToInitializing := recentReboot
 
-			if componentState.Error != "" &&
-				(strings.Contains(componentState.Error, context.DeadlineExceeded.Error()) ||
-					strings.Contains(componentState.Error, context.Canceled.Error())) {
-				log.Logger.Errorw("state error due to deadline exceeded or canceled error", "component", componentName, "error", componentState.Error)
+	// in case "uptime" parsing went wrong due to timezone difference (possibly bug)
+	// (e.g., possible that uptime parse function returned future time due to timezone difference
+	// making time.Since(lastRebootTime) always smaller than initializeGracePeriod)
+	// in such case, fallback to process uptime
+	// the process uptime is ALWAYS smaller than the system uptime
+	// and if the process uptime elapsed beyond grace period,
+	// we should NOT reset the unhealthy state to initializing
+	if resetToInitializing {
+		// Get process start time as a fallback check
+		processStartUnix, err := getProcessStartTime()
+		if err == nil && processStartUnix > 0 {
+			processStartTime := time.Unix(int64(processStartUnix), 0)
+			processUptime := time.Since(processStartTime)
+
+			// If process has been running longer than grace period,
+			// we definitely shouldn't be in initialization phase
+			if processUptime >= initializeGracePeriod {
+				resetToInitializing = false
+				log.Logger.Warnw(
+					"overriding resetToInitializing due to process uptime exceeding grace period",
+					"processUptime", processUptime,
+					"systemElapsedSinceReboot", elapsedSinceReboot,
+					"initializeGracePeriod", initializeGracePeriod,
+				)
 			}
+		} else {
+			log.Logger.Warnw("failed to get current process start time", "error", err)
+		}
+	}
+
+	for i, componentState := range currState.States {
+		if componentState.Health == apiv1.HealthStateTypeHealthy {
+			continue
+		}
+		if lastRebootTime.IsZero() {
+			continue
+		}
+
+		if resetToInitializing {
+			log.Logger.Warnw(
+				"set unhealthy state initializing due to recent reboot",
+				"component", componentName,
+				"elapsedSinceReboot", elapsedSinceReboot,
+				"initializeGracePeriod", initializeGracePeriod,
+			)
+			currState.States[i].Health = apiv1.HealthStateTypeInitializing
+		}
+
+		if componentState.Error != "" &&
+			(strings.Contains(componentState.Error, context.DeadlineExceeded.Error()) ||
+				strings.Contains(componentState.Error, context.Canceled.Error())) {
+			log.Logger.Errorw("state error due to deadline exceeded or canceled error", "component", componentName, "error", componentState.Error)
 		}
 	}
 	return currState
