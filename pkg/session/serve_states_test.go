@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -63,16 +62,13 @@ func (m *MockComponent) Events(ctx context.Context, since time.Time) (apiv1.Even
 
 func TestGetStatesFromComponentWithDeps(t *testing.T) {
 	tests := []struct {
-		name                   string
-		componentName          string
-		lastRebootTime         time.Time
-		mockHealthStates       apiv1.HealthStates
-		componentExists        bool
-		processStartError      error
-		processStartMinutesAgo int
-		expectedHealthTypes    []apiv1.HealthStateType
-		expectInitializing     bool
-		expectOverride         bool
+		name                string
+		componentName       string
+		lastRebootTime      time.Time
+		mockHealthStates    apiv1.HealthStates
+		componentExists     bool
+		expectedHealthTypes []apiv1.HealthStateType
+		expectInitializing  bool
 	}{
 		{
 			name:                "component_not_found",
@@ -89,7 +85,6 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 			mockHealthStates: apiv1.HealthStates{
 				{Health: apiv1.HealthStateTypeHealthy, Reason: "All good"},
 			},
-			processStartMinutesAgo: 10,
 			expectedHealthTypes: []apiv1.HealthStateType{
 				apiv1.HealthStateTypeHealthy,
 			},
@@ -102,7 +97,6 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 			mockHealthStates: apiv1.HealthStates{
 				{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Component failing"},
 			},
-			processStartMinutesAgo: 2,
 			expectedHealthTypes: []apiv1.HealthStateType{
 				apiv1.HealthStateTypeInitializing,
 			},
@@ -116,24 +110,9 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 			mockHealthStates: apiv1.HealthStates{
 				{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Component failing"},
 			},
-			processStartMinutesAgo: 10,
 			expectedHealthTypes: []apiv1.HealthStateType{
 				apiv1.HealthStateTypeUnhealthy,
 			},
-		},
-		{
-			name:            "future_reboot_time_with_process_override",
-			componentName:   "comp-with-future-reboot",
-			lastRebootTime:  time.Now().Add(1 * time.Hour), // Future (timezone bug)
-			componentExists: true,
-			mockHealthStates: apiv1.HealthStates{
-				{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Component failing"},
-			},
-			processStartMinutesAgo: 10, // Process has been up 10 minutes
-			expectedHealthTypes: []apiv1.HealthStateType{
-				apiv1.HealthStateTypeUnhealthy, // Should NOT be initializing
-			},
-			expectOverride: true,
 		},
 		{
 			name:            "zero_reboot_time",
@@ -143,24 +122,9 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 			mockHealthStates: apiv1.HealthStates{
 				{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Component failing"},
 			},
-			processStartMinutesAgo: 0,
 			expectedHealthTypes: []apiv1.HealthStateType{
-				apiv1.HealthStateTypeUnhealthy, // Should remain unhealthy
+				apiv1.HealthStateTypeUnhealthy, // Should remain unhealthy when reboot time is zero
 			},
-		},
-		{
-			name:            "process_start_time_error",
-			componentName:   "comp-process-error",
-			lastRebootTime:  time.Now().Add(-2 * time.Minute), // Within grace period
-			componentExists: true,
-			mockHealthStates: apiv1.HealthStates{
-				{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Component failing"},
-			},
-			processStartError: errors.New("failed to get process start time"),
-			expectedHealthTypes: []apiv1.HealthStateType{
-				apiv1.HealthStateTypeInitializing, // Falls back to initializing
-			},
-			expectInitializing: true,
 		},
 		{
 			name:            "multiple_health_states",
@@ -172,7 +136,6 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 				{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Second check failed"},
 				{Health: apiv1.HealthStateTypeDegraded, Reason: "Third check degraded"},
 			},
-			processStartMinutesAgo: 2,
 			expectedHealthTypes: []apiv1.HealthStateType{
 				apiv1.HealthStateTypeHealthy,
 				apiv1.HealthStateTypeInitializing,
@@ -180,18 +143,41 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 			},
 		},
 		{
-			name:            "process_uptime_exactly_grace_period",
-			componentName:   "exact-grace-comp",
-			lastRebootTime:  time.Now().Add(-2 * time.Minute), // Recent reboot
+			name:            "degraded_within_grace_period",
+			componentName:   "degraded-comp",
+			lastRebootTime:  time.Now().Add(-2 * time.Minute), // Within grace period
+			componentExists: true,
+			mockHealthStates: apiv1.HealthStates{
+				{Health: apiv1.HealthStateTypeDegraded, Reason: "Component degraded"},
+			},
+			expectedHealthTypes: []apiv1.HealthStateType{
+				apiv1.HealthStateTypeInitializing,
+			},
+			expectInitializing: true,
+		},
+		{
+			name:            "degraded_after_grace_period",
+			componentName:   "degraded-comp",
+			lastRebootTime:  time.Now().Add(-10 * time.Minute), // After grace period
+			componentExists: true,
+			mockHealthStates: apiv1.HealthStates{
+				{Health: apiv1.HealthStateTypeDegraded, Reason: "Component degraded"},
+			},
+			expectedHealthTypes: []apiv1.HealthStateType{
+				apiv1.HealthStateTypeDegraded,
+			},
+		},
+		{
+			name:            "exactly_at_grace_period_boundary",
+			componentName:   "boundary-comp",
+			lastRebootTime:  time.Now().Add(-5 * time.Minute), // Exactly at 5 minutes
 			componentExists: true,
 			mockHealthStates: apiv1.HealthStates{
 				{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Component failing"},
 			},
-			processStartMinutesAgo: 5, // Exactly at grace period boundary
 			expectedHealthTypes: []apiv1.HealthStateType{
-				apiv1.HealthStateTypeUnhealthy, // Should NOT be initializing
+				apiv1.HealthStateTypeUnhealthy, // Should NOT be initializing at boundary
 			},
-			expectOverride: true,
 		},
 	}
 
@@ -207,23 +193,11 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 				return comp
 			}
 
-			// Setup mock process start time function
-			getProcessStartTimeFunc := func() (uint64, error) {
-				if tt.processStartError != nil {
-					return 0, tt.processStartError
-				}
-				if tt.processStartMinutesAgo == 0 {
-					return uint64(time.Now().Unix()), nil
-				}
-				return uint64(time.Now().Add(time.Duration(-tt.processStartMinutesAgo) * time.Minute).Unix()), nil
-			}
-
 			// Call the function under test
 			result := getStatesFromComponentWithDeps(
 				tt.componentName,
 				tt.lastRebootTime,
 				getComponentFunc,
-				getProcessStartTimeFunc,
 			)
 
 			// Verify component name
@@ -243,42 +217,56 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 	}
 }
 
-// TestProcessUptimeOverride specifically tests the process uptime override logic
-func TestProcessUptimeOverride(t *testing.T) {
+// TestRebootTimeScenarios tests various reboot time scenarios
+func TestRebootTimeScenarios(t *testing.T) {
 	tests := []struct {
-		name                   string
-		systemRebootMinutesAgo int
-		processStartMinutesAgo int
-		expectInitializing     bool
-		description            string
+		name               string
+		rebootMinutesAgo   int
+		expectInitializing bool
+		description        string
 	}{
 		{
-			name:                   "process_longer_than_grace_overrides",
-			systemRebootMinutesAgo: 1,  // System shows recent reboot (bug)
-			processStartMinutesAgo: 10, // But process has been up 10 minutes
-			expectInitializing:     false,
-			description:            "Process uptime should override incorrect system reboot time",
+			name:               "very_recent_reboot",
+			rebootMinutesAgo:   1,
+			expectInitializing: true,
+			description:        "1 minute after reboot should be initializing",
 		},
 		{
-			name:                   "both_within_grace_period",
-			systemRebootMinutesAgo: 2,
-			processStartMinutesAgo: 2,
-			expectInitializing:     true,
-			description:            "Both times within grace period, should be initializing",
+			name:               "middle_of_grace_period",
+			rebootMinutesAgo:   3,
+			expectInitializing: true,
+			description:        "3 minutes after reboot should be initializing",
 		},
 		{
-			name:                   "system_future_process_old",
-			systemRebootMinutesAgo: -60, // System reboot time is in the future
-			processStartMinutesAgo: 10,  // Process has been up 10 minutes
-			expectInitializing:     false,
-			description:            "Future system time should be overridden by process uptime",
+			name:               "just_before_grace_expires",
+			rebootMinutesAgo:   4,
+			expectInitializing: true,
+			description:        "4 minutes after reboot should still be initializing",
+		},
+		{
+			name:               "exactly_at_grace_period",
+			rebootMinutesAgo:   5,
+			expectInitializing: false,
+			description:        "Exactly 5 minutes should NOT be initializing",
+		},
+		{
+			name:               "after_grace_period",
+			rebootMinutesAgo:   10,
+			expectInitializing: false,
+			description:        "10 minutes after reboot should NOT be initializing",
+		},
+		{
+			name:               "long_after_reboot",
+			rebootMinutesAgo:   60,
+			expectInitializing: false,
+			description:        "1 hour after reboot should NOT be initializing",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			componentName := "test-component"
-			lastRebootTime := time.Now().Add(time.Duration(-tt.systemRebootMinutesAgo) * time.Minute)
+			lastRebootTime := time.Now().Add(time.Duration(-tt.rebootMinutesAgo) * time.Minute)
 
 			getComponentFunc := func(name string) components.Component {
 				comp := &MockComponent{}
@@ -288,15 +276,10 @@ func TestProcessUptimeOverride(t *testing.T) {
 				return comp
 			}
 
-			getProcessStartTimeFunc := func() (uint64, error) {
-				return uint64(time.Now().Add(time.Duration(-tt.processStartMinutesAgo) * time.Minute).Unix()), nil
-			}
-
 			result := getStatesFromComponentWithDeps(
 				componentName,
 				lastRebootTime,
 				getComponentFunc,
-				getProcessStartTimeFunc,
 			)
 
 			expectedHealth := apiv1.HealthStateTypeUnhealthy
@@ -309,39 +292,59 @@ func TestProcessUptimeOverride(t *testing.T) {
 	}
 }
 
-// TestFutureRebootTimeScenario tests the specific bug scenario where
-// uptime -s returns a future time due to timezone issues
-func TestFutureRebootTimeScenario(t *testing.T) {
-	// Simulate the bug: system reports reboot in the future
-	// but process has been running for 8 hours
-	componentName := "accelerator-nvidia-error-xid"
-	futureRebootTime := time.Now().Add(4 * time.Hour) // UTC+4 timezone bug
+// TestBootTimeUnixSecondsIntegration tests that the actual implementation
+// using BootTimeUnixSeconds works correctly
+func TestBootTimeUnixSecondsIntegration(t *testing.T) {
+	// This test ensures that using Unix timestamp for boot time works correctly
+	// simulating what happens in the actual getHealthStates function
 
-	getComponentFunc := func(name string) components.Component {
-		comp := &MockComponent{}
-		comp.On("LastHealthStates").Return(apiv1.HealthStates{
-			{
-				Health: apiv1.HealthStateTypeUnhealthy,
-				Reason: "set unhealthy state initializing due to recent reboot",
-			},
+	tests := []struct {
+		name               string
+		bootTimeUnix       uint64
+		expectInitializing bool
+	}{
+		{
+			name:               "recent_boot_unix",
+			bootTimeUnix:       uint64(time.Now().Add(-2 * time.Minute).Unix()),
+			expectInitializing: true,
+		},
+		{
+			name:               "old_boot_unix",
+			bootTimeUnix:       uint64(time.Now().Add(-10 * time.Minute).Unix()),
+			expectInitializing: false,
+		},
+		{
+			name:               "zero_boot_unix",
+			bootTimeUnix:       0,
+			expectInitializing: false, // Zero time should not trigger initializing
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate what happens in getHealthStates
+			rebootTime := time.Unix(int64(tt.bootTimeUnix), 0)
+
+			getComponentFunc := func(name string) components.Component {
+				comp := &MockComponent{}
+				comp.On("LastHealthStates").Return(apiv1.HealthStates{
+					{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Test"},
+				})
+				return comp
+			}
+
+			result := getStatesFromComponentWithDeps(
+				"test-component",
+				rebootTime,
+				getComponentFunc,
+			)
+
+			expectedHealth := apiv1.HealthStateTypeUnhealthy
+			if tt.expectInitializing {
+				expectedHealth = apiv1.HealthStateTypeInitializing
+			}
+
+			assert.Equal(t, expectedHealth, result.States[0].Health)
 		})
-		return comp
 	}
-
-	// Process has been running for 8 hours
-	processStartTime := time.Now().Add(-8 * time.Hour)
-	getProcessStartTimeFunc := func() (uint64, error) {
-		return uint64(processStartTime.Unix()), nil
-	}
-
-	result := getStatesFromComponentWithDeps(
-		componentName,
-		futureRebootTime,
-		getComponentFunc,
-		getProcessStartTimeFunc,
-	)
-
-	// With the fix, the state should remain UNHEALTHY, not INITIALIZING
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.States[0].Health,
-		"Process running for 8 hours should override future reboot time")
 }
