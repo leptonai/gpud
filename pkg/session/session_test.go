@@ -128,7 +128,12 @@ func TestStartWriterAndReader(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		switch r.Header.Get("session_type") {
+		// Check both new and deprecated headers for compatibility
+		sessionType := r.Header.Get("X-GPUD-Session-Type")
+		if sessionType == "" {
+			sessionType = r.Header.Get("session_type")
+		}
+		switch sessionType {
 		case "write":
 			var body Body
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -138,10 +143,23 @@ func TestStartWriterAndReader(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 
 		case "read":
-			// always return a predefined response
-			if err := json.NewEncoder(w).Encode(Body{ReqID: "server_response_id"}); err != nil {
-				http.Error(w, "Failed to encode response body", http.StatusInternalServerError)
+			// Set up streaming response
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				http.Error(w, "Streaming not supported", http.StatusInternalServerError)
 				return
+			}
+
+			// Send multiple responses to simulate a stream
+			encoder := json.NewEncoder(w)
+			for i := 0; i < 10; i++ {
+				if err := encoder.Encode(Body{ReqID: "server_response_id"}); err != nil {
+					return
+				}
+				flusher.Flush()
+				time.Sleep(100 * time.Millisecond)
 			}
 
 		default:
@@ -168,11 +186,22 @@ func TestStartWriterAndReader(t *testing.T) {
 		closer:            &closeOnce{closer: make(chan any)},
 	}
 
+	// Initialize testable functions with default implementations
+	s.timeAfterFunc = time.After
+	s.timeSleepFunc = time.Sleep
+	s.startReaderFunc = s.startReader
+	s.startWriterFunc = s.startWriter
+	s.checkServerHealthFunc = s.checkServerHealth
+
 	// start writer reader keepAlive
 	go s.keepAlive()
 
-	// allow some time for the goroutines to start
-	time.Sleep(50 * time.Millisecond)
+	// allow more time for the connection to be established
+	// The keepAlive function needs time to:
+	// 1. Check server health
+	// 2. Start reader and writer goroutines
+	// 3. Establish HTTP connections
+	time.Sleep(500 * time.Millisecond)
 
 	// Test cases
 	testCases := []struct {
@@ -204,18 +233,67 @@ func TestStartWriterAndReader(t *testing.T) {
 		})
 	}
 
-	s.Stop()
-	if _, ok := <-s.reader; ok {
-		t.Errorf("Reader channel should be closed")
+	// Give a bit of time for any pending operations
+	time.Sleep(100 * time.Millisecond)
+
+	// Check if context is already done before calling Stop
+	select {
+	case <-s.ctx.Done():
+		t.Log("Context already canceled before Stop()")
+	default:
+		t.Log("Context still active before Stop()")
 	}
-	if _, ok := <-s.writer; ok {
-		t.Errorf("Writer channel should be closed")
+
+	s.Stop()
+
+	// Give Stop() time to complete
+	time.Sleep(100 * time.Millisecond)
+
+	// Drain any remaining messages and check if channels are closed
+	// A closed channel with data will still return ok=true until drained
+	// First, drain reader channel
+	readerDrainTimeout := time.After(1 * time.Second)
+readerDrain:
+	for {
+		select {
+		case _, ok := <-s.reader:
+			if !ok {
+				// Channel is closed, good
+				break readerDrain
+			}
+			// Still has messages, continue draining
+		case <-readerDrainTimeout:
+			t.Errorf("Reader channel should be closed but timeout while draining")
+			break readerDrain
+		}
+	}
+
+	// Then, drain writer channel
+	writerDrainTimeout := time.After(1 * time.Second)
+writerDrain:
+	for {
+		select {
+		case _, ok := <-s.writer:
+			if !ok {
+				// Channel is closed, good
+				break writerDrain
+			}
+			// Still has messages, continue draining
+		case <-writerDrainTimeout:
+			t.Errorf("Writer channel should be closed but timeout while draining")
+			break writerDrain
+		}
 	}
 }
 
 func TestReaderWriterServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Header.Get("session_type") {
+		// Check both new and deprecated headers for compatibility
+		sessionType := r.Header.Get("X-GPUD-Session-Type")
+		if sessionType == "" {
+			sessionType = r.Header.Get("session_type")
+		}
+		switch sessionType {
 		case "write":
 			w.WriteHeader(http.StatusInternalServerError)
 		case "read":
@@ -566,6 +644,13 @@ func TestSessionKeepAlive(t *testing.T) {
 		reader:         make(chan Body, 10),
 		closer:         &closeOnce{closer: make(chan any)},
 	}
+
+	// Initialize testable functions with default implementations
+	s.timeAfterFunc = time.After
+	s.timeSleepFunc = time.Sleep
+	s.startReaderFunc = s.startReader
+	s.startWriterFunc = s.startWriter
+	s.checkServerHealthFunc = s.checkServerHealth
 
 	go s.keepAlive()
 
