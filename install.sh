@@ -123,9 +123,20 @@ main() {
   fi
 
   if ! type lsb_release >/dev/null 2>&1; then
-    . /etc/os-release
-    OS_NAME=$(echo "$ID" | tr '[:upper:]' '[:lower:]')
-    OS_VERSION=$(echo "$APP_VERSION" | tr -d '"')
+    # Try /etc/os-release first
+    if [ -f /etc/os-release ]; then
+      . /etc/os-release
+      OS_NAME=$(echo "$ID" | tr '[:upper:]' '[:lower:]')
+      OS_VERSION=$(echo "$VERSION_ID" | tr -d '"')
+    # Fall back to /etc/lsb-release if it exists
+    elif [ -f /etc/lsb-release ]; then
+      . /etc/lsb-release
+      OS_NAME=$(echo "${DISTRIB_ID:-}" | tr '[:upper:]' '[:lower:]')
+      OS_VERSION=$(echo "${DISTRIB_RELEASE:-}" | tr -d '"')
+    else
+      echo "Could not determine OS version. Neither lsb_release command, /etc/os-release, nor /etc/lsb-release were found."
+      exit 1
+    fi
   else
     # e.g., ubuntu22.04, ubuntu24.04
     OS_NAME=$(lsb_release -i -s | tr '[:upper:]' '[:lower:]' 2>/dev/null)
@@ -138,7 +149,7 @@ main() {
         OS_DISTRO="_${OS_NAME}${OS_VERSION}"
         ;;
       *)
-        echo "Ubuntu version $OS_VERSION is not supported, only 22.04, and 24.04 are supported."
+        echo "GPUd $APP_VERSION supports Ubuntu 22.04 and 24.04. Current version $OS_VERSION is not supported."
         exit 1
         ;;
     esac
@@ -148,7 +159,7 @@ main() {
         OS_DISTRO="_${OS_NAME}${OS_VERSION}"
         ;;
       *)
-        echo "Amazon Linux version $OS_VERSION is not supported, only version 2, 2023 is supported."
+        echo "GPUd $APP_VERSION supports Amazon Linux 2 and 2023. Current version $OS_VERSION is not supported."
         exit 1
         ;;
     esac
