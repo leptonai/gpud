@@ -154,12 +154,11 @@ func resolveXIDEvent(event eventstore.Event, devices map[string]device.Device) e
 			ret.Message = newXIDErrorReason(currXid, event.ExtraInfo[EventKeyDeviceUUID], devices)
 
 			xidErr := xidErrorEventDetail{
-				Time:                      metav1.NewTime(event.Time),
-				DataSource:                "kmsg",
-				DeviceUUID:                event.ExtraInfo[EventKeyDeviceUUID],
-				Xid:                       uint64(currXid),
-				SuggestedActionsByGPUd:    detail.SuggestedActionsByGPUd,
-				CriticalErrorMarkedByGPUd: detail.CriticalErrorMarkedByGPUd,
+				Time:                   metav1.NewTime(event.Time),
+				DataSource:             "kmsg",
+				DeviceUUID:             event.ExtraInfo[EventKeyDeviceUUID],
+				Xid:                    uint64(currXid),
+				SuggestedActionsByGPUd: detail.SuggestedActionsByGPUd,
 			}
 
 			raw, _ := json.Marshal(xidErr)
@@ -186,7 +185,4 @@ type xidErrorEventDetail struct {
 
 	// SuggestedActionsByGPUd are the suggested actions for the error.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
-	// CriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
-	// You may use this field to decide whether to alert or not.
-	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
 }
