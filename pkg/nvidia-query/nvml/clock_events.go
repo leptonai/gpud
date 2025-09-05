@@ -75,16 +75,19 @@ type ClockEvents struct {
 	Supported bool `json:"supported"`
 }
 
-// Event creates a apiv1.Event from ClockEvents if there are hardware slowdown reasons.
-// Returns nil if there are no hardware slowdown reasons.
-func (evs *ClockEvents) Event() *eventstore.Event {
+// EventNameHWSlowdown defines the name of the event for hw slowdown events.
+const EventNameHWSlowdown = "hw_slowdown"
+
+// HWSlowdownEvent returns an eventstore.Event if there are hardware slowdown reasons.
+// Returns nil if there is no hardware slowdown reason.
+func (evs *ClockEvents) HWSlowdownEvent() *eventstore.Event {
 	if len(evs.HWSlowdownReasons) == 0 {
 		return nil
 	}
 
 	return &eventstore.Event{
 		Time:    evs.Time.Time,
-		Name:    "hw_slowdown",
+		Name:    EventNameHWSlowdown,
 		Type:    string(apiv1.EventTypeWarning),
 		Message: strings.Join(evs.HWSlowdownReasons, ", "),
 		ExtraInfo: map[string]string{

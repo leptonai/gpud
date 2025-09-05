@@ -68,6 +68,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 		},
 
 		EventStore:       nil,
+		EventStoreV2:     nil,
 		RebootEventStore: nil,
 
 		MountPoints:  []string{"/"},
