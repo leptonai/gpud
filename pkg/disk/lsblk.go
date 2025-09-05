@@ -37,6 +37,13 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
+// Mockable function variables for testing
+var (
+	findMntExecutor               = FindMnt
+	lsblkCommandExecutor          = executeLsblkCommand
+	getLsblkBinPathAndVersionFunc = getLsblkBinPathAndVersion
+)
+
 type BlockDevices []BlockDevice
 
 // BlockDevice represents output of lsblk command for a device
@@ -63,7 +70,7 @@ type BlockDevice struct {
 // Receives device path. If device is empty string, info about all devices will be collected
 // Returns slice of BlockDevice structs or error if something went wrong
 func GetBlockDevicesWithLsblk(ctx context.Context, opts ...OpOption) (BlockDevices, error) {
-	return getBlockDevicesWithLsblk(ctx, getLsblkBinPathAndVersion, opts...)
+	return getBlockDevicesWithLsblk(ctx, getLsblkBinPathAndVersionFunc, opts...)
 }
 
 // getBlockDevicesWithLsblk run "lsblk" command for device and construct BlockDevice struct based on output
@@ -78,28 +85,18 @@ func getBlockDevicesWithLsblk(
 		return nil, err
 	}
 
-	flags, parseFunc, checkErr := decideLsblkFlag(verOut)
+	flags, parseFunc, checkErr := decideLsblkFlag(ctx, verOut)
 	if checkErr != nil {
 		log.Logger.Warnw("failed to decide lsblk flag and parser -- falling back to latest version", "error", checkErr)
-		flags, parseFunc = lsblkFlags+" "+lsblkJsonFlag, parseLsblkJSON
+		flags = lsblkFlags + " " + lsblkJsonFlag
+		parseFunc = func(b []byte, opts ...OpOption) (BlockDevices, error) {
+			return parseLsblkJSON(ctx, b, opts...)
+		}
 	}
 
-	p, err := process.New(
-		process.WithCommand(lsblkBin+" "+flags),
-		process.WithRunAsBashScript(),
-	)
+	b, err := lsblkCommandExecutor(ctx, lsblkBin, flags)
 	if err != nil {
 		return nil, err
-	}
-	defer func() {
-		if err := p.Close(ctx); err != nil {
-			log.Logger.Warnw("failed to abort command", "err", err)
-		}
-	}()
-
-	b, err := p.StartAndWaitForCombinedOutput(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to run lsblk command: %w", err)
 	}
 
 	devs, err := parseFunc(b, opts...)
@@ -131,19 +128,46 @@ const (
 var lsblkVersionRegPattern = regexp.MustCompile(`\d+\.\d+`)
 
 // decideLsblkFlag decides the lsblk command flags, based on the "lsblk --version" output
-func decideLsblkFlag(verOutput string) (string, func([]byte, ...OpOption) (BlockDevices, error), error) {
+func decideLsblkFlag(ctx context.Context, verOutput string) (string, func([]byte, ...OpOption) (BlockDevices, error), error) {
 	matches := lsblkVersionRegPattern.FindString(verOutput)
 	if matches != "" {
 		if versionF, parseErr := strconv.ParseFloat(matches, 64); parseErr == nil {
 			if versionF >= lsblkMinSupportJsonVersion {
-				return lsblkFlags + " " + lsblkJsonFlag, parseLsblkJSON, nil
+				return lsblkFlags + " " + lsblkJsonFlag, func(b []byte, opts ...OpOption) (BlockDevices, error) {
+					return parseLsblkJSON(ctx, b, opts...)
+				}, nil
 			}
 
-			return lsblkFlags + " " + lsblkPairsFlag, parseLsblkPairs, nil
+			return lsblkFlags + " " + lsblkPairsFlag, func(b []byte, opts ...OpOption) (BlockDevices, error) {
+				return parseLsblkPairs(ctx, b, opts...)
+			}, nil
 		}
 	}
 
 	return "", nil, fmt.Errorf("failed to parse 'lsblk --version' output: %q", verOutput)
+}
+
+// executeLsblkCommand executes the lsblk command and returns its output.
+// This is a separate function to make it mockable for testing.
+func executeLsblkCommand(ctx context.Context, lsblkBin string, flags string) ([]byte, error) {
+	p, err := process.New(
+		process.WithCommand(lsblkBin+" "+flags),
+		process.WithRunAsBashScript(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := p.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to abort command", "err", err)
+		}
+	}()
+
+	b, err := p.StartAndWaitForCombinedOutput(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run lsblk command: %w", err)
+	}
+	return b, nil
 }
 
 // getLsblkBinPathAndVersion returns the "lsblk" executable path and the output of "lsblk --version".
@@ -190,8 +214,28 @@ func getLsblkBinPathAndVersion(ctx context.Context) (string, string, error) {
 	return lsblkBin, line, nil
 }
 
+// fillFstypeFromFindmnt is a helper to populate FSType using findmnt if it's missing.
+// It modifies the BlockDevice in place and uses a cache to avoid redundant calls.
+func fillFstypeFromFindmnt(ctx context.Context, dev *BlockDevice, cache map[string]string) {
+	if dev.FSType != "" || dev.MountPoint == "" {
+		return
+	}
+
+	if fstype, ok := cache[dev.MountPoint]; ok {
+		dev.FSType = fstype
+		log.Logger.Debugw("retrieved fstype from cache", "dev", dev.Name, "mount_point", dev.MountPoint, "fstype", fstype)
+		return
+	}
+
+	if fstype := getFstypeFromFindmnt(ctx, dev.MountPoint); fstype != "" {
+		dev.FSType = fstype
+		cache[dev.MountPoint] = fstype
+		log.Logger.Debugw("retrieved fstype from findmnt", "dev", dev.Name, "mount_point", dev.MountPoint, "fstype", fstype)
+	}
+}
+
 // parseLsblkJSON parses the "lsblk --json" output.
-func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
+func parseLsblkJSON(ctx context.Context, b []byte, opts ...OpOption) (BlockDevices, error) {
 	if len(b) == 0 {
 		return nil, errors.New("empty input provided to Parse")
 	}
@@ -201,7 +245,7 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 		return nil, err
 	}
 
-	raw := make(map[string]BlockDevices, 1)
+	raw := make(map[string][]BlockDevice, 1)
 	if err := json.Unmarshal(b, &raw); err != nil {
 		log.Logger.Debugw("failed to unmarshal lsblk output", "error", err, "bytes", len(b), "raw_input", string(b))
 		return nil, fmt.Errorf("failed to unmarshal lsblk output (len=%d): %w", len(b), err)
@@ -212,8 +256,14 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 		return nil, fmt.Errorf("unexpected lsblk output format, missing %q key", outputKey)
 	}
 
+	// Create a cache for findmnt results to avoid duplicate calls
+	fstypeCache := make(map[string]string)
+
 	devs := make(BlockDevices, 0)
-	for _, parentDev := range rawDevs {
+	for i := range rawDevs {
+		parentDev := &rawDevs[i]
+		fillFstypeFromFindmnt(ctx, parentDev, fstypeCache)
+
 		log.Logger.Debugw("parent block device", "dev", parentDev.Name, "fstype", parentDev.FSType, "type", parentDev.Type, "mount_point", parentDev.MountPoint)
 
 		// Check if parent matches filters
@@ -223,7 +273,10 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 
 		// Always process children, regardless of parent matching
 		children := make([]BlockDevice, 0)
-		for _, child := range parentDev.Children {
+		for j := range parentDev.Children {
+			child := &parentDev.Children[j]
+			fillFstypeFromFindmnt(ctx, child, fstypeCache)
+
 			log.Logger.Debugw("child block device", "dev", child.Name, "fstype", child.FSType, "type", child.Type, "mount_point", child.MountPoint)
 
 			if !op.matchFuncFstype(child.FSType) {
@@ -240,7 +293,7 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 			}
 
 			child.ParentDeviceName = parentDev.Name
-			children = append(children, child)
+			children = append(children, *child)
 		}
 		parentDev.Children = children
 
@@ -249,7 +302,7 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 			if !parentMatches {
 				log.Logger.Debugw("including parent block device because it has matching children", "dev", parentDev.Name, "children_count", len(children))
 			}
-			devs = append(devs, parentDev)
+			devs = append(devs, *parentDev)
 		} else {
 			log.Logger.Debugw("skipping parent block device (no match and no matching children)", "dev", parentDev.Name)
 		}
@@ -264,7 +317,7 @@ func parseLsblkJSON(b []byte, opts ...OpOption) (BlockDevices, error) {
 }
 
 // parseLsblkPairs parses the "lsblk --pairs" output.
-func parseLsblkPairs(b []byte, opts ...OpOption) (BlockDevices, error) {
+func parseLsblkPairs(ctx context.Context, b []byte, opts ...OpOption) (BlockDevices, error) {
 	if len(b) == 0 {
 		return nil, errors.New("empty input provided to ParsePairs")
 	}
@@ -303,7 +356,7 @@ func parseLsblkPairs(b []byte, opts ...OpOption) (BlockDevices, error) {
 		return nil, fmt.Errorf("failed to marshal lsblk-blockdevices json mode")
 	}
 
-	return parseLsblkJSON(jsonData, opts...)
+	return parseLsblkJSON(ctx, jsonData, opts...)
 }
 
 func parseLineToDisk(line string) (BlockDevice, error) {
@@ -316,7 +369,7 @@ func parseLineToDisk(line string) (BlockDevice, error) {
 			continue
 		}
 
-		key, value := strings.TrimSpace(kv[0]), strings.Trim(strings.TrimSpace(kv[1]), `"`)
+		key, value := strings.TrimSpace(kv[0]), strings.Trim(strings.TrimSpace(kv[1]), "\"")
 		switch key {
 		case "NAME":
 			disk.Name = value
@@ -350,6 +403,26 @@ func parseLineToDisk(line string) (BlockDevice, error) {
 	}
 
 	return disk, nil
+}
+
+// getFstypeFromFindmnt tries to get the filesystem type using findmnt command
+// Returns empty string if unable to get fstype
+func getFstypeFromFindmnt(ctx context.Context, mountPoint string) string {
+	if mountPoint == "" {
+		return ""
+	}
+
+	mntOutput, err := findMntExecutor(ctx, mountPoint)
+	if err != nil {
+		log.Logger.Warnw("failed to get fstype from findmnt", "mount_point", mountPoint, "error", err)
+		return ""
+	}
+
+	if len(mntOutput.Filesystems) > 0 && mntOutput.Filesystems[0].Fstype != "" {
+		return mntOutput.Filesystems[0].Fstype
+	}
+
+	return ""
 }
 
 func buildDiskHierarchy(disks BlockDevices) (finalDisks BlockDevices) {
@@ -497,10 +570,10 @@ func (cb CustomBool) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON customizes string rota unmarshaling
 func (cb *CustomBool) UnmarshalJSON(data []byte) error {
 	switch strings.TrimSpace(string(data)) {
-	case `"true"`, `true`, `"1"`, `1`:
+	case "\"true\"", `true`, "\"1\"", `1`:
 		cb.Bool = true
 		return nil
-	case `"false"`, `false`, `"0"`, `0`, `""`:
+	case "\"false\"", `false`, "\"0\"", `0`, `""`:
 		cb.Bool = false
 		return nil
 	default:
