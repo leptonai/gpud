@@ -15,6 +15,8 @@ image:
 
 # Application-specific arguments for the GPUd container.
 gpud:
+  command:
+  - "gpud"
   args:
     - "run"
     - "--listen-address=0.0.0.0:15132"
@@ -100,3 +102,12 @@ affinity:
       - matchExpressions:
         - key: nvidia.com/gpu.product
           operator: Exists
+
+# Extra volumes for the pod.
+extraVolumes: []
+
+# Extra volume mounts for the pod.
+extraVolumeMounts: []
+
+# [Init containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/) to add to the pod definition.
+initContainers: []
