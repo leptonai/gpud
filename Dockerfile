@@ -16,6 +16,9 @@ WORKDIR /workspace
 COPY go.mod go.mod
 COPY go.sum go.sum
 
+# Download dependencies as a separate step to take advantage of Docker's caching
+RUN go mod download
+
 COPY api/ api/
 COPY client/ client/
 COPY cmd/ cmd/

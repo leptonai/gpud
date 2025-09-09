@@ -38,9 +38,10 @@ export IMAGE_NAME="gpud"
 export OS_NAME="ubuntu"
 export OS_VERSION="22.04"
 export CUDA_VERSION="12.4.1"
+export GIT_COMMIT_HASH=$(git rev-parse --short HEAD)
 
 # Create the full tag and build the image
-export FULL_TAG="${IMAGE_NAME}:dev-cuda${CUDA_VERSION}-${OS_NAME}${OS_VERSION}"
+export FULL_TAG="${IMAGE_NAME}:${GIT_COMMIT_HASH}-cuda${CUDA_VERSION}-${OS_NAME}${OS_VERSION}"
 
 docker buildx build \
   --build-arg OS_NAME=${OS_NAME} \
