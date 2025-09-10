@@ -43,8 +43,10 @@ const (
 )
 
 var (
-	_ Store  = &database{}
-	_ Bucket = &table{}
+	_ Store    = &database{}
+	_ StoreV2  = &database{}
+	_ Bucket   = &table{}
+	_ BucketV2 = &table{}
 )
 
 type database struct {
@@ -77,6 +79,14 @@ func New(dbRW *sql.DB, dbRO *sql.DB, retention time.Duration) (Store, error) {
 	}, nil
 }
 
+func NewV2(dbRW *sql.DB, dbRO *sql.DB, retention time.Duration) (StoreV2, error) {
+	return &database{
+		dbRW:      dbRW,
+		dbRO:      dbRO,
+		retention: retention,
+	}, nil
+}
+
 func (d *database) Bucket(name string, opts ...OpOption) (Bucket, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
@@ -95,6 +105,19 @@ func (d *database) Bucket(name string, opts ...OpOption) (Bucket, error) {
 	}
 
 	return newTable(d.dbRW, d.dbRO, name, d.retention, purgeInterval)
+}
+
+func (d *database) BucketV2(name string, opts ...OpOption) (BucketV2, error) {
+	b, err := d.Bucket(name, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	tb, ok := b.(*table)
+	if !ok {
+		return nil, fmt.Errorf("bucket %s is not a table", name)
+	}
+	return tb, nil
 }
 
 func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, purgeInterval time.Duration) (*table, error) {
@@ -175,7 +198,17 @@ func (t *table) Find(ctx context.Context, ev Event) (*Event, error) {
 
 // Get queries the event in the descending order of timestamp (latest event first).
 func (t *table) Get(ctx context.Context, since time.Time) (Events, error) {
-	return getEvents(ctx, t.dbRO, t.table, since)
+	return readEvents(ctx, t.dbRO, t.table, since, "")
+}
+
+// Read queries the events in the descending order of timestamp (latest event first).
+// If the "since" is not provided, it returns all events.
+func (t *table) Read(ctx context.Context, opts ...OpOption) (Events, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+	return readEvents(ctx, t.dbRO, t.table, op.since, op.name)
 }
 
 // Latest queries the latest event, returns nil if no event found.
@@ -314,17 +347,33 @@ SELECT %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s = ?`,
 }
 
 // Returns the event in the descending order of timestamp (latest event first).
-func getEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time) (Events, error) {
-	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s
-FROM %s
-WHERE %s > ?
-ORDER BY %s DESC`,
+func readEvents(ctx context.Context, db *sql.DB, tableName string, since time.Time, name string) (Events, error) {
+	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s FROM %s`,
 		columnTimestamp, columnName, columnType, columnMessage, columnExtraInfo,
 		tableName,
-		columnTimestamp,
-		columnTimestamp,
 	)
-	params := []any{since.UTC().Unix()}
+	params := []any{}
+
+	whereAdded := false
+	if !since.IsZero() {
+		if !whereAdded {
+			query += " WHERE"
+		}
+		query += fmt.Sprintf(" %s > ?", columnTimestamp)
+		params = append(params, since.UTC().Unix())
+		whereAdded = true
+	}
+	if name != "" {
+		if !whereAdded {
+			query += " WHERE"
+		} else {
+			query += " AND"
+		}
+		query += fmt.Sprintf(" %s = ?", columnName)
+		params = append(params, name)
+	}
+
+	query += fmt.Sprintf(" ORDER BY %s DESC", columnTimestamp)
 
 	start := time.Now()
 	rows, err := db.QueryContext(ctx, query, params...)

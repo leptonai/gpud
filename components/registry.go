@@ -36,7 +36,9 @@ type GPUdInstance struct {
 	DBRW *sql.DB
 	DBRO *sql.DB
 
-	EventStore       eventstore.Store
+	EventStore   eventstore.Store
+	EventStoreV2 eventstore.StoreV2
+
 	RebootEventStore pkghost.RebootEventStore
 
 	MountPoints  []string

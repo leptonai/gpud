@@ -133,6 +133,10 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	if err != nil {
 		return nil, fmt.Errorf("failed to open events database: %w", err)
 	}
+	eventStoreV2, err := eventstore.NewV2(dbRW, dbRO, 24*time.Hour)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open events database: %w", err)
+	}
 
 	rebootEventStore := pkghost.NewRebootEventStore(eventStore)
 
@@ -206,6 +210,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		DBRO: dbRO,
 
 		EventStore:       eventStore,
+		EventStoreV2:     eventStoreV2,
 		RebootEventStore: rebootEventStore,
 
 		MountPoints:  []string{"/"},
