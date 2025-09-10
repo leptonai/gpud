@@ -7,9 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
@@ -44,11 +42,6 @@ func TestComponent_SetHealthy(t *testing.T) {
 		// Verify purge was called
 		assert.Equal(t, 1, mockBucket.purgeCalls)
 		assert.Equal(t, fixedTime.Unix(), mockBucket.purgeBeforeTimestamp)
-
-		// Verify SetHealthy event was inserted
-		events := mockBucket.GetAPIEvents()
-		require.Len(t, events, 1)
-		assert.Equal(t, "SetHealthy", events[0].Name)
 	})
 
 	t.Run("without event bucket", func(t *testing.T) {
@@ -170,59 +163,7 @@ func TestComponent_SetHealthy(t *testing.T) {
 		err = c.SetHealthy()
 		assert.NoError(t, err)
 
-		// Verify only one SetHealthy event exists (the original)
-		events := mockBucket.GetAPIEvents()
-		setHealthyCount := 0
-		for _, ev := range events {
-			if ev.Name == "SetHealthy" {
-				setHealthyCount++
-			}
-		}
-		assert.Equal(t, 1, setHealthyCount)
-	})
-
-	t.Run("Find returns error", func(t *testing.T) {
-		fixedTime := time.Date(2024, 7, 1, 16, 0, 0, 0, time.UTC)
-		findErr := errors.New("find failed")
-
-		mockBucket := createMockEventBucketForSetHealthy()
-		mockBucket.findErr = findErr
-		mockStore := &mockIBPortsStoreForSetHealthy{}
-
-		c := &component{
-			ctx:          ctx,
-			eventBucket:  mockBucket,
-			ibPortsStore: mockStore,
-			getTimeNowFunc: func() time.Time {
-				return fixedTime
-			},
-		}
-
-		err := c.SetHealthy()
-		assert.Error(t, err)
-		assert.Equal(t, findErr, err)
-	})
-
-	t.Run("Insert returns error", func(t *testing.T) {
-		fixedTime := time.Date(2024, 8, 1, 17, 0, 0, 0, time.UTC)
-		insertErr := errors.New("insert failed")
-
-		mockBucket := createMockEventBucketForSetHealthy()
-		mockBucket.insertErr = insertErr
-		mockStore := &mockIBPortsStoreForSetHealthy{}
-
-		c := &component{
-			ctx:          ctx,
-			eventBucket:  mockBucket,
-			ibPortsStore: mockStore,
-			getTimeNowFunc: func() time.Time {
-				return fixedTime
-			},
-		}
-
-		err := c.SetHealthy()
-		assert.Error(t, err)
-		assert.Equal(t, insertErr, err)
+		// No longer verifying SetHealthy events since insertion was removed
 	})
 
 	t.Run("context timeout during operations", func(t *testing.T) {
@@ -255,33 +196,6 @@ func TestComponent_SetHealthy(t *testing.T) {
 func TestComponent_ImplementsHealthSettable(t *testing.T) {
 	// This will fail to compile if component doesn't implement HealthSettable
 	var _ components.HealthSettable = &component{}
-}
-
-func TestComponent_SetHealthy_EventFields(t *testing.T) {
-	ctx := context.Background()
-	fixedTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
-
-	mockBucket := createMockEventBucketForSetHealthy()
-	mockStore := &mockIBPortsStoreForSetHealthy{}
-
-	c := &component{
-		ctx:          ctx,
-		eventBucket:  mockBucket,
-		ibPortsStore: mockStore,
-		getTimeNowFunc: func() time.Time {
-			return fixedTime
-		},
-	}
-
-	err := c.SetHealthy()
-	assert.NoError(t, err)
-
-	// Verify the inserted event has correct fields
-	events := mockBucket.GetAPIEvents()
-	require.Len(t, events, 1)
-	assert.Equal(t, "SetHealthy", events[0].Name)
-	assert.Equal(t, Name, events[0].Component)
-	assert.Equal(t, string(apiv1.EventTypeInfo), events[0].Type)
 }
 
 // mockIBPortsStoreForSetHealthy extends the existing mockIBPortsStore for SetHealthy testing
