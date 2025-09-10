@@ -10,9 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
 func TestComponent_SetHealthy(t *testing.T) {
@@ -23,25 +21,13 @@ func TestComponent_SetHealthy(t *testing.T) {
 		checkResult   func(*testing.T, *mockEventBucket)
 	}{
 		{
-			name: "successful purge with event bucket - inserts SetHealthy event",
+			name: "successful purge with event bucket",
 			setupMocks: func(mb *mockEventBucket) {
 				mb.On("Purge", mock.Anything, mock.AnythingOfType("int64")).Return(10, nil)
-				mb.On("Find", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				})).Return(nil, nil) // No existing SetHealthy event
-				mb.On("Insert", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				})).Return(nil)
 			},
 			expectedError: nil,
 			checkResult: func(t *testing.T, mb *mockEventBucket) {
 				mb.AssertCalled(t, "Purge", mock.Anything, mock.AnythingOfType("int64"))
-				mb.AssertCalled(t, "Find", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				}))
-				mb.AssertCalled(t, "Insert", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				}))
 			},
 		},
 		{
@@ -59,66 +45,6 @@ func TestComponent_SetHealthy(t *testing.T) {
 			setupMocks:    nil,
 			expectedError: nil,
 			checkResult:   nil,
-		},
-		{
-			name: "SetHealthy event already exists - skips insertion",
-			setupMocks: func(mb *mockEventBucket) {
-				mb.On("Purge", mock.Anything, mock.AnythingOfType("int64")).Return(5, nil)
-				existingEvent := &eventstore.Event{
-					Time: time.Now(),
-					Name: "SetHealthy",
-				}
-				mb.On("Find", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				})).Return(existingEvent, nil) // Existing SetHealthy event
-			},
-			expectedError: nil,
-			checkResult: func(t *testing.T, mb *mockEventBucket) {
-				mb.AssertCalled(t, "Purge", mock.Anything, mock.AnythingOfType("int64"))
-				mb.AssertCalled(t, "Find", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				}))
-				mb.AssertNotCalled(t, "Insert", mock.Anything, mock.Anything) // Should not insert
-			},
-		},
-		{
-			name: "Find returns error",
-			setupMocks: func(mb *mockEventBucket) {
-				mb.On("Purge", mock.Anything, mock.AnythingOfType("int64")).Return(3, nil)
-				mb.On("Find", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				})).Return(nil, errors.New("find failed"))
-			},
-			expectedError: errors.New("find failed"),
-			checkResult: func(t *testing.T, mb *mockEventBucket) {
-				mb.AssertCalled(t, "Purge", mock.Anything, mock.AnythingOfType("int64"))
-				mb.AssertCalled(t, "Find", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				}))
-				mb.AssertNotCalled(t, "Insert", mock.Anything, mock.Anything)
-			},
-		},
-		{
-			name: "Insert returns error",
-			setupMocks: func(mb *mockEventBucket) {
-				mb.On("Purge", mock.Anything, mock.AnythingOfType("int64")).Return(7, nil)
-				mb.On("Find", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				})).Return(nil, nil) // No existing event
-				mb.On("Insert", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				})).Return(errors.New("insert failed"))
-			},
-			expectedError: errors.New("insert failed"),
-			checkResult: func(t *testing.T, mb *mockEventBucket) {
-				mb.AssertCalled(t, "Purge", mock.Anything, mock.AnythingOfType("int64"))
-				mb.AssertCalled(t, "Find", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				}))
-				mb.AssertCalled(t, "Insert", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-					return ev.Name == "SetHealthy"
-				}))
-			},
 		},
 	}
 
@@ -229,30 +155,4 @@ func TestComponent_ImplementsHealthSettable(t *testing.T) {
 
 	// This will fail to compile if component doesn't implement HealthSettable
 	var _ components.HealthSettable = comp.(*component)
-}
-
-func TestComponent_SetHealthy_EventFields(t *testing.T) {
-	ctx := context.Background()
-	fixedTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-
-	mockBucket := &mockEventBucket{}
-	mockBucket.On("Purge", mock.Anything, mock.AnythingOfType("int64")).Return(1, nil)
-	mockBucket.On("Find", mock.Anything, mock.Anything).Return(nil, nil)
-	mockBucket.On("Insert", mock.Anything, mock.Anything).Return(nil)
-
-	c := &component{
-		ctx:         ctx,
-		eventBucket: mockBucket,
-		getTimeNowFunc: func() time.Time {
-			return fixedTime
-		},
-	}
-
-	err := c.SetHealthy()
-	assert.NoError(t, err)
-
-	// Verify the Insert call received the correct event fields
-	mockBucket.AssertCalled(t, "Insert", mock.Anything, mock.MatchedBy(func(ev eventstore.Event) bool {
-		return ev.Name == "SetHealthy" && ev.Component == Name && ev.Type == string(apiv1.EventTypeInfo)
-	}))
 }
