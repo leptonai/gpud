@@ -35,16 +35,15 @@ This is the fastest way to build an image for your local machine's architecture 
 ```bash
 # Set local build variables
 export IMAGE_NAME="gpud"
-export GIT_TAG="v0.6.0"
 export OS_NAME="ubuntu"
 export OS_VERSION="22.04"
 export CUDA_VERSION="12.4.1"
+export GIT_COMMIT_HASH=$(git rev-parse --short HEAD)
 
 # Create the full tag and build the image
-export FULL_TAG="${IMAGE_NAME}:${GIT_TAG#v}-cuda${CUDA_VERSION}-${OS_NAME}${OS_VERSION}"
+export FULL_TAG="${IMAGE_NAME}:${GIT_COMMIT_HASH}-cuda${CUDA_VERSION}-${OS_NAME}${OS_VERSION}"
 
 docker buildx build \
-  --build-arg GPUD_VERSION=${GIT_TAG} \
   --build-arg OS_NAME=${OS_NAME} \
   --build-arg OS_VERSION=${OS_VERSION} \
   --build-arg CUDA_VERSION=${CUDA_VERSION} \
@@ -90,7 +89,6 @@ This single command builds for both `amd64` and `arm64`, tags the resulting mani
 ```bash
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  --build-arg GPUD_VERSION=${GIT_TAG} \
   --build-arg OS_NAME=${OS_NAME} \
   --build-arg OS_VERSION=${OS_VERSION} \
   --build-arg CUDA_VERSION=${CUDA_VERSION} \
