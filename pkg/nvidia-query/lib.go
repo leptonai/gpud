@@ -22,15 +22,22 @@ var (
 	DefaultNVIDIALibrariesSearchDirs = []string{
 		// ref. https://github.com/NVIDIA/nvidia-container-toolkit/blob/main/internal/lookup/library.go#L33-L62
 		"/",
+
 		"/usr/lib64",
 		"/usr/lib/x86_64-linux-gnu",
 		"/usr/lib/aarch64-linux-gnu",
 		"/usr/lib/x86_64-linux-gnu/nvidia/current",
 		"/usr/lib/aarch64-linux-gnu/nvidia/current",
+
 		"/lib64",
 		"/lib/x86_64-linux-gnu",
 		"/lib/aarch64-linux-gnu",
 		"/lib/x86_64-linux-gnu/nvidia/current",
 		"/lib/aarch64-linux-gnu/nvidia/current",
+
+		// e.g.,
+		// /cm/local/apps/cuda/libs/current/lib64/libnvidia-ml.so.1
+		// /cm/local/apps/cuda/libs/current/lib64/libcuda.so.1
+		"/cm/local/apps/cuda/libs/current/lib64/",
 	}
 )
