@@ -621,8 +621,7 @@ func TestComponent_Check_DeduplicationAndSorting(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{}
 		},
-		usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,  // 99%
-		usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy, // 99.5%
+		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded, // 500MB
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{
 				{

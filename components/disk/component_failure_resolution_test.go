@@ -51,8 +51,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 			getGroupConfigsFunc: func() pkgnfschecker.Configs {
 				return pkgnfschecker.Configs{}
 			},
-			usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
-			usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
+			freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 				return disk.Partitions{}, nil
 			},
@@ -528,8 +527,7 @@ func TestFailureReasonMapCleanup(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return now
 		},
-		usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
-		usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
+		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{}
 		},

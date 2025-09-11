@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,14 +58,10 @@ type component struct {
 
 	mountPointsToTrackUsage map[string]struct{}
 
-	// usedSpaceThresholdPctDegraded is the threshold for the used space percentage
+	// freeSpaceThresholdBytesDegraded is the threshold for the free space in bytes
 	// when the system is considered degraded.
-	// Default is 0.99 (99%).
-	usedSpaceThresholdPctDegraded float64
-	// usedSpaceThresholdPctUnhealthy is the threshold for the used space percentage
-	// when the system is considered unhealthy.
-	// Default is 0.995 (99.5%).
-	usedSpaceThresholdPctUnhealthy float64
+	// Default is 500MB.
+	freeSpaceThresholdBytesDegraded uint64
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
@@ -82,8 +79,7 @@ const (
 	defaultRetryInterval  = 5 * time.Second
 	defaultLookbackPeriod = 3 * 24 * time.Hour // 3 days
 
-	defaultUsedSpaceThresholdPctDegraded  = 0.99
-	defaultUsedSpaceThresholdPctUnhealthy = 0.995
+	defaultFreeSpaceThresholdBytesDegraded = 500 * 1024 * 1024 // 500 MB
 )
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -117,8 +113,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		// Initialize file operation function field with real implementation
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
 
-		usedSpaceThresholdPctDegraded:  defaultUsedSpaceThresholdPctDegraded,
-		usedSpaceThresholdPctUnhealthy: defaultUsedSpaceThresholdPctUnhealthy,
+		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 	}
 
 	if runtime.GOOS == "linux" {
@@ -583,71 +578,39 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
-	// Check disk usage thresholds
-	var degradedPartitions []string
-	var unhealthyPartitions []string
-
-	// Check ExtPartitions
+	var degradedPartitionsDueToThresholdExceeded []string
 	for _, p := range cr.ExtPartitions {
 		if p.Usage == nil || p.Usage.TotalBytes == 0 {
 			continue
 		}
 
-		usagePercent := float64(p.Usage.UsedBytes) / float64(p.Usage.TotalBytes)
-
-		if usagePercent >= c.usedSpaceThresholdPctUnhealthy {
-			reason := fmt.Sprintf("%s (%s): %.1f%% used exceeds %.1f%% threshold (%s total)",
-				p.Device, p.MountPoint,
-				usagePercent*100,
-				c.usedSpaceThresholdPctUnhealthy*100,
-				humanizeBytes(p.Usage.TotalBytes))
-			unhealthyPartitions = append(unhealthyPartitions, reason)
-		} else if usagePercent >= c.usedSpaceThresholdPctDegraded {
-			reason := fmt.Sprintf("%s (%s): %.1f%% used exceeds %.1f%% threshold (%s total)",
-				p.Device, p.MountPoint,
-				usagePercent*100,
-				c.usedSpaceThresholdPctDegraded*100,
-				humanizeBytes(p.Usage.TotalBytes))
-			degradedPartitions = append(degradedPartitions, reason)
+		if p.Usage.FreeBytes < c.freeSpaceThresholdBytesDegraded {
+			reason := fmt.Sprintf("%s: free space %s is below %s threshold (%s total)",
+				p.MountPoint,
+				humanize.IBytes(p.Usage.FreeBytes),
+				humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
+				humanize.IBytes(p.Usage.TotalBytes))
+			log.Logger.Debugw("reason", "device", p.Device)
+			degradedPartitionsDueToThresholdExceeded = append(degradedPartitionsDueToThresholdExceeded, reason)
 		}
 	}
-
-	// Check NFSPartitions
 	for _, p := range cr.NFSPartitions {
 		if p.Usage == nil || p.Usage.TotalBytes == 0 {
 			continue
 		}
 
-		usagePercent := float64(p.Usage.UsedBytes) / float64(p.Usage.TotalBytes)
-
-		if usagePercent >= c.usedSpaceThresholdPctUnhealthy {
-			reason := fmt.Sprintf("%s (%s): %.1f%% used exceeds %.1f%% threshold (%s total)",
-				p.Device, p.MountPoint,
-				usagePercent*100,
-				c.usedSpaceThresholdPctUnhealthy*100,
-				humanizeBytes(p.Usage.TotalBytes))
-			unhealthyPartitions = append(unhealthyPartitions, reason)
-		} else if usagePercent >= c.usedSpaceThresholdPctDegraded {
-			reason := fmt.Sprintf("%s (%s): %.1f%% used exceeds %.1f%% threshold (%s total)",
-				p.Device, p.MountPoint,
-				usagePercent*100,
-				c.usedSpaceThresholdPctDegraded*100,
-				humanizeBytes(p.Usage.TotalBytes))
-			degradedPartitions = append(degradedPartitions, reason)
+		if p.Usage.FreeBytes < c.freeSpaceThresholdBytesDegraded {
+			reason := fmt.Sprintf("%s: free space %s is below %s threshold (%s total)",
+				p.MountPoint,
+				humanize.IBytes(p.Usage.FreeBytes),
+				humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
+				humanize.IBytes(p.Usage.TotalBytes))
+			log.Logger.Debugw("reason", "device", p.Device)
+			degradedPartitionsDueToThresholdExceeded = append(degradedPartitionsDueToThresholdExceeded, reason)
 		}
 	}
 
-	// Set health state and reason based on disk usage
-	if len(unhealthyPartitions) > 0 {
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		if cr.reason == "ok" {
-			cr.reason = ""
-		}
-		if cr.reason != "" {
-			cr.reason += "; "
-		}
-		cr.reason += strings.Join(unhealthyPartitions, "; ")
-	} else if len(degradedPartitions) > 0 {
+	if len(degradedPartitionsDueToThresholdExceeded) > 0 {
 		// Only set to degraded if not already unhealthy
 		if cr.health != apiv1.HealthStateTypeUnhealthy {
 			cr.health = apiv1.HealthStateTypeDegraded
@@ -658,7 +621,7 @@ func (c *component) Check() components.CheckResult {
 		if cr.reason != "" {
 			cr.reason += "; "
 		}
-		cr.reason += strings.Join(degradedPartitions, "; ")
+		cr.reason += strings.Join(degradedPartitionsDueToThresholdExceeded, "; ")
 	}
 
 	for _, p := range cr.NFSPartitions {
@@ -680,24 +643,6 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Debugw(cr.reason, "extPartitions", len(cr.ExtPartitions), "nfsPartitions", len(cr.NFSPartitions), "blockDevices", len(cr.BlockDevices))
 
 	return cr
-}
-
-// humanizeBytes converts bytes to human-readable format with appropriate unit
-func humanizeBytes(bytes uint64) string {
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%dB", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	units := []string{"KB", "MB", "GB", "TB", "PB", "EB"}
-	if exp >= len(units) {
-		exp = len(units) - 1
-	}
-	return fmt.Sprintf("%.2f%s", float64(bytes)/float64(div), units[exp])
 }
 
 func (c *component) fetchBlockDevices(cr *checkResult) bool {
