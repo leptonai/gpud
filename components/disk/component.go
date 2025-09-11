@@ -584,6 +584,12 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 
+		// for now, we ONLY check the root partition
+		if p.MountPoint != "/" {
+			log.Logger.Debugw("skipping non-root ext4 partition", "mount_point", p.MountPoint, "free_bytes", p.Usage.FreeBytes, "threshold", c.freeSpaceThresholdBytesDegraded)
+			continue
+		}
+
 		if p.Usage.FreeBytes < c.freeSpaceThresholdBytesDegraded {
 			reason := fmt.Sprintf("%s: free space %s is below %s threshold (%s total)",
 				p.MountPoint,
