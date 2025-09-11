@@ -372,61 +372,6 @@ func TestComponent_Check_SuggestedActions(t *testing.T) {
 	assert.Equal(t, "RAID array has failed due to disk failure", cr.reason)
 }
 
-// TestComponent_Check_NoSpaceLeftNotSuggested tests that eventNoSpaceLeft doesn't trigger reboot
-func TestComponent_Check_NoSpaceLeftNotSuggested(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	now := time.Now()
-
-	// Create a test event store
-	eventBucket := &simpleMockEventBucket{}
-
-	// Insert a no-space-left event (should NOT trigger reboot suggestion)
-	err := eventBucket.Insert(ctx, eventstore.Event{
-		Component: Name,
-		Time:      now.Add(-1 * time.Minute),
-		Name:      eventNoSpaceLeft,
-		Type:      string(apiv1.EventTypeWarning),
-		Message:   "No space left on device",
-	})
-	require.NoError(t, err)
-
-	// Create mock reboot event store
-	mockRebootStore := &mockRebootEventStore{
-		events: eventstore.Events{},
-	}
-
-	// Create component
-	c := &component{
-		ctx:              ctx,
-		rebootEventStore: mockRebootStore,
-		eventBucket:      eventBucket,
-		lookbackPeriod:   96 * time.Hour,
-		getTimeNowFunc: func() time.Time {
-			return now
-		},
-		getGroupConfigsFunc: func() pkgnfschecker.Configs {
-			return pkgnfschecker.Configs{}
-		},
-		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
-			return disk.Partitions{}, nil
-		},
-		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
-			return disk.Partitions{}, nil
-		},
-	}
-
-	// Run check
-	result := c.Check()
-	cr, ok := result.(*checkResult)
-	require.True(t, ok)
-
-	// Should be healthy and NOT suggest any actions
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Nil(t, cr.suggestedActions)
-}
-
 // TestCheckResult_GetSuggestedActions tests the getSuggestedActions method
 func TestCheckResult_GetSuggestedActions(t *testing.T) {
 	// Test with nil checkResult
@@ -676,6 +621,7 @@ func TestComponent_Check_DeduplicationAndSorting(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{}
 		},
+		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded, // 500MB
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			return disk.Partitions{
 				{
