@@ -3641,8 +3641,8 @@ func TestComponent_SuperblockWriteErrorIntegration(t *testing.T) {
 func TestDiskUsageThresholds(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("ext4 partition exceeds degraded threshold", func(t *testing.T) {
-		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
+	t.Run("ext4 root partition exceeds degraded threshold", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/"}, []string{})
 		defer c.Close()
 
 		// Set thresholds for testing (free bytes)
@@ -3656,7 +3656,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		// Create partition with 85% usage (exceeds degraded but not unhealthy)
 		mockPartition := disk.Partition{
 			Device:     "/dev/sda1",
-			MountPoint: "/mnt/data1",
+			MountPoint: "/",
 			Usage: &disk.Usage{
 				TotalBytes: 1024 * 1024 * 1024 * 100, // 100GB
 				UsedBytes:  1024 * 1024 * 1024 * 85,  // 85GB (85% usage)
@@ -3675,7 +3675,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		cr := result.(*checkResult)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
-		assert.Contains(t, cr.reason, "/mnt/data1: free space 15 GiB is below 20 GiB threshold (100 GiB total)")
+		assert.Contains(t, cr.reason, "/: free space 15 GiB is below 20 GiB threshold (100 GiB total)")
 	})
 
 	// Removed unhealthy threshold test cases
@@ -3796,8 +3796,8 @@ func TestDiskUsageThresholds(t *testing.T) {
 		assert.Equal(t, "ok", cr.reason)
 	})
 
-	t.Run("default thresholds", func(t *testing.T) {
-		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
+	t.Run("default thresholds on rootfs", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/"}, []string{})
 		defer c.Close()
 
 		// Verify default free-space threshold is 500MB
@@ -3813,7 +3813,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		usedBytes := totalBytes - uint64(400*1024*1024)
 		mockPartition := disk.Partition{
 			Device:     "/dev/sda1",
-			MountPoint: "/mnt/data1",
+			MountPoint: "/",
 			Usage: &disk.Usage{
 				TotalBytes: totalBytes,
 				UsedBytes:  usedBytes,
@@ -3835,8 +3835,8 @@ func TestDiskUsageThresholds(t *testing.T) {
 		assert.Contains(t, cr.reason, "free space 400 MiB is below 500 MiB threshold")
 	})
 
-	t.Run("combined with other failure reasons", func(t *testing.T) {
-		c := createTestComponent(ctx, []string{"/mnt/data1", "/mnt/nfs"}, []string{})
+	t.Run("combined with other failure reasons (rootfs + NFS)", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/", "/mnt/nfs"}, []string{})
 		defer c.Close()
 
 		// Set thresholds for testing (free bytes)
@@ -3857,7 +3857,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		// Create partition with 96% usage (unhealthy)
 		mockPartition := disk.Partition{
 			Device:     "/dev/sda1",
-			MountPoint: "/mnt/data1",
+			MountPoint: "/",
 			Usage: &disk.Usage{
 				TotalBytes: 1024 * 1024 * 1024 * 100, // 100GB
 				UsedBytes:  1024 * 1024 * 1024 * 96,  // 96GB (96% usage)
@@ -3890,7 +3890,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		// Should be degraded due to low free space and NFS timeout
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		// Should contain both reasons with free-space threshold messaging
-		assert.Contains(t, cr.reason, "/mnt/data1: free space 4.0 GiB is below 10 GiB threshold")
+		assert.Contains(t, cr.reason, "/: free space 4.0 GiB is below 10 GiB threshold")
 		assert.Contains(t, cr.reason, "stat timed out (possible connection issue)")
 	})
 }
