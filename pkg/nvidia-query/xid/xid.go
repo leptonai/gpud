@@ -21,11 +21,6 @@ type Detail struct {
 	EventType apiv1.EventType `json:"event_type"`
 }
 
-// IsMarkedAsCriticalByGPUd returns true if the GPUd marks this Xid as a critical error.
-func (d Detail) IsMarkedAsCriticalByGPUd() bool {
-	return d.CriticalErrorMarkedByGPUd
-}
-
 // Returns the error if found.
 // Otherwise, returns false.
 func GetDetail(id int) (*Detail, bool) {
