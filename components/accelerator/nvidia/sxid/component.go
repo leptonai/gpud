@@ -3,29 +3,30 @@
 package sxid
 
 import (
-	"bytes"
-	"context"
-	"errors"
-	"fmt"
-	"os"
-	"runtime"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
+    "bytes"
+    "context"
+    "errors"
+    "fmt"
+    "os"
+    "runtime"
+    "sort"
+    "strconv"
+    "strings"
+    "sync"
+    "time"
 
 	"github.com/google/uuid"
 	"github.com/olekukonko/tablewriter"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
-	"github.com/leptonai/gpud/pkg/log"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+    apiv1 "github.com/leptonai/gpud/api/v1"
+    "github.com/leptonai/gpud/components"
+    "github.com/leptonai/gpud/pkg/eventstore"
+    pkghost "github.com/leptonai/gpud/pkg/host"
+    "github.com/leptonai/gpud/pkg/kmsg"
+    "github.com/leptonai/gpud/pkg/log"
+    nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+    sxidquery "github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
 
 // Name is the name of the SXID component.
@@ -244,16 +245,16 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	for _, kmsg := range kmsgs {
-		sxidErr := Match(kmsg.Message)
-		if sxidErr == nil {
-			continue
-		}
-		cr.FoundErrors = append(cr.FoundErrors, FoundError{
-			Kmsg:      kmsg,
-			SXidError: *sxidErr,
-		})
-	}
+    for _, kmsg := range kmsgs {
+        sxidErr := sxidquery.Match(kmsg.Message)
+        if sxidErr == nil {
+            continue
+        }
+        cr.FoundErrors = append(cr.FoundErrors, FoundError{
+            Kmsg:      kmsg,
+            SXidError: *sxidErr,
+        })
+    }
 
 	cr.reason = fmt.Sprintf("matched %d sxid errors from %d kmsg(s)", len(cr.FoundErrors), len(kmsgs))
 	cr.health = apiv1.HealthStateTypeHealthy
@@ -279,8 +280,8 @@ type checkResult struct {
 
 // FoundError represents a found SXID error and its corresponding kmsg.
 type FoundError struct {
-	Kmsg kmsg.Message
-	SXidError
+    Kmsg kmsg.Message
+    sxidquery.SXidError
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -405,12 +406,12 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 
-		case message := <-kmsgCh:
-			sxidErr := Match(message.Message)
-			if sxidErr == nil {
-				log.Logger.Debugw("not sxid event, skip", "kmsg", message)
-				continue
-			}
+        case message := <-kmsgCh:
+            sxidErr := sxidquery.Match(message.Message)
+            if sxidErr == nil {
+                log.Logger.Debugw("not sxid event, skip", "kmsg", message)
+                continue
+            }
 
 			id := uuid.New()
 			var sxidName string

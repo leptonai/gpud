@@ -978,7 +978,7 @@ func TestDataString(t *testing.T) {
 							Timestamp: metav1.NewTime(time.Now()),
 							Message:   "NVRM: Xid (PCI:0000:01:00): 31, pid=XXX",
 						},
-						XidError: XidError{
+						XidError: xid.XidError{
 							Xid:        31,
 							DeviceUUID: "GPU-12345678",
 							Detail: &xid.Detail{

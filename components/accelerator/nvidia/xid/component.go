@@ -3,30 +3,31 @@
 package xid
 
 import (
-	"bytes"
-	"context"
-	"errors"
-	"fmt"
-	"os"
-	"runtime"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
+    "bytes"
+    "context"
+    "errors"
+    "fmt"
+    "os"
+    "runtime"
+    "sort"
+    "strconv"
+    "strings"
+    "sync"
+    "time"
 
 	"github.com/google/uuid"
 	"github.com/olekukonko/tablewriter"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/eventstore"
-	pkghost "github.com/leptonai/gpud/pkg/host"
-	"github.com/leptonai/gpud/pkg/kmsg"
-	"github.com/leptonai/gpud/pkg/log"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+    apiv1 "github.com/leptonai/gpud/api/v1"
+    "github.com/leptonai/gpud/components"
+    "github.com/leptonai/gpud/pkg/eventstore"
+    pkghost "github.com/leptonai/gpud/pkg/host"
+    "github.com/leptonai/gpud/pkg/kmsg"
+    "github.com/leptonai/gpud/pkg/log"
+    nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+    "github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+    xidquery "github.com/leptonai/gpud/pkg/nvidia-query/xid"
 )
 
 // Name is the name of the XID component.
@@ -249,11 +250,11 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	for _, kmsg := range kmsgs {
-		xidErr := Match(kmsg.Message)
-		if xidErr == nil {
-			continue
-		}
+    for _, kmsg := range kmsgs {
+        xidErr := xidquery.Match(kmsg.Message)
+        if xidErr == nil {
+            continue
+        }
 
 		// row remapping pending/failure (Xid 63/64)
 		// can also be detected by NVML API (vs. kmsg scanning)
@@ -309,8 +310,8 @@ type checkResult struct {
 
 // FoundError represents a found XID error and its corresponding kmsg.
 type FoundError struct {
-	Kmsg kmsg.Message
-	XidError
+    Kmsg kmsg.Message
+    xidquery.XidError
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -435,12 +436,12 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 
-		case message := <-kmsgCh:
-			xidErr := Match(message.Message)
-			if xidErr == nil {
-				log.Logger.Debugw("not xid event, skip", "kmsg", message)
-				continue
-			}
+        case message := <-kmsgCh:
+            xidErr := xidquery.Match(message.Message)
+            if xidErr == nil {
+                log.Logger.Debugw("not xid event, skip", "kmsg", message)
+                continue
+            }
 
 			// row remapping pending/failure (Xid 63/64)
 			// can also be detected by NVML API (vs. kmsg scanning)

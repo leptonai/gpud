@@ -1,10 +1,8 @@
 package sxid
 
 import (
-	"regexp"
-	"strconv"
-
-	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
+    "regexp"
+    "strconv"
 )
 
 const (
@@ -48,26 +46,26 @@ func ExtractNVSwitchSXidDeviceUUID(line string) string {
 }
 
 type SXidError struct {
-	SXid       int          `json:"sxid"`
-	DeviceUUID string       `json:"device_uuid"`
-	Detail     *sxid.Detail `json:"detail,omitempty"`
+    SXid       int     `json:"sxid"`
+    DeviceUUID string  `json:"device_uuid"`
+    Detail     *Detail `json:"detail,omitempty"`
 }
 
 // Match returns a matching xid error object if found.
 // Otherwise, returns nil.
 func Match(line string) *SXidError {
-	extractedID := ExtractNVSwitchSXid(line)
-	if extractedID == 0 {
-		return nil
-	}
-	detail, ok := sxid.GetDetail(extractedID)
-	if !ok {
-		return nil
-	}
-	deviceUUID := ExtractNVSwitchSXidDeviceUUID(line)
-	return &SXidError{
-		SXid:       extractedID,
-		DeviceUUID: deviceUUID,
-		Detail:     detail,
-	}
+    extractedID := ExtractNVSwitchSXid(line)
+    if extractedID == 0 {
+        return nil
+    }
+    detail, ok := GetDetail(extractedID)
+    if !ok {
+        return nil
+    }
+    deviceUUID := ExtractNVSwitchSXidDeviceUUID(line)
+    return &SXidError{
+        SXid:       extractedID,
+        DeviceUUID: deviceUUID,
+        Detail:     detail,
+    }
 }
