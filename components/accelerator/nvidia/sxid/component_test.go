@@ -519,7 +519,7 @@ func TestDataString(t *testing.T) {
 							Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal error",
 							Timestamp: metav1.Time{Time: time.Now()},
 						},
-						SXidError: SXidError{
+						SXidError: sxid.SXidError{
 							SXid:       12028,
 							DeviceUUID: "PCI:0000:05:00.0",
 							Detail: &sxid.Detail{
@@ -655,7 +655,7 @@ func TestMatcher(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := Match(tt.input)
+			result := sxid.Match(tt.input)
 			if tt.expectMatch {
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.expectedSXid, result.SXid)

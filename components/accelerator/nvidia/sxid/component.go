@@ -26,6 +26,7 @@ import (
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	sxidquery "github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
 
 // Name is the name of the SXID component.
@@ -245,7 +246,7 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	for _, kmsg := range kmsgs {
-		sxidErr := Match(kmsg.Message)
+		sxidErr := sxidquery.Match(kmsg.Message)
 		if sxidErr == nil {
 			continue
 		}
@@ -280,7 +281,7 @@ type checkResult struct {
 // FoundError represents a found SXID error and its corresponding kmsg.
 type FoundError struct {
 	Kmsg kmsg.Message
-	SXidError
+	sxidquery.SXidError
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -406,7 +407,7 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			}
 
 		case message := <-kmsgCh:
-			sxidErr := Match(message.Message)
+			sxidErr := sxidquery.Match(message.Message)
 			if sxidErr == nil {
 				log.Logger.Debugw("not sxid event, skip", "kmsg", message)
 				continue
