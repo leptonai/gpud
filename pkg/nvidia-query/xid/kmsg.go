@@ -4,8 +4,6 @@ import (
 	"regexp"
 	"strconv"
 
-	"sigs.k8s.io/yaml"
-
 	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
 )
 
@@ -52,10 +50,6 @@ type XidError struct {
 	Xid        int         `json:"xid"`
 	DeviceUUID string      `json:"device_uuid"`
 	Detail     *xid.Detail `json:"detail,omitempty"`
-}
-
-func (xidErr *XidError) YAML() ([]byte, error) {
-	return yaml.Marshal(xidErr)
 }
 
 // Match returns a matching xid error object if found.

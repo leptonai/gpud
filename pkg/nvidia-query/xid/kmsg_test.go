@@ -2,13 +2,8 @@ package xid
 
 import (
 	"os"
-	"reflect"
 	"strings"
 	"testing"
-
-	"sigs.k8s.io/yaml"
-
-	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
 )
 
 func TestExtractNVRMXid(t *testing.T) {
@@ -229,56 +224,6 @@ func TestMatch(t *testing.T) {
 
 			if result.Detail == nil {
 				t.Errorf("Match(%q).Detail = nil, want non-nil", tt.input)
-			}
-		})
-	}
-}
-
-func TestXidError_YAML(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		xidErr  XidError
-		wantErr bool
-	}{
-		{
-			name: "basic XID error",
-			xidErr: XidError{
-				Xid:        79,
-				DeviceUUID: "PCI:0000:05:00",
-				Detail:     &xid.Detail{Name: "GPU has fallen off the bus"},
-			},
-			wantErr: false,
-		},
-		{
-			name: "XID error without detail",
-			xidErr: XidError{
-				Xid:        14,
-				DeviceUUID: "0000:03:00",
-				Detail:     nil,
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.xidErr.YAML()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("XidError.YAML() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			var parsedXidErr XidError
-			err = yaml.Unmarshal(got, &parsedXidErr)
-			if err != nil {
-				t.Errorf("Failed to parse generated YAML: %v", err)
-				return
-			}
-
-			if !reflect.DeepEqual(tt.xidErr, parsedXidErr) {
-				t.Errorf("XidError.YAML() roundtrip failed, got = %+v, want %+v", parsedXidErr, tt.xidErr)
 			}
 		})
 	}
