@@ -46,19 +46,28 @@ var (
 	defaultNVIDIALibrariesSearchDirs = []string{
 		// ref. https://github.com/NVIDIA/nvidia-container-toolkit/blob/main/internal/lookup/library.go#L33-L62
 		"/",
+
 		"/usr/lib64",
 		"/usr/lib/x86_64-linux-gnu",
 		"/usr/lib/aarch64-linux-gnu",
 		"/usr/lib/x86_64-linux-gnu/nvidia/current",
 		"/usr/lib/aarch64-linux-gnu/nvidia/current",
-		// Note(Yangqing): the following path is added to support the case of Jetson Orin where
-		// the libraries are installed in /usr/lib/aarch64-linux-gnu/nvidia without the "current" symlink.
-		"/usr/lib/aarch64-linux-gnu/nvidia",
+
 		"/lib64",
 		"/lib/x86_64-linux-gnu",
 		"/lib/aarch64-linux-gnu",
 		"/lib/x86_64-linux-gnu/nvidia/current",
 		"/lib/aarch64-linux-gnu/nvidia/current",
+
+		// e.g.,
+		// /cm/local/apps/cuda/libs/current/lib64/libnvidia-ml.so.1
+		// /cm/local/apps/cuda/libs/current/lib64/libcuda.so.1
+		"/cm/local/apps/cuda/libs/current/lib64/",
+
+		// Note(Yangqing): the following path is added to support the case of Jetson Orin where
+		// the libraries are installed in /usr/lib/aarch64-linux-gnu/nvidia without the "current" symlink.
+		"/usr/lib/aarch64-linux-gnu/nvidia",
+
 		// Note(Yangqing): similar to the "/usr/lib/aarch64-linux-gnu/nvidia" above.
 		"/lib/aarch64-linux-gnu/nvidia",
 	}
