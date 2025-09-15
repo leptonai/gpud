@@ -4,7 +4,6 @@ package all
 import (
 	"github.com/leptonai/gpud/components"
 
-	componentsacceleratornvidiabadenvs "github.com/leptonai/gpud/components/accelerator/nvidia/bad-envs"
 	componentsacceleratornvidiaclockspeed "github.com/leptonai/gpud/components/accelerator/nvidia/clock-speed"
 	componentsacceleratornvidiaecc "github.com/leptonai/gpud/components/accelerator/nvidia/ecc"
 	componentsacceleratornvidiafabricmanager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
@@ -51,7 +50,6 @@ func All() []Component {
 }
 
 var componentInits = []Component{
-	{Name: componentsacceleratornvidiabadenvs.Name, InitFunc: componentsacceleratornvidiabadenvs.New},
 	{Name: componentsacceleratornvidiaclockspeed.Name, InitFunc: componentsacceleratornvidiaclockspeed.New},
 	{Name: componentsacceleratornvidiaecc.Name, InitFunc: componentsacceleratornvidiaecc.New},
 	{Name: componentsacceleratornvidiafabricmanager.Name, InitFunc: componentsacceleratornvidiafabricmanager.New},
