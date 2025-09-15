@@ -32,6 +32,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	getTimeNowFunc func() time.Time
+
 	nvmlInstance        nvidianvml.Instance
 	getRemappedRowsFunc func(uuid string, dev device.Device) (nvidianvml.RemappedRows, error)
 
@@ -47,8 +49,11 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                             cctx,
-		cancel:                          ccancel,
+		ctx:    cctx,
+		cancel: ccancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance:                    gpudInstance.NVMLInstance,
 		getRemappedRowsFunc:             nvml.GetRemappedRows,
 		gpuUUIDsWithRowRemappingPending: make(map[string]any),
@@ -146,7 +151,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu remapped rows")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 	defer func() {
 		c.lastMu.Lock()

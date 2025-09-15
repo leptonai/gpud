@@ -40,6 +40,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	getTimeNowFunc func() time.Time
+
 	nvmlInstance                  nvidianvml.Instance
 	getClockEventsSupportedFunc   func(dev device.Device) (bool, error)
 	getClockEventsFunc            func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
@@ -65,6 +67,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
+
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 
 		nvmlInstance:                     gpudInstance.NVMLInstance,
 		getClockEventsSupportedFunc:      nvidianvml.ClockEventsSupportedByDevice,
@@ -171,7 +177,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu clock events for hw slowdown")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -333,7 +339,7 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	since := time.Now().UTC().Add(-c.evaluationWindow)
+	since := c.getTimeNowFunc().Add(-c.evaluationWindow)
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
 	latestEvents, err := c.eventBucket.Get(cctx, since)
 	ccancel()

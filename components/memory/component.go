@@ -33,6 +33,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	getTimeNowFunc func() time.Time
+
 	getVirtualMemoryFunc            func(context.Context) (*mem.VirtualMemoryStat, error)
 	getCurrentBPFJITBufferBytesFunc func() (uint64, error)
 
@@ -48,6 +50,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
+
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 
 		getVirtualMemoryFunc:            mem.VirtualMemoryWithContext,
 		getCurrentBPFJITBufferBytesFunc: getCurrentBPFJITBufferBytes,
@@ -140,7 +146,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking memory")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 
 	defer func() {
