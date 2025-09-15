@@ -18,7 +18,6 @@ import (
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	querypeermem "github.com/leptonai/gpud/pkg/nvidia-query/peermem"
 )
 
 const Name = "accelerator-nvidia-peermem"
@@ -34,7 +33,7 @@ type component struct {
 	eventBucket eventstore.Bucket
 	kmsgSyncer  *kmsg.Syncer
 
-	checkLsmodPeermemModuleFunc func(ctx context.Context) (*querypeermem.LsmodPeermemModuleOutput, error)
+	checkLsmodPeermemModuleFunc func(ctx context.Context) (*LsmodPeermemModuleOutput, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -48,7 +47,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		nvmlInstance: gpudInstance.NVMLInstance,
 
-		checkLsmodPeermemModuleFunc: querypeermem.CheckLsmodPeermemModule,
+		checkLsmodPeermemModuleFunc: CheckLsmodPeermemModule,
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -191,7 +190,7 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	PeerMemModuleOutput *querypeermem.LsmodPeermemModuleOutput `json:"peer_mem_module_output,omitempty"`
+	PeerMemModuleOutput *LsmodPeermemModuleOutput `json:"peer_mem_module_output,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

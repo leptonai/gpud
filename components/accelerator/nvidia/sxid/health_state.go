@@ -10,16 +10,28 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
 
 const (
-	StateHealthy   = 0
-	StateDegraded  = 1
-	StateUnhealthy = 2
-
-	rebootThreshold = 2
+	healthStateHealthy   = 0
+	healthStateDegraded  = 1
+	healthStateUnhealthy = 2
 )
+
+func translateToStateHealth(health int) apiv1.HealthStateType {
+	switch health {
+	case healthStateHealthy:
+		return apiv1.HealthStateTypeHealthy
+	case healthStateDegraded:
+		return apiv1.HealthStateTypeDegraded
+	case healthStateUnhealthy:
+		return apiv1.HealthStateTypeUnhealthy
+	default:
+		return apiv1.HealthStateTypeHealthy
+	}
+}
+
+const rebootThreshold = 2
 
 // evolveHealthyState resolves the state of the SXID error component.
 // note: assume events are sorted by time in descending order
@@ -29,7 +41,7 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 	}()
 	var lastSuggestedAction *apiv1.SuggestedActions
 	var lastSXidErr *sxidErrorEventDetail
-	lastHealth := StateHealthy
+	lastHealth := healthStateHealthy
 	sxidRebootMap := make(map[uint64]int)
 	for i := len(events) - 1; i >= 0; i-- {
 		event := events[i]
@@ -42,12 +54,12 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 				continue
 			}
 
-			currEvent := StateHealthy
+			currEvent := healthStateHealthy
 			switch resolvedEvent.Type {
 			case string(apiv1.EventTypeCritical):
-				currEvent = StateDegraded
+				currEvent = healthStateDegraded
 			case string(apiv1.EventTypeFatal):
-				currEvent = StateUnhealthy
+				currEvent = healthStateUnhealthy
 			}
 			if currEvent < lastHealth {
 				continue
@@ -67,7 +79,7 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 			}
 		} else if event.Name == "reboot" {
 			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && (lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeRebootSystem || lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeCheckUserAppAndGPU) {
-				lastHealth = StateHealthy
+				lastHealth = healthStateHealthy
 				lastSuggestedAction = nil
 				lastSXidErr = nil
 			}
@@ -75,7 +87,7 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 				sxidRebootMap[v] = count + 1
 			}
 		} else if event.Name == "SetHealthy" {
-			lastHealth = StateHealthy
+			lastHealth = healthStateHealthy
 			lastSuggestedAction = nil
 			lastSXidErr = nil
 			sxidRebootMap = make(map[uint64]int)
@@ -85,7 +97,7 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 	if lastSXidErr == nil {
 		reason = "SXIDComponent is healthy"
 	} else {
-		if sxidDetail, ok := sxid.GetDetail(int(lastSXidErr.SXid)); ok {
+		if sxidDetail, ok := GetDetail(int(lastSXidErr.SXid)); ok {
 			reason = fmt.Sprintf("SXID %d(%s) detected on %s", lastSXidErr.SXid, sxidDetail.Name, lastSXidErr.DeviceUUID)
 		} else {
 			reason = fmt.Sprintf("SXID %d detected on %s", lastSXidErr.SXid, lastSXidErr.DeviceUUID)
@@ -99,24 +111,11 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 	}
 }
 
-func translateToStateHealth(health int) apiv1.HealthStateType {
-	switch health {
-	case StateHealthy:
-		return apiv1.HealthStateTypeHealthy
-	case StateDegraded:
-		return apiv1.HealthStateTypeDegraded
-	case StateUnhealthy:
-		return apiv1.HealthStateTypeUnhealthy
-	default:
-		return apiv1.HealthStateTypeHealthy
-	}
-}
-
 func resolveSXIDEvent(event eventstore.Event) eventstore.Event {
 	ret := event
 	if event.ExtraInfo != nil {
 		if currSXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorSXidData]); err == nil {
-			detail, ok := sxid.GetDetail(currSXid)
+			detail, ok := GetDetail(currSXid)
 			if !ok {
 				return ret
 			}

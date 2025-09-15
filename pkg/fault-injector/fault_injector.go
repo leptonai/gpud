@@ -4,7 +4,7 @@ package faultinjector
 import (
 	"errors"
 
-	componentsnvidiaxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
+	xidquery "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 )
 
@@ -49,7 +49,7 @@ func (r *Request) Validate() error {
 			return ErrNoFaultFound
 		}
 
-		msg := componentsnvidiaxid.GetMessageToInject(r.XID.ID)
+		msg := xidquery.GetMessageToInject(r.XID.ID)
 		r.KernelMessage = &pkgkmsgwriter.KernelMessage{
 			Priority: pkgkmsgwriter.ConvertKernelMessagePriority(msg.Priority),
 			Message:  msg.Message,

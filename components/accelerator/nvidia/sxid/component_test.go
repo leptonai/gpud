@@ -19,7 +19,6 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
-	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -522,7 +521,7 @@ func TestDataString(t *testing.T) {
 						SXidError: SXidError{
 							SXid:       12028,
 							DeviceUUID: "PCI:0000:05:00.0",
-							Detail: &sxid.Detail{
+							Detail: &Detail{
 								Name: "Test SXid Error",
 								SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 									RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},

@@ -12,16 +12,31 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
 )
 
 const (
-	StateHealthy   = 0
-	StateDegraded  = 1
-	StateUnhealthy = 2
-
-	rebootThreshold = 2
+	healthStateHealthy   = 0
+	healthStateDegraded  = 1
+	healthStateUnhealthy = 2
 )
+
+func translateToStateHealth(health int) apiv1.HealthStateType {
+	switch health {
+	case healthStateHealthy:
+		return apiv1.HealthStateTypeHealthy
+
+	case healthStateDegraded:
+		return apiv1.HealthStateTypeDegraded
+
+	case healthStateUnhealthy:
+		return apiv1.HealthStateTypeUnhealthy
+
+	default:
+		return apiv1.HealthStateTypeHealthy
+	}
+}
+
+const rebootThreshold = 2
 
 // evolveHealthyState resolves the state of the XID error component.
 // note: assume events are sorted by time in descending order
@@ -31,7 +46,7 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 	}()
 	var lastSuggestedAction *apiv1.SuggestedActions
 	var lastXidErr *xidErrorEventDetail
-	lastHealth := StateHealthy
+	lastHealth := healthStateHealthy
 	xidRebootMap := make(map[uint64]int)
 	for i := len(events) - 1; i >= 0; i-- {
 		event := events[i]
@@ -44,12 +59,12 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 				continue
 			}
 
-			currEvent := StateHealthy
+			currEvent := healthStateHealthy
 			switch resolvedEvent.Type {
 			case string(apiv1.EventTypeCritical):
-				currEvent = StateDegraded
+				currEvent = healthStateDegraded
 			case string(apiv1.EventTypeFatal):
-				currEvent = StateUnhealthy
+				currEvent = healthStateUnhealthy
 			}
 			if currEvent < lastHealth {
 				continue
@@ -69,7 +84,7 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 			}
 		} else if event.Name == "reboot" {
 			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && (lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeRebootSystem || lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeCheckUserAppAndGPU) {
-				lastHealth = StateHealthy
+				lastHealth = healthStateHealthy
 				lastSuggestedAction = nil
 				lastXidErr = nil
 			}
@@ -77,7 +92,7 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 				xidRebootMap[v] = count + 1
 			}
 		} else if event.Name == "SetHealthy" {
-			lastHealth = StateHealthy
+			lastHealth = healthStateHealthy
 			lastSuggestedAction = nil
 			lastXidErr = nil
 			xidRebootMap = make(map[uint64]int)
@@ -106,7 +121,7 @@ func newXIDErrorReason(xidVal int, deviceID string, devices map[string]device.De
 		suffix = fmt.Sprintf("GPU %s", deviceID)
 	}
 	var reason string
-	if xidDetail, ok := xid.GetDetail(xidVal); ok {
+	if xidDetail, ok := GetDetail(xidVal); ok {
 		reason = fmt.Sprintf("XID %d (%s) detected on %s", xidVal, xidDetail.Name, suffix)
 	} else {
 		reason = fmt.Sprintf("XID %d detected on %s", xidVal, suffix)
@@ -126,27 +141,11 @@ func convertBusIDToUUID(busID string, devices map[string]device.Device) string {
 	return uuid
 }
 
-func translateToStateHealth(health int) apiv1.HealthStateType {
-	switch health {
-	case StateHealthy:
-		return apiv1.HealthStateTypeHealthy
-
-	case StateDegraded:
-		return apiv1.HealthStateTypeDegraded
-
-	case StateUnhealthy:
-		return apiv1.HealthStateTypeUnhealthy
-
-	default:
-		return apiv1.HealthStateTypeHealthy
-	}
-}
-
 func resolveXIDEvent(event eventstore.Event, devices map[string]device.Device) eventstore.Event {
 	ret := event
 	if event.ExtraInfo != nil {
 		if currXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorXidData]); err == nil {
-			detail, ok := xid.GetDetail(currXid)
+			detail, ok := GetDetail(currXid)
 			if !ok {
 				return ret
 			}
@@ -154,12 +153,11 @@ func resolveXIDEvent(event eventstore.Event, devices map[string]device.Device) e
 			ret.Message = newXIDErrorReason(currXid, event.ExtraInfo[EventKeyDeviceUUID], devices)
 
 			xidErr := xidErrorEventDetail{
-				Time:                      metav1.NewTime(event.Time),
-				DataSource:                "kmsg",
-				DeviceUUID:                event.ExtraInfo[EventKeyDeviceUUID],
-				Xid:                       uint64(currXid),
-				SuggestedActionsByGPUd:    detail.SuggestedActionsByGPUd,
-				CriticalErrorMarkedByGPUd: detail.CriticalErrorMarkedByGPUd,
+				Time:                   metav1.NewTime(event.Time),
+				DataSource:             "kmsg",
+				DeviceUUID:             event.ExtraInfo[EventKeyDeviceUUID],
+				Xid:                    uint64(currXid),
+				SuggestedActionsByGPUd: detail.SuggestedActionsByGPUd,
 			}
 
 			raw, _ := json.Marshal(xidErr)
@@ -186,7 +184,4 @@ type xidErrorEventDetail struct {
 
 	// SuggestedActionsByGPUd are the suggested actions for the error.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
-	// CriticalErrorMarkedByGPUd is true if the GPUd marks this error as a critical error.
-	// You may use this field to decide whether to alert or not.
-	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
 }

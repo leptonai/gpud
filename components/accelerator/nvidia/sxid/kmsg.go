@@ -3,10 +3,6 @@ package sxid
 import (
 	"regexp"
 	"strconv"
-
-	"sigs.k8s.io/yaml"
-
-	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
 
 const (
@@ -50,13 +46,9 @@ func ExtractNVSwitchSXidDeviceUUID(line string) string {
 }
 
 type SXidError struct {
-	SXid       int          `json:"sxid"`
-	DeviceUUID string       `json:"device_uuid"`
-	Detail     *sxid.Detail `json:"detail,omitempty"`
-}
-
-func (sxidErr *SXidError) YAML() ([]byte, error) {
-	return yaml.Marshal(sxidErr)
+	SXid       int     `json:"sxid"`
+	DeviceUUID string  `json:"device_uuid"`
+	Detail     *Detail `json:"detail,omitempty"`
 }
 
 // Match returns a matching xid error object if found.
@@ -66,7 +58,7 @@ func Match(line string) *SXidError {
 	if extractedID == 0 {
 		return nil
 	}
-	detail, ok := sxid.GetDetail(extractedID)
+	detail, ok := GetDetail(extractedID)
 	if !ok {
 		return nil
 	}
