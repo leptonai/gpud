@@ -51,10 +51,12 @@ type component struct {
 	gpuUUIDsWithHWSlowdownThermal    map[string]any
 	gpuUUIDsWithHWSlowdownPowerBrake map[string]any
 
-	eventBucket eventstore.Bucket
+	eventBucket eventstore.BucketV2
 
-	evaluationWindow time.Duration
-	threshold        float64
+	getTimeNowFunc func() time.Time
+
+	freqPerMinEvaluationWindow time.Duration
+	freqPerMinThreshold        float64
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -73,8 +75,12 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		gpuUUIDsWithHWSlowdownThermal:    make(map[string]any),
 		gpuUUIDsWithHWSlowdownPowerBrake: make(map[string]any),
 
-		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+
+		freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 	}
 
 	if gpudInstance.NVMLInstance != nil && gpudInstance.NVMLInstance.NVMLExists() {
@@ -86,8 +92,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 
 	if gpudInstance.EventStore != nil {
+		// do not purge unless set healthy is called
+		// retain all hw slowdown events in order to evaluate hw inspection
+		// hw inspection should NOT be self-resolved unless set healthy is explicitly called
 		var err error
-		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		c.eventBucket, err = gpudInstance.EventStoreV2.BucketV2(Name, eventstore.WithDisablePurge())
 		if err != nil {
 			ccancel()
 			return nil, err
@@ -155,8 +164,26 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
 	// hw slowdown events are ONLY used internally within this package
 	// solely to evaluate the suggested actions
-	// so we don't need to return any events externally
-	return nil, nil
+	// so we don't need to return any events externally, except "SetHealthy"
+	if c.eventBucket == nil {
+		return nil, nil
+	}
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+
+	var setHealthyEvents eventstore.Events
+	for _, ev := range evs {
+		if ev.Name == "SetHealthy" {
+			setHealthyEvents = append(setHealthyEvents, ev)
+		}
+	}
+	if len(setHealthyEvents) == 0 {
+		return nil, nil
+	}
+
+	return setHealthyEvents.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -171,7 +198,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu clock events for hw slowdown")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -285,22 +312,22 @@ func (c *component) Check() components.CheckResult {
 
 		cr.ClockEvents = append(cr.ClockEvents, clockEvents)
 
-		ev := clockEvents.Event()
-		if ev == nil {
-			// no clock event found, skip
+		hwSlowdownEvent := clockEvents.HWSlowdownEvent()
+		if hwSlowdownEvent == nil {
+			// no hw slowdown event found, skip
 			continue
 		}
 
 		if c.eventBucket != nil {
-			log.Logger.Infow("inserting clock events to db", "gpu_uuid", uuid)
+			log.Logger.Infow("inserting hw slowdown event to db", "gpu_uuid", uuid)
 
 			cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-			found, err := c.eventBucket.Find(cctx, *ev)
+			found, err := c.eventBucket.Find(cctx, *hwSlowdownEvent)
 			ccancel()
 			if err != nil {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = "error finding clock events"
+				cr.reason = "error finding hw slowdown event"
 				log.Logger.Warnw(cr.reason, "error", cr.err)
 				return cr
 			}
@@ -309,7 +336,7 @@ func (c *component) Check() components.CheckResult {
 				continue
 			}
 
-			if err := c.eventBucket.Insert(c.ctx, *ev); err != nil {
+			if err := c.eventBucket.Insert(c.ctx, *hwSlowdownEvent); err != nil {
 				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = "error inserting clock events"
@@ -320,65 +347,135 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
-	if c.evaluationWindow == 0 {
-		// no time window to evaluate /state
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = "no time window to evaluate states"
-		return cr
-	}
-
 	if c.eventBucket == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "no event bucket"
 		return cr
 	}
 
-	since := time.Now().UTC().Add(-c.evaluationWindow)
-	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-	latestEvents, err := c.eventBucket.Get(cctx, since)
-	ccancel()
-	if err != nil {
+	if err := c.evaluateFrequencyThreshold(cr.ts); err != nil {
 		cr.err = err
 		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "error getting clock events from db"
+		cr.reason = "error evaluating clock events frequency threshold"
 		log.Logger.Warnw(cr.reason, "error", cr.err)
 		return cr
 	}
 
-	if len(latestEvents) == 0 {
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = "no clock events found"
-		return cr
+	// by now, we have scanned all clock events and persisted them to the event store (if any)
+	// now that we have hw slowdown events in the store, we can evaluate the health states
+	// based on the pre-defined thresholds
+	thresholdExceededEvents, err := c.eventBucket.Read(c.ctx, eventstore.WithName(EventNameHWSlowdownThresholdExceeded))
+	if err != nil {
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error reading threshold exceeded events"
+		log.Logger.Warnw(cr.reason, "error", cr.err)
 	}
+	if len(thresholdExceededEvents) > 0 {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = thresholdExceededEvents[0].Message
 
-	eventsByMinute := make(map[int]struct{})
-	for _, event := range latestEvents {
-		minute := int(event.Time.Unix() / 60) // unix seconds to minutes
-		eventsByMinute[minute] = struct{}{}
-	}
-	totalEvents := len(eventsByMinute)
-	minutes := c.evaluationWindow.Minutes()
-	freqPerMin := float64(totalEvents) / minutes
-
-	if freqPerMin < c.threshold {
-		// hw slowdown events happened but within its threshold
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
-		return cr
-	}
-
-	// hw slowdown events happened and beyond its threshold
-	cr.health = apiv1.HealthStateTypeUnhealthy
-	cr.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
-	cr.suggestedActions = &apiv1.SuggestedActions{
 		// Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue
-		RepairActions: []apiv1.RepairActionType{
-			apiv1.RepairActionTypeHardwareInspection,
-		},
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeHardwareInspection,
+			},
+		}
+		return cr
 	}
+
+	cr.health = apiv1.HealthStateTypeHealthy
+	cr.reason = "no hw slowdown events"
 
 	return cr
 }
+
+// EventNameHWSlowdownThresholdExceeded defines the name of the event for hw slowdown events that exceeded the threshold
+// defined in the component. This event is used for evaluating the final health states.
+const EventNameHWSlowdownThresholdExceeded = nvidianvml.EventNameHWSlowdown + "_threshold_exceeded"
+
+// evaluateFrequencyThreshold evaluates the frequency threshold of the hw slowdown events.
+// If the threshold is exceeded, it persists an event to the event store.
+// If the threshold is not exceeded, it does nothing.
+func (c *component) evaluateFrequencyThreshold(now time.Time) error {
+	if c.freqPerMinEvaluationWindow == 0 {
+		return nil
+	}
+
+	since := now.Add(-c.freqPerMinEvaluationWindow)
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+	latest, err := c.eventBucket.Get(cctx, since)
+	ccancel()
+	if err != nil {
+		return err
+	}
+
+	if len(latest) == 0 {
+		return nil
+	}
+
+	var (
+		hwSlowdownEvents                  eventstore.Events
+		hwSlowdownThresholdExceededEvents eventstore.Events
+	)
+	for _, event := range latest {
+		switch event.Name {
+		case nvidianvml.EventNameHWSlowdown:
+			hwSlowdownEvents = append(hwSlowdownEvents, event)
+		case EventNameHWSlowdownThresholdExceeded:
+			hwSlowdownThresholdExceededEvents = append(hwSlowdownThresholdExceededEvents, event)
+		}
+	}
+
+	// evaluate/store in the event store
+	// if and only if there's no threshold exceeded event
+	// for the last evaluation window
+	if len(hwSlowdownThresholdExceededEvents) > 0 {
+		// there's already a threshold exceeded event for the last evaluation window
+		// too soon to evaluate again, skip
+		return nil
+	}
+
+	// no previous threshold exceeded event found for the last evaluation window
+	// thus evaluate the frequency threshold for the hw slowdown events
+	minuteToHWSlowdownEvents := make(map[int]struct{})
+	for _, event := range hwSlowdownEvents {
+		minute := int(event.Time.Unix() / 60) // unix seconds to minutes
+		minuteToHWSlowdownEvents[minute] = struct{}{}
+	}
+	totalHWSlowdownEvents := len(minuteToHWSlowdownEvents)
+	minutes := c.freqPerMinEvaluationWindow.Minutes()
+	freqPerMin := float64(totalHWSlowdownEvents) / minutes
+
+	if freqPerMin < c.freqPerMinThreshold {
+		return nil
+	}
+
+	reason := fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalHWSlowdownEvents, c.freqPerMinThreshold, c.freqPerMinEvaluationWindow)
+	hwSlowdownThresholdExceededEvent := eventstore.Event{
+		Time:    now,
+		Name:    EventNameHWSlowdownThresholdExceeded,
+		Type:    string(apiv1.EventTypeWarning),
+		Message: reason,
+	}
+
+	cctx, ccancel = context.WithTimeout(c.ctx, 15*time.Second)
+	found, err := c.eventBucket.Find(cctx, hwSlowdownThresholdExceededEvent)
+	ccancel()
+	if err != nil {
+		return err
+	}
+	if found != nil {
+		return nil
+	}
+	if err := c.eventBucket.Insert(c.ctx, hwSlowdownThresholdExceededEvent); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// TODO: implement set healthy
 
 var _ components.CheckResult = &checkResult{}
 
