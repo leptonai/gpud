@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
-	xidquery "github.com/leptonai/gpud/pkg/nvidia-query/xid"
+	xidquery "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 )
 
 // Injector defines the interface for injecting failures into the system.

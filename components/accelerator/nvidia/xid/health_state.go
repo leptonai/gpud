@@ -12,7 +12,6 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
 )
 
 const (
@@ -122,7 +121,7 @@ func newXIDErrorReason(xidVal int, deviceID string, devices map[string]device.De
 		suffix = fmt.Sprintf("GPU %s", deviceID)
 	}
 	var reason string
-	if xidDetail, ok := xid.GetDetail(xidVal); ok {
+	if xidDetail, ok := GetDetail(xidVal); ok {
 		reason = fmt.Sprintf("XID %d (%s) detected on %s", xidVal, xidDetail.Name, suffix)
 	} else {
 		reason = fmt.Sprintf("XID %d detected on %s", xidVal, suffix)
@@ -146,7 +145,7 @@ func resolveXIDEvent(event eventstore.Event, devices map[string]device.Device) e
 	ret := event
 	if event.ExtraInfo != nil {
 		if currXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorXidData]); err == nil {
-			detail, ok := xid.GetDetail(currXid)
+			detail, ok := GetDetail(currXid)
 			if !ok {
 				return ret
 			}

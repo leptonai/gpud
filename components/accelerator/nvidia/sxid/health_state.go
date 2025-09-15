@@ -10,7 +10,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/sxid"
 )
 
 const (
@@ -98,7 +97,7 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 	if lastSXidErr == nil {
 		reason = "SXIDComponent is healthy"
 	} else {
-		if sxidDetail, ok := sxid.GetDetail(int(lastSXidErr.SXid)); ok {
+		if sxidDetail, ok := GetDetail(int(lastSXidErr.SXid)); ok {
 			reason = fmt.Sprintf("SXID %d(%s) detected on %s", lastSXidErr.SXid, sxidDetail.Name, lastSXidErr.DeviceUUID)
 		} else {
 			reason = fmt.Sprintf("SXID %d detected on %s", lastSXidErr.SXid, lastSXidErr.DeviceUUID)
@@ -116,7 +115,7 @@ func resolveSXIDEvent(event eventstore.Event) eventstore.Event {
 	ret := event
 	if event.ExtraInfo != nil {
 		if currSXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorSXidData]); err == nil {
-			detail, ok := sxid.GetDetail(currSXid)
+			detail, ok := GetDetail(currSXid)
 			if !ok {
 				return ret
 			}

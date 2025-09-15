@@ -27,7 +27,6 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	xidquery "github.com/leptonai/gpud/pkg/nvidia-query/xid"
 )
 
 // Name is the name of the XID component.
@@ -251,7 +250,7 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	for _, kmsg := range kmsgs {
-		xidErr := xidquery.Match(kmsg.Message)
+		xidErr := Match(kmsg.Message)
 		if xidErr == nil {
 			continue
 		}
@@ -311,7 +310,7 @@ type checkResult struct {
 // FoundError represents a found XID error and its corresponding kmsg.
 type FoundError struct {
 	Kmsg kmsg.Message
-	xidquery.XidError
+	XidError
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -437,7 +436,7 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			}
 
 		case message := <-kmsgCh:
-			xidErr := xidquery.Match(message.Message)
+			xidErr := Match(message.Message)
 			if xidErr == nil {
 				log.Logger.Debugw("not xid event, skip", "kmsg", message)
 				continue

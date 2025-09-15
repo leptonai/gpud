@@ -16,7 +16,6 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
-	querypeermem "github.com/leptonai/gpud/pkg/nvidia-query/peermem"
 )
 
 // mockNVMLInstance is a mock implementation of nvidianvml.Instance
@@ -193,11 +192,11 @@ var _ eventstore.Bucket = (*mockEventBucket)(nil)
 
 // mockPeermemChecker mocks the CheckLsmodPeermemModule function
 type mockPeermemChecker struct {
-	output *querypeermem.LsmodPeermemModuleOutput
+	output *LsmodPeermemModuleOutput
 	err    error
 }
 
-func (m *mockPeermemChecker) Check(ctx context.Context) (*querypeermem.LsmodPeermemModuleOutput, error) {
+func (m *mockPeermemChecker) Check(ctx context.Context) (*LsmodPeermemModuleOutput, error) {
 	return m.output, m.err
 }
 
@@ -269,7 +268,7 @@ func TestCheckWithNoNVML(t *testing.T) {
 func TestCheckWithNVML(t *testing.T) {
 	// Test with successful peermem check
 	mockChecker := &mockPeermemChecker{
-		output: &querypeermem.LsmodPeermemModuleOutput{
+		output: &LsmodPeermemModuleOutput{
 			Raw:                      "ib_core 123456 1 nvidia_peermem",
 			IbcoreUsingPeermemModule: true,
 		},
@@ -289,7 +288,7 @@ func TestCheckWithNVML(t *testing.T) {
 
 	// Test with unsuccessful peermem check (module not loaded)
 	mockChecker = &mockPeermemChecker{
-		output: &querypeermem.LsmodPeermemModuleOutput{
+		output: &LsmodPeermemModuleOutput{
 			Raw:                      "ib_core 123456 1",
 			IbcoreUsingPeermemModule: false,
 		},
@@ -333,7 +332,7 @@ func TestLastHealthStates(t *testing.T) {
 	c.lastCheckResult = &checkResult{
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "all good",
-		PeerMemModuleOutput: &querypeermem.LsmodPeermemModuleOutput{
+		PeerMemModuleOutput: &LsmodPeermemModuleOutput{
 			IbcoreUsingPeermemModule: true,
 		},
 	}
@@ -429,7 +428,7 @@ func TestDataMethods(t *testing.T) {
 
 	// Test with peer mem module output (module loaded)
 	cr = &checkResult{
-		PeerMemModuleOutput: &querypeermem.LsmodPeermemModuleOutput{
+		PeerMemModuleOutput: &LsmodPeermemModuleOutput{
 			IbcoreUsingPeermemModule: true,
 		},
 		health: apiv1.HealthStateTypeHealthy,
@@ -441,7 +440,7 @@ func TestDataMethods(t *testing.T) {
 
 	// Test with peer mem module output (module not loaded)
 	cr = &checkResult{
-		PeerMemModuleOutput: &querypeermem.LsmodPeermemModuleOutput{
+		PeerMemModuleOutput: &LsmodPeermemModuleOutput{
 			IbcoreUsingPeermemModule: false,
 		},
 		health: apiv1.HealthStateTypeHealthy,

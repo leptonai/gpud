@@ -20,7 +20,6 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
-	"github.com/leptonai/gpud/pkg/nvidia-query/xid"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -978,10 +977,10 @@ func TestDataString(t *testing.T) {
 							Timestamp: metav1.NewTime(time.Now()),
 							Message:   "NVRM: Xid (PCI:0000:01:00): 31, pid=XXX",
 						},
-						XidError: xid.XidError{
+						XidError: XidError{
 							Xid:        31,
 							DeviceUUID: "GPU-12345678",
-							Detail: &xid.Detail{
+							Detail: &Detail{
 								Name:                      "GPU_HANG",
 								CriticalErrorMarkedByGPUd: true,
 								SuggestedActionsByGPUd: &apiv1.SuggestedActions{
