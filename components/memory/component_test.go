@@ -216,8 +216,8 @@ func TestComponentCheckOnce(t *testing.T) {
 	}
 
 	c := &component{
-		ctx:                             context.Background(),
-		cancel:                          func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -261,8 +261,8 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 	}
 
 	c := &component{
-		ctx:                  context.Background(),
-		cancel:               func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -306,8 +306,8 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 	}
 
 	c := &component{
-		ctx:                             context.Background(),
-		cancel:                          func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -371,8 +371,8 @@ func TestStart(t *testing.T) {
 	}
 
 	c := &component{
-		ctx:                  context.Background(),
-		cancel:               func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
