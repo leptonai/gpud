@@ -85,6 +85,13 @@ func createMockNVMLInstance(devices map[string]device.Device) *mockNVMLInstance 
 	}
 }
 
+// Helper function to get a default time function for tests
+func getTestTimeFunc() func() time.Time {
+	return func() time.Time {
+		return time.Now().UTC()
+	}
+}
+
 // TestCheckOnce tests the Check method using mock device functions
 func TestCheckOnce(t *testing.T) {
 	t.Parallel()
@@ -254,6 +261,7 @@ func TestCheckOnce(t *testing.T) {
 
 			c := &component{
 				ctx:              ctx,
+				getTimeNowFunc:   getTestTimeFunc(),
 				cancel:           cancel,
 				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
 				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
@@ -364,6 +372,7 @@ func TestComponentStates(t *testing.T) {
 	// Create component with test data
 	c := &component{
 		ctx:              ctx,
+		getTimeNowFunc:   getTestTimeFunc(),
 		cancel:           cancel,
 		evaluationWindow: 10 * time.Minute,
 		threshold:        0.1,
@@ -513,6 +522,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 
 			c := &component{
 				ctx:              ctx,
+				getTimeNowFunc:   getTestTimeFunc(),
 				cancel:           cancel,
 				evaluationWindow: tc.window,
 				threshold:        tc.thresholdPerMinute,
@@ -636,6 +646,7 @@ func TestComponentStart(t *testing.T) {
 
 	c := &component{
 		ctx:              ctx,
+		getTimeNowFunc:   getTestTimeFunc(),
 		cancel:           cancel,
 		nvmlInstance:     mockNVML,
 		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
@@ -714,6 +725,7 @@ func TestComponentEvents(t *testing.T) {
 
 	c := &component{
 		ctx:              ctx,
+		getTimeNowFunc:   getTestTimeFunc(),
 		cancel:           cancel,
 		evaluationWindow: 10 * time.Minute,
 		threshold:        0.1,
@@ -798,6 +810,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 	// Create component for testing
 	c := &component{
 		ctx:              ctx,
+		getTimeNowFunc:   getTestTimeFunc(),
 		cancel:           cancel,
 		evaluationWindow: window,
 		threshold:        thresholdFrequency,
@@ -1310,6 +1323,7 @@ func TestCheckEdgeCases(t *testing.T) {
 
 			c := &component{
 				ctx:              ctx,
+				getTimeNowFunc:   getTestTimeFunc(),
 				cancel:           cancel,
 				nvmlInstance:     tc.nvmlInstance,
 				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
@@ -1372,6 +1386,7 @@ func TestComponentEventsWithNilBucket(t *testing.T) {
 
 	c := &component{
 		ctx:              ctx,
+		getTimeNowFunc:   getTestTimeFunc(),
 		cancel:           cancel,
 		eventBucket:      nil,
 		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
@@ -1504,6 +1519,7 @@ func TestFailureInjection(t *testing.T) {
 			// Create component with failure injection
 			c := &component{
 				ctx:                              ctx,
+				getTimeNowFunc:                   getTestTimeFunc(),
 				cancel:                           cancel,
 				nvmlInstance:                     mockNVML,
 				evaluationWindow:                 DefaultStateHWSlowdownEvaluationWindow,

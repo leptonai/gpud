@@ -216,8 +216,11 @@ func TestComponentCheckOnce(t *testing.T) {
 	}
 
 	c := &component{
-		ctx:                             context.Background(),
-		cancel:                          func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		getVirtualMemoryFunc:            mockGetVMFunc,
 		getCurrentBPFJITBufferBytesFunc: mockGetBPFJITFunc,
 		eventBucket:                     mockEventBucket,
@@ -258,8 +261,11 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 	}
 
 	c := &component{
-		ctx:                  context.Background(),
-		cancel:               func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		getVirtualMemoryFunc: mockGetVMFunc,
 		eventBucket:          mockEventBucket,
 	}
@@ -300,8 +306,11 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 	}
 
 	c := &component{
-		ctx:                             context.Background(),
-		cancel:                          func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		getVirtualMemoryFunc:            mockGetVMFunc,
 		getCurrentBPFJITBufferBytesFunc: mockGetBPFJITFunc,
 		eventBucket:                     mockEventBucket,
@@ -362,8 +371,11 @@ func TestStart(t *testing.T) {
 	}
 
 	c := &component{
-		ctx:                  context.Background(),
-		cancel:               func() {},
+		ctx:    context.Background(),
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		getVirtualMemoryFunc: mockGetVMFunc,
 	}
 

@@ -1,4 +1,4 @@
-package disk
+package hwslowdown
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 var _ components.HealthSettable = &component{}
 
 func (c *component) SetHealthy() error {
-	log.Logger.Infow("set healthy event received for disk")
+	log.Logger.Infow("set healthy event received for hw slowdown")
 
 	if c.eventBucket != nil {
 		now := c.getTimeNowFunc()
@@ -21,7 +21,7 @@ func (c *component) SetHealthy() error {
 		if err != nil {
 			return err
 		}
-		log.Logger.Infow("successfully purged disk events", "count", purged)
+		log.Logger.Infow("successfully purged hw slowdown events", "count", purged)
 	}
 
 	return nil

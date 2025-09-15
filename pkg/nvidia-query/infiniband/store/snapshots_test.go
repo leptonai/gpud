@@ -226,29 +226,33 @@ func TestReadDevPortSnapshotsWithCancelledContext(t *testing.T) {
 }
 
 func TestReadDevPortSnapshotsWithTimeout(t *testing.T) {
-	// Use a very short timeout to ensure it triggers reliably
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-	defer cancel()
-
+	ctx := context.Background()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	// Create store with a canceled context to ensure timeout behavior
-	canceledCtx, cancelFunc := context.WithCancel(context.Background())
-	cancelFunc() // Cancel immediately
+	// Create history table first with a valid context
+	historyTable := "test_snapshots_timeout_table"
+	err := createHistoryTable(ctx, dbRW, historyTable)
+	require.NoError(t, err)
+
+	// Insert some test data
+	device := "mlx5_0"
+	port := uint(1)
+	currentTime := time.Now()
+	insertSnapshotData(t, ctx, dbRW, historyTable, currentTime.Add(-1*time.Hour), device, port, "active", 5)
+
+	// Create store with a canceled context to simulate timeout/cancellation
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
 
 	store := &ibPortsStore{
 		rootCtx:      canceledCtx,
-		historyTable: "test_snapshots_timeout_table",
+		historyTable: historyTable,
 		dbRO:         dbRO,
 	}
 
-	// Create history table with the valid context
-	err := createHistoryTable(ctx, dbRW, store.historyTable)
-	require.NoError(t, err)
-
 	// Test reading snapshots with canceled context - should reliably fail
-	snapshots, err := store.readDevPortSnapshots("mlx5_0", 1, time.Time{})
+	snapshots, err := store.readDevPortSnapshots(device, port, time.Time{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context canceled")
 	assert.Nil(t, snapshots)
