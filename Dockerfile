@@ -6,7 +6,7 @@ ARG OS_NAME="ubuntu"
 ARG OS_VERSION="22.04"
 ARG CUDA_VERSION="12.4.1"
 
-FROM golang:1.24.5 AS builder
+FROM golang:1.24.7 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ARG BUILDPLATFORM
@@ -37,15 +37,15 @@ WORKDIR /
 
 # Install required runtime dependencies not included in the NVIDIA CUDA runtime image.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      pciutils \
-      dmidecode \
-      util-linux \
-      kmod \
-      docker.io \
-      containerd \
-      sudo && \
-    rm -rf /var/lib/apt/lists/*
+  apt-get install -y --no-install-recommends \
+  pciutils \
+  dmidecode \
+  util-linux \
+  kmod \
+  docker.io \
+  containerd \
+  sudo && \
+  rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /workspace/bin/gpud /usr/local/bin/gpud
 

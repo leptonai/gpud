@@ -76,6 +76,10 @@ func (d *MockDevice) GetBoardId() (uint32, nvml.Return) {
 	return d.BoardID, nvml.SUCCESS
 }
 
+func (d *MockDevice) IsCoherent() (bool, error) {
+	return false, nil
+}
+
 func (d *MockDevice) IsFabricAttached() (bool, error) {
 	return false, nil
 }
