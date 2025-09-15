@@ -35,10 +35,6 @@ const (
 	MetadataKeyEndpoint  = "endpoint"
 	MetadataKeyPublicIP  = "public_ip"
 	MetadataKeyPrivateIP = "private_ip"
-	MetadataKeyProvider  = "provider"
-	MetadataKeyNodeGroup = "node_group"
-	MetadataKeyRegion    = "region"
-	MetadataKeyExtraInfo = "extra_info"
 
 	// MetadataKeyControlPlaneLoginSuccess represents the timestamp in unix seconds
 	// when the control plane login was successful.
