@@ -143,44 +143,51 @@ func newComponent(gpudInstance *components.GPUdInstance, pstoreDir string) (comp
 			}
 		}
 
+		pstoreStat, err := os.Stat(pstoreDir)
+		pstoreExists := err == nil && pstoreStat != nil && pstoreStat.IsDir()
+
 		// only need to initialize once
 		// since pstore logs are only updated on kernel panic and reboot
-		c.pstoreStore, err = pstore.New(pstoreDir, gpudInstance.DBRW, gpudInstance.DBRO, "os_pstore", 3*24*time.Hour)
-		if err != nil {
-			ccancel()
-			return nil, err
-		}
-		if err := c.pstoreStore.Scan(cctx, createKernelPanicMatchFunc()); err != nil {
-			ccancel()
-			return nil, err
-		}
-		events, err := c.pstoreStore.Get(cctx, c.getTimeNowFunc().Add(-3*24*time.Hour))
-		if err != nil {
-			ccancel()
-			return nil, err
-		}
-		log.Logger.Infow("pstore events", "count", len(events))
-		for _, ev := range events {
-			converted := eventstore.Event{
-				Component: Name,
-				Time:      time.Unix(ev.Timestamp, 0),
-				Name:      ev.EventName,
-				Type:      string(apiv1.EventTypeWarning),
-				Message:   ev.Message,
-			}
-			found, err := c.eventBucket.Find(cctx, converted)
+		if pstoreExists {
+			c.pstoreStore, err = pstore.New(pstoreDir, gpudInstance.DBRW, gpudInstance.DBRO, "os_pstore", 3*24*time.Hour)
 			if err != nil {
 				ccancel()
 				return nil, err
 			}
-			if found != nil {
-				continue
-			}
-			if err := c.eventBucket.Insert(cctx, converted); err != nil {
+			if err := c.pstoreStore.Scan(cctx, createKernelPanicMatchFunc()); err != nil {
 				ccancel()
 				return nil, err
 			}
-			log.Logger.Infow("inserted pstore event", "event", converted)
+			events, err := c.pstoreStore.Get(cctx, c.getTimeNowFunc().Add(-3*24*time.Hour))
+			if err != nil {
+				ccancel()
+				return nil, err
+			}
+			log.Logger.Infow("pstore events", "count", len(events))
+			for _, ev := range events {
+				converted := eventstore.Event{
+					Component: Name,
+					Time:      time.Unix(ev.Timestamp, 0),
+					Name:      ev.EventName,
+					Type:      string(apiv1.EventTypeWarning),
+					Message:   ev.Message,
+				}
+				found, err := c.eventBucket.Find(cctx, converted)
+				if err != nil {
+					ccancel()
+					return nil, err
+				}
+				if found != nil {
+					continue
+				}
+				if err := c.eventBucket.Insert(cctx, converted); err != nil {
+					ccancel()
+					return nil, err
+				}
+				log.Logger.Infow("inserted pstore event", "event", converted)
+			}
+		} else {
+			log.Logger.Warnw("pstore directory does not exist", "pstore_dir", pstoreDir)
 		}
 	}
 
