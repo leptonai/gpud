@@ -4,8 +4,8 @@ package faultinjector
 import (
 	"errors"
 
-	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	xidquery "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
+	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 )
 
 // Injector defines the interface for injecting failures into the system.
