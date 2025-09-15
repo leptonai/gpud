@@ -62,7 +62,7 @@ type component struct {
 	kmsgSyncer       *kmsg.Syncer
 
 	// lookbackPeriod defines how far back to query historical reboot and disk failure events
-	// when evaluating suggested repair actions. Default is 3 days.
+	// when evaluating suggested repair actions. Default is 14 days.
 	lookbackPeriod time.Duration
 
 	lastMu          sync.RWMutex
@@ -71,7 +71,7 @@ type component struct {
 
 const (
 	defaultRetryInterval  = 5 * time.Second
-	defaultLookbackPeriod = 3 * 24 * time.Hour // 3 days
+	defaultLookbackPeriod = 14 * 24 * time.Hour // 14 days
 )
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
