@@ -116,6 +116,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 	}
 
+	log.Logger.Infow("disk component initialized",
+		"freeSpaceThresholdBytesDegraded", c.freeSpaceThresholdBytesDegraded,
+		"freeSpaceThresholdMB", c.freeSpaceThresholdBytesDegraded/(1024*1024),
+		"defaultValue", defaultFreeSpaceThresholdBytesDegraded)
+
 	if runtime.GOOS == "linux" {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -590,13 +595,27 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 
+		// Log the comparison values before checking
+		log.Logger.Infow("checking root partition free space",
+			"mount_point", p.MountPoint,
+			"device", p.Device,
+			"free_bytes", p.Usage.FreeBytes,
+			"free_bytes_human", humanize.IBytes(p.Usage.FreeBytes),
+			"threshold_bytes", c.freeSpaceThresholdBytesDegraded,
+			"threshold_human", humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
+			"will_trigger_degraded", p.Usage.FreeBytes < c.freeSpaceThresholdBytesDegraded)
+
 		if p.Usage.FreeBytes < c.freeSpaceThresholdBytesDegraded {
 			reason := fmt.Sprintf("%s: free space %s is below %s threshold (%s total)",
 				p.MountPoint,
 				humanize.IBytes(p.Usage.FreeBytes),
 				humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
 				humanize.IBytes(p.Usage.TotalBytes))
-			log.Logger.Debugw(reason, "device", p.Device)
+			log.Logger.Infow("root partition below threshold, adding to degraded list",
+				"reason", reason,
+				"device", p.Device,
+				"free_bytes", p.Usage.FreeBytes,
+				"threshold", c.freeSpaceThresholdBytesDegraded)
 			degradedPartitionsDueToThresholdExceeded = append(degradedPartitionsDueToThresholdExceeded, reason)
 		}
 	}
@@ -619,9 +638,16 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if len(degradedPartitionsDueToThresholdExceeded) > 0 {
+		log.Logger.Infow("setting health to degraded due to low disk space",
+			"num_degraded_partitions", len(degradedPartitionsDueToThresholdExceeded),
+			"reasons", degradedPartitionsDueToThresholdExceeded,
+			"current_health", cr.health,
+			"current_reason", cr.reason)
+
 		// Only set to degraded if not already unhealthy
 		if cr.health != apiv1.HealthStateTypeUnhealthy {
 			cr.health = apiv1.HealthStateTypeDegraded
+			log.Logger.Infow("health state changed to degraded", "previous_health", cr.health)
 		}
 		if cr.reason == "ok" {
 			cr.reason = ""
@@ -630,6 +656,13 @@ func (c *component) Check() components.CheckResult {
 			cr.reason += "; "
 		}
 		cr.reason += strings.Join(degradedPartitionsDueToThresholdExceeded, "; ")
+
+		log.Logger.Infow("final health state after disk space check",
+			"health", cr.health,
+			"reason", cr.reason)
+	} else {
+		log.Logger.Debugw("no degraded partitions due to threshold",
+			"num_ext_partitions_checked", len(cr.ExtPartitions))
 	}
 
 	for _, p := range cr.NFSPartitions {
