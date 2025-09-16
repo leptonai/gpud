@@ -71,7 +71,7 @@ func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now tim
 		Message: fmt.Sprintf("system reboot detected %v", currentBootTime),
 	}
 
-	bucket, err := rebootEventStore.Bucket(EventBucketName, eventstore.WithDisablePurge())
+	bucket, err := rebootEventStore.Bucket(EventBucketName)
 	if err != nil {
 		return err
 	}
