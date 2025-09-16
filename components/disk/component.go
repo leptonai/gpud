@@ -596,7 +596,7 @@ func (c *component) Check() components.CheckResult {
 				humanize.IBytes(p.Usage.FreeBytes),
 				humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
 				humanize.IBytes(p.Usage.TotalBytes))
-			log.Logger.Debugw("reason", "device", p.Device)
+			log.Logger.Debugw(reason, "device", p.Device)
 			degradedPartitionsDueToThresholdExceeded = append(degradedPartitionsDueToThresholdExceeded, reason)
 		}
 	}
@@ -611,8 +611,10 @@ func (c *component) Check() components.CheckResult {
 				humanize.IBytes(p.Usage.FreeBytes),
 				humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
 				humanize.IBytes(p.Usage.TotalBytes))
-			log.Logger.Debugw("reason", "device", p.Device)
-			degradedPartitionsDueToThresholdExceeded = append(degradedPartitionsDueToThresholdExceeded, reason)
+			log.Logger.Debugw(reason, "device", p.Device)
+
+			// NOTE: for now, we just skip
+			// degradedPartitionsDueToThresholdExceeded = append(degradedPartitionsDueToThresholdExceeded, reason)
 		}
 	}
 

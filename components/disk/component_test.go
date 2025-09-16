@@ -3680,7 +3680,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 
 	// Removed unhealthy threshold test cases
 
-	t.Run("nfs partition exceeds degraded threshold", func(t *testing.T) {
+	t.Run("nfs partition below degraded threshold does not affect health", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
 		defer c.Close()
 
@@ -3724,8 +3724,9 @@ func TestDiskUsageThresholds(t *testing.T) {
 		result := c.Check()
 		cr := result.(*checkResult)
 
-		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
-		assert.Contains(t, cr.reason, "/mnt/nfs: free space 36 GiB is below 40 GiB threshold (200 GiB total)")
+		// NFS partitions with low free space currently do not impact health state.
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
 	})
 
 	// Removed unhealthy NFS threshold test case
