@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,6 +58,11 @@ type component struct {
 
 	mountPointsToTrackUsage map[string]struct{}
 
+	// freeSpaceThresholdBytesDegraded is the threshold for the free space in bytes
+	// when the system is considered degraded.
+	// Default is 500MB.
+	freeSpaceThresholdBytesDegraded uint64
+
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
 	kmsgSyncer       *kmsg.Syncer
@@ -72,6 +78,8 @@ type component struct {
 const (
 	defaultRetryInterval  = 5 * time.Second
 	defaultLookbackPeriod = 14 * 24 * time.Hour // 14 days
+
+	defaultFreeSpaceThresholdBytesDegraded = 500 * 1024 * 1024 // 500 MB
 )
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -104,6 +112,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		// Initialize file operation function field with real implementation
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
+
+		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 	}
 
 	if runtime.GOOS == "linux" {
@@ -566,6 +576,60 @@ func (c *component) Check() components.CheckResult {
 				})
 			}
 		}
+	}
+
+	var degradedPartitionsDueToThresholdExceeded []string
+	for _, p := range cr.ExtPartitions {
+		if p.Usage == nil || p.Usage.TotalBytes == 0 {
+			continue
+		}
+
+		// for now, we ONLY check the root partition
+		if p.MountPoint != "/" {
+			log.Logger.Debugw("skipping non-root ext4 partition", "mount_point", p.MountPoint, "free_bytes", p.Usage.FreeBytes, "threshold", c.freeSpaceThresholdBytesDegraded)
+			continue
+		}
+
+		if p.Usage.FreeBytes < c.freeSpaceThresholdBytesDegraded {
+			reason := fmt.Sprintf("%s: free space %s is below %s threshold (%s total)",
+				p.MountPoint,
+				humanize.IBytes(p.Usage.FreeBytes),
+				humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
+				humanize.IBytes(p.Usage.TotalBytes))
+			log.Logger.Debugw(reason, "device", p.Device)
+			degradedPartitionsDueToThresholdExceeded = append(degradedPartitionsDueToThresholdExceeded, reason)
+		}
+	}
+	for _, p := range cr.NFSPartitions {
+		if p.Usage == nil || p.Usage.TotalBytes == 0 {
+			continue
+		}
+
+		if p.Usage.FreeBytes < c.freeSpaceThresholdBytesDegraded {
+			reason := fmt.Sprintf("%s: free space %s is below %s threshold (%s total)",
+				p.MountPoint,
+				humanize.IBytes(p.Usage.FreeBytes),
+				humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
+				humanize.IBytes(p.Usage.TotalBytes))
+			log.Logger.Debugw(reason, "device", p.Device)
+
+			// NOTE: for now, we just skip
+			// degradedPartitionsDueToThresholdExceeded = append(degradedPartitionsDueToThresholdExceeded, reason)
+		}
+	}
+
+	if len(degradedPartitionsDueToThresholdExceeded) > 0 {
+		// Only set to degraded if not already unhealthy
+		if cr.health != apiv1.HealthStateTypeUnhealthy {
+			cr.health = apiv1.HealthStateTypeDegraded
+		}
+		if cr.reason == "ok" {
+			cr.reason = ""
+		}
+		if cr.reason != "" {
+			cr.reason += "; "
+		}
+		cr.reason += strings.Join(degradedPartitionsDueToThresholdExceeded, "; ")
 	}
 
 	for _, p := range cr.NFSPartitions {
