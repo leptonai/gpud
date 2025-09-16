@@ -89,7 +89,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 	if gpudInstance.EventStore != nil {
 		var err error
-		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name, eventstore.WithDisablePurge())
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
 		if err != nil {
 			ccancel()
 			return nil, err
