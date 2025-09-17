@@ -36,11 +36,9 @@ func translateToStateHealth(health int) apiv1.HealthStateType {
 	}
 }
 
-const rebootThreshold = 2
-
 // evolveHealthyState resolves the state of the XID error component.
 // note: assume events are sorted by time in descending order
-func evolveHealthyState(events eventstore.Events, devices map[string]device.Device) (ret apiv1.HealthState) {
+func evolveHealthyState(events eventstore.Events, devices map[string]device.Device, rebootThreshold int) (ret apiv1.HealthState) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()

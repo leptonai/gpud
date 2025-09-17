@@ -20,6 +20,7 @@ import (
 	gpudcomponents "github.com/leptonai/gpud/components"
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
@@ -67,6 +68,7 @@ func Command(cliContext *cli.Context) error {
 	gpuCount := cliContext.Int("gpu-count")
 	infinibandExpectedPortStates := cliContext.String("infiniband-expected-port-states")
 	nfsCheckerConfigs := cliContext.String("nfs-checker-configs")
+	xidRebootThreshold := cliContext.Int("xid-reboot-threshold")
 
 	if gpuCount > 0 {
 		componentsnvidiagpucounts.SetDefaultExpectedGPUCounts(componentsnvidiagpucounts.ExpectedGPUCounts{
@@ -94,6 +96,13 @@ func Command(cliContext *cli.Context) error {
 		componentsnfs.SetDefaultConfigs(groupConfigs)
 
 		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
+	}
+
+	if xidRebootThreshold > 0 {
+		componentsxid.SetDefaultRebootThreshold(componentsxid.RebootThreshold{
+			Threshold: xidRebootThreshold,
+		})
+		log.Logger.Infow("set xid reboot threshold", "xidRebootThreshold", xidRebootThreshold)
 	}
 
 	gpuUUIDsWithRowRemappingPendingRaw := cliContext.String("gpu-uuids-with-row-remapping-pending")

@@ -12,6 +12,7 @@ import (
 	gpudcomponents "github.com/leptonai/gpud/components"
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
@@ -32,6 +33,7 @@ func CreateCommand() func(*cli.Context) error {
 			cliContext.String("gpu-uuids-with-hw-slowdown"),
 			cliContext.String("gpu-uuids-with-hw-slowdown-thermal"),
 			cliContext.String("gpu-uuids-with-hw-slowdown-power-brake"),
+			cliContext.Int("xid-reboot-threshold"),
 		)
 	}
 }
@@ -47,6 +49,7 @@ func cmdScan(
 	gpuUUIDsWithHWSlowdownRaw string,
 	gpuUUIDsWithHWSlowdownThermalRaw string,
 	gpuUUIDsWithHWSlowdownPowerBrakeRaw string,
+	xidRebootThreshold int,
 ) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
@@ -82,6 +85,13 @@ func cmdScan(
 		componentsnfs.SetDefaultConfigs(groupConfigs)
 
 		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
+	}
+
+	if xidRebootThreshold > 0 {
+		componentsxid.SetDefaultRebootThreshold(componentsxid.RebootThreshold{
+			Threshold: xidRebootThreshold,
+		})
+		log.Logger.Infow("set xid reboot threshold", "xidRebootThreshold", xidRebootThreshold)
 	}
 
 	gpuUUIDsWithRowRemappingPending := common.ParseGPUUUIDs(gpuUUIDsWithRowRemappingPendingRaw)
