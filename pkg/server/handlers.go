@@ -76,7 +76,7 @@ func (g *globalHandler) getReqTime(c *gin.Context) (time.Time, time.Time, error)
 	return startTime, endTime, nil
 }
 
-func (g *globalHandler) getReqComponents(c *gin.Context) ([]string, error) {
+func (g *globalHandler) getReqComponentNames(c *gin.Context) ([]string, error) {
 	components := c.Query("components")
 	if components == "" {
 		g.componentNamesMu.RLock()
@@ -90,6 +90,23 @@ func (g *globalHandler) getReqComponents(c *gin.Context) ([]string, error) {
 			return nil, fmt.Errorf("component %s not found (%w)", component, errdefs.ErrNotFound)
 		}
 		ret = append(ret, component)
+	}
+	return ret, nil
+}
+
+func (g *globalHandler) getReqComponents(c *gin.Context) ([]components.Component, error) {
+	componentNames, err := g.getReqComponentNames(c)
+	if err != nil {
+		return nil, err
+	}
+
+	var ret []components.Component
+	for _, componentName := range componentNames {
+		comp := g.componentsRegistry.Get(componentName)
+		if comp == nil {
+			return nil, fmt.Errorf("component %s not found (%w)", componentName, errdefs.ErrNotFound)
+		}
+		ret = append(ret, comp)
 	}
 	return ret, nil
 }

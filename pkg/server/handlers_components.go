@@ -27,6 +27,8 @@ func (g *globalHandler) registerComponentRoutes(r gin.IRoutes) {
 	r.GET(URLPathEvents, g.getEvents)
 	r.GET(URLPathInfo, g.getInfo)
 	r.GET(URLPathMetrics, g.getMetrics)
+
+	r.POST(URLPathHealthStatesSetHealthy, g.setHealthyStates)
 }
 
 // URLPathComponents is for getting the list of all gpud components
@@ -256,7 +258,7 @@ const URLPathStates = "/states"
 // @Router /v1/states [get]
 func (g *globalHandler) getHealthStates(c *gin.Context) {
 	var states apiv1.GPUdComponentHealthStates
-	components, err := g.getReqComponents(c)
+	components, err := g.getReqComponentNames(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
@@ -339,7 +341,7 @@ const URLPathEvents = "/events"
 // @Router /v1/events [get]
 func (g *globalHandler) getEvents(c *gin.Context) {
 	var events apiv1.GPUdComponentEvents
-	components, err := g.getReqComponents(c)
+	components, err := g.getReqComponentNames(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
@@ -436,7 +438,7 @@ const URLPathInfo = "/info"
 // @Router /v1/info [get]
 func (g *globalHandler) getInfo(c *gin.Context) {
 	var infos apiv1.GPUdComponentInfos
-	reqComps, err := g.getReqComponents(c)
+	reqComps, err := g.getReqComponentNames(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
@@ -570,7 +572,7 @@ const URLPathMetrics = "/metrics"
 // @Failure 500 {object} map[string]interface{} "Internal server error - failed to read metrics"
 // @Router /v1/metrics [get]
 func (g *globalHandler) getMetrics(c *gin.Context) {
-	components, err := g.getReqComponents(c)
+	components, err := g.getReqComponentNames(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": "component not found: " + err.Error()})
@@ -618,4 +620,71 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "invalid content type"})
 	}
+}
+
+// URLPathHealthStatesSetHealthy is for setting components to healthy state
+const URLPathHealthStatesSetHealthy = "/health-states/set-healthy"
+
+// setHealthyStates godoc
+// @Summary Set components to healthy state
+// @Description Sets specified components to healthy state if they implement the HealthSettable interface. If no components specified, attempts to set all components to healthy.
+// @ID setHealthyStates
+// @Tags components
+// @Accept json
+// @Produce json
+// @Param components query string false "Comma-separated list of component names to set healthy (if empty, sets all components)"
+// @Success 200 {object} map[string]interface{} "Components successfully set to healthy state"
+// @Failure 400 {object} map[string]interface{} "Bad request - component does not support setting healthy state"
+// @Failure 404 {object} map[string]interface{} "Component not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error - failed to set healthy state"
+// @Router /v1/health-states/set-healthy [post]
+func (g *globalHandler) setHealthyStates(c *gin.Context) {
+	comps, err := g.getReqComponents(c)
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
+		return
+	}
+
+	successfulComponents := make([]string, 0)
+	failedComponents := make(map[string]string)
+
+	for _, comp := range comps {
+		healthSettable, ok := comp.(components.HealthSettable)
+		if !ok {
+			failedComponents[comp.Name()] = "component does not support setting healthy state"
+			continue
+		}
+
+		if err := healthSettable.SetHealthy(); err != nil {
+			failedComponents[comp.Name()] = "failed to set healthy: " + err.Error()
+			log.Logger.Errorw("failed to set component healthy",
+				"component", comp.Name(),
+				"error", err,
+			)
+		} else {
+			successfulComponents = append(successfulComponents, comp.Name())
+			log.Logger.Infow("successfully set component healthy", "component", comp.Name())
+		}
+	}
+
+	if len(failedComponents) > 0 && len(successfulComponents) == 0 {
+		// All components failed
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    errdefs.ErrInvalidArgument,
+			"message": "failed to set any component to healthy",
+			"failed":  failedComponents,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":       http.StatusOK,
+		"message":    "set healthy states completed",
+		"successful": successfulComponents,
+		"failed":     failedComponents,
+	})
 }
