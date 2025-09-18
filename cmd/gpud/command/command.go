@@ -586,18 +586,15 @@ sudo rm /etc/systemd/system/gpud.service
 			},
 		},
 		{
-			Name:    "set-healthy",
-			Aliases: []string{"set-health"},
-			Usage:   "set the healthy state of components",
-			Action:  cmdsethealthy.CreateCommand(),
+			Name:      "set-healthy",
+			Aliases:   []string{"set-health"},
+			Usage:     "set the healthy state of components",
+			UsageText: "gpud set-healthy <components> [options]\n\n   <components>: comma-separated list of component names to set healthy",
+			Action:    cmdsethealthy.CreateCommand(),
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-				},
-				&cli.StringFlag{
-					Name:  "components",
-					Usage: "comma-separated list of component names to set healthy (if empty, sets all components)",
 				},
 				&cli.StringFlag{
 					Name:  "server",

@@ -32,14 +32,16 @@ func CreateCommand() func(*cli.Context) error {
 			serverAddr = fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
 		}
 
-		// Get the components from the flag
-		componentsStr := cliContext.String("components")
+		// Get the components from the positional argument
 		var components []string
-		if componentsStr != "" {
-			components = strings.Split(componentsStr, ",")
-			// Trim spaces from component names
-			for i := range components {
-				components[i] = strings.TrimSpace(components[i])
+		if cliContext.NArg() > 0 {
+			componentsStr := cliContext.Args().Get(0)
+			if componentsStr != "" {
+				components = strings.Split(componentsStr, ",")
+				// Trim spaces from component names
+				for i := range components {
+					components[i] = strings.TrimSpace(components[i])
+				}
 			}
 		}
 
