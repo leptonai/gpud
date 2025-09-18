@@ -399,6 +399,36 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(respBody.Successful).To(ContainElement("disk"), "expected disk to be set healthy")
 			Expect(respBody.Failed).ToNot(HaveKey("disk"), "expected disk to not be in failed map")
 		})
+
+		It("returns error when components parameter is empty", func() {
+			req, err := http.NewRequest(
+				"POST",
+				fmt.Sprintf("https://%s/v1/health-states/set-healthy", ep),
+				nil,
+			)
+			Expect(err).NotTo(HaveOccurred(), "failed to create request")
+
+			req.Header.Set(httputil.RequestHeaderContentType, httputil.RequestHeaderJSON)
+
+			resp, err := client.Do(req)
+			Expect(err).NotTo(HaveOccurred(), "failed to make request")
+			defer resp.Body.Close()
+			Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
+
+			body, err := io.ReadAll(resp.Body)
+			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
+			GinkgoLogr.Info("/v1/health-states/set-healthy response for empty components", "response", string(body))
+
+			var respBody struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+			}
+
+			err = json.Unmarshal(body, &respBody)
+			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
+			Expect(respBody.Code).To(Equal(errdefs.ErrInvalidArgument))
+			Expect(respBody.Message).To(Equal("components parameter is required"))
+		})
 	})
 
 	Describe("states with client/v1", func() {

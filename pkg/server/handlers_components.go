@@ -639,6 +639,16 @@ const URLPathHealthStatesSetHealthy = "/health-states/set-healthy"
 // @Failure 500 {object} map[string]interface{} "Internal server error - failed to set healthy state"
 // @Router /v1/health-states/set-healthy [post]
 func (g *globalHandler) setHealthyStates(c *gin.Context) {
+	// Check if components query parameter is empty
+	componentsQuery := c.Query("components")
+	if componentsQuery == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    errdefs.ErrInvalidArgument,
+			"message": "components parameter is required",
+		})
+		return
+	}
+
 	comps, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
