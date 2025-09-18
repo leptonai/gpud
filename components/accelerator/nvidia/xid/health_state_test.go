@@ -38,7 +38,7 @@ func createXidEvent(eventTime time.Time, xid uint64, eventType apiv1.EventType, 
 
 func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("no event found", func(t *testing.T) {
-		state := evolveHealthyState(eventstore.Events{}, nil)
+		state := evolveHealthyState(eventstore.Events{}, nil, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		assert.Equal(t, "XIDComponent is healthy", state.Reason)
 	})
@@ -49,7 +49,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		events := eventstore.Events{
 			createXidEvent(time.Time{}, 123, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 		}
-		state := evolveHealthyState(events, map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice})
+		state := evolveHealthyState(events, map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice}, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
 		assert.Equal(t, "XID 123 (SPI PMU RPC Write Failure) detected on GPU PCI:0000:9b:00 UUID:GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7", state.Reason)
 	})
@@ -58,7 +58,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		events := eventstore.Events{
 			createXidEvent(time.Time{}, 456, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
-		state := evolveHealthyState(events, map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice})
+		state := evolveHealthyState(events, map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice}, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, "XID 456 detected on GPU PCI:0000:9b:00 UUID:GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7", state.Reason)
 	})
@@ -68,7 +68,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			{Name: "reboot"},
 			createXidEvent(time.Time{}, 789, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 		}
-		state := evolveHealthyState(events, nil)
+		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	})
 
@@ -81,7 +81,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 			createXidEvent(time.Time{}, 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
 		}
-		state := evolveHealthyState(events, nil)
+		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
 		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
@@ -91,7 +91,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			{Name: "SetHealthy"},
 			createXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
-		state := evolveHealthyState(events, nil)
+		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		assert.Nil(t, state.SuggestedActions)
 	})
@@ -104,7 +104,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 				ExtraInfo: map[string]string{EventKeyErrorXidData: "invalid json"},
 			},
 		}
-		state := evolveHealthyState(events, nil)
+		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	})
 }

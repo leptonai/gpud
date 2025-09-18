@@ -7,6 +7,7 @@ import (
 
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
@@ -47,6 +48,18 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 				s.setDefaultGPUCountsFunc(updateCfg)
 			}
 
+		case componentsxid.Name:
+			setComponents[componentName] = struct{}{}
+			var updateCfg componentsxid.RebootThreshold
+			if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
+				log.Logger.Warnw("failed to unmarshal xid config", "error", err)
+				resp.Error = err.Error()
+				return
+			}
+			if s.setDefaultXIDRebootThresholdFunc != nil {
+				s.setDefaultXIDRebootThresholdFunc(updateCfg)
+			}
+
 		case componentsnfs.Name:
 			setComponents[componentName] = struct{}{}
 			var updateCfgs pkgnfschecker.Configs
@@ -76,7 +89,7 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 		}
 	}
 
-	// fallback to default empty if the component is not set
+	// fallback to default if the component is not set
 	if _, ok := setComponents[componentsnvidiainfiniband.Name]; !ok && s.setDefaultIbExpectedPortStatesFunc != nil {
 		log.Logger.Infow("falling back to default empty infiniband config")
 		s.setDefaultIbExpectedPortStatesFunc(infiniband.ExpectedPortStates{})
@@ -88,5 +101,9 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 	if _, ok := setComponents[componentsnfs.Name]; !ok && s.setDefaultNFSGroupConfigsFunc != nil {
 		log.Logger.Infow("falling back to default empty nfs config")
 		s.setDefaultNFSGroupConfigsFunc(pkgnfschecker.Configs{})
+	}
+	if _, ok := setComponents[componentsxid.Name]; !ok && s.setDefaultXIDRebootThresholdFunc != nil {
+		log.Logger.Infow("falling back to default xid config")
+		s.setDefaultXIDRebootThresholdFunc(componentsxid.RebootThreshold{Threshold: componentsxid.DefaultRebootThreshold})
 	}
 }

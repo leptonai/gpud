@@ -16,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
@@ -148,6 +149,7 @@ type Session struct {
 	setDefaultIbExpectedPortStatesFunc func(states infiniband.ExpectedPortStates)
 	setDefaultGPUCountsFunc            func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
 	setDefaultNFSGroupConfigsFunc      func(cfgs pkgnfschecker.Configs)
+	setDefaultXIDRebootThresholdFunc   func(threshold componentsxid.RebootThreshold)
 
 	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store
@@ -241,6 +243,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		setDefaultIbExpectedPortStatesFunc: componentsnvidiainfiniband.SetDefaultExpectedPortStates,
 		setDefaultGPUCountsFunc:            componentsnvidiagpucounts.SetDefaultExpectedGPUCounts,
 		setDefaultNFSGroupConfigsFunc:      componentsnfs.SetDefaultConfigs,
+		setDefaultXIDRebootThresholdFunc:   componentsxid.SetDefaultRebootThreshold,
 
 		nvmlInstance:       op.nvmlInstance,
 		metricsStore:       op.metricsStore,

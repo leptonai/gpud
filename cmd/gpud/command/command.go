@@ -22,6 +22,7 @@ import (
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
+	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgconfig "github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
@@ -188,6 +189,11 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "nfs-checker-configs",
 					Usage: "set the NFS checker group configs in JSON (leave empty for default, useful for testing)",
+				},
+				&cli.IntFlag{
+					Name:  "xid-reboot-threshold",
+					Usage: fmt.Sprintf("set the allowed reboot attempts for XID errors before escalation (defaults to %d)", componentsxid.DefaultRebootThreshold),
+					Value: componentsxid.DefaultRebootThreshold,
 				},
 
 				cli.StringFlag{
@@ -460,6 +466,11 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "nfs-checker-configs",
 					Usage: "set the NFS checker group configs in JSON (leave empty for default, useful for testing)",
+				},
+				&cli.IntFlag{
+					Name:  "xid-reboot-threshold",
+					Usage: fmt.Sprintf("set the allowed reboot attempts for XID errors before escalation (defaults to %d)", componentsxid.DefaultRebootThreshold),
+					Value: componentsxid.DefaultRebootThreshold,
 				},
 				cli.StringFlag{
 					Name:   "infiniband-class-root-dir",
