@@ -330,10 +330,12 @@ func (s *Session) serve() {
 				log.Logger.Warnw("fault inject request is nil")
 			}
 
-			// TODO: deprecate "triggerComponentCheck" after control plane supports "triggerComponent"
+		// TODO: deprecate "triggerComponentCheck" after control plane supports "triggerComponent"
 		case "triggerComponent",
 			"triggerComponentCheck":
-			checkResults := make([]components.CheckResult, 0)
+			componentsToCheck := make([]string, 0)
+			componentsForAsync := make([]components.Component, 0)
+
 			if payload.ComponentName != "" {
 				// requesting a specific component, tag is ignored
 				comp := s.componentsRegistry.Get(payload.ComponentName)
@@ -343,9 +345,11 @@ func (s *Session) serve() {
 					break
 				}
 
-				checkResults = append(checkResults, comp.Check())
+				componentsToCheck = append(componentsToCheck, payload.ComponentName)
+				componentsForAsync = append(componentsForAsync, comp)
 			} else if payload.TagName != "" {
 				components := s.componentsRegistry.All()
+				seen := make(map[string]struct{})
 				for _, comp := range components {
 					matched := false
 					for _, tag := range comp.Tags() {
@@ -358,16 +362,58 @@ func (s *Session) serve() {
 						continue
 					}
 
-					checkResults = append(checkResults, comp.Check())
+					name := comp.Name()
+					if name == "" {
+						log.Logger.Warnw("matched component missing name while scheduling triggerComponent", "tag", payload.TagName)
+						continue
+					}
+					if _, ok := seen[name]; ok {
+						continue
+					}
+					seen[name] = struct{}{}
+					componentsToCheck = append(componentsToCheck, name)
+					componentsForAsync = append(componentsForAsync, comp)
 				}
 			}
 
 			response.States = apiv1.GPUdComponentHealthStates{}
-			for _, checkResult := range checkResults {
+			for _, compName := range componentsToCheck {
 				response.States = append(response.States, apiv1.ComponentHealthStates{
-					Component: checkResult.ComponentName(),
-					States:    checkResult.HealthStates(),
+					Component: compName,
+					States:    nil,
 				})
+			}
+
+			// Why async component checks?
+			// - Session.serve processes control-plane messages sequentially; a blocking comp.Check() used to halt the only serving goroutine.
+			// - Disk.Check() can loop over findmnt up to 5 times with a 1-minute timeout per attempt when an NFS mount is flaky, stretching a single call to ~5 minutes per mount.
+			// - While Check() blocked, the writer goroutine could not drain s.writer (buffer size 20), the server eventually canceled the HTTP stream, GPUd logged
+			//   "session reader: error decoding response" followed by "session writer: error making request ... context canceled", and keepAlive emitted
+			//   "drained stale messages from reader channel" when it recycled the connection.
+			// - The disk component’s background ticker kept updating lastCheckResult, so local state showed fresh timestamps (e.g., 2025-09-18T12:07:16Z) while the control plane
+			//   remained stuck with the last successfully published state (e.g., 2025-09-18T05:48:16Z).
+			// - A single triggerComponent/triggerComponentCheck message aimed at the disk component is enough to recreate the stall because the response waited for the long-running
+			//   Check() before writing back to the control plane.
+			if len(componentsForAsync) > 0 {
+				go func(method string, names []string, comps []components.Component) {
+					log.Logger.Infow("triggerComponent running asynchronous checks", "method", method, "components", names)
+					for idx, comp := range comps {
+						result := comp.Check()
+						if result == nil {
+							log.Logger.Warnw("triggerComponent check returned nil result", "method", method, "component", names[idx])
+							continue
+						}
+						log.Logger.Infow(
+							"triggerComponent check completed",
+							"method", method,
+							"component", result.ComponentName(),
+							"health", result.HealthStateType(),
+							"summary", result.Summary(),
+						)
+					}
+				}(payload.Method, componentsToCheck, componentsForAsync)
+			} else {
+				log.Logger.Infow("triggerComponent request matched no components", "method", payload.Method, "component", payload.ComponentName, "tag", payload.TagName)
 			}
 
 		case "deregisterComponent":

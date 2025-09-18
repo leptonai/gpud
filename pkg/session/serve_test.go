@@ -530,8 +530,8 @@ func TestHandleBootstrapRequest(t *testing.T) {
 	processRunner.AssertExpectations(t)
 }
 
-// Test triggerComponentCheck
-func TestTriggerComponentCheck(t *testing.T) {
+// Test triggerComponent
+func TestTriggerComponent(t *testing.T) {
 	session, registry, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
 
 	// Start the session in a separate goroutine
@@ -541,18 +541,47 @@ func TestTriggerComponentCheck(t *testing.T) {
 	// Create a component and mock its behavior
 	comp := new(mockComponent)
 	compResults := new(mockCheckResult)
-	healthStates := apiv1.HealthStates{
-		{Health: apiv1.HealthStateTypeHealthy, Name: "test-state"},
-	}
+	checkStarted := make(chan struct{})
+	releaseCheck := make(chan struct{})
+	componentNameCalled := make(chan struct{})
+	summaryCalled := make(chan struct{})
+	healthCalled := make(chan struct{})
 
 	registry.On("Get", "test-component").Return(comp)
-	comp.On("Check").Return(compResults)
-	compResults.On("HealthStates").Return(healthStates)
-	compResults.On("ComponentName").Return("test-component")
+	comp.On("Check").Return(compResults).Once().Run(func(mock.Arguments) {
+		select {
+		case <-checkStarted:
+			// already signaled
+		default:
+			close(checkStarted)
+		}
+		<-releaseCheck
+	})
+	compResults.On("ComponentName").Return("test-component").Run(func(mock.Arguments) {
+		select {
+		case <-componentNameCalled:
+		default:
+			close(componentNameCalled)
+		}
+	})
+	compResults.On("Summary").Return("async check completed").Run(func(mock.Arguments) {
+		select {
+		case <-summaryCalled:
+		default:
+			close(summaryCalled)
+		}
+	})
+	compResults.On("HealthStateType").Return(apiv1.HealthStateTypeHealthy).Run(func(mock.Arguments) {
+		select {
+		case <-healthCalled:
+		default:
+			close(healthCalled)
+		}
+	})
 
 	// Create the request
 	req := Request{
-		Method:        "triggerComponentCheck",
+		Method:        "triggerComponent",
 		ComponentName: "test-component",
 	}
 
@@ -582,15 +611,68 @@ func TestTriggerComponentCheck(t *testing.T) {
 	assert.Empty(t, response.Error)
 	assert.Len(t, response.States, 1)
 	assert.Equal(t, "test-component", response.States[0].Component)
-	assert.Equal(t, healthStates, response.States[0].States)
+	assert.Nil(t, response.States[0].States)
+
+	select {
+	case <-checkStarted:
+	case <-time.After(time.Second):
+		t.Fatal("expected asynchronous Check call to start")
+	}
+	close(releaseCheck)
+
+	select {
+	case <-componentNameCalled:
+	case <-time.After(time.Second):
+		t.Fatal("expected ComponentName to be consumed")
+	}
+	select {
+	case <-summaryCalled:
+	case <-time.After(time.Second):
+		t.Fatal("expected Summary to be consumed")
+	}
+	select {
+	case <-healthCalled:
+	case <-time.After(time.Second):
+		t.Fatal("expected HealthStateType to be consumed")
+	}
 
 	registry.AssertExpectations(t)
 	comp.AssertExpectations(t)
 	compResults.AssertExpectations(t)
 }
 
-// Test triggerComponentCheckByTag with non-empty TagName
-func TestTriggerComponentCheckByTag(t *testing.T) {
+func TestTriggerComponentComponentNotFound(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
+
+	go session.serve()
+	defer close(reader)
+
+	registry.On("Get", "missing-component").Return(nil)
+
+	req := Request{
+		Method:        "triggerComponent",
+		ComponentName: "missing-component",
+	}
+
+	reqData, _ := json.Marshal(req)
+
+	reader <- Body{Data: reqData, ReqID: "missing-req"}
+
+	select {
+	case resp := <-writer:
+		var response Response
+		require.NoError(t, json.Unmarshal(resp.Data, &response))
+		assert.Equal(t, int32(http.StatusNotFound), response.ErrorCode)
+		assert.Empty(t, response.States)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for response for missing component")
+	}
+
+	registry.AssertExpectations(t)
+}
+
+// Test triggerComponentByTag with non-empty TagName
+func TestTriggerComponentByTag(t *testing.T) {
 	session, registry, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
 
 	// Start the session in a separate goroutine
@@ -601,27 +683,56 @@ func TestTriggerComponentCheckByTag(t *testing.T) {
 	comp1 := new(mockComponent)
 	comp2 := new(mockComponent)
 	compResults := new(mockCheckResult)
-	healthStates := apiv1.HealthStates{
-		{Health: apiv1.HealthStateTypeHealthy, Name: "test-state"},
-	}
+	checkStarted := make(chan struct{})
+	releaseCheck := make(chan struct{})
+	componentNameCalled := make(chan struct{})
+	summaryCalled := make(chan struct{})
+	healthCalled := make(chan struct{})
 
 	// Set up component behaviors
 	comp1.On("Tags").Return([]string{"tag1", "common-tag"})
-	comp1.On("Check").Return(compResults)
+	comp1.On("Name").Return("comp1")
+	comp1.On("Check").Return(compResults).Once().Run(func(mock.Arguments) {
+		select {
+		case <-checkStarted:
+		default:
+			close(checkStarted)
+		}
+		<-releaseCheck
+	})
 
 	comp2.On("Tags").Return([]string{"tag2"}) // This one doesn't have the matching tag
 	// comp2 should not have Check called since it doesn't match the tag
 
 	// Only comp1 should have its Check method called since only it has the matching tag
-	compResults.On("HealthStates").Return(healthStates)
-	compResults.On("ComponentName").Return("comp1")
+	compResults.On("ComponentName").Return("comp1").Run(func(mock.Arguments) {
+		select {
+		case <-componentNameCalled:
+		default:
+			close(componentNameCalled)
+		}
+	})
+	compResults.On("Summary").Return("async check completed").Run(func(mock.Arguments) {
+		select {
+		case <-summaryCalled:
+		default:
+			close(summaryCalled)
+		}
+	})
+	compResults.On("HealthStateType").Return(apiv1.HealthStateTypeHealthy).Run(func(mock.Arguments) {
+		select {
+		case <-healthCalled:
+		default:
+			close(healthCalled)
+		}
+	})
 
 	// For TagName functionality, we need to use All() to get all components and filter by tag
 	registry.On("All").Return([]components.Component{comp1, comp2})
 
 	// Test the TagName functionality by NOT setting ComponentName
 	req := Request{
-		Method:  "triggerComponentCheck",
+		Method:  "triggerComponent",
 		TagName: "common-tag",
 		// ComponentName is intentionally not set to test TagName functionality
 	}
@@ -651,14 +762,183 @@ func TestTriggerComponentCheckByTag(t *testing.T) {
 	assert.Equal(t, "test-req-id", resp.ReqID)
 	assert.Empty(t, response.Error)
 	assert.Len(t, response.States, 1)
-	assert.Equal(t, "comp1", response.States[0].Component) // Should use ComponentName from checkResult
-	assert.Equal(t, healthStates, response.States[0].States)
+	assert.Equal(t, "comp1", response.States[0].Component) // Should use component name discovered via registry
+	assert.Nil(t, response.States[0].States)
+
+	select {
+	case <-checkStarted:
+	case <-time.After(time.Second):
+		t.Fatal("expected asynchronous Check call to start for tagged component")
+	}
+	close(releaseCheck)
+
+	select {
+	case <-componentNameCalled:
+	case <-time.After(time.Second):
+		t.Fatal("expected ComponentName to be consumed for tagged component")
+	}
+	select {
+	case <-summaryCalled:
+	case <-time.After(time.Second):
+		t.Fatal("expected Summary to be consumed for tagged component")
+	}
+	select {
+	case <-healthCalled:
+	case <-time.After(time.Second):
+		t.Fatal("expected HealthStateType to be consumed for tagged component")
+	}
 
 	// Verify expectations
 	registry.AssertExpectations(t)
 	comp1.AssertExpectations(t)
 	comp2.AssertExpectations(t)
 	compResults.AssertExpectations(t)
+}
+
+func TestTriggerComponentMultipleComponents(t *testing.T) {
+	session, registry, _, _, reader, writer := setupTestSessionWithoutFaultInjector()
+
+	go session.serve()
+	defer close(reader)
+
+	comp1 := new(mockComponent)
+	comp2 := new(mockComponent)
+	res1 := new(mockCheckResult)
+	res2 := new(mockCheckResult)
+
+	started1 := make(chan struct{})
+	started2 := make(chan struct{})
+	releaseChecks := make(chan struct{})
+	comp1NameCalled := make(chan struct{})
+	comp2NameCalled := make(chan struct{})
+	comp1SummaryCalled := make(chan struct{})
+	comp2SummaryCalled := make(chan struct{})
+	comp1HealthCalled := make(chan struct{})
+	comp2HealthCalled := make(chan struct{})
+
+	comp1.On("Tags").Return([]string{"shared"})
+	comp1.On("Name").Return("comp-one")
+	comp1.On("Check").Return(res1).Once().Run(func(mock.Arguments) {
+		select {
+		case <-started1:
+		default:
+			close(started1)
+		}
+		<-releaseChecks
+	})
+
+	comp2.On("Tags").Return([]string{"shared"})
+	comp2.On("Name").Return("comp-two")
+	comp2.On("Check").Return(res2).Once().Run(func(mock.Arguments) {
+		select {
+		case <-started2:
+		default:
+			close(started2)
+		}
+		<-releaseChecks
+	})
+
+	res1.On("ComponentName").Return("comp-one").Run(func(mock.Arguments) {
+		select {
+		case <-comp1NameCalled:
+		default:
+			close(comp1NameCalled)
+		}
+	})
+	res1.On("Summary").Return("one done").Run(func(mock.Arguments) {
+		select {
+		case <-comp1SummaryCalled:
+		default:
+			close(comp1SummaryCalled)
+		}
+	})
+	res1.On("HealthStateType").Return(apiv1.HealthStateTypeHealthy).Run(func(mock.Arguments) {
+		select {
+		case <-comp1HealthCalled:
+		default:
+			close(comp1HealthCalled)
+		}
+	})
+
+	res2.On("ComponentName").Return("comp-two").Run(func(mock.Arguments) {
+		select {
+		case <-comp2NameCalled:
+		default:
+			close(comp2NameCalled)
+		}
+	})
+	res2.On("Summary").Return("two done").Run(func(mock.Arguments) {
+		select {
+		case <-comp2SummaryCalled:
+		default:
+			close(comp2SummaryCalled)
+		}
+	})
+	res2.On("HealthStateType").Return(apiv1.HealthStateTypeDegraded).Run(func(mock.Arguments) {
+		select {
+		case <-comp2HealthCalled:
+		default:
+			close(comp2HealthCalled)
+		}
+	})
+
+	registry.On("All").Return([]components.Component{comp1, comp2})
+
+	req := Request{
+		Method:  "triggerComponent",
+		TagName: "shared",
+	}
+
+	reqData, _ := json.Marshal(req)
+	reader <- Body{Data: reqData, ReqID: "multi-req"}
+
+	var resp Body
+	select {
+	case resp = <-writer:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
+	}
+
+	var response Response
+	require.NoError(t, json.Unmarshal(resp.Data, &response))
+	assert.Len(t, response.States, 2)
+	componentsSeen := map[string]struct{}{}
+	for _, state := range response.States {
+		componentsSeen[state.Component] = struct{}{}
+		assert.Nil(t, state.States)
+	}
+	assert.Len(t, componentsSeen, 2)
+	assert.Contains(t, componentsSeen, "comp-one")
+	assert.Contains(t, componentsSeen, "comp-two")
+
+	select {
+	case <-started1:
+	case <-time.After(time.Second):
+		t.Fatal("expected asynchronous Check for comp-one")
+	}
+	close(releaseChecks)
+	select {
+	case <-started2:
+	case <-time.After(time.Second):
+		t.Fatal("expected asynchronous Check for comp-two")
+	}
+
+	for _, ch := range []chan struct{}{
+		comp1NameCalled, comp1SummaryCalled, comp1HealthCalled,
+		comp2NameCalled, comp2SummaryCalled, comp2HealthCalled,
+	} {
+		select {
+		case <-ch:
+		case <-time.After(time.Second):
+			t.Fatal("expected asynchronous result consumption")
+		}
+	}
+
+	registry.AssertExpectations(t)
+	comp1.AssertExpectations(t)
+	comp2.AssertExpectations(t)
+	res1.AssertExpectations(t)
+	res2.AssertExpectations(t)
 }
 
 // Test deregisterComponent
