@@ -98,11 +98,15 @@ func Command(cliContext *cli.Context) error {
 		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
 	}
 
-	if xidRebootThreshold > 0 {
-		componentsxid.SetDefaultRebootThreshold(componentsxid.RebootThreshold{
-			Threshold: xidRebootThreshold,
-		})
-		log.Logger.Infow("set xid reboot threshold", "xidRebootThreshold", xidRebootThreshold)
+	if cliContext.IsSet("xid-reboot-threshold") {
+		if xidRebootThreshold > 0 {
+			componentsxid.SetDefaultRebootThreshold(componentsxid.RebootThreshold{
+				Threshold: xidRebootThreshold,
+			})
+			log.Logger.Infow("set xid reboot threshold", "xidRebootThreshold", xidRebootThreshold)
+		} else {
+			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)
+		}
 	}
 
 	gpuUUIDsWithRowRemappingPendingRaw := cliContext.String("gpu-uuids-with-row-remapping-pending")

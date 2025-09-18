@@ -34,6 +34,7 @@ func CreateCommand() func(*cli.Context) error {
 			cliContext.String("gpu-uuids-with-hw-slowdown-thermal"),
 			cliContext.String("gpu-uuids-with-hw-slowdown-power-brake"),
 			cliContext.Int("xid-reboot-threshold"),
+			cliContext.IsSet("xid-reboot-threshold"),
 		)
 	}
 }
@@ -50,6 +51,7 @@ func cmdScan(
 	gpuUUIDsWithHWSlowdownThermalRaw string,
 	gpuUUIDsWithHWSlowdownPowerBrakeRaw string,
 	xidRebootThreshold int,
+	xidRebootThresholdIsSet bool,
 ) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
@@ -87,11 +89,15 @@ func cmdScan(
 		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
 	}
 
-	if xidRebootThreshold > 0 {
-		componentsxid.SetDefaultRebootThreshold(componentsxid.RebootThreshold{
-			Threshold: xidRebootThreshold,
-		})
-		log.Logger.Infow("set xid reboot threshold", "xidRebootThreshold", xidRebootThreshold)
+	if xidRebootThresholdIsSet {
+		if xidRebootThreshold > 0 {
+			componentsxid.SetDefaultRebootThreshold(componentsxid.RebootThreshold{
+				Threshold: xidRebootThreshold,
+			})
+			log.Logger.Infow("set xid reboot threshold", "xidRebootThreshold", xidRebootThreshold)
+		} else {
+			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)
+		}
 	}
 
 	gpuUUIDsWithRowRemappingPending := common.ParseGPUUUIDs(gpuUUIDsWithRowRemappingPendingRaw)
