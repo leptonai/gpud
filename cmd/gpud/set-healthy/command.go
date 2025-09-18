@@ -43,6 +43,13 @@ func CreateCommand() func(*cli.Context) error {
 			}
 		}
 
+		// Skip if no components specified
+		if len(components) == 0 {
+			log.Logger.Debugw("no components specified, skipping set-healthy")
+			fmt.Printf("no components specified, skipping operation\n")
+			return nil
+		}
+
 		// Create a context with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -53,11 +60,7 @@ func CreateCommand() func(*cli.Context) error {
 			return fmt.Errorf("failed to set components healthy: %w", err)
 		}
 
-		if len(components) > 0 {
-			fmt.Printf("successfully set components to healthy: %s\n", strings.Join(components, ", "))
-		} else {
-			fmt.Printf("successfully set all components to healthy\n")
-		}
+		fmt.Printf("successfully set components to healthy: %s\n", strings.Join(components, ", "))
 		return nil
 	}
 }
