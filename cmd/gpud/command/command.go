@@ -19,6 +19,7 @@ import (
 	cmdrun "github.com/leptonai/gpud/cmd/gpud/run"
 	cmdrunplugingroup "github.com/leptonai/gpud/cmd/gpud/run-plugin-group"
 	cmdscan "github.com/leptonai/gpud/cmd/gpud/scan"
+	cmdsethealthy "github.com/leptonai/gpud/cmd/gpud/set-healthy"
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
@@ -592,6 +593,23 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "kernel-message",
 					Usage: "set the kernel message to inject",
+				},
+			},
+		},
+		{
+			Name:      "set-healthy",
+			Aliases:   []string{"set-health"},
+			Usage:     "set the healthy state of components",
+			UsageText: "gpud set-healthy <components> [options]\n\n   <components>: comma-separated list of component names to set healthy",
+			Action:    cmdsethealthy.CreateCommand(),
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "log-level,l",
+					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+				&cli.StringFlag{
+					Name:  "server",
+					Usage: "server address for GPUd API (default: https://localhost:15132)",
 				},
 			},
 		},
