@@ -20,7 +20,14 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
-const Name = "accelerator-nvidia-gsp-firmware"
+const (
+	Name = "accelerator-nvidia-gsp-firmware"
+
+	// DefaultKernelModuleConfigPath is the default path to the NVIDIA kernel module configuration file
+	// This file contains kernel module parameters including NVreg_EnableGpuFirmware which controls GSP firmware
+	// ref. https://docs.nvidia.com/vgpu/latest/grid-vgpu-user-guide/index.html#disabling-gsp
+	DefaultKernelModuleConfigPath = "/etc/modprobe.d/nvidia.conf"
+)
 
 var _ components.Component = &component{}
 
@@ -30,6 +37,7 @@ type component struct {
 
 	nvmlInstance           nvidianvml.Instance
 	getGSPFirmwareModeFunc func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error)
+	kernelModuleConfigPath string
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -42,6 +50,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cancel:                 ccancel,
 		nvmlInstance:           gpudInstance.NVMLInstance,
 		getGSPFirmwareModeFunc: nvidianvml.GetGSPFirmwareMode,
+		kernelModuleConfigPath: DefaultKernelModuleConfigPath,
 	}
 	return c, nil
 }
@@ -140,6 +149,10 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
+
+		// validate the GSP firmware mode against kernel module configuration
+		// NVML may report GSP as enabled even when it's disabled at the kernel level
+		mode = nvidianvml.ValidateGSPFirmwareModeWithKernelConfig(mode, c.kernelModuleConfigPath)
 
 		cr.GSPFirmwareModes = append(cr.GSPFirmwareModes, mode)
 

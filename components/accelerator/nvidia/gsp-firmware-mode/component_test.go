@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"os"
+	"path/filepath"
+
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
@@ -111,6 +114,29 @@ func MockGSPFirmwareModeComponent(
 		cancel:                 cancel,
 		nvmlInstance:           mockInstance,
 		getGSPFirmwareModeFunc: getGSPFirmwareModeFunc,
+		kernelModuleConfigPath: DefaultKernelModuleConfigPath,
+	}
+}
+
+// MockGSPFirmwareModeComponentWithConfigPath creates a component with mocked functions and custom kernel config path
+func MockGSPFirmwareModeComponentWithConfigPath(
+	ctx context.Context,
+	devicesFunc func() map[string]device.Device,
+	getGSPFirmwareModeFunc func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error),
+	kernelConfigPath string,
+) components.Component {
+	cctx, cancel := context.WithCancel(ctx)
+
+	mockInstance := &mockNVMLInstance{
+		devicesFunc: devicesFunc,
+	}
+
+	return &component{
+		ctx:                    cctx,
+		cancel:                 cancel,
+		nvmlInstance:           mockInstance,
+		getGSPFirmwareModeFunc: getGSPFirmwareModeFunc,
+		kernelModuleConfigPath: kernelConfigPath,
 	}
 }
 
@@ -138,6 +164,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
 	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getGSPFirmwareModeFunc, "getGSPFirmwareModeFunc should be set")
+	assert.Equal(t, DefaultKernelModuleConfigPath, tc.kernelModuleConfigPath, "kernelModuleConfigPath should be set to default")
 }
 
 func TestName(t *testing.T) {
@@ -968,4 +995,198 @@ func TestCheck_ErrorOnSecondGPU(t *testing.T) {
 	if len(cr.GSPFirmwareModes) == 1 {
 		assert.Equal(t, uuid1, cr.GSPFirmwareModes[0].UUID)
 	}
+}
+
+// TestCheck_WithKernelConfigValidation tests GSP firmware validation with kernel config
+func TestCheck_WithKernelConfigValidation(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary directory for kernel config
+	tmpDir, err := os.MkdirTemp("", "gsp-component-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	testCases := []struct {
+		name                string
+		kernelConfigContent string
+		nvmlGSPEnabled      bool
+		expectedGSPEnabled  bool
+		expectedHealth      apiv1.HealthStateType
+		expectedReason      string
+		createConfigFile    bool
+	}{
+		{
+			name:                "NVML reports enabled but kernel config has it disabled - should be healthy",
+			kernelConfigContent: "options nvidia NVreg_EnableGpuFirmware=0\n",
+			nvmlGSPEnabled:      true,  // NVML reports enabled
+			expectedGSPEnabled:  false, // Should be overridden to disabled
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "all 1 GPU(s) were checked, no GSP firmware mode issue found",
+			createConfigFile:    true,
+		},
+		{
+			name:                "NVML reports enabled and kernel config has it enabled - should be degraded",
+			kernelConfigContent: "options nvidia NVreg_EnableGpuFirmware=1\n",
+			nvmlGSPEnabled:      true,
+			expectedGSPEnabled:  true, // Remains enabled
+			expectedHealth:      apiv1.HealthStateTypeDegraded,
+			expectedReason:      "GSP firmware mode supported but should be disabled for " + uuid,
+			createConfigFile:    true,
+		},
+		{
+			name:                "NVML reports disabled - should be healthy regardless of kernel config",
+			kernelConfigContent: "options nvidia NVreg_EnableGpuFirmware=1\n",
+			nvmlGSPEnabled:      false,
+			expectedGSPEnabled:  false,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "all 1 GPU(s) were checked, no GSP firmware mode issue found",
+			createConfigFile:    true,
+		},
+		{
+			name:                "No kernel config file - trust NVML (enabled) - should be degraded",
+			kernelConfigContent: "",
+			nvmlGSPEnabled:      true,
+			expectedGSPEnabled:  true,
+			expectedHealth:      apiv1.HealthStateTypeDegraded,
+			expectedReason:      "GSP firmware mode supported but should be disabled for " + uuid,
+			createConfigFile:    false,
+		},
+		{
+			name:                "Kernel config with comments and GSP disabled",
+			kernelConfigContent: "# Disable GSP firmware to avoid XID errors\noptions nvidia NVreg_EnableGpuFirmware=0\n",
+			nvmlGSPEnabled:      true,
+			expectedGSPEnabled:  false, // Should be overridden
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "all 1 GPU(s) were checked, no GSP firmware mode issue found",
+			createConfigFile:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			configPath := filepath.Join(tmpDir, "nvidia-"+tc.name+".conf")
+
+			if tc.createConfigFile {
+				err := os.WriteFile(configPath, []byte(tc.kernelConfigContent), 0644)
+				require.NoError(t, err)
+			}
+
+			// Create the GSP mode that NVML would return
+			getGSPFirmwareModeFunc := func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error) {
+				return nvidianvml.GSPFirmwareMode{
+					UUID:      uuid,
+					BusID:     "test-pci",
+					Enabled:   tc.nvmlGSPEnabled,
+					Supported: true,
+				}, nil
+			}
+
+			// Create component with custom config path
+			component := MockGSPFirmwareModeComponentWithConfigPath(
+				ctx,
+				getDevicesFunc,
+				getGSPFirmwareModeFunc,
+				configPath,
+			).(*component)
+
+			result := component.Check()
+
+			// Verify the result
+			cr, ok := result.(*checkResult)
+			require.True(t, ok)
+			assert.Equal(t, tc.expectedHealth, cr.health, "Health state mismatch")
+			assert.Equal(t, tc.expectedReason, cr.reason, "Reason mismatch")
+
+			// Verify GSP mode was correctly validated
+			require.Len(t, cr.GSPFirmwareModes, 1)
+			assert.Equal(t, tc.expectedGSPEnabled, cr.GSPFirmwareModes[0].Enabled,
+				"GSP enabled state should be validated against kernel config")
+		})
+	}
+}
+
+// TestCheck_RealWorldScenario tests the real-world scenario reported by the user
+func TestCheck_RealWorldScenario(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary directory for kernel config
+	tmpDir, err := os.MkdirTemp("", "gsp-realworld-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "nvidia.conf")
+
+	// Create the exact config file reported by the user
+	configContent := `options nvidia NVreg_EnableGpuFirmware=0
+`
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	uuid := "GPU-12345678-1234-1234-1234-123456789012"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "0000:3b:00.0")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	// Simulate NVML incorrectly reporting GSP as enabled
+	getGSPFirmwareModeFunc := func(uuid string, dev device.Device) (nvidianvml.GSPFirmwareMode, error) {
+		return nvidianvml.GSPFirmwareMode{
+			UUID:      uuid,
+			BusID:     "0000:3b:00.0",
+			Enabled:   true, // NVML reports enabled (incorrectly)
+			Supported: true,
+		}, nil
+	}
+
+	// Create component with the kernel config path
+	component := MockGSPFirmwareModeComponentWithConfigPath(
+		ctx,
+		getDevicesFunc,
+		getGSPFirmwareModeFunc,
+		configPath,
+	).(*component)
+
+	result := component.Check()
+
+	// Verify the result
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Should be healthy because kernel config overrides NVML to disabled
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
+		"Should be healthy when kernel config disables GSP even if NVML reports enabled")
+	assert.Equal(t, "all 1 GPU(s) were checked, no GSP firmware mode issue found", cr.reason)
+
+	// Verify GSP was correctly detected as disabled
+	require.Len(t, cr.GSPFirmwareModes, 1)
+	assert.False(t, cr.GSPFirmwareModes[0].Enabled,
+		"GSP should be detected as disabled based on kernel config")
+	assert.True(t, cr.GSPFirmwareModes[0].Supported,
+		"GSP support status should not change")
 }
