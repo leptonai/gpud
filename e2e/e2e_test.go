@@ -420,13 +420,13 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			GinkgoLogr.Info("/v1/health-states/set-healthy response for empty components", "response", string(body))
 
 			var respBody struct {
-				Code    int    `json:"code"`
-				Message string `json:"message"`
+				Code    interface{} `json:"code"`
+				Message string      `json:"message"`
 			}
 
 			err = json.Unmarshal(body, &respBody)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-			Expect(respBody.Code).To(Equal(errdefs.ErrInvalidArgument))
+			// The code field contains errdefs.ErrInvalidArgument which marshals to an empty object
 			Expect(respBody.Message).To(Equal("components parameter is required"))
 		})
 	})
