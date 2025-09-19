@@ -132,7 +132,7 @@ func TestComponentValidationOrdering(t *testing.T) {
 		cr := result.(*checkResult)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
-		assert.Equal(t, `The user applied path "/mnt/ext4" as NFS volume, but in fact the file system type is not NFS.`, cr.reason)
+		assert.Equal(t, `The user applied path "/mnt/ext4" as NFS volume, but in fact the file system type "ext4" is not NFS.`, cr.reason)
 		assert.Nil(t, cr.err)
 	})
 
@@ -269,7 +269,7 @@ func TestValidationOrderingMultiplePaths(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		assert.Contains(t, cr.reason, "/mnt/ext4")
-		assert.Contains(t, cr.reason, "file system type is not NFS")
+		assert.Contains(t, cr.reason, "file system type \"ext4\" is not NFS")
 		// Should check first two filesystems only
 		assert.Equal(t, 2, fsCheckCallCount)
 	})

@@ -700,7 +700,7 @@ func TestCheckWithNonNFSMount(t *testing.T) {
 	cr := result.(*checkResult)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
-	assert.Equal(t, fmt.Sprintf("The user applied path %q as NFS volume, but in fact the file system type is not NFS.", tmpDir), result.Summary())
+	assert.Equal(t, fmt.Sprintf("The user applied path %q as NFS volume, but in fact the file system type %q is not NFS.", tmpDir, "ext4"), result.Summary())
 	assert.Nil(t, cr.err) // This case doesn't set an error, just health state
 }
 

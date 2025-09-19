@@ -176,7 +176,7 @@ func (c *component) Check() components.CheckResult {
 		}
 		if !c.isNFSFSType(fsType) {
 			cr.health = apiv1.HealthStateTypeDegraded
-			cr.reason = fmt.Sprintf("The user applied path %q as NFS volume, but in fact the file system type is not NFS.", groupConfig.VolumePath)
+			cr.reason = fmt.Sprintf("The user applied path %q as NFS volume, but in fact the file system type %q is not NFS.", groupConfig.VolumePath, fsType)
 			log.Logger.Warnw(cr.reason)
 			return cr
 		}
