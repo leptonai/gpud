@@ -23,11 +23,16 @@ func FindMntTargetDevice(dir string) (string, string, error) {
 // findMntTargetDevice is a helper function to find the mount target device and its file system type
 // for a given target directory.
 func findMntTargetDevice(scanner *bufio.Scanner, dir string) (string, string, error) {
+	var autofsDev, autofsFsType string
+	var foundAutofs bool
+
 	for scanner.Scan() {
 		line := scanner.Text()
 
 		fields := strings.Fields(line)
-		if len(fields) < 11 {
+
+		// "optional fields" (shared, master, propagate_from) can be missing in some systems, so requiring 11+ fields was too strict.
+		if len(fields) < 10 {
 			continue
 		}
 
@@ -61,10 +66,34 @@ func findMntTargetDevice(scanner *bufio.Scanner, dir string) (string, string, er
 			continue
 		}
 
+		// Handle autofs mount stack: autofs creates placeholder mounts that trigger
+		// actual filesystem mounts (like NFS) upon access. We need to prioritize the
+		// real filesystem over the autofs placeholder.
+		//
+		// Example mount stack:
+		// 2424 2357 0:37 / /mnt/nfs-share rw,relatime - autofs systemd-1 ...
+		// 2425 2424 0:163 / /mnt/nfs-share rw,relatime - nfs 172.31.64.223:/nfs-share ...
+		//
+		// The autofs mount (2424) is the placeholder, but the NFS mount (2425) is the
+		// actual active filesystem. We store the autofs mount as a fallback but continue
+		// searching for the real filesystem mount.
+		if strings.Contains(fsType, "autofs") {
+			autofsDev = dev
+			autofsFsType = fsType
+			foundAutofs = true
+			continue
+		}
+
+		// Found a non-autofs mount, return it immediately
 		return dev, fsType, nil
 	}
 	if err := scanner.Err(); err != nil {
 		return "", "", err
+	}
+
+	// If we found an autofs mount but no non-autofs mount, return the autofs mount
+	if foundAutofs {
+		return autofsDev, autofsFsType, nil
 	}
 
 	return "", "", nil
@@ -87,7 +116,7 @@ func findFsTypeAndDeviceByMinorNumber(scanner *bufio.Scanner, minor int) (string
 		line := scanner.Text()
 
 		fields := strings.Fields(line)
-		if len(fields) < 11 {
+		if len(fields) < 10 {
 			continue
 		}
 
