@@ -186,11 +186,35 @@ func TestStartWriterAndReader(t *testing.T) {
 		closer:            &closeOnce{closer: make(chan any)},
 	}
 
-	// Initialize testable functions with default implementations
-	s.timeAfterFunc = time.After
+	// Initialize testable functions with controlled implementations to make
+	// goroutine lifecycles deterministic during the test.
+	s.timeAfterFunc = func(d time.Duration) <-chan time.Time {
+		// Block reconnection attempts after the first session so we can
+		// explicitly control shutdown ordering in the test.
+		return make(chan time.Time)
+	}
 	s.timeSleepFunc = time.Sleep
-	s.startReaderFunc = s.startReader
-	s.startWriterFunc = s.startWriter
+	originalStartReader := s.startReader
+	originalStartWriter := s.startWriter
+
+	var exitMu sync.Mutex
+	var readerExitChans []<-chan any
+	var writerExitChans []<-chan any
+
+	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+		exitMu.Lock()
+		readerExitChans = append(readerExitChans, readerExit)
+		exitMu.Unlock()
+		originalStartReader(ctx, readerExit, jar)
+	}
+
+	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+		exitMu.Lock()
+		writerExitChans = append(writerExitChans, writerExit)
+		exitMu.Unlock()
+		originalStartWriter(ctx, writerExit, jar)
+	}
+
 	s.checkServerHealthFunc = s.checkServerHealth
 
 	// start writer reader keepAlive
@@ -202,6 +226,35 @@ func TestStartWriterAndReader(t *testing.T) {
 	// 2. Start reader and writer goroutines
 	// 3. Establish HTTP connections
 	time.Sleep(500 * time.Millisecond)
+
+	waitForGoroutineRegistration := func(getCount func() int, name string) {
+		t.Helper()
+		deadline := time.After(2 * time.Second)
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			if count := getCount(); count > 0 {
+				return
+			}
+			select {
+			case <-ticker.C:
+			case <-deadline:
+				t.Fatalf("timeout waiting for %s goroutine to start", name)
+			}
+		}
+	}
+
+	waitForGoroutineRegistration(func() int {
+		exitMu.Lock()
+		defer exitMu.Unlock()
+		return len(readerExitChans)
+	}, "reader")
+
+	waitForGoroutineRegistration(func() int {
+		exitMu.Lock()
+		defer exitMu.Unlock()
+		return len(writerExitChans)
+	}, "writer")
 
 	// Test cases
 	testCases := []struct {
@@ -232,6 +285,35 @@ func TestStartWriterAndReader(t *testing.T) {
 			}
 		})
 	}
+
+	// Signal active session goroutines to exit and wait for them to finish
+	s.closer.Close()
+
+	waitForExit := func(chans []<-chan any, name string) {
+		t.Helper()
+		for idx, ch := range chans {
+			select {
+			case <-ch:
+			case <-time.After(2 * time.Second):
+				t.Fatalf("timeout waiting for %s exit channel %d to close", name, idx)
+			}
+		}
+	}
+
+	exitMu.Lock()
+	readerChans := append([]<-chan any(nil), readerExitChans...)
+	writerChans := append([]<-chan any(nil), writerExitChans...)
+	exitMu.Unlock()
+
+	if len(readerChans) == 0 {
+		t.Fatal("no reader exit channels registered")
+	}
+	if len(writerChans) == 0 {
+		t.Fatal("no writer exit channels registered")
+	}
+
+	waitForExit(readerChans, "reader")
+	waitForExit(writerChans, "writer")
 
 	// Give a bit of time for any pending operations
 	time.Sleep(100 * time.Millisecond)
