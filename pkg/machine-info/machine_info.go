@@ -324,7 +324,9 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 
 		serialID, ret := dev.GetSerial()
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("failed to get serial id: %v", nvml.ErrorString(ret))
+			if ret != nvml.ERROR_NOT_SUPPORTED {
+				return nil, fmt.Errorf("failed to get serial id: %v", nvml.ErrorString(ret))
+			}
 		}
 
 		minorID, ret := dev.GetMinorNumber()
