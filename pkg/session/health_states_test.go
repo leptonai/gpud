@@ -1,64 +1,14 @@
 package session
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 )
-
-// MockComponent is a mock implementation of components.Component
-type MockComponent struct {
-	mock.Mock
-}
-
-func (m *MockComponent) Name() string {
-	args := m.Called()
-	return args.String(0)
-}
-
-func (m *MockComponent) Tags() []string {
-	args := m.Called()
-	return args.Get(0).([]string)
-}
-
-func (m *MockComponent) IsSupported() bool {
-	args := m.Called()
-	return args.Bool(0)
-}
-
-func (m *MockComponent) Start() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
-func (m *MockComponent) Close() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
-func (m *MockComponent) LastHealthStates() apiv1.HealthStates {
-	args := m.Called()
-	return args.Get(0).(apiv1.HealthStates)
-}
-
-func (m *MockComponent) Check() components.CheckResult {
-	args := m.Called()
-	return args.Get(0).(components.CheckResult)
-}
-
-func (m *MockComponent) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
-	args := m.Called(ctx, since)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(apiv1.Events), args.Error(1)
-}
 
 func TestGetStatesFromComponentWithDeps(t *testing.T) {
 	tests := []struct {
@@ -212,13 +162,13 @@ func TestGetStatesFromComponentWithDeps(t *testing.T) {
 				if !tt.componentExists {
 					return nil
 				}
-				comp := &MockComponent{}
+				comp := &mockComponent{}
 				comp.On("LastHealthStates").Return(tt.mockHealthStates)
 				return comp
 			}
 
 			// Call the function under test
-			result := getStatesFromComponentWithDeps(
+			result := getHealthStatesFromComponentWithDeps(
 				tt.componentName,
 				tt.lastRebootTime,
 				getComponentFunc,
@@ -293,14 +243,14 @@ func TestRebootTimeScenarios(t *testing.T) {
 			lastRebootTime := time.Now().Add(time.Duration(-tt.rebootMinutesAgo) * time.Minute)
 
 			getComponentFunc := func(name string) components.Component {
-				comp := &MockComponent{}
+				comp := &mockComponent{}
 				comp.On("LastHealthStates").Return(apiv1.HealthStates{
 					{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Test failure"},
 				})
 				return comp
 			}
 
-			result := getStatesFromComponentWithDeps(
+			result := getHealthStatesFromComponentWithDeps(
 				componentName,
 				lastRebootTime,
 				getComponentFunc,
@@ -350,14 +300,14 @@ func TestBootTimeUnixSecondsIntegration(t *testing.T) {
 			rebootTime := time.Unix(int64(tt.bootTimeUnix), 0)
 
 			getComponentFunc := func(name string) components.Component {
-				comp := &MockComponent{}
+				comp := &mockComponent{}
 				comp.On("LastHealthStates").Return(apiv1.HealthStates{
 					{Health: apiv1.HealthStateTypeUnhealthy, Reason: "Test"},
 				})
 				return comp
 			}
 
-			result := getStatesFromComponentWithDeps(
+			result := getHealthStatesFromComponentWithDeps(
 				"test-component",
 				rebootTime,
 				getComponentFunc,

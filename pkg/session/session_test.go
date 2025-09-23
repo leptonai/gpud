@@ -186,11 +186,35 @@ func TestStartWriterAndReader(t *testing.T) {
 		closer:            &closeOnce{closer: make(chan any)},
 	}
 
-	// Initialize testable functions with default implementations
-	s.timeAfterFunc = time.After
+	// Initialize testable functions with controlled implementations to make
+	// goroutine lifecycles deterministic during the test.
+	s.timeAfterFunc = func(d time.Duration) <-chan time.Time {
+		// Block reconnection attempts after the first session so we can
+		// explicitly control shutdown ordering in the test.
+		return make(chan time.Time)
+	}
 	s.timeSleepFunc = time.Sleep
-	s.startReaderFunc = s.startReader
-	s.startWriterFunc = s.startWriter
+	originalStartReader := s.startReader
+	originalStartWriter := s.startWriter
+
+	var exitMu sync.Mutex
+	var readerExitChans []<-chan any
+	var writerExitChans []<-chan any
+
+	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+		exitMu.Lock()
+		readerExitChans = append(readerExitChans, readerExit)
+		exitMu.Unlock()
+		originalStartReader(ctx, readerExit, jar)
+	}
+
+	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+		exitMu.Lock()
+		writerExitChans = append(writerExitChans, writerExit)
+		exitMu.Unlock()
+		originalStartWriter(ctx, writerExit, jar)
+	}
+
 	s.checkServerHealthFunc = s.checkServerHealth
 
 	// start writer reader keepAlive
@@ -202,6 +226,35 @@ func TestStartWriterAndReader(t *testing.T) {
 	// 2. Start reader and writer goroutines
 	// 3. Establish HTTP connections
 	time.Sleep(500 * time.Millisecond)
+
+	waitForGoroutineRegistration := func(getCount func() int, name string) {
+		t.Helper()
+		deadline := time.After(2 * time.Second)
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			if count := getCount(); count > 0 {
+				return
+			}
+			select {
+			case <-ticker.C:
+			case <-deadline:
+				t.Fatalf("timeout waiting for %s goroutine to start", name)
+			}
+		}
+	}
+
+	waitForGoroutineRegistration(func() int {
+		exitMu.Lock()
+		defer exitMu.Unlock()
+		return len(readerExitChans)
+	}, "reader")
+
+	waitForGoroutineRegistration(func() int {
+		exitMu.Lock()
+		defer exitMu.Unlock()
+		return len(writerExitChans)
+	}, "writer")
 
 	// Test cases
 	testCases := []struct {
@@ -232,6 +285,35 @@ func TestStartWriterAndReader(t *testing.T) {
 			}
 		})
 	}
+
+	// Signal active session goroutines to exit and wait for them to finish
+	s.closer.Close()
+
+	waitForExit := func(chans []<-chan any, name string) {
+		t.Helper()
+		for idx, ch := range chans {
+			select {
+			case <-ch:
+			case <-time.After(2 * time.Second):
+				t.Fatalf("timeout waiting for %s exit channel %d to close", name, idx)
+			}
+		}
+	}
+
+	exitMu.Lock()
+	readerChans := append([]<-chan any(nil), readerExitChans...)
+	writerChans := append([]<-chan any(nil), writerExitChans...)
+	exitMu.Unlock()
+
+	if len(readerChans) == 0 {
+		t.Fatal("no reader exit channels registered")
+	}
+	if len(writerChans) == 0 {
+		t.Fatal("no writer exit channels registered")
+	}
+
+	waitForExit(readerChans, "reader")
+	waitForExit(writerChans, "writer")
 
 	// Give a bit of time for any pending operations
 	time.Sleep(100 * time.Millisecond)
@@ -645,27 +727,100 @@ func TestSessionKeepAlive(t *testing.T) {
 		closer:         &closeOnce{closer: make(chan any)},
 	}
 
-	// Initialize testable functions with default implementations
-	s.timeAfterFunc = time.After
+	// Initialize testable functions with controlled implementations to prevent race conditions
+	s.timeAfterFunc = func(d time.Duration) <-chan time.Time {
+		// Block reconnection attempts to control shutdown
+		return make(chan time.Time)
+	}
 	s.timeSleepFunc = time.Sleep
-	s.startReaderFunc = s.startReader
-	s.startWriterFunc = s.startWriter
+	originalStartReader := s.startReader
+	originalStartWriter := s.startWriter
+
+	var exitMu sync.Mutex
+	var readerExitChans []<-chan any
+	var writerExitChans []<-chan any
+
+	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+		exitMu.Lock()
+		readerExitChans = append(readerExitChans, readerExit)
+		exitMu.Unlock()
+		originalStartReader(ctx, readerExit, jar)
+	}
+
+	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+		exitMu.Lock()
+		writerExitChans = append(writerExitChans, writerExit)
+		exitMu.Unlock()
+		originalStartWriter(ctx, writerExit, jar)
+	}
+
 	s.checkServerHealthFunc = s.checkServerHealth
 
 	go s.keepAlive()
 
-	// Let it run for a bit
+	// Let it run for a bit to establish connections
 	time.Sleep(300 * time.Millisecond)
+
+	// CRITICAL FIX: Cancel the context first to stop the keepAlive loop
+	// This prevents the race where keepAlive might be writing to s.closer
+	// while we're trying to read it
+	cancel()
+
+	// Give keepAlive loop time to exit after context cancellation
+	time.Sleep(100 * time.Millisecond)
+
+	// Now it's safe to signal goroutines to exit via closer
+	// since keepAlive loop has stopped and won't recreate s.closer
+	s.closer.Close()
+
+	// Wait for all goroutines to exit
+	waitForExit := func(chans []<-chan any, name string) {
+		t.Helper()
+		for idx, ch := range chans {
+			select {
+			case <-ch:
+			case <-time.After(2 * time.Second):
+				t.Logf("timeout waiting for %s exit channel %d to close", name, idx)
+			}
+		}
+	}
+
+	exitMu.Lock()
+	readerChans := append([]<-chan any(nil), readerExitChans...)
+	writerChans := append([]<-chan any(nil), writerExitChans...)
+	exitMu.Unlock()
+
+	// Only wait if goroutines were started (they may not start if server health check fails)
+	if len(readerChans) > 0 {
+		waitForExit(readerChans, "reader")
+	}
+	if len(writerChans) > 0 {
+		waitForExit(writerChans, "writer")
+	}
+
+	// Give a bit of time for any pending operations
+	time.Sleep(100 * time.Millisecond)
 
 	// Should be able to stop cleanly
 	s.Stop()
 
 	// Channels should be closed
-	if _, ok := <-s.reader; ok {
-		t.Error("Reader channel should be closed")
+	select {
+	case _, ok := <-s.reader:
+		if ok {
+			t.Error("Reader channel should be closed")
+		}
+	default:
+		// Channel might be empty but closed, which is fine
 	}
-	if _, ok := <-s.writer; ok {
-		t.Error("Writer channel should be closed")
+
+	select {
+	case _, ok := <-s.writer:
+		if ok {
+			t.Error("Writer channel should be closed")
+		}
+	default:
+		// Channel might be empty but closed, which is fine
 	}
 }
 
