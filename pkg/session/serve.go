@@ -121,6 +121,11 @@ func (s *Session) serve() {
 		restartExitCode := -1
 		response := &Response{}
 
+		// set to true if the request is handled asynchronously
+		// thus no need to wait for its completion to send the
+		// response back to the control plane
+		handledAsync := false
+
 		switch payload.Method {
 		case "reboot":
 			// To inform the control plane that the reboot request has been processed, reboot after 10 seconds.
@@ -333,42 +338,22 @@ func (s *Session) serve() {
 			// TODO: deprecate "triggerComponentCheck" after control plane supports "triggerComponent"
 		case "triggerComponent",
 			"triggerComponentCheck":
-			checkResults := make([]components.CheckResult, 0)
-			if payload.ComponentName != "" {
-				// requesting a specific component, tag is ignored
-				comp := s.componentsRegistry.Get(payload.ComponentName)
-				if comp == nil {
-					log.Logger.Warnw("component not found", "name", payload.ComponentName)
-					response.ErrorCode = http.StatusNotFound
-					break
-				}
-
-				checkResults = append(checkResults, comp.Check())
-			} else if payload.TagName != "" {
-				components := s.componentsRegistry.All()
-				for _, comp := range components {
-					matched := false
-					for _, tag := range comp.Tags() {
-						if tag == payload.TagName {
-							matched = true
-							break
-						}
-					}
-					if !matched {
-						continue
-					}
-
-					checkResults = append(checkResults, comp.Check())
-				}
-			}
-
-			response.States = apiv1.GPUdComponentHealthStates{}
-			for _, checkResult := range checkResults {
-				response.States = append(response.States, apiv1.ComponentHealthStates{
-					Component: checkResult.ComponentName(),
-					States:    checkResult.HealthStates(),
-				})
-			}
+			// "triggerComponent" requests can take materially longer than the
+			// other control-plane RPCs because each component executes its own `Check()` routine, often
+			// hitting external systems (NVML, Kubernetes API, Docker, etc). Previously, the session
+			// loop processed these checks synchronously, which meant a single slow component could block
+			// the entire `serve()` goroutine and keep subsequent control-plane requests from being read or
+			// acknowledged in time. Here we assume that the control plane keys responses using ReqID,
+			// thus not rely on strict ordering, so it is safe to emit the reply from a background goroutine
+			// as long as the ReqID is preserved. This goroutine launch offloads the expensive `Check()` work
+			// and the eventual response write to the background worker so the main session loop stays responsive.
+			// Previously, even a single manual trigger aimed at the disk component (whose Check() performs slow
+			// disk scans) was enough to wedge the loop: `serve()` blocked on disk.Check(), the control plane timed out
+			// and canceled the request, GPUd restarted the session, and the control plane continued using
+			// stale health data because no response ever left the box. Running the check asynchronously
+			// prevents that deadlock while keeping the previous payload contract intact.
+			go s.processTriggerComponentRequest(body.ReqID, payload.Method, payload)
+			handledAsync = true
 
 		case "deregisterComponent":
 			if payload.ComponentName != "" {
@@ -418,21 +403,11 @@ func (s *Session) serve() {
 
 		cancel()
 
-		responseRaw, _ := json.Marshal(response)
-		s.writer <- Body{
-			Data:  responseRaw,
-			ReqID: body.ReqID,
+		if handledAsync {
+			continue
 		}
 
-		s.auditLogger.Log(
-			log.WithKind("Session"),
-			log.WithAuditID(body.ReqID),
-			log.WithMachineID(s.machineID),
-			log.WithStage("RequestCompleted"),
-			log.WithRequestURI(s.epControlPlane+"/api/v1/session"),
-			log.WithVerb(payload.Method),
-			log.WithData(response),
-		)
+		s.sendResponse(body.ReqID, payload.Method, response)
 
 		if restartExitCode != -1 {
 			go func() {
@@ -451,6 +426,114 @@ func (s *Session) serve() {
 				os.Exit(s.autoUpdateExitCode)
 			}()
 		}
+	}
+}
+
+// processTriggerComponentRequest runs entirely in a background goroutine.
+// The worker reproduces the synchronous logic we historically ran in the main serve loop, but keeps
+// all potentially blocking `Check()` calls off the hot path so other control-plane requests can be
+// decoded and handled immediately. The ReqID travels with the request so the control plane can
+// correlate the eventually-delivered response.
+func (s *Session) processTriggerComponentRequest(reqID, method string, payload Request) {
+	response := &Response{}
+	checkResults := make([]components.CheckResult, 0)
+
+	if payload.ComponentName != "" {
+		// requesting a specific component, tag is ignored
+		comp := s.componentsRegistry.Get(payload.ComponentName)
+		if comp == nil {
+			log.Logger.Warnw("component not found", "name", payload.ComponentName)
+			response.ErrorCode = http.StatusNotFound
+			s.sendResponse(reqID, method, response)
+			return
+		}
+
+		checkResults = append(checkResults, comp.Check())
+	} else if payload.TagName != "" {
+		components := s.componentsRegistry.All()
+		for _, comp := range components {
+			matched := false
+			for _, tag := range comp.Tags() {
+				if tag == payload.TagName {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+
+			checkResults = append(checkResults, comp.Check())
+		}
+	}
+
+	response.States = apiv1.GPUdComponentHealthStates{}
+	for _, checkResult := range checkResults {
+		response.States = append(response.States, apiv1.ComponentHealthStates{
+			Component: checkResult.ComponentName(),
+			States:    checkResult.HealthStates(),
+		})
+	}
+
+	// The asynchronous worker must still emit exactly one response with the original ReqID. sendResponse
+	// handles marshaling plus audit logging so replies generated here look identical to the historical
+	// synchronous path.
+	s.sendResponse(reqID, method, response)
+}
+
+// sendResponse centralizes response marshaling, channel delivery, and audit logging. LEP-2083 moved
+// triggerComponent replies into a background goroutine, so both synchronous and asynchronous paths now
+// route through this helper to keep the control-plane payload contract identical to the pre-PR#1078
+// behavior.
+func (s *Session) sendResponse(reqID, method string, response *Response) {
+	responseRaw, err := json.Marshal(response)
+	if err != nil {
+		log.Logger.Errorw("session serve: failed to marshal response", "method", method, "reqID", reqID, "error", err)
+		return
+	}
+
+	body := Body{
+		Data:  responseRaw,
+		ReqID: reqID,
+	}
+
+	if !s.trySendResponse(body) {
+		return
+	}
+
+	s.auditLogger.Log(
+		log.WithKind("Session"),
+		log.WithAuditID(reqID),
+		log.WithMachineID(s.machineID),
+		log.WithStage("RequestCompleted"),
+		log.WithRequestURI(s.epControlPlane+"/api/v1/session"),
+		log.WithVerb(method),
+		log.WithData(response),
+	)
+}
+
+// trySendResponse attempts to write to s.writer while guarding against shutdown races. When the session
+// stops it closes s.writer; without the recover below an in-flight asynchronous write (triggered by
+// LEP-2083) would panic and crash the session worker. Returning false lets the caller skip audit logging
+// for responses that never made it onto the wire.
+func (s *Session) trySendResponse(body Body) (sent bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Logger.Warnw(
+				"session serve: failed to write response, writer closed",
+				"reqID", body.ReqID,
+				"panic", r,
+			)
+			sent = false
+		}
+	}()
+
+	select {
+	case <-s.ctx.Done():
+		log.Logger.Debugw("session serve: dropping response, session context done", "reqID", body.ReqID)
+		return false
+	case s.writer <- body:
+		return true
 	}
 }
 
