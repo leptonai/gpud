@@ -126,280 +126,8 @@ func (s *Session) serve() {
 		// response back to the control plane
 		handledAsync := false
 
-		switch payload.Method {
-		case "reboot":
-			// To inform the control plane that the reboot request has been processed, reboot after 10 seconds.
-			err := pkghost.Reboot(s.ctx, pkghost.WithDelaySeconds(10))
-			if err != nil {
-				log.Logger.Errorf("failed to trigger reboot machine: %v", err)
-				response.Error = err.Error()
-			}
-
-		case "metrics":
-			metrics, err := s.getMetrics(ctx, payload)
-			if err != nil {
-				response.Error = err.Error()
-			}
-			response.Metrics = metrics
-
-		case "states":
-			states, err := s.getHealthStates(payload)
-			if err != nil {
-				response.Error = err.Error()
-			}
-			response.States = states
-
-		case "events":
-			events, err := s.getEvents(ctx, payload)
-			if err != nil {
-				response.Error = err.Error()
-			}
-			response.Events = events
-
-		case "delete":
-			go s.delete()
-
-		case "logout":
-			stateFile, err := config.DefaultStateFile()
-			if err != nil {
-				log.Logger.Errorw("failed to get state file", "error", err)
-				response.Error = err.Error()
-				break
-			}
-			dbRW, err := sqlite.Open(stateFile)
-			if err != nil {
-				log.Logger.Errorw("failed to open state file", "error", err)
-				response.Error = err.Error()
-				dbRW.Close()
-				break
-			}
-			if err = pkgmetadata.DeleteAllMetadata(ctx, dbRW); err != nil {
-				log.Logger.Errorw("failed to purge metadata", "error", err)
-				response.Error = err.Error()
-				dbRW.Close()
-				break
-			}
-			dbRW.Close()
-			err = pkghost.Stop(s.ctx, pkghost.WithDelaySeconds(10))
-			if err != nil {
-				log.Logger.Errorf("failed to trigger stop gpud: %v", err)
-				response.Error = err.Error()
-			}
-
-		case "setHealthy":
-			log.Logger.Infow("setHealthy received", "components", payload.Components)
-			for _, componentName := range payload.Components {
-				comp := s.componentsRegistry.Get(componentName)
-				if comp == nil {
-					log.Logger.Errorw("failed to get component", "error", errdefs.ErrNotFound)
-					continue
-				}
-				if healthSettable, ok := comp.(components.HealthSettable); ok {
-					if err := healthSettable.SetHealthy(); err != nil {
-						log.Logger.Errorw("failed to set healthy", "component", componentName, "error", err)
-					}
-				} else {
-					log.Logger.Warnw("component does not implement HealthSettable, dropping setHealthy request", "component", componentName)
-				}
-			}
-
-		case "gossip":
-			s.processGossip(response)
-
-		case "packageStatus":
-			packageStatus, err := gpudmanager.GlobalController.Status(ctx)
-			if err != nil {
-				response.Error = err.Error()
-			}
-			var result []apiv1.PackageStatus
-			for _, currPackage := range packageStatus {
-				packagePhase := apiv1.UnknownPhase
-				if currPackage.IsInstalled {
-					packagePhase = apiv1.InstalledPhase
-				} else if currPackage.Installing {
-					packagePhase = apiv1.InstallingPhase
-				}
-				status := "Unhealthy"
-				if currPackage.Status {
-					status = "Healthy"
-				}
-				result = append(result, apiv1.PackageStatus{
-					Name:           currPackage.Name,
-					Phase:          packagePhase,
-					Status:         status,
-					CurrentVersion: currPackage.CurrentVersion,
-				})
-			}
-			response.PackageStatus = result
-
-		case "update":
-			if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
-				err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
-				log.Logger.Infow("Update received for machine", "version", targetVersion[1], "package", targetVersion[0], "error", err)
-			} else {
-				if !s.enableAutoUpdate {
-					log.Logger.Warnw("auto update is disabled -- skipping update")
-					response.Error = "auto update is disabled"
-					break
-				}
-
-				systemdManaged, _ := systemd.IsActive("gpud.service")
-				if s.autoUpdateExitCode == -1 && !systemdManaged {
-					log.Logger.Warnw("gpud is not managed with systemd and auto update by exit code is not set -- skipping update")
-					response.Error = "gpud is not managed with systemd"
-					break
-				}
-
-				nextVersion := payload.UpdateVersion
-				if nextVersion == "" {
-					log.Logger.Warnw("target update_version is empty -- skipping update")
-					response.Error = "update_version is empty"
-					break
-				}
-
-				if systemdManaged {
-					if uerr := pkdsystemd.CreateDefaultEnvFile(""); uerr != nil {
-						response.Error = uerr.Error()
-						break
-					}
-				}
-
-				// even if it's systemd managed, it's using "Restart=always"
-				// thus we simply exit the process to trigger the restart
-				// do not use "systemctl restart gpud.service"
-				// as it immediately restarts the service,
-				// failing to respond to the control plane
-				uerr := update.UpdateExecutable(nextVersion, update.DefaultUpdateURL, systemdManaged)
-				if uerr != nil {
-					response.Error = uerr.Error()
-				} else {
-					restartExitCode = s.autoUpdateExitCode
-					log.Logger.Infow("scheduled process exit for auto update", "code", restartExitCode)
-				}
-			}
-
-		case "updateConfig":
-			s.processUpdateConfig(payload.UpdateConfig, response)
-
-		case "bootstrap":
-			if payload.Bootstrap != nil {
-				script, err := base64.StdEncoding.DecodeString(payload.Bootstrap.ScriptBase64)
-				if err != nil {
-					response.Error = err.Error()
-					break
-				}
-
-				timeout := time.Duration(payload.Bootstrap.TimeoutInSeconds) * time.Second
-				if timeout == 0 {
-					timeout = 10 * time.Second
-				}
-
-				cctx, cancel := context.WithTimeout(ctx, timeout)
-				output, exitCode, err := s.processRunner.RunUntilCompletion(cctx, string(script))
-				cancel()
-				response.Bootstrap = &BootstrapResponse{
-					Output:   string(output),
-					ExitCode: exitCode,
-				}
-				if err != nil {
-					response.Error = err.Error()
-				}
-			}
-
-		case "injectFault":
-			if payload.InjectFaultRequest != nil {
-				if s.faultInjector == nil {
-					response.Error = "fault injector is not initialized"
-					break
-				}
-
-				if err := payload.InjectFaultRequest.Validate(); err != nil {
-					response.Error = err.Error()
-					log.Logger.Errorw("invalid fault inject request", "error", err)
-					break
-				}
-
-				switch {
-				case payload.InjectFaultRequest.KernelMessage != nil:
-					if err := s.faultInjector.KmsgWriter().Write(payload.InjectFaultRequest.KernelMessage); err != nil {
-						response.Error = err.Error()
-						log.Logger.Errorw("failed to inject kernel message", "message", payload.InjectFaultRequest.KernelMessage.Message, "error", err)
-					} else {
-						log.Logger.Infow("successfully injected kernel message", "message", payload.InjectFaultRequest.KernelMessage.Message)
-					}
-
-				default:
-					log.Logger.Warnw("fault inject request is nil or kernel message is nil")
-				}
-			} else {
-				log.Logger.Warnw("fault inject request is nil")
-			}
-
-			// TODO: deprecate "triggerComponentCheck" after control plane supports "triggerComponent"
-		case "triggerComponent",
-			"triggerComponentCheck":
-			// "triggerComponent" requests can take materially longer than the
-			// other control-plane RPCs because each component executes its own `Check()` routine, often
-			// hitting external systems (NVML, Kubernetes API, Docker, etc). Previously, the session
-			// loop processed these checks synchronously, which meant a single slow component could block
-			// the entire `serve()` goroutine and keep subsequent control-plane requests from being read or
-			// acknowledged in time. Here we assume that the control plane keys responses using ReqID,
-			// thus not rely on strict ordering, so it is safe to emit the reply from a background goroutine
-			// as long as the ReqID is preserved. This goroutine launch offloads the expensive `Check()` work
-			// and the eventual response write to the background worker so the main session loop stays responsive.
-			// Previously, even a single manual trigger aimed at the disk component (whose Check() performs slow
-			// disk scans) was enough to wedge the loop: `serve()` blocked on disk.Check(), the control plane timed out
-			// and canceled the request, GPUd restarted the session, and the control plane continued using
-			// stale health data because no response ever left the box. Running the check asynchronously
-			// prevents that deadlock while keeping the previous payload contract intact.
-			go s.processTriggerComponentRequest(body.ReqID, payload.Method, payload)
-			handledAsync = true
-
-		case "deregisterComponent":
-			if payload.ComponentName != "" {
-				comp := s.componentsRegistry.Get(payload.ComponentName)
-				if comp == nil {
-					log.Logger.Warnw("component not found", "name", payload.ComponentName)
-					response.ErrorCode = http.StatusNotFound
-					break
-				}
-
-				deregisterable, ok := comp.(components.Deregisterable)
-				if !ok {
-					log.Logger.Warnw("component is not deregisterable, not implementing Deregisterable interface", "name", comp.Name())
-					response.ErrorCode = http.StatusBadRequest
-					response.Error = "component is not deregisterable"
-					break
-				}
-
-				if !deregisterable.CanDeregister() {
-					log.Logger.Warnw("component is not deregisterable", "name", comp.Name())
-					response.ErrorCode = http.StatusBadRequest
-					response.Error = "component is not deregisterable"
-					break
-				}
-
-				cerr := comp.Close()
-				if cerr != nil {
-					log.Logger.Errorw("failed to close component", "error", cerr)
-					response.Error = cerr.Error()
-					break
-				}
-
-				// only deregister if the component is successfully closed
-				_ = s.componentsRegistry.Deregister(payload.ComponentName)
-			}
-
-		case "setPluginSpecs":
-			exitCode := s.processSetPluginSpecs(ctx, response, payload.CustomPluginSpecs)
-			if exitCode != nil {
-				restartExitCode = *exitCode
-				log.Logger.Infow("scheduled process exit for plugin specs update", "code", restartExitCode)
-			}
-
-		case "getPluginSpecs":
-			s.processGetPluginSpecs(response)
-		}
+		// Process the request
+		handledAsync = s.processRequest(ctx, body.ReqID, payload, response, &restartExitCode)
 
 		cancel()
 
@@ -429,13 +157,350 @@ func (s *Session) serve() {
 	}
 }
 
-// processTriggerComponentRequest runs entirely in a background goroutine.
-// The worker reproduces the synchronous logic we historically ran in the main serve loop, but keeps
-// all potentially blocking `Check()` calls off the hot path so other control-plane requests can be
-// decoded and handled immediately. The ReqID travels with the request so the control plane can
-// correlate the eventually-delivered response.
-func (s *Session) processTriggerComponentRequest(reqID, method string, payload Request) {
+// processRequest handles all request processing logic
+// Returns true if the request is handled asynchronously
+func (s *Session) processRequest(ctx context.Context, reqID string, payload Request, response *Response, restartExitCode *int) bool {
+	switch payload.Method {
+	case "reboot":
+		// To inform the control plane that the reboot request has been processed, reboot after 10 seconds.
+		err := pkghost.Reboot(s.ctx, pkghost.WithDelaySeconds(10))
+		if err != nil {
+			log.Logger.Errorf("failed to trigger reboot machine: %v", err)
+			response.Error = err.Error()
+		}
+
+	case "metrics":
+		metrics, err := s.getMetrics(ctx, payload)
+		if err != nil {
+			response.Error = err.Error()
+		}
+		response.Metrics = metrics
+
+	case "states":
+		states, err := s.getHealthStates(payload)
+		if err != nil {
+			response.Error = err.Error()
+		}
+		response.States = states
+
+	case "events":
+		events, err := s.getEvents(ctx, payload)
+		if err != nil {
+			response.Error = err.Error()
+		}
+		response.Events = events
+
+	case "delete":
+		go s.delete()
+
+	case "logout":
+		s.processLogout(ctx, response)
+
+	case "setHealthy":
+		log.Logger.Infow("setHealthy received", "components", payload.Components)
+		for _, componentName := range payload.Components {
+			comp := s.componentsRegistry.Get(componentName)
+			if comp == nil {
+				log.Logger.Errorw("failed to get component", "error", errdefs.ErrNotFound)
+				continue
+			}
+			if healthSettable, ok := comp.(components.HealthSettable); ok {
+				if err := healthSettable.SetHealthy(); err != nil {
+					log.Logger.Errorw("failed to set healthy", "component", componentName, "error", err)
+				}
+			} else {
+				log.Logger.Warnw("component does not implement HealthSettable, dropping setHealthy request", "component", componentName)
+			}
+		}
+
+	case "gossip":
+		s.processGossip(response)
+
+	case "packageStatus":
+		packageStatus, err := gpudmanager.GlobalController.Status(ctx)
+		if err != nil {
+			response.Error = err.Error()
+		}
+		var result []apiv1.PackageStatus
+		for _, currPackage := range packageStatus {
+			packagePhase := apiv1.UnknownPhase
+			if currPackage.IsInstalled {
+				packagePhase = apiv1.InstalledPhase
+			} else if currPackage.Installing {
+				packagePhase = apiv1.InstallingPhase
+			}
+			status := "Unhealthy"
+			if currPackage.Status {
+				status = "Healthy"
+			}
+			result = append(result, apiv1.PackageStatus{
+				Name:           currPackage.Name,
+				Phase:          packagePhase,
+				Status:         status,
+				CurrentVersion: currPackage.CurrentVersion,
+			})
+		}
+		response.PackageStatus = result
+
+	case "update":
+		s.processUpdate(ctx, payload, response, restartExitCode)
+
+	case "updateConfig":
+		s.processUpdateConfig(payload.UpdateConfig, response)
+
+	case "bootstrap":
+		s.processBootstrap(ctx, payload, response)
+
+	case "injectFault":
+		s.processInjectFault(payload, response)
+
+		// TODO: deprecate "triggerComponentCheck" after control plane supports "triggerComponent"
+	case "triggerComponent",
+		"triggerComponentCheck":
+		// "triggerComponent" requests can take materially longer than the
+		// other control-plane RPCs because each component executes its own `Check()` routine, often
+		// hitting external systems (NVML, Kubernetes API, Docker, etc). Previously, the session
+		// loop processed these checks synchronously, which meant a single slow component could block
+		// the entire `serve()` goroutine and keep subsequent control-plane requests from being read or
+		// acknowledged in time. Here we assume that the control plane keys responses using ReqID,
+		// thus not rely on strict ordering, so it is safe to emit the reply from a background goroutine
+		// as long as the ReqID is preserved. This goroutine launch offloads the expensive `Check()` work
+		// and the eventual response write to the background worker so the main session loop stays responsive.
+		// Previously, even a single manual trigger aimed at the disk component (whose Check() performs slow
+		// disk scans) was enough to wedge the loop: `serve()` blocked on disk.Check(), the control plane timed out
+		// and canceled the request, GPUd restarted the session, and the control plane continued using
+		// stale health data because no response ever left the box. Running the check asynchronously
+		// prevents that deadlock while keeping the previous payload contract intact.
+		go s.processRequestAsync(reqID, payload.Method, payload)
+		return true // Request is handled asynchronously
+
+	case "deregisterComponent":
+		s.processDeregisterComponent(payload, response)
+
+	case "setPluginSpecs":
+		exitCode := s.processSetPluginSpecs(ctx, response, payload.CustomPluginSpecs)
+		if exitCode != nil {
+			*restartExitCode = *exitCode
+			log.Logger.Infow("scheduled process exit for plugin specs update", "code", *restartExitCode)
+		}
+
+	case "getPluginSpecs":
+		s.processGetPluginSpecs(response)
+	}
+
+	return false // Request is handled synchronously
+}
+
+// processDeregisterComponent handles component deregistration
+func (s *Session) processDeregisterComponent(payload Request, response *Response) {
+	if payload.ComponentName == "" {
+		return
+	}
+
+	comp := s.componentsRegistry.Get(payload.ComponentName)
+	if comp == nil {
+		log.Logger.Warnw("component not found", "name", payload.ComponentName)
+		response.ErrorCode = http.StatusNotFound
+		return
+	}
+
+	deregisterable, ok := comp.(components.Deregisterable)
+	if !ok {
+		log.Logger.Warnw("component is not deregisterable, not implementing Deregisterable interface", "name", comp.Name())
+		response.ErrorCode = http.StatusBadRequest
+		response.Error = "component is not deregisterable"
+		return
+	}
+
+	if !deregisterable.CanDeregister() {
+		log.Logger.Warnw("component is not deregisterable", "name", comp.Name())
+		response.ErrorCode = http.StatusBadRequest
+		response.Error = "component is not deregisterable"
+		return
+	}
+
+	cerr := comp.Close()
+	if cerr != nil {
+		log.Logger.Errorw("failed to close component", "error", cerr)
+		response.Error = cerr.Error()
+		return
+	}
+
+	// only deregister if the component is successfully closed
+	_ = s.componentsRegistry.Deregister(payload.ComponentName)
+}
+
+// processLogout handles the logout request
+func (s *Session) processLogout(ctx context.Context, response *Response) {
+	stateFile, err := config.DefaultStateFile()
+	if err != nil {
+		log.Logger.Errorw("failed to get state file", "error", err)
+		response.Error = err.Error()
+		return
+	}
+	dbRW, err := sqlite.Open(stateFile)
+	if err != nil {
+		log.Logger.Errorw("failed to open state file", "error", err)
+		response.Error = err.Error()
+		dbRW.Close()
+		return
+	}
+	if err = pkgmetadata.DeleteAllMetadata(ctx, dbRW); err != nil {
+		log.Logger.Errorw("failed to purge metadata", "error", err)
+		response.Error = err.Error()
+		dbRW.Close()
+		return
+	}
+	dbRW.Close()
+	err = pkghost.Stop(s.ctx, pkghost.WithDelaySeconds(10))
+	if err != nil {
+		log.Logger.Errorf("failed to trigger stop gpud: %v", err)
+		response.Error = err.Error()
+	}
+}
+
+// processUpdate handles the update request
+func (s *Session) processUpdate(_ context.Context, payload Request, response *Response, restartExitCode *int) {
+	if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
+		err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
+		log.Logger.Infow("update received for machine", "version", targetVersion[1], "package", targetVersion[0], "error", err)
+	} else {
+		if !s.enableAutoUpdate {
+			log.Logger.Warnw("auto update is disabled -- skipping update")
+			response.Error = "auto update is disabled"
+			return
+		}
+
+		systemdManaged, _ := systemd.IsActive("gpud.service")
+		if s.autoUpdateExitCode == -1 && !systemdManaged {
+			log.Logger.Warnw("gpud is not managed with systemd and auto update by exit code is not set -- skipping update")
+			response.Error = "gpud is not managed with systemd"
+			return
+		}
+
+		nextVersion := payload.UpdateVersion
+		if nextVersion == "" {
+			log.Logger.Warnw("target update_version is empty -- skipping update")
+			response.Error = "update_version is empty"
+			return
+		}
+
+		if systemdManaged {
+			if uerr := pkdsystemd.CreateDefaultEnvFile(""); uerr != nil {
+				response.Error = uerr.Error()
+				return
+			}
+		}
+
+		// even if it's systemd managed, it's using "Restart=always"
+		// thus we simply exit the process to trigger the restart
+		// do not use "systemctl restart gpud.service"
+		// as it immediately restarts the service,
+		// failing to respond to the control plane
+		uerr := update.UpdateExecutable(nextVersion, update.DefaultUpdateURL, systemdManaged)
+		if uerr != nil {
+			response.Error = uerr.Error()
+		} else {
+			*restartExitCode = s.autoUpdateExitCode
+			log.Logger.Infow("scheduled process exit for auto update", "code", *restartExitCode)
+		}
+	}
+}
+
+// processBootstrap handles bootstrap script execution
+func (s *Session) processBootstrap(ctx context.Context, payload Request, response *Response) {
+	if payload.Bootstrap == nil {
+		return
+	}
+
+	script, err := base64.StdEncoding.DecodeString(payload.Bootstrap.ScriptBase64)
+	if err != nil {
+		response.Error = err.Error()
+		return
+	}
+
+	timeout := time.Duration(payload.Bootstrap.TimeoutInSeconds) * time.Second
+	if timeout == 0 {
+		timeout = 10 * time.Second
+	}
+
+	cctx, cancel := context.WithTimeout(ctx, timeout)
+	output, exitCode, err := s.processRunner.RunUntilCompletion(cctx, string(script))
+	cancel()
+	response.Bootstrap = &BootstrapResponse{
+		Output:   string(output),
+		ExitCode: exitCode,
+	}
+	if err != nil {
+		response.Error = err.Error()
+	}
+}
+
+// processInjectFault handles fault injection requests
+func (s *Session) processInjectFault(payload Request, response *Response) {
+	if payload.InjectFaultRequest == nil {
+		log.Logger.Warnw("fault inject request is nil")
+		return
+	}
+
+	if s.faultInjector == nil {
+		response.Error = "fault injector is not initialized"
+		return
+	}
+
+	if err := payload.InjectFaultRequest.Validate(); err != nil {
+		response.Error = err.Error()
+		log.Logger.Errorw("invalid fault inject request", "error", err)
+		return
+	}
+
+	switch {
+	case payload.InjectFaultRequest.KernelMessage != nil:
+		if err := s.faultInjector.KmsgWriter().Write(payload.InjectFaultRequest.KernelMessage); err != nil {
+			response.Error = err.Error()
+			log.Logger.Errorw("failed to inject kernel message", "message", payload.InjectFaultRequest.KernelMessage.Message, "error", err)
+		} else {
+			log.Logger.Infow("successfully injected kernel message", "message", payload.InjectFaultRequest.KernelMessage.Message)
+		}
+
+	default:
+		log.Logger.Warnw("fault inject request is nil or kernel message is nil")
+	}
+}
+
+// processRequestAsync runs entirely in a background goroutine.
+// This method handles requests that need to be processed asynchronously to avoid blocking
+// the main serve loop. Currently, only "triggerComponent" requests are processed async
+// because component checks can take significant time (hitting external systems like NVML,
+// Kubernetes API, Docker, etc).
+// The ReqID travels with the request so the control plane can correlate the eventually-delivered response.
+func (s *Session) processRequestAsync(reqID, method string, payload Request) {
 	response := &Response{}
+
+	switch method {
+	case "triggerComponent", "triggerComponentCheck":
+		// Process component trigger requests asynchronously
+		s.processTriggerComponent(payload, response)
+
+	// Add other async method handlers here as needed in the future
+	// Note: Only methods that can block for significant time should be handled async
+
+	default:
+		// This should not happen as only specific methods are routed here
+		log.Logger.Errorw("unsupported async method", "method", method)
+		response.Error = "unsupported async method: " + method
+		response.ErrorCode = http.StatusBadRequest
+	}
+
+	// The asynchronous worker must still emit exactly one response with the original ReqID. sendResponse
+	// handles marshaling plus audit logging so replies generated here look identical to the historical
+	// synchronous path.
+	s.sendResponse(reqID, method, response)
+}
+
+// processTriggerComponent handles the logic for triggering component checks.
+// This is extracted from processRequestAsync to maintain single responsibility.
+func (s *Session) processTriggerComponent(payload Request, response *Response) {
 	checkResults := make([]components.CheckResult, 0)
 
 	if payload.ComponentName != "" {
@@ -444,7 +509,6 @@ func (s *Session) processTriggerComponentRequest(reqID, method string, payload R
 		if comp == nil {
 			log.Logger.Warnw("component not found", "name", payload.ComponentName)
 			response.ErrorCode = http.StatusNotFound
-			s.sendResponse(reqID, method, response)
 			return
 		}
 
@@ -474,11 +538,6 @@ func (s *Session) processTriggerComponentRequest(reqID, method string, payload R
 			States:    checkResult.HealthStates(),
 		})
 	}
-
-	// The asynchronous worker must still emit exactly one response with the original ReqID. sendResponse
-	// handles marshaling plus audit logging so replies generated here look identical to the historical
-	// synchronous path.
-	s.sendResponse(reqID, method, response)
 }
 
 // sendResponse centralizes response marshaling, channel delivery, and audit logging. LEP-2083 moved

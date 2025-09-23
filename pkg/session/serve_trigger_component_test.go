@@ -17,8 +17,8 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-// TestProcessTriggerComponentRequest tests the async processing of triggerComponent requests
-func TestProcessTriggerComponentRequest(t *testing.T) {
+// TestProcessRequestAsync tests the async processing of requests
+func TestProcessRequestAsync(t *testing.T) {
 	t.Run("single component check", func(t *testing.T) {
 		// Setup
 		session, registry, _, _, _, writer := setupTestSessionWithoutFaultInjector()
@@ -44,7 +44,7 @@ func TestProcessTriggerComponentRequest(t *testing.T) {
 		}
 
 		// Run in background
-		go session.processTriggerComponentRequest(reqID, method, payload)
+		go session.processRequestAsync(reqID, method, payload)
 
 		// Wait for response with timeout
 		select {
@@ -84,7 +84,7 @@ func TestProcessTriggerComponentRequest(t *testing.T) {
 		}
 
 		// Run in background
-		go session.processTriggerComponentRequest(reqID, method, payload)
+		go session.processRequestAsync(reqID, method, payload)
 
 		// Wait for response
 		select {
@@ -147,7 +147,7 @@ func TestProcessTriggerComponentRequest(t *testing.T) {
 		}
 
 		// Run in background
-		go session.processTriggerComponentRequest(reqID, method, payload)
+		go session.processRequestAsync(reqID, method, payload)
 
 		// Wait for response
 		select {
@@ -217,7 +217,7 @@ func TestTriggerComponentAsync(t *testing.T) {
 		}
 
 		// Run in background - this should return immediately
-		go session.processTriggerComponentRequest(reqID, method, payload)
+		go session.processRequestAsync(reqID, method, payload)
 
 		// Wait for check to start
 		select {
@@ -379,6 +379,131 @@ func TestSendResponse(t *testing.T) {
 	})
 }
 
+// TestProcessRequestAsyncGenericFunctionality tests the generic async request handling
+func TestProcessRequestAsyncGenericFunctionality(t *testing.T) {
+	t.Run("unsupported async method", func(t *testing.T) {
+		// Setup
+		session, _, _, _, _, writer := setupTestSessionWithoutFaultInjector()
+
+		// Execute async request with unsupported method
+		reqID := "test-unsupported-req"
+		method := "unsupportedMethod"
+		payload := Request{
+			Method: method,
+		}
+
+		// Run in background
+		go session.processRequestAsync(reqID, method, payload)
+
+		// Wait for response
+		select {
+		case body := <-writer:
+			assert.Equal(t, reqID, body.ReqID)
+
+			var response Response
+			err := json.Unmarshal(body.Data, &response)
+			require.NoError(t, err)
+
+			assert.Equal(t, int32(400), response.ErrorCode)
+			assert.Contains(t, response.Error, "unsupported async method")
+			assert.Contains(t, response.Error, method)
+
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+	})
+
+	t.Run("triggerComponentCheck backward compatibility", func(t *testing.T) {
+		// Setup
+		session, registry, _, _, _, writer := setupTestSessionWithoutFaultInjector()
+
+		// Create mock component
+		mockComp := new(mockComponent)
+		mockResult := new(mockCheckResult)
+
+		registry.On("Get", "test-component").Return(mockComp)
+		mockComp.On("Check").Return(mockResult)
+		mockResult.On("ComponentName").Return("test-component")
+		mockResult.On("HealthStates").Return(apiv1.HealthStates{
+			{Health: apiv1.HealthStateTypeHealthy, Name: "test-state"},
+		})
+
+		// Execute with legacy "triggerComponentCheck" method
+		reqID := "test-legacy-req"
+		method := "triggerComponentCheck"
+		payload := Request{
+			Method:        method,
+			ComponentName: "test-component",
+		}
+
+		// Run in background
+		go session.processRequestAsync(reqID, method, payload)
+
+		// Wait for response
+		select {
+		case body := <-writer:
+			assert.Equal(t, reqID, body.ReqID)
+
+			var response Response
+			err := json.Unmarshal(body.Data, &response)
+			require.NoError(t, err)
+
+			// Should work the same as triggerComponent
+			assert.Len(t, response.States, 1)
+			assert.Equal(t, "test-component", response.States[0].Component)
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, response.States[0].States[0].Health)
+
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for response")
+		}
+
+		registry.AssertExpectations(t)
+		mockComp.AssertExpectations(t)
+		mockResult.AssertExpectations(t)
+	})
+}
+
+// TestProcessTriggerComponent tests the extracted processTriggerComponent helper method
+func TestProcessTriggerComponent(t *testing.T) {
+	t.Run("component name and tag both empty", func(t *testing.T) {
+		session, _, _, _, _, _ := setupTestSessionWithoutFaultInjector()
+
+		payload := Request{
+			Method: "triggerComponent",
+			// Both ComponentName and TagName are empty
+		}
+		response := &Response{}
+
+		session.processTriggerComponent(payload, response)
+
+		// Should return empty states when no component or tag specified
+		assert.NotNil(t, response.States)
+		assert.Len(t, response.States, 0)
+		assert.Empty(t, response.Error)
+		assert.Equal(t, int32(0), response.ErrorCode)
+	})
+
+	t.Run("direct method call with component not found", func(t *testing.T) {
+		session, registry, _, _, _, _ := setupTestSessionWithoutFaultInjector()
+
+		registry.On("Get", "missing").Return(nil)
+
+		payload := Request{
+			Method:        "triggerComponent",
+			ComponentName: "missing",
+		}
+		response := &Response{}
+
+		session.processTriggerComponent(payload, response)
+
+		// Should set error code but not error message (handled in processRequestAsync)
+		assert.Equal(t, int32(404), response.ErrorCode)
+		assert.Empty(t, response.States)
+
+		registry.AssertExpectations(t)
+	})
+}
+
 // TestConcurrentTriggerComponentRequests tests multiple concurrent trigger requests
 func TestConcurrentTriggerComponentRequests(t *testing.T) {
 	session, registry, _, _, _, writer := setupTestSessionWithoutFaultInjector()
@@ -421,7 +546,7 @@ func TestConcurrentTriggerComponentRequests(t *testing.T) {
 				ComponentName: componentName,
 			}
 
-			session.processTriggerComponentRequest(reqID, "triggerComponent", payload)
+			session.processRequestAsync(reqID, "triggerComponent", payload)
 		}(i)
 	}
 
