@@ -9,7 +9,6 @@ import (
 	componentsacceleratornvidiafabricmanager "github.com/leptonai/gpud/components/accelerator/nvidia/fabric-manager"
 	componentsacceleratornvidiagpm "github.com/leptonai/gpud/components/accelerator/nvidia/gpm"
 	componentsacceleratornvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
-	componentsacceleratornvidiagspfirmwaremode "github.com/leptonai/gpud/components/accelerator/nvidia/gsp-firmware-mode"
 	componentsacceleratornvidiahwslowdown "github.com/leptonai/gpud/components/accelerator/nvidia/hw-slowdown"
 	componentsacceleratornvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsacceleratornvidiamemory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
@@ -55,7 +54,6 @@ var componentInits = []Component{
 	{Name: componentsacceleratornvidiafabricmanager.Name, InitFunc: componentsacceleratornvidiafabricmanager.New},
 	{Name: componentsacceleratornvidiagpm.Name, InitFunc: componentsacceleratornvidiagpm.New},
 	{Name: componentsacceleratornvidiagpucounts.Name, InitFunc: componentsacceleratornvidiagpucounts.New},
-	{Name: componentsacceleratornvidiagspfirmwaremode.Name, InitFunc: componentsacceleratornvidiagspfirmwaremode.New},
 	{Name: componentsacceleratornvidiahwslowdown.Name, InitFunc: componentsacceleratornvidiahwslowdown.New},
 	{Name: componentsacceleratornvidiainfiniband.Name, InitFunc: componentsacceleratornvidiainfiniband.New},
 	{Name: componentsacceleratornvidiamemory.Name, InitFunc: componentsacceleratornvidiamemory.New},
