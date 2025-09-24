@@ -257,7 +257,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
-	assert.Equal(t, "all 0 GPU(s) were checked, no memory issue found", data.reason)
+	assert.Equal(t, "no memory data found", data.reason)
 	assert.Empty(t, data.Memories)
 }
 
@@ -293,6 +293,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		UsedHumanized:  "8 GB",
 		FreeHumanized:  "7 GB",
 		UsedPercent:    "invalid", // Invalid format will cause ParseFloat to fail
+		Supported:      true,      // Mark as supported so it doesn't get skipped
 	}
 
 	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
@@ -726,4 +727,120 @@ func TestCheck_GPULostError(t *testing.T) {
 	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
 	assert.Equal(t, "error getting memory", data.reason,
 		"reason should have '(GPU is lost)' suffix")
+}
+
+func TestCheck_UnsupportedMemory(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	mockNVMLInstance := &MockNvmlInstance{
+		DevicesFunc: func() map[string]device.Device {
+			return devs
+		},
+		nvmlExists: true,
+	}
+
+	// Return unsupported memory
+	unsupportedMemory := nvidianvml.Memory{
+		UUID:      uuid,
+		Supported: false,
+	}
+
+	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return unsupportedMemory, nil
+	}
+
+	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	result := component.Check()
+
+	// Verify handling of unsupported memory
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "no memory data found", data.reason, "reason should indicate no memory data")
+	assert.Empty(t, data.Memories, "should have no memory data since device is unsupported")
+}
+
+func TestCheck_MixedSupportedUnsupportedDevices(t *testing.T) {
+	ctx := context.Background()
+
+	uuid1 := "gpu-uuid-supported"
+	uuid2 := "gpu-uuid-unsupported"
+
+	mockDeviceObj1 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
+	}
+	mockDev1 := testutil.NewMockDevice(mockDeviceObj1, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	mockDeviceObj2 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid2, nvml.SUCCESS
+		},
+	}
+	mockDev2 := testutil.NewMockDevice(mockDeviceObj2, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid1: mockDev1,
+		uuid2: mockDev2,
+	}
+
+	mockNVMLInstance := &MockNvmlInstance{
+		DevicesFunc: func() map[string]device.Device {
+			return devs
+		},
+		nvmlExists: true,
+	}
+
+	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		if uuid == uuid1 {
+			// Return supported memory
+			return nvidianvml.Memory{
+				UUID:              uuid,
+				TotalBytes:        16 * 1024 * 1024 * 1024,
+				ReservedBytes:     1 * 1024 * 1024 * 1024,
+				UsedBytes:         8 * 1024 * 1024 * 1024,
+				FreeBytes:         7 * 1024 * 1024 * 1024,
+				TotalHumanized:    "16 GB",
+				ReservedHumanized: "1 GB",
+				UsedHumanized:     "8 GB",
+				FreeHumanized:     "7 GB",
+				UsedPercent:       "50.00",
+				Supported:         true,
+			}, nil
+		} else {
+			// Return unsupported memory
+			return nvidianvml.Memory{
+				UUID:      uuid,
+				Supported: false,
+			}, nil
+		}
+	}
+
+	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	result := component.Check()
+
+	// Verify handling of mixed supported/unsupported devices
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health, "data should be marked healthy")
+	assert.Equal(t, "all 2 GPU(s) were checked, no memory issue found", data.reason, "reason should indicate successful check of all devices")
+	assert.Len(t, data.Memories, 1, "should have memory data only for supported device")
+	assert.Equal(t, uuid1, data.Memories[0].UUID, "should contain only the supported device")
 }

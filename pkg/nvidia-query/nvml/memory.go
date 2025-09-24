@@ -38,6 +38,9 @@ type Memory struct {
 }
 
 func (mem Memory) GetUsedPercent() (float64, error) {
+	if mem.UsedPercent == "" {
+		return 0.0, nil
+	}
 	return strconv.ParseFloat(mem.UsedPercent, 64)
 }
 
@@ -68,6 +71,7 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 			log.Logger.Warnw("failed to get device memory info v1", "error", nvml.ErrorString(retV1))
 
 			if IsNotSupportError(retV1) {
+				// e.g., "NVIDIA-GB10" NVIDIA RTX blackwell
 				log.Logger.Warnw("device memory info v1 is not supported", "error", nvml.ErrorString(retV1))
 
 				mem.Supported = false
