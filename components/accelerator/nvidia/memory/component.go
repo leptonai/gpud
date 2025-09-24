@@ -146,8 +146,11 @@ func (c *component) Check() components.CheckResult {
 		metricUsedBytes.With(prometheus.Labels{"uuid": uuid}).Set(float64(mem.UsedBytes))
 		metricFreeBytes.With(prometheus.Labels{"uuid": uuid}).Set(float64(mem.FreeBytes))
 
+		log.Logger.Infow("memory", "uuid", uuid, "total", mem.TotalBytes, "reserved", mem.ReservedBytes, "used", mem.UsedBytes, "free", mem.FreeBytes, "used_percent", mem.UsedPercent)
 		usedPct, err := mem.GetUsedPercent()
 		if err != nil {
+			log.Logger.Warnw("error getting used percent", "error", err)
+
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting used percent"
