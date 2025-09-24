@@ -31,6 +31,7 @@ func IsNotSupportError(ret nvml.Return) bool {
 		return true
 	}
 
+	// e.g., "Not Supported"
 	e := normalizeNVMLReturnString(ret)
 	return strings.Contains(e, "not supported")
 }

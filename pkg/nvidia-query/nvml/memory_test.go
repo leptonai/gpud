@@ -188,6 +188,14 @@ func TestMemoryGetUsedPercent(t *testing.T) {
 			},
 			expectedError: true,
 		},
+		{
+			name: "empty percent",
+			memory: Memory{
+				UsedPercent: "",
+			},
+			expectedValue: 0.0,
+			expectedError: false,
+		},
 	}
 
 	for _, tc := range testCases {

@@ -139,6 +139,11 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
+		if !mem.Supported {
+			log.Logger.Warnw("memory is not supported", "uuid", uuid)
+			continue
+		}
+
 		cr.Memories = append(cr.Memories, mem)
 
 		metricTotalBytes.With(prometheus.Labels{"uuid": uuid}).Set(float64(mem.TotalBytes))
@@ -158,7 +163,12 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
-	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no memory issue found", len(devs))
+
+	if len(cr.Memories) > 0 {
+		cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no memory issue found", len(devs))
+	} else {
+		cr.reason = "no memory data found"
+	}
 
 	return cr
 }

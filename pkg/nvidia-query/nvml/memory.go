@@ -6,6 +6,8 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/dustin/go-humanize"
+
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
@@ -36,6 +38,9 @@ type Memory struct {
 }
 
 func (mem Memory) GetUsedPercent() (float64, error) {
+	if mem.UsedPercent == "" {
+		return 0.0, nil
+	}
 	return strconv.ParseFloat(mem.UsedPercent, 64)
 }
 
@@ -54,6 +59,8 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 		mem.FreeBytes = infoV2.Free
 		mem.UsedBytes = infoV2.Used
 	} else { // fallback to old API
+		log.Logger.Warnw("failed to get device memory info v2, falling back to v1", "error", nvml.ErrorString(retV2))
+
 		// ref. https://docs.nvidia.com/deploy/nvml-api/structnvmlMemory__t.html
 		infoV1, retV1 := dev.GetMemoryInfo()
 		if retV1 == nvml.SUCCESS {
@@ -61,12 +68,19 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 			mem.FreeBytes = infoV1.Free
 			mem.UsedBytes = infoV1.Used
 		} else {
+			log.Logger.Warnw("failed to get device memory info v1", "error", nvml.ErrorString(retV1))
+
 			if IsNotSupportError(retV1) {
+				// e.g., "NVIDIA-GB10" NVIDIA RTX blackwell
+				log.Logger.Warnw("device memory info v1 is not supported", "error", nvml.ErrorString(retV1))
+
 				mem.Supported = false
 				return mem, nil
 			}
 
 			if IsGPULostError(retV1) {
+				log.Logger.Warnw("device memory info v1 is GPU lost", "error", nvml.ErrorString(retV1))
+
 				return mem, ErrGPULost
 			}
 
