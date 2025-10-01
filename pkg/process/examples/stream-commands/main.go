@@ -14,6 +14,7 @@ func main() {
 		process.WithCommand("echo hello 2 && sleep 1"),
 		process.WithCommand("echo hello 3 && sleep 1"),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		panic(err)

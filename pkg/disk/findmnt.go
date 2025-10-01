@@ -24,6 +24,7 @@ func FindMnt(ctx context.Context, target string) (*FindMntOutput, error) {
 	p, err := process.New(
 		process.WithCommand(fmt.Sprintf("%s --target %s --json --df", findmntPath, target)),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return nil, err

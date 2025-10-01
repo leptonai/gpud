@@ -109,6 +109,9 @@ type process struct {
 	stderrReadCloser io.ReadCloser
 
 	restartConfig *RestartConfig
+
+	// input bytes to feed to the command's stdin
+	getStdinBytesReader func() *bytes.Reader
 }
 
 func New(opts ...OpOption) (Process, error) {
@@ -120,29 +123,45 @@ func New(opts ...OpOption) (Process, error) {
 	var cmdArgs []string
 	var bashFile *os.File
 	if op.runAsBashScript {
-		var err error
-		bashFile, err = os.CreateTemp(op.bashScriptTmpDirectory, op.bashScriptFilePattern)
-		if err != nil {
-			return nil, err
-		}
-
-		if op.bashScriptContentsToRun != "" { // assume the bash script provided by the user is a complete script
-			if _, err := bashFile.Write([]byte(op.bashScriptContentsToRun)); err != nil {
-				return nil, err
-			}
+		// Option 1: inline bash, avoid writing any file to disk
+		if op.runBashInline {
+			cmdArgs = []string{"bash", "-s"}
+			// feed the script over stdin to avoid ARG_MAX limits and quoting hassles
+			// store in process to wire during startCommand
+			// set later in the returned process struct
+			// (we assign below when constructing the process)
 		} else {
-			if _, err := bashFile.Write([]byte(bashScriptHeader)); err != nil {
+			// Option 2: file-backed bash, write to a temp file on disk
+			// may fail if the disk is full
+			// e.g.,
+			// "open /tmp/gpud-453112547.bash: no space left on device"
+			var err error
+			bashFile, err = os.CreateTemp(op.bashScriptTmpDirectory, op.bashScriptFilePattern)
+			if err != nil {
 				return nil, err
 			}
+
+			if op.bashScriptContentsToRun != "" { // assume the bash script provided by the user is a complete script
+				if _, err := bashFile.Write([]byte(op.bashScriptContentsToRun)); err != nil {
+					return nil, err
+				}
+			} else {
+				if _, err := bashFile.Write([]byte(bashScriptHeader)); err != nil {
+					return nil, err
+				}
+			}
+			defer func() {
+				_ = bashFile.Sync()
+			}()
+			cmdArgs = []string{"bash", bashFile.Name()}
 		}
-		defer func() {
-			_ = bashFile.Sync()
-		}()
-		cmdArgs = []string{"bash", bashFile.Name()}
 	}
 
 	for _, args := range op.commandsToRun {
-		if bashFile == nil {
+		if op.runBashInline { // inline script already assembled above
+			continue
+		}
+		if bashFile == nil { // non-bash mode: single command
 			cmdArgs = args
 			continue
 		}
@@ -159,7 +178,7 @@ func New(opts ...OpOption) (Process, error) {
 	if op.restartConfig != nil && op.restartConfig.OnError && op.restartConfig.Limit > 0 {
 		errcBuffer = op.restartConfig.Limit
 	}
-	return &process{
+	proc := &process{
 		cmd: nil,
 
 		started: false,
@@ -173,7 +192,27 @@ func New(opts ...OpOption) (Process, error) {
 		outputFile:  op.outputFile,
 
 		restartConfig: op.restartConfig,
-	}, nil
+	}
+
+	if op.runAsBashScript && op.runBashInline {
+		if op.bashScriptContentsToRun != "" {
+			proc.getStdinBytesReader = func() *bytes.Reader {
+				return bytes.NewReader([]byte(op.bashScriptContentsToRun))
+			}
+		} else {
+			var b bytes.Buffer
+			b.WriteString(bashScriptHeader)
+			for _, args := range op.commandsToRun {
+				b.WriteString(strings.Join(args, " "))
+				b.WriteByte('\n')
+			}
+			proc.getStdinBytesReader = func() *bytes.Reader {
+				return bytes.NewReader(b.Bytes())
+			}
+		}
+	}
+
+	return proc, nil
 }
 
 func (p *process) Start(ctx context.Context) error {
@@ -227,6 +266,9 @@ func (p *process) createCmd() *exec.Cmd {
 func (p *process) startCommand() error {
 	log.Logger.Debugw("starting command", "command", p.commandArgs)
 	p.cmd = p.createCmd()
+	if p.getStdinBytesReader != nil {
+		p.cmd.Stdin = p.getStdinBytesReader()
+	}
 	p.cmd.Env = p.envs
 
 	switch {
@@ -276,6 +318,10 @@ func (p *process) StartAndWaitForCombinedOutput(ctx context.Context) ([]byte, er
 	defer p.cmdMu.Unlock()
 
 	p.cmd = p.createCmd()
+	if p.getStdinBytesReader != nil {
+		p.cmd.Stdin = p.getStdinBytesReader()
+	}
+	p.cmd.Env = p.envs
 
 	// ref. "os/exec" "CombinedOutput"
 	b := bytes.NewBuffer(nil)
