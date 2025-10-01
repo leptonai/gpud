@@ -236,7 +236,7 @@ func watch(
 	}
 
 	// need to run as bash script when 'tail' commands are complicated
-	opts = append(opts, process.WithRunAsBashScript())
+	opts = append(opts, process.WithRunAsBashScript(), process.WithRunBashInline())
 
 	p, err := process.New(opts...)
 	if err != nil {

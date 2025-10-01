@@ -309,6 +309,7 @@ func TestWatchFabricManagerLogs(t *testing.T) {
 			process.WithCommand("echo", "[Feb 25 2025 13:59:45] [INFO] [tid 1803] Different message"),
 			process.WithCommand("sleep", "1"),
 			process.WithRunAsBashScript(),
+			process.WithRunBashInline(),
 		)
 		require.NoError(t, err)
 

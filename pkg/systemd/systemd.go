@@ -49,6 +49,7 @@ func GetVersion() (string, []string, error) {
 	p, err := process.New(
 		process.WithCommand(systemdPath+" --version"),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return "", nil, err

@@ -52,6 +52,7 @@ func listPCIs(ctx context.Context, command string, matchFunc func(line string) b
 	p, err := process.New(
 		process.WithCommand(command),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return nil, err
