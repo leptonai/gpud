@@ -19,7 +19,11 @@ type Op struct {
 
 	commandsToRun           [][]string
 	bashScriptContentsToRun string
-	runAsBashScript         bool
+
+	runAsBashScript bool
+
+	// runBashInline executes the bash contents via `bash -c` without writing a temp file.
+	runBashInline bool
 
 	// temporary directory to store bash script files
 	bashScriptTmpDirectory string
@@ -142,6 +146,27 @@ func WithOutputFile(file *os.File) OpOption {
 func WithRunAsBashScript() OpOption {
 	return func(op *Op) {
 		op.runAsBashScript = true
+	}
+}
+
+// WithRunBashInline executes the bash script without creating a temp file.
+// Implementation note:
+//   - We prefer `bash -s` and feed the script via stdin (instead of `bash -c`).
+//     Why `-s` over `-c` across macOS and Linux:
+//   - No ARG_MAX issues: `-s` reads the script from stdin; `-c` places the entire
+//     script into an argv element, which can hit kernel argument-length limits.
+//   - Fewer quoting pitfalls: `-c` requires double-quoting/escaping the whole
+//     script; stdin avoids extra quoting layers and shell metacharacter surprises.
+//   - Same semantics on macOS and Linux: both support `-s` and `-c` consistently;
+//     stdin is the most portable way for inline scripts.
+//
+// Default remains file-backed (WithRunAsBashScript without inline) for backwards
+// compatibility; use this when disk writes are undesirable
+// (e.g., "no space left on device").
+func WithRunBashInline() OpOption {
+	return func(op *Op) {
+		op.runAsBashScript = true
+		op.runBashInline = true
 	}
 }
 

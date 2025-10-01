@@ -95,6 +95,7 @@ func runReboot(ctx context.Context, cmd string) error {
 	proc, err := process.New(
 		process.WithCommand(cmd),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return err

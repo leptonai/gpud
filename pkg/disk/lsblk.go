@@ -153,6 +153,7 @@ func executeLsblkCommand(ctx context.Context, lsblkBin string, flags string) ([]
 	p, err := process.New(
 		process.WithCommand(lsblkBin+" "+flags),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return nil, err
@@ -180,6 +181,7 @@ func getLsblkBinPathAndVersion(ctx context.Context) (string, string, error) {
 	p, err := process.New(
 		process.WithCommand(lsblkBin+" "+lsblkVersionFlags),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return "", "", err

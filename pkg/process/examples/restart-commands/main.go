@@ -23,6 +23,7 @@ func main() {
 		process.WithCommand("echo hello"),
 		process.WithCommand("echo 111 && exit 1"),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 		process.WithRestartConfig(process.RestartConfig{
 			OnError:  true,
 			Limit:    3,
