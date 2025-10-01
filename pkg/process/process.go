@@ -260,6 +260,7 @@ func (p *process) Started() bool {
 }
 
 func (p *process) createCmd() *exec.Cmd {
+	fmt.Printf("[DEBUG] createCmd: %q\n", p.commandArgs)
 	return exec.CommandContext(p.ctx, p.commandArgs[0], p.commandArgs[1:]...)
 }
 

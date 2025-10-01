@@ -150,6 +150,7 @@ func decideLsblkFlag(ctx context.Context, verOutput string) (string, func([]byte
 // executeLsblkCommand executes the lsblk command and returns its output.
 // This is a separate function to make it mockable for testing.
 func executeLsblkCommand(ctx context.Context, lsblkBin string, flags string) ([]byte, error) {
+	fmt.Println("[DEBUG] executeLsblkCommand:", lsblkBin+" "+flags)
 	p, err := process.New(
 		process.WithCommand(lsblkBin+" "+flags),
 		process.WithRunAsBashScript(),
@@ -168,6 +169,7 @@ func executeLsblkCommand(ctx context.Context, lsblkBin string, flags string) ([]
 	if err != nil {
 		return nil, fmt.Errorf("failed to run lsblk command: %w", err)
 	}
+	fmt.Println("[DEBUG] executeLsblkCommand:", lsblkBin+" "+flags, "output:", string(b))
 	return b, nil
 }
 
@@ -238,6 +240,7 @@ func fillFstypeFromFindmnt(ctx context.Context, dev *BlockDevice, cache map[stri
 
 // parseLsblkJSON parses the "lsblk --json" output.
 func parseLsblkJSON(ctx context.Context, b []byte, opts ...OpOption) (BlockDevices, error) {
+	fmt.Println("parseLsblkJSON", string(b))
 	if len(b) == 0 {
 		return nil, errors.New("empty input provided to Parse")
 	}
