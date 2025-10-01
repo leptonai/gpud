@@ -329,14 +329,22 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 			}
 		}
 
-		minorID, ret := dev.GetMinorNumber()
+		var minorID int
+		minorID, ret = dev.GetMinorNumber()
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("failed to get minor id: %v", nvml.ErrorString(ret))
+			if ret != nvml.ERROR_NOT_SUPPORTED {
+				return nil, fmt.Errorf("failed to get minor id: %v", nvml.ErrorString(ret))
+			}
+			minorID = -1 // set to -1 when not supported
 		}
 
-		boardID, ret := dev.GetBoardId()
+		var boardID uint32
+		boardID, ret = dev.GetBoardId()
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("failed to get board id: %v", nvml.ErrorString(ret))
+			if ret != nvml.ERROR_NOT_SUPPORTED {
+				return nil, fmt.Errorf("failed to get board id: %v", nvml.ErrorString(ret))
+			}
+			boardID = 0 // set to 0 when not supported
 		}
 
 		busID, err := dev.GetPCIBusID()
