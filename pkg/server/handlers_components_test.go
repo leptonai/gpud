@@ -1155,3 +1155,228 @@ func TestGetMetricsStoreError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, response["message"], "failed to read metrics")
 }
+
+func TestSetHealthyStates(t *testing.T) {
+	tests := []struct {
+		name                      string
+		components                string
+		setupComponents           []components.Component
+		expectedStatusCode        int
+		successfulComponentsCount int
+	}{
+		{
+			name:       "no components parameter - sets all health settable components",
+			components: "",
+			setupComponents: []components.Component{
+				&mockHealthSettableComponent{
+					mockComponent: mockComponent{
+						name:        "comp1",
+						isSupported: true,
+					},
+					setHealthyError: nil,
+				},
+				&mockHealthSettableComponent{
+					mockComponent: mockComponent{
+						name:        "comp2",
+						isSupported: true,
+					},
+					setHealthyError: nil,
+				},
+			},
+			expectedStatusCode:        http.StatusOK,
+			successfulComponentsCount: 2,
+		},
+		{
+			name:       "single component parameter - sets only specified component",
+			components: "comp1",
+			setupComponents: []components.Component{
+				&mockHealthSettableComponent{
+					mockComponent: mockComponent{
+						name:        "comp1",
+						isSupported: true,
+					},
+					setHealthyError: nil,
+				},
+				&mockHealthSettableComponent{
+					mockComponent: mockComponent{
+						name:        "comp2",
+						isSupported: true,
+					},
+					setHealthyError: nil,
+				},
+			},
+			expectedStatusCode:        http.StatusOK,
+			successfulComponentsCount: 1,
+		},
+		{
+			name:       "multiple components parameter - sets two comma-separated components",
+			components: "comp1,comp2",
+			setupComponents: []components.Component{
+				&mockHealthSettableComponent{
+					mockComponent: mockComponent{
+						name:        "comp1",
+						isSupported: true,
+					},
+					setHealthyError: nil,
+				},
+				&mockHealthSettableComponent{
+					mockComponent: mockComponent{
+						name:        "comp2",
+						isSupported: true,
+					},
+					setHealthyError: nil,
+				},
+				&mockHealthSettableComponent{
+					mockComponent: mockComponent{
+						name:        "comp3",
+						isSupported: true,
+					},
+					setHealthyError: nil,
+				},
+			},
+			expectedStatusCode:        http.StatusOK,
+			successfulComponentsCount: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler, _, _ := setupTestHandler(tt.setupComponents)
+			_, c, w := setupTestRouter()
+
+			// Construct URL with query parameter
+			url := "/v1/health-states/set-healthy"
+			if tt.components != "" {
+				url += "?components=" + tt.components
+			}
+			c.Request = httptest.NewRequest("POST", url, nil)
+
+			handler.setHealthyStates(c)
+
+			assert.Equal(t, tt.expectedStatusCode, w.Code)
+
+			var response map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+
+			successful := response["successful"].([]interface{})
+			assert.Len(t, successful, tt.successfulComponentsCount)
+		})
+	}
+}
+
+func TestSetHealthyStatesComponentNotFound(t *testing.T) {
+	handler, _, _ := setupTestHandler([]components.Component{})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("POST", "/v1/health-states/set-healthy?components=nonexistent", nil)
+	handler.setHealthyStates(c)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Contains(t, response["message"], "not found")
+}
+
+func TestSetHealthyStatesComponentNotHealthSettable(t *testing.T) {
+	// Component that doesn't implement HealthSettable
+	comp := &mockComponent{
+		name:        "not-settable",
+		isSupported: true,
+	}
+
+	handler, _, _ := setupTestHandler([]components.Component{comp})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("POST", "/v1/health-states/set-healthy?components=not-settable", nil)
+	handler.setHealthyStates(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "failed to set any component to healthy", response["message"])
+
+	failed := response["failed"].(map[string]interface{})
+	assert.Contains(t, failed["not-settable"], "does not support setting healthy state")
+}
+
+func TestSetHealthyStatesSetHealthyError(t *testing.T) {
+	// Component that implements HealthSettable but SetHealthy fails
+	comp := &mockHealthSettableComponent{
+		mockComponent: mockComponent{
+			name:        "error-comp",
+			isSupported: true,
+		},
+		setHealthyError: errors.New("failed to set healthy"),
+	}
+
+	handler, _, _ := setupTestHandler([]components.Component{comp})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("POST", "/v1/health-states/set-healthy?components=error-comp", nil)
+	handler.setHealthyStates(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "failed to set any component to healthy", response["message"])
+
+	failed := response["failed"].(map[string]interface{})
+	assert.Contains(t, failed["error-comp"], "failed to set healthy")
+}
+
+func TestSetHealthyStatesPartialSuccess(t *testing.T) {
+	// Mix of successful and failed components
+	comp1 := &mockHealthSettableComponent{
+		mockComponent: mockComponent{
+			name:        "success-comp",
+			isSupported: true,
+		},
+		setHealthyError: nil,
+	}
+
+	comp2 := &mockHealthSettableComponent{
+		mockComponent: mockComponent{
+			name:        "error-comp",
+			isSupported: true,
+		},
+		setHealthyError: errors.New("failed to set healthy"),
+	}
+
+	handler, _, _ := setupTestHandler([]components.Component{comp1, comp2})
+	_, c, w := setupTestRouter()
+
+	c.Request = httptest.NewRequest("POST", "/v1/health-states/set-healthy?components=success-comp,error-comp", nil)
+	handler.setHealthyStates(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "set healthy states completed", response["message"])
+
+	successful := response["successful"].([]interface{})
+	assert.Len(t, successful, 1)
+	assert.Contains(t, successful, "success-comp")
+
+	failed := response["failed"].(map[string]interface{})
+	assert.Len(t, failed, 1)
+	assert.Contains(t, failed["error-comp"], "failed to set healthy")
+}
+
+// mockHealthSettableComponent implements both Component and HealthSettable interfaces
+type mockHealthSettableComponent struct {
+	mockComponent
+	setHealthyError error
+}
+
+func (m *mockHealthSettableComponent) SetHealthy() error {
+	return m.setHealthyError
+}

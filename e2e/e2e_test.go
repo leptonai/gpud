@@ -400,7 +400,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			Expect(respBody.Failed).ToNot(HaveKey("disk"), "expected disk to not be in failed map")
 		})
 
-		It("returns error when components parameter is empty", func() {
+		It("allows empty components parameter", func() {
 			req, err := http.NewRequest(
 				"POST",
 				fmt.Sprintf("https://%s/v1/health-states/set-healthy", ep),
@@ -413,21 +413,21 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
 			defer resp.Body.Close()
-			Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 			body, err := io.ReadAll(resp.Body)
 			Expect(err).NotTo(HaveOccurred(), "failed to read response body")
 			GinkgoLogr.Info("/v1/health-states/set-healthy response for empty components", "response", string(body))
 
 			var respBody struct {
-				Code    interface{} `json:"code"`
-				Message string      `json:"message"`
+				Code       int               `json:"code"`
+				Message    string            `json:"message"`
+				Successful []string          `json:"successful"`
+				Failed     map[string]string `json:"failed"`
 			}
 
 			err = json.Unmarshal(body, &respBody)
 			Expect(err).NotTo(HaveOccurred(), "failed to unmarshal response body")
-			// The code field contains errdefs.ErrInvalidArgument which marshals to an empty object
-			Expect(respBody.Message).To(Equal("components parameter is required"))
 		})
 	})
 

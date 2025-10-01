@@ -230,7 +230,7 @@ func TestSetHealthyComponents(t *testing.T) {
 			defer cancel()
 
 			// Call the function
-			err := SetHealthyComponents(ctx, server.URL, tt.components, opts...)
+			_, err := SetHealthyComponents(ctx, server.URL, tt.components, opts...)
 
 			// Check error
 			if tt.expectedError != "" {
@@ -246,7 +246,7 @@ func TestSetHealthyComponents(t *testing.T) {
 func TestSetHealthyComponents_InvalidURL(t *testing.T) {
 	// Test with invalid URL
 	ctx := context.Background()
-	err := SetHealthyComponents(ctx, "://invalid-url", []string{"disk"})
+	_, err := SetHealthyComponents(ctx, "://invalid-url", []string{"disk"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parse")
 }
@@ -263,7 +263,7 @@ func TestSetHealthyComponents_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := SetHealthyComponents(ctx, server.URL, []string{"disk"})
+	_, err := SetHealthyComponents(ctx, server.URL, []string{"disk"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context canceled")
 }
@@ -273,7 +273,7 @@ func TestSetHealthyComponents_NetworkError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	err := SetHealthyComponents(ctx, "http://localhost:99999", []string{"disk"})
+	_, err := SetHealthyComponents(ctx, "http://localhost:99999", []string{"disk"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to make request")
 }
@@ -297,7 +297,7 @@ func TestSetHealthyComponents_ApplyOptsError(t *testing.T) {
 	// In a real scenario, you might want to refactor applyOpts to validate options.
 
 	ctx := context.Background()
-	err := SetHealthyComponents(ctx, server.URL, []string{"disk"}, customOpt)
+	_, err := SetHealthyComponents(ctx, server.URL, []string{"disk"}, customOpt)
 	// Currently this won't error because applyOpts doesn't validate
 	require.NoError(t, err)
 }
