@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"sync"
 	"time"
 
@@ -321,6 +322,15 @@ func createHTTPClient(jar *cookiejar.Jar) *http.Client {
 }
 
 func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessionType, token string, body io.Reader) (*http.Request, error) {
+	u, err := url.Parse(epControlPlane)
+	if err != nil {
+		return nil, err
+	}
+	host := u.Hostname()
+	if host == "" {
+		return nil, fmt.Errorf("no host in epControlPlane")
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "POST", epControlPlane+"/api/v1/session", body)
 	if err != nil {
 		return nil, err
@@ -328,6 +338,7 @@ func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessio
 	req.Header.Set("X-GPUD-Machine-ID", machineID)
 	req.Header.Set("X-GPUD-Session-Type", sessionType)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Origin", host)
 
 	// Depreciated headers
 	req.Header.Set("machine_id", machineID)
