@@ -238,7 +238,6 @@ func fillFstypeFromFindmnt(ctx context.Context, dev *BlockDevice, cache map[stri
 
 // parseLsblkJSON parses the "lsblk --json" output.
 func parseLsblkJSON(ctx context.Context, b []byte, opts ...OpOption) (BlockDevices, error) {
-	fmt.Println("parseLsblkJSON", string(b))
 	if len(b) == 0 {
 		return nil, errors.New("empty input provided to Parse")
 	}
