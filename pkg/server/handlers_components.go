@@ -625,6 +625,14 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 // URLPathHealthStatesSetHealthy is for setting components to healthy state
 const URLPathHealthStatesSetHealthy = "/health-states/set-healthy"
 
+// SetHealthyStatesResponse represents the response for setting healthy states
+type SetHealthyStatesResponse struct {
+	Code       int               `json:"code"`
+	Message    string            `json:"message"`
+	Successful []string          `json:"successful,omitempty"`
+	Failed     map[string]string `json:"failed,omitempty"`
+}
+
 // setHealthyStates godoc
 // @Summary Set components to healthy state
 // @Description Sets specified components to healthy state if they implement the HealthSettable interface. If no components specified, attempts to set all components to healthy.
@@ -633,8 +641,8 @@ const URLPathHealthStatesSetHealthy = "/health-states/set-healthy"
 // @Accept json
 // @Produce json
 // @Param components query string false "Comma-separated list of component names to set healthy (if empty, sets all components)"
-// @Success 200 {object} map[string]interface{} "Components successfully set to healthy state"
-// @Failure 400 {object} map[string]interface{} "Bad request - component does not support setting healthy state"
+// @Success 200 {object} SetHealthyStatesResponse "Components successfully set to healthy state"
+// @Failure 400 {object} SetHealthyStatesResponse "Bad request - component does not support setting healthy state"
 // @Failure 404 {object} map[string]interface{} "Component not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error - failed to set healthy state"
 // @Router /v1/health-states/set-healthy [post]
@@ -679,18 +687,18 @@ func (g *globalHandler) setHealthyStates(c *gin.Context) {
 
 	if len(failedComponents) > 0 && len(successfulComponents) == 0 {
 		// All components failed
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    errdefs.ErrInvalidArgument,
-			"message": "failed to set any component to healthy",
-			"failed":  failedComponents,
+		c.JSON(http.StatusBadRequest, SetHealthyStatesResponse{
+			Code:    http.StatusBadRequest,
+			Message: "failed to set any component to healthy",
+			Failed:  failedComponents,
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":       http.StatusOK,
-		"message":    "set healthy states completed",
-		"successful": successfulComponents,
-		"failed":     failedComponents,
+	c.JSON(http.StatusOK, SetHealthyStatesResponse{
+		Code:       http.StatusOK,
+		Message:    "set healthy states completed",
+		Successful: successfulComponents,
+		Failed:     failedComponents,
 	})
 }
