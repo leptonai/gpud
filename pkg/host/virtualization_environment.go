@@ -52,6 +52,7 @@ func GetSystemdDetectVirt(ctx context.Context) (VirtualizationEnvironment, error
 			detectExecPath,
 		)),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return VirtualizationEnvironment{}, err
@@ -114,6 +115,7 @@ func GetSystemManufacturer(ctx context.Context) (string, error) {
 	p, err := process.New(
 		process.WithCommand(fmt.Sprintf("sudo %s -s system-manufacturer", dmidecodePath)),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return "", err

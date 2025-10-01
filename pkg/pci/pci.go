@@ -22,6 +22,7 @@ func List(ctx context.Context) (Devices, error) {
 	p, err := process.New(
 		process.WithBashScriptContentsToRun(fmt.Sprintf("sudo %s -vvv", lspciPath)),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return nil, err

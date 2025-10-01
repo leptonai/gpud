@@ -13,6 +13,7 @@ func main() {
 		process.WithCommand("echo", "1"),
 		process.WithCommand("echo 2"),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		panic(err)

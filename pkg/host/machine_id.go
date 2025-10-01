@@ -42,6 +42,7 @@ func GetDmidecodeUUID(ctx context.Context) (string, error) {
 	p, err := process.New(
 		process.WithCommand(fmt.Sprintf("%s -t system", dmidecodePath)),
 		process.WithRunAsBashScript(),
+		process.WithRunBashInline(),
 	)
 	if err != nil {
 		return "", err
