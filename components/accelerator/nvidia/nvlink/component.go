@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -156,22 +155,25 @@ func (c *component) Check() components.CheckResult {
 		} else {
 			metricSupported.With(labels).Set(0.0)
 			cr.UnsupportedNVLinkUUIDs = append(cr.UnsupportedNVLinkUUIDs, uuid)
+			continue
 		}
 
-		featureEnabled := nvLink.Supported && len(nvLink.States) > 0 && nvLink.States.AllFeatureEnabled()
+		featureEnabled := len(nvLink.States) > 0 && nvLink.States.AllFeatureEnabled()
 		if featureEnabled {
 			metricFeatureEnabled.With(labels).Set(1.0)
+			cr.ActiveNVLinkUUIDs = append(cr.ActiveNVLinkUUIDs, uuid)
 		} else {
 			metricFeatureEnabled.With(labels).Set(0.0)
-			if nvLink.Supported {
-				cr.InactiveNVLinkUUIDs = append(cr.InactiveNVLinkUUIDs, uuid)
-			}
+			cr.InactiveNVLinkUUIDs = append(cr.InactiveNVLinkUUIDs, uuid)
 		}
 		metricReplayErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalReplayErrors()))
 		metricRecoveryErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalRecoveryErrors()))
 		metricCRCErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalCRCErrors()))
 	}
 
+	if len(cr.ActiveNVLinkUUIDs) > 0 {
+		sort.Strings(cr.ActiveNVLinkUUIDs)
+	}
 	if len(cr.InactiveNVLinkUUIDs) > 0 {
 		sort.Strings(cr.InactiveNVLinkUUIDs)
 	}
@@ -184,22 +186,6 @@ func (c *component) Check() components.CheckResult {
 
 	evaluateHealthStateWithThresholds(cr)
 
-	if cr.health == apiv1.HealthStateTypeUnhealthy && cr.reason == "" {
-		details := []string{}
-		if len(cr.InactiveNVLinkUUIDs) > 0 {
-			details = append(details, fmt.Sprintf("inactive=%s", strings.Join(cr.InactiveNVLinkUUIDs, ",")))
-		}
-		if len(cr.UnsupportedNVLinkUUIDs) > 0 {
-			details = append(details, fmt.Sprintf("unsupported=%s", strings.Join(cr.UnsupportedNVLinkUUIDs, ",")))
-		}
-		cr.reason = fmt.Sprintf("nvlink issue detected%s", func() string {
-			if len(details) == 0 {
-				return ""
-			}
-			return fmt.Sprintf(" (%s)", strings.Join(details, "; "))
-		}())
-	}
-
 	return cr
 }
 
@@ -207,6 +193,7 @@ var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
 	NVLinks                []nvidianvml.NVLink `json:"nvlinks,omitempty"`
+	ActiveNVLinkUUIDs      []string            `json:"active_nvlink_uuids,omitempty"`
 	InactiveNVLinkUUIDs    []string            `json:"inactive_nvlink_uuids,omitempty"`
 	UnsupportedNVLinkUUIDs []string            `json:"unsupported_nvlink_uuids,omitempty"`
 	ExpectedLinkStates     *ExpectedLinkStates `json:"expected_link_states,omitempty"`
@@ -218,6 +205,8 @@ type checkResult struct {
 
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
+	// tracks the suggested actions for the last check
+	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
 }
@@ -261,6 +250,13 @@ func (cr *checkResult) HealthStateType() apiv1.HealthStateType {
 	return cr.health
 }
 
+func (cr *checkResult) getSuggestedActions() *apiv1.SuggestedActions {
+	if cr == nil {
+		return nil
+	}
+	return cr.suggestedActions
+}
+
 func (cr *checkResult) getError() string {
 	if cr == nil || cr.err == nil {
 		return ""
@@ -282,12 +278,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		SuggestedActions: cr.getSuggestedActions(),
+		Error:            cr.getError(),
+		Health:           cr.health,
 	}
 
 	if len(cr.NVLinks) > 0 {
