@@ -664,7 +664,6 @@ func (g *globalHandler) setHealthyStates(c *gin.Context) {
 
 	for _, comp := range comps {
 		healthSettable, ok := comp.(components.HealthSettable)
-
 		if !ok {
 			// do not add components to fail list if no components query string provided
 			if componentsQuery != "" {
