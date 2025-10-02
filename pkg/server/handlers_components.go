@@ -642,9 +642,8 @@ type SetHealthyStatesResponse struct {
 // @Produce json
 // @Param components query string false "Comma-separated list of component names to set healthy (if empty, sets all components)"
 // @Success 200 {object} SetHealthyStatesResponse "Components successfully set to healthy state"
-// @Failure 400 {object} SetHealthyStatesResponse "Bad request - component does not support setting healthy state"
-// @Failure 404 {object} map[string]interface{} "Component not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error - failed to set healthy state"
+// @Failure 400 {object} SetHealthyStatesResponse "Bad request - component does not support setting healthy state or failed to parse components"
+// @Failure 404 {object} SetHealthyStatesResponse "Component not found"
 // @Router /v1/health-states/set-healthy [post]
 func (g *globalHandler) setHealthyStates(c *gin.Context) {
 	componentsQuery := c.Query("components")
@@ -652,10 +651,16 @@ func (g *globalHandler) setHealthyStates(c *gin.Context) {
 	comps, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": err.Error()})
+			c.JSON(http.StatusNotFound, SetHealthyStatesResponse{
+				Code:    http.StatusNotFound,
+				Message: err.Error(),
+			})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
+		c.JSON(http.StatusBadRequest, SetHealthyStatesResponse{
+			Code:    http.StatusBadRequest,
+			Message: "failed to parse components: " + err.Error(),
+		})
 		return
 	}
 
