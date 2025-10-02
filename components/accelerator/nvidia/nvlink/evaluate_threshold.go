@@ -24,12 +24,7 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 		return
 	}
 
-	thresholds := ExpectedLinkStates{}
-	if cr.ExpectedLinkStates != nil {
-		thresholds = *cr.ExpectedLinkStates
-	}
-
-	if thresholds.IsZero() {
+	if cr.ExpectedLinkStates == nil || cr.ExpectedLinkStates.IsZero() {
 		if cr.reason == "" {
 			cr.reason = reasonNoThresholdConfigured
 		}
@@ -42,19 +37,8 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 		return
 	}
 
-	required := thresholds.AtLeastGPUsWithAllLinksFeatureEnabled
-	active := 0
-	for _, nv := range cr.NVLinks {
-		if !nv.Supported {
-			continue
-		}
-		if len(nv.States) == 0 {
-			continue
-		}
-		if nv.States.AllFeatureEnabled() {
-			active++
-		}
-	}
+	required := cr.ExpectedLinkStates.AtLeastGPUsWithAllLinksFeatureEnabled
+	active := len(cr.ActiveNVLinkUUIDs)
 
 	if active >= required {
 		cr.health = apiv1.HealthStateTypeHealthy
@@ -63,6 +47,7 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 	}
 
 	cr.health = apiv1.HealthStateTypeUnhealthy
+	cr.reason = fmt.Sprintf("nvlink threshold violated: require >=%d GPUs with all links active; got %d", required, active)
 	detailParts := []string{}
 	if len(cr.InactiveNVLinkUUIDs) > 0 {
 		detailParts = append(detailParts, fmt.Sprintf("inactive nvlinks=%s", strings.Join(cr.InactiveNVLinkUUIDs, ",")))
@@ -71,8 +56,14 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 		detailParts = append(detailParts, fmt.Sprintf("unsupported nvlinks=%s", strings.Join(cr.UnsupportedNVLinkUUIDs, ",")))
 	}
 	if len(detailParts) > 0 {
-		cr.reason = fmt.Sprintf("nvlink threshold violated: require >=%d GPUs with all links active; got %d (%s)", required, active, strings.Join(detailParts, "; "))
-		return
+		cr.reason = fmt.Sprintf("%s (%s)", cr.reason, strings.Join(detailParts, "; "))
 	}
-	cr.reason = fmt.Sprintf("nvlink threshold violated: require >=%d GPUs with all links active; got %d", required, active)
+
+	if cr.suggestedActions == nil && len(cr.InactiveNVLinkUUIDs) > 0 {
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		}
+	}
 }
