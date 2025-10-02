@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
@@ -56,6 +58,7 @@ func TestEvaluateThresholds_Satisfied(t *testing.T) {
 				},
 			},
 		},
+		ActiveNVLinkUUIDs:  []string{"GPU-0"},
 		ExpectedLinkStates: &thresholds,
 	}
 
@@ -96,6 +99,12 @@ func TestEvaluateThresholds_ViolationInactive(t *testing.T) {
 	if want := "inactive nvlinks=GPU-0"; !strings.Contains(cr.reason, want) {
 		t.Fatalf("expected reason to contain %q, got %q", want, cr.reason)
 	}
+	if cr.suggestedActions == nil {
+		t.Fatalf("expected suggested actions when nvlink is inactive")
+	}
+	if diff := cmp.Diff([]apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, cr.suggestedActions.RepairActions); diff != "" {
+		t.Fatalf("unexpected suggested actions (-want +got):\n%s", diff)
+	}
 }
 
 func TestEvaluateThresholds_ViolationUnsupported(t *testing.T) {
@@ -118,6 +127,9 @@ func TestEvaluateThresholds_ViolationUnsupported(t *testing.T) {
 	}
 	if want := "unsupported nvlinks=GPU-1"; !strings.Contains(cr.reason, want) {
 		t.Fatalf("expected reason to contain %q, got %q", want, cr.reason)
+	}
+	if cr.suggestedActions != nil {
+		t.Fatalf("did not expect suggested actions when nvlink is unsupported")
 	}
 }
 
@@ -247,6 +259,7 @@ func TestEvaluateThresholds_MultipleGPUsPartialActive(t *testing.T) {
 				},
 			},
 		},
+		ActiveNVLinkUUIDs:   []string{"GPU-0", "GPU-2"},
 		InactiveNVLinkUUIDs: []string{"GPU-1"},
 		ExpectedLinkStates:  &thresholds,
 	}

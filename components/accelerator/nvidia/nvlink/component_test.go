@@ -327,6 +327,30 @@ func TestStates_WithError(t *testing.T) {
 	assert.Equal(t, "test NVLink error", state.Error)
 }
 
+func TestStates_WithSuggestedActions(t *testing.T) {
+	ctx := context.Background()
+	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+
+	component.lastMu.Lock()
+	component.lastCheckResult = &checkResult{
+		ts:     time.Now().UTC(),
+		health: apiv1.HealthStateTypeUnhealthy,
+		reason: "nvlink threshold violated: require >=1 GPUs with all links active; got 0",
+		suggestedActions: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+		},
+	}
+	component.lastMu.Unlock()
+
+	states := component.LastHealthStates()
+	require.Len(t, states, 1)
+
+	state := states[0]
+	if assert.NotNil(t, state.SuggestedActions) {
+		assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, state.SuggestedActions.RepairActions)
+	}
+}
+
 func TestStates_NoData(t *testing.T) {
 	ctx := context.Background()
 	component := MockNVLinkComponent(ctx, nil, nil).(*component)
