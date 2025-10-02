@@ -996,6 +996,28 @@ func TestDataString(t *testing.T) {
 			},
 			expected: "", // We'll just check that it's not empty since the table format is hard to predict exactly
 		},
+		{
+			name: "with nil Detail",
+			data: &checkResult{
+				FoundErrors: []FoundError{
+					{
+						Kmsg: kmsg.Message{
+							Timestamp: metav1.NewTime(time.Now()),
+							Message:   "NVRM: Xid (PCI:0000:01:00): 102, unknown error",
+						},
+						XidError: XidError{
+							Xid:        102,
+							DeviceUUID: "GPU-87654321",
+							Detail:     nil, // This should not cause a panic
+						},
+					},
+				},
+				ts:     time.Now(),
+				health: apiv1.HealthStateTypeHealthy,
+				reason: "found 1 error with nil detail",
+			},
+			expected: "", // We'll just check that it doesn't panic and contains "unknown"
+		},
 	}
 
 	for _, tt := range tests {
@@ -1007,7 +1029,12 @@ func TestDataString(t *testing.T) {
 				assert.NotEmpty(t, result)
 				assert.Contains(t, result, "XID")
 				assert.Contains(t, result, tt.data.FoundErrors[0].DeviceUUID)
-				assert.Contains(t, result, tt.data.FoundErrors[0].Detail.Name)
+				if tt.data.FoundErrors[0].Detail != nil {
+					assert.Contains(t, result, tt.data.FoundErrors[0].Detail.Name)
+				} else {
+					// When Detail is nil, should contain "unknown"
+					assert.Contains(t, result, "unknown")
+				}
 			} else {
 				assert.Equal(t, tt.expected, result)
 			}

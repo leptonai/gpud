@@ -314,6 +314,11 @@ func (cr *checkResult) String() string {
 			critical = foundErr.Detail.CriticalErrorMarkedByGPUd
 		}
 
+		name := "unknown"
+		if foundErr.Detail != nil {
+			name = foundErr.Detail.Name
+		}
+
 		buf := bytes.NewBuffer(nil)
 		table := tablewriter.NewWriter(buf)
 		table.SetAlignment(tablewriter.ALIGN_CENTER)
@@ -322,7 +327,7 @@ func (cr *checkResult) String() string {
 			foundErr.Kmsg.DescribeTimestamp(now),
 			fmt.Sprintf("%d", foundErr.SXid),
 			foundErr.DeviceUUID,
-			foundErr.Detail.Name,
+			name,
 			strconv.FormatBool(critical),
 			action,
 		})

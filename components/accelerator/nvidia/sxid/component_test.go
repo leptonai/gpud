@@ -550,6 +550,27 @@ func TestDataString(t *testing.T) {
 			data:        nil,
 			shouldMatch: []string{""},
 		},
+		{
+			name: "data with nil Detail",
+			data: &checkResult{
+				FoundErrors: []FoundError{
+					{
+						Kmsg: kmsg.Message{
+							Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 20123, Unknown error",
+							Timestamp: metav1.Time{Time: time.Now()},
+						},
+						SXidError: SXidError{
+							SXid:       20123,
+							DeviceUUID: "PCI:0000:05:00.0",
+							Detail:     nil, // This should not cause a panic
+						},
+					},
+				},
+				health: apiv1.HealthStateTypeHealthy,
+				reason: "found 1 error with nil detail",
+			},
+			shouldMatch: []string{"unknown", "20123", "PCI:0000:05:00.0", "false"},
+		},
 	}
 
 	for _, tt := range tests {
