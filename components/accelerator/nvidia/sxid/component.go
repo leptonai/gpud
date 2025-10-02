@@ -311,7 +311,7 @@ func (cr *checkResult) String() string {
 
 		critical := false
 		if foundErr.Detail != nil {
-			critical = foundErr.Detail.CriticalErrorMarkedByGPUd
+			critical = foundErr.Detail.EventType == apiv1.EventTypeCritical || foundErr.Detail.EventType == apiv1.EventTypeFatal
 		}
 
 		name := "unknown"

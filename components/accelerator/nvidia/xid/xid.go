@@ -14,9 +14,6 @@ type Detail struct {
 
 	// SuggestedActionsByGPUd is the suggested actions by GPUd.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
-	// CriticalErrorMarkedByGPUd is true if the GPUd marks this Xid as a critical error.
-	// You may use this field to decide whether to alert or not.
-	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
 	// EventType is the type of the event.
 	EventType apiv1.EventType `json:"event_type"`
 }
@@ -45,8 +42,7 @@ var details = map[int]Detail{
 		Xid:  1,
 		Name: "Invalid or corrupted push buffer stream",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -55,8 +51,7 @@ var details = map[int]Detail{
 		Xid:  2,
 		Name: "Invalid or corrupted push buffer stream",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -65,8 +60,7 @@ var details = map[int]Detail{
 		Xid:  3,
 		Name: "Invalid or corrupted push buffer stream",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -75,8 +69,7 @@ var details = map[int]Detail{
 		Xid:  4,
 		Name: "Invalid or corrupted push buffer stream",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -85,8 +78,7 @@ var details = map[int]Detail{
 		Xid:  5,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -95,8 +87,7 @@ var details = map[int]Detail{
 		Xid:  6,
 		Name: "Invalid or corrupted push buffer stream",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -105,8 +96,7 @@ var details = map[int]Detail{
 		Xid:  7,
 		Name: "Invalid or corrupted push buffer address",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -115,8 +105,7 @@ var details = map[int]Detail{
 		Xid:  8,
 		Name: "GPU stopped processing",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -136,7 +125,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -145,8 +133,7 @@ var details = map[int]Detail{
 		Xid:  10,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -155,8 +142,7 @@ var details = map[int]Detail{
 		Xid:  11,
 		Name: "Invalid or corrupted push buffer stream",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -176,7 +162,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -224,7 +209,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
@@ -234,8 +218,7 @@ var details = map[int]Detail{
 		Xid:  14,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -244,8 +227,7 @@ var details = map[int]Detail{
 		Xid:  15,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -265,7 +247,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -274,8 +255,7 @@ var details = map[int]Detail{
 		Xid:  17,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -295,7 +275,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -315,7 +294,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -324,8 +302,7 @@ var details = map[int]Detail{
 		Xid:  20,
 		Name: "Invalid or corrupted Mpeg push buffer",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -334,8 +311,7 @@ var details = map[int]Detail{
 		Xid:  21,
 		Name: "Invalid or corrupted Motion Estimation push buffer",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -344,8 +320,7 @@ var details = map[int]Detail{
 		Xid:  22,
 		Name: "Invalid or corrupted Video Processor push buffer",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -354,8 +329,7 @@ var details = map[int]Detail{
 		Xid:  23,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -364,8 +338,7 @@ var details = map[int]Detail{
 		Xid:  24,
 		Name: "GPU semaphore timeout",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -374,8 +347,7 @@ var details = map[int]Detail{
 		Xid:  25,
 		Name: "Invalid or illegal push buffer stream",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -395,7 +367,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -415,7 +386,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -435,7 +405,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -454,7 +423,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -473,7 +441,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -526,7 +493,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeWarning,
@@ -578,7 +544,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -598,7 +563,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -618,7 +582,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -638,7 +601,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -658,7 +620,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -667,8 +628,7 @@ var details = map[int]Detail{
 		Xid:  37,
 		Name: "Driver firmware error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -719,7 +679,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -728,8 +687,7 @@ var details = map[int]Detail{
 		Xid:  39,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -738,8 +696,7 @@ var details = map[int]Detail{
 		Xid:  40,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -748,8 +705,7 @@ var details = map[int]Detail{
 		Xid:  41,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -768,7 +724,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -818,7 +773,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeWarning,
@@ -869,7 +823,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -924,7 +877,6 @@ var details = map[int]Detail{
 		},
 		// TODO
 		// unhealthy if there's no previous Xid event in the same time window
-		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
@@ -945,7 +897,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -965,7 +916,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1019,7 +969,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1028,8 +977,7 @@ var details = map[int]Detail{
 		Xid:  49,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1038,8 +986,7 @@ var details = map[int]Detail{
 		Xid:  50,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1048,8 +995,7 @@ var details = map[int]Detail{
 		Xid:  51,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1058,8 +1004,7 @@ var details = map[int]Detail{
 		Xid:  52,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1068,8 +1013,7 @@ var details = map[int]Detail{
 		Xid:  53,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1078,8 +1022,7 @@ var details = map[int]Detail{
 		Xid:  54,
 		Name: "Auxiliary power is not connected to the GPU board",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1088,8 +1031,7 @@ var details = map[int]Detail{
 		Xid:  55,
 		Name: "Unused",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1098,8 +1040,7 @@ var details = map[int]Detail{
 		Xid:  56,
 		Name: "Display Engine error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1108,8 +1049,7 @@ var details = map[int]Detail{
 		Xid:  57,
 		Name: "Error programming video memory interface",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1118,8 +1058,7 @@ var details = map[int]Detail{
 		Xid:  58,
 		Name: "Unstable video memory interface detected",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1139,7 +1078,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1159,7 +1097,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1209,7 +1146,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1261,7 +1197,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1320,7 +1255,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1377,7 +1311,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1395,7 +1328,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM but no immediate reboot is required
 		EventType: apiv1.EventTypeCritical,
@@ -1404,8 +1336,7 @@ var details = map[int]Detail{
 		Xid:  66,
 		Name: "Illegal access by driver",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1414,8 +1345,7 @@ var details = map[int]Detail{
 		Xid:  67,
 		Name: "Illegal access by driver",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1468,7 +1398,6 @@ var details = map[int]Detail{
 		},
 		// TODO
 		// ignore first xid 68 occurrences
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1523,7 +1452,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1532,8 +1460,7 @@ var details = map[int]Detail{
 		Xid:  70,
 		Name: "CE3: Unknown Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1542,8 +1469,7 @@ var details = map[int]Detail{
 		Xid:  71,
 		Name: "CE4: Unknown Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1552,8 +1478,7 @@ var details = map[int]Detail{
 		Xid:  72,
 		Name: "CE5: Unknown Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1562,8 +1487,7 @@ var details = map[int]Detail{
 		Xid:  73,
 		Name: "NVENC2 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1616,7 +1540,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1625,8 +1548,7 @@ var details = map[int]Detail{
 		Xid:  75,
 		Name: "CE6: Unknown Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1635,8 +1557,7 @@ var details = map[int]Detail{
 		Xid:  76,
 		Name: "CE7: Unknown Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1645,8 +1566,7 @@ var details = map[int]Detail{
 		Xid:  77,
 		Name: "CE8: Unknown Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1666,7 +1586,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1718,7 +1637,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1727,8 +1645,7 @@ var details = map[int]Detail{
 		Xid:  80,
 		Name: "Corrupted data sent to GPU",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1748,7 +1665,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1757,8 +1673,7 @@ var details = map[int]Detail{
 		Xid:  82,
 		Name: "NVJPG0 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1767,8 +1682,7 @@ var details = map[int]Detail{
 		Xid:  83,
 		Name: "NVDEC1 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1777,8 +1691,7 @@ var details = map[int]Detail{
 		Xid:  84,
 		Name: "NVDEC2 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1787,8 +1700,7 @@ var details = map[int]Detail{
 		Xid:  85,
 		Name: "CE9: Unknown Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1797,8 +1709,7 @@ var details = map[int]Detail{
 		Xid:  86,
 		Name: "OFA Exception",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1807,8 +1718,7 @@ var details = map[int]Detail{
 		Xid:  87,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1817,8 +1727,7 @@ var details = map[int]Detail{
 		Xid:  88,
 		Name: "NVDEC3 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1827,8 +1736,7 @@ var details = map[int]Detail{
 		Xid:  89,
 		Name: "NVDEC4 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1837,8 +1745,7 @@ var details = map[int]Detail{
 		Xid:  90,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1847,8 +1754,7 @@ var details = map[int]Detail{
 		Xid:  91,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1898,7 +1804,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeIgnoreNoActionRequired,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
@@ -1908,8 +1813,7 @@ var details = map[int]Detail{
 		Xid:  93,
 		Name: "Non-fatal violation of provisioned InfoROM wear limit",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -1966,7 +1870,6 @@ var details = map[int]Detail{
 		},
 		// TODO
 		// ignore the first few occurrences and then suggest reboot
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM but no immediate reboot is required
 		EventType: apiv1.EventTypeCritical,
@@ -2020,7 +1923,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
@@ -2030,8 +1932,7 @@ var details = map[int]Detail{
 		Xid:  96,
 		Name: "NVDEC5 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2040,8 +1941,7 @@ var details = map[int]Detail{
 		Xid:  97,
 		Name: "NVDEC6 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2050,8 +1950,7 @@ var details = map[int]Detail{
 		Xid:  98,
 		Name: "NVDEC7 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2060,8 +1959,7 @@ var details = map[int]Detail{
 		Xid:  99,
 		Name: "NVJPG1 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2070,8 +1968,7 @@ var details = map[int]Detail{
 		Xid:  100,
 		Name: "NVJPG2 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2080,8 +1977,7 @@ var details = map[int]Detail{
 		Xid:  101,
 		Name: "NVJPG3 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2090,8 +1986,7 @@ var details = map[int]Detail{
 		Xid:  102,
 		Name: "NVJPG4 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2100,8 +1995,7 @@ var details = map[int]Detail{
 		Xid:  103,
 		Name: "NVJPG5 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2110,8 +2004,7 @@ var details = map[int]Detail{
 		Xid:  104,
 		Name: "NVJPG6 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2120,8 +2013,7 @@ var details = map[int]Detail{
 		Xid:  105,
 		Name: "NVJPG7 Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2130,8 +2022,7 @@ var details = map[int]Detail{
 		Xid:  106,
 		Name: "SMBPBI Test Message",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2140,8 +2031,7 @@ var details = map[int]Detail{
 		Xid:  107,
 		Name: "SMBPBI Test Message Silent",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2150,8 +2040,7 @@ var details = map[int]Detail{
 		Xid:  108,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2160,8 +2049,7 @@ var details = map[int]Detail{
 		Xid:  109,
 		Name: "Context Switch Timeout Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2181,7 +2069,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2190,8 +2077,7 @@ var details = map[int]Detail{
 		Xid:  111,
 		Name: "Display Bundle Error Event",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2200,8 +2086,7 @@ var details = map[int]Detail{
 		Xid:  112,
 		Name: "Display Supervisor Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2210,8 +2095,7 @@ var details = map[int]Detail{
 		Xid:  113,
 		Name: "DP Link Training Erro",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2220,8 +2104,7 @@ var details = map[int]Detail{
 		Xid:  114,
 		Name: "Display Pipeline Underflow Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2230,8 +2113,7 @@ var details = map[int]Detail{
 		Xid:  115,
 		Name: "Display Core Channel Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2240,8 +2122,7 @@ var details = map[int]Detail{
 		Xid:  116,
 		Name: "Display Window Channel Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2250,8 +2131,7 @@ var details = map[int]Detail{
 		Xid:  117,
 		Name: "Display Cursor Channel Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2260,8 +2140,7 @@ var details = map[int]Detail{
 		Xid:  118,
 		Name: "Display Pixel Pipeline Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2314,7 +2193,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -2367,7 +2245,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -2420,7 +2297,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -2429,8 +2305,7 @@ var details = map[int]Detail{
 		Xid:  122,
 		Name: "SPI PMU RPC Read Failure",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2480,7 +2355,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -2489,8 +2363,7 @@ var details = map[int]Detail{
 		Xid:  124,
 		Name: "SPI PMU RPC Erase Failure",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2499,8 +2372,7 @@ var details = map[int]Detail{
 		Xid:  125,
 		Name: "Inforom FS Failure",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2509,8 +2381,7 @@ var details = map[int]Detail{
 		Xid:  126,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2519,8 +2390,7 @@ var details = map[int]Detail{
 		Xid:  127,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2529,8 +2399,7 @@ var details = map[int]Detail{
 		Xid:  128,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2539,8 +2408,7 @@ var details = map[int]Detail{
 		Xid:  129,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2549,8 +2417,7 @@ var details = map[int]Detail{
 		Xid:  130,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2559,8 +2426,7 @@ var details = map[int]Detail{
 		Xid:  131,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2569,8 +2435,7 @@ var details = map[int]Detail{
 		Xid:  132,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2579,8 +2444,7 @@ var details = map[int]Detail{
 		Xid:  134,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2589,8 +2453,7 @@ var details = map[int]Detail{
 		Xid:  135,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2599,8 +2462,7 @@ var details = map[int]Detail{
 		Xid:  136,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2650,7 +2512,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
 
 		// Xids whose GPUd.RepairActions is IGNORE_NO_ACTION_REQUIRED without REBOOT_SYSTEM/HARDWARE_INSPECTION
 		// Xids whose GPUd.RepairActions is CHECK_USER_APP_AND_GPU without REBOOT_SYSTEM/HARDWARE_INSPECTION
@@ -2660,8 +2521,7 @@ var details = map[int]Detail{
 		Xid:  138,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2670,8 +2530,7 @@ var details = map[int]Detail{
 		Xid:  139,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2724,7 +2583,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -2733,8 +2591,7 @@ var details = map[int]Detail{
 		Xid:  141,
 		Name: "Reserved",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2743,8 +2600,7 @@ var details = map[int]Detail{
 		Xid:  142,
 		Name: "Unrecovered ECC Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeWarning,
@@ -2762,60 +2618,52 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// Xids whose GPUd.RepairActions is empty
 		EventType: apiv1.EventTypeFatal,
 	},
 
 	144: {
-		Xid:                       144,
-		Name:                      "NVLINK: SAW Error",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    144,
+		Name:                   "NVLINK: SAW Error",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	145: {
-		Xid:                       145,
-		Name:                      "NVLINK: RLW Error",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    145,
+		Name:                   "NVLINK: RLW Error",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	146: {
-		Xid:                       146,
-		Name:                      "NVLINK: TLW Error",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    146,
+		Name:                   "NVLINK: TLW Error",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	147: {
-		Xid:                       147,
-		Name:                      "NVLINK: TREX Error",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    147,
+		Name:                   "NVLINK: TREX Error",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	148: {
-		Xid:                       148,
-		Name:                      "NVLINK: NVLPW_CTRL Error",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    148,
+		Name:                   "NVLINK: NVLPW_CTRL Error",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	149: {
-		Xid:                       149,
-		Name:                      "NVLINK: NETIR Error",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    149,
+		Name:                   "NVLINK: NETIR Error",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	150: {
-		Xid:                       150,
-		Name:                      "NVLINK: MSE Error",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    150,
+		Name:                   "NVLINK: MSE Error",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	151: {
 		Xid:  151,
@@ -2825,30 +2673,26 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	152: {
 		Xid:  152,
 		Name: "DLA SMMU Error",
 
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeInfo, // ignore for now
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	153: {
-		Xid:                       153,
-		Name:                      "DLA timeout Error",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeInfo, // ignore for now
+		Xid:                    153,
+		Name:                   "DLA timeout Error",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	154: {
-		Xid:                       154,
-		Name:                      "GPU Recovery Action Changed",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    154,
+		Name:                   "GPU Recovery Action Changed",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	155: {
 		Xid:  155,
@@ -2858,8 +2702,7 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	156: {
 		Xid:  156,
@@ -2869,15 +2712,13 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	157: {
-		Xid:                       157,
-		Name:                      "Resource Retirement Failure",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeInfo, // ignore for now
+		Xid:                    157,
+		Name:                   "Resource Retirement Failure",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	158: {
 		Xid:  158,
@@ -2887,36 +2728,31 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	159: {
-		Xid:                       159,
-		Name:                      "CHI Non-Data Error",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    159,
+		Name:                   "CHI Non-Data Error",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	160: {
-		Xid:                       160,
-		Name:                      "Channel Retirement Event",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    160,
+		Name:                   "Channel Retirement Event",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	161: {
-		Xid:                       161,
-		Name:                      "Channel Retirement Failure",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeInfo, // ignore for now
+		Xid:                    161,
+		Name:                   "Channel Retirement Failure",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	162: {
-		Xid:                       162,
-		Name:                      "Power Smoothing HW Circuitry capability reengaged",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeInfo, // ignore for now
+		Xid:                    162,
+		Name:                   "Power Smoothing HW Circuitry capability reengaged",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	163: {
 		Xid:  163,
@@ -2926,22 +2762,19 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	164: {
-		Xid:                       164,
-		Name:                      "Power Smoothing HW Circuitry low lifetime reached",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeInfo, // ignore for now
+		Xid:                    164,
+		Name:                   "Power Smoothing HW Circuitry low lifetime reached",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	165: {
-		Xid:                       165,
-		Name:                      "Power Smoothing HW Circuitry lifetime exhausted",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeInfo, // ignore for now
+		Xid:                    165,
+		Name:                   "Power Smoothing HW Circuitry lifetime exhausted",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	166: {
 		Xid:  166,
@@ -2951,8 +2784,7 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	167: {
 		Xid:  167,
@@ -2962,15 +2794,13 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	168: {
-		Xid:                       168,
-		Name:                      "Errors found in WPR (write protected region)",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    168,
+		Name:                   "Errors found in WPR (write protected region)",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	169: {
 		Xid:  169,
@@ -2980,8 +2810,7 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	170: {
 		Xid:  170,
@@ -2991,15 +2820,13 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeCheckUserAppAndGPU,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	171: {
-		Xid:                       171,
-		Name:                      "Additional to Xid 48 providing more details on particulars of fault to differentiate DRAM/SRAM",
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		Xid:                    171,
+		Name:                   "Additional to Xid 48 providing more details on particulars of fault to differentiate DRAM/SRAM",
+		SuggestedActionsByGPUd: nil,
+		EventType:              apiv1.EventTypeWarning,
 	},
 	172: {
 		Xid:  172,
@@ -3009,8 +2836,7 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 	173: {
 		Xid:  173,
@@ -3020,7 +2846,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: false,
-		EventType:                 apiv1.EventTypeWarning,
+		EventType: apiv1.EventTypeWarning,
 	},
 }

@@ -18,9 +18,6 @@ type Detail struct {
 
 	// SuggestedActionsByGPUd is the suggested actions by GPUd.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
-	// CriticalErrorMarkedByGPUd is true if the GPUd marks this SXid as a critical error.
-	// You may use this field to decide whether to alert or not.
-	CriticalErrorMarkedByGPUd bool `json:"critical_error_marked_by_gpud"`
 	// EventType is the type of the event.
 	EventType apiv1.EventType `json:"event_type"`
 
@@ -43,8 +40,7 @@ var defaultPotentialFatalErr = Detail{
 	Description: "The hypervisor must track these SXid source ports (NVLink) to determine whether the error occurred on an NVSwitch trunk port or NVSwitch access port. The fatal SXid will be propagated to the GPU as Xid 74 when applicable.",
 
 	// leave empty to define GPUd specific action
-	SuggestedActionsByGPUd:    nil,
-	CriticalErrorMarkedByGPUd: false,
+	SuggestedActionsByGPUd: nil,
 
 	// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 	EventType: apiv1.EventTypeWarning,
@@ -69,8 +65,7 @@ var defaultAlwaysFatalErr = Detail{
 `,
 
 	// leave empty to define GPUd specific action
-	SuggestedActionsByGPUd:    nil,
-	CriticalErrorMarkedByGPUd: false,
+	SuggestedActionsByGPUd: nil,
 
 	// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 	EventType: apiv1.EventTypeWarning,
@@ -123,7 +118,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -142,8 +136,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -162,8 +155,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -182,8 +174,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -202,8 +193,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -222,8 +212,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -242,8 +231,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -262,8 +250,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -282,8 +269,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -302,8 +288,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -322,8 +307,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -342,8 +326,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -362,8 +345,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -382,8 +364,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -402,8 +383,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -422,8 +402,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -442,8 +421,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -462,8 +440,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -482,8 +459,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -502,8 +478,7 @@ var details = map[int]Detail{
 		Description: "",
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -523,8 +498,7 @@ var details = map[int]Detail{
 
 		// NVLink packet needs to transmitted, may impact NVLink throughput
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -549,7 +523,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -574,7 +547,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeRebootSystem,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true, // only because it requires reboot
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -594,8 +566,7 @@ var details = map[int]Detail{
 
 		// this SXid can be safely ignored
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -615,8 +586,7 @@ var details = map[int]Detail{
 
 		// due to a broken/inconsistent connection or uncoordinated shutdown
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -655,7 +625,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -682,7 +651,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -709,7 +677,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -736,7 +703,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -763,7 +729,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -790,7 +755,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -817,7 +781,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -844,7 +807,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -871,7 +833,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -898,7 +859,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -925,7 +885,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -952,7 +911,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -979,7 +937,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -998,8 +955,7 @@ var details = map[int]Detail{
 		Description: defaultPotentialFatalErr.Description,
 
 		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -1026,7 +982,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1053,7 +1008,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1080,7 +1034,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1107,7 +1060,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1134,7 +1086,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1161,7 +1112,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1188,7 +1138,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1215,7 +1164,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1242,7 +1190,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1269,7 +1216,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1296,7 +1242,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1323,7 +1268,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1350,7 +1294,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1377,7 +1320,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1404,7 +1346,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1431,7 +1372,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1458,7 +1398,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1485,7 +1424,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1512,7 +1450,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1539,7 +1476,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1566,7 +1502,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1593,7 +1528,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1620,7 +1554,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1655,7 +1588,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1682,7 +1614,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1709,7 +1640,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1736,7 +1666,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1763,7 +1692,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1802,7 +1730,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1829,7 +1756,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1856,7 +1782,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1883,7 +1808,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1910,7 +1834,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1937,7 +1860,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1964,7 +1886,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -1991,7 +1912,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2018,7 +1938,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2045,7 +1964,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2072,7 +1990,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2099,7 +2016,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2126,7 +2042,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2153,7 +2068,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2180,7 +2094,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2207,7 +2120,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2234,7 +2146,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2261,7 +2172,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2288,7 +2198,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2315,7 +2224,6 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		CriticalErrorMarkedByGPUd: true,
 
 		// fatal; SXids whose GPUd.RepairActions has REBOOT_SYSTEM or HARDWARE_INSPECTION
 		EventType: apiv1.EventTypeFatal,
@@ -2346,8 +2254,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: "The errors are not fatal to the fabric/system, but they might be followed by other fatal events.",
 
 		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -2366,8 +2273,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: "The errors are not fatal to the fabric/system, but they might be followed by other fatal events.",
 
 		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -2386,8 +2292,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: "This SXid error is never expected to occur.",
 
 		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -2406,8 +2311,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: "Related to thermal events, which are not directly fatal to the fabric/system, but they indicate that system cooling might be insufficient.",
 
 		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -2426,8 +2330,7 @@ Other Guest VM Impact: No impact if error is confined to a single GPU.
 		Description: "Related to thermal events, which are not directly fatal to the fabric/system, but they indicate that system cooling might be insufficient.",
 
 		// TODO
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
@@ -2464,8 +2367,7 @@ _RX_SHORT_ERROR_RATE in https://github.com/NVIDIA/open-gpu-kernel-modules/blob/d
 `,
 
 		// no guest VM impact, NVSwitch hardware will auto correct the ECC errors
-		SuggestedActionsByGPUd:    nil,
-		CriticalErrorMarkedByGPUd: false,
+		SuggestedActionsByGPUd: nil,
 
 		// warn; SXids whose SuggestedActionsByGPUd is none (CriticalErrorMarkedByGPUd=false)
 		EventType: apiv1.EventTypeWarning,
