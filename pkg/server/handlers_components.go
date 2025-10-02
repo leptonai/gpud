@@ -625,6 +625,14 @@ func (g *globalHandler) getMetrics(c *gin.Context) {
 // URLPathHealthStatesSetHealthy is for setting components to healthy state
 const URLPathHealthStatesSetHealthy = "/health-states/set-healthy"
 
+// SetHealthyStatesResponse represents the response for setting healthy states
+type SetHealthyStatesResponse struct {
+	Code       int               `json:"code"`
+	Message    string            `json:"message"`
+	Successful []string          `json:"successful,omitempty"`
+	Failed     map[string]string `json:"failed,omitempty"`
+}
+
 // setHealthyStates godoc
 // @Summary Set components to healthy state
 // @Description Sets specified components to healthy state if they implement the HealthSettable interface. If no components specified, attempts to set all components to healthy.
@@ -633,29 +641,26 @@ const URLPathHealthStatesSetHealthy = "/health-states/set-healthy"
 // @Accept json
 // @Produce json
 // @Param components query string false "Comma-separated list of component names to set healthy (if empty, sets all components)"
-// @Success 200 {object} map[string]interface{} "Components successfully set to healthy state"
-// @Failure 400 {object} map[string]interface{} "Bad request - component does not support setting healthy state"
-// @Failure 404 {object} map[string]interface{} "Component not found"
-// @Failure 500 {object} map[string]interface{} "Internal server error - failed to set healthy state"
+// @Success 200 {object} SetHealthyStatesResponse "Components successfully set to healthy state"
+// @Failure 400 {object} SetHealthyStatesResponse "Bad request - component does not support setting healthy state or failed to parse components"
+// @Failure 404 {object} SetHealthyStatesResponse "Component not found"
 // @Router /v1/health-states/set-healthy [post]
 func (g *globalHandler) setHealthyStates(c *gin.Context) {
-	// Check if components query parameter is empty
 	componentsQuery := c.Query("components")
-	if componentsQuery == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    errdefs.ErrInvalidArgument,
-			"message": "components parameter is required",
-		})
-		return
-	}
 
 	comps, err := g.getReqComponents(c)
 	if err != nil {
 		if errdefs.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"code": errdefs.ErrNotFound, "message": err.Error()})
+			c.JSON(http.StatusNotFound, SetHealthyStatesResponse{
+				Code:    http.StatusNotFound,
+				Message: err.Error(),
+			})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"code": errdefs.ErrInvalidArgument, "message": "failed to parse components: " + err.Error()})
+		c.JSON(http.StatusBadRequest, SetHealthyStatesResponse{
+			Code:    http.StatusBadRequest,
+			Message: "failed to parse components: " + err.Error(),
+		})
 		return
 	}
 
@@ -665,7 +670,10 @@ func (g *globalHandler) setHealthyStates(c *gin.Context) {
 	for _, comp := range comps {
 		healthSettable, ok := comp.(components.HealthSettable)
 		if !ok {
-			failedComponents[comp.Name()] = "component does not support setting healthy state"
+			// do not add components to fail list if no components query string provided
+			if componentsQuery != "" {
+				failedComponents[comp.Name()] = "component does not support setting healthy state"
+			}
 			continue
 		}
 
@@ -683,18 +691,18 @@ func (g *globalHandler) setHealthyStates(c *gin.Context) {
 
 	if len(failedComponents) > 0 && len(successfulComponents) == 0 {
 		// All components failed
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    errdefs.ErrInvalidArgument,
-			"message": "failed to set any component to healthy",
-			"failed":  failedComponents,
+		c.JSON(http.StatusBadRequest, SetHealthyStatesResponse{
+			Code:    http.StatusBadRequest,
+			Message: "failed to set any component to healthy",
+			Failed:  failedComponents,
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":       http.StatusOK,
-		"message":    "set healthy states completed",
-		"successful": successfulComponents,
-		"failed":     failedComponents,
+	c.JSON(http.StatusOK, SetHealthyStatesResponse{
+		Code:       http.StatusOK,
+		Message:    "set healthy states completed",
+		Successful: successfulComponents,
+		Failed:     failedComponents,
 	})
 }

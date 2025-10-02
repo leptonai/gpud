@@ -23,6 +23,7 @@ func TestSetHealthyComponents(t *testing.T) {
 		contentType     string
 		acceptEncoding  string
 		expectedError   string
+		expectedResult  []string
 		expectedURL     string
 		expectedMethod  string
 		validateRequest func(t *testing.T, r *http.Request)
@@ -31,50 +32,54 @@ func TestSetHealthyComponents(t *testing.T) {
 			name:       "successful set healthy with single component",
 			components: []string{"disk"},
 			serverResponse: map[string]interface{}{
-				"success": []string{"disk"},
+				"successful": []string{"disk"},
 			},
 			statusCode:     http.StatusOK,
 			contentType:    httputil.RequestHeaderJSON,
 			expectedMethod: http.MethodPost,
 			expectedURL:    "/v1/health-states/set-healthy?components=disk",
+			expectedResult: []string{"disk"},
 		},
 		{
 			name:       "successful set healthy with multiple components",
 			components: []string{"disk", "memory", "cpu"},
 			serverResponse: map[string]interface{}{
-				"success": []string{"disk", "memory", "cpu"},
+				"successful": []string{"disk", "memory", "cpu"},
 			},
 			statusCode:     http.StatusOK,
 			contentType:    httputil.RequestHeaderJSON,
 			expectedMethod: http.MethodPost,
 			expectedURL:    "/v1/health-states/set-healthy?components=disk%2Cmemory%2Ccpu",
+			expectedResult: []string{"disk", "memory", "cpu"},
 		},
 		{
 			name:       "successful set healthy with no components (all components)",
 			components: []string{},
 			serverResponse: map[string]interface{}{
-				"success": []string{"disk", "memory", "cpu", "gpu"},
+				"successful": []string{"disk", "memory", "cpu", "gpu"},
 			},
 			statusCode:     http.StatusOK,
 			contentType:    httputil.RequestHeaderJSON,
 			expectedMethod: http.MethodPost,
 			expectedURL:    "/v1/health-states/set-healthy",
+			expectedResult: []string{"disk", "memory", "cpu", "gpu"},
 		},
 		{
 			name:       "successful set healthy with nil components",
 			components: nil,
 			serverResponse: map[string]interface{}{
-				"success": []string{"disk", "memory", "cpu", "gpu"},
+				"successful": []string{"disk", "memory", "cpu", "gpu"},
 			},
 			statusCode:     http.StatusOK,
 			expectedMethod: http.MethodPost,
 			expectedURL:    "/v1/health-states/set-healthy",
+			expectedResult: []string{"disk", "memory", "cpu", "gpu"},
 		},
 		{
 			name:       "partial failure - some components failed",
 			components: []string{"disk", "invalid-component"},
 			serverResponse: map[string]interface{}{
-				"success": []string{"disk"},
+				"successful": []string{"disk"},
 				"failed": map[string]string{
 					"invalid-component": "component does not support setting healthy state",
 				},
@@ -121,10 +126,11 @@ func TestSetHealthyComponents(t *testing.T) {
 		{
 			name:           "successful with custom content type",
 			components:     []string{"disk"},
-			serverResponse: map[string]interface{}{"success": []string{"disk"}},
+			serverResponse: map[string]interface{}{"successful": []string{"disk"}},
 			statusCode:     http.StatusOK,
 			contentType:    httputil.RequestHeaderYAML,
 			expectedMethod: http.MethodPost,
+			expectedResult: []string{"disk"},
 			validateRequest: func(t *testing.T, r *http.Request) {
 				assert.Equal(t, httputil.RequestHeaderYAML, r.Header.Get(httputil.RequestHeaderContentType))
 			},
@@ -132,10 +138,11 @@ func TestSetHealthyComponents(t *testing.T) {
 		{
 			name:           "successful with gzip encoding",
 			components:     []string{"disk"},
-			serverResponse: map[string]interface{}{"success": []string{"disk"}},
+			serverResponse: map[string]interface{}{"successful": []string{"disk"}},
 			statusCode:     http.StatusOK,
 			acceptEncoding: "gzip",
 			expectedMethod: http.MethodPost,
+			expectedResult: []string{"disk"},
 			validateRequest: func(t *testing.T, r *http.Request) {
 				assert.Equal(t, "gzip", r.Header.Get(httputil.RequestHeaderAcceptEncoding))
 			},
@@ -146,6 +153,7 @@ func TestSetHealthyComponents(t *testing.T) {
 			serverResponse: "",
 			statusCode:     http.StatusOK,
 			expectedMethod: http.MethodPost,
+			expectedResult: []string{"disk"},
 		},
 		{
 			name:           "malformed JSON response with 200 OK - should not error",
@@ -153,26 +161,29 @@ func TestSetHealthyComponents(t *testing.T) {
 			serverResponse: "{invalid json}",
 			statusCode:     http.StatusOK,
 			expectedMethod: http.MethodPost,
+			expectedResult: []string{"disk"},
 		},
 		{
 			name:       "components with special characters",
 			components: []string{"component-with-dash", "component_with_underscore", "component.with.dot"},
 			serverResponse: map[string]interface{}{
-				"success": []string{"component-with-dash", "component_with_underscore", "component.with.dot"},
+				"successful": []string{"component-with-dash", "component_with_underscore", "component.with.dot"},
 			},
 			statusCode:     http.StatusOK,
 			expectedMethod: http.MethodPost,
 			expectedURL:    "/v1/health-states/set-healthy?components=component-with-dash%2Ccomponent_with_underscore%2Ccomponent.with.dot",
+			expectedResult: []string{"component-with-dash", "component_with_underscore", "component.with.dot"},
 		},
 		{
 			name:       "components with spaces get trimmed",
 			components: []string{" disk ", "  memory  ", "cpu "},
 			serverResponse: map[string]interface{}{
-				"success": []string{"disk", "memory", "cpu"},
+				"successful": []string{"disk", "memory", "cpu"},
 			},
 			statusCode:     http.StatusOK,
 			expectedMethod: http.MethodPost,
 			expectedURL:    "/v1/health-states/set-healthy?components=+disk+%2C++memory++%2Ccpu+",
+			expectedResult: []string{"disk", "memory", "cpu"},
 		},
 	}
 
@@ -230,14 +241,18 @@ func TestSetHealthyComponents(t *testing.T) {
 			defer cancel()
 
 			// Call the function
-			err := SetHealthyComponents(ctx, server.URL, tt.components, opts...)
+			res, err := SetHealthyComponents(ctx, server.URL, tt.components, opts...)
 
 			// Check error
 			if tt.expectedError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
+				assert.Nil(t, res)
 			} else {
 				require.NoError(t, err)
+				if tt.expectedResult != nil {
+					assert.Equal(t, tt.expectedResult, res)
+				}
 			}
 		})
 	}
@@ -246,7 +261,7 @@ func TestSetHealthyComponents(t *testing.T) {
 func TestSetHealthyComponents_InvalidURL(t *testing.T) {
 	// Test with invalid URL
 	ctx := context.Background()
-	err := SetHealthyComponents(ctx, "://invalid-url", []string{"disk"})
+	_, err := SetHealthyComponents(ctx, "://invalid-url", []string{"disk"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parse")
 }
@@ -263,7 +278,7 @@ func TestSetHealthyComponents_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := SetHealthyComponents(ctx, server.URL, []string{"disk"})
+	_, err := SetHealthyComponents(ctx, server.URL, []string{"disk"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context canceled")
 }
@@ -273,7 +288,7 @@ func TestSetHealthyComponents_NetworkError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	err := SetHealthyComponents(ctx, "http://localhost:99999", []string{"disk"})
+	_, err := SetHealthyComponents(ctx, "http://localhost:99999", []string{"disk"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to make request")
 }
@@ -297,7 +312,7 @@ func TestSetHealthyComponents_ApplyOptsError(t *testing.T) {
 	// In a real scenario, you might want to refactor applyOpts to validate options.
 
 	ctx := context.Background()
-	err := SetHealthyComponents(ctx, server.URL, []string{"disk"}, customOpt)
+	_, err := SetHealthyComponents(ctx, server.URL, []string{"disk"}, customOpt)
 	// Currently this won't error because applyOpts doesn't validate
 	require.NoError(t, err)
 }

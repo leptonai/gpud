@@ -600,7 +600,7 @@ sudo rm /etc/systemd/system/gpud.service
 			Name:      "set-healthy",
 			Aliases:   []string{"set-health"},
 			Usage:     "set the healthy state of components",
-			UsageText: "gpud set-healthy <components> [options]\n\n   <components>: comma-separated list of component names to set healthy",
+			UsageText: "gpud set-healthy <components> [options]\n\n   <components>: comma-separated list of component names to set healthy (if empty, sets all components).",
 			Action:    cmdsethealthy.CreateCommand(),
 			Flags: []cli.Flag{
 				&cli.StringFlag{

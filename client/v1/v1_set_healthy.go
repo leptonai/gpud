@@ -11,18 +11,19 @@ import (
 
 	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/server"
 )
 
 // SetHealthyComponents sets specified components to healthy state
-func SetHealthyComponents(ctx context.Context, addr string, components []string, opts ...OpOption) error {
+func SetHealthyComponents(ctx context.Context, addr string, components []string, opts ...OpOption) ([]string, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
-		return err
+		return nil, err
 	}
 
 	reqURL, err := url.Parse(fmt.Sprintf("%s/v1/health-states/set-healthy", addr))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Add components to query parameters if specified
@@ -34,7 +35,7 @@ func SetHealthyComponents(ctx context.Context, addr string, components []string,
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL.String(), nil)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	if op.requestContentType != "" {
@@ -46,30 +47,38 @@ func SetHealthyComponents(ctx context.Context, addr string, components []string,
 
 	resp, err := createDefaultHTTPClient().Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to make request: %w", err)
+		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body))
 	}
 
-	var response struct {
-		Success []string          `json:"success,omitempty"`
-		Failed  map[string]string `json:"failed,omitempty"`
-		Message string            `json:"message,omitempty"`
-		Code    string            `json:"code,omitempty"`
-	}
+	var response server.SetHealthyStatesResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		log.Logger.Warnf("failed to decode response: %v", err)
 		// Not a critical error if we got 200 OK
-		return nil
+		return cloneStringSlice(components), nil
+	}
+
+	if len(response.Successful) == 0 && len(components) > 0 {
+		response.Successful = cloneStringSlice(components)
 	}
 
 	if len(response.Failed) > 0 {
-		return fmt.Errorf("some components failed to set healthy: %v", response.Failed)
+		return nil, fmt.Errorf("some components failed to set healthy: %v", response.Failed)
 	}
 
-	return nil
+	return response.Successful, nil
+}
+
+func cloneStringSlice(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make([]string, len(src))
+	copy(dst, src)
+	return dst
 }
