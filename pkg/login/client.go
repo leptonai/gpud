@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/httputil"
@@ -26,19 +27,30 @@ func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest) (
 	return sendRequest(ctx, url, req)
 }
 
-func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
-	log.Logger.Debugw("sending login request", "url", url)
+func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+	log.Logger.Debugw("sending login request", "endpointURL", endpointURL)
+
+	u, err := url.Parse(endpointURL)
+	if err != nil {
+		return nil, err
+	}
+	host := u.Hostname()
+	if host == "" {
+		return nil, fmt.Errorf("no host in endpoint URL: %s", endpointURL)
+	}
 
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling login request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(b))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewBuffer(b))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", req.Token))
+	httpReq.Header.Set("Origin", host)
 
 	client := &http.Client{
 		Transport: &http.Transport{
@@ -69,6 +81,6 @@ func sendRequest(ctx context.Context, url string, req apiv1.LoginRequest) (*apiv
 		return &resp, ErrEmptyMachineID
 	}
 
-	log.Logger.Debugw("login request processed", "data", string(b), "url", url, "machineID", resp.MachineID)
+	log.Logger.Debugw("login request processed", "data", string(b), "endpointURL", endpointURL, "machineID", resp.MachineID)
 	return &resp, nil
 }

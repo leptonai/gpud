@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -373,7 +374,8 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *coo
 		return
 	}
 
-	log.Logger.Debugw("session writer: http closed", "status", resp.Status, "statusCode", resp.StatusCode)
+	serverID := resp.Header.Get("X-GPUD-Server-ID")
+	log.Logger.Infow("session writer: http closed", "status", resp.Status, "statusCode", resp.StatusCode, "serverID", serverID)
 }
 
 func (s *Session) handleWriterPipe(writer *io.PipeWriter, closec, finish chan any) {
@@ -447,11 +449,23 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 		close(pipeFinishCh)
 		return
 	}
+	serverID := resp.Header.Get("X-GPUD-Server-ID")
+	log.Logger.Infow("session reader got X-GPUD-Server-ID", "serverID", serverID)
 
 	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
 }
 
 func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) error {
+	u, err := url.Parse(s.epControlPlane)
+	if err != nil {
+		return err
+	}
+	if strings.HasPrefix(u.Hostname(), "gpud-gateway.") {
+		return nil
+	}
+
+	// TODO: we should remove the function once we migrate the session to gpud-gateway
+	log.Logger.Infow("session keep alive: checking server health")
 	req, err := http.NewRequestWithContext(ctx, "GET", s.epControlPlane+"/healthz", nil)
 	if err != nil {
 		return err
