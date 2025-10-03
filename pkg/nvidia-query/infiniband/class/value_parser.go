@@ -28,39 +28,6 @@ func newValueParser(v string) *valueParser {
 	return &valueParser{v: v}
 }
 
-// Int interprets the underlying value as an int and returns that value.
-func (vp *valueParser) Int() int { return int(vp.int64()) }
-
-// PInt64 interprets the underlying value as an int64 and returns a pointer to
-// that value.
-func (vp *valueParser) PInt64() *int64 {
-	if vp.err != nil {
-		return nil
-	}
-
-	v := vp.int64()
-	return &v
-}
-
-// int64 interprets the underlying value as an int64 and returns that value.
-// TODO: export if/when necessary.
-func (vp *valueParser) int64() int64 {
-	if vp.err != nil {
-		return 0
-	}
-
-	// A base value of zero makes ParseInt infer the correct base using the
-	// string's prefix, if any.
-	const base = 0
-	v, err := strconv.ParseInt(vp.v, base, 64)
-	if err != nil {
-		vp.err = err
-		return 0
-	}
-
-	return v
-}
-
 // PUInt64 interprets the underlying value as an uint64 and returns a pointer to
 // that value.
 func (vp *valueParser) PUInt64() *uint64 {
