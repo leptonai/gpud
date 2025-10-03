@@ -346,6 +346,11 @@ func (cr *checkResult) String() string {
 			criticality = string(foundErr.Detail.EventType)
 		}
 
+		name := "unknown"
+		if foundErr.Detail != nil {
+			name = foundErr.Detail.Name
+		}
+
 		buf := bytes.NewBuffer(nil)
 		table := tablewriter.NewWriter(buf)
 		table.SetAlignment(tablewriter.ALIGN_CENTER)
@@ -354,7 +359,7 @@ func (cr *checkResult) String() string {
 			foundErr.Kmsg.DescribeTimestamp(now),
 			fmt.Sprintf("%d", foundErr.Xid),
 			foundErr.DeviceUUID,
-			foundErr.Detail.Name,
+			name,
 			criticality,
 			action,
 		})
