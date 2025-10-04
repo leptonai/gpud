@@ -526,7 +526,7 @@ func TestDataString(t *testing.T) {
 								SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 									RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 								},
-								CriticalErrorMarkedByGPUd: true,
+								EventType: apiv1.EventTypeFatal,
 							},
 						},
 					},

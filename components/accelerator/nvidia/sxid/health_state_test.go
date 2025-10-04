@@ -115,7 +115,6 @@ func Test_sxidErrorEventDetailJSON(t *testing.T) {
 			SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 			},
-			CriticalErrorMarkedByGPUd: true,
 		}
 
 		jsonBytes, err := json.Marshal(sxidErr)
@@ -130,7 +129,6 @@ func Test_sxidErrorEventDetailJSON(t *testing.T) {
 		assert.Equal(t, sxidErr.DataSource, unmarshaled.DataSource)
 		assert.Equal(t, sxidErr.DeviceUUID, unmarshaled.DeviceUUID)
 		assert.Equal(t, sxidErr.SXid, unmarshaled.SXid)
-		assert.Equal(t, sxidErr.CriticalErrorMarkedByGPUd, unmarshaled.CriticalErrorMarkedByGPUd)
 		assert.Equal(t, sxidErr.SuggestedActionsByGPUd.RepairActions, unmarshaled.SuggestedActionsByGPUd.RepairActions)
 	})
 
@@ -154,6 +152,5 @@ func Test_sxidErrorEventDetailJSON(t *testing.T) {
 		assert.Equal(t, sxidErr.DeviceUUID, unmarshaled.DeviceUUID)
 		assert.Equal(t, sxidErr.SXid, unmarshaled.SXid)
 		assert.Nil(t, unmarshaled.SuggestedActionsByGPUd)
-		assert.False(t, unmarshaled.CriticalErrorMarkedByGPUd)
 	})
 }

@@ -981,11 +981,11 @@ func TestDataString(t *testing.T) {
 							Xid:        31,
 							DeviceUUID: "GPU-12345678",
 							Detail: &Detail{
-								Name:                      "GPU_HANG",
-								CriticalErrorMarkedByGPUd: true,
+								Name: "GPU_HANG",
 								SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 									RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 								},
+								EventType: apiv1.EventTypeFatal,
 							},
 						},
 					},

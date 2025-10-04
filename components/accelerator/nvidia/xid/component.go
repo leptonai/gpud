@@ -284,7 +284,7 @@ func (c *component) Check() components.CheckResult {
 	// if there are any critical errors, the health state will be unhealthy
 	cr.health = apiv1.HealthStateTypeHealthy
 	for _, foundErr := range cr.FoundErrors {
-		if foundErr.Detail != nil && foundErr.Detail.CriticalErrorMarkedByGPUd {
+		if foundErr.Detail != nil && (foundErr.Detail.EventType == apiv1.EventTypeCritical || foundErr.Detail.EventType == apiv1.EventTypeFatal) {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			break
 		}
