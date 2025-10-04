@@ -65,8 +65,8 @@ func (s *Session) keepAlive() {
 			// DO NOT CHANGE OR REMOVE THIS COOKIE JAR, DEPEND ON IT FOR STICKY SESSION
 			jar, _ := cookiejar.New(nil)
 
-			log.Logger.Infow("session keep alive: checking server health")
 			// DO NOT CHANGE OR REMOVE THIS SERVER HEALTH CHECK, DEPEND ON IT FOR STICKY SESSION
+			// TODO: we can remove it once we migrate to gpud-gateway
 			if err := s.checkServerHealthFunc(ctx, jar); err != nil {
 				log.Logger.Errorf("session keep alive: error checking server health: %v", err)
 				cancel()

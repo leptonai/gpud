@@ -135,13 +135,25 @@ func CommandShutdown(cliContext *cli.Context) error {
 }
 
 func sendNotification(endpoint string, req apiv1.NotificationRequest, token string) error {
+	endpointURL := createNotificationURL(endpoint)
+	u, err := url.Parse(endpointURL)
+	if err != nil {
+		return err
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("no host in endpoint URL: %s", endpoint)
+	}
+
 	rawPayload, _ := json.Marshal(&req)
-	httpReq, err := http.NewRequest("POST", createNotificationURL(endpoint), bytes.NewBuffer(rawPayload))
+	httpReq, err := http.NewRequest("POST", endpointURL, bytes.NewBuffer(rawPayload))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	httpReq.Header.Set("Origin", host)
+
 	client := &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
