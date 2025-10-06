@@ -734,6 +734,12 @@ func TestParseContainerdVersion(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "standard containerd version output from a live system",
+			input:   "containerd github.com/containerd/containerd v1.7.20 7ab40557b20c33567c74c661d548661b631bbb37",
+			want:    "1.7.20",
+			wantErr: false,
+		},
+		{
 			name:    "different version number",
 			input:   "containerd containerd.io 1.6.21 abc123def456",
 			want:    "1.6.21",

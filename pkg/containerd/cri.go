@@ -242,8 +242,10 @@ func GetVersionFromCli(ctx context.Context) (string, error) {
 	return parseContainerdVersion(string(out))
 }
 
-// only matches "1.7.25" when "containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb"
-const regexContainerdVersion = `\s+(\d+\.\d+\.\d+)(?:\s+|$)`
+// matches "1.7.25" when "containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb"
+// supports optional v in front of the version number
+// e.g., "containerd containerd.io v1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb"
+const regexContainerdVersion = `\s+v?(\d+\.\d+\.\d+)(?:\s+|$)`
 
 var reContainerdVersion = regexp.MustCompile(regexContainerdVersion)
 
