@@ -39,29 +39,29 @@ func Command(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
-	log.Logger.Debugw("successfully got state file")
+	log.Logger.Debugw("successfully got state file", "file", stateFile)
 
 	log.Logger.Debugw("opening state file for reading")
 	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
 	if err != nil {
-		return fmt.Errorf("failed to open state file: %w", err)
+		return fmt.Errorf("failed to open state file %q: %w", stateFile, err)
 	}
 	defer dbRO.Close()
-	log.Logger.Debugw("successfully opened state file for reading")
+	log.Logger.Debugw("successfully opened state file for reading", "file", stateFile)
 
 	log.Logger.Debugw("reading machine id")
 	machineID, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyMachineID)
 	if err != nil {
-		return fmt.Errorf("failed to read machine id: %w", err)
+		return fmt.Errorf("failed to read machine id %q: %w", stateFile, err)
 	}
-	log.Logger.Debugw("successfully read machine id")
+	log.Logger.Debugw("successfully read machine id", "file", stateFile)
 
 	log.Logger.Debugw("reading login success")
 	loginSuccess, err := pkgmetadata.ReadMetadata(rootCtx, dbRO, pkgmetadata.MetadataKeyControlPlaneLoginSuccess)
 	if err != nil {
-		return fmt.Errorf("failed to read login success: %w", err)
+		return fmt.Errorf("failed to read login success %q: %w", stateFile, err)
 	}
-	log.Logger.Debugw("successfully read login success")
+	log.Logger.Debugw("successfully read login success", "file", stateFile)
 
 	if err := checkLoginSuccess(loginSuccess, machineID); err != nil {
 		return err
