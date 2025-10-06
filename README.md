@@ -49,15 +49,40 @@ Note that the install script does not currenlty support other architectures (e.g
 
 This section covers running `gpud` directly on a host machine.
 
+#### Resource Requirements (for Lepton Platform)
+
+If you plan to join the Lepton platform (using the `--token` flag), your node must meet these minimum requirements to support basic system components (kubelets and system pods):
+
+**Minimum specs (absolute minimum):**
+- 3 CPU cores
+- 4 GiB memory
+
+**Recommended specs (provides operational headroom):**
+- 4 CPU cores (e.g., AWS c6a.xlarge or equivalent)
+- 8+ GiB memory
+
+**Important notes:**
+- 2-core instances will fail to join the platform
+- 3-core instances may work but have minimal headroom for workloads
+- 4-core instances offer the best balance for reliability and cost
+- GPU nodes will install additional components beyond these base requirements
+- These requirements apply only when joining the Lepton platform; standalone `gpud` operation has lower requirements
+
 #### With `systemd` (Recommended for Linux)
 
 **Start the service:**
 
 ```bash
-sudo gpud up [--token <LEPTON_AI_TOKEN>]
+sudo gpud up [--token <DGXC_LEPTON_AI_TOKEN>]
 ```
 
-> **Note:** The optional `--token` connects `gpud` to the Lepton Platform. You can get a token from the [Settings > Tokens page](https://dashboard.lepton.ai/workspace-redirect/settings/api-tokens) on your dashboard. You can then view your machine's status on the [self-managed nodes dashboard](https://dashboard.lepton.ai/workspace-redirect/machines/self-managed-nodes).
+> **Note:** The optional `--token` connects `gpud` to the Lepton Platform. You can get a token from the [Settings > Tokens page](https://dashboard.dgxc-lepton.nvidia.com) on your dashboard.
+
+```bash
+gpud up \
+--token <DGXC_LEPTON_AI_TOKEN> \
+--node-group <DGXC_LEPTON_NODE_GROUP>
+```
 
 **Stop the service:**
 
