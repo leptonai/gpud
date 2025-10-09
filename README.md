@@ -51,22 +51,19 @@ This section covers running `gpud` directly on a host machine.
 
 #### Resource Requirements (for Lepton Platform)
 
-If you plan to join the Lepton platform (using the `--token` flag), your node must meet these minimum requirements to support basic system components (kubelets and system pods):
+If you plan to join the Lepton platform (using the `--token` flag), your node must meet these minimum requirements:
 
-**Minimum specs (absolute minimum):**
-- 3 CPU cores
+**Minimum:**
+- **3 CPU cores** (2-core instances will fail to join — kubelet and system pods require minimum 3 cores)
 - 4 GiB memory
 
-**Recommended specs (provides operational headroom):**
-- 4 CPU cores (e.g., AWS c6a.xlarge or equivalent)
+**Recommended:**
+- 4+ CPU cores (e.g., AWS c6a.xlarge)
 - 8+ GiB memory
 
-**Important notes:**
-- 2-core instances will fail to join the platform
-- 3-core instances may work but have minimal headroom for workloads
-- 4-core instances offer the best balance for reliability and cost
-- GPU nodes will install additional components beyond these base requirements
-- These requirements apply only when joining the Lepton platform; standalone `gpud` operation has lower requirements
+For complete hardware, software, and network requirements, see the official [NVIDIA DGX Cloud Lepton BYOC Requirements](https://docs.nvidia.com/dgx-cloud/lepton/compute/bring-your-own-compute/requirements/).
+
+> **Note:** These requirements apply only when joining the Lepton platform; standalone `gpud` operation has lower requirements.
 
 #### With `systemd` (Recommended for Linux)
 
