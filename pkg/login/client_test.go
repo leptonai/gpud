@@ -64,7 +64,7 @@ func TestSendRequest_BadStatusCode(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 		// Use a different variable name to avoid confusion with client's 'resp'
 		apiResp := apiv1.LoginResponse{
-			Error: "invalid credentials",
+			Message: "invalid credentials",
 		}
 		_ = json.NewEncoder(w).Encode(apiResp)
 	}))
@@ -83,7 +83,7 @@ func TestSendRequest_BadStatusCode(t *testing.T) {
 	assert.Error(t, err)
 	assert.NotNil(t, clientResp, "Response from sendRequest should not be nil on bad status code")
 	if clientResp != nil { // Additional check for safety before dereferencing
-		assert.Equal(t, "invalid credentials", clientResp.Error)
+		assert.Equal(t, "invalid credentials", clientResp.Message)
 	}
 }
 
@@ -243,7 +243,7 @@ func TestSendRequest_ServerError(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 		// Use a different variable name
 		apiResp := apiv1.LoginResponse{
-			Error: "internal server error",
+			Message: "internal server error",
 		}
 		_ = json.NewEncoder(w).Encode(apiResp)
 	}))
@@ -261,7 +261,7 @@ func TestSendRequest_ServerError(t *testing.T) {
 	assert.NotNil(t, clientResp, "Response from sendRequest should not be nil on server error")
 	if clientResp != nil { // Additional check for safety
 		assert.Contains(t, err.Error(), "500")
-		assert.Equal(t, "internal server error", clientResp.Error)
+		assert.Equal(t, "internal server error", clientResp.Message)
 	}
 }
 
@@ -310,7 +310,7 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "test-machine-id",
-			Status:    "success",
+			Code:      "success",
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
@@ -335,7 +335,7 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Equal(t, "test-machine-id", resp.MachineID)
-	assert.Equal(t, "success", resp.Status)
+	assert.Equal(t, "success", resp.Code)
 }
 
 func TestSendRequest_EmptyMachineIDReturnsError(t *testing.T) {
@@ -369,7 +369,7 @@ func TestSendRequest_EmptyMachineIDWithMessageReturnsError(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "",
-			Error:     "Registration pending",
+			Message:   "Registration pending",
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
@@ -387,7 +387,7 @@ func TestSendRequest_EmptyMachineIDWithMessageReturnsError(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrEmptyMachineID))
 	assert.NotNil(t, resp)
 	assert.Empty(t, resp.MachineID)
-	assert.Equal(t, "Registration pending", resp.Error)
+	assert.Equal(t, "Registration pending", resp.Message)
 }
 
 func TestSendRequest_EmptyMachineIDWithStatusReturnsError(t *testing.T) {
@@ -396,7 +396,7 @@ func TestSendRequest_EmptyMachineIDWithStatusReturnsError(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "",
-			Status:    "processing",
+			Code:      "processing",
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
@@ -414,7 +414,7 @@ func TestSendRequest_EmptyMachineIDWithStatusReturnsError(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrEmptyMachineID))
 	assert.NotNil(t, resp)
 	assert.Empty(t, resp.MachineID)
-	assert.Equal(t, "processing", resp.Status)
+	assert.Equal(t, "processing", resp.Code)
 }
 
 func TestSendRequest_EmptyMachineIDWithOKStatusCodeReturnsError(t *testing.T) {
@@ -424,7 +424,7 @@ func TestSendRequest_EmptyMachineIDWithOKStatusCodeReturnsError(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "",
-			Status:    "success", // Contradicting status
+			Code:      "success", // Contradicting status
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
@@ -442,5 +442,5 @@ func TestSendRequest_EmptyMachineIDWithOKStatusCodeReturnsError(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrEmptyMachineID))
 	assert.NotNil(t, resp)
 	assert.Empty(t, resp.MachineID)
-	assert.Equal(t, "success", resp.Status)
+	assert.Equal(t, "success", resp.Code)
 }

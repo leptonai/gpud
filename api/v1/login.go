@@ -15,9 +15,17 @@ type LoginRequest struct {
 
 // LoginResponse is the response for the login request.
 type LoginResponse struct {
+	// Code is internal status code
+	Code string `json:"code,omitempty"`
+
+	// Message is the error message for the login request
+	Message string `json:"message,omitempty"`
+
+	// Deprecated: use Code instead of it
 	// Status is the status of the login request.
 	Status string `json:"status,omitempty"`
 
+	// Deprecated: use Message instead of it
 	// Error is the error message for the login request.
 	// The error is only returned if the machine ID retrieval fails.
 	Error string `json:"error,omitempty"`
