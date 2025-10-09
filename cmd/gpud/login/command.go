@@ -146,10 +146,20 @@ func Command(cliContext *cli.Context) error {
 		log.Logger.Debugw("failed to login", "error", err)
 		if loginResp != nil {
 			es := ""
-			if loginResp.Error != "" {
-				es = fmt.Sprintf(", error: %s", loginResp.Error)
+			errorMessage := loginResp.Message
+			if errorMessage == "" {
+				// nolint:staticcheck // SA1019 This field is used for compatibility with older versions.
+				errorMessage = loginResp.Error
 			}
-			return fmt.Errorf("failed to login (reason: %s%s)", loginResp.Status, es)
+			if errorMessage != "" {
+				es = fmt.Sprintf(", error: %s", errorMessage)
+			}
+			statusCode := loginResp.Code
+			if statusCode == "" {
+				// nolint:staticcheck // SA1019 This field is used for compatibility with older versions.
+				statusCode = loginResp.Status
+			}
+			return fmt.Errorf("failed to login (reason: %s%s)", statusCode, es)
 		}
 		return err
 	}
