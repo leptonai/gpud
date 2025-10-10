@@ -29,6 +29,8 @@ const (
 	DanglingDegradedThreshold  = 5
 	DanglingUnhealthyThreshold = 10
 
+	defaultActivenssCheckUptimeThreshold = 5 * time.Minute
+
 	// Containerd config strings to check for NVIDIA runtime configuration
 	containerdConfigNvidiaDefaultRuntime = `default_runtime_name = "nvidia"`
 	containerdConfigNvidiaRuntimePlugin  = `plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia`
@@ -46,11 +48,14 @@ type component struct {
 	containerToolkitCreationThreshold time.Duration
 	getContainerdConfigFunc           func() ([]byte, error)
 
-	checkDependencyInstalledFunc func() bool
-	checkSocketExistsFunc        func() bool
-	checkServiceActiveFunc       func(context.Context) (bool, error)
-	checkContainerdRunningFunc   func(context.Context) bool
-	listAllSandboxesFunc         func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error)
+	checkDependencyInstalledFunc  func() bool
+	checkSocketExistsFunc         func() bool
+	checkContainerdRunningFunc    func(context.Context) bool
+	checkServiceActiveFunc        func(context.Context) (bool, error)
+	getContainerdUptimeFunc       func() (*time.Duration, error)
+	activenssCheckUptimeThreshold time.Duration
+
+	listAllSandboxesFunc func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error)
 
 	endpoint string
 
@@ -76,10 +81,14 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		checkDependencyInstalledFunc: pkgcontainerd.CheckContainerdInstalled,
 		checkSocketExistsFunc:        pkgcontainerd.CheckSocketExists,
+		checkContainerdRunningFunc:   pkgcontainerd.CheckContainerdRunning,
 		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
 			return systemd.IsActive("containerd")
 		},
-		checkContainerdRunningFunc: pkgcontainerd.CheckContainerdRunning,
+		getContainerdUptimeFunc: func() (*time.Duration, error) {
+			return systemd.GetUptime("containerd")
+		},
+		activenssCheckUptimeThreshold: defaultActivenssCheckUptimeThreshold,
 
 		listAllSandboxesFunc: pkgcontainerd.ListAllSandboxes,
 
@@ -138,6 +147,41 @@ func (c *component) Close() error {
 	return nil
 }
 
+// checkContainerdActiveness checks if containerd is active and running.
+// It returns true if containerd is active and ready, false otherwise.
+// If false is returned, the checkResult cr will be populated with the appropriate health state and reason.
+func (c *component) checkContainerdActiveness(cr *checkResult) bool {
+	if c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "containerd installed but socket file does not exist"
+		return false
+	}
+
+	if c.checkContainerdRunningFunc != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+		running := c.checkContainerdRunningFunc(cctx)
+		ccancel()
+		if !running {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "containerd installed but not running"
+			return false
+		}
+	}
+
+	if c.checkServiceActiveFunc != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+		cr.ContainerdServiceActive, cr.err = c.checkServiceActiveFunc(cctx)
+		ccancel()
+		if !cr.ContainerdServiceActive || cr.err != nil {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "containerd installed but service is not active"
+			return false
+		}
+	}
+
+	return true
+}
+
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking containerd pods", "endpoint", c.endpoint)
 	cr := &checkResult{
@@ -157,33 +201,40 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	// below are the checks in case "containerd" is installed, thus requires activeness checks
-	if c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() {
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "containerd installed but socket file does not exist"
+	if ok := c.checkContainerdActiveness(cr); !ok {
+		log.Logger.Warnw(
+			"containerd is not active, but checking uptime",
+			"health", cr.health,
+			"reason", cr.reason,
+		)
+
+		// not active, but need to handle edge case where containerd is just installed
+		// and has not fully started yet
+		if c.getContainerdUptimeFunc != nil {
+			uptime, err := c.getContainerdUptimeFunc()
+			if err != nil {
+				log.Logger.Warnw("error getting containerd uptime", "error", err)
+				return cr
+			}
+			if uptime == nil {
+				log.Logger.Warnw("containerd uptime is nil")
+				return cr
+			}
+
+			if uptime.Seconds() < c.activenssCheckUptimeThreshold.Seconds() {
+				// set it to healthy if uptime is less than the threshold
+				log.Logger.Warnw("containerd is not active, but has not been running for long enough",
+					"uptime", *uptime,
+					"threshold", c.activenssCheckUptimeThreshold,
+				)
+				cr.health = apiv1.HealthStateTypeHealthy
+				cr.reason += "; has not been running for long enough"
+			}
+		}
+
 		return cr
 	}
-
-	if c.checkContainerdRunningFunc != nil {
-		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
-		running := c.checkContainerdRunningFunc(cctx)
-		ccancel()
-		if !running {
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = "containerd installed but not running"
-			return cr
-		}
-	}
-
-	if c.checkServiceActiveFunc != nil {
-		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
-		cr.ContainerdServiceActive, cr.err = c.checkServiceActiveFunc(cctx)
-		ccancel()
-		if !cr.ContainerdServiceActive || cr.err != nil {
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = "containerd installed but service is not active"
-			return cr
-		}
-	}
+	// now that we know containerd is active, we can check its states
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "ok"

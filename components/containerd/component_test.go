@@ -3090,6 +3090,180 @@ func TestNVMLValidationIntegration(t *testing.T) {
 }
 
 // TestContainerToolkitValidation tests the nvidia-container-toolkit validation logic
+// TestCheckContainerdActiveness tests the checkContainerdActiveness method
+func TestCheckContainerdActiveness(t *testing.T) {
+	boolPtr := func(b bool) *bool {
+		return &b
+	}
+
+	tests := []struct {
+		name                   string
+		checkSocketExists      func() bool
+		checkContainerdRunning func(context.Context) bool
+		checkServiceActive     func(context.Context) (bool, error)
+		expectedResult         bool
+		expectedHealth         apiv1.HealthStateType
+		expectedReason         string
+		expectedServiceActive  *bool
+		expectedErr            string
+	}{
+		{
+			name: "all checks pass",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult:        true,
+			expectedHealth:        "",
+			expectedReason:        "",
+			expectedServiceActive: boolPtr(true),
+		},
+		{
+			name: "socket does not exist",
+			checkSocketExists: func() bool {
+				return false
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult: false,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "containerd installed but socket file does not exist",
+		},
+		{
+			name: "containerd not running",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return false
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult: false,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "containerd installed but not running",
+		},
+		{
+			name: "service not active",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return false, nil
+			},
+			expectedResult:        false,
+			expectedHealth:        apiv1.HealthStateTypeUnhealthy,
+			expectedReason:        "containerd installed but service is not active",
+			expectedServiceActive: boolPtr(false),
+		},
+		{
+			name: "service check error",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return false, errors.New("service check failed")
+			},
+			expectedResult:        false,
+			expectedHealth:        apiv1.HealthStateTypeUnhealthy,
+			expectedReason:        "containerd installed but service is not active",
+			expectedServiceActive: boolPtr(false),
+			expectedErr:           "service check failed",
+		},
+		{
+			name:              "socket check nil - skipped",
+			checkSocketExists: nil,
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult: true,
+			expectedHealth: "",
+			expectedReason: "",
+		},
+		{
+			name: "containerd running check nil - skipped",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: nil,
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult: true,
+			expectedHealth: "",
+			expectedReason: "",
+		},
+		{
+			name: "service active check nil - skipped",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive:    nil,
+			expectedResult:        true,
+			expectedHealth:        "",
+			expectedReason:        "",
+			expectedServiceActive: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			comp := &component{
+				ctx:                        ctx,
+				cancel:                     cancel,
+				checkSocketExistsFunc:      tt.checkSocketExists,
+				checkContainerdRunningFunc: tt.checkContainerdRunning,
+				checkServiceActiveFunc:     tt.checkServiceActive,
+			}
+
+			cr := &checkResult{}
+			result := comp.checkContainerdActiveness(cr)
+
+			assert.Equal(t, tt.expectedResult, result, "checkContainerdActiveness result should match expected")
+			if !tt.expectedResult {
+				assert.Equal(t, tt.expectedHealth, cr.health, "Health state should match expected")
+				assert.Equal(t, tt.expectedReason, cr.reason, "Reason should match expected")
+			}
+
+			if tt.expectedServiceActive != nil {
+				assert.Equal(t, *tt.expectedServiceActive, cr.ContainerdServiceActive, "Service active flag should match expected")
+			}
+
+			if tt.expectedErr != "" {
+				require.Error(t, cr.err, "Error should be set when expectedErr is provided")
+				assert.EqualError(t, cr.err, tt.expectedErr)
+			} else {
+				assert.NoError(t, cr.err)
+			}
+		})
+	}
+}
+
 func TestContainerToolkitValidation(t *testing.T) {
 	tests := []struct {
 		name                              string
@@ -3323,4 +3497,263 @@ func TestContainerToolkitValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCheckContainerdUptimeGracePeriod tests the uptime grace period logic for containerd
+// that allows containerd to be considered healthy if it's recently started but not yet fully active
+func TestCheckContainerdUptimeGracePeriod(t *testing.T) {
+	tests := []struct {
+		name                          string
+		containerdInstalled           bool
+		socketExists                  bool
+		containerdRunning             bool
+		serviceActive                 bool
+		serviceActiveError            error
+		getContainerdUptimeFunc       func() (*time.Duration, error)
+		activenssCheckUptimeThreshold time.Duration
+		expectedHealth                apiv1.HealthStateType
+		expectedReasonContains        string
+		expectedReasonNotContains     string
+		uptimeFuncShouldBeCalled      bool
+	}{
+		{
+			name:                          "containerd not active, uptime check disabled (nil func)",
+			containerdInstalled:           true,
+			socketExists:                  true,
+			containerdRunning:             true,
+			serviceActive:                 false, // Not active
+			getContainerdUptimeFunc:       nil,   // No uptime function
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeUnhealthy,
+			expectedReasonContains:        "service is not active",
+			expectedReasonNotContains:     "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      false,
+		},
+		{
+			name:                "containerd not active, uptime func returns error",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   true,
+			serviceActive:       false,
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return nil, errors.New("failed to get uptime")
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeUnhealthy,
+			expectedReasonContains:        "service is not active",
+			expectedReasonNotContains:     "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+		{
+			name:                "containerd not active, uptime func returns nil duration",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   true,
+			serviceActive:       false,
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return nil, nil // nil duration
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeUnhealthy,
+			expectedReasonContains:        "service is not active",
+			expectedReasonNotContains:     "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+		{
+			name:                "containerd not active, uptime below threshold (grace period applies)",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   true,
+			serviceActive:       false,
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return durationPtr(2 * time.Minute), nil // 2 minutes < 5 minute threshold
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeHealthy, // Grace period makes it healthy
+			expectedReasonContains:        "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+		{
+			name:                "containerd not active, uptime at threshold boundary (no grace period)",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   true,
+			serviceActive:       false,
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return durationPtr(5 * time.Minute), nil // Exactly at threshold
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeUnhealthy, // NOT < threshold, no grace
+			expectedReasonContains:        "service is not active",
+			expectedReasonNotContains:     "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+		{
+			name:                "containerd not active, uptime above threshold (no grace period)",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   true,
+			serviceActive:       false,
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return durationPtr(10 * time.Minute), nil // 10 minutes > 5 minute threshold
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeUnhealthy,
+			expectedReasonContains:        "service is not active",
+			expectedReasonNotContains:     "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+		{
+			name:                "socket missing, uptime below threshold (grace period applies)",
+			containerdInstalled: true,
+			socketExists:        false, // Socket doesn't exist
+			containerdRunning:   false,
+			serviceActive:       false,
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return durationPtr(1 * time.Minute), nil
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeHealthy,
+			expectedReasonContains:        "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+		{
+			name:                "containerd not running, uptime below threshold (grace period applies)",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   false, // Not running
+			serviceActive:       false,
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return durationPtr(3 * time.Minute), nil
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeHealthy,
+			expectedReasonContains:        "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+		{
+			name:                "containerd active, uptime check not executed",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   true,
+			serviceActive:       true, // Active and healthy
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				t.Error("uptime func should not be called when containerd is active")
+				return nil, errors.New("should not be called")
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeHealthy,
+			expectedReasonContains:        "ok",
+			expectedReasonNotContains:     "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      false,
+		},
+		{
+			name:                "very short uptime (30 seconds) with grace period",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   true,
+			serviceActive:       false,
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return durationPtr(30 * time.Second), nil
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeHealthy,
+			expectedReasonContains:        "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+		{
+			name:                "zero uptime with grace period",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   true,
+			serviceActive:       false,
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return durationPtr(0 * time.Second), nil // Just started
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeHealthy,
+			expectedReasonContains:        "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+		{
+			name:                "service check returns error, uptime below threshold",
+			containerdInstalled: true,
+			socketExists:        true,
+			containerdRunning:   true,
+			serviceActive:       false,
+			serviceActiveError:  errors.New("systemd error"),
+			getContainerdUptimeFunc: func() (*time.Duration, error) {
+				return durationPtr(1 * time.Minute), nil
+			},
+			activenssCheckUptimeThreshold: 5 * time.Minute,
+			expectedHealth:                apiv1.HealthStateTypeHealthy, // Grace period still applies
+			expectedReasonContains:        "has not been running for long enough",
+			uptimeFuncShouldBeCalled:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			uptimeFuncCalled := false
+			var wrappedUptimeFunc func() (*time.Duration, error)
+			if tt.getContainerdUptimeFunc != nil {
+				wrappedUptimeFunc = func() (*time.Duration, error) {
+					uptimeFuncCalled = true
+					return tt.getContainerdUptimeFunc()
+				}
+			}
+
+			comp := &component{
+				ctx:    ctx,
+				cancel: func() {},
+				checkDependencyInstalledFunc: func() bool {
+					return tt.containerdInstalled
+				},
+				checkSocketExistsFunc: func() bool {
+					return tt.socketExists
+				},
+				checkContainerdRunningFunc: func(ctx context.Context) bool {
+					return tt.containerdRunning
+				},
+				checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+					return tt.serviceActive, tt.serviceActiveError
+				},
+				getContainerdUptimeFunc:       wrappedUptimeFunc,
+				activenssCheckUptimeThreshold: tt.activenssCheckUptimeThreshold,
+				listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error) {
+					return []pkgcontainerd.PodSandbox{}, nil
+				},
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
+				endpoint: "unix:///mock/containerd.sock",
+			}
+
+			// Execute the check
+			_ = comp.Check()
+
+			// Verify uptime func was called if expected
+			assert.Equal(t, tt.uptimeFuncShouldBeCalled, uptimeFuncCalled,
+				"uptime function call expectation mismatch")
+
+			// Assert results
+			assert.NotNil(t, comp.lastCheckResult, "lastCheckResult should not be nil")
+			assert.Equal(t, tt.expectedHealth, comp.lastCheckResult.health,
+				"health state should match expected")
+			assert.Contains(t, comp.lastCheckResult.reason, tt.expectedReasonContains,
+				"reason should contain expected text")
+
+			if tt.expectedReasonNotContains != "" {
+				assert.NotContains(t, comp.lastCheckResult.reason, tt.expectedReasonNotContains,
+					"reason should NOT contain unexpected text")
+			}
+		})
+	}
+}
+
+// Helper function to create a pointer to a time.Duration
+func durationPtr(d time.Duration) *time.Duration {
+	return &d
 }
