@@ -3090,6 +3090,158 @@ func TestNVMLValidationIntegration(t *testing.T) {
 }
 
 // TestContainerToolkitValidation tests the nvidia-container-toolkit validation logic
+// TestCheckContainerdActiveness tests the checkContainerdActiveness method
+func TestCheckContainerdActiveness(t *testing.T) {
+	tests := []struct {
+		name                   string
+		checkSocketExists      func() bool
+		checkContainerdRunning func(context.Context) bool
+		checkServiceActive     func(context.Context) (bool, error)
+		expectedResult         bool
+		expectedHealth         apiv1.HealthStateType
+		expectedReason         string
+	}{
+		{
+			name: "all checks pass",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult: true,
+			expectedHealth: "",
+			expectedReason: "",
+		},
+		{
+			name: "socket does not exist",
+			checkSocketExists: func() bool {
+				return false
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult: false,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "containerd installed but socket file does not exist",
+		},
+		{
+			name: "containerd not running",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return false
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult: false,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "containerd installed but not running",
+		},
+		{
+			name: "service not active",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return false, nil
+			},
+			expectedResult: false,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "containerd installed but service is not active",
+		},
+		{
+			name: "service check error",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return false, errors.New("service check failed")
+			},
+			expectedResult: false,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedReason: "containerd installed but service is not active",
+		},
+		{
+			name:              "socket check nil - skipped",
+			checkSocketExists: nil,
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult: true,
+			expectedHealth: "",
+			expectedReason: "",
+		},
+		{
+			name: "containerd running check nil - skipped",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: nil,
+			checkServiceActive: func(ctx context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedResult: true,
+			expectedHealth: "",
+			expectedReason: "",
+		},
+		{
+			name: "service active check nil - skipped",
+			checkSocketExists: func() bool {
+				return true
+			},
+			checkContainerdRunning: func(ctx context.Context) bool {
+				return true
+			},
+			checkServiceActive: nil,
+			expectedResult:     true,
+			expectedHealth:     "",
+			expectedReason:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			comp := &component{
+				ctx:                        ctx,
+				cancel:                     cancel,
+				checkSocketExistsFunc:      tt.checkSocketExists,
+				checkContainerdRunningFunc: tt.checkContainerdRunning,
+				checkServiceActiveFunc:     tt.checkServiceActive,
+			}
+
+			cr := &checkResult{}
+			result := comp.checkContainerdActiveness(cr)
+
+			assert.Equal(t, tt.expectedResult, result, "checkContainerdActiveness result should match expected")
+			if !tt.expectedResult {
+				assert.Equal(t, tt.expectedHealth, cr.health, "Health state should match expected")
+				assert.Equal(t, tt.expectedReason, cr.reason, "Reason should match expected")
+			}
+		})
+	}
+}
+
 func TestContainerToolkitValidation(t *testing.T) {
 	tests := []struct {
 		name                              string
