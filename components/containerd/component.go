@@ -202,8 +202,39 @@ func (c *component) Check() components.CheckResult {
 
 	// below are the checks in case "containerd" is installed, thus requires activeness checks
 	if ok := c.checkContainerdActiveness(cr); !ok {
+		log.Logger.Warnw(
+			"containerd is not active, but checking uptime",
+			"health", cr.health,
+			"reason", cr.reason,
+		)
+
+		// not active, but need to handle edge case where containerd is just installed
+		// and has not fully started yet
+		if c.getContainerdUptimeFunc != nil {
+			uptime, err := c.getContainerdUptimeFunc()
+			if err != nil {
+				log.Logger.Warnw("error getting containerd uptime", "error", err)
+				return cr
+			}
+			if uptime == nil {
+				log.Logger.Warnw("containerd uptime is nil")
+				return cr
+			}
+
+			if uptime.Seconds() < c.activenssCheckUptimeThreshold.Seconds() {
+				// set it to healthy if uptime is less than the threshold
+				log.Logger.Warnw("containerd is not active, but has not been running for long enough",
+					"uptime", *uptime,
+					"threshold", c.activenssCheckUptimeThreshold,
+				)
+				cr.health = apiv1.HealthStateTypeHealthy
+				cr.reason += "; has not been running for long enough"
+			}
+		}
+
 		return cr
 	}
+	// now that we know containerd is active, we can check its states
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "ok"
