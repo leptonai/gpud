@@ -16,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
+	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -28,6 +29,8 @@ type component struct {
 	cancel context.CancelFunc
 
 	nvmlInstance nvidianvml.Instance
+
+	checkNVSwitchExistsFunc func() bool
 
 	checkFMExistsFunc func() bool
 	checkFMActiveFunc func() bool
@@ -46,6 +49,25 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cancel: ccancel,
 
 		nvmlInstance: gpudInstance.NVMLInstance,
+
+		checkNVSwitchExistsFunc: func() bool {
+			devCnt := len(gpudInstance.NVMLInstance.Devices())
+			if devCnt <= 1 {
+				return false
+			}
+
+			lines, err := nvidiaquery.ListPCINVSwitches(cctx)
+			if err != nil {
+				log.Logger.Errorw("failed to list nvidia pci switches", "error", err)
+
+				lines, err = nvidiaquery.CountSMINVSwitches(cctx)
+				if err != nil {
+					log.Logger.Errorw("failed to count nvidia pci switches", "error", err)
+					return false
+				}
+			}
+			return len(lines) > 0
+		},
 
 		checkFMExistsFunc: checkFMExists,
 		checkFMActiveFunc: checkFMActive,
@@ -169,6 +191,12 @@ func (c *component) Check() components.CheckResult {
 		cr.FabricManagerActive = false
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = c.nvmlInstance.ProductName() + " does not support fabric manager"
+		return cr
+	}
+
+	if c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVSwitch not detected, skipping fabric manager check"
 		return cr
 	}
 

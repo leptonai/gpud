@@ -46,6 +46,7 @@ func TestComponentEvents(t *testing.T) {
 		cancel: cancel,
 
 		nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+		checkNVSwitchExistsFunc: func() bool { return true },
 		checkFMExistsFunc:       func() bool { return true },
 		checkFMActiveFunc:       func() bool { return true },
 
@@ -192,6 +193,7 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 		cancel: func() {},
 
 		nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+		checkNVSwitchExistsFunc: func() bool { return true },
 		checkFMExistsFunc:       func() bool { return false },
 		checkFMActiveFunc:       func() bool { return false },
 	}
@@ -321,6 +323,7 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 		ctx:                     context.Background(),
 		cancel:                  func() {},
 		nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+		checkNVSwitchExistsFunc: func() bool { return true },
 		checkFMExistsFunc:       func() bool { return true },
 		checkFMActiveFunc:       func() bool { return false },
 	}
@@ -450,6 +453,7 @@ func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
 		cancel: func() {},
 
 		nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+		checkNVSwitchExistsFunc: func() bool { return true },
 		checkFMExistsFunc:       func() bool { return true },
 		checkFMActiveFunc:       func() bool { return true },
 	}
@@ -477,37 +481,50 @@ func TestCheckAllBranches(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name             string
-		fmExists         bool
-		fmActive         bool
-		expectedData     *checkResult
-		expectedState    apiv1.HealthStateType
-		expectedReason   string
-		expectedFMActive bool
+		name                string
+		checkNVSwitchExists bool
+		fmExists            bool
+		fmActive            bool
+		expectedData        *checkResult
+		expectedState       apiv1.HealthStateType
+		expectedReason      string
+		expectedFMActive    bool
 	}{
 		{
-			name:             "FM doesn't exist",
-			fmExists:         false,
-			fmActive:         false,
-			expectedState:    apiv1.HealthStateTypeHealthy,
-			expectedReason:   "nv-fabricmanager executable not found",
-			expectedFMActive: false,
+			name:                "NVSwitch doesn't exist",
+			checkNVSwitchExists: false,
+			fmExists:            false,
+			fmActive:            false,
+			expectedState:       apiv1.HealthStateTypeHealthy,
+			expectedReason:      "NVSwitch not detected, skipping fabric manager check",
+			expectedFMActive:    false,
 		},
 		{
-			name:             "FM exists but not active",
-			fmExists:         true,
-			fmActive:         false,
-			expectedState:    apiv1.HealthStateTypeUnhealthy,
-			expectedReason:   "nv-fabricmanager found but fabric manager service is not active",
-			expectedFMActive: false,
+			name:                "NVSwitch exists but FM doesn't exist",
+			checkNVSwitchExists: true,
+			fmExists:            false,
+			fmActive:            false,
+			expectedState:       apiv1.HealthStateTypeHealthy,
+			expectedReason:      "nv-fabricmanager executable not found",
+			expectedFMActive:    false,
 		},
 		{
-			name:             "FM exists and active",
-			fmExists:         true,
-			fmActive:         true,
-			expectedState:    apiv1.HealthStateTypeHealthy,
-			expectedReason:   "fabric manager found and active",
-			expectedFMActive: true,
+			name:                "NVSwitch exists, FM exists but not active",
+			checkNVSwitchExists: true,
+			fmExists:            true,
+			fmActive:            false,
+			expectedState:       apiv1.HealthStateTypeUnhealthy,
+			expectedReason:      "nv-fabricmanager found but fabric manager service is not active",
+			expectedFMActive:    false,
+		},
+		{
+			name:                "NVSwitch exists, FM exists and active",
+			checkNVSwitchExists: true,
+			fmExists:            true,
+			fmActive:            true,
+			expectedState:       apiv1.HealthStateTypeHealthy,
+			expectedReason:      "fabric manager found and active",
+			expectedFMActive:    true,
 		},
 	}
 
@@ -517,11 +534,12 @@ func TestCheckAllBranches(t *testing.T) {
 			t.Parallel()
 
 			comp := &component{
-				ctx:               context.Background(),
-				cancel:            func() {},
-				nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
-				checkFMExistsFunc: func() bool { return tc.fmExists },
-				checkFMActiveFunc: func() bool { return tc.fmActive },
+				ctx:                     context.Background(),
+				cancel:                  func() {},
+				nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+				checkNVSwitchExistsFunc: func() bool { return tc.checkNVSwitchExists },
+				checkFMExistsFunc:       func() bool { return tc.fmExists },
+				checkFMActiveFunc:       func() bool { return tc.fmActive },
 			}
 
 			result := comp.Check()
@@ -603,60 +621,76 @@ func (m *mockNVMLInstance) Shutdown() error {
 
 func TestComponentCheck_NVMLInstance(t *testing.T) {
 	tests := []struct {
-		name              string
-		nvmlInstance      nvidianvml.Instance
-		expectedHealth    apiv1.HealthStateType
-		expectedReason    string
-		checkFMExistsFunc func() bool
-		checkFMActiveFunc func() bool
+		name                    string
+		nvmlInstance            nvidianvml.Instance
+		expectedHealth          apiv1.HealthStateType
+		expectedReason          string
+		checkNVSwitchExistsFunc func() bool
+		checkFMExistsFunc       func() bool
+		checkFMActiveFunc       func() bool
 	}{
 		{
-			name:              "nil nvml instance",
-			nvmlInstance:      nil,
-			expectedHealth:    apiv1.HealthStateTypeHealthy,
-			expectedReason:    "NVIDIA NVML instance is nil",
-			checkFMExistsFunc: func() bool { return false },
-			checkFMActiveFunc: func() bool { return false },
+			name:                    "nil nvml instance",
+			nvmlInstance:            nil,
+			expectedHealth:          apiv1.HealthStateTypeHealthy,
+			expectedReason:          "NVIDIA NVML instance is nil",
+			checkNVSwitchExistsFunc: func() bool { return false },
+			checkFMExistsFunc:       func() bool { return false },
+			checkFMActiveFunc:       func() bool { return false },
 		},
 		{
-			name:              "nvml does not exist",
-			nvmlInstance:      &mockNVMLInstance{exists: false, supportsFM: true, productName: "Test GPU", deviceCount: 2},
-			expectedHealth:    apiv1.HealthStateTypeHealthy,
-			expectedReason:    "NVIDIA NVML library is not loaded",
-			checkFMExistsFunc: func() bool { return false },
-			checkFMActiveFunc: func() bool { return false },
+			name:                    "nvml does not exist",
+			nvmlInstance:            &mockNVMLInstance{exists: false, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+			expectedHealth:          apiv1.HealthStateTypeHealthy,
+			expectedReason:          "NVIDIA NVML library is not loaded",
+			checkNVSwitchExistsFunc: func() bool { return false },
+			checkFMExistsFunc:       func() bool { return false },
+			checkFMActiveFunc:       func() bool { return false },
 		},
 		{
-			name:              "fabric manager not supported",
-			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: false, productName: "Test GPU", deviceCount: 2},
-			expectedHealth:    apiv1.HealthStateTypeHealthy,
-			expectedReason:    "Test GPU does not support fabric manager",
-			checkFMExistsFunc: func() bool { return false },
-			checkFMActiveFunc: func() bool { return false },
+			name:                    "fabric manager not supported",
+			nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: false, productName: "Test GPU", deviceCount: 2},
+			expectedHealth:          apiv1.HealthStateTypeHealthy,
+			expectedReason:          "Test GPU does not support fabric manager",
+			checkNVSwitchExistsFunc: func() bool { return false },
+			checkFMExistsFunc:       func() bool { return false },
+			checkFMActiveFunc:       func() bool { return false },
 		},
 		{
-			name:              "FM executable not found",
-			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
-			expectedHealth:    apiv1.HealthStateTypeHealthy,
-			expectedReason:    "nv-fabricmanager executable not found",
-			checkFMExistsFunc: func() bool { return false },
-			checkFMActiveFunc: func() bool { return false },
+			name:                    "nvml exists but NVSwitch not found",
+			nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+			expectedHealth:          apiv1.HealthStateTypeHealthy,
+			expectedReason:          "NVSwitch not detected, skipping fabric manager check",
+			checkNVSwitchExistsFunc: func() bool { return false },
+			checkFMExistsFunc:       func() bool { return false },
+			checkFMActiveFunc:       func() bool { return false },
 		},
 		{
-			name:              "FM executable found but not active",
-			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
-			expectedHealth:    apiv1.HealthStateTypeUnhealthy,
-			expectedReason:    "nv-fabricmanager found but fabric manager service is not active",
-			checkFMExistsFunc: func() bool { return true },
-			checkFMActiveFunc: func() bool { return false },
+			name:                    "nvml exists with NVSwitch but FM executable not found",
+			nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+			expectedHealth:          apiv1.HealthStateTypeHealthy,
+			expectedReason:          "nv-fabricmanager executable not found",
+			checkNVSwitchExistsFunc: func() bool { return true },
+			checkFMExistsFunc:       func() bool { return false },
+			checkFMActiveFunc:       func() bool { return false },
 		},
 		{
-			name:              "FM executable found and active",
-			nvmlInstance:      &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
-			expectedHealth:    apiv1.HealthStateTypeHealthy,
-			expectedReason:    "fabric manager found and active",
-			checkFMExistsFunc: func() bool { return true },
-			checkFMActiveFunc: func() bool { return true },
+			name:                    "nvml exists, NVSwitch found, FM executable found but not active",
+			nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+			expectedHealth:          apiv1.HealthStateTypeUnhealthy,
+			expectedReason:          "nv-fabricmanager found but fabric manager service is not active",
+			checkNVSwitchExistsFunc: func() bool { return true },
+			checkFMExistsFunc:       func() bool { return true },
+			checkFMActiveFunc:       func() bool { return false },
+		},
+		{
+			name:                    "nvml exists, NVSwitch found, FM executable found and active",
+			nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+			expectedHealth:          apiv1.HealthStateTypeHealthy,
+			expectedReason:          "fabric manager found and active",
+			checkNVSwitchExistsFunc: func() bool { return true },
+			checkFMExistsFunc:       func() bool { return true },
+			checkFMActiveFunc:       func() bool { return true },
 		},
 	}
 
@@ -666,11 +700,12 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 			defer cancel()
 
 			c := &component{
-				ctx:               ctx,
-				cancel:            cancel,
-				nvmlInstance:      tt.nvmlInstance,
-				checkFMExistsFunc: tt.checkFMExistsFunc,
-				checkFMActiveFunc: tt.checkFMActiveFunc,
+				ctx:                     ctx,
+				cancel:                  cancel,
+				nvmlInstance:            tt.nvmlInstance,
+				checkNVSwitchExistsFunc: tt.checkNVSwitchExistsFunc,
+				checkFMExistsFunc:       tt.checkFMExistsFunc,
+				checkFMActiveFunc:       tt.checkFMActiveFunc,
 			}
 
 			result := c.Check()
@@ -682,14 +717,18 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 
 			// Additional checks for specific states
 			if tt.nvmlInstance != nil && tt.nvmlInstance.NVMLExists() && tt.nvmlInstance.FabricManagerSupported() {
-				if tt.checkFMExistsFunc() {
-					if tt.checkFMActiveFunc() {
-						assert.True(t, checkResult.FabricManagerActive, "Expected FabricManagerActive to be true")
+				if tt.checkNVSwitchExistsFunc() {
+					if tt.checkFMExistsFunc() {
+						if tt.checkFMActiveFunc() {
+							assert.True(t, checkResult.FabricManagerActive, "Expected FabricManagerActive to be true")
+						} else {
+							assert.False(t, checkResult.FabricManagerActive, "Expected FabricManagerActive to be false")
+						}
 					} else {
 						assert.False(t, checkResult.FabricManagerActive, "Expected FabricManagerActive to be false")
 					}
 				} else {
-					assert.False(t, checkResult.FabricManagerActive, "Expected FabricManagerActive to be false")
+					assert.False(t, checkResult.FabricManagerActive, "Expected FabricManagerActive to be false when NVSwitch not found")
 				}
 			}
 		})
