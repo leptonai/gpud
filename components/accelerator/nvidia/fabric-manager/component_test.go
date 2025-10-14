@@ -800,6 +800,279 @@ func TestCheckWithEmptyProductName(t *testing.T) {
 	assert.Equal(t, "NVIDIA NVML is loaded but GPU is not detected (missing product name)", checkResult.reason)
 }
 
+func TestCheckDeviceCountLogic(t *testing.T) {
+	t.Parallel()
 
+	tests := []struct {
+		name                string
+		deviceCount         int
+		checkNVSwitchExists bool
+		expectedHealth      apiv1.HealthStateType
+		expectedReason      string
+		expectedFMActive    bool
+	}{
+		{
+			name:                "no devices detected - NVSwitch not found",
+			deviceCount:         0,
+			checkNVSwitchExists: false,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "NVSwitch not detected, skipping fabric manager check",
+			expectedFMActive:    false,
+		},
+		{
+			name:                "one device detected - NVSwitch not found",
+			deviceCount:         1,
+			checkNVSwitchExists: false,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "NVSwitch not detected, skipping fabric manager check",
+			expectedFMActive:    false,
+		},
+		{
+			name:                "two devices detected - NVSwitch found - FM not active",
+			deviceCount:         2,
+			checkNVSwitchExists: true,
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
+			expectedReason:      "nv-fabricmanager found but fabric manager service is not active",
+			expectedFMActive:    false,
+		},
+		{
+			name:                "two devices detected - NVSwitch not found",
+			deviceCount:         2,
+			checkNVSwitchExists: false,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "NVSwitch not detected, skipping fabric manager check",
+			expectedFMActive:    false,
+		},
+		{
+			name:                "multiple devices detected - NVSwitch found - FM not active",
+			deviceCount:         4,
+			checkNVSwitchExists: true,
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
+			expectedReason:      "nv-fabricmanager found but fabric manager service is not active",
+			expectedFMActive:    false,
+		},
+	}
 
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
+			// Create mock NVML instance with specified device count
+			mockNVML := &mockNVMLInstance{
+				exists:      true,
+				supportsFM:  true,
+				productName: "Test GPU",
+				deviceCount: tc.deviceCount,
+			}
+
+			// Create component where fabric manager exists but is not active
+			comp := &component{
+				ctx:                     context.Background(),
+				cancel:                  func() {},
+				nvmlInstance:            mockNVML,
+				checkNVSwitchExistsFunc: func() bool { return tc.checkNVSwitchExists },
+				checkFMExistsFunc:       func() bool { return true },  // FM exists
+				checkFMActiveFunc:       func() bool { return false }, // FM not active
+			}
+
+			// Call Check method
+			result := comp.Check()
+
+			// Verify the result
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok, "Expected result to be of type *checkResult")
+
+			// Verify health and reason
+			assert.Equal(t, tc.expectedHealth, checkResult.health, "Health state mismatch for %d devices", tc.deviceCount)
+			assert.Equal(t, tc.expectedReason, checkResult.reason, "Reason mismatch for %d devices", tc.deviceCount)
+
+			// Verify FabricManagerActive
+			assert.Equal(t, tc.expectedFMActive, checkResult.FabricManagerActive, "FabricManagerActive mismatch for %d devices", tc.deviceCount)
+
+			// Also verify through LastHealthStates()
+			states := comp.LastHealthStates()
+			assert.Len(t, states, 1)
+			assert.Equal(t, Name, states[0].Name)
+			assert.Equal(t, tc.expectedHealth, states[0].Health)
+			assert.Equal(t, tc.expectedReason, states[0].Reason)
+		})
+	}
+}
+
+func TestCheckDeviceCountWithActiveManager(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		deviceCount         int
+		checkNVSwitchExists bool
+		expectedHealth      apiv1.HealthStateType
+		expectedReason      string
+		expectedFMActive    bool
+	}{
+		{
+			name:                "Single device with NVSwitch not found",
+			deviceCount:         1,
+			checkNVSwitchExists: false,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "NVSwitch not detected, skipping fabric manager check",
+			expectedFMActive:    false,
+		},
+		{
+			name:                "Single device with NVSwitch found and FM active",
+			deviceCount:         1,
+			checkNVSwitchExists: true,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "fabric manager found and active",
+			expectedFMActive:    true,
+		},
+		{
+			name:                "Multiple devices with NVSwitch found and FM active",
+			deviceCount:         2,
+			checkNVSwitchExists: true,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "fabric manager found and active",
+			expectedFMActive:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockNVML := &mockNVMLInstance{
+				exists:      true,
+				supportsFM:  true,
+				productName: "Test GPU",
+				deviceCount: tc.deviceCount,
+			}
+
+			comp := &component{
+				ctx:                     context.Background(),
+				cancel:                  func() {},
+				nvmlInstance:            mockNVML,
+				checkNVSwitchExistsFunc: func() bool { return tc.checkNVSwitchExists },
+				checkFMExistsFunc:       func() bool { return true }, // FM exists
+				checkFMActiveFunc:       func() bool { return true }, // FM is active
+			}
+
+			result := comp.Check()
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok)
+
+			assert.Equal(t, tc.expectedHealth, checkResult.health)
+			assert.Equal(t, tc.expectedReason, checkResult.reason)
+			assert.Equal(t, tc.expectedFMActive, checkResult.FabricManagerActive)
+		})
+	}
+}
+
+func TestCheckNVSwitchNotDetected(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		deviceCount         int
+		checkNVSwitchExists bool
+		expectedHealth      apiv1.HealthStateType
+		expectedReason      string
+		expectedFMActive    bool
+	}{
+		{
+			name:                "NVSwitch not detected with single device",
+			deviceCount:         1,
+			checkNVSwitchExists: false,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "NVSwitch not detected, skipping fabric manager check",
+			expectedFMActive:    false,
+		},
+		{
+			name:                "NVSwitch not detected with multiple devices",
+			deviceCount:         4,
+			checkNVSwitchExists: false,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "NVSwitch not detected, skipping fabric manager check",
+			expectedFMActive:    false,
+		},
+		{
+			name:                "NVSwitch detected but FM not found",
+			deviceCount:         4,
+			checkNVSwitchExists: true,
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReason:      "nv-fabricmanager executable not found",
+			expectedFMActive:    false,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create mock NVML instance
+			mockNVML := &mockNVMLInstance{
+				exists:      true,
+				supportsFM:  true,
+				productName: "Test GPU",
+				deviceCount: tc.deviceCount,
+			}
+
+			// Create component
+			comp := &component{
+				ctx:                     context.Background(),
+				cancel:                  func() {},
+				nvmlInstance:            mockNVML,
+				checkNVSwitchExistsFunc: func() bool { return tc.checkNVSwitchExists },
+				checkFMExistsFunc:       func() bool { return false }, // FM doesn't exist
+				checkFMActiveFunc:       func() bool { return false }, // FM not active
+			}
+
+			// Call Check method
+			result := comp.Check()
+
+			// Verify the result
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok, "Expected result to be of type *checkResult")
+
+			// Verify health and reason
+			assert.Equal(t, tc.expectedHealth, checkResult.health)
+			assert.Equal(t, tc.expectedReason, checkResult.reason)
+			assert.Equal(t, tc.expectedFMActive, checkResult.FabricManagerActive)
+
+			// Also verify through LastHealthStates()
+			states := comp.LastHealthStates()
+			assert.Len(t, states, 1)
+			assert.Equal(t, Name, states[0].Name)
+			assert.Equal(t, tc.expectedHealth, states[0].Health)
+			assert.Equal(t, tc.expectedReason, states[0].Reason)
+		})
+	}
+}
+
+func TestCheckNVSwitchFuncNil(t *testing.T) {
+	t.Parallel()
+
+	// Create component with nil checkNVSwitchExistsFunc
+	comp := &component{
+		ctx:                     context.Background(),
+		cancel:                  func() {},
+		nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
+		checkNVSwitchExistsFunc: nil, // nil function
+		checkFMExistsFunc:       func() bool { return true },
+		checkFMActiveFunc:       func() bool { return true },
+	}
+
+	// Call Check method
+	result := comp.Check()
+
+	// Verify the result - when checkNVSwitchExistsFunc is nil, it should proceed to check FM
+	checkResult, ok := result.(*checkResult)
+	assert.True(t, ok, "Expected result to be of type *checkResult")
+
+	// Should proceed to check FM and find it active
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
+	assert.Equal(t, "fabric manager found and active", checkResult.reason)
+	assert.True(t, checkResult.FabricManagerActive)
+}
