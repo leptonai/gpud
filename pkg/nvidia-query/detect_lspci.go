@@ -32,17 +32,6 @@ func isNVIDIAGPUPCI(line string) bool {
 	return strings.Contains(line, "NVIDIA") && strings.Contains(line, "3D controller")
 }
 
-// ListPCINVSwitches returns all "lspci" lines that represents NVIDIA NVSwitch devices.
-func ListPCINVSwitches(ctx context.Context) ([]string, error) {
-	return listPCIs(ctx, "lspci -nn", isNVIDIANVSwitchPCI)
-}
-
-// e.g.,
-// 0005:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)
-func isNVIDIANVSwitchPCI(line string) bool {
-	return strings.Contains(line, "NVIDIA") && strings.Contains(line, "Bridge")
-}
-
 func listPCIs(ctx context.Context, command string, matchFunc func(line string) bool) ([]string, error) {
 	lspciPath, err := file.LocateExecutable(strings.Split(command, " ")[0])
 	if lspciPath == "" || err != nil {

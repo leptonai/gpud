@@ -16,7 +16,6 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -56,13 +55,14 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				return false
 			}
 
-			lines, err := nvidiaquery.ListPCINVSwitches(cctx)
+			lines, err := ListPCINVSwitches(cctx)
 			if err != nil {
 				log.Logger.Errorw("failed to list nvidia pci switches", "error", err)
 
-				lines, err = nvidiaquery.CountSMINVSwitches(cctx)
+				// Fallback to nvidia-smi nvlink detection method
+				lines, err = CountSMINVSwitches(cctx)
 				if err != nil {
-					log.Logger.Errorw("failed to count nvidia pci switches", "error", err)
+					log.Logger.Errorw("failed to count nvidia smi nvlink switches", "error", err)
 					return false
 				}
 			}

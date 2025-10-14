@@ -555,10 +555,11 @@ func TestCheckAllBranches(t *testing.T) {
 
 // mockNVMLInstance implements nvidianvml.Instance for testing
 type mockNVMLInstance struct {
-	exists      bool
-	supportsFM  bool
-	productName string
-	deviceCount int // Add device count field
+	exists       bool
+	supportsFM   bool
+	productName  string
+	architecture string
+	deviceCount  int // Add device count field
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -587,7 +588,7 @@ func (m *mockNVMLInstance) ProductName() string {
 }
 
 func (m *mockNVMLInstance) Architecture() string {
-	return ""
+	return m.architecture
 }
 
 func (m *mockNVMLInstance) Brand() string {
