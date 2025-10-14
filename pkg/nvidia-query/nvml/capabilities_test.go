@@ -69,6 +69,15 @@ func TestSupportedMemoryMgmtCapsByGPUProduct(t *testing.T) {
 			},
 		},
 		{
+			name:           "NVIDIA GB200",
+			gpuProductName: "NVIDIA GB200",
+			expected: MemoryErrorManagementCapabilities{
+				ErrorContainment:     true,
+				DynamicPageOfflining: true,
+				RowRemapping:         true,
+			},
+		},
+		{
 			name:           "Mixed case input",
 			gpuProductName: "NvIdIa A100 PCIe",
 			expected: MemoryErrorManagementCapabilities{
@@ -151,6 +160,38 @@ func TestSupportedMemoryMgmtCapsByGPUProduct(t *testing.T) {
 			result := SupportedMemoryMgmtCapsByGPUProduct(tt.gpuProductName)
 			if !reflect.DeepEqual(result, tt.expected) {
 				t.Errorf("GetGPUMemoryErrorManagement(%q) = %v, want %v", tt.gpuProductName, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSupportedFMByGPUProduct(t *testing.T) {
+	tests := []struct {
+		name           string
+		gpuProductName string
+		expected       bool
+	}{
+		{
+			name:           "H100 supports",
+			gpuProductName: "NVIDIA H100 80GB HBM3",
+			expected:       true,
+		},
+		{
+			name:           "A10 does not support",
+			gpuProductName: "NVIDIA A10",
+			expected:       false,
+		},
+		{
+			name:           "GB200 supports",
+			gpuProductName: "NVIDIA-GB200",
+			expected:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SupportedFMByGPUProduct(tt.gpuProductName); got != tt.expected {
+				t.Errorf("SupportedFMByGPUProduct(%q) = %v, want %v", tt.gpuProductName, got, tt.expected)
 			}
 		})
 	}

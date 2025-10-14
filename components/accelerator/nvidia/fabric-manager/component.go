@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -194,7 +195,7 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	if c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
+	if c.checkNVSwitchExistsFunc != nil && !skipNVSwitchDetection(c.nvmlInstance) && !c.checkNVSwitchExistsFunc() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVSwitch not detected, skipping fabric manager check"
 		return cr
@@ -241,6 +242,27 @@ const defaultFabricManagerPort = 6666
 // alternatively, we can check dbus connection to see if the systemd  "nvidia-fabricmanager" service is active
 func checkFMActive() bool {
 	return netutil.IsPortOpen(defaultFabricManagerPort)
+}
+
+// skipNVSwitchDetection returns true for GPU products that require fabric manager
+// but may not have NVSwitch detection available through traditional PCI enumeration.
+// GB200 systems use NVLink Switch System instead of traditional NVSwitch detection,
+// so we skip the NVSwitch requirement check for these systems.
+func skipNVSwitchDetection(inst nvidianvml.Instance) bool {
+	if inst == nil {
+		return false
+	}
+
+	product := strings.ToLower(inst.ProductName())
+	if strings.Contains(product, "gb200") {
+		return true
+	}
+
+	if strings.Contains(product, "graphics-device") && strings.EqualFold(inst.Architecture(), "blackwell") {
+		return true
+	}
+
+	return false
 }
 
 var _ components.CheckResult = &checkResult{}

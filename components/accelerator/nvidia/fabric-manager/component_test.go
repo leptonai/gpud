@@ -555,10 +555,11 @@ func TestCheckAllBranches(t *testing.T) {
 
 // mockNVMLInstance implements nvidianvml.Instance for testing
 type mockNVMLInstance struct {
-	exists      bool
-	supportsFM  bool
-	productName string
-	deviceCount int // Add device count field
+	exists       bool
+	supportsFM   bool
+	productName  string
+	architecture string
+	deviceCount  int // Add device count field
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -587,7 +588,7 @@ func (m *mockNVMLInstance) ProductName() string {
 }
 
 func (m *mockNVMLInstance) Architecture() string {
-	return ""
+	return m.architecture
 }
 
 func (m *mockNVMLInstance) Brand() string {
@@ -1046,6 +1047,59 @@ func TestCheckNVSwitchNotDetected(t *testing.T) {
 			assert.Equal(t, Name, states[0].Name)
 			assert.Equal(t, tc.expectedHealth, states[0].Health)
 			assert.Equal(t, tc.expectedReason, states[0].Reason)
+		})
+	}
+}
+
+func TestCheckNVSwitchSkippedForGB200(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		productName  string
+		architecture string
+	}{
+		{
+			name:         "GB200 sanitized product",
+			productName:  "NVIDIA-GB200",
+			architecture: "blackwell",
+		},
+		{
+			name:         "GB200 generic product",
+			productName:  "NVIDIA-Graphics-Device",
+			architecture: "blackwell",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockNVML := &mockNVMLInstance{
+				exists:       true,
+				supportsFM:   true,
+				productName:  tc.productName,
+				architecture: tc.architecture,
+				deviceCount:  1,
+			}
+
+			comp := &component{
+				ctx:                     context.Background(),
+				cancel:                  func() {},
+				nvmlInstance:            mockNVML,
+				checkNVSwitchExistsFunc: func() bool { return false },
+				checkFMExistsFunc:       func() bool { return true },
+				checkFMActiveFunc:       func() bool { return true },
+			}
+
+			result := comp.Check()
+			checkResult, ok := result.(*checkResult)
+			assert.True(t, ok)
+
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
+			assert.Equal(t, "fabric manager found and active", checkResult.reason)
+			assert.True(t, checkResult.FabricManagerActive)
 		})
 	}
 }

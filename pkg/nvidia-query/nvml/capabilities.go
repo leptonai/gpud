@@ -13,21 +13,23 @@ var (
 		RowRemapping: true,
 	}
 	gpuProductToMemMgmtCaps = map[string]MemoryErrorManagementCapabilities{
-		"a100": memMgmtCapAllSupported,
-		"b100": memMgmtCapAllSupported,
-		"b200": memMgmtCapAllSupported,
-		"h100": memMgmtCapAllSupported,
-		"h200": memMgmtCapAllSupported,
-		"a10":  memMgmtCapOnlyRowRemappingSupported,
+		"a100":  memMgmtCapAllSupported,
+		"b100":  memMgmtCapAllSupported,
+		"b200":  memMgmtCapAllSupported,
+		"gb200": memMgmtCapAllSupported,
+		"h100":  memMgmtCapAllSupported,
+		"h200":  memMgmtCapAllSupported,
+		"a10":   memMgmtCapOnlyRowRemappingSupported,
 	}
 
 	gpuProductToFMSupported = map[string]bool{
-		"a100": true,
-		"b100": true,
-		"b200": true,
-		"h100": true,
-		"h200": true,
-		"a10":  false,
+		"a100":  true,
+		"b100":  true,
+		"b200":  true,
+		"gb200": true,
+		"h100":  true,
+		"h200":  true,
+		"a10":   false,
 	}
 )
 
