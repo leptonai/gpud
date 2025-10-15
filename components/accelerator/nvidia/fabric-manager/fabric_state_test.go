@@ -519,3 +519,116 @@ func TestFabricStateReportRenderTable(t *testing.T) {
 		})
 	}
 }
+
+type fakeFabricInfoDevice struct {
+	info nvml.GpuFabricInfo
+	ret  nvml.Return
+}
+
+func (f fakeFabricInfoDevice) GetGpuFabricInfo() (nvml.GpuFabricInfo, nvml.Return) {
+	return f.info, f.ret
+}
+
+func TestGetFabricInfoV1Success(t *testing.T) {
+	t.Parallel()
+
+	cluster := [16]uint8{0x9c, 0x6f, 0x5a, 0xf3, 0x53, 0xbf, 0x49, 0xb5, 0xa4, 0x36, 0xb6, 0x67, 0x66, 0xc4, 0x13, 0xc3}
+	device := fakeFabricInfoDevice{
+		info: nvml.GpuFabricInfo{
+			ClusterUuid: cluster,
+			Status:      uint32(nvml.SUCCESS),
+			CliqueId:    1234,
+			State:       nvml.GPU_FABRIC_STATE_COMPLETED,
+		},
+		ret: nvml.SUCCESS,
+	}
+
+	data, err := getFabricInfo(device)
+	assert.NoError(t, err)
+	assert.Equal(t, uint32(1234), data.cliqueID)
+	assert.Equal(t, "9c6f5af3-53bf-49b5-a436-b66766c413c3", data.clusterUUID)
+	assert.Equal(t, uint8(nvml.GPU_FABRIC_STATE_COMPLETED), data.state)
+	assert.Equal(t, nvml.SUCCESS, data.status)
+	assert.Equal(t, uint8(nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED), data.healthSummary)
+}
+
+func TestGetFabricInfoV1Errors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("not supported", func(t *testing.T) {
+		device := fakeFabricInfoDevice{ret: nvml.ERROR_NOT_SUPPORTED}
+		_, err := getFabricInfo(device)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not supported")
+	})
+
+	t.Run("nvml error", func(t *testing.T) {
+		device := fakeFabricInfoDevice{ret: nvml.ERROR_NO_PERMISSION}
+		_, err := getFabricInfo(device)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "nvmlDeviceGetGpuFabricInfo failed")
+	})
+}
+
+func TestFabricInfoDataFromV3(t *testing.T) {
+	t.Parallel()
+
+	cluster := [16]uint8{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x10, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99}
+	info := nvml.GpuFabricInfo_v3{
+		ClusterUuid:   cluster,
+		Status:        uint32(nvml.ERROR_OPERATING_SYSTEM),
+		CliqueId:      777,
+		State:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
+		HealthMask:    0x3f,
+		HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY,
+	}
+
+	data := fabricInfoDataFromV3(info)
+	assert.Equal(t, uint32(777), data.cliqueID)
+	assert.Equal(t, "aabbccdd-eeff-1011-2233-445566778899", data.clusterUUID)
+	assert.Equal(t, uint8(nvml.GPU_FABRIC_STATE_IN_PROGRESS), data.state)
+	assert.Equal(t, nvml.ERROR_OPERATING_SYSTEM, data.status)
+	assert.Equal(t, uint32(0x3f), data.healthMask)
+	assert.Equal(t, uint8(nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY), data.healthSummary)
+}
+
+func TestFormatFabricStateEntryIssues(t *testing.T) {
+	t.Parallel()
+
+	mask := uint32(nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY
+
+	entry, issues := formatFabricStateEntry("GPU-issue", fabricInfoData{
+		cliqueID:      101,
+		clusterUUID:   "cluster",
+		state:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
+		status:        nvml.ERROR_UNKNOWN,
+		healthMask:    mask,
+		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY,
+	})
+
+	assert.Equal(t, "GPU-issue", entry.GPUUUID)
+	assert.Contains(t, issues, "state=In Progress")
+	assert.Contains(t, issues, "status=ERROR_UNKNOWN")
+	assert.Contains(t, issues, "summary=Unhealthy")
+	assert.Contains(t, issues, "bandwidth degraded")
+	assert.Contains(t, issues, "route recovery in progress")
+	assert.Contains(t, issues, "route unhealthy")
+}
+
+func TestFabricHealthFromMask(t *testing.T) {
+	t.Parallel()
+
+	mask := uint32(nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY
+
+	health, issues := fabricHealthFromMask(mask)
+	assert.Equal(t, "Full", health.Bandwidth)
+	assert.Equal(t, "False", health.RouteRecoveryProgress)
+	assert.Equal(t, "False", health.RouteUnhealthy)
+	assert.Equal(t, "True", health.AccessTimeoutRecovery)
+	assert.Equal(t, []string{"access timeout recovery in progress"}, issues)
+}
