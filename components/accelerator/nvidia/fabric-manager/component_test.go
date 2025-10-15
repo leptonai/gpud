@@ -49,7 +49,6 @@ func TestComponentEvents(t *testing.T) {
 		checkNVSwitchExistsFunc: func() bool { return true },
 		checkFMExistsFunc:       func() bool { return true },
 		checkFMActiveFunc:       func() bool { return true },
-		checkNVSMActiveFunc:     func() bool { return false },
 
 		eventBucket:      bucket,
 		logLineProcessor: llp,
@@ -79,7 +78,7 @@ func TestComponentEvents(t *testing.T) {
 	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
-	assert.Equal(t, "fabric manager found and active (traditional on port 6666)", states[0].Reason)
+	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
 
 // mockWatcher implements the watcher interface for testing
@@ -117,9 +116,8 @@ func TestEventsWithNoProcessor(t *testing.T) {
 		ctx:    context.Background(),
 		cancel: func() {},
 
-		checkFMExistsFunc:   func() bool { return false },
-		checkFMActiveFunc:   func() bool { return false },
-		checkNVSMActiveFunc: func() bool { return false },
+		checkFMExistsFunc: func() bool { return false },
+		checkFMActiveFunc: func() bool { return false },
 	}
 
 	// Call Events
@@ -158,9 +156,8 @@ func TestEventsWithProcessor(t *testing.T) {
 		ctx:    ctx,
 		cancel: cancel,
 
-		checkFMExistsFunc:   func() bool { return true },
-		checkFMActiveFunc:   func() bool { return true },
-		checkNVSMActiveFunc: func() bool { return false },
+		checkFMExistsFunc: func() bool { return true },
+		checkFMActiveFunc: func() bool { return true },
 
 		eventBucket:      bucket,
 		logLineProcessor: llp,
@@ -199,7 +196,6 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 		checkNVSwitchExistsFunc: func() bool { return true },
 		checkFMExistsFunc:       func() bool { return false },
 		checkFMActiveFunc:       func() bool { return false },
-		checkNVSMActiveFunc:     func() bool { return false },
 	}
 
 	_ = comp.Check()
@@ -272,11 +268,10 @@ func TestComponentStart(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	comp := &component{
-		ctx:                 ctx,
-		cancel:              cancel,
-		checkFMExistsFunc:   func() bool { return true },
-		checkFMActiveFunc:   func() bool { return true },
-		checkNVSMActiveFunc: func() bool { return false },
+		ctx:               ctx,
+		cancel:            cancel,
+		checkFMExistsFunc: func() bool { return true },
+		checkFMActiveFunc: func() bool { return true },
 	}
 	defer comp.Close()
 
@@ -331,7 +326,6 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 		checkNVSwitchExistsFunc: func() bool { return true },
 		checkFMExistsFunc:       func() bool { return true },
 		checkFMActiveFunc:       func() bool { return false },
-		checkNVSMActiveFunc:     func() bool { return false },
 	}
 
 	_ = comp.Check()
@@ -462,7 +456,6 @@ func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
 		checkNVSwitchExistsFunc: func() bool { return true },
 		checkFMExistsFunc:       func() bool { return true },
 		checkFMActiveFunc:       func() bool { return true },
-		checkNVSMActiveFunc:     func() bool { return false },
 	}
 
 	result := comp.Check()
@@ -473,14 +466,14 @@ func TestStatesWhenFabricManagerExistsAndActive(t *testing.T) {
 	assert.True(t, ok)
 	assert.True(t, data.FabricManagerActive)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
-	assert.Equal(t, "fabric manager found and active (traditional on port 6666)", data.reason)
+	assert.Equal(t, "fabric manager found and active", data.reason)
 
 	states := comp.LastHealthStates()
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
-	assert.Equal(t, "fabric manager found and active (traditional on port 6666)", states[0].Reason)
+	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 }
 
 // This test mocks checkFMExists and checkFMActive to test all branches in Check method
@@ -530,7 +523,7 @@ func TestCheckAllBranches(t *testing.T) {
 			fmExists:            true,
 			fmActive:            true,
 			expectedState:       apiv1.HealthStateTypeHealthy,
-			expectedReason:      "fabric manager found and active (traditional on port 6666)",
+			expectedReason:      "fabric manager found and active",
 			expectedFMActive:    true,
 		},
 	}
@@ -547,7 +540,6 @@ func TestCheckAllBranches(t *testing.T) {
 				checkNVSwitchExistsFunc: func() bool { return tc.checkNVSwitchExists },
 				checkFMExistsFunc:       func() bool { return tc.fmExists },
 				checkFMActiveFunc:       func() bool { return tc.fmActive },
-				checkNVSMActiveFunc:     func() bool { return false },
 			}
 
 			result := comp.Check()
@@ -695,7 +687,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 			name:                    "nvml exists, NVSwitch found, FM executable found and active",
 			nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 			expectedHealth:          apiv1.HealthStateTypeHealthy,
-			expectedReason:          "fabric manager found and active (traditional on port 6666)",
+			expectedReason:          "fabric manager found and active",
 			checkNVSwitchExistsFunc: func() bool { return true },
 			checkFMExistsFunc:       func() bool { return true },
 			checkFMActiveFunc:       func() bool { return true },
@@ -714,7 +706,6 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 				checkNVSwitchExistsFunc: tt.checkNVSwitchExistsFunc,
 				checkFMExistsFunc:       tt.checkFMExistsFunc,
 				checkFMActiveFunc:       tt.checkFMActiveFunc,
-				checkNVSMActiveFunc:     func() bool { return false },
 			}
 
 			result := c.Check()
@@ -757,12 +748,11 @@ func TestCheck_FabricManagerNotSupported(t *testing.T) {
 
 	// Create the component with our mock instance
 	comp := &component{
-		ctx:                 context.Background(),
-		cancel:              func() {},
-		nvmlInstance:        mockInstance,
-		checkFMExistsFunc:   func() bool { return true },
-		checkFMActiveFunc:   func() bool { return true },
-		checkNVSMActiveFunc: func() bool { return false },
+		ctx:               context.Background(),
+		cancel:            func() {},
+		nvmlInstance:      mockInstance,
+		checkFMExistsFunc: func() bool { return true },
+		checkFMActiveFunc: func() bool { return true },
 	}
 
 	// Call Check method
@@ -884,7 +874,6 @@ func TestCheckDeviceCountLogic(t *testing.T) {
 				checkNVSwitchExistsFunc: func() bool { return tc.checkNVSwitchExists },
 				checkFMExistsFunc:       func() bool { return true },  // FM exists
 				checkFMActiveFunc:       func() bool { return false }, // FM not active
-				checkNVSMActiveFunc:     func() bool { return false },
 			}
 
 			// Call Check method
@@ -935,7 +924,7 @@ func TestCheckDeviceCountWithActiveManager(t *testing.T) {
 			deviceCount:         1,
 			checkNVSwitchExists: true,
 			expectedHealth:      apiv1.HealthStateTypeHealthy,
-			expectedReason:      "fabric manager found and active (traditional on port 6666)",
+			expectedReason:      "fabric manager found and active",
 			expectedFMActive:    true,
 		},
 		{
@@ -943,7 +932,7 @@ func TestCheckDeviceCountWithActiveManager(t *testing.T) {
 			deviceCount:         2,
 			checkNVSwitchExists: true,
 			expectedHealth:      apiv1.HealthStateTypeHealthy,
-			expectedReason:      "fabric manager found and active (traditional on port 6666)",
+			expectedReason:      "fabric manager found and active",
 			expectedFMActive:    true,
 		},
 	}
@@ -967,7 +956,6 @@ func TestCheckDeviceCountWithActiveManager(t *testing.T) {
 				checkNVSwitchExistsFunc: func() bool { return tc.checkNVSwitchExists },
 				checkFMExistsFunc:       func() bool { return true }, // FM exists
 				checkFMActiveFunc:       func() bool { return true }, // FM is active
-				checkNVSMActiveFunc:     func() bool { return false },
 			}
 
 			result := comp.Check()
@@ -1039,7 +1027,6 @@ func TestCheckNVSwitchNotDetected(t *testing.T) {
 				checkNVSwitchExistsFunc: func() bool { return tc.checkNVSwitchExists },
 				checkFMExistsFunc:       func() bool { return false }, // FM doesn't exist
 				checkFMActiveFunc:       func() bool { return false }, // FM not active
-				checkNVSMActiveFunc:     func() bool { return false },
 			}
 
 			// Call Check method
@@ -1075,7 +1062,6 @@ func TestCheckNVSwitchFuncNil(t *testing.T) {
 		checkNVSwitchExistsFunc: nil, // nil function
 		checkFMExistsFunc:       func() bool { return true },
 		checkFMActiveFunc:       func() bool { return true },
-		checkNVSMActiveFunc:     func() bool { return false },
 	}
 
 	// Call Check method
@@ -1087,85 +1073,6 @@ func TestCheckNVSwitchFuncNil(t *testing.T) {
 
 	// Should proceed to check FM and find it active
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
-	assert.Equal(t, "fabric manager found and active (traditional on port 6666)", checkResult.reason)
+	assert.Equal(t, "fabric manager found and active", checkResult.reason)
 	assert.True(t, checkResult.FabricManagerActive)
-}
-
-// TestFabricManagerFallbackToNVSM tests the fallback from port 6666 to port 273 (GB200 scenario)
-func TestFabricManagerFallbackToNVSM(t *testing.T) {
-	t.Parallel()
-
-	comp := &component{
-		ctx:    context.Background(),
-		cancel: func() {},
-
-		nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "NVIDIA GB200", deviceCount: 4},
-		checkNVSwitchExistsFunc: func() bool { return true },
-		checkFMExistsFunc:       func() bool { return true },
-		checkFMActiveFunc: func() bool {
-			// Simulate GB200: port 6666 closed, port 273 open
-			// This is what checkFMActive() returns after checking both ports
-			return true // Returns true because fallback to port 273 succeeds
-		},
-		checkNVSMActiveFunc: func() bool { return true }, // NVSM active on port 273
-	}
-
-	result := comp.Check()
-	checkResult, ok := result.(*checkResult)
-	assert.True(t, ok)
-
-	assert.True(t, checkResult.FabricManagerActive)
-	assert.Equal(t, "nvsm", checkResult.FabricManagerType)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
-	assert.Contains(t, checkResult.reason, "NVSM on port 273")
-}
-
-// TestFabricManagerTraditionalActive tests traditional fabric-manager on port 6666 (Pre-NVL5)
-func TestFabricManagerTraditionalActive(t *testing.T) {
-	t.Parallel()
-
-	comp := &component{
-		ctx:    context.Background(),
-		cancel: func() {},
-
-		nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "NVIDIA A100", deviceCount: 8},
-		checkNVSwitchExistsFunc: func() bool { return true },
-		checkFMExistsFunc:       func() bool { return true },
-		checkFMActiveFunc:       func() bool { return true }, // Port 6666 active
-		checkNVSMActiveFunc:     func() bool { return false },
-	}
-
-	result := comp.Check()
-	checkResult, ok := result.(*checkResult)
-	assert.True(t, ok)
-
-	assert.True(t, checkResult.FabricManagerActive)
-	assert.Equal(t, "traditional", checkResult.FabricManagerType)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, checkResult.health)
-	assert.Contains(t, checkResult.reason, "traditional on port 6666")
-}
-
-// TestFabricManagerBothPortsFail tests when neither port 6666 nor 273 are available
-func TestFabricManagerBothPortsFail(t *testing.T) {
-	t.Parallel()
-
-	comp := &component{
-		ctx:    context.Background(),
-		cancel: func() {},
-
-		nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
-		checkNVSwitchExistsFunc: func() bool { return true },
-		checkFMExistsFunc:       func() bool { return true },
-		checkFMActiveFunc:       func() bool { return false }, // Both ports closed
-		checkNVSMActiveFunc:     func() bool { return false },
-	}
-
-	result := comp.Check()
-	checkResult, ok := result.(*checkResult)
-	assert.True(t, ok)
-
-	assert.False(t, checkResult.FabricManagerActive)
-	assert.Equal(t, "", checkResult.FabricManagerType)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, checkResult.health)
-	assert.Equal(t, "nv-fabricmanager found but fabric manager service is not active", checkResult.reason)
 }
