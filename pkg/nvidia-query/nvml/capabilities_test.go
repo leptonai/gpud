@@ -182,9 +182,9 @@ func TestSupportedFMByGPUProduct(t *testing.T) {
 			expected:       false,
 		},
 		{
-			name:           "GB200 supports",
+			name:           "GB200 does not run legacy fabric manager",
 			gpuProductName: "NVIDIA-GB200",
-			expected:       true,
+			expected:       false,
 		},
 	}
 
@@ -192,6 +192,38 @@ func TestSupportedFMByGPUProduct(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := SupportedFMByGPUProduct(tt.gpuProductName); got != tt.expected {
 				t.Errorf("SupportedFMByGPUProduct(%q) = %v, want %v", tt.gpuProductName, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSupportFabricStateByGPUProduct(t *testing.T) {
+	tests := []struct {
+		name           string
+		gpuProductName string
+		expected       bool
+	}{
+		{
+			name:           "GB200 upper case",
+			gpuProductName: "NVIDIA GB200",
+			expected:       true,
+		},
+		{
+			name:           "GB200 mixed case",
+			gpuProductName: "nvidia-Gb200",
+			expected:       true,
+		},
+		{
+			name:           "Non GB200",
+			gpuProductName: "NVIDIA H100",
+			expected:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := SupportFabricStateByGPUProduct(tt.gpuProductName); got != tt.expected {
+				t.Errorf("SupportFabricStateByGPUProduct(%q) = %v, want %v", tt.gpuProductName, got, tt.expected)
 			}
 		})
 	}

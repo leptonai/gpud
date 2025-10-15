@@ -555,11 +555,12 @@ func TestCheckAllBranches(t *testing.T) {
 
 // mockNVMLInstance implements nvidianvml.Instance for testing
 type mockNVMLInstance struct {
-	exists       bool
-	supportsFM   bool
-	productName  string
-	architecture string
-	deviceCount  int // Add device count field
+	exists              bool
+	supportsFM          bool
+	supportsFabricState bool
+	productName         string
+	architecture        string
+	deviceCount         int // Add device count field
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -609,6 +610,10 @@ func (m *mockNVMLInstance) CUDAVersion() string {
 
 func (m *mockNVMLInstance) FabricManagerSupported() bool {
 	return m.supportsFM
+}
+
+func (m *mockNVMLInstance) FabricStateSupported() bool {
+	return m.supportsFabricState
 }
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {

@@ -38,6 +38,10 @@ func (m *mockNVMLInstance) FabricManagerSupported() bool {
 	return true
 }
 
+func (m *mockNVMLInstance) FabricStateSupported() bool {
+	return false
+}
+
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
@@ -90,6 +94,10 @@ func (m *customMockNVMLInstance) Devices() map[string]device.Device {
 
 func (m *customMockNVMLInstance) FabricManagerSupported() bool {
 	return true
+}
+
+func (m *customMockNVMLInstance) FabricStateSupported() bool {
+	return false
 }
 
 func (m *customMockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {

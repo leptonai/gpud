@@ -25,6 +25,7 @@ func (m *mockNvmlInstance) DriverVersion() string             { return "test-ver
 func (m *mockNvmlInstance) DriverMajor() int                  { return 1 }
 func (m *mockNvmlInstance) CUDAVersion() string               { return "test-cuda" }
 func (m *mockNvmlInstance) FabricManagerSupported() bool      { return false }
+func (m *mockNvmlInstance) FabricStateSupported() bool        { return false }
 func (m *mockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
