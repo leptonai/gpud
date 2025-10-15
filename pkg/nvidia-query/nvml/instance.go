@@ -53,6 +53,10 @@ type Instance interface {
 	// FabricManagerSupported returns true if the fabric manager is supported.
 	FabricManagerSupported() bool
 
+	// FabricStateSupported returns true if NVML fabric state telemetry is
+	// available for the product (e.g. GB200 via nvmlDeviceGetGpuFabricInfo*).
+	FabricStateSupported() bool
+
 	// GetMemoryErrorManagementCapabilities returns the memory error management capabilities of the GPU.
 	GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
 
@@ -184,6 +188,7 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) 
 	}
 
 	fmSupported := SupportedFMByGPUProduct(productName)
+	fabricStateSupported := SupportFabricStateByGPUProduct(productName)
 	memMgmtCaps := SupportedMemoryMgmtCapsByGPUProduct(productName)
 
 	return &instance{
@@ -198,6 +203,7 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) 
 		architecture:         archFamily,
 		brand:                brand,
 		fabricMgrSupported:   fmSupported,
+		fabricStateSupported: fabricStateSupported,
 		memMgmtCaps:          memMgmtCaps,
 	}, nil
 }
@@ -220,8 +226,9 @@ type instance struct {
 	architecture         string
 	brand                string
 
-	fabricMgrSupported bool
-	memMgmtCaps        MemoryErrorManagementCapabilities
+	fabricMgrSupported   bool
+	fabricStateSupported bool
+	memMgmtCaps          MemoryErrorManagementCapabilities
 }
 
 func (inst *instance) NVMLExists() bool {
@@ -264,6 +271,10 @@ func (inst *instance) FabricManagerSupported() bool {
 	return inst.fabricMgrSupported
 }
 
+func (inst *instance) FabricStateSupported() bool {
+	return inst.fabricStateSupported
+}
+
 func (inst *instance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
 	return inst.memMgmtCaps
 }
@@ -294,6 +305,7 @@ func (inst *noOpInstance) DriverVersion() string             { return "" }
 func (inst *noOpInstance) DriverMajor() int                  { return 0 }
 func (inst *noOpInstance) CUDAVersion() string               { return "" }
 func (inst *noOpInstance) FabricManagerSupported() bool      { return false }
+func (inst *noOpInstance) FabricStateSupported() bool        { return false }
 func (inst *noOpInstance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
 	return MemoryErrorManagementCapabilities{}
 }

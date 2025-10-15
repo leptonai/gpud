@@ -63,6 +63,10 @@ func (m *mockNVMLInstance) FabricManagerSupported() bool {
 	return true
 }
 
+func (m *mockNVMLInstance) FabricStateSupported() bool {
+	return false
+}
+
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }

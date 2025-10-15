@@ -27,6 +27,7 @@ func (m *mockNVMLInstance) DriverVersion() string             { return "123.45" 
 func (m *mockNVMLInstance) DriverMajor() int                  { return 123 }
 func (m *mockNVMLInstance) CUDAVersion() string               { return "11.7" }
 func (m *mockNVMLInstance) FabricManagerSupported() bool      { return false }
+func (m *mockNVMLInstance) FabricStateSupported() bool        { return false }
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }

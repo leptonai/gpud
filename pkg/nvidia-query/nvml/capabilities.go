@@ -23,10 +23,18 @@ var (
 	}
 
 	gpuProductToFMSupported = map[string]bool{
-		"a100":  true,
-		"b100":  true,
-		"b200":  true,
-		"gb200": true,
+		"a100": true,
+		"b100": true,
+		"b200": true,
+		// GB200 compute nodes rely on NVOS-managed fabric services that run on
+		// NVLink Switch Trays, while the nodes themselves run NVSM. The traditional
+		// nv-fabricmanager daemon (port 6666) never starts on the compute nodes and
+		// returns NV_WARN_NOTHING_TO_DO because no NVSwitch kernel devices exist.
+		// See NVIDIA NVOS, NMX Controller, and NVSM documentation referenced in the
+		// reverted GB200 NVOS monitoring commit for architectural details. Since
+		// SupportedFMByGPUProduct tracks support for the on-node nv-fabricmanager
+		// service only, we explicitly report GB200 as unsupported here.
+		"gb200": false,
 		"h100":  true,
 		"h200":  true,
 		"a10":   false,
@@ -34,7 +42,9 @@ var (
 )
 
 // SupportedFMByGPUProduct returns the GPU fabric manager support status
-// based on the GPU product name.
+// based on the GPU product name. This only reflects the legacy nv-fabricmanager
+// daemon that listens on port 6666 on compute nodes and does not cover NVOS/
+// NVSM-based fabric state telemetry available on newer systems like GB200.
 func SupportedFMByGPUProduct(gpuProductName string) bool {
 	p := strings.ToLower(gpuProductName)
 	longestName, supported := "", false
@@ -48,6 +58,14 @@ func SupportedFMByGPUProduct(gpuProductName string) bool {
 		}
 	}
 	return supported
+}
+
+// SupportFabricStateByGPUProduct reports whether the GPU surface exposes NVML
+// fabric state telemetry (nvmlDeviceGetGpuFabricInfo*) rather than the
+// traditional nv-fabricmanager control plane. Today this is limited to GB200
+// systems that ship NVOS-managed fabrics.
+func SupportFabricStateByGPUProduct(gpuProductName string) bool {
+	return strings.Contains(strings.ToLower(gpuProductName), "gb200")
 }
 
 // SupportedMemoryMgmtCapsByGPUProduct returns the GPU memory error management capabilities

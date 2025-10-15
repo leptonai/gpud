@@ -3,6 +3,10 @@ package fabricmanager
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,6 +83,35 @@ func TestComponentEvents(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
+}
+
+func TestCheckFMExists(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		t.Setenv("PATH", t.TempDir())
+		assert.False(t, checkFMExists())
+	})
+
+	t.Run("found", func(t *testing.T) {
+		tempDir := t.TempDir()
+		binPath := filepath.Join(tempDir, "nv-fabricmanager")
+		require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+		t.Setenv("PATH", tempDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		assert.True(t, checkFMExists())
+	})
+}
+
+func TestCheckFMActive(t *testing.T) {
+	t.Run("port inactive", func(t *testing.T) {
+		assert.False(t, checkFMActive())
+	})
+
+	t.Run("port active", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:6666")
+		require.NoError(t, err)
+		defer listener.Close()
+
+		assert.True(t, checkFMActive())
+	})
 }
 
 // mockWatcher implements the watcher interface for testing
@@ -415,6 +448,25 @@ func TestDataString(t *testing.T) {
 		FabricManagerActive: false,
 	}
 	assert.Equal(t, "fabric manager is not active", cr.String())
+
+	// Test rendering fabric state table output
+	cr = &checkResult{
+		FabricStateSupported: true,
+		FabricStates: []fabricStateEntry{
+			{
+				GPUUUID:  "GPU-0",
+				CliqueID: 4026,
+				State:    "Completed",
+				Status:   "Success",
+				Health: fabricHealthSnapshot{
+					Bandwidth: "Full",
+				},
+			},
+		},
+	}
+	output := cr.String()
+	assert.True(t, strings.Contains(output, "GPU-0"), output)
+	assert.True(t, strings.Contains(output, "4026"), output)
 }
 
 func TestDataSummary(t *testing.T) {
@@ -429,6 +481,13 @@ func TestDataSummary(t *testing.T) {
 		reason: "test reason",
 	}
 	assert.Equal(t, "test reason", cr.Summary())
+}
+
+func TestCheckResultComponentName(t *testing.T) {
+	t.Parallel()
+
+	cr := &checkResult{}
+	assert.Equal(t, Name, cr.ComponentName())
 }
 
 func TestDataHealthState(t *testing.T) {
@@ -555,11 +614,12 @@ func TestCheckAllBranches(t *testing.T) {
 
 // mockNVMLInstance implements nvidianvml.Instance for testing
 type mockNVMLInstance struct {
-	exists       bool
-	supportsFM   bool
-	productName  string
-	architecture string
-	deviceCount  int // Add device count field
+	exists              bool
+	supportsFM          bool
+	supportsFabricState bool
+	productName         string
+	architecture        string
+	deviceCount         int // Add device count field
 }
 
 func (m *mockNVMLInstance) NVMLExists() bool {
@@ -609,6 +669,10 @@ func (m *mockNVMLInstance) CUDAVersion() string {
 
 func (m *mockNVMLInstance) FabricManagerSupported() bool {
 	return m.supportsFM
+}
+
+func (m *mockNVMLInstance) FabricStateSupported() bool {
+	return m.supportsFabricState
 }
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
