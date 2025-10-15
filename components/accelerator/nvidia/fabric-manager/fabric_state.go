@@ -180,8 +180,8 @@ func formatFabricStateEntry(uuid string, info fabricInfoData) (fabricStateEntry,
 		GPUUUID:     uuid,
 		CliqueID:    info.cliqueID,
 		ClusterUUID: info.clusterUUID,
-		State:       fabricStateToString(info.state),
-		Status:      fabricStatusToString(info.status),
+		State:       fabricStateToString(info.state),   // e.g., "Completed"
+		Status:      fabricStatusToString(info.status), // e.g., "Success"
 		Summary:     fabricSummaryToString(info.healthSummary),
 	}
 
