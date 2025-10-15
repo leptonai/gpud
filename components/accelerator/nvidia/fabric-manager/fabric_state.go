@@ -8,6 +8,8 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/olekukonko/tablewriter"
+
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 type fabricStateReport struct {
@@ -106,23 +108,36 @@ type fabricInfoGetter interface {
 	GetGpuFabricInfo() (nvml.GpuFabricInfo, nvml.Return)
 }
 
+// getFabricInfo retrieves fabric state information from an NVML device.
+//
+// It attempts to use the V3 API (nvmlDeviceGetGpuFabricInfoV) first, which provides
+// comprehensive health metrics including detailed health masks. If V3 is not available
+// or fails (due to driver version mismatch, not supported, etc.), it falls back to
+// the V1 API (nvmlDeviceGetGpuFabricInfo) which provides basic fabric information.
+//
+// The V3 API may fail with various errors on older drivers/firmware:
+//   - ERROR_NOT_SUPPORTED: V3 API not available
+//   - Argument version mismatch: Driver doesn't support the V3 version requested
+//   - Other errors: Various compatibility issues
+//
+// In all these cases, we gracefully fall back to V1 which is more widely supported.
 func getFabricInfo(dev interface{}) (fabricInfoData, error) {
 	if dev == nil {
 		return fabricInfoData{}, fmt.Errorf("nil nvml device handle")
 	}
 
+	// try V3 API first (provides detailed health metrics)
 	if getter, ok := dev.(fabricInfoVGetter); ok {
 		info, ret := getter.GetGpuFabricInfoV().V3()
-		switch ret {
-		case nvml.SUCCESS:
+		if ret == nvml.SUCCESS {
 			return fabricInfoDataFromV3(info), nil
-		case nvml.ERROR_NOT_SUPPORTED:
-			// fall back to v1 path
-		default:
-			return fabricInfoData{}, fmt.Errorf("nvmlDeviceGetGpuFabricInfoV failed: %s", ret.Error())
 		}
+		// V3 not available or failed (version mismatch, not supported, etc.)
+		// Log the error and fall back to V1 API
+		log.Logger.Warnw("V3 fabric info API failed, falling back to V1", "nvml_error", ret.Error())
 	}
 
+	// try V1 API (basic fabric information)
 	if getter, ok := dev.(fabricInfoGetter); ok {
 		info, ret := getter.GetGpuFabricInfo()
 		switch ret {
