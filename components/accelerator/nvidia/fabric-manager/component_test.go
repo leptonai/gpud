@@ -1140,3 +1140,166 @@ func TestCheckNVSwitchFuncNil(t *testing.T) {
 	assert.Equal(t, "fabric manager found and active", checkResult.reason)
 	assert.True(t, checkResult.FabricManagerActive)
 }
+
+// TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy tests that when fabric state
+// reports unhealthy (report.Healthy = false), the component health state becomes unhealthy
+func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		productName         string
+		fabricStateReport   fabricStateReport
+		expectedHealth      apiv1.HealthStateType
+		expectedReasonMatch string // substring to match in reason
+	}{
+		{
+			name:        "unhealthy with reason - bandwidth degraded",
+			productName: "NVIDIA GB200",
+			fabricStateReport: fabricStateReport{
+				Healthy: false,
+				Reason:  "GPU GPU-0: bandwidth degraded",
+				Entries: []fabricStateEntry{{GPUUUID: "GPU-0"}},
+			},
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
+			expectedReasonMatch: "NVIDIA GB200 with unhealthy fabric state: GPU GPU-0: bandwidth degraded",
+		},
+		{
+			name:        "unhealthy with error only",
+			productName: "NVIDIA GB200 NVL72",
+			fabricStateReport: fabricStateReport{
+				Healthy: false,
+				Reason:  "",
+				Err:     assert.AnError,
+			},
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
+			expectedReasonMatch: "NVIDIA GB200 NVL72 with unhealthy fabric state: ",
+		},
+		{
+			name:        "unhealthy with both reason and error",
+			productName: "NVIDIA H100",
+			fabricStateReport: fabricStateReport{
+				Healthy: false,
+				Reason:  "GPU GPU-1: route unhealthy",
+				Err:     assert.AnError,
+				Entries: []fabricStateEntry{{GPUUUID: "GPU-1"}},
+			},
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
+			expectedReasonMatch: "NVIDIA H100 with unhealthy fabric state: GPU GPU-1: route unhealthy",
+		},
+		{
+			name:        "unhealthy with multiple GPUs",
+			productName: "NVIDIA GB200",
+			fabricStateReport: fabricStateReport{
+				Healthy: false,
+				Reason:  "GPU GPU-0: bandwidth degraded; GPU GPU-1: route recovery in progress",
+				Entries: []fabricStateEntry{
+					{GPUUUID: "GPU-0"},
+					{GPUUUID: "GPU-1"},
+				},
+			},
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
+			expectedReasonMatch: "NVIDIA GB200 with unhealthy fabric state: GPU GPU-0: bandwidth degraded; GPU GPU-1: route recovery in progress",
+		},
+		{
+			name:        "healthy state - should be healthy",
+			productName: "NVIDIA GB200",
+			fabricStateReport: fabricStateReport{
+				Healthy: true,
+				Reason:  "",
+				Entries: []fabricStateEntry{{GPUUUID: "GPU-0", State: "Completed"}},
+			},
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
+			expectedReasonMatch: "NVIDIA GB200 checked fabric state",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			comp := &component{
+				ctx:    context.Background(),
+				cancel: func() {},
+				nvmlInstance: &mockNVMLInstance{
+					exists:              true,
+					supportsFM:          false,
+					supportsFabricState: true,
+					productName:         tc.productName,
+					deviceCount:         2,
+				},
+				collectFabricStateFunc: func() fabricStateReport {
+					return tc.fabricStateReport
+				},
+			}
+
+			result := comp.Check()
+			cr, ok := result.(*checkResult)
+			require.True(t, ok, "Expected result to be of type *checkResult")
+
+			// Verify health state matches expected
+			assert.Equal(t, tc.expectedHealth, cr.health,
+				"Health state should be %s when fabric state Healthy=%v",
+				tc.expectedHealth, tc.fabricStateReport.Healthy)
+
+			// Verify reason contains expected substring
+			assert.Equal(t, tc.expectedReasonMatch, cr.reason,
+				"Reason should match expected pattern")
+
+			// Verify FabricStateSupported is true
+			assert.True(t, cr.FabricStateSupported,
+				"FabricStateSupported should be true")
+
+			// Verify FabricStateReason is set correctly
+			assert.Equal(t, tc.fabricStateReport.Reason, cr.FabricStateReason,
+				"FabricStateReason should match report reason")
+
+			// Verify via LastHealthStates as well
+			states := comp.LastHealthStates()
+			require.Len(t, states, 1)
+			assert.Equal(t, tc.expectedHealth, states[0].Health,
+				"Health state via LastHealthStates should match")
+			assert.Equal(t, tc.expectedReasonMatch, states[0].Reason,
+				"Reason via LastHealthStates should match")
+		})
+	}
+}
+
+// TestCheck_FabricStateUnhealthyLogging verifies that when fabric state is unhealthy,
+// appropriate warning is logged
+func TestCheck_FabricStateUnhealthyLogging(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+		nvmlInstance: &mockNVMLInstance{
+			exists:              true,
+			supportsFM:          false,
+			supportsFabricState: true,
+			productName:         "NVIDIA GB200",
+			deviceCount:         1,
+		},
+		collectFabricStateFunc: func() fabricStateReport {
+			return fabricStateReport{
+				Healthy: false,
+				Reason:  "test unhealthy reason",
+				Err:     assert.AnError,
+			}
+		},
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// Verify the component is unhealthy
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "with unhealthy fabric state: test unhealthy reason")
+
+	// The logging happens in the Check method - we can't directly verify logs in tests,
+	// but we can verify the behavior is correct
+	assert.True(t, cr.FabricStateSupported)
+	assert.Equal(t, "test unhealthy reason", cr.FabricStateReason)
+}
