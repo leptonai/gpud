@@ -5,11 +5,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"sort"
+	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/olekukonko/tablewriter"
 
 	"github.com/leptonai/gpud/pkg/log"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
 type fabricStateReport struct {
@@ -330,4 +333,52 @@ func fabricStateReportToString(report fabricStateReport) string {
 	var buf bytes.Buffer
 	report.RenderTable(&buf)
 	return buf.String()
+}
+
+// collectFabricState collects fabric state information from all GPU devices.
+// It queries each GPU for fabric state via NVML APIs and returns a comprehensive report.
+func collectFabricState(nvmlInstance nvidianvml.Instance) fabricStateReport {
+	report := fabricStateReport{Healthy: true}
+
+	if nvmlInstance == nil {
+		report.Err = fmt.Errorf("nvml instance is nil")
+		report.Healthy = false
+		return report
+	}
+
+	devices := nvmlInstance.Devices()
+	if len(devices) == 0 {
+		return report
+	}
+
+	uuids := make([]string, 0, len(devices))
+	for uuid := range devices {
+		uuids = append(uuids, uuid)
+	}
+	sort.Strings(uuids)
+
+	reasons := make([]string, 0)
+
+	for _, uuid := range uuids {
+		dev := devices[uuid]
+		info, err := getFabricInfo(dev)
+		if err != nil {
+			report.Err = fmt.Errorf("fabric state query failed for GPU %s: %w", uuid, err)
+			report.Healthy = false
+			return report
+		}
+
+		entry, issues := formatFabricStateEntry(uuid, info)
+		report.Entries = append(report.Entries, entry)
+		if len(issues) > 0 {
+			report.Healthy = false
+			reasons = append(reasons, fmt.Sprintf("GPU %s: %s", uuid, strings.Join(issues, ", ")))
+		}
+	}
+
+	if len(reasons) > 0 {
+		report.Reason = strings.Join(reasons, "; ")
+	}
+
+	return report
 }

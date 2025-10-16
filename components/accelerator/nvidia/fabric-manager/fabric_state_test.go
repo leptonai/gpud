@@ -91,8 +91,9 @@ func TestCheck_FabricStateSupportedUnhealthy(t *testing.T) {
 	assert.True(t, ok)
 	assert.False(t, cr.FabricManagerActive)
 	assert.True(t, cr.FabricStateSupported)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "NVIDIA GB200 checked fabric state", cr.reason)
+	// When fabric state is unhealthy, component should be unhealthy
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: "+reason, cr.reason)
 	assert.Equal(t, reason, cr.FabricStateReason)
 	assert.Nil(t, cr.err)
 }
@@ -124,9 +125,112 @@ func TestCheck_FabricStateSupportedError(t *testing.T) {
 	cr, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.True(t, cr.FabricStateSupported)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "NVIDIA GB200 checked fabric state", cr.reason)
+	// When fabric state has an error, component should be unhealthy
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ", cr.reason)
 	assert.Nil(t, cr.err)
+}
+
+func TestCheck_FabricStateSupportedUnhealthyWithBothReasonAndError(t *testing.T) {
+	t.Parallel()
+
+	reason := "GPU GPU-0: route unhealthy"
+	fabricErr := errors.New("NVML query failed")
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+
+		nvmlInstance: &mockNVMLInstance{
+			exists:              true,
+			supportsFM:          false,
+			supportsFabricState: true,
+			productName:         "NVIDIA GB200 NVL72",
+		},
+		collectFabricStateFunc: func() fabricStateReport {
+			return fabricStateReport{
+				Entries: []fabricStateEntry{{GPUUUID: "GPU-0"}},
+				Healthy: false,
+				Reason:  reason,
+				Err:     fabricErr,
+			}
+		},
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	assert.True(t, ok)
+	assert.True(t, cr.FabricStateSupported)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "NVIDIA GB200 NVL72 with unhealthy fabric state: "+reason, cr.reason)
+	assert.Equal(t, reason, cr.FabricStateReason)
+	assert.Nil(t, cr.err)
+}
+
+func TestCheck_FabricStateSupportedHealthyWithMultipleGPUs(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+
+		nvmlInstance: &mockNVMLInstance{
+			exists:              true,
+			supportsFM:          false,
+			supportsFabricState: true,
+			productName:         "NVIDIA H100",
+		},
+		collectFabricStateFunc: func() fabricStateReport {
+			return fabricStateReport{
+				Entries: []fabricStateEntry{
+					{GPUUUID: "GPU-0", State: "Completed", Status: "Success"},
+					{GPUUUID: "GPU-1", State: "Completed", Status: "Success"},
+					{GPUUUID: "GPU-2", State: "Completed", Status: "Success"},
+				},
+				Healthy: true,
+			}
+		},
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	assert.True(t, ok)
+	assert.True(t, cr.FabricStateSupported)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA H100 checked fabric state", cr.reason)
+	assert.Len(t, cr.FabricStates, 3)
+	assert.Equal(t, "", cr.FabricStateReason)
+}
+
+func TestCheck_FabricStateSupportedUnhealthyWithEmptyReason(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+
+		nvmlInstance: &mockNVMLInstance{
+			exists:              true,
+			supportsFM:          false,
+			supportsFabricState: true,
+			productName:         "NVIDIA GB200",
+		},
+		collectFabricStateFunc: func() fabricStateReport {
+			return fabricStateReport{
+				Entries: []fabricStateEntry{{GPUUUID: "GPU-0"}},
+				Healthy: false,
+				Reason:  "", // Empty reason
+			}
+		},
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	assert.True(t, ok)
+	assert.True(t, cr.FabricStateSupported)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ", cr.reason)
+	assert.Equal(t, "", cr.FabricStateReason)
 }
 
 // Unit tests for fabric state functions
