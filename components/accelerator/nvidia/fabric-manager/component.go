@@ -87,10 +87,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os/exec"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -123,8 +120,7 @@ type component struct {
 
 	nvmlInstance nvidianvml.Instance
 
-	collectFabricStateFunc func() fabricStateReport
-
+	collectFabricStateFunc  func() fabricStateReport
 	checkNVSwitchExistsFunc func() bool
 
 	checkFMExistsFunc func() bool
@@ -146,51 +142,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		nvmlInstance: gpudInstance.NVMLInstance,
 
 		collectFabricStateFunc: func() fabricStateReport {
-			report := fabricStateReport{Healthy: true}
-
-			if gpudInstance.NVMLInstance == nil {
-				report.Err = fmt.Errorf("nvml instance is nil")
-				report.Healthy = false
-				return report
-			}
-
-			devices := gpudInstance.NVMLInstance.Devices()
-			if len(devices) == 0 {
-				return report
-			}
-
-			uuids := make([]string, 0, len(devices))
-			for uuid := range devices {
-				uuids = append(uuids, uuid)
-			}
-			sort.Strings(uuids)
-
-			reasons := make([]string, 0)
-
-			for _, uuid := range uuids {
-				dev := devices[uuid]
-				info, err := getFabricInfo(dev)
-				if err != nil {
-					report.Err = fmt.Errorf("fabric state query failed for GPU %s: %w", uuid, err)
-					report.Healthy = false
-					return report
-				}
-
-				entry, issues := formatFabricStateEntry(uuid, info)
-				report.Entries = append(report.Entries, entry)
-				if len(issues) > 0 {
-					report.Healthy = false
-					reasons = append(reasons, fmt.Sprintf("GPU %s: %s", uuid, strings.Join(issues, ", ")))
-				}
-			}
-
-			if len(reasons) > 0 {
-				report.Reason = strings.Join(reasons, "; ")
-			}
-
-			return report
+			return collectFabricState(gpudInstance.NVMLInstance)
 		},
-
 		checkNVSwitchExistsFunc: func() bool {
 			devCnt := len(gpudInstance.NVMLInstance.Devices())
 			if devCnt <= 1 {
@@ -368,18 +321,16 @@ func (c *component) Check() components.CheckResult {
 		// (nvmlDeviceGetGpuFabricInfo*) to monitor fabric health instead of checking for
 		// the traditional fabric-manager daemon.
 
-		// Log fabric state issues for monitoring purposes
-		// TODO: set health state based on the fabric state once we determine the appropriate
-		// health criteria and thresholds for production use
-		if report.Err != nil {
-			log.Logger.Warnw("failed to collect fabric state", "reason", report.Reason, "error", report.Err)
-		}
 		if !report.Healthy {
-			log.Logger.Warnw("fabric state is not healthy", "reason", report.Reason)
+			log.Logger.Warnw("fabric state is not healthy", "reason", report.Reason, "error", report.Err)
+
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = c.nvmlInstance.ProductName() + " with unhealthy fabric state: " + report.Reason
+		} else {
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = c.nvmlInstance.ProductName() + " checked fabric state"
 		}
 
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = c.nvmlInstance.ProductName() + " checked fabric state"
 		return cr
 	}
 

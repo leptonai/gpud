@@ -118,6 +118,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
+				&cli.BoolFlag{
+					Name:  "reset-state",
+					Usage: "reset the state file (otherwise, re-login may contain stale health data)",
+				},
 			},
 		},
 		{
