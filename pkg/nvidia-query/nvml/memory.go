@@ -51,9 +51,6 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 		Supported: true,
 	}
 
-	// NOTE: "NVIDIA-GB10" with "blackwell" architecture does not support v2/v1 API
-	// with the error "Not Supported"
-
 	// ref. https://docs.nvidia.com/deploy/nvml-api/structnvmlMemory__v2__t.html#structnvmlMemory__v2__t
 	infoV2, retV2 := dev.GetMemoryInfo_v2()
 	if retV2 == nvml.SUCCESS {
@@ -74,7 +71,8 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 			log.Logger.Warnw("failed to get device memory info v1", "error", nvml.ErrorString(retV1))
 
 			if IsNotSupportError(retV1) {
-				// e.g., "NVIDIA-GB10" NVIDIA RTX blackwell
+				// NOTE: "NVIDIA-GB10" NVIDIA RTX blackwell with "blackwell" architecture does not support v2/v1 API
+				// with the error "Not Supported" for both v2 and v1 API
 				log.Logger.Warnw("device memory info v1 is not supported", "error", nvml.ErrorString(retV1))
 
 				mem.Supported = false

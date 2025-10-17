@@ -3,13 +3,17 @@ package fabricmanager
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	devwrap "github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmltestutil "github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
 func TestCheck_FabricStateSupportedHealthy(t *testing.T) {
@@ -713,12 +717,18 @@ func TestFormatFabricStateEntryIssues(t *testing.T) {
 	})
 
 	assert.Equal(t, "GPU-issue", entry.GPUUUID)
-	assert.Contains(t, issues, "state=In Progress")
-	assert.Contains(t, issues, "status=ERROR_UNKNOWN")
-	assert.Contains(t, issues, "summary=Unhealthy")
-	assert.Contains(t, issues, "bandwidth degraded")
-	assert.Contains(t, issues, "route recovery in progress")
-	assert.Contains(t, issues, "route unhealthy")
+
+	// Since formatFabricStateEntry now sorts the issues slice lexicographically,
+	// verify the exact sorted order for determinism.
+	expected := []string{
+		"bandwidth degraded",
+		"route recovery in progress",
+		"route unhealthy",
+		"state=In Progress",
+		"status=ERROR_UNKNOWN",
+		"summary=Unhealthy",
+	}
+	assert.Equal(t, expected, issues)
 }
 
 func TestFabricHealthFromMask(t *testing.T) {
@@ -735,4 +745,159 @@ func TestFabricHealthFromMask(t *testing.T) {
 	assert.Equal(t, "False", health.RouteUnhealthy)
 	assert.Equal(t, "True", health.AccessTimeoutRecovery)
 	assert.Equal(t, []string{"access timeout recovery in progress"}, issues)
+}
+
+// ---
+// Tests focusing on collectFabricState sorting behavior
+// ---
+
+// issueDevice wraps testutil.MockDevice to attach a desired fabricInfoData payload
+// that is returned by the test override of getFabricInfoFn.
+type issueDevice struct {
+	*nvmltestutil.MockDevice
+	info fabricInfoData
+	err  error
+}
+
+// fakeNVMLInstanceDevices embeds the existing mockNVMLInstance and overrides Devices().
+type fakeNVMLInstanceDevices struct {
+	mockNVMLInstance
+	devs map[string]devwrap.Device
+}
+
+func (f *fakeNVMLInstanceDevices) Devices() map[string]devwrap.Device { return f.devs }
+
+func TestCollectFabricState_SortsEntriesAndReasons(t *testing.T) {
+	// Override NVML query with deterministic stub for this test
+	orig := getFabricInfoFn
+	getFabricInfoFn = func(dev interface{}) (fabricInfoData, error) {
+		if d, ok := dev.(*issueDevice); ok {
+			return d.info, d.err
+		}
+		return fabricInfoData{}, fmt.Errorf("unexpected device type %T", dev)
+	}
+	t.Cleanup(func() { getFabricInfoFn = orig })
+
+	infoA := fabricInfoData{
+		cliqueID:      1,
+		clusterUUID:   "",
+		state:         nvml.GPU_FABRIC_STATE_COMPLETED,
+		status:        nvml.SUCCESS,
+		healthMask:    0,
+		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY,
+	}
+	// For V1, healthSummary is Not Supported by default; to exercise summary path we switch to V3 in unit below.
+	// Instead, we rely on health mask via fabricHealthFromMask by calling formatFabricStateEntry directly.
+
+	// GPU-B: issues -> bandwidth degraded, route unhealthy, state=In Progress, status=ERROR_UNKNOWN, summary=Unhealthy
+	maskB := uint32(nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY
+	infoB := fabricInfoData{
+		cliqueID:      2,
+		clusterUUID:   "",
+		state:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
+		status:        nvml.ERROR_UNKNOWN,
+		healthMask:    maskB,
+		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY,
+	}
+
+	// We will bypass the lack of V1 health mask/summary by using formatFabricStateEntry for mask-derived checks
+	// and keep collectFabricState focused on entry/reason sorting. To give collectFabricState issues for GPU-A and GPU-B,
+	// we simulate via V1 fields: GPU-A will be healthy (no issues), GPU-B will be unhealthy.
+	// Then verify that entries are sorted by UUID and the single reason (for GPU-B) is deterministic and sorted.
+
+	inst := &fakeNVMLInstanceDevices{
+		mockNVMLInstance: mockNVMLInstance{exists: true, productName: "NVIDIA Test", deviceCount: 2},
+		devs: map[string]devwrap.Device{
+			// Insert out of order to ensure sorting by key (UUID)
+			"GPU-B": &issueDevice{MockDevice: nvmltestutil.NewMockDevice(&nvmlmock.Device{GetGpuFabricInfoVFunc: func() nvml.GpuFabricInfoHandler { return nvml.GpuFabricInfoHandler{} }}, "arch", "brand", "cuda", "pci0"), info: infoB},
+			"GPU-A": &issueDevice{MockDevice: nvmltestutil.NewMockDevice(&nvmlmock.Device{GetGpuFabricInfoVFunc: func() nvml.GpuFabricInfoHandler { return nvml.GpuFabricInfoHandler{} }}, "arch", "brand", "cuda", "pci1"), info: infoA},
+		},
+	}
+
+	// Run collection
+	report := collectFabricState(inst)
+
+	// Entries should be sorted lexicographically by UUID: GPU-A, GPU-B
+	if assert.Len(t, report.Entries, 2) {
+		assert.Equal(t, "GPU-A", report.Entries[0].GPUUUID)
+		assert.Equal(t, "GPU-B", report.Entries[1].GPUUUID)
+	}
+
+	// For GPU-B, compute expected sorted issues using the same helpers to ensure determinism
+	_, issuesB := formatFabricStateEntry("GPU-B", infoB)
+	expectedReasonB := fmt.Sprintf("GPU GPU-B: %s", strings.Join(issuesB, ", "))
+
+	// report.Reason should contain only GPU-B's issues (GPU-A is healthy)
+	assert.False(t, report.Healthy)
+	assert.Equal(t, expectedReasonB, report.Reason)
+}
+
+func TestCollectFabricState_SortsReasonsAcrossMultipleGPUs(t *testing.T) {
+	// Build three devices; two with issues, inserted out of order
+	orig := getFabricInfoFn
+	getFabricInfoFn = func(dev interface{}) (fabricInfoData, error) {
+		if d, ok := dev.(*issueDevice); ok {
+			return d.info, d.err
+		}
+		return fabricInfoData{}, fmt.Errorf("unexpected device type %T", dev)
+	}
+	t.Cleanup(func() { getFabricInfoFn = orig })
+
+	// GPU-C healthy
+	infoC := fabricInfoData{cliqueID: 3, state: nvml.GPU_FABRIC_STATE_COMPLETED, status: nvml.SUCCESS}
+
+	// Build reasons deterministically using formatFabricStateEntry
+	maskA := uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_TRUE) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY
+	_, issuesA := formatFabricStateEntry("GPU-A", fabricInfoData{
+		cliqueID:      1,
+		state:         nvml.GPU_FABRIC_STATE_COMPLETED,
+		status:        nvml.SUCCESS,
+		healthMask:    maskA,
+		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY,
+	})
+	expectedA := fmt.Sprintf("GPU GPU-A: %s", strings.Join(issuesA, ", "))
+
+	maskB := uint32(nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY
+	_, issuesB := formatFabricStateEntry("GPU-B", fabricInfoData{
+		cliqueID:      2,
+		state:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
+		status:        nvml.ERROR_UNKNOWN,
+		healthMask:    maskB,
+		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY,
+	})
+	expectedB := fmt.Sprintf("GPU GPU-B: %s", strings.Join(issuesB, ", "))
+
+	// For collectFabricState inputs, V1 info influences only state/status; health masks are not surfaced via V1.
+	// We still get sorting validation across reasons by constructing expected strings and ensuring the final
+	// concatenation order is lexicographic by GPU ID (A then B).
+	infoA := fabricInfoData{cliqueID: 1, state: nvml.GPU_FABRIC_STATE_COMPLETED, status: nvml.SUCCESS, healthMask: maskA, healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY}
+	infoB := fabricInfoData{cliqueID: 2, state: nvml.GPU_FABRIC_STATE_IN_PROGRESS, status: nvml.ERROR_UNKNOWN, healthMask: maskB, healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY}
+
+	inst := &fakeNVMLInstanceDevices{
+		mockNVMLInstance: mockNVMLInstance{exists: true, productName: "NVIDIA Test", deviceCount: 3},
+		devs: map[string]devwrap.Device{
+			// Intentionally unsorted insertion
+			"GPU-C": &issueDevice{MockDevice: nvmltestutil.NewMockDevice(&nvmlmock.Device{GetGpuFabricInfoVFunc: func() nvml.GpuFabricInfoHandler { return nvml.GpuFabricInfoHandler{} }}, "arch", "brand", "cuda", "pci0"), info: infoC},
+			"GPU-B": &issueDevice{MockDevice: nvmltestutil.NewMockDevice(&nvmlmock.Device{GetGpuFabricInfoVFunc: func() nvml.GpuFabricInfoHandler { return nvml.GpuFabricInfoHandler{} }}, "arch", "brand", "cuda", "pci1"), info: infoB},
+			"GPU-A": &issueDevice{MockDevice: nvmltestutil.NewMockDevice(&nvmlmock.Device{GetGpuFabricInfoVFunc: func() nvml.GpuFabricInfoHandler { return nvml.GpuFabricInfoHandler{} }}, "arch", "brand", "cuda", "pci2"), info: infoA},
+		},
+	}
+
+	report := collectFabricState(inst)
+
+	// Entries sorted by UUID
+	if assert.Len(t, report.Entries, 3) {
+		assert.Equal(t, "GPU-A", report.Entries[0].GPUUUID)
+		assert.Equal(t, "GPU-B", report.Entries[1].GPUUUID)
+		assert.Equal(t, "GPU-C", report.Entries[2].GPUUUID)
+	}
+
+	// Healthy must be false (GPU-B has non-success/not-completed)
+	assert.False(t, report.Healthy)
+
+	// Reasons sorted lexicographically across GPUs -> GPU-A first, then GPU-B
+	expectedReason := fmt.Sprintf("%s; %s", expectedA, expectedB)
+	assert.Equal(t, expectedReason, report.Reason)
 }

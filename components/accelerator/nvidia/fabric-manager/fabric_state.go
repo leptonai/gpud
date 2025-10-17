@@ -156,6 +156,10 @@ func getFabricInfo(dev interface{}) (fabricInfoData, error) {
 	return fabricInfoData{}, fmt.Errorf("fabric state telemetry not available")
 }
 
+// getFabricInfoFn is used to allow tests to override NVML querying logic.
+// In production it points to getFabricInfo.
+var getFabricInfoFn = getFabricInfo
+
 func fabricInfoDataFromV3(info nvml.GpuFabricInfo_v3) fabricInfoData {
 	return fabricInfoData{
 		cliqueID:      info.CliqueId,
@@ -205,6 +209,7 @@ func formatFabricStateEntry(uuid string, info fabricInfoData) (fabricStateEntry,
 		issues = append(issues, "summary=Limited Capacity")
 	}
 	issues = append(issues, healthIssues...)
+	sort.Strings(issues)
 
 	return entry, issues
 }
@@ -361,7 +366,7 @@ func collectFabricState(nvmlInstance nvidianvml.Instance) fabricStateReport {
 
 	for _, uuid := range uuids {
 		dev := devices[uuid]
-		info, err := getFabricInfo(dev)
+		info, err := getFabricInfoFn(dev)
 		if err != nil {
 			report.Err = fmt.Errorf("fabric state query failed for GPU %s: %w", uuid, err)
 			report.Healthy = false
@@ -377,6 +382,7 @@ func collectFabricState(nvmlInstance nvidianvml.Instance) fabricStateReport {
 	}
 
 	if len(reasons) > 0 {
+		sort.Strings(reasons)
 		report.Reason = strings.Join(reasons, "; ")
 	}
 
