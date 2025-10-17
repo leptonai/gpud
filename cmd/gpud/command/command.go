@@ -11,7 +11,6 @@ import (
 	cmdinjectfault "github.com/leptonai/gpud/cmd/gpud/inject-fault"
 	cmdlistplugins "github.com/leptonai/gpud/cmd/gpud/list-plugins"
 	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
-	cmdlogout "github.com/leptonai/gpud/cmd/gpud/logout"
 	cmdmachineinfo "github.com/leptonai/gpud/cmd/gpud/machine-info"
 	cmdmetadata "github.com/leptonai/gpud/cmd/gpud/metadata"
 	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
@@ -629,21 +628,6 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "set-value",
 					Usage: "value to set for the metadata key",
-				},
-			},
-		},
-		{
-			Name:   "logout",
-			Usage:  "log out gpud from lepton control plane",
-			Action: cmdlogout.Command,
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:  "log-level,l",
-					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-				},
-				&cli.BoolFlag{
-					Name:  "reset-state",
-					Usage: "reset the state file (otherwise, re-login may contain stale health data)",
 				},
 			},
 		},
