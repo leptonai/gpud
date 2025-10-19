@@ -15,6 +15,12 @@ func (c *component) SetHealthy() error {
 
 	now := c.getTimeNowFunc()
 
+	// Clear the recovery time when SetHealthy is called
+	// This ensures a fresh start for sticky window tracking
+	c.thresholdRecoveryTimeMu.Lock()
+	c.thresholdRecoveryTime = nil
+	c.thresholdRecoveryTimeMu.Unlock()
+
 	if c.ibPortsStore != nil {
 		// past events will be discarded
 		if err := c.ibPortsStore.Tombstone(now); err != nil {
