@@ -1,0 +1,343 @@
+{
+  "blockdevices": [
+    {
+      "name": "/dev/sda",
+      "type": "disk",
+      "size": 1920383410176,
+      "rota": false,
+      "serial": "CENSORED_SN",
+      "wwn": null,
+      "vendor": "NVMe    ",
+      "model": "CENSORED_MODEL",
+      "rev": "CENSORED_REV",
+      "mountpoint": null,
+      "fstype": null,
+      "fsused": null,
+      "partuuid": null,
+      "children": [
+        {
+          "name": "/dev/sda1",
+          "type": "part",
+          "size": 1023410176,
+          "rota": false,
+          "serial": null,
+          "wwn": null,
+          "vendor": null,
+          "model": null,
+          "rev": null,
+          "mountpoint": "/boot/efi",
+          "fstype": "vfat",
+          "fsused": "6381568",
+          "partuuid": "0df667cc-b222-4e45-a967-592b44498c66"
+        },
+        {
+          "name": "/dev/sda2",
+          "type": "part",
+          "size": 1919347064832,
+          "rota": false,
+          "serial": null,
+          "wwn": null,
+          "vendor": null,
+          "model": null,
+          "rev": null,
+          "mountpoint": null,
+          "fstype": "linux_raid_member",
+          "fsused": null,
+          "partuuid": "f4b661be-4afa-44c6-95a5-40c36f69c798",
+          "children": [
+            {
+              "name": "/dev/md127",
+              "type": "raid1",
+              "size": 1919211798528,
+              "rota": false,
+              "serial": null,
+              "wwn": null,
+              "vendor": null,
+              "model": null,
+              "rev": null,
+              "mountpoint": "/",
+              "fstype": "ext4",
+              "fsused": "52760391680",
+              "partuuid": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "/dev/sdb",
+      "type": "disk",
+      "size": 1920383410176,
+      "rota": false,
+      "serial": "CENSORED_SN",
+      "wwn": null,
+      "vendor": "NVMe    ",
+      "model": "CENSORED_MODEL",
+      "rev": "CENSORED_REV",
+      "mountpoint": null,
+      "fstype": null,
+      "fsused": null,
+      "partuuid": null,
+      "children": [
+        {
+          "name": "/dev/sdb1",
+          "type": "part",
+          "size": 1023410176,
+          "rota": false,
+          "serial": null,
+          "wwn": null,
+          "vendor": null,
+          "model": null,
+          "rev": null,
+          "mountpoint": null,
+          "fstype": "vfat",
+          "fsused": null,
+          "partuuid": "a58a957d-71be-4abe-89c8-fcddf35f5f13"
+        },
+        {
+          "name": "/dev/sdb2",
+          "type": "part",
+          "size": 1919347064832,
+          "rota": false,
+          "serial": null,
+          "wwn": null,
+          "vendor": null,
+          "model": null,
+          "rev": null,
+          "mountpoint": null,
+          "fstype": "linux_raid_member",
+          "fsused": null,
+          "partuuid": "e59874ec-a336-47a8-87bb-7dc864a9a02e",
+          "children": [
+            {
+              "name": "/dev/md127",
+              "type": "raid1",
+              "size": 1919211798528,
+              "rota": false,
+              "serial": null,
+              "wwn": null,
+              "vendor": null,
+              "model": null,
+              "rev": null,
+              "mountpoint": "/",
+              "fstype": "ext4",
+              "fsused": "52760391680",
+              "partuuid": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "/dev/nvme1n1",
+      "type": "disk",
+      "size": 15360950534144,
+      "rota": false,
+      "serial": "CENSORED_SN",
+      "wwn": "CENSORED_WWN",
+      "vendor": null,
+      "model": "CENSORED_MODEL",
+      "rev": null,
+      "mountpoint": null,
+      "fstype": "ext4",
+      "fsused": null,
+      "partuuid": null
+    },
+    {
+      "name": "/dev/nvme2n1",
+      "type": "disk",
+      "size": 7681501126656,
+      "rota": false,
+      "serial": "CENSORED_SN",
+      "wwn": "CENSORED_WWN",
+      "vendor": null,
+      "model": "CENSORED_MODEL",
+      "rev": null,
+      "mountpoint": null,
+      "fstype": "LVM2_member",
+      "fsused": null,
+      "partuuid": null,
+      "children": [
+        {
+          "name": "/dev/mapper/vg_nvme-lv_nvme_rimage_1",
+          "type": "lvm",
+          "size": 7681498677248,
+          "rota": false,
+          "serial": null,
+          "wwn": null,
+          "vendor": null,
+          "model": null,
+          "rev": null,
+          "mountpoint": null,
+          "fstype": null,
+          "fsused": null,
+          "partuuid": null,
+          "children": [
+            {
+              "name": "/dev/mapper/vg_nvme-lv_nvme",
+              "type": "lvm",
+              "size": 30725994708992,
+              "rota": false,
+              "serial": null,
+              "wwn": null,
+              "vendor": null,
+              "model": null,
+              "rev": null,
+              "mountpoint": "/mnt/local_disk",
+              "fstype": "ext4",
+              "fsused": "91896455168",
+              "partuuid": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "/dev/nvme0n1",
+      "type": "disk",
+      "size": 7681501126656,
+      "rota": false,
+      "serial": "CENSORED_SN",
+      "wwn": "CENSORED_WWN",
+      "vendor": null,
+      "model": "CENSORED_MODEL",
+      "rev": null,
+      "mountpoint": null,
+      "fstype": "LVM2_member",
+      "fsused": null,
+      "partuuid": null,
+      "children": [
+        {
+          "name": "/dev/mapper/vg_nvme-lv_nvme_rimage_0",
+          "type": "lvm",
+          "size": 7681498677248,
+          "rota": false,
+          "serial": null,
+          "wwn": null,
+          "vendor": null,
+          "model": null,
+          "rev": null,
+          "mountpoint": null,
+          "fstype": null,
+          "fsused": null,
+          "partuuid": null,
+          "children": [
+            {
+              "name": "/dev/mapper/vg_nvme-lv_nvme",
+              "type": "lvm",
+              "size": 30725994708992,
+              "rota": false,
+              "serial": null,
+              "wwn": null,
+              "vendor": null,
+              "model": null,
+              "rev": null,
+              "mountpoint": "/mnt/local_disk",
+              "fstype": "ext4",
+              "fsused": "91896455168",
+              "partuuid": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "/dev/nvme3n1",
+      "type": "disk",
+      "size": 7681501126656,
+      "rota": false,
+      "serial": "CENSORED_SN",
+      "wwn": "CENSORED_WWN",
+      "vendor": null,
+      "model": "CENSORED_MODEL",
+      "rev": null,
+      "mountpoint": null,
+      "fstype": "LVM2_member",
+      "fsused": null,
+      "partuuid": null,
+      "children": [
+        {
+          "name": "/dev/mapper/vg_nvme-lv_nvme_rimage_2",
+          "type": "lvm",
+          "size": 7681498677248,
+          "rota": false,
+          "serial": null,
+          "wwn": null,
+          "vendor": null,
+          "model": null,
+          "rev": null,
+          "mountpoint": null,
+          "fstype": null,
+          "fsused": null,
+          "partuuid": null,
+          "children": [
+            {
+              "name": "/dev/mapper/vg_nvme-lv_nvme",
+              "type": "lvm",
+              "size": 30725994708992,
+              "rota": false,
+              "serial": null,
+              "wwn": null,
+              "vendor": null,
+              "model": null,
+              "rev": null,
+              "mountpoint": "/mnt/local_disk",
+              "fstype": "ext4",
+              "fsused": "91896455168",
+              "partuuid": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "/dev/nvme4n1",
+      "type": "disk",
+      "size": 7681501126656,
+      "rota": false,
+      "serial": "CENSORED_SN",
+      "wwn": "CENSORED_WWN",
+      "vendor": null,
+      "model": "CENSORED_MODEL",
+      "rev": null,
+      "mountpoint": null,
+      "fstype": "LVM2_member",
+      "fsused": null,
+      "partuuid": null,
+      "children": [
+        {
+          "name": "/dev/mapper/vg_nvme-lv_nvme_rimage_3",
+          "type": "lvm",
+          "size": 7681498677248,
+          "rota": false,
+          "serial": null,
+          "wwn": null,
+          "vendor": null,
+          "model": null,
+          "rev": null,
+          "mountpoint": null,
+          "fstype": null,
+          "fsused": null,
+          "partuuid": null,
+          "children": [
+            {
+              "name": "/dev/mapper/vg_nvme-lv_nvme",
+              "type": "lvm",
+              "size": 30725994708992,
+              "rota": false,
+              "serial": null,
+              "wwn": null,
+              "vendor": null,
+              "model": null,
+              "rev": null,
+              "mountpoint": "/mnt/local_disk",
+              "fstype": "ext4",
+              "fsused": "91896455168",
+              "partuuid": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

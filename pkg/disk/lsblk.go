@@ -236,7 +236,128 @@ func fillFstypeFromFindmnt(ctx context.Context, dev *BlockDevice, cache map[stri
 	}
 }
 
-// parseLsblkJSON parses the "lsblk --json" output.
+// Maximum recursion depth to prevent stack overflow.
+// Real-world block device hierarchies are typically 3-5 levels deep:
+//   - Simple: disk → partition (2 levels)
+//   - LVM: disk → partition → lvm (3 levels)
+//   - Complex LVM: disk → LVM PV → LVM rimage → LVM LV (4 levels)
+//   - RAID + LVM: disk → partition → raid → lvm (4 levels)
+//
+// Setting limit to 20 provides a large safety margin while preventing infinite loops
+// from malformed data or circular references.
+const maxRecursionDepth = 20
+
+// processBlockDevice recursively processes a block device and all its descendants.
+// This recursive approach is necessary to handle deeply nested device hierarchies
+// that were causing false "no block device found" warnings.
+//
+// GitHub Issue: https://github.com/leptonai/gpud/issues/1107
+// Problem: The previous implementation only checked direct children, causing devices
+// with nested hierarchies (e.g., disk → LVM PV → LVM rimage → LVM LV) to be filtered
+// out when intermediate layers had no mountpoint, even though the final descendant did.
+//
+// Solution: Recursively traverse the entire device tree. A device is included if:
+// 1. It matches all filters (fstype, device type, mountpoint), OR
+// 2. Any of its descendants (at any depth) match all filters
+//
+// This ensures that parent devices are preserved when any descendant in the chain
+// has a mountpoint, fixing issues with:
+// - Multi-level LVM setups (nvme → rimage → final LV with mountpoint)
+// - RAID arrays (disk → partition → raid device with mountpoint)
+// - Any nested storage configuration where mountpoints appear at leaf nodes
+//
+// Parameters:
+//   - ctx: Context for logging
+//   - dev: The device to process (modified in place)
+//   - parentName: Name of the parent device (for setting ParentDeviceName)
+//   - depth: Current recursion depth (for stack overflow protection)
+//   - op: Filter functions to apply
+//   - fstypeCache: Cache for findmnt results to avoid duplicate calls
+//
+// Returns: true if the device should be included in the results, false otherwise
+func processBlockDevice(
+	ctx context.Context,
+	dev *BlockDevice,
+	parentName string,
+	depth int,
+	op *Op,
+	fstypeCache map[string]string,
+) bool {
+	// Protect against stack overflow from malformed data or circular references
+	if depth > maxRecursionDepth {
+		log.Logger.Warnw("maximum recursion depth exceeded, possible circular reference or malformed data",
+			"dev", dev.Name, "depth", depth, "max_depth", maxRecursionDepth)
+		return false
+	}
+
+	fillFstypeFromFindmnt(ctx, dev, fstypeCache)
+
+	log.Logger.Debugw("processing block device",
+		"dev", dev.Name,
+		"fstype", dev.FSType,
+		"type", dev.Type,
+		"mount_point", dev.MountPoint,
+		"parent", parentName,
+		"depth", depth)
+
+	// Check if this device matches all filters
+	fstypeMatch := op.matchFuncFstype(dev.FSType)
+	deviceTypeMatch := op.matchFuncDeviceType(dev.Type)
+	mountPointMatch := op.matchFuncMountPoint(dev.MountPoint)
+	matches := fstypeMatch && deviceTypeMatch && mountPointMatch
+
+	// Recursively process all children to determine if any descendants match.
+	// We must process ALL children even if this device matches, because we need
+	// to filter children that don't match and preserve the tree structure.
+	matchedChildren := make([]BlockDevice, 0, len(dev.Children))
+	for j := range dev.Children {
+		child := &dev.Children[j]
+		child.ParentDeviceName = dev.Name
+		// Increment depth for recursive call to track nesting level
+		if include := processBlockDevice(ctx, child, dev.Name, depth+1, op, fstypeCache); include {
+			matchedChildren = append(matchedChildren, *child)
+		}
+	}
+	dev.Children = matchedChildren
+
+	// Include this device if:
+	// 1. It matches all filters itself, OR
+	// 2. It has at least one descendant that matches (at any depth)
+	//
+	// This is critical for issue #1107: parent devices with no mountpoint
+	// must still be included if they have grandchildren with mountpoints.
+	if matches {
+		log.Logger.Debugw("including block device", "dev", dev.Name, "reason", "matched filters")
+		return true
+	}
+	if len(matchedChildren) > 0 {
+		log.Logger.Debugw("including block device",
+			"dev", dev.Name,
+			"reason", "matched descendants",
+			"matched_children", len(matchedChildren))
+		return true
+	}
+
+	// Device doesn't match and has no matching descendants, so exclude it
+	switch {
+	case !fstypeMatch:
+		log.Logger.Debugw("skipping block device due to fstype mismatch",
+			"dev", dev.Name, "fstype", dev.FSType)
+	case !deviceTypeMatch:
+		log.Logger.Debugw("skipping block device due to device type mismatch",
+			"dev", dev.Name, "type", dev.Type)
+	case !mountPointMatch:
+		log.Logger.Debugw("skipping block device due to mount point mismatch",
+			"dev", dev.Name, "mount_point", dev.MountPoint)
+	default:
+		log.Logger.Debugw("skipping block device (no match and no matching children)",
+			"dev", dev.Name)
+	}
+	return false
+}
+
+// parseLsblkJSON parses the "lsblk --json" output and filters devices based on provided options.
+// This function orchestrates the parsing and filtering process.
 func parseLsblkJSON(ctx context.Context, b []byte, opts ...OpOption) (BlockDevices, error) {
 	if len(b) == 0 {
 		return nil, errors.New("empty input provided to Parse")
@@ -260,53 +381,13 @@ func parseLsblkJSON(ctx context.Context, b []byte, opts ...OpOption) (BlockDevic
 
 	// Create a cache for findmnt results to avoid duplicate calls
 	fstypeCache := make(map[string]string)
+	devs := make(BlockDevices, 0, len(rawDevs))
 
-	devs := make(BlockDevices, 0)
+	// Process all top-level devices (starting at depth 0)
 	for i := range rawDevs {
 		parentDev := &rawDevs[i]
-		fillFstypeFromFindmnt(ctx, parentDev, fstypeCache)
-
-		log.Logger.Debugw("parent block device", "dev", parentDev.Name, "fstype", parentDev.FSType, "type", parentDev.Type, "mount_point", parentDev.MountPoint)
-
-		// Check if parent matches filters
-		parentMatches := op.matchFuncFstype(parentDev.FSType) &&
-			op.matchFuncDeviceType(parentDev.Type) &&
-			op.matchFuncMountPoint(parentDev.MountPoint)
-
-		// Always process children, regardless of parent matching
-		children := make([]BlockDevice, 0)
-		for j := range parentDev.Children {
-			child := &parentDev.Children[j]
-			fillFstypeFromFindmnt(ctx, child, fstypeCache)
-
-			log.Logger.Debugw("child block device", "dev", child.Name, "fstype", child.FSType, "type", child.Type, "mount_point", child.MountPoint)
-
-			if !op.matchFuncFstype(child.FSType) {
-				log.Logger.Debugw("skipping child block device", "dev", child.Name, "fstype", child.FSType)
-				continue
-			}
-			if !op.matchFuncDeviceType(child.Type) {
-				log.Logger.Debugw("skipping child block device", "dev", child.Name, "type", child.Type)
-				continue
-			}
-			if !op.matchFuncMountPoint(child.MountPoint) {
-				log.Logger.Debugw("skipping child block device", "dev", child.Name, "mount_point", child.MountPoint)
-				continue
-			}
-
-			child.ParentDeviceName = parentDev.Name
-			children = append(children, *child)
-		}
-		parentDev.Children = children
-
-		// Include parent if it matches filters OR has matching children
-		if parentMatches || len(children) > 0 {
-			if !parentMatches {
-				log.Logger.Debugw("including parent block device because it has matching children", "dev", parentDev.Name, "children_count", len(children))
-			}
+		if processBlockDevice(ctx, parentDev, "", 0, op, fstypeCache) {
 			devs = append(devs, *parentDev)
-		} else {
-			log.Logger.Debugw("skipping parent block device (no match and no matching children)", "dev", parentDev.Name)
 		}
 	}
 
