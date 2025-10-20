@@ -3,6 +3,9 @@ package asn
 import (
 	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func withLookupMocks(primary func(string) (*ASLookupResponse, error), fallback func(string) (*ASLookupResponse, error)) func() {
@@ -29,12 +32,8 @@ func TestGetASLookupPrimarySuccess(t *testing.T) {
 	defer restore()
 
 	resp, err := GetASLookup("1.1.1.1")
-	if err != nil {
-		t.Fatalf("GetASLookup returned error: %v", err)
-	}
-	if resp.AsnName != "primary" {
-		t.Fatalf("expected primary result, got %q", resp.AsnName)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "primary", resp.AsnName)
 }
 
 func TestGetASLookupFallbackOnEmptyName(t *testing.T) {
@@ -51,15 +50,9 @@ func TestGetASLookupFallbackOnEmptyName(t *testing.T) {
 	defer restore()
 
 	resp, err := GetASLookup("1.1.1.1")
-	if err != nil {
-		t.Fatalf("GetASLookup returned error: %v", err)
-	}
-	if !fallbackCalled {
-		t.Fatalf("expected fallback to be called")
-	}
-	if resp.AsnName != "fallback" {
-		t.Fatalf("expected fallback name, got %q", resp.AsnName)
-	}
+	require.NoError(t, err)
+	assert.True(t, fallbackCalled, "expected fallback to be called")
+	assert.Equal(t, "fallback", resp.AsnName)
 }
 
 func TestGetASLookupFallbackOnPrimaryError(t *testing.T) {
@@ -76,15 +69,9 @@ func TestGetASLookupFallbackOnPrimaryError(t *testing.T) {
 	defer restore()
 
 	resp, err := GetASLookup("2.2.2.2")
-	if err != nil {
-		t.Fatalf("GetASLookup returned error: %v", err)
-	}
-	if !fallbackCalled {
-		t.Fatalf("expected fallback to be called")
-	}
-	if resp.AsnName != "fallback" {
-		t.Fatalf("expected fallback name, got %q", resp.AsnName)
-	}
+	require.NoError(t, err)
+	assert.True(t, fallbackCalled, "expected fallback to be called")
+	assert.Equal(t, "fallback", resp.AsnName)
 }
 
 func TestGetASLookupBothFail(t *testing.T) {
@@ -99,12 +86,8 @@ func TestGetASLookupBothFail(t *testing.T) {
 	defer restore()
 
 	resp, err := GetASLookup("3.3.3.3")
-	if err == nil {
-		t.Fatalf("expected error when both lookups fail")
-	}
-	if resp != nil {
-		t.Fatalf("expected nil response when both lookups fail")
-	}
+	require.Error(t, err, "expected error when both lookups fail")
+	assert.Nil(t, resp, "expected nil response when both lookups fail")
 }
 
 func TestSanitizeASNNameAndCountry(t *testing.T) {
@@ -141,12 +124,8 @@ func TestSanitizeASNNameAndCountry(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			name, country := sanitizeASNNameAndCountry(tc.inputName, tc.fallbackCountry)
-			if name != tc.expectName {
-				t.Fatalf("expected name %q, got %q", tc.expectName, name)
-			}
-			if country != tc.expectCountry {
-				t.Fatalf("expected country %q, got %q", tc.expectCountry, country)
-			}
+			assert.Equal(t, tc.expectName, name)
+			assert.Equal(t, tc.expectCountry, country)
 		})
 	}
 }
@@ -305,9 +284,7 @@ func TestNormalizeASNName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := NormalizeASNName(tt.input)
-			if result != tt.expected {
-				t.Errorf("NormalizeASNName(%q) = %q, expected %q", tt.input, result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result, "NormalizeASNName(%q) should return %q", tt.input, tt.expected)
 		})
 	}
 }
@@ -326,14 +303,12 @@ func TestNormalizeASNNameDeterministic(t *testing.T) {
 	for _, input := range testCases {
 		// Run the same input multiple times to ensure deterministic behavior
 		results := make(map[string]int)
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			result := NormalizeASNName(input)
 			results[result]++
 		}
 
-		if len(results) != 1 {
-			t.Errorf("NormalizeASNName(%q) produced non-deterministic results: %v", input, results)
-		}
+		assert.Equal(t, 1, len(results), "NormalizeASNName(%q) produced non-deterministic results: %v", input, results)
 	}
 }
 
@@ -352,9 +327,7 @@ func TestNormalizeASNNameMultipleKeywords(t *testing.T) {
 	}
 
 	result := NormalizeASNName(testInput)
-	if !validResults[result] {
-		t.Errorf("NormalizeASNName(%q) = %q, expected one of: aws, gcp, azure, yotta", testInput, result)
-	}
+	assert.Contains(t, validResults, result, "NormalizeASNName(%q) should return one of: aws, gcp, azure, yotta", testInput)
 }
 
 // TestNormalizeASNNameSpecialCharacters tests the function with special characters
@@ -394,9 +367,7 @@ func TestNormalizeASNNameSpecialCharacters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := NormalizeASNName(tt.input)
-			if result != tt.expected {
-				t.Errorf("NormalizeASNName(%q) = %q, expected %q", tt.input, result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result, "NormalizeASNName(%q) should return %q", tt.input, tt.expected)
 		})
 	}
 }
