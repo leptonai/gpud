@@ -80,6 +80,8 @@ const (
 	defaultLookbackPeriod = 14 * 24 * time.Hour // 14 days
 
 	defaultFreeSpaceThresholdBytesDegraded = 500 * 1024 * 1024 // 500 MB
+
+	getPartitionsTimeout = 10 * time.Second
 )
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -100,12 +102,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		lookbackPeriod:   defaultLookbackPeriod,
 
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
-			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultExt4FsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
+			timeoutCtx, cancel := context.WithTimeout(ctx, getPartitionsTimeout)
+			defer cancel()
+			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultExt4FsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
 		},
 		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			// statfs on nfs can incur network I/O or impact disk I/O performance
 			// do not track usage for nfs partitions
-			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
+			timeoutCtx, cancel := context.WithTimeout(ctx, getPartitionsTimeout)
+			defer cancel()
+			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
 		},
 
 		findMntFunc: disk.FindMnt,
