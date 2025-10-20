@@ -1,8 +1,155 @@
 package asn
 
 import (
+	"errors"
 	"testing"
 )
+
+func withLookupMocks(primary func(string) (*ASLookupResponse, error), fallback func(string) (*ASLookupResponse, error)) func() {
+	origPrimary := lookupPrimary
+	origFallback := lookupFallback
+	lookupPrimary = primary
+	lookupFallback = fallback
+	return func() {
+		lookupPrimary = origPrimary
+		lookupFallback = origFallback
+	}
+}
+
+func TestGetASLookupPrimarySuccess(t *testing.T) {
+	restore := withLookupMocks(
+		func(ip string) (*ASLookupResponse, error) {
+			return &ASLookupResponse{Asn: "123", AsnName: "primary", IP: ip}, nil
+		},
+		func(ip string) (*ASLookupResponse, error) {
+			t.Fatalf("fallback should not be called when primary succeeds")
+			return nil, nil
+		},
+	)
+	defer restore()
+
+	resp, err := GetASLookup("1.1.1.1")
+	if err != nil {
+		t.Fatalf("GetASLookup returned error: %v", err)
+	}
+	if resp.AsnName != "primary" {
+		t.Fatalf("expected primary result, got %q", resp.AsnName)
+	}
+}
+
+func TestGetASLookupFallbackOnEmptyName(t *testing.T) {
+	fallbackCalled := false
+	restore := withLookupMocks(
+		func(ip string) (*ASLookupResponse, error) {
+			return &ASLookupResponse{Asn: "123", AsnName: ""}, nil
+		},
+		func(ip string) (*ASLookupResponse, error) {
+			fallbackCalled = true
+			return &ASLookupResponse{Asn: "456", AsnName: "fallback"}, nil
+		},
+	)
+	defer restore()
+
+	resp, err := GetASLookup("1.1.1.1")
+	if err != nil {
+		t.Fatalf("GetASLookup returned error: %v", err)
+	}
+	if !fallbackCalled {
+		t.Fatalf("expected fallback to be called")
+	}
+	if resp.AsnName != "fallback" {
+		t.Fatalf("expected fallback name, got %q", resp.AsnName)
+	}
+}
+
+func TestGetASLookupFallbackOnPrimaryError(t *testing.T) {
+	fallbackCalled := false
+	restore := withLookupMocks(
+		func(ip string) (*ASLookupResponse, error) {
+			return nil, errors.New("boom")
+		},
+		func(ip string) (*ASLookupResponse, error) {
+			fallbackCalled = true
+			return &ASLookupResponse{Asn: "456", AsnName: "fallback"}, nil
+		},
+	)
+	defer restore()
+
+	resp, err := GetASLookup("2.2.2.2")
+	if err != nil {
+		t.Fatalf("GetASLookup returned error: %v", err)
+	}
+	if !fallbackCalled {
+		t.Fatalf("expected fallback to be called")
+	}
+	if resp.AsnName != "fallback" {
+		t.Fatalf("expected fallback name, got %q", resp.AsnName)
+	}
+}
+
+func TestGetASLookupBothFail(t *testing.T) {
+	restore := withLookupMocks(
+		func(ip string) (*ASLookupResponse, error) {
+			return nil, errors.New("primary")
+		},
+		func(ip string) (*ASLookupResponse, error) {
+			return nil, errors.New("fallback")
+		},
+	)
+	defer restore()
+
+	resp, err := GetASLookup("3.3.3.3")
+	if err == nil {
+		t.Fatalf("expected error when both lookups fail")
+	}
+	if resp != nil {
+		t.Fatalf("expected nil response when both lookups fail")
+	}
+}
+
+func TestSanitizeASNNameAndCountry(t *testing.T) {
+	tests := []struct {
+		name            string
+		inputName       string
+		fallbackCountry string
+		expectName      string
+		expectCountry   string
+	}{
+		{
+			name:            "name with country suffix",
+			inputName:       "nvidia-net, us",
+			fallbackCountry: "",
+			expectName:      "nvidia-net",
+			expectCountry:   "us",
+		},
+		{
+			name:            "fallback country used",
+			inputName:       "aws",
+			fallbackCountry: "US",
+			expectName:      "aws",
+			expectCountry:   "us",
+		},
+		{
+			name:            "empty name",
+			inputName:       "",
+			fallbackCountry: "CA",
+			expectName:      "",
+			expectCountry:   "ca",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			name, country := sanitizeASNNameAndCountry(tc.inputName, tc.fallbackCountry)
+			if name != tc.expectName {
+				t.Fatalf("expected name %q, got %q", tc.expectName, name)
+			}
+			if country != tc.expectCountry {
+				t.Fatalf("expected country %q, got %q", tc.expectCountry, country)
+			}
+		})
+	}
+}
 
 func TestNormalizeASNName(t *testing.T) {
 	tests := []struct {
