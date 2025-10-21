@@ -29,6 +29,6 @@ var (
 
 func init() {
 	pkgmetrics.MustRegister(
-		metricXIDerrors,
+		metricXIDErrs,
 	)
 }
