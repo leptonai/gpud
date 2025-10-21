@@ -2496,7 +2496,9 @@ func TestComponent_GetPartitionsTimeoutIntegration(t *testing.T) {
 	// This simulates GetPartitions with very short timeout that could cause StatTimedOut
 	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
 		// Use GetPartitions with very short timeout to potentially trigger StatTimedOut
-		return disk.GetPartitions(ctx,
+		timeoutCtx, cancel := context.WithTimeout(ctx, getPartitionsTimeout)
+		defer cancel()
+		return disk.GetPartitions(timeoutCtx,
 			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
 			disk.WithSkipUsage(),
 			disk.WithStatTimeout(1*time.Nanosecond), // Very short timeout

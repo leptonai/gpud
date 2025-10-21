@@ -34,6 +34,8 @@ import (
 	"github.com/leptonai/gpud/version"
 )
 
+const diskPartitionsTimeout = 10 * time.Second
+
 func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 	hostname, _ := os.Hostname()
 	info := &apiv1.MachineInfo{
@@ -402,11 +404,13 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 
 	// track nfs partitions only with available fields
 	if runtime.GOOS == "linux" {
+		timeoutCtx, cancel := context.WithTimeout(ctx, diskPartitionsTimeout)
 		nfsParts, err := disk.GetPartitions(
-			ctx,
+			timeoutCtx,
 			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
 			disk.WithMountPoint(disk.DefaultMountPointFunc),
 		)
+		cancel()
 		if err != nil {
 			return nil, err
 		}
