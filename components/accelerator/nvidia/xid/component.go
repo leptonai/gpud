@@ -495,7 +495,7 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 			logger.Infow("inserted the event successfully")
-			metricXIDerrors.With(prometheus.Labels{
+			metricXIDErrs.With(prometheus.Labels{
 				"uuid": convertBusIDToUUID(xidErr.DeviceUUID, c.devices),
 				"xid":  strconv.Itoa(xidErr.Xid),
 			}).Inc()
