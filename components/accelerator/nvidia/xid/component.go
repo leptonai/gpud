@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/olekukonko/tablewriter"
+	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -494,6 +495,10 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 			logger.Infow("inserted the event successfully")
+			metricXIDerrors.With(prometheus.Labels{
+				"uuid": convertBusIDToUUID(xidErr.DeviceUUID, c.devices),
+				"xid":  strconv.Itoa(xidErr.Xid),
+			}).Inc()
 			if err = c.updateCurrentState(); err != nil {
 				logger.Errorw("failed to update current state", "error", err)
 				continue
