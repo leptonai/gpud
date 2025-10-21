@@ -14,7 +14,10 @@ type Detail struct {
 
 	// SuggestedActionsByGPUd is the suggested actions by GPUd.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
+
 	// EventType is the type of the event.
+	// The xid component health state is set to "Unhealthy"
+	// if this event type is "Critical" or "Fatal".
 	EventType apiv1.EventType `json:"event_type"`
 }
 
