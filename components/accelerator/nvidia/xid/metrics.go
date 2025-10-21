@@ -18,7 +18,7 @@ var (
 			Namespace: "",
 			Subsystem: SubSystem,
 			Name:      "errors_total",
-			Help:      "tracks the XID errors",
+			Help:      "tracks the error counts per GPU UUID and XID code",
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey,
 			"uuid", // label is GPU ID
