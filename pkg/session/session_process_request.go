@@ -54,7 +54,25 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 		s.processSetHealthy(payload)
 
 	case "gossip":
-		s.processGossip(response)
+		// Process gossip asynchronously to prevent blocking the session reader loop.
+		//
+		// Background: Gossip requests collect machine information including disk/filesystem metadata
+		// via pkg/machine-info/gossip_request.go. This involves filesystem stat() operations that can
+		// hang indefinitely on unresponsive network filesystems (NFS). When stat() enters the
+		// kernel, Go cannot interrupt it with context cancellation, causing the goroutine to block
+		// in D-state (uninterruptible sleep).
+		//
+		// If gossip runs synchronously in the session reader loop, a single hung filesystem operation
+		// blocks ALL session communication:
+		//   1. Reader loop blocks waiting for gossip to complete
+		//   2. Reader cannot process other control plane messages
+		//   3. Keep-alive mechanism breaks (no heartbeats sent)
+		//   4. Control plane marks node as offline/stale
+		//
+		// With async processing (following the triggerComponent pattern), hung disk operations only
+		// affect the specific gossip goroutine, while session communication remains healthy.
+		go s.processRequestAsync(reqID, payload.Method, payload)
+		return true // Request is handled asynchronously
 
 	case "packageStatus":
 		s.processPackageStatus(ctx, response)
@@ -110,9 +128,9 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 
 // processRequestAsync runs entirely in a background goroutine.
 // This method handles requests that need to be processed asynchronously to avoid blocking
-// the main serve loop. Currently, only "triggerComponent" requests are processed async
-// because component checks can take significant time (hitting external systems like NVML,
-// Kubernetes API, Docker, etc).
+// the main serve loop. Currently "triggerComponent" and "gossip" requests are processed async
+// because they can take significant time (hitting external systems like NVML, Kubernetes API,
+// Docker, disk I/O, etc) and may block on unresponsive resources (e.g., stuck NFS mounts).
 // The ReqID travels with the request so the control plane can correlate the eventually-delivered response.
 func (s *Session) processRequestAsync(reqID, method string, payload Request) {
 	response := &Response{}
@@ -121,6 +139,11 @@ func (s *Session) processRequestAsync(reqID, method string, payload Request) {
 	case "triggerComponent", "triggerComponentCheck":
 		// Process component trigger requests asynchronously
 		s.processTriggerComponent(payload, response)
+
+	case "gossip":
+		// Process gossip requests asynchronously to avoid blocking on disk I/O operations
+		// that may hang if filesystems (especially NFS) are unresponsive
+		s.processGossip(response)
 
 	// Add other async method handlers here as needed in the future
 	// Note: Only methods that can block for significant time should be handled async

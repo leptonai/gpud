@@ -16,16 +16,42 @@ func TestProcessRequest(t *testing.T) {
 		ctx := context.Background()
 		reqID := "test-req-sync"
 		payload := Request{
-			Method: "gossip", // Use gossip as it's simpler to test
+			Method: "setHealthy", // Use setHealthy as it's synchronous
 		}
 		response := &Response{}
 		restartExitCode := -1
 
-		// gossip is synchronous
+		// setHealthy is synchronous
 		handledAsync := session.processRequest(ctx, reqID, payload, response, &restartExitCode)
 
-		assert.False(t, handledAsync, "gossip should be handled synchronously")
+		assert.False(t, handledAsync, "setHealthy should be handled synchronously")
 		assert.Equal(t, -1, restartExitCode, "restartExitCode should remain unchanged")
+	})
+
+	t.Run("gossip returns true for async", func(t *testing.T) {
+		session, _, _, _, _, writer := setupTestSessionWithoutFaultInjector()
+
+		ctx := context.Background()
+		reqID := "test-req-gossip"
+		payload := Request{
+			Method: "gossip",
+		}
+		response := &Response{}
+		restartExitCode := -1
+
+		// gossip is now asynchronous to prevent blocking on disk I/O
+		handledAsync := session.processRequest(ctx, reqID, payload, response, &restartExitCode)
+
+		assert.True(t, handledAsync, "gossip should be handled asynchronously")
+		assert.Equal(t, -1, restartExitCode, "restartExitCode should remain unchanged")
+
+		// Wait for the async response
+		select {
+		case <-writer:
+			// Response sent, good
+		case <-time.After(200 * time.Millisecond):
+			// Timeout is OK for this test
+		}
 	})
 
 	t.Run("triggerComponent returns true for async", func(t *testing.T) {
