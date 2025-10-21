@@ -348,7 +348,7 @@ func (cr *checkResult) String() string {
 
 		name := "unknown"
 		if foundErr.Detail != nil {
-			name = foundErr.Detail.Name
+			name = foundErr.Detail.Description
 		}
 
 		buf := bytes.NewBuffer(nil)
@@ -467,7 +467,7 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			id := uuid.New()
 			var xidName string
 			if xidErr.Detail != nil {
-				xidName = xidErr.Detail.Name
+				xidName = xidErr.Detail.Description
 			}
 			logger := log.Logger.With("id", id, "xid", xidErr.Xid, "xidName", xidName, "deviceUUID", xidErr.DeviceUUID)
 			logger.Infow("got xid event", "kmsg", message, "kmsgTimestamp", message.Timestamp.Unix())

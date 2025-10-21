@@ -985,7 +985,7 @@ func TestDataString(t *testing.T) {
 							Xid:        31,
 							DeviceUUID: "GPU-12345678",
 							Detail: &Detail{
-								Name: "GPU_HANG",
+								Description: "GPU_HANG",
 								SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 									RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 								},
@@ -1034,7 +1034,7 @@ func TestDataString(t *testing.T) {
 				assert.Contains(t, result, "XID")
 				assert.Contains(t, result, tt.data.FoundErrors[0].DeviceUUID)
 				if tt.data.FoundErrors[0].Detail != nil {
-					assert.Contains(t, result, tt.data.FoundErrors[0].Detail.Name)
+					assert.Contains(t, result, tt.data.FoundErrors[0].Detail.Description)
 				} else {
 					// When Detail is nil, should contain "unknown"
 					assert.Contains(t, result, "unknown")
