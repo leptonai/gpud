@@ -13,7 +13,7 @@ var (
 		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
-	metricXIDerrors = prometheus.NewCounterVec(
+	metricXIDErrs = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "",
 			Subsystem: SubSystem,
