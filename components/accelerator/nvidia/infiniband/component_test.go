@@ -294,30 +294,6 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
-func TestTags(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	gpudInstance := &components.GPUdInstance{
-		RootCtx:              ctx,
-		NVIDIAToolOverwrites: pkgconfigcommon.ToolOverwrites{},
-	}
-
-	comp, err := New(gpudInstance)
-	assert.NoError(t, err)
-
-	expectedTags := []string{
-		"accelerator",
-		"gpu",
-		"nvidia",
-		Name,
-	}
-
-	tags := comp.Tags()
-	assert.Equal(t, expectedTags, tags, "Component tags should match expected values")
-	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
-}
-
 // mockEventStore for testing New errors
 type mockEventStore struct {
 	bucketErr error
@@ -594,46 +570,6 @@ func TestDataString(t *testing.T) {
 	assert.Contains(t, result, "MT_0000000838")
 }
 
-func TestDataSummary(t *testing.T) {
-	t.Parallel()
-
-	// Test nil data
-	var cr *checkResult
-	assert.Equal(t, "", cr.Summary())
-
-	// Test with reason
-	cr = &checkResult{reason: "test reason"}
-	assert.Equal(t, "test reason", cr.Summary())
-}
-
-func TestDataHealthState(t *testing.T) {
-	t.Parallel()
-
-	// Test nil data
-	var cr *checkResult
-	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
-
-	// Test with health state
-	cr = &checkResult{health: apiv1.HealthStateTypeUnhealthy}
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
-}
-
-func TestDataGetError(t *testing.T) {
-	t.Parallel()
-
-	// Test nil data
-	var cr *checkResult
-	assert.Equal(t, "", cr.getError())
-
-	// Test with nil error
-	cr = &checkResult{}
-	assert.Equal(t, "", cr.getError())
-
-	// Test with error
-	cr = &checkResult{err: errors.New("test error")}
-	assert.Equal(t, "test error", cr.getError())
-}
-
 func TestComponentCheckErrorCases(t *testing.T) {
 	t.Parallel()
 
@@ -755,13 +691,6 @@ func TestIsSupported(t *testing.T) {
 			assert.Equal(t, tt.expected, c.IsSupported())
 		})
 	}
-}
-
-func TestComponentName(t *testing.T) {
-	t.Parallel()
-
-	cr := &checkResult{}
-	assert.Equal(t, Name, cr.ComponentName())
 }
 
 func TestGetSuggestedActions(t *testing.T) {

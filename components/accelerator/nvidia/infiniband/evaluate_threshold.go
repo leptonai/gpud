@@ -24,6 +24,7 @@ func evaluateHealthStateWithThresholds(thresholds infiniband.ExpectedPortStates,
 		cr.reason = reasonNoThreshold
 
 		cr.unhealthyIBPorts = nil
+		cr.thresholdsFailing = false
 
 		cr.err = nil
 		return
@@ -34,6 +35,7 @@ func evaluateHealthStateWithThresholds(thresholds infiniband.ExpectedPortStates,
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = reasonNoIbPortData
 		log.Logger.Warnw(cr.reason)
+		cr.thresholdsFailing = false
 		return
 	}
 
@@ -45,6 +47,7 @@ func evaluateHealthStateWithThresholds(thresholds infiniband.ExpectedPortStates,
 		cr.unhealthyIBPorts = unhealthy
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = err.Error()
+		cr.thresholdsFailing = true
 
 		// NOTE: do not set suggested actions to "apiv1.RepairActionTypeHardwareInspection" here
 		// since this port mismatch often self-recovers
@@ -58,4 +61,5 @@ func evaluateHealthStateWithThresholds(thresholds infiniband.ExpectedPortStates,
 	cr.reason = reasonNoIbPortIssue
 
 	cr.unhealthyIBPorts = nil
+	cr.thresholdsFailing = false
 }
