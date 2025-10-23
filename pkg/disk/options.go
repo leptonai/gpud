@@ -101,8 +101,32 @@ func DefaultNFSFsTypeFunc(fsType string) bool {
 	return fsType == "wekafs" || fsType == "virtiofs" || strings.HasPrefix(fsType, "nfs") // e.g., "nfs4"
 }
 
+// DefaultDeviceTypeFunc returns true for common block device types.
+// This function is used by the disk component to filter which devices to monitor.
+//
+// Supported device types:
+//   - "disk": Physical disks (HDDs, SSDs, NVMe)
+//   - "part": Disk partitions
+//   - "lvm": Logical Volume Manager volumes
+//   - "raid*": Software RAID devices (raid0, raid1, raid5, raid10, etc.)
+//   - "md*": MD (multiple device) RAID arrays (md, md0, md127, etc.)
+//
+// RAID/MD support was added to fix https://github.com/leptonai/gpud/issues/1107
+// where RAID devices containing the root filesystem were being filtered out,
+// causing false "no block device found" warnings.
 func DefaultDeviceTypeFunc(dt string) bool {
-	return dt == "disk" || dt == "lvm" || dt == "part"
+	if dt == "disk" || dt == "lvm" || dt == "part" {
+		return true
+	}
+
+	// Support for RAID devices (e.g., raid0, raid1, raid5, raid10)
+	// and MD arrays (e.g., md, md0, md127)
+	// See: https://github.com/leptonai/gpud/issues/1107
+	if strings.HasPrefix(dt, "raid") || strings.HasPrefix(dt, "md") {
+		return true
+	}
+
+	return false
 }
 
 func DefaultMountPointFunc(mountPoint string) bool {
