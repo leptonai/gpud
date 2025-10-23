@@ -109,5 +109,29 @@ extraVolumes: []
 # Extra volume mounts for the pod.
 extraVolumeMounts: []
 
+# Helper sidecar that syncs Kubernetes node labels into a host-mounted file
+# for consumption by gpud or other host-level processes.
+nodeLabelExporter:
+  enabled: false
+  image:
+    repository: registry.k8s.io/kubectl
+    tag: v1.31.1
+    pullPolicy: IfNotPresent
+  # File written on the host (via the shared /var/lib/gpud volume).
+  outputFile: /var/lib/gpud/node-labels.env
+  # Interval in seconds between syncs.
+  updateIntervalSeconds: 60
+  # Extra environment variables for the exporter container.
+  extraEnv: []
+  rbac:
+    create: true
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 5m
+      memory: 16Mi
+
 # [Init containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/) to add to the pod definition.
 initContainers: []

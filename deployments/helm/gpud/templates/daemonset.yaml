@@ -151,3 +151,46 @@ spec:
           {{- if .Values.extraVolumeMounts }}
           {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
           {{- end }}
+        {{- if .Values.nodeLabelExporter.enabled }}
+        - name: node-label-exporter
+          image: "{{ .Values.nodeLabelExporter.image.repository }}:{{ .Values.nodeLabelExporter.image.tag }}"
+          imagePullPolicy: {{ .Values.nodeLabelExporter.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              set -o errexit
+              set -o nounset
+              set -o pipefail
+
+              tmp_file="${OUTPUT_FILE}.tmp"
+              mkdir -p "$(dirname "${OUTPUT_FILE}")"
+
+              while true; do
+                if kubectl get node "${NODE_NAME}" \
+                  -o jsonpath='{range $k,$v := .metadata.labels}{printf "%s=%s\\n" $k $v}{end}' \
+                  > "${tmp_file}"; then
+                  mv "${tmp_file}" "${OUTPUT_FILE}"
+                else
+                  rm -f "${tmp_file}"
+                fi
+                sleep "${UPDATE_INTERVAL}"
+              done
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: OUTPUT_FILE
+              value: {{ .Values.nodeLabelExporter.outputFile | quote }}
+            - name: UPDATE_INTERVAL
+              value: {{ int .Values.nodeLabelExporter.updateIntervalSeconds | quote }}
+          {{- with .Values.nodeLabelExporter.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: lib-gpud
+              mountPath: /var/lib/gpud
+          resources:
+            {{- toYaml .Values.nodeLabelExporter.resources | nindent 12 }}
+        {{- end }}
