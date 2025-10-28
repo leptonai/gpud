@@ -2775,7 +2775,7 @@ func TestComponent_Ext4PartitionsTimeoutSetsReasonAndError(t *testing.T) {
 		return nil, nil
 	}
 
-	// Simulate the component context being cancelled while fetching partitions
+	// Simulate the component context being canceled while fetching partitions
 	cancel()
 
 	result := c.Check()
@@ -2824,7 +2824,7 @@ func TestComponent_NFSPartitionsTimeoutSetsReasonAndError(t *testing.T) {
 		return nil, context.DeadlineExceeded
 	}
 
-	// Simulate the component context being cancelled while fetching partitions
+	// Simulate the component context being canceled while fetching partitions
 	cancel()
 
 	result := c.Check()
