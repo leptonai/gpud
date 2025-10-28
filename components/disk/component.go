@@ -715,15 +715,12 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 	// "unexpected end of JSON input"
 	prevFailed := false
 	for i := 0; i < 5; i++ {
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		parts, err := c.getExt4PartitionsFunc(cctx)
-		ccancel()
+		parts, err := c.getExt4PartitionsFunc(c.ctx) // "getExt4PartitionsFunc" itself already sets its own timeout
 		if err != nil {
-			log.Logger.Errorw("failed to get ext4 partitions", "error", err)
-
 			select {
 			case <-c.ctx.Done():
 				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
 
 				if cr.reason == "ok" {
 					cr.reason = ""
@@ -731,11 +728,13 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 				if cr.reason != "" {
 					cr.reason += "; "
 				}
-				cr.reason += "failed to get ext4 partitions"
+				cr.reason += "failed to get ext4 partitions -- took too long"
 
-				cr.err = c.ctx.Err()
+				log.Logger.Warnw("failed to get ext4 partitions -- took too long", "error", err)
 				return false
+
 			case <-time.After(c.retryInterval):
+				log.Logger.Warnw("failed to get ext4 partitions -- retrying", "error", err)
 			}
 
 			prevFailed = true
@@ -754,18 +753,26 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 	prevFailed := false
 	for i := 0; i < 5; i++ {
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		parts, err := c.getNFSPartitionsFunc(cctx)
-		ccancel()
+		parts, err := c.getNFSPartitionsFunc(c.ctx) // "getNFSPartitionsFunc" itself already sets its own timeout
 		if err != nil {
-			log.Logger.Errorw("failed to get nfs partitions", "error", err)
-
 			select {
 			case <-c.ctx.Done():
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.err = c.ctx.Err()
+
+				if cr.reason == "ok" {
+					cr.reason = ""
+				}
+				if cr.reason != "" {
+					cr.reason += "; "
+				}
+				cr.reason += "failed to get nfs partitions -- took too long"
+
+				log.Logger.Warnw("failed to get nfs partitions -- took too long", "error", err)
 				return false
+
 			case <-time.After(c.retryInterval):
+				log.Logger.Warnw("failed to get nfs partitions -- retrying", "error", err)
 			}
 
 			prevFailed = true
