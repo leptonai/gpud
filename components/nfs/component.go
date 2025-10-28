@@ -160,7 +160,7 @@ func (c *component) Check() components.CheckResult {
 		} else {
 			cr.reason = "invalid nfs group configs"
 		}
-		log.Logger.Warnw(cr.reason, "error", err)
+		log.Logger.Warnw(cr.reason, "health", cr.health, "error", err)
 		return cr
 	}
 
@@ -171,13 +171,13 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = "failed to find mount target device for " + groupConfig.VolumePath
-			log.Logger.Warnw(cr.reason, "error", err)
+			log.Logger.Warnw(cr.reason, "health", cr.health, "error", err)
 			return cr
 		}
 		if !c.isNFSFSType(fsType) {
 			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = fmt.Sprintf("The user applied path %q as NFS volume, but in fact the file system type %q is not NFS.", groupConfig.VolumePath, fsType)
-			log.Logger.Warnw(cr.reason)
+			log.Logger.Warnw(cr.reason, "health", cr.health)
 			return cr
 		}
 		log.Logger.Infow("nfs mount point found", "volume_path", groupConfig.VolumePath, "device", dev, "fs_type", fsType)
@@ -198,7 +198,7 @@ func (c *component) Check() components.CheckResult {
 			} else {
 				cr.reason = "failed to create nfs checker for " + memberConfig.VolumePath
 			}
-			log.Logger.Warnw(cr.reason, "error", err)
+			log.Logger.Warnw(cr.reason, "health", cr.health, "error", err)
 			return cr
 		}
 
@@ -214,7 +214,7 @@ func (c *component) Check() components.CheckResult {
 			} else {
 				cr.reason = "failed to write to nfs checker for " + memberConfig.VolumePath
 			}
-			log.Logger.Warnw(cr.reason, "error", err)
+			log.Logger.Warnw(cr.reason, "health", cr.health, "error", err)
 			return cr
 		}
 
@@ -231,7 +231,7 @@ func (c *component) Check() components.CheckResult {
 			} else {
 				cr.reason = "failed to check nfs checker for " + memberConfig.VolumePath
 			}
-			log.Logger.Warnw(cr.reason, "error", cr.err)
+			log.Logger.Warnw(cr.reason, "health", cr.health, "error", cr.err)
 			return cr
 		}
 
@@ -239,7 +239,7 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = "failed to clean nfs checker for " + memberConfig.VolumePath
-			log.Logger.Warnw(cr.reason, "error", err)
+			log.Logger.Warnw(cr.reason, "health", cr.health, "error", err)
 			return cr
 		}
 
