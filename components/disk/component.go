@@ -81,7 +81,8 @@ const (
 
 	defaultFreeSpaceThresholdBytesDegraded = 500 * 1024 * 1024 // 500 MB
 
-	getPartitionsTimeout = 10 * time.Second
+	getBlockDevicesTimeout = 10 * time.Second
+	getPartitionsTimeout   = 10 * time.Second
 )
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -125,8 +126,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	if runtime.GOOS == "linux" {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			timeoutCtx, cancel := context.WithTimeout(ctx, getBlockDevicesTimeout)
+			defer cancel()
 			return disk.GetBlockDevicesWithLsblk(
-				ctx,
+				timeoutCtx,
 				disk.WithFstype(disk.DefaultFsTypeFunc),
 				disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
 				disk.WithMountPoint(disk.DefaultMountPointFunc),
@@ -665,18 +668,27 @@ func (c *component) fetchBlockDevices(cr *checkResult) bool {
 	// "unexpected end of JSON input"
 	prevFailed := false
 	for i := 0; i < 5; i++ {
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		blks, err := c.getBlockDevicesFunc(cctx)
-		ccancel()
+		blks, err := c.getBlockDevicesFunc(c.ctx) // "getBlockDevicesFunc" itself already sets its own timeout
 		if err != nil {
-			log.Logger.Errorw("failed to get block devices", "error", err)
 
 			select {
 			case <-c.ctx.Done():
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.err = c.ctx.Err()
+
+				if cr.reason == "ok" {
+					cr.reason = ""
+				}
+				if cr.reason != "" {
+					cr.reason += "; "
+				}
+				cr.reason += "failed to get block devices -- took too long"
+
+				log.Logger.Warnw("failed to get block devices -- took too long", "error", err)
 				return false
+
 			case <-time.After(c.retryInterval):
+				log.Logger.Warnw("failed to get block devices -- retrying", "error", err)
 			}
 
 			prevFailed = true
