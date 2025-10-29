@@ -589,7 +589,7 @@ func TestLoadMultiStepPlaintextPlugin(t *testing.T) {
 	// Create the test file dynamically
 	testYAML := `
 - plugin_name: "multi-step-plugin"
-  type: "component"
+  plugin_type: "component"
   run_run_mode: manual
 
   health_state_plugin:
@@ -1117,7 +1117,7 @@ func TestLoadSpecsWithInvalidSpec(t *testing.T) {
 	// Create a temporary file with a spec that won't pass validation
 	testFile := filepath.Join("testdata", "plugins.invalid-spec.yaml")
 	invalidSpecYAML := `- plugin_name: "invalid-plugin"
-  type: "component"
+  plugin_type: "component"
   # Missing StatePlugin
   timeout: 10s
   interval: 10s`
@@ -4018,35 +4018,16 @@ func TestLoadSpecsWithDeprecatedTypeField(t *testing.T) {
           script: "echo 'test with deprecated type field'"
   timeout: 10s
   interval: 1m
-
-- plugin_name: "test-plugin-new"
-  plugin_type: "component"  # Using new 'plugin_type' field
-  run_mode: manual
-  health_state_plugin:
-    steps:
-      - name: "test-step"
-        run_bash_script:
-          content_type: plaintext
-          script: "echo 'test with new plugin_type field'"
-  timeout: 10s
-  interval: 1m
 `
 
 	err := os.WriteFile(testFile, []byte(yamlContent), 0644)
 	assert.NoError(t, err)
 	defer os.Remove(testFile)
 
-	// Load the specs
-	specs, err := LoadSpecs(testFile)
-	assert.NoError(t, err)
-	assert.Len(t, specs, 2)
-
-	// Verify that deprecated 'type' field was converted to 'plugin_type'
-	assert.Equal(t, "test-plugin-deprecated", specs[0].PluginName)
-	assert.Equal(t, SpecTypeComponent, specs[0].PluginType)
-
-	assert.Equal(t, "test-plugin-new", specs[1].PluginName)
-	assert.Equal(t, SpecTypeComponent, specs[1].PluginType)
+	// Load the specs; deprecated field alone should now fail validation.
+	_, err = LoadSpecs(testFile)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidPluginType)
 }
 
 func TestLoadSpecsWithBothDeprecatedAndNewTypeFields(t *testing.T) {
