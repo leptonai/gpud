@@ -2,6 +2,7 @@ package host
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -33,29 +34,31 @@ type RebootEventStore interface {
 var _ RebootEventStore = &rebootEventStore{}
 
 type rebootEventStore struct {
-	getLastRebootTime func(context.Context) (time.Time, error)
-	eventStore        eventstore.Store
+	getBootTime func() time.Time
+	eventStore  eventstore.Store
 }
 
 func NewRebootEventStore(eventStore eventstore.Store) RebootEventStore {
 	return &rebootEventStore{
-		getLastRebootTime: LastReboot,
-		eventStore:        eventStore,
+		getBootTime: BootTime,
+		eventStore:  eventStore,
 	}
 }
 
 func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
-	return recordEvent(ctx, s.eventStore, time.Now().UTC(), s.getLastRebootTime)
+	return recordEvent(ctx, s.eventStore, time.Now().UTC(), s.getBootTime)
 }
 
 func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	return getEvents(ctx, s.eventStore, since)
 }
 
-func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now time.Time, getLastRebootTime func(context.Context) (time.Time, error)) error {
-	currentBootTime, err := getLastRebootTime(ctx)
-	if err != nil {
-		return err
+var ErrBootTimeUnavailable = errors.New("boot time unavailable")
+
+func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now time.Time, getBootTime func() time.Time) error {
+	currentBootTime := getBootTime()
+	if currentBootTime.IsZero() {
+		return ErrBootTimeUnavailable
 	}
 
 	// if now - event time > retention, then skip
@@ -78,7 +81,7 @@ func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now tim
 	defer bucket.Close()
 
 	// to prevent duplicate events
-	// in case "uptime -s" returns outdated but already recorded timestamp
+	// in case boot time syscall returns an already recorded timestamp
 	existing, err := bucket.Find(ctx, curRebootEvent)
 	if err != nil {
 		return err
