@@ -60,14 +60,6 @@ func LoadSpecs(path string) (Specs, error) {
 		return nil, err
 	}
 
-	// handle deprecated "type" field before expanding/validating
-	// for old formats
-	for i := range pluginSpecs {
-		if pluginSpecs[i].DeprecatedType != "" && pluginSpecs[i].PluginType == "" {
-			pluginSpecs[i].PluginType = pluginSpecs[i].DeprecatedType
-		}
-	}
-
 	return pluginSpecs.ExpandedValidate()
 }
 
