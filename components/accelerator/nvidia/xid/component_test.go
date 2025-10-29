@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -192,7 +193,7 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	case event := <-c.extraEventCh:
 		assert.Equal(t, "SetHealthy", event.Name)
 	default:
-		t.Error("expected event in channel but got none")
+		assert.Fail(t, "expected event in channel but got none")
 	}
 }
 
@@ -232,9 +233,7 @@ func TestXIDComponent_Events(t *testing.T) {
 	go c.start(eventCh, 1*time.Second)
 
 	defer func() {
-		if err := comp.Close(); err != nil {
-			t.Error("failed to close component")
-		}
+		assert.NoError(t, comp.Close())
 	}()
 
 	testEvents := eventstore.Events{
@@ -246,7 +245,7 @@ func TestXIDComponent_Events(t *testing.T) {
 		select {
 		case c.extraEventCh <- &event:
 		default:
-			t.Error("failed to insert event into channel")
+			require.FailNow(t, "failed to insert event into channel")
 		}
 	}
 
@@ -300,9 +299,7 @@ func TestXIDComponent_States(t *testing.T) {
 	go c.start(eventCh, 100*time.Millisecond)
 
 	defer func() {
-		if err := comp.Close(); err != nil {
-			t.Error("failed to close component")
-		}
+		assert.NoError(t, comp.Close())
 	}()
 
 	s := apiv1.HealthState{
@@ -352,7 +349,7 @@ func TestXIDComponent_States(t *testing.T) {
 				select {
 				case c.extraEventCh <- &event:
 				default:
-					t.Error("failed to insert event into channel")
+					require.FailNow(t, "failed to insert event into channel")
 				}
 				// wait for events to be processed
 				time.Sleep(1 * time.Second)
@@ -720,7 +717,7 @@ func TestClose(t *testing.T) {
 	case <-c.ctx.Done():
 		// Expected, context should be canceled
 	default:
-		t.Error("context should be canceled after Close")
+		assert.Fail(t, "context should be canceled after Close")
 	}
 }
 
@@ -1238,9 +1235,7 @@ func TestCheckResult_getError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.cr.getError()
-			if result != tt.expected {
-				t.Errorf("getError() = %v, want %v", result, tt.expected)
-			}
+			assert.Equalf(t, tt.expected, result, "getError() mismatch for %s", tt.name)
 		})
 	}
 }
@@ -1287,9 +1282,7 @@ func TestStartWithXID63And64Skipping(t *testing.T) {
 	go c.start(kmsgCh, 100*time.Millisecond)
 
 	defer func() {
-		if err := comp.Close(); err != nil {
-			t.Error("failed to close component")
-		}
+		assert.NoError(t, comp.Close())
 	}()
 
 	// Send various XID messages including 63 and 64
@@ -1399,9 +1392,7 @@ func TestStartWithXID63And64NotSkippedWhenNoRowRemapping(t *testing.T) {
 	go c.start(kmsgCh, 100*time.Millisecond)
 
 	defer func() {
-		if err := comp.Close(); err != nil {
-			t.Error("failed to close component")
-		}
+		assert.NoError(t, comp.Close())
 	}()
 
 	// Send XID 63 and 64 messages

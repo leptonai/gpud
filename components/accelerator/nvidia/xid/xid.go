@@ -3,6 +3,8 @@ package xid
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
@@ -17,6 +19,11 @@ type Detail struct {
 	// https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html.
 	Description string `json:"description"`
 
+	// SubCode is populated for NVLink (144-150) XIDs after decoding intrinfo bits 20-25.
+	SubCode int `json:"sub_code"`
+	// SubCodeDescription describes the NVLink sub-component (e.g., NETIR_LINK_EVT).
+	SubCodeDescription string `json:"sub_code_description"`
+
 	// SuggestedActionsByGPUd is the suggested actions by GPUd.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 
@@ -26,6 +33,33 @@ type Detail struct {
 	EventType apiv1.EventType `json:"event_type"`
 }
 
+type catalogEntry struct {
+	Code                    int
+	Mnemonic                string
+	Description             string
+	ImmediateResolution     string
+	InvestigatoryResolution string
+}
+
+type nvlinkRule struct {
+	Xid               int
+	Unit              string
+	IntrinfoPatternV1 string
+	IntrinfoPatternV2 string
+	ErrorStatus       uint32
+	Resolution        string
+	Investigatory     string
+	Severity          string
+	Action2           string
+	HwSw              string
+	LocalRemote       string
+}
+
+var (
+	detailsWithSubCodes map[int]map[int]Detail
+	nvlinkRulesByXID    = indexNVLinkRules()
+)
+
 // Returns the error if found.
 // Otherwise, returns false.
 func GetDetail(id int) (*Detail, bool) {
@@ -33,8 +67,25 @@ func GetDetail(id int) (*Detail, bool) {
 	return &e, ok
 }
 
+// GetDetailWithSubCode returns the XID detail for a given base code and subcode.
+// For XIDs 144-150, subcode information is derived from NVIDIA's NVLink catalog.
+func GetDetailWithSubCode(id int, subCode int) (*Detail, bool) {
+	if subMap, ok := detailsWithSubCodes[id]; ok {
+		if detail, ok := subMap[subCode]; ok {
+			copy := detail
+			return &copy, true
+		}
+		if detail, ok := subMap[0]; ok {
+			copy := detail
+			return &copy, true
+		}
+	}
+	return GetDetail(id)
+}
+
 // make sure we do not have unknown event type
 func init() {
+	detailsWithSubCodes = buildNVLinkSubCodeDetails()
 	for id, detail := range details {
 		if detail.EventType == apiv1.EventTypeUnknown || string(detail.EventType) == "" {
 			panic(fmt.Sprintf("unknown event type for Xid %d", id))
@@ -2856,4 +2907,343 @@ var details = map[int]Detail{
 		},
 		EventType: apiv1.EventTypeWarning,
 	},
+}
+
+func detailFromNVLinkInfo(info *XidExtractedInfo) (*Detail, bool) {
+	base, ok := GetDetail(info.Xid)
+	if !ok {
+		return nil, false
+	}
+
+	detail := *base
+	if subMap, ok := detailsWithSubCodes[info.Xid]; ok {
+		if subDetail, ok := subMap[info.SubCode]; ok {
+			detail = subDetail
+		}
+	}
+
+	if rule, ok := lookupNVLinkRule(info); ok {
+		severityEvent := eventTypeFromSeverity(rule.Severity)
+		if severityEvent == apiv1.EventTypeUnknown {
+			severityEvent = eventTypeFromImmediateBucket(rule.Resolution)
+		}
+		if severityEvent != apiv1.EventTypeUnknown {
+			detail.EventType = severityEvent
+		}
+		if actions := suggestedActionsFromBucket(rule.Resolution); actions != nil {
+			detail.SuggestedActionsByGPUd = copySuggestedActions(actions)
+		}
+	}
+
+	detail.SubCode = info.SubCode
+	detail.SubCodeDescription = info.SubCodeName
+	detail.EventType = maxEventType(detail.EventType, eventTypeFromLogSeverity(info.Severity))
+	if detail.SuggestedActionsByGPUd == nil {
+		detail.SuggestedActionsByGPUd = copySuggestedActions(base.SuggestedActionsByGPUd)
+	}
+	return &detail, true
+}
+
+func buildNVLinkSubCodeDetails() map[int]map[int]Detail {
+	result := make(map[int]map[int]Detail)
+	for _, rule := range nvlinkRules {
+		if rule.Xid < 144 || rule.Xid > 150 {
+			continue
+		}
+		subCode, ok := subCodeFromRule(rule)
+		if !ok {
+			continue
+		}
+		if _, ok := result[rule.Xid]; !ok {
+			result[rule.Xid] = make(map[int]Detail)
+		}
+
+		aggregated, exists := result[rule.Xid][subCode]
+		if !exists {
+			base, ok := GetDetail(rule.Xid)
+			if !ok {
+				continue
+			}
+			aggregated = *base
+			aggregated.SubCode = subCode
+			aggregated.SubCodeDescription = rule.Unit
+			aggregated.EventType = apiv1.EventTypeUnknown
+		}
+
+		ruleEvent := eventTypeFromSeverity(rule.Severity)
+		if ruleEvent == apiv1.EventTypeUnknown {
+			ruleEvent = eventTypeFromImmediateBucket(rule.Resolution)
+		}
+		aggregated.EventType = maxEventType(aggregated.EventType, ruleEvent)
+		if actions := suggestedActionsFromBucket(rule.Resolution); actions != nil {
+			aggregated.SuggestedActionsByGPUd = mergeSuggestedActions(aggregated.SuggestedActionsByGPUd, actions)
+		}
+
+		result[rule.Xid][subCode] = aggregated
+	}
+
+	applyOperationalOverrides(result)
+	return result
+}
+
+func applyOperationalOverrides(result map[int]map[int]Detail) {
+	if subMap, ok := result[149]; ok {
+		if detail, ok := subMap[4]; ok {
+			detail.EventType = apiv1.EventTypeFatal
+			detail.SubCodeDescription = "NETIR_LINK_EVT/NETIR_LINK_DOWN (cartridge error)"
+			detail.Description = "NVLINK: NETIR Link Event - Possible NVLink cartridge error (contact provider)"
+			detail.SuggestedActionsByGPUd = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}
+			subMap[4] = detail
+		}
+		if detail, ok := subMap[10]; ok {
+			detail.EventType = apiv1.EventTypeFatal
+			detail.SubCodeDescription = "NETIR_LINK_EVT/NETIR_LINK_DOWN (PHY timeout)"
+			detail.Description = "NVLINK: NETIR Link Event - Physical layer retransmission timeout (contact provider)"
+			detail.SuggestedActionsByGPUd = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}
+			subMap[10] = detail
+		}
+	}
+}
+
+func indexNVLinkRules() map[int][]nvlinkRule {
+	indexed := make(map[int][]nvlinkRule)
+	for _, rule := range nvlinkRules {
+		indexed[rule.Xid] = append(indexed[rule.Xid], rule)
+	}
+	return indexed
+}
+
+func lookupNVLinkRule(info *XidExtractedInfo) (*nvlinkRule, bool) {
+	rules := nvlinkRulesByXID[info.Xid]
+	for i := range rules {
+		rule := &rules[i]
+		if !unitMatches(rule.Unit, info.SubCodeName) {
+			continue
+		}
+		if rule.ErrorStatus != info.ErrorStatus {
+			continue
+		}
+		if patternMatches(rule.IntrinfoPatternV2, info.Intrinfo) || patternMatches(rule.IntrinfoPatternV1, info.Intrinfo) {
+			return rule, true
+		}
+	}
+	return nil, false
+}
+
+func subCodeFromRule(rule nvlinkRule) (int, bool) {
+	if value, ok := sampleFromPattern(rule.IntrinfoPatternV2); ok {
+		return int((value >> 20) & 0x3F), true
+	}
+	if value, ok := sampleFromPattern(rule.IntrinfoPatternV1); ok {
+		return int((value >> 20) & 0x3F), true
+	}
+	return 0, false
+}
+
+func sampleFromPattern(pattern string) (uint32, bool) {
+	if pattern == "" {
+		return 0, false
+	}
+	if len(pattern) != 32 {
+		return 0, false
+	}
+	var value uint32
+	for idx, r := range pattern {
+		bit := 31 - idx
+		switch r {
+		case '1':
+			value |= 1 << bit
+		case '0', '-':
+		default:
+			return 0, false
+		}
+	}
+	return value, true
+}
+
+func patternMatches(pattern string, intrinfo uint32) bool {
+	if pattern == "" {
+		return true
+	}
+	if len(pattern) != 32 {
+		return false
+	}
+	for idx, r := range pattern {
+		bit := uint(31 - idx)
+		switch r {
+		case '1':
+			if ((intrinfo >> bit) & 1) == 0 {
+				return false
+			}
+		case '0':
+			if ((intrinfo >> bit) & 1) == 1 {
+				return false
+			}
+		case '-':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func unitMatches(ruleUnit, logUnit string) bool {
+	canonicalLog := normalizeUnit(logUnit)
+	if canonicalLog == "" {
+		return false
+	}
+	for _, alias := range unitAliases(ruleUnit) {
+		if normalizeUnit(alias) == canonicalLog {
+			return true
+		}
+	}
+	return false
+}
+
+func unitAliases(ruleUnit string) []string {
+	aliases := strings.FieldsFunc(ruleUnit, func(r rune) bool {
+		switch r {
+		case '/', ',', '(', ')', ' ':
+			return true
+		default:
+			return false
+		}
+	})
+	if len(aliases) == 0 {
+		aliases = []string{ruleUnit}
+	}
+	aliases = append(aliases, ruleUnit)
+	return aliases
+}
+
+func normalizeUnit(s string) string {
+	s = strings.ToUpper(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, "-", "_")
+	return strings.Map(func(r rune) rune {
+		if r >= 'A' && r <= 'Z' {
+			return r
+		}
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		if r == '_' {
+			return r
+		}
+		return -1
+	}, s)
+}
+
+func eventTypeFromImmediateBucket(bucket string) apiv1.EventType {
+	switch bucket {
+	case "CONTACT_SUPPORT", "CHECK_MECHANICALS", "WORKFLOW_NVLINK_ERR", "WORKFLOW_NVLINK5_ERR", "XID_154", "XID_154_EVAL", "RESTART_BM":
+		return apiv1.EventTypeFatal
+	case "RESET_GPU", "RESTART_APP", "RESTART_VM", "CHECK_UVM", "WORKFLOW_XID_48", "WORKFLOW_XID_45", "UPDATE_SWFW":
+		return apiv1.EventTypeCritical
+	case "IGNORE", "":
+		return apiv1.EventTypeInfo
+	default:
+		return apiv1.EventTypeWarning
+	}
+}
+
+func eventTypeFromSeverity(severity string) apiv1.EventType {
+	switch strings.TrimSpace(strings.ToLower(severity)) {
+	case "fatal", "fatal**", "link fatal", "link fatal?":
+		return apiv1.EventTypeFatal
+	case "non-fatal", "non-fatal*":
+		return apiv1.EventTypeWarning
+	default:
+		return apiv1.EventTypeUnknown
+	}
+}
+
+func eventTypeFromLogSeverity(severity string) apiv1.EventType {
+	switch strings.TrimSpace(strings.ToLower(severity)) {
+	case "fatal":
+		return apiv1.EventTypeFatal
+	case "nonfatal", "non-fatal":
+		return apiv1.EventTypeWarning
+	default:
+		return apiv1.EventTypeUnknown
+	}
+}
+
+func maxEventType(a, b apiv1.EventType) apiv1.EventType {
+	if severityRank(b) > severityRank(a) {
+		return b
+	}
+	return a
+}
+
+func severityRank(t apiv1.EventType) int {
+	switch t {
+	case apiv1.EventTypeInfo:
+		return 1
+	case apiv1.EventTypeWarning:
+		return 2
+	case apiv1.EventTypeCritical:
+		return 3
+	case apiv1.EventTypeFatal:
+		return 4
+	default:
+		return 0
+	}
+}
+
+func suggestedActionsFromBucket(bucket string) *apiv1.SuggestedActions {
+	switch bucket {
+	case "CONTACT_SUPPORT", "CHECK_MECHANICALS", "WORKFLOW_NVLINK_ERR", "WORKFLOW_NVLINK5_ERR", "XID_154", "XID_154_EVAL":
+		return newSuggestedActions(apiv1.RepairActionTypeHardwareInspection)
+	case "RESET_GPU", "RESTART_BM", "RESTART_VM", "CHECK_UVM":
+		return newSuggestedActions(apiv1.RepairActionTypeRebootSystem)
+	case "RESTART_APP", "WORKFLOW_XID_45", "WORKFLOW_XID_48", "UPDATE_SWFW":
+		return newSuggestedActions(apiv1.RepairActionTypeCheckUserAppAndGPU)
+	case "IGNORE", "":
+		return newSuggestedActions(apiv1.RepairActionTypeIgnoreNoActionRequired)
+	default:
+		return nil
+	}
+}
+
+func newSuggestedActions(actions ...apiv1.RepairActionType) *apiv1.SuggestedActions {
+	if len(actions) == 0 {
+		return nil
+	}
+	out := make([]apiv1.RepairActionType, len(actions))
+	copy(out, actions)
+	return &apiv1.SuggestedActions{RepairActions: out}
+}
+
+func mergeSuggestedActions(base, addition *apiv1.SuggestedActions) *apiv1.SuggestedActions {
+	if base == nil {
+		return copySuggestedActions(addition)
+	}
+	if addition == nil {
+		return copySuggestedActions(base)
+	}
+	set := make(map[apiv1.RepairActionType]struct{})
+	for _, act := range base.RepairActions {
+		set[act] = struct{}{}
+	}
+	for _, act := range addition.RepairActions {
+		set[act] = struct{}{}
+	}
+	actions := make([]apiv1.RepairActionType, 0, len(set))
+	for act := range set {
+		actions = append(actions, act)
+	}
+	sort.Slice(actions, func(i, j int) bool {
+		return actions[i] < actions[j]
+	})
+	return &apiv1.SuggestedActions{RepairActions: actions}
+}
+
+func copySuggestedActions(src *apiv1.SuggestedActions) *apiv1.SuggestedActions {
+	if src == nil {
+		return nil
+	}
+	actions := make([]apiv1.RepairActionType, len(src.RepairActions))
+	copy(actions, src.RepairActions)
+	return &apiv1.SuggestedActions{RepairActions: actions}
 }
