@@ -49,7 +49,7 @@ func Command(cliContext *cli.Context) error {
 
 		rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer rootCancel()
-		machineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+		machineID, err := pkgmetadata.ReadMachineID(rootCtx, dbRO)
 		if err != nil {
 			return err
 		}

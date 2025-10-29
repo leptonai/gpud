@@ -83,12 +83,12 @@ func Command(cliContext *cli.Context) error {
 	}
 	log.Logger.Debugw("successfully created metadata table")
 
-	log.Logger.Debugw("reading machine ID with fallback")
-	prevMachineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+	log.Logger.Debugw("reading machine ID")
+	prevMachineID, err := pkgmetadata.ReadMachineID(rootCtx, dbRO)
 	if err != nil {
 		return err
 	}
-	log.Logger.Debugw("successfully read machine ID with fallback")
+	log.Logger.Debugw("successfully read machine ID")
 
 	if prevMachineID != "" {
 		fmt.Printf("machine ID %s already assigned (skipping login)\n", prevMachineID)

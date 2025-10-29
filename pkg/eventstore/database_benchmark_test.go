@@ -31,8 +31,7 @@ func TestSimulatedEvents(t *testing.T) {
 	database, err := New(dbRW, dbRO, 0)
 	assert.NoError(t, err)
 
-	tableName := defaultTableName("hello")
-	bucket, err := database.Bucket(tableName)
+	bucket, err := database.Bucket("hello")
 	assert.NoError(t, err)
 	defer bucket.Close()
 	daysToIngest := 3
