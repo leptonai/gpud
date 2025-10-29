@@ -271,7 +271,7 @@ func TestGetStatesFromComponent(t *testing.T) {
 		registry.On("Get", "component1").Return(comp)
 		comp.On("LastHealthStates").Return(healthStates)
 
-		// Pass a non-nil rebootTime to avoid calling pkghost.LastReboot
+		// Pass a non-nil rebootTime to avoid calling pkghost.BootTime
 		rebootTime := time.Now().Add(-10 * time.Minute)
 
 		result := session.getHealthStatesFromComponent("component1", rebootTime)

@@ -2,7 +2,6 @@ package host
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -30,11 +29,11 @@ func TestRecordEvent(t *testing.T) {
 	// Test with a recent reboot time
 	t.Run("recent reboot should record event", func(t *testing.T) {
 		recentTime := time.Now().Add(-1 * time.Hour)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return recentTime, nil
+		mockBootTime := func() time.Time {
+			return recentTime
 		}
 
-		err = recordEvent(ctx, store, recentTime, mockLastReboot)
+		err = recordEvent(ctx, store, recentTime, mockBootTime)
 		assert.NoError(t, err)
 
 		bucket, err := store.Bucket("os")
@@ -52,12 +51,12 @@ func TestRecordEvent(t *testing.T) {
 	// Test with an old reboot time (beyond retention)
 	t.Run("old reboot should not record event", func(t *testing.T) {
 		oldTime := time.Now().Add(-2 * eventstore.DefaultRetention)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return oldTime, nil
+		mockBootTime := func() time.Time {
+			return oldTime
 		}
 
 		now := time.Now()
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		err = recordEvent(ctx, store, now, mockBootTime)
 		assert.NoError(t, err)
 
 		bucket, err := store.Bucket("os")
@@ -70,16 +69,15 @@ func TestRecordEvent(t *testing.T) {
 		assert.Len(t, events, 1)
 	})
 
-	// Test with error from lastReboot
-	t.Run("error getting reboot time", func(t *testing.T) {
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return time.Time{}, errors.New("uptime command failed")
+	// Test with unavailable boot time
+	t.Run("boot time unavailable", func(t *testing.T) {
+		mockBootTime := func() time.Time {
+			return time.Time{}
 		}
 
 		now := time.Now()
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "uptime command failed")
+		err = recordEvent(ctx, store, now, mockBootTime)
+		assert.ErrorIs(t, err, ErrBootTimeUnavailable)
 	})
 
 	// Test with duplicate event (same timestamp)
@@ -113,12 +111,12 @@ func TestRecordEvent(t *testing.T) {
 		isolatedBucket.Close()
 
 		// Try to record with same timestamp
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return existingTime, nil
+		mockBootTime := func() time.Time {
+			return existingTime
 		}
 
 		now := time.Now()
-		err = recordEvent(ctx, isolatedStore, now, mockLastReboot)
+		err = recordEvent(ctx, isolatedStore, now, mockBootTime)
 		assert.NoError(t, err)
 
 		// Should still be only 1 event
@@ -153,12 +151,12 @@ func TestRecordEvent(t *testing.T) {
 
 		// Now try to record one 30 seconds later
 		slightlyDifferentTime := baseTime.Add(30 * time.Second)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return slightlyDifferentTime, nil
+		mockBootTime := func() time.Time {
+			return slightlyDifferentTime
 		}
 
 		now := time.Now()
-		err = recordEvent(ctx, isolatedStore, now, mockLastReboot)
+		err = recordEvent(ctx, isolatedStore, now, mockBootTime)
 		assert.NoError(t, err)
 
 		// Should still be only 1 event
@@ -187,11 +185,11 @@ func TestRecordEvent(t *testing.T) {
 
 		// First event - should be recorded (at 1:00 PM)
 		baseTime := time.Date(2025, 5, 21, 13, 0, 0, 0, time.UTC)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return baseTime, nil
+		mockBootTime := func() time.Time {
+			return baseTime
 		}
 
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		err = recordEvent(ctx, store, now, mockBootTime)
 		assert.NoError(t, err)
 
 		// Check first event was recorded
@@ -204,11 +202,11 @@ func TestRecordEvent(t *testing.T) {
 
 		// Second event - should also be recorded (at 1:02 PM, more than a minute after first)
 		laterTime := time.Date(2025, 5, 21, 13, 2, 0, 0, time.UTC)
-		mockLastReboot2 := func(ctx context.Context) (time.Time, error) {
-			return laterTime, nil
+		mockBootTime2 := func() time.Time {
+			return laterTime
 		}
 
-		err = recordEvent(ctx, store, now, mockLastReboot2)
+		err = recordEvent(ctx, store, now, mockBootTime2)
 		assert.NoError(t, err)
 
 		// Verify both events were recorded
@@ -242,14 +240,14 @@ func TestDuplicateRebootEvents(t *testing.T) {
 		now := time.Date(2025, 5, 21, 15, 0, 0, 0, time.UTC)
 
 		// First event - should be recorded
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return baseTime, nil
+		mockBootTime := func() time.Time {
+			return baseTime
 		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		err = recordEvent(ctx, store, now, mockBootTime)
 		assert.NoError(t, err)
 
 		// Try to record same event again - should be skipped
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		err = recordEvent(ctx, store, now, mockBootTime)
 		assert.NoError(t, err)
 
 		// Check we only have one event
@@ -290,11 +288,11 @@ func TestDuplicateRebootEvents(t *testing.T) {
 		// Record each timestamp sequentially
 		for _, ts := range timestamps {
 			finalTs := ts // Capture for closure
-			mockLastReboot := func(ctx context.Context) (time.Time, error) {
-				return finalTs, nil
+			mockBootTime := func() time.Time {
+				return finalTs
 			}
 
-			err = recordEvent(ctx, store, now, mockLastReboot)
+			err = recordEvent(ctx, store, now, mockBootTime)
 			assert.NoError(t, err)
 		}
 
@@ -340,18 +338,18 @@ func TestDuplicateRebootEvents(t *testing.T) {
 		now := time.Date(2025, 5, 21, 15, 10, 0, 0, time.UTC)
 
 		// Record first event
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return baseTime, nil
+		mockBootTime := func() time.Time {
+			return baseTime
 		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		err = recordEvent(ctx, store, now, mockBootTime)
 		assert.NoError(t, err)
 
 		// Try to record event 30 seconds later
 		almostOneMinuteLater := baseTime.Add(30 * time.Second)
-		mockLastReboot = func(ctx context.Context) (time.Time, error) {
-			return almostOneMinuteLater, nil
+		mockBootTime = func() time.Time {
+			return almostOneMinuteLater
 		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		err = recordEvent(ctx, store, now, mockBootTime)
 		assert.NoError(t, err)
 
 		// Check we only have one event
@@ -380,18 +378,18 @@ func TestDuplicateRebootEvents(t *testing.T) {
 		now := time.Date(2025, 5, 21, 16, 10, 0, 0, time.UTC)
 
 		// Record first event
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return baseTime, nil
+		mockBootTime := func() time.Time {
+			return baseTime
 		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		err = recordEvent(ctx, store, now, mockBootTime)
 		assert.NoError(t, err)
 
 		// Try to record event 61 seconds later
 		overOneMinuteLater := baseTime.Add(61 * time.Second)
-		mockLastReboot = func(ctx context.Context) (time.Time, error) {
-			return overOneMinuteLater, nil
+		mockBootTime = func() time.Time {
+			return overOneMinuteLater
 		}
-		err = recordEvent(ctx, store, now, mockLastReboot)
+		err = recordEvent(ctx, store, now, mockBootTime)
 		assert.NoError(t, err)
 
 		// Check we have two events
@@ -475,22 +473,13 @@ func TestRecordEventEdgeCases(t *testing.T) {
 
 	// Test with zero value time
 	t.Run("zero time value", func(t *testing.T) {
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return time.Time{}, nil
+		mockBootTime := func() time.Time {
+			return time.Time{}
 		}
 
 		now := time.Now()
-		err = recordEvent(ctx, store, now, mockLastReboot)
-		assert.NoError(t, err)
-
-		// Since time.Time{} is way in the past, it should be filtered by retention period
-		bucket, err := store.Bucket("os")
-		require.NoError(t, err)
-		defer bucket.Close()
-
-		events, err := bucket.Get(ctx, time.Time{})
-		assert.NoError(t, err)
-		assert.Len(t, events, 0)
+		err = recordEvent(ctx, store, now, mockBootTime)
+		assert.ErrorIs(t, err, ErrBootTimeUnavailable)
 	})
 
 	// Test with canceled context
@@ -499,11 +488,11 @@ func TestRecordEventEdgeCases(t *testing.T) {
 		cancel() // Cancel immediately
 
 		recentTime := time.Now().Add(-1 * time.Hour)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return recentTime, nil
+		mockBootTime := func() time.Time {
+			return recentTime
 		}
 
-		err = recordEvent(canceledCtx, store, recentTime, mockLastReboot)
+		err = recordEvent(canceledCtx, store, recentTime, mockBootTime)
 		assert.Error(t, err)
 	})
 }
@@ -537,13 +526,13 @@ func TestOSEventStore(t *testing.T) {
 		bucket.Close()
 
 		recentTime := time.Now().Add(-1 * time.Hour)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return recentTime, nil
+		mockBootTime := func() time.Time {
+			return recentTime
 		}
 
 		recorder := &rebootEventStore{
-			getLastRebootTime: mockLastReboot,
-			eventStore:        store,
+			getBootTime: mockBootTime,
+			eventStore:  store,
 		}
 
 		err = recorder.RecordReboot(ctx)
@@ -570,8 +559,8 @@ func TestOSEventStore(t *testing.T) {
 		bucket.Close()
 
 		recorder := &rebootEventStore{
-			getLastRebootTime: func(ctx context.Context) (time.Time, error) {
-				return time.Now(), nil
+			getBootTime: func() time.Time {
+				return time.Now()
 			},
 			eventStore: store,
 		}
@@ -642,12 +631,12 @@ func TestRecordEventWithContextTimeout(t *testing.T) {
 		time.Sleep(2 * time.Nanosecond)
 
 		recentTime := time.Now().Add(-1 * time.Hour)
-		mockLastReboot := func(ctx context.Context) (time.Time, error) {
-			return recentTime, nil
+		mockBootTime := func() time.Time {
+			return recentTime
 		}
 
 		now := time.Now()
-		err = recordEvent(timeoutCtx, store, now, mockLastReboot)
+		err = recordEvent(timeoutCtx, store, now, mockBootTime)
 		assert.Error(t, err)
 	})
 }
