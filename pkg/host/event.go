@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -35,6 +36,12 @@ var _ RebootEventStore = &rebootEventStore{}
 type rebootEventStore struct {
 	getLastRebootTime func(context.Context) (time.Time, error)
 	eventStore        eventstore.Store
+
+	bucketMu sync.Mutex
+	// eventBucket is used for write paths where purge should remain enabled.
+	eventBucket eventstore.Bucket
+	// eventBucketNoPurge is used for read paths where purge is explicitly disabled.
+	eventBucketNoPurge eventstore.Bucket
 }
 
 func NewRebootEventStore(eventStore eventstore.Store) RebootEventStore {
@@ -45,14 +52,59 @@ func NewRebootEventStore(eventStore eventstore.Store) RebootEventStore {
 }
 
 func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
-	return recordEvent(ctx, s.eventStore, time.Now().UTC(), s.getLastRebootTime)
+	return recordEvent(ctx, s, time.Now().UTC(), s.getLastRebootTime)
 }
 
 func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
-	return getEvents(ctx, s.eventStore, since)
+	return getEvents(ctx, s, since)
 }
 
-func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now time.Time, getLastRebootTime func(context.Context) (time.Time, error)) error {
+func (s *rebootEventStore) getBucket(disablePurge bool) (eventstore.Bucket, error) {
+	s.bucketMu.Lock()
+	defer s.bucketMu.Unlock()
+
+	if disablePurge {
+		if s.eventBucketNoPurge != nil {
+			return s.eventBucketNoPurge, nil
+		}
+		bucket, err := s.eventStore.Bucket(EventBucketName, eventstore.WithDisablePurge())
+		if err != nil {
+			return nil, err
+		}
+		s.eventBucketNoPurge = bucket
+		return bucket, nil
+	}
+
+	if s.eventBucket != nil {
+		return s.eventBucket, nil
+	}
+	bucket, err := s.eventStore.Bucket(EventBucketName)
+	if err != nil {
+		return nil, err
+	}
+	s.eventBucket = bucket
+	return bucket, nil
+}
+
+func (s *rebootEventStore) Close() error {
+	s.bucketMu.Lock()
+	defer s.bucketMu.Unlock()
+
+	bucket := s.eventBucket
+	bucketNoPurge := s.eventBucketNoPurge
+	s.eventBucket = nil
+	s.eventBucketNoPurge = nil
+
+	if bucket != nil {
+		bucket.Close()
+	}
+	if bucketNoPurge != nil && bucketNoPurge != bucket {
+		bucketNoPurge.Close()
+	}
+	return nil
+}
+
+func recordEvent(ctx context.Context, store *rebootEventStore, now time.Time, getLastRebootTime func(context.Context) (time.Time, error)) error {
 	currentBootTime, err := getLastRebootTime(ctx)
 	if err != nil {
 		return err
@@ -71,11 +123,10 @@ func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now tim
 		Message: fmt.Sprintf("system reboot detected %v", currentBootTime),
 	}
 
-	bucket, err := rebootEventStore.Bucket(EventBucketName)
+	bucket, err := store.getBucket(false)
 	if err != nil {
 		return err
 	}
-	defer bucket.Close()
 
 	// to prevent duplicate events
 	// in case "uptime -s" returns outdated but already recorded timestamp
@@ -113,13 +164,11 @@ func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now tim
 	return bucket.Insert(ctx, curRebootEvent)
 }
 
-func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) (eventstore.Events, error) {
-	rebootBucket, err := eventStore.Bucket(EventBucketName, eventstore.WithDisablePurge())
+func getEvents(ctx context.Context, store *rebootEventStore, since time.Time) (eventstore.Events, error) {
+	rebootBucket, err := store.getBucket(true)
 	if err != nil {
 		return nil, err
 	}
-	defer rebootBucket.Close()
-
 	// we used the same bucket "os" for both reboot and os events
 	// until we migrate, we need manual filtering
 	// otherwise, we will get non-reboot events from the "os" component kmsg watcher
