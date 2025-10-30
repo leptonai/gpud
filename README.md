@@ -11,11 +11,11 @@
 
 ## Why GPUd
 
-GPUd is built on years of experience operating large-scale GPU clusters at Meta, Alibaba Cloud, Uber, and Lepton AI. It is carefully designed to be self-contained and to integrate seamlessly with other systems such as Docker, containerd, Kubernetes, and Nvidia ecosystems.
+GPUd is built on years of experience operating large-scale GPU clusters at Meta, Alibaba Cloud, Uber, and Lepton AI. It is carefully designed to be self-contained and to integrate seamlessly with other systems such as Docker, containerd, Kubernetes, and NVIDIA ecosystems.
 
 - **First-class GPU support**: GPUd is GPU-centric, providing a unified view of critical GPU metrics and issues.
 - **Easy to run at scale**: GPUd is a self-contained binary that runs on any machine with a low footprint.
-- **Production grade**: GPUd is used in [Lepton AI](https://lepton.ai/)'s production infrastructure.
+- **Production grade**: GPUd is used in [DGX Cloud Lepton](https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton/)'s production infrastructure.
 
 Most importantly, GPUd operates with minimal CPU and memory overhead in a non-critical path and requires only read-only operations. See [*architecture*](./docs/ARCHITECTURE.md) for more details.
 
@@ -38,7 +38,7 @@ curl -fsSL https://pkg.gpud.dev/install.sh | sh
 To specify a version:
 
 ```bash
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.6.0
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.8.0
 ```
 
 Note that the install script does not currenlty support other architectures (e.g., arm64) and OSes (e.g., macOS).
