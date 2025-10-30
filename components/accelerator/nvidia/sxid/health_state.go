@@ -86,11 +86,6 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 			for v, count := range sxidRebootMap {
 				sxidRebootMap[v] = count + 1
 			}
-		} else if event.Name == "SetHealthy" {
-			lastHealth = healthStateHealthy
-			lastSuggestedAction = nil
-			lastSXidErr = nil
-			sxidRebootMap = make(map[uint64]int)
 		}
 	}
 	var reason string
