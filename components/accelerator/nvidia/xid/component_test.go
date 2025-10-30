@@ -369,16 +369,6 @@ func TestXIDComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	// Setup a test channel for events to avoid using kmsg
-	eventCh := make(chan kmsg.Message, 1)
-	go c.start(eventCh, 100*time.Millisecond)
-
-	defer func() {
-		if err := comp.Close(); err != nil {
-			t.Error("failed to close component")
-		}
-	}()
-
 	s := apiv1.HealthState{
 		Name:   StateNameErrorXid,
 		Health: apiv1.HealthStateTypeHealthy,
@@ -421,15 +411,13 @@ func TestXIDComponent_States(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// insert test events
 			for i, event := range tt.events {
-				select {
-				case c.extraEventCh <- &event:
-				default:
-					t.Error("failed to insert event into channel")
-				}
-				// wait for events to be processed
-				time.Sleep(1 * time.Second)
+				err := c.eventBucket.Insert(ctx, event)
+				assert.NoError(t, err)
+
+				err = c.updateCurrentState()
+				assert.NoError(t, err)
+
 				states = comp.LastHealthStates()
 				t.Log(states[0])
 				assert.Len(t, states, 1, "index %d", i)
@@ -442,14 +430,14 @@ func TestXIDComponent_States(t *testing.T) {
 				}
 			}
 
-			// Cast to HealthSettable interface
 			healthSettable, ok := comp.(components.HealthSettable)
 			assert.True(t, ok, "component should implement HealthSettable interface")
-			err = healthSettable.SetHealthy()
+			err := healthSettable.SetHealthy()
 			assert.NoError(t, err)
 
-			// wait for events to be processed
-			time.Sleep(1 * time.Second)
+			states = comp.LastHealthStates()
+			assert.Len(t, states, 1)
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		})
 	}
 }

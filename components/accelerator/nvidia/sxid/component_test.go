@@ -324,11 +324,6 @@ func TestSXIDComponent_States(t *testing.T) {
 	component, cleanup := initComponentForTest(ctx, t)
 	defer cleanup()
 
-	// Create a channel with a buffer to avoid blocking
-	msgCh := make(chan kmsg.Message, 1)
-	go component.start(msgCh, 100*time.Millisecond)
-	defer component.Close()
-
 	s := apiv1.HealthState{
 		Name:   StateNameErrorSXid,
 		Health: apiv1.HealthStateTypeHealthy,
@@ -371,12 +366,10 @@ func TestSXIDComponent_States(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Insert test events directly into eventBucket rather than using extraEventCh
 			for i, event := range tt.events {
 				err := component.eventBucket.Insert(ctx, event)
 				assert.NoError(t, err)
 
-				// Manually trigger state update rather than waiting for channel
 				err = component.updateCurrentState()
 				assert.NoError(t, err)
 
@@ -391,10 +384,13 @@ func TestSXIDComponent_States(t *testing.T) {
 					assert.Equal(t, tt.wantState[i].SuggestedActions.RepairActions, states[0].SuggestedActions.RepairActions, "index %d", i)
 				}
 			}
+
 			err := component.SetHealthy()
 			assert.NoError(t, err)
-			// Wait for events to be processed
-			time.Sleep(500 * time.Millisecond)
+
+			states := component.LastHealthStates()
+			assert.Len(t, states, 1)
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		})
 	}
 }
