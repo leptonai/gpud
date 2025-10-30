@@ -2,8 +2,8 @@ package infiniband
 
 import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
 var (
@@ -15,7 +15,7 @@ var (
 
 // evaluateHealthStateWithThresholds evaluates the current infiniband port states against the thresholds
 // and it DOES NOT take historical states into account
-func evaluateHealthStateWithThresholds(thresholds infiniband.ExpectedPortStates, ibports []infiniband.IBPort, cr *checkResult) {
+func evaluateHealthStateWithThresholds(thresholds types.ExpectedPortStates, ibports []types.IBPort, cr *checkResult) {
 	// DO NOT auto-detect infiniband devices/PCI buses
 	// strictly rely on the user-specified config.
 	if thresholds.IsZero() {
@@ -40,7 +40,7 @@ func evaluateHealthStateWithThresholds(thresholds infiniband.ExpectedPortStates,
 	atLeastPorts := thresholds.AtLeastPorts
 	atLeastRate := thresholds.AtLeastRate
 
-	unhealthy, err := infiniband.EvaluatePortsAndRate(ibports, atLeastPorts, atLeastRate)
+	unhealthy, err := EvaluatePortsAndRate(ibports, atLeastPorts, atLeastRate)
 	if err != nil {
 		cr.unhealthyIBPorts = unhealthy
 		cr.health = apiv1.HealthStateTypeUnhealthy

@@ -8,9 +8,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
 // SetEventType sets the event id for the given timestamp, device, and port.
@@ -53,7 +53,7 @@ func (s *ibPortsStore) SetEventType(device string, port uint, timestamp time.Tim
 // Event represents an event for a port.
 type Event struct {
 	Time        time.Time
-	Port        infiniband.IBPort
+	Port        types.IBPort
 	EventType   string
 	EventReason string
 }
@@ -152,7 +152,7 @@ func (s *ibPortsStore) lastEvents(device string, port uint, since time.Time) ([]
 	events := make([]Event, 0)
 	for rows.Next() {
 		var ts int64
-		var port infiniband.IBPort
+		var port types.IBPort
 		var eventType string
 		var eventReason sql.NullString
 		if err := rows.Scan(

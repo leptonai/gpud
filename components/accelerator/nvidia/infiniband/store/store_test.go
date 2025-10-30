@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	infiniband "github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -678,7 +678,7 @@ func TestStoreWithZeroRetentionAndPurge(t *testing.T) {
 	// Verify that stores can be used concurrently without issues
 	// Test basic operations on both stores
 	eventTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	ibPorts := []infiniband.IBPort{{Device: "mlx5_0", Port: 1, State: "active"}}
+	ibPorts := []types.IBPort{{Device: "mlx5_0", Port: 1, State: "active"}}
 
 	err1 := s1.Insert(eventTime, ibPorts)
 	err2 := s2.Insert(eventTime, ibPorts)

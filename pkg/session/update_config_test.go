@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
+	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
 func TestProcessUpdateConfig(t *testing.T) {
@@ -20,7 +20,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 	tests := []struct {
 		name                                  string
 		configMap                             map[string]string
-		setDefaultIbExpectedPortStatesFunc    func(states infiniband.ExpectedPortStates)
+		setDefaultIbExpectedPortStatesFunc    func(states componentsnvidiainfinibanditypes.ExpectedPortStates)
 		setDefaultNFSGroupConfigsFunc         func(cfgs pkgnfschecker.Configs)
 		setDefaultGPUCountsFunc               func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
 		setDefaultXIDRebootThresholdFunc      func(threshold componentsxid.RebootThreshold)
@@ -37,7 +37,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		{
 			name:      "empty config map",
 			configMap: map[string]string{},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for empty config map")
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
@@ -64,7 +64,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"accelerator-nvidia-infiniband": `{"at_least_ports": 2, "at_least_rate": 100}`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				assert.Equal(t, 2, states.AtLeastPorts)
 				assert.Equal(t, 100, states.AtLeastRate)
 			},
@@ -95,7 +95,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"accelerator-nvidia-gpu-counts": `{"count": 8}`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				// This gets called with empty config due to fallback behavior
 				assert.Equal(t, 0, states.AtLeastPorts)
 				assert.Equal(t, 0, states.AtLeastRate)
@@ -126,7 +126,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"accelerator-nvidia-error-xid": `{"threshold": 10}`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				// This gets called with empty config due to fallback behavior
 				assert.Equal(t, 0, states.AtLeastPorts)
 				assert.Equal(t, 0, states.AtLeastRate)
@@ -157,7 +157,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"accelerator-nvidia-infiniband": `{"at_least_ports": 2, "at_least_rate":}`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for invalid JSON")
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
@@ -184,7 +184,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"accelerator-nvidia-gpu-counts": `{"count":}`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for gpu counts config")
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
@@ -211,7 +211,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"accelerator-nvidia-error-xid": `{"threshold":}`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for xid config")
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
@@ -238,7 +238,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"nfs": `[{"volume_path": "/tmp/test", "ttl_to_delete": "5m", "num_expected_files":}]`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for nfs config")
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
@@ -265,7 +265,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"nfs": `[{"volume_path": "", "file_contents": "test-content", "ttl_to_delete": "5m", "num_expected_files": 3}]`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				// This gets called with empty config due to fallback behavior
 				assert.Equal(t, 0, states.AtLeastPorts)
 				assert.Equal(t, 0, states.AtLeastRate)
@@ -298,7 +298,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"unsupported-component": `{"some": "config"}`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				// This gets called with empty config due to fallback behavior for unsupported components
 				assert.Equal(t, 0, states.AtLeastPorts)
 				assert.Equal(t, 0, states.AtLeastRate)
@@ -349,7 +349,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			configMap: map[string]string{
 				"accelerator-nvidia-gpu-counts": `{"count": 8}`,
 			},
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				// This gets called with empty config due to fallback behavior
 				assert.Equal(t, 0, states.AtLeastPorts)
 				assert.Equal(t, 0, states.AtLeastRate)
@@ -395,7 +395,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 
 			// Create session with mock functions
 			s := &Session{
-				setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+				setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 					ibCallCount++
 					if tt.setDefaultIbExpectedPortStatesFunc != nil {
 						tt.setDefaultIbExpectedPortStatesFunc(states)
@@ -486,7 +486,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		wg.Add(1)
 
 		s := &Session{
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				ibCallCount++
 				// This gets called with empty config due to fallback behavior
 				assert.Equal(t, 0, states.AtLeastPorts)
@@ -550,7 +550,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		wg.Add(1)
 
 		s := &Session{
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				ibCallCount++
 				assert.Equal(t, 4, states.AtLeastPorts)
 				assert.Equal(t, 200, states.AtLeastRate)
@@ -695,7 +695,7 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Session{
-				setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {},
+				setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {},
 				setDefaultNFSGroupConfigsFunc:      func(cfgs pkgnfschecker.Configs) {},
 				setDefaultGPUCountsFunc:            func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {},
 				setDefaultXIDRebootThresholdFunc:   func(threshold componentsxid.RebootThreshold) {},
@@ -749,8 +749,8 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 	})
 
 	t.Run("infiniband with real structure", func(t *testing.T) {
-		// Create a real infiniband.ExpectedPortStates structure
-		expectedStates := infiniband.ExpectedPortStates{
+		// Create a real componentsnvidiainfinibanditypes.ExpectedPortStates structure
+		expectedStates := componentsnvidiainfinibanditypes.ExpectedPortStates{
 			AtLeastPorts: 8,
 			AtLeastRate:  400,
 		}
@@ -759,9 +759,9 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		configBytes, err := json.Marshal(expectedStates)
 		assert.NoError(t, err)
 
-		var actualStates infiniband.ExpectedPortStates
+		var actualStates componentsnvidiainfinibanditypes.ExpectedPortStates
 		s := &Session{
-			setDefaultIbExpectedPortStatesFunc: func(states infiniband.ExpectedPortStates) {
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				actualStates = states
 			},
 		}

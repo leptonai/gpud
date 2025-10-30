@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/leptonai/gpud/components"
+	infinibandstore "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/store"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
-	infinibandstore "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/store"
 )
 
 // TestComponent_SetHealthy tests the SetHealthy method
@@ -205,7 +205,7 @@ type mockIBPortsStoreForSetHealthy struct {
 	tombstoneErr  error
 }
 
-func (m *mockIBPortsStoreForSetHealthy) Insert(eventTime time.Time, ibPorts []infiniband.IBPort) error {
+func (m *mockIBPortsStoreForSetHealthy) Insert(eventTime time.Time, ibPorts []types.IBPort) error {
 	return nil
 }
 

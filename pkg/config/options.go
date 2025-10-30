@@ -2,8 +2,8 @@ package config
 
 import (
 	"github.com/leptonai/gpud/components"
+	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
-	infinibandclass "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/class"
 )
 
 type Op struct {

@@ -3,28 +3,11 @@ package infiniband
 import (
 	"errors"
 	"strings"
+
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
-// Configures the expected state of the ports.
-type ExpectedPortStates struct {
-	// The minimum number of ports.
-	// If not set, it defaults to 0.
-	AtLeastPorts int `json:"at_least_ports"`
-
-	// The expected rate in Gb/sec.
-	// If not set, it defaults to 0.
-	AtLeastRate int `json:"at_least_rate"`
-}
-
-// IsZero returns true if the expected port states are not set.
-func (eps *ExpectedPortStates) IsZero() bool {
-	if eps == nil {
-		return true
-	}
-	return eps.AtLeastPorts <= 0 || eps.AtLeastRate <= 0
-}
-
-var gpuPortConfigs = map[string]ExpectedPortStates{
+var gpuPortConfigs = map[string]types.ExpectedPortStates{
 	// "NVIDIA ConnectX-6 or ConnectX-7 Single Port InfiniBand (default): Up to 200Gbps"
 	// ref. https://docs.nvidia.com/dgx/dgxa100-user-guide/introduction-to-dgxa100.html
 	"a100": {AtLeastPorts: 1, AtLeastRate: 200},
@@ -50,7 +33,7 @@ var gpuPortConfigs = map[string]ExpectedPortStates{
 
 var ErrNoExpectedPortStates = errors.New("no expected port states found (not supported)")
 
-func SupportsInfinibandPortRate(gpuProductName string) (ExpectedPortStates, error) {
+func SupportsInfinibandPortRate(gpuProductName string) (types.ExpectedPortStates, error) {
 	p := strings.ToLower(gpuProductName)
 
 	longestMatch := ""
@@ -62,7 +45,7 @@ func SupportsInfinibandPortRate(gpuProductName string) (ExpectedPortStates, erro
 		}
 	}
 	if longestMatch == "" {
-		return ExpectedPortStates{}, ErrNoExpectedPortStates
+		return types.ExpectedPortStates{}, ErrNoExpectedPortStates
 	}
 
 	return gpuPortConfigs[longestMatch], nil

@@ -3,25 +3,25 @@ package infiniband
 import (
 	"sync"
 
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
 var (
 	defaultExpectedPortStatesMu sync.RWMutex
-	defaultExpectedPortStates   = infiniband.ExpectedPortStates{
+	defaultExpectedPortStates   = types.ExpectedPortStates{
 		AtLeastPorts: 0,
 		AtLeastRate:  0,
 	}
 )
 
-func GetDefaultExpectedPortStates() infiniband.ExpectedPortStates {
+func GetDefaultExpectedPortStates() types.ExpectedPortStates {
 	defaultExpectedPortStatesMu.RLock()
 	defer defaultExpectedPortStatesMu.RUnlock()
 	return defaultExpectedPortStates
 }
 
-func SetDefaultExpectedPortStates(states infiniband.ExpectedPortStates) {
+func SetDefaultExpectedPortStates(states types.ExpectedPortStates) {
 	log.Logger.Infow("setting default expected port states", "at_least_ports", states.AtLeastPorts, "at_least_rate", states.AtLeastRate)
 
 	defaultExpectedPortStatesMu.Lock()

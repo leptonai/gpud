@@ -14,12 +14,12 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
+	infinibandstore "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/store"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
-	infinibandclass "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/class"
-	infinibandstore "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/store"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
@@ -67,8 +67,8 @@ func TestComponentCheck(t *testing.T) {
 
 	// Case 3: With NVML and valid product name but zero threshold
 	nvmlMock.productName = "Tesla V100"
-	c.getThresholdsFunc = func() infiniband.ExpectedPortStates {
-		return infiniband.ExpectedPortStates{
+	c.getThresholdsFunc = func() types.ExpectedPortStates {
+		return types.ExpectedPortStates{
 			AtLeastPorts: 0,
 			AtLeastRate:  0,
 		}
@@ -531,8 +531,8 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
-func mockGetThresholds() infiniband.ExpectedPortStates {
-	return infiniband.ExpectedPortStates{
+func mockGetThresholds() types.ExpectedPortStates {
+	return types.ExpectedPortStates{
 		AtLeastPorts: 1,
 		AtLeastRate:  100,
 	}
@@ -647,8 +647,8 @@ func TestComponentCheckErrorCases(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 0,
 				AtLeastRate:  0,
 			}
@@ -905,8 +905,8 @@ func TestCheckWithClassDevicesSuccess(t *testing.T) {
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return mockDevices, nil
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 1,
 				AtLeastRate:  100,
 			}
@@ -939,7 +939,7 @@ func TestComponentCheckWithUnknownEventType(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -948,7 +948,7 @@ func TestComponentCheckWithUnknownEventType(t *testing.T) {
 			},
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_1",
 					Port:   1,
 				},
@@ -967,8 +967,8 @@ func TestComponentCheckWithUnknownEventType(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 8,
 				AtLeastRate:  400,
 			}
@@ -1065,8 +1065,8 @@ func TestComponentCheckWithNoEvents(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 8,
 				AtLeastRate:  400,
 			}
@@ -1101,7 +1101,7 @@ func TestComponentCheckWithUnhealthyIBPortsAndEvents(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -1120,8 +1120,8 @@ func TestComponentCheckWithUnhealthyIBPortsAndEvents(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 8,
 				AtLeastRate:  400,
 			}
@@ -1181,7 +1181,7 @@ func TestComponentCheckWithExistingReasonAndEvents(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -1200,8 +1200,8 @@ func TestComponentCheckWithExistingReasonAndEvents(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 8,
 				AtLeastRate:  400,
 			}
@@ -1271,7 +1271,7 @@ func TestComponentCheckWithEmptyReasonAndEvents(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -1280,7 +1280,7 @@ func TestComponentCheckWithEmptyReasonAndEvents(t *testing.T) {
 			},
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_1",
 					Port:   1,
 				},
@@ -1299,8 +1299,8 @@ func TestComponentCheckWithEmptyReasonAndEvents(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 4, // Need 4 ports, will only have 2
 				AtLeastRate:  400,
 			}
@@ -1407,7 +1407,7 @@ func TestComponentCheckWithTrueEmptyReasonAndEvents(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -1416,7 +1416,7 @@ func TestComponentCheckWithTrueEmptyReasonAndEvents(t *testing.T) {
 			},
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_1",
 					Port:   1,
 				},
@@ -1435,8 +1435,8 @@ func TestComponentCheckWithTrueEmptyReasonAndEvents(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 8, // Set high to trigger threshold failure
 				AtLeastRate:  400,
 			}
@@ -1505,7 +1505,7 @@ type testIBPortsStore struct {
 	scanError       error
 }
 
-func (m *testIBPortsStore) Insert(eventTime time.Time, ibPorts []infiniband.IBPort) error {
+func (m *testIBPortsStore) Insert(eventTime time.Time, ibPorts []types.IBPort) error {
 	return m.insertError
 }
 
@@ -1550,8 +1550,8 @@ func TestComponentCheckWithLastEventsError(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 1,
 				AtLeastRate:  400,
 			}
@@ -1609,8 +1609,8 @@ func TestComponentCheckWithNilIBPortsStore(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 1,
 				AtLeastRate:  400,
 			}
@@ -1661,7 +1661,7 @@ func TestComponentCheckWithMultipleEventTypes(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -1670,7 +1670,7 @@ func TestComponentCheckWithMultipleEventTypes(t *testing.T) {
 			},
 			{
 				Time: time.Now().UTC().Add(time.Second),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_1",
 					Port:   1,
 				},
@@ -1690,8 +1690,8 @@ func TestComponentCheckWithMultipleEventTypes(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 4, // Expect 4 ports but only provide 2 with 1 unhealthy
 				AtLeastRate:  400,
 			}
@@ -1774,8 +1774,8 @@ func TestComponentCheckWithEmptyEvents(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 1,
 				AtLeastRate:  400,
 			}
@@ -1832,7 +1832,7 @@ func TestComponentCheckWithEventFindError(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -1852,8 +1852,8 @@ func TestComponentCheckWithEventFindError(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 2, // Expect 2 ports but only provide 1
 				AtLeastRate:  400,
 			}
@@ -1928,7 +1928,7 @@ func TestComponentCheckHealthyPortsWithHistoricalEvents(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC().Add(-time.Hour), // Event from 1 hour ago
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -1937,7 +1937,7 @@ func TestComponentCheckHealthyPortsWithHistoricalEvents(t *testing.T) {
 			},
 			{
 				Time: time.Now().UTC().Add(-30 * time.Minute), // Event from 30 min ago
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_1",
 					Port:   1,
 				},
@@ -1957,8 +1957,8 @@ func TestComponentCheckHealthyPortsWithHistoricalEvents(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 2,   // We have 2 healthy ports
 				AtLeastRate:  400, // Both ports meet this rate
 			}
@@ -2032,7 +2032,7 @@ func TestComponentCheckWithUnknownEventTypeDefaultCase(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC(),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -2052,8 +2052,8 @@ func TestComponentCheckWithUnknownEventTypeDefaultCase(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 1,
 				AtLeastRate:  400,
 			}
@@ -2109,7 +2109,7 @@ func TestComponentCheckDropEventsIgnoredWhenHealthy(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC().Add(-time.Hour),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -2118,7 +2118,7 @@ func TestComponentCheckDropEventsIgnoredWhenHealthy(t *testing.T) {
 			},
 			{
 				Time: time.Now().UTC().Add(-30 * time.Minute),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_1",
 					Port:   1,
 				},
@@ -2138,8 +2138,8 @@ func TestComponentCheckDropEventsIgnoredWhenHealthy(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 2,
 				AtLeastRate:  400,
 			}
@@ -2218,8 +2218,8 @@ func TestComponentCheckThresholdMismatchNoHardwareInspection(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 8, // Require 8 ports
 				AtLeastRate:  400,
 			}
@@ -2329,8 +2329,8 @@ func TestComponentCheckRateMismatchNoHardwareInspection(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 2,
 				AtLeastRate:  400, // Require 400 Gb/s
 			}
@@ -2402,7 +2402,7 @@ func TestComponentCheckDropEventsProcessedWhenUnhealthy(t *testing.T) {
 		events: []infinibandstore.Event{
 			{
 				Time: time.Now().UTC().Add(-time.Hour),
-				Port: infiniband.IBPort{
+				Port: types.IBPort{
 					Device: "mlx5_0",
 					Port:   1,
 				},
@@ -2422,8 +2422,8 @@ func TestComponentCheckDropEventsProcessedWhenUnhealthy(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 2,
 				AtLeastRate:  400,
 			}

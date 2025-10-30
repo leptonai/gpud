@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
 // Store defines the interface for storing IB ports states.
@@ -12,7 +12,7 @@ type Store interface {
 	// The timestamp is the time when the IB ports were queried,
 	// and all ports are inserted with the same timestamp.
 	// Only stores the "Infiniband" link layer ports (not "Ethernet" or "Unknown").
-	Insert(eventTime time.Time, ibPorts []infiniband.IBPort) error
+	Insert(eventTime time.Time, ibPorts []types.IBPort) error
 
 	// SetEventType sets the event id for the given timestamp, device, and port.
 	SetEventType(device string, port uint, timestamp time.Time, eventType string, eventReason string) error

@@ -16,13 +16,13 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
+	infinibandstore "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/store"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
-	infinibandclass "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/class"
-	infinibandstore "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/store"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -50,7 +50,7 @@ type component struct {
 	kmsgSyncer   *kmsg.Syncer
 
 	getTimeNowFunc      func() time.Time
-	getThresholdsFunc   func() infiniband.ExpectedPortStates
+	getThresholdsFunc   func() types.ExpectedPortStates
 	getClassDevicesFunc func() (infinibandclass.Devices, error)
 
 	lastMu          sync.RWMutex
@@ -247,10 +247,10 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	var sysClassIBPorts []infiniband.IBPort
+	var sysClassIBPorts []types.IBPort
 	for _, dev := range cr.ClassDevices {
 		for _, port := range dev.Ports {
-			ibport := infiniband.IBPort{
+			ibport := types.IBPort{
 				Port:          port.Port,
 				Device:        dev.Name,
 				State:         port.State,
@@ -414,7 +414,7 @@ type checkResult struct {
 
 	// current unhealthy ib ports that are problematic
 	// (down/polling/disabled, below expected ib port thresholds)
-	unhealthyIBPorts []infiniband.IBPort `json:"-"`
+	unhealthyIBPorts []types.IBPort `json:"-"`
 
 	// timestamp of the last check
 	ts time.Time

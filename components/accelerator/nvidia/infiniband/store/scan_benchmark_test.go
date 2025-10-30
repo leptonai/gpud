@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
 // BenchmarkScanRealistic benchmarks the event scanning with realistic data patterns
@@ -28,7 +28,7 @@ func BenchmarkScanRealistic(b *testing.B) {
 	for i := 0; i < 100; i++ {
 		eventTime := now.Add(time.Duration(i*30) * time.Second) // Every 30s
 
-		ports := make([]infiniband.IBPort, len(deviceNames))
+		ports := make([]types.IBPort, len(deviceNames))
 		for j, device := range deviceNames {
 			state := "Active"
 			physState := "LinkUp"
@@ -45,7 +45,7 @@ func BenchmarkScanRealistic(b *testing.B) {
 				linkDown += 5
 			}
 
-			ports[j] = infiniband.IBPort{
+			ports[j] = types.IBPort{
 				Device:          device,
 				Port:            1,
 				State:           state,

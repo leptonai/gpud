@@ -7,11 +7,11 @@ import (
 
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
 func (s *Session) processUpdateConfig(configMap map[string]string, resp *Response) {
@@ -26,7 +26,7 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 		switch componentName {
 		case componentsnvidiainfiniband.Name:
 			setComponents[componentName] = struct{}{}
-			var updateCfg infiniband.ExpectedPortStates
+			var updateCfg componentsnvidiainfinibanditypes.ExpectedPortStates
 			if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
 				log.Logger.Warnw("failed to unmarshal infiniband config", "error", err)
 				resp.Error = err.Error()
@@ -92,7 +92,7 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 	// fallback to default if the component is not set
 	if _, ok := setComponents[componentsnvidiainfiniband.Name]; !ok && s.setDefaultIbExpectedPortStatesFunc != nil {
 		log.Logger.Infow("falling back to default empty infiniband config")
-		s.setDefaultIbExpectedPortStatesFunc(infiniband.ExpectedPortStates{})
+		s.setDefaultIbExpectedPortStatesFunc(componentsnvidiainfinibanditypes.ExpectedPortStates{})
 	}
 	if _, ok := setComponents[componentsnvidiagpucounts.Name]; !ok && s.setDefaultGPUCountsFunc != nil {
 		log.Logger.Infow("falling back to default empty nvidia gpu counts config")
