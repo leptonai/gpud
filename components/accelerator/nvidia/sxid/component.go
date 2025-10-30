@@ -473,7 +473,7 @@ func (c *component) updateCurrentState() error {
 	if err != nil {
 		return fmt.Errorf("failed to get all events: %w", err)
 	}
-
+	localEvents = trimEventsAfterSetHealthy(localEvents)
 	events := mergeEvents(rebootEvents, localEvents)
 
 	c.mu.Lock()
@@ -501,4 +501,18 @@ func mergeEvents(a, b eventstore.Events) eventstore.Events {
 	})
 
 	return result
+}
+
+func trimEventsAfterSetHealthy(events eventstore.Events) eventstore.Events {
+	for idx, event := range events {
+		if event.Name == "SetHealthy" {
+			if idx == 0 {
+				return nil
+			}
+			trimmed := make(eventstore.Events, idx)
+			copy(trimmed, events[:idx])
+			return trimmed
+		}
+	}
+	return events
 }
