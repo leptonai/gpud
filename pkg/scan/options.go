@@ -2,7 +2,7 @@ package scan
 
 import (
 	"github.com/leptonai/gpud/components"
-	infinibandclass "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/class"
+	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
 )
 
 type Op struct {

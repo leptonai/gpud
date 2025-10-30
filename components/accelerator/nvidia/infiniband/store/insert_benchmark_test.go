@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
 // BenchmarkInsertRealistic benchmarks realistic InfiniBand port insertion scenarios
@@ -24,7 +24,7 @@ func BenchmarkInsertRealistic(b *testing.B) {
 	deviceNames := []string{"mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7"}
 
 	// Pre-generate realistic port data
-	testPorts := make([]infiniband.IBPort, len(deviceNames))
+	testPorts := make([]types.IBPort, len(deviceNames))
 	for i, device := range deviceNames {
 		// Most ports active with high performance
 		state := "Active"
@@ -47,7 +47,7 @@ func BenchmarkInsertRealistic(b *testing.B) {
 			}
 		}
 
-		testPorts[i] = infiniband.IBPort{
+		testPorts[i] = types.IBPort{
 			Device:          device,
 			Port:            1,
 			State:           state,

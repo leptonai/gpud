@@ -6,39 +6,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-// IBPort is the port of the IB card.
-type IBPort struct {
-	// Device is the name of the IB port (e.g., mlx5_1).
-	Device string `json:"device,omitempty"`
-	// Port is the port number of the IB port (e.g., 1).
-	Port uint `json:"port,omitempty"`
-	// State is the state of the IB port (e.g., "Active", "Down")
-	State string `json:"state,omitempty"`
-	// PhysicalState is the physical state of the IB port (e.g., "LinkUp", "Disabled", "Polling")
-	PhysicalState string `json:"physical_state,omitempty"`
-	// RateGBSec is the rate in GB/s (e.g., 400).
-	RateGBSec int `json:"rate_gb_sec,omitempty"`
-	// LinkLayer is the link layer of the IB port (e.g., "Infiniband", "Ethernet")
-	LinkLayer string `json:"link_layer,omitempty"`
-
-	// TotalLinkDowned from counters/link_downed - Number of times the link has gone down due to error thresholds being exceeded.
-	// A high value indicates link instability and potential hardware or cabling issues.
-	// "Total number of times the Port Training state machine has failed the link error recovery process and downed the link."
-	//
-	// IB port flap when a port is down and back to active for the last 4-minute.
-	// If [IBPort.TotalLinkDowned] increments and the current port state is "Active",
-	// then we mark the port as "flapping"
-	TotalLinkDowned uint64 `json:"total_link_downed"`
-}
-
-func (p IBPort) IsIBPort() bool {
-	return strings.EqualFold(p.LinkLayer, "infiniband")
-}
-
-// checkPortsAndRate returns all [IBPort]s that match the expected thresholds.
+// checkPortsAndRate returns all [types.IBPort]s that match the expected thresholds.
 // The specified rate is the threshold for "Port 1"."Rate", where it evaluates with ">=" operator
 // (e.g., count all the cards whose rate is >= 400).
 //
@@ -46,7 +18,7 @@ func (p IBPort) IsIBPort() bool {
 // If the `expectedPhysicalState` are multiple states, it matches all states with OR operator.
 // If the `expectedState` is empty, it matches all states.
 // If the `atLeastRate` is 0, it ignores the rate check.
-func checkPortsAndRate(ports []IBPort, expectedPhysicalStates []string, atLeastRate int) (matched []IBPort) {
+func checkPortsAndRate(ports []types.IBPort, expectedPhysicalStates []string, atLeastRate int) (matched []types.IBPort) {
 	expStates := make(map[string]struct{})
 	for _, s := range expectedPhysicalStates {
 		expStates[s] = struct{}{}
@@ -85,7 +57,7 @@ func checkPortsAndRate(ports []IBPort, expectedPhysicalStates []string, atLeastR
 //
 // It returns an error, if and only if the number of active IB ports that are >= atLeastRate
 // is less than the expected number of ports (lower than the thresholds).
-func EvaluatePortsAndRate(allPorts []IBPort, atLeastPorts int, atLeastRate int) ([]IBPort, error) {
+func EvaluatePortsAndRate(allPorts []types.IBPort, atLeastPorts int, atLeastRate int) ([]types.IBPort, error) {
 	if atLeastPorts == 0 && atLeastRate == 0 {
 		return nil, nil
 	}

@@ -10,9 +10,9 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 // The timestamp is the time when the IB ports were queried,
 // and all ports are inserted with the same timestamp.
 // Only stores the "Infiniband" link layer ports (not "Ethernet" or "Unknown").
-func (s *ibPortsStore) Insert(eventTime time.Time, ibPorts []infiniband.IBPort) error {
+func (s *ibPortsStore) Insert(eventTime time.Time, ibPorts []types.IBPort) error {
 	lastTimestamp := s.getLastInsertTimestamp()
 
 	// Read configuration fields under mutex to avoid race conditions

@@ -20,13 +20,13 @@ import (
 	gpudcomponents "github.com/leptonai/gpud/components"
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
@@ -79,7 +79,7 @@ func Command(cliContext *cli.Context) error {
 	}
 
 	if len(infinibandExpectedPortStates) > 0 {
-		var expectedPortStates infiniband.ExpectedPortStates
+		var expectedPortStates componentsnvidiainfinibanditypes.ExpectedPortStates
 		if err := json.Unmarshal([]byte(infinibandExpectedPortStates), &expectedPortStates); err != nil {
 			return err
 		}

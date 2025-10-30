@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
-	infinibandclass "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/class"
+	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
 // TestCheckWithEmptyIbportsToEvaluate tests Check when ibportsToEvaluate ends up empty after processing ClassDevices
@@ -43,8 +43,8 @@ func TestCheckWithEmptyIbportsToEvaluate(t *testing.T) {
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
 			return mockDevices, nil
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
-			return infiniband.ExpectedPortStates{
+		getThresholdsFunc: func() types.ExpectedPortStates {
+			return types.ExpectedPortStates{
 				AtLeastPorts: 1,
 				AtLeastRate:  200,
 			}
@@ -64,8 +64,8 @@ func TestEvaluateHealthStateWithThresholdsComprehensive(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		thresholds        infiniband.ExpectedPortStates
-		ibports           []infiniband.IBPort
+		thresholds        types.ExpectedPortStates
+		ibports           []types.IBPort
 		expectedHealth    apiv1.HealthStateType
 		expectedReason    string
 		shouldHaveActions bool
@@ -73,22 +73,22 @@ func TestEvaluateHealthStateWithThresholdsComprehensive(t *testing.T) {
 	}{
 		{
 			name:           "zero thresholds should return healthy with no threshold reason",
-			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 0},
-			ibports:        []infiniband.IBPort{},
+			thresholds:     types.ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 0},
+			ibports:        []types.IBPort{},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedReason: reasonNoThreshold,
 		},
 		{
 			name:           "empty ibports should return healthy with no data reason",
-			thresholds:     infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
-			ibports:        []infiniband.IBPort{},
+			thresholds:     types.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			ibports:        []types.IBPort{},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedReason: reasonNoIbPortData,
 		},
 		{
 			name:       "healthy ports meeting thresholds",
-			thresholds: infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 200},
-			ibports: []infiniband.IBPort{
+			thresholds: types.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 200},
+			ibports: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
 				{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
 			},
@@ -97,8 +97,8 @@ func TestEvaluateHealthStateWithThresholdsComprehensive(t *testing.T) {
 		},
 		{
 			name:       "insufficient ports should NOT suggest hardware inspection",
-			thresholds: infiniband.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 200},
-			ibports: []infiniband.IBPort{
+			thresholds: types.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 200},
+			ibports: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
 				{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
 			},
@@ -108,8 +108,8 @@ func TestEvaluateHealthStateWithThresholdsComprehensive(t *testing.T) {
 		},
 		{
 			name:       "insufficient rate should NOT suggest hardware inspection",
-			thresholds: infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400},
-			ibports: []infiniband.IBPort{
+			thresholds: types.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400},
+			ibports: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
 				{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
 			},
@@ -119,8 +119,8 @@ func TestEvaluateHealthStateWithThresholdsComprehensive(t *testing.T) {
 		},
 		{
 			name:       "disabled ports should NOT suggest hardware inspection",
-			thresholds: infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 200},
-			ibports: []infiniband.IBPort{
+			thresholds: types.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 200},
+			ibports: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
 				{Device: "mlx5_1", State: "Down", PhysicalState: "Disabled", RateGBSec: 0, LinkLayer: "Infiniband"},
 			},
