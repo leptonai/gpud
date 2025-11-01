@@ -2,8 +2,13 @@
 package up
 
 import (
+	"bufio"
+	"context"
 	"fmt"
+	"io"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/urfave/cli"
 
@@ -13,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/pkg/osutil"
 	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
+	pkgvalidation "github.com/leptonai/gpud/pkg/validation"
 )
 
 func Command(cliContext *cli.Context) (retErr error) {
@@ -30,9 +36,39 @@ func Command(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
+	token := cliContext.String("token")
+
+	if token != "" {
+		log.Logger.Debugw("token provided, validating minimum platform resources")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		requirements, err := pkgvalidation.MinimumResourceCheck(ctx)
+		if err != nil {
+			log.Logger.Warnw("failed to fetch platform resource information", "error", err)
+		} else if !requirements.MeetsMinimum() {
+			log.Logger.Warnw("minimum resource requirements not satisfied",
+				"observed_logical_cpu_cores", requirements.LogicalCPUCores,
+				"minimum_logical_cpu_cores", requirements.MinimumCPUCores,
+				"observed_memory_bytes", requirements.TotalMemoryBytes,
+				"observed_memory_humanized", requirements.FormatMemoryHumanized(),
+				"minimum_memory_bytes", requirements.MinimumMemory,
+				"minimum_memory_humanized", requirements.FormatMinimumMemoryHumanized(),
+			)
+
+			shouldContinue, promptErr := promptMinimumRequirementOverride(requirements)
+			if promptErr != nil {
+				return promptErr
+			}
+			if !shouldContinue {
+				return fmt.Errorf("aborted by user due to insufficient platform resources")
+			}
+		}
+	}
+
 	// step 1.
 	// perform "login" if and only if configured
-	if cliContext.String("token") != "" {
+	if token != "" {
 		log.Logger.Debugw("non-empty --token provided, logging in")
 		if lerr := cmdlogin.Command(cliContext); lerr != nil {
 			return lerr
@@ -90,4 +126,33 @@ func systemdInit(endpoint string) error {
 	}
 	systemdUnitFileData := systemd.GPUdServiceUnitFileContents()
 	return os.WriteFile(systemd.DefaultUnitFile, []byte(systemdUnitFileData), 0644)
+}
+
+func promptMinimumRequirementOverride(requirements pkgvalidation.PlatformRequirements) (bool, error) {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Printf(`
+This host currently reports %d logical CPU cores and %s of memory.
+Joining it to the Lepton platform installs kubelet and other system components that expect at least %d logical CPU cores and %s of memory.
+Continuing with fewer resources is likely to leave kubelet stuck restarting.
+Do you want to continue anyway? [y/N]: `,
+		requirements.LogicalCPUCores,
+		requirements.FormatMemoryHumanized(),
+		requirements.MinimumCPUCores,
+		requirements.FormatMinimumMemoryHumanized(),
+	)
+
+	response, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false, fmt.Errorf("failed to read confirmation input: %w", err)
+	}
+
+	response = strings.TrimSpace(strings.ToLower(response))
+	if response == "y" || response == "yes" {
+		fmt.Println("continuing despite not meeting the minimum platform requirements")
+		return true, nil
+	}
+
+	fmt.Println("aborting gpud up; please ensure the host satisfies the minimum requirements and retry")
+	return false, nil
 }
