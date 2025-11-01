@@ -153,6 +153,6 @@ Do you want to continue anyway? [y/N]: `,
 		return true, nil
 	}
 
-	fmt.Println("cancelling gpud up; please ensure the host satisfies the minimum requirements and retry")
+	fmt.Println("aborting gpud up; please ensure the host satisfies the minimum requirements and retry")
 	return false, nil
 }
