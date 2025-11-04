@@ -109,9 +109,48 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
 
           command:
-            {{- toYaml .Values.gpud.command | nindent 12 }}
-          args:
-            {{- toYaml .Values.gpud.args | nindent 12 }}
+            - /bin/sh
+            - -ec
+            - |
+              set -o errexit
+              set -o nounset
+              set -o pipefail
+
+              # Base command and args defined explicitly here
+              BASE_CMD="gpud"
+              BASE_ARGS="run --listen-address=0.0.0.0:15132 --log-level=info --endpoint=gpud-manager-prod01.dgxc-lepton.nvidia.com --enable-auto-update=false --auto-update-exit-code=0"
+
+              # Node label file (if nodeLabelExporter sidecar is enabled)
+              LABEL_FILE="{{ .Values.nodeLabelExporter.outputFile }}"
+
+              # Label keys (can be overridden via env)
+              EP_LABEL_KEY="${GPUD_ENDPOINT_LABEL_KEY:-gpud.lepton.ai/endpoint}"
+              MID_LABEL_KEY="${GPUD_MACHINE_ID_LABEL_KEY:-gpud.lepton.ai/machine-id}"
+              TOKEN_LABEL_KEY="${GPUD_TOKEN_LABEL_KEY:-gpud.lepton.ai/token}"
+
+              EP=""
+              MID=""
+              TOKEN=""
+              if [ -f "$LABEL_FILE" ]; then
+                EP="$(grep -m1 -E "^${EP_LABEL_KEY}=" "$LABEL_FILE" | sed -e 's/^[^=]*=//')"
+                MID="$(grep -m1 -E "^${MID_LABEL_KEY}=" "$LABEL_FILE" | sed -e 's/^[^=]*=//')"
+                TOKEN="$(grep -m1 -E "^${TOKEN_LABEL_KEY}=" "$LABEL_FILE" | sed -e 's/^[^=]*=//')"
+              fi
+
+              # Append overrides so they take precedence over any existing flags
+              FINAL_ARGS="$BASE_ARGS"
+              if [ -n "$EP" ]; then
+                FINAL_ARGS="$FINAL_ARGS --endpoint=$EP"
+              fi
+              if [ -n "$MID" ]; then
+                FINAL_ARGS="$FINAL_ARGS --machine-id=$MID"
+              fi
+              if [ -n "$TOKEN" ]; then
+                FINAL_ARGS="$FINAL_ARGS --token=$TOKEN"
+              fi
+
+              echo "Starting: $BASE_CMD $FINAL_ARGS"
+              exec $BASE_CMD $FINAL_ARGS
 
           env:
             - name: GPUD_NO_USAGE_STATS
@@ -151,3 +190,46 @@ spec:
           {{- if .Values.extraVolumeMounts }}
           {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
           {{- end }}
+        {{- if .Values.nodeLabelExporter.enabled }}
+        - name: node-label-exporter
+          image: "{{ .Values.nodeLabelExporter.image.repository }}:{{ .Values.nodeLabelExporter.image.tag }}"
+          imagePullPolicy: {{ .Values.nodeLabelExporter.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              set -o errexit
+              set -o nounset
+              set -o pipefail
+
+              tmp_file="${OUTPUT_FILE}.tmp"
+              mkdir -p "$(dirname "${OUTPUT_FILE}")"
+
+              while true; do
+                if kubectl get node "${NODE_NAME}" \
+                  -o jsonpath='{range $k,$v := .metadata.labels}{printf "%s=%s\\n" $k $v}{end}' \
+                  > "${tmp_file}"; then
+                  mv "${tmp_file}" "${OUTPUT_FILE}"
+                else
+                  rm -f "${tmp_file}"
+                fi
+                sleep "${UPDATE_INTERVAL}"
+              done
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: OUTPUT_FILE
+              value: {{ .Values.nodeLabelExporter.outputFile | quote }}
+            - name: UPDATE_INTERVAL
+              value: {{ int .Values.nodeLabelExporter.updateIntervalSeconds | quote }}
+          {{- with .Values.nodeLabelExporter.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: lib-gpud
+              mountPath: /var/lib/gpud
+          resources:
+            {{- toYaml .Values.nodeLabelExporter.resources | nindent 12 }}
+        {{- end }}

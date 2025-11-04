@@ -8,23 +8,13 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  repository: gpud
+  repository: nvcr.io/dgx-cloud-lepton/gpud
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "v0.8.0-rc.29"
 
-# Application-specific arguments for the GPUd container.
+# Application-specific settings for the GPUd container.
 gpud:
-  command:
-  - "gpud"
-  args:
-    - "run"
-    - "--listen-address=0.0.0.0:15132"
-    - "--log-level=info"
-    - "--endpoint=gpud-manager-prod01.dgxc-lepton.nvidia.com"
-    - "--enable-auto-update=false"
-    - "--auto-update-exit-code=0"
-    # - "--gpu-count=8"
   # Telemetry and usage data collection settings.
   telemetry:
     # Set to false to disable collection of anonymous usage data.
@@ -108,6 +98,30 @@ extraVolumes: []
 
 # Extra volume mounts for the pod.
 extraVolumeMounts: []
+
+# Helper sidecar that syncs Kubernetes node labels into a host-mounted file
+# for consumption by gpud or other host-level processes.
+nodeLabelExporter:
+  enabled: false
+  image:
+    repository: registry.k8s.io/kubectl
+    tag: v1.31.1
+    pullPolicy: IfNotPresent
+  # File written on the host (via the shared /var/lib/gpud volume).
+  outputFile: /var/lib/gpud/node-labels.env
+  # Interval in seconds between syncs.
+  updateIntervalSeconds: 60
+  # Extra environment variables for the exporter container.
+  extraEnv: []
+  rbac:
+    create: true
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 5m
+      memory: 16Mi
 
 # [Init containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/) to add to the pod definition.
 initContainers: []
