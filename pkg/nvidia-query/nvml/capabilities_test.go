@@ -214,8 +214,63 @@ func TestSupportFabricStateByGPUProduct(t *testing.T) {
 			expected:       true,
 		},
 		{
-			name:           "Non GB200",
+			name:           "H100 supports",
 			gpuProductName: "NVIDIA H100",
+			expected:       true,
+		},
+		{
+			name:           "H100 lowercase supports",
+			gpuProductName: "nvidia h100 80gb hbm3",
+			expected:       true,
+		},
+		{
+			name:           "H100 with SXM suffix",
+			gpuProductName: "NVIDIA H100-SXM",
+			expected:       true,
+		},
+		{
+			name:           "H100 PCIe variant",
+			gpuProductName: "NVIDIA H100 PCIe",
+			expected:       true,
+		},
+		{
+			name:           "H100 NVL variant",
+			gpuProductName: "NVIDIA H100 NVL",
+			expected:       true,
+		},
+		{
+			name:           "H200 supports fabric state",
+			gpuProductName: "NVIDIA H200",
+			expected:       true,
+		},
+		{
+			name:           "H200 with memory size",
+			gpuProductName: "NVIDIA H200 141GB HBM3e",
+			expected:       true,
+		},
+		{
+			name:           "H200 lowercase",
+			gpuProductName: "nvidia h200",
+			expected:       true,
+		},
+		{
+			name:           "A100 does not support fabric state",
+			gpuProductName: "NVIDIA A100",
+			expected:       false,
+		},
+		{
+			name:           "A10 does not support fabric state",
+			gpuProductName: "NVIDIA A10",
+			expected:       false,
+		},
+		{
+			name:           "V100 does not support fabric state",
+			gpuProductName: "NVIDIA V100",
+			expected:       false,
+		},
+		{
+			name:           "Empty string",
+			gpuProductName: "",
 			expected:       false,
 		},
 	}
