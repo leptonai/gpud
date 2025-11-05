@@ -139,9 +139,9 @@ func (c *component) Check() components.CheckResult {
 			cr.reason = "error getting utilization"
 
 			if errors.Is(err, nvidianvml.ErrGPURequiresReset) {
-				cr.reason = "GPU requires reset, please reboot the machine"
+				cr.reason = "GPU requires reset"
 				cr.suggestedActions = &apiv1.SuggestedActions{
-					Description: "GPU requires reset, please reboot the machine",
+					Description: "GPU requires reset",
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeRebootSystem,
 					},

@@ -750,9 +750,9 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	require.NotNil(t, data)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
-	assert.Equal(t, "GPU requires reset, please reboot the machine", data.reason)
+	assert.Equal(t, "GPU requires reset", data.reason)
 	if assert.NotNil(t, data.suggestedActions) {
-		assert.Equal(t, "GPU requires reset, please reboot the machine", data.suggestedActions.Description)
+		assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
 		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 	}
 
