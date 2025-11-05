@@ -571,6 +571,31 @@ func TestDataString(t *testing.T) {
 			},
 			shouldMatch: []string{"unknown", "20123", "PCI:0000:05:00.0", "false"},
 		},
+		{
+			name: "data with nil SuggestedActionsByGPUd",
+			data: &checkResult{
+				FoundErrors: []FoundError{
+					{
+						Kmsg: kmsg.Message{
+							Message:   "nvidia-nvswitch1: SXid (PCI:0000:0a:00.0): 22013, Non-fatal, Link 57 Minion Link DLREQ interrupt",
+							Timestamp: metav1.Time{Time: time.Now()},
+						},
+						SXidError: SXidError{
+							SXid:       22013,
+							DeviceUUID: "PCI:0000:0a:00.0",
+							Detail: &Detail{
+								Name:                   "Minion Link DLREQ interrupt",
+								SuggestedActionsByGPUd: nil, // This should not cause a panic (issue #1129)
+								EventType:              apiv1.EventTypeCritical,
+							},
+						},
+					},
+				},
+				health: apiv1.HealthStateTypeUnhealthy,
+				reason: "found 1 error with nil suggested actions",
+			},
+			shouldMatch: []string{"Minion Link DLREQ interrupt", "22013", "PCI:0000:0a:00.0", "unknown"},
+		},
 	}
 
 	for _, tt := range tests {
