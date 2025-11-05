@@ -42,6 +42,9 @@ func GetECCModeEnabled(uuid string, dev device.Device) (ECCMode, error) {
 	if IsGPULostError(ret) {
 		return result, ErrGPULost
 	}
+	if IsGPURequiresReset(ret) {
+		return result, ErrGPURequiresReset
+	}
 	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
 		return result, fmt.Errorf("failed to get current/pending ecc mode: %s", nvml.ErrorString(ret))

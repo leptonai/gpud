@@ -634,3 +634,41 @@ func TestIsNoSuchFileOrDirectoryError(t *testing.T) {
 		})
 	}
 }
+
+// TestIsGPURequiresReset verifies detection of the NVML error string "GPU requires reset".
+func TestIsGPURequiresReset(t *testing.T) {
+	// Save and restore original ErrorString
+	originalErrorString := nvml.ErrorString
+	defer func() { nvml.ErrorString = originalErrorString }()
+
+	// Override to simulate various returns
+	nvml.ErrorString = func(ret nvml.Return) string {
+		switch ret {
+		case nvml.Return(2000):
+			return "GPU requires reset"
+		case nvml.Return(2001):
+			return "gpu REQUIRES reset" // different casing
+		case nvml.Return(2002):
+			return "some other error"
+		default:
+			return originalErrorString(ret)
+		}
+	}
+
+	tests := []struct {
+		name     string
+		ret      nvml.Return
+		expected bool
+	}{
+		{name: "exact match", ret: nvml.Return(2000), expected: true},
+		{name: "case-insensitive match", ret: nvml.Return(2001), expected: true},
+		{name: "no match", ret: nvml.Return(2002), expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsGPURequiresReset(tt.ret)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}

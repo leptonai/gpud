@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -136,6 +137,17 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting utilization"
+
+			if errors.Is(err, nvidianvml.ErrGPURequiresReset) {
+				cr.reason = "GPU requires reset, please reboot the machine"
+				cr.suggestedActions = &apiv1.SuggestedActions{
+					Description: "GPU requires reset, please reboot the machine",
+					RepairActions: []apiv1.RepairActionType{
+						apiv1.RepairActionTypeRebootSystem,
+					},
+				}
+			}
+
 			log.Logger.Warnw(cr.reason, "error", err)
 			return cr
 		}
@@ -163,6 +175,8 @@ type checkResult struct {
 
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
+	// tracks the suggested actions for the last check
+	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
 }
@@ -238,6 +252,11 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Reason:    cr.reason,
 		Error:     cr.getError(),
 		Health:    cr.health,
+	}
+
+	// propagate suggested actions to health state if present
+	if cr.suggestedActions != nil {
+		state.SuggestedActions = cr.suggestedActions
 	}
 
 	if len(cr.Utilizations) > 0 {

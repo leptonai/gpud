@@ -13,6 +13,9 @@ var (
 	// Also manifested as Xid 79 (GPU has fallen off the bus).
 	// ref. https://github.com/leptonai/gpud/issues/604
 	ErrGPULost = errors.New("gpu lost")
+	// ErrGPURequiresReset is an error that indicates the GPU requires reset.
+	// This typically appears when NVML reports "GPU requires reset".
+	ErrGPURequiresReset = errors.New("gpu requires reset")
 )
 
 // IsVersionMismatchError returns true if the error indicates a version mismatch.
@@ -77,6 +80,13 @@ func IsGPULostError(ret nvml.Return) bool {
 
 	e := normalizeNVMLReturnString(ret)
 	return strings.Contains(e, "gpu lost") || strings.Contains(e, "gpu is lost") || strings.Contains(e, "gpu_is_lost")
+}
+
+// IsGPURequiresReset returns true if nvml.ErrorString(ret) indicates that the GPU requires reset.
+// e.g., "GPU requires reset".
+func IsGPURequiresReset(ret nvml.Return) bool {
+	e := normalizeNVMLReturnString(ret)
+	return strings.Contains(e, "gpu requires reset")
 }
 
 // normalizeNVMLReturnString normalizes an NVML return to a string.
