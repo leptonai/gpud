@@ -735,6 +735,27 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 	// "unexpected end of JSON input"
 	prevFailed := false
 	for i := 0; i < 5; i++ {
+		// Check if context is canceled before attempting retries
+		if i > 0 {
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+
+				if cr.reason == "ok" {
+					cr.reason = ""
+				}
+				if cr.reason != "" {
+					cr.reason += "; "
+				}
+				cr.reason += "failed to get ext4 partitions -- took too long"
+
+				log.Logger.Warnw("failed to get ext4 partitions -- took too long", "error", c.ctx.Err())
+				return false
+			default:
+			}
+		}
+
 		parts, err := c.getExt4PartitionsFunc(c.ctx) // "getExt4PartitionsFunc" itself already sets its own timeout
 		if err != nil {
 			select {
@@ -773,6 +794,27 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 	prevFailed := false
 	for i := 0; i < 5; i++ {
+		// Check if context is canceled before attempting retries
+		if i > 0 {
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+
+				if cr.reason == "ok" {
+					cr.reason = ""
+				}
+				if cr.reason != "" {
+					cr.reason += "; "
+				}
+				cr.reason += "failed to get nfs partitions -- took too long"
+
+				log.Logger.Warnw("failed to get nfs partitions -- took too long", "error", c.ctx.Err())
+				return false
+			default:
+			}
+		}
+
 		parts, err := c.getNFSPartitionsFunc(c.ctx) // "getNFSPartitionsFunc" itself already sets its own timeout
 		if err != nil {
 			select {
