@@ -33,6 +33,7 @@ import (
 	componentslibrary "github.com/leptonai/gpud/components/library"
 	componentsmemory "github.com/leptonai/gpud/components/memory"
 	componentsnetworklatency "github.com/leptonai/gpud/components/network/latency"
+	componentsnetworknetstat "github.com/leptonai/gpud/components/network/netstat"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	componentsos "github.com/leptonai/gpud/components/os"
 	componentspci "github.com/leptonai/gpud/components/pci"
@@ -78,6 +79,7 @@ var componentInits = []Component{
 	{Name: componentslibrary.Name, InitFunc: componentslibrary.New},
 	{Name: componentsmemory.Name, InitFunc: componentsmemory.New},
 	{Name: componentsnetworklatency.Name, InitFunc: componentsnetworklatency.New},
+	{Name: componentsnetworknetstat.Name, InitFunc: componentsnetworknetstat.New},
 	{Name: componentsnfs.Name, InitFunc: componentsnfs.New},
 	{Name: componentsos.Name, InitFunc: componentsos.New},
 	{Name: componentspci.Name, InitFunc: componentspci.New},

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -39,6 +41,42 @@ func createTestComponent() *component {
 			return checker.Clean()
 		},
 	}
+}
+
+func resetRPCRetransmissionsMetric() {
+	metricRPCRetransmissionsTotal.Reset()
+}
+
+func TestCheckCollectsRPCRetransmissionsMetric(t *testing.T) {
+	resetRPCRetransmissionsMetric()
+
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{}
+	}
+	c.getRPCRetransmissions = func() (uint64, error) {
+		return 88, nil
+	}
+
+	result := c.Check()
+	assert.Equal(t, "no nfs group configs found", result.Summary())
+	assert.InDelta(t, 88, testutil.ToFloat64(metricRPCRetransmissionsTotal.With(prometheus.Labels{})), 0.001)
+}
+
+func TestCheckCollectsRPCRetransmissionsMetricError(t *testing.T) {
+	resetRPCRetransmissionsMetric()
+
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{}
+	}
+	c.getRPCRetransmissions = func() (uint64, error) {
+		return 0, errors.New("rpc stats not available")
+	}
+
+	result := c.Check()
+	assert.Equal(t, "no nfs group configs found", result.Summary())
+	assert.InDelta(t, 0, testutil.ToFloat64(metricRPCRetransmissionsTotal.With(prometheus.Labels{})), 0.001)
 }
 
 func TestNewComponent(t *testing.T) {

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -95,6 +97,37 @@ type MockKmsgSyncer struct {
 func (m *MockKmsgSyncer) Close() error {
 	args := m.Called()
 	return args.Error(0)
+}
+
+func resetIOPressureMetric() {
+	metricPressureIOFullSecondsTotal.Reset()
+}
+
+func TestCollectIOPressureMetricSuccess(t *testing.T) {
+	t.Parallel()
+	resetIOPressureMetric()
+
+	c := &component{
+		getIOPressureFullSeconds: func() (float64, error) {
+			return 12.5, nil
+		},
+	}
+
+	c.collectIOPressureMetric()
+	assert.InDelta(t, 12.5, testutil.ToFloat64(metricPressureIOFullSecondsTotal.With(prometheus.Labels{})), 0.001)
+}
+
+func TestCollectIOPressureMetricError(t *testing.T) {
+	resetIOPressureMetric()
+
+	c := &component{
+		getIOPressureFullSeconds: func() (float64, error) {
+			return 0, errors.New("psi unavailable")
+		},
+	}
+
+	c.collectIOPressureMetric()
+	assert.InDelta(t, 0, testutil.ToFloat64(metricPressureIOFullSecondsTotal.With(prometheus.Labels{})), 0.001)
 }
 
 // createTestComponent creates a test component with the given mount points and targets

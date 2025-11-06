@@ -58,6 +58,8 @@ type component struct {
 
 	mountPointsToTrackUsage map[string]struct{}
 
+	getIOPressureFullSeconds func() (float64, error)
+
 	// freeSpaceThresholdBytesDegraded is the threshold for the free space in bytes
 	// when the system is considered degraded.
 	// Default is 500MB.
@@ -119,6 +121,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		// Initialize file operation function field with real implementation
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
+
+		getIOPressureFullSeconds: readIOPressureFullSeconds,
 
 		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 	}
@@ -238,6 +242,10 @@ func (c *component) Check() components.CheckResult {
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "ok",
 	}
+
+	// Experimental IO pressure metric; failure should not affect disk health.
+	c.collectIOPressureMetric()
+
 	defer func() {
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
@@ -798,6 +806,21 @@ func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 		break
 	}
 	return true
+}
+
+func (c *component) collectIOPressureMetric() {
+	if c.getIOPressureFullSeconds == nil {
+		return
+	}
+
+	value, err := c.getIOPressureFullSeconds()
+	if err != nil {
+		// Experimental metric: warn and continue without affecting component health.
+		log.Logger.Warnw("failed to collect io pressure metric (experimental; health unaffected)", "error", err)
+		return
+	}
+
+	recordIOPressureFullSeconds(value)
 }
 
 var _ components.CheckResult = &checkResult{}
