@@ -180,7 +180,6 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 13 is a potential hw/driver/user app/system memory corruption/bus/thermal issue/fb corruption.
-			// "NVIDIA Xid 13: GR: SW Notify Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-13-gr-sw-notify-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
@@ -444,7 +443,7 @@ var details = map[int]Detail{
 			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
-			// Xid 34 indicates GPU semaphore access error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
+			// Xid 30 indicates GPU semaphore access error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -460,7 +459,6 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 31 as a user application issue, but can also be driver bugs or hardware issues.
 			// This event is logged when MMU reports a fault when an illegal address access is made by an application unit on the chip.
-			// "NVIDIA Xid 31: FIFO: MMU Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-31-fifo-mmu-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -512,7 +510,6 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 32 is a DMA controller error which manages the communication between the NVIDIA driver and GPU over the PCI-E bus.
 			// Which indicates the PCI quality issues, not the user application issues.
-			// "NVIDIA Xid 32: PBDMA Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-32-pbdma-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -742,7 +739,6 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 43 as a user application hitting a software induced faults.
-			// "NVIDIA Xid 43: Reset Channel Verif Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-43-reset-channel-verif-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -841,7 +837,6 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 45 is returned when the kernel driver terminates a GPU application, as a result of a user of system action.
-			// "NVIDIA Xid 45: OS: Preemptive Channel Removal", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-45-os-preemptive-channel-removal (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -933,7 +928,6 @@ var details = map[int]Detail{
 		Description: "Double Bit ECC Error",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 48 indicates uncorrectable double bit errors (DBE), recommending GPU reset or system reboot.
-			// "NVIDIA Xid 48: DBE (Double Bit Error) ECC Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -1215,7 +1209,6 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 63 indicates ECC page retirement recording event for legacy GPUs or row-remapping recording event for A100.
-			// "NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -1273,7 +1266,6 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 64 indicates ECC page retirement recording failure or row-remapping recording failure.
-			// "NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -1507,7 +1499,6 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 74 indicates a connection problem between GPUs, or NVSwitch over NVLink.
 			// GPU reset or system reboot is needed to clear the error.
-			// "NVIDIA Xid 74: NVLink Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-74-nvlink-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -1604,7 +1595,6 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 79 indicates GPUs not being accessible, due to the PCI express connection failures.
-			// "NVIDIA Xid 79: GPU has fallen off the bus", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-79-gpu-has-fallen-off-the-bus (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -1832,7 +1822,6 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 94 indicates a contained ECC error, successfully suppressed.
-			// "NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 
@@ -1888,7 +1877,6 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-			// "NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 
@@ -2160,7 +2148,6 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 119 indicates GSP module failures to respond to RPC messages,
 			// recommending GPU reset or node power cycle if the issue persists.
-			// "Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -2212,7 +2199,6 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 120 indicates GSP module failures to respond to RPC messages,
 			// recommending GPU reset or node power cycle if the issue persists.
-			// "Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -2264,7 +2250,6 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 121 indicates corrected errors on the C2C NVLink connection to a Grace CPU, with no operational impact,
 			// recommending the GPU reset to retrain the link.
-			// "NVIDIA Xid 121: C2C Link corrected error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-121-c2c-link-corrected-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -2481,7 +2466,6 @@ var details = map[int]Detail{
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 137 indicates a user application error, recommending cuda-memcheck or CUDA-GDB for debugging.
-			// "NVIDIA Xid 137: NVLink FLA privilege error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-137-nvlink-fla-privilege-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -2550,7 +2534,6 @@ var details = map[int]Detail{
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 140 indicates uncorrectable GPU memory errors, which may impact the dynamic page offlining or row remapping,
 			// recommending GPU reset if the issue persists.
-			// "NVIDIA Xid 140: ECC unrecovered error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-140-ecc-unrecovered-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
