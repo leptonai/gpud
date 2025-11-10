@@ -548,9 +548,9 @@ func TestIsGPULostError(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "message contains 'gpu lost'",
+			name:     "message contains 'GPU lost'",
 			ret:      nvml.Return(9999), // custom error code
-			message:  "the gpu lost error occurred",
+			message:  "the GPU lost error occurred",
 			expected: true,
 		},
 		{
@@ -647,7 +647,7 @@ func TestIsGPURequiresReset(t *testing.T) {
 		case nvml.Return(2000):
 			return "GPU requires reset"
 		case nvml.Return(2001):
-			return "gpu REQUIRES reset" // different casing
+			return "GPU REQUIRES reset" // different casing
 		case nvml.Return(2002):
 			return "some other error"
 		default:

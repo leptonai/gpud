@@ -73,7 +73,7 @@ func TestGetGSPFirmwareMode(t *testing.T) {
 			gspSupported:          false,
 			gspFirmwareRet:        nvml.ERROR_GPU_IS_LOST,
 			expectError:           true,
-			expectedErrorContains: "gpu lost",
+			expectedErrorContains: "GPU lost",
 		},
 	}
 
