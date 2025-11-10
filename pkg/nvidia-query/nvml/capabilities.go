@@ -61,11 +61,25 @@ func SupportedFMByGPUProduct(gpuProductName string) bool {
 }
 
 // SupportFabricStateByGPUProduct reports whether the GPU surface exposes NVML
-// fabric state telemetry (nvmlDeviceGetGpuFabricInfo*) rather than the
-// traditional nv-fabricmanager control plane. Today this is limited to GB200
-// systems that ship NVOS-managed fabrics.
+// fabric state telemetry (nvmlDeviceGetGpuFabricInfo*). This is available on
+// Hopper + NVSwitch systems (e.g., H100, H200) where GPUs are registered with NVIDIA
+// Fabric Manager, as well as on newer NVOS-managed systems like GB200.
+//
+// The nvmlDeviceGetGpuFabricInfo API is specifically designed for Hopper architecture GPUs
+// with NVSwitch, allowing monitoring of GPU registration status with the NVLink fabric.
+// GPU fabric registration status is exposed through the NVML APIs and nvidia-smi.
+//
+// References:
+//   - NVML API: https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html
+//     "On Hopper + NVSwitch systems, GPU is registered with the NVIDIA Fabric Manager.
+//     This API reports the current state of the GPU in the NVLink fabric."
+//   - Fabric Manager Guide: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
+//     Documents H100/H200 fabric state monitoring and registration process
 func SupportFabricStateByGPUProduct(gpuProductName string) bool {
-	return strings.Contains(strings.ToLower(gpuProductName), "gb200")
+	p := strings.ToLower(gpuProductName)
+	return strings.Contains(p, "gb200") ||
+		strings.Contains(p, "h100") ||
+		strings.Contains(p, "h200")
 }
 
 // SupportedMemoryMgmtCapsByGPUProduct returns the GPU memory error management capabilities
