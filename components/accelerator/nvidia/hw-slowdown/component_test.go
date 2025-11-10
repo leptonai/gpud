@@ -1253,7 +1253,7 @@ func TestCheckEdgeCases(t *testing.T) {
 			expectReason:  "error getting clock events",
 		},
 		{
-			name: "gpu lost error when getting clock events supported",
+			name: "GPU lost error when getting clock events supported",
 			nvmlInstance: &mockNVMLInstance{
 				nvmlExists:  true,
 				productName: "Test GPU",
@@ -1284,7 +1284,7 @@ func TestCheckEdgeCases(t *testing.T) {
 			expectReason:  "error getting clock events supported",
 		},
 		{
-			name: "gpu lost error when getting clock events",
+			name: "GPU lost error when getting clock events",
 			nvmlInstance: &mockNVMLInstance{
 				nvmlExists:  true,
 				productName: "Test GPU",

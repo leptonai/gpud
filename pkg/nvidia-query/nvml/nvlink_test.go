@@ -194,7 +194,7 @@ func TestGetNVLink(t *testing.T) {
 			expectedSupported:     false,
 			expectedStatesCount:   0,
 			expectError:           true,
-			expectedErrorContains: "gpu lost",
+			expectedErrorContains: "GPU lost",
 		},
 	}
 

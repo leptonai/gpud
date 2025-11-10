@@ -159,6 +159,9 @@ func createMockGPMComponent(
 		nvmlInstance:        mockInstance,
 		getGPMSupportedFunc: getGPMSupportedFunc,
 		getGPMMetricsFunc:   getGPMMetricsFunc,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 }
 
@@ -1002,7 +1005,19 @@ func TestCheck_GPMLostError(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, "error getting GPM supported", data.reason, "reason should indicate GPU is lost")
+		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+
+		// Verify suggested actions for GPU lost case
+		if assert.NotNil(t, data.suggestedActions) {
+			assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
+
+		// Verify suggested actions propagates to health state output
+		states := component.LastHealthStates()
+		require.Len(t, states, 1)
+		assert.NotNil(t, states[0].SuggestedActions)
+		assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 	})
 
 	// Test GPM metrics function returning GPU lost error
@@ -1024,6 +1039,104 @@ func TestCheck_GPMLostError(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, "error getting GPM metrics", data.reason, "reason should indicate GPU is lost")
+		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+
+		// Verify suggested actions for GPU lost case
+		if assert.NotNil(t, data.suggestedActions) {
+			assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
+
+		// Verify suggested actions propagates to health state output
+		states := component.LastHealthStates()
+		require.Len(t, states, 1)
+		assert.NotNil(t, states[0].SuggestedActions)
+		assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	})
+}
+
+func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	// Test GPM support function returning GPU requires reset error
+	t.Run("GPU requires reset in GPM support check", func(t *testing.T) {
+		errExpected := nvidianvml.ErrGPURequiresReset
+		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+			return false, errExpected
+		}
+
+		component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, nil).(*component)
+		result := component.Check()
+
+		data, ok := result.(*checkResult)
+		require.True(t, ok, "result should be of type *checkResult")
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+		assert.Equal(t, "GPU requires reset", data.reason)
+		if assert.NotNil(t, data.suggestedActions) {
+			assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
+			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
+
+		// Verify that suggested actions are propagated to health state
+		states := data.HealthStates()
+		require.Len(t, states, 1)
+		state := states[0]
+		if assert.NotNil(t, state.SuggestedActions) {
+			assert.Equal(t, "GPU requires reset", state.SuggestedActions.Description)
+			assert.Contains(t, state.SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
+	})
+
+	// Test GPM metrics function returning GPU requires reset error
+	t.Run("GPU requires reset in GPM metrics check", func(t *testing.T) {
+		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+			return true, nil
+		}
+
+		errExpected := nvidianvml.ErrGPURequiresReset
+		getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+			return nil, errExpected
+		}
+
+		component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+		result := component.Check()
+
+		data, ok := result.(*checkResult)
+		require.True(t, ok, "result should be of type *checkResult")
+
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
+		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+		assert.Equal(t, "GPU requires reset", data.reason)
+		if assert.NotNil(t, data.suggestedActions) {
+			assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
+			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
+
+		// Verify that suggested actions are propagated to health state
+		states := data.HealthStates()
+		require.Len(t, states, 1)
+		state := states[0]
+		if assert.NotNil(t, state.SuggestedActions) {
+			assert.Equal(t, "GPU requires reset", state.SuggestedActions.Description)
+			assert.Contains(t, state.SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
 	})
 }

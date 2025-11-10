@@ -201,7 +201,7 @@ func TestGetClockEvents(t *testing.T) {
 			mockReasons:    0,
 			mockReturn:     nvml.ERROR_GPU_IS_LOST,
 			expectedError:  true,
-			expectedErrMsg: "gpu lost",
+			expectedErrMsg: "GPU lost",
 		},
 	}
 

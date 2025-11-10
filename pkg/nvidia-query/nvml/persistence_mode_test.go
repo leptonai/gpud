@@ -67,7 +67,7 @@ func TestGetPersistenceMode(t *testing.T) {
 			persistenceMode:       nvml.FEATURE_DISABLED,
 			persistenceModeRet:    nvml.ERROR_GPU_IS_LOST,
 			expectError:           true,
-			expectedErrorContains: "gpu lost",
+			expectedErrorContains: "GPU lost",
 		},
 	}
 

@@ -64,7 +64,7 @@ func TestGPMSupportedByDevice(t *testing.T) {
 			gpmDeviceSupport:      nvml.GpmSupport{},
 			gpmDeviceSupportRet:   nvml.ERROR_GPU_IS_LOST,
 			expectError:           true,
-			expectedErrorContains: "gpu lost",
+			expectedErrorContains: "GPU lost",
 		},
 	}
 
