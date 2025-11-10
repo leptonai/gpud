@@ -18,6 +18,24 @@ var (
 	ErrGPURequiresReset = errors.New("GPU requires reset")
 )
 
+// IsGPULostError returns true if the error indicates that the GPU is lost.
+// "if the target GPU has fallen off the bus or is otherwise inaccessible".
+func IsGPULostError(ret nvml.Return) bool {
+	if ret == nvml.ERROR_GPU_IS_LOST {
+		return true
+	}
+
+	e := normalizeNVMLReturnString(ret)
+	return strings.Contains(e, "gpu lost") || strings.Contains(e, "gpu is lost") || strings.Contains(e, "gpu_is_lost")
+}
+
+// IsGPURequiresReset returns true if nvml.ErrorString(ret) indicates that the GPU requires reset.
+// e.g., "GPU requires reset".
+func IsGPURequiresReset(ret nvml.Return) bool {
+	e := normalizeNVMLReturnString(ret)
+	return strings.Contains(e, "gpu requires reset")
+}
+
 // IsVersionMismatchError returns true if the error indicates a version mismatch.
 func IsVersionMismatchError(ret nvml.Return) bool {
 	if ret == nvml.ERROR_ARGUMENT_VERSION_MISMATCH {
@@ -69,24 +87,6 @@ func IsNoSuchFileOrDirectoryError(err error) bool {
 	}
 	s := strings.ToLower(err.Error())
 	return strings.Contains(s, "not found") || strings.Contains(s, "no such file or directory")
-}
-
-// IsGPULostError returns true if the error indicates that the GPU is lost.
-// "if the target GPU has fallen off the bus or is otherwise inaccessible".
-func IsGPULostError(ret nvml.Return) bool {
-	if ret == nvml.ERROR_GPU_IS_LOST {
-		return true
-	}
-
-	e := normalizeNVMLReturnString(ret)
-	return strings.Contains(e, "gpu lost") || strings.Contains(e, "gpu is lost") || strings.Contains(e, "gpu_is_lost")
-}
-
-// IsGPURequiresReset returns true if nvml.ErrorString(ret) indicates that the GPU requires reset.
-// e.g., "GPU requires reset".
-func IsGPURequiresReset(ret nvml.Return) bool {
-	e := normalizeNVMLReturnString(ret)
-	return strings.Contains(e, "gpu requires reset")
 }
 
 // normalizeNVMLReturnString normalizes an NVML return to a string.
