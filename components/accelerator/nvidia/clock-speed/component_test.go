@@ -207,6 +207,9 @@ func TestComponent_Events(t *testing.T) {
 	ctx := context.Background()
 	c := &component{
 		ctx: ctx,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	events, err := c.Events(ctx, time.Now().Add(-time.Hour))
@@ -220,6 +223,9 @@ func TestComponent_Close(t *testing.T) {
 	c := &component{
 		ctx:    ctx,
 		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	err := c.Close()
@@ -294,6 +300,9 @@ func TestComponent_Start(t *testing.T) {
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{}, nil
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	err := c.Start()
@@ -310,6 +319,9 @@ func TestComponent_States(t *testing.T) {
 	// Test when lastCheckResult is nil
 	c := &component{
 		ctx: ctx,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	states := c.LastHealthStates()
@@ -362,6 +374,9 @@ func TestComponent_CheckOnce(t *testing.T) {
 				MemoryMHz:   2000,
 			}, nil
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	result := c.Check()
@@ -388,6 +403,9 @@ func TestComponent_CheckOnce(t *testing.T) {
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{}, testErr
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	result = c.Check()
@@ -407,6 +425,9 @@ func TestComponent_Check_NilNVML(t *testing.T) {
 	c := &component{
 		ctx:          ctx,
 		nvmlInstance: nil,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	result := c.Check()
@@ -426,6 +447,9 @@ func TestComponent_Check_NVMLNotLoaded(t *testing.T) {
 		ctx: ctx,
 		nvmlInstance: &mockNVMLInstance{
 			nvmlExists: false,
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
 		},
 	}
 
@@ -470,6 +494,9 @@ func TestComponent_Check_MultipleDevices(t *testing.T) {
 				ClockMemorySupported:   true,
 			}, nil
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	result := c.Check()
@@ -505,6 +532,9 @@ func TestComponent_Check_GPU_Lost(t *testing.T) {
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
 			return nvidianvml.ClockSpeed{}, nvidianvml.ErrGPULost
 		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	result := c.Check()
@@ -517,4 +547,50 @@ func TestComponent_Check_GPU_Lost(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
 	assert.Equal(t, "error getting clock speed", c.lastCheckResult.reason)
 	assert.Equal(t, data, c.lastCheckResult)
+}
+
+// TestComponent_Check_GPURequiresResetSuggestedActions tests the Check method when GPU requires reset
+func TestComponent_Check_GPURequiresResetSuggestedActions(t *testing.T) {
+	ctx := context.Background()
+
+	mockNvmlDevice := &mock.Device{}
+	mockDevice := testutil.NewMockDevice(mockNvmlDevice, "test-arch", "test-brand", "1.0", "0000:00:00.0")
+
+	mockDevices := map[string]device.Device{
+		"test-uuid": mockDevice,
+	}
+
+	c := &component{
+		ctx: ctx,
+		nvmlInstance: &mockNVMLInstance{
+			devices:    mockDevices,
+			nvmlExists: true,
+		},
+		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
+			return nvidianvml.ClockSpeed{}, nvidianvml.ErrGPURequiresReset
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+	}
+
+	result := c.Check()
+
+	// Verify check result carries suggested actions
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	require.NotNil(t, data)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+	assert.Equal(t, "GPU requires reset", data.reason)
+	if assert.NotNil(t, data.suggestedActions) {
+		assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
+		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	}
+
+	// Verify suggested actions propagates to health state output
+	states := c.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 }

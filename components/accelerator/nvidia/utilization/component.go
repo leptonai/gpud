@@ -29,6 +29,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	getTimeNowFunc func() time.Time
+
 	nvmlInstance       nvidianvml.Instance
 	getUtilizationFunc func(uuid string, dev device.Device) (nvidianvml.Utilization, error)
 
@@ -39,8 +41,11 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:                cctx,
-		cancel:             ccancel,
+		ctx:    cctx,
+		cancel: ccancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance:       gpudInstance.NVMLInstance,
 		getUtilizationFunc: nvidianvml.GetUtilization,
 	}
@@ -106,7 +111,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu utilization")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 	defer func() {
 		c.lastMu.Lock()

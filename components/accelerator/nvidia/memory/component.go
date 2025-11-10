@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -28,6 +29,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	getTimeNowFunc func() time.Time
+
 	nvmlInstance  nvidianvml.Instance
 	getMemoryFunc func(uuid string, dev device.Device) (nvidianvml.Memory, error)
 
@@ -38,8 +41,11 @@ type component struct {
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
-		ctx:           cctx,
-		cancel:        ccancel,
+		ctx:    cctx,
+		cancel: ccancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance:  gpudInstance.NVMLInstance,
 		getMemoryFunc: nvidianvml.GetMemory,
 	}
@@ -105,7 +111,7 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu memory")
 
 	cr := &checkResult{
-		ts: time.Now().UTC(),
+		ts: c.getTimeNowFunc(),
 	}
 	defer func() {
 		c.lastMu.Lock()
@@ -136,6 +142,17 @@ func (c *component) Check() components.CheckResult {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting memory"
+
+			if errors.Is(err, nvidianvml.ErrGPURequiresReset) {
+				cr.reason = "GPU requires reset"
+				cr.suggestedActions = &apiv1.SuggestedActions{
+					Description: "GPU requires reset",
+					RepairActions: []apiv1.RepairActionType{
+						apiv1.RepairActionTypeRebootSystem,
+					},
+				}
+			}
+
 			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
@@ -185,6 +202,8 @@ type checkResult struct {
 
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
+	// tracks the suggested actions for the last check
+	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
 }
@@ -261,6 +280,11 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		Reason:    cr.reason,
 		Error:     cr.getError(),
 		Health:    cr.health,
+	}
+
+	// propagate suggested actions to health state if present
+	if cr.suggestedActions != nil {
+		state.SuggestedActions = cr.suggestedActions
 	}
 
 	if len(cr.Memories) > 0 {

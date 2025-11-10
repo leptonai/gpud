@@ -94,8 +94,11 @@ func MockUtilizationComponent(
 	}
 
 	comp := &component{
-		ctx:                cctx,
-		cancel:             cancel,
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance:       mockInstance,
 		getUtilizationFunc: getUtilizationFunc,
 	}
@@ -536,8 +539,11 @@ func TestCheck_NilNVMLInstance(t *testing.T) {
 	// Create component with nil NVML instance
 	cctx, cancel := context.WithCancel(ctx)
 	comp := &component{
-		ctx:          cctx,
-		cancel:       cancel,
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance: nil, // Explicitly nil
 	}
 
@@ -565,8 +571,11 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 
 	cctx, cancel := context.WithCancel(ctx)
 	comp := &component{
-		ctx:          cctx,
-		cancel:       cancel,
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance: mockInstance,
 	}
 

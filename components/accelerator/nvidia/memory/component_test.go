@@ -20,64 +20,64 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
-// MockNvmlInstance implements the nvidianvml.Instance interface for testing
-type MockNvmlInstance struct {
+// mockNvmlInstance implements the nvidianvml.Instance interface for testing
+type mockNvmlInstance struct {
 	DevicesFunc func() map[string]device.Device
 	nvmlExists  bool
 }
 
-func (m *MockNvmlInstance) Devices() map[string]device.Device {
+func (m *mockNvmlInstance) Devices() map[string]device.Device {
 	if m.DevicesFunc != nil {
 		return m.DevicesFunc()
 	}
 	return nil
 }
 
-func (m *MockNvmlInstance) FabricManagerSupported() bool {
+func (m *mockNvmlInstance) FabricManagerSupported() bool {
 	return true
 }
 
-func (m *MockNvmlInstance) FabricStateSupported() bool {
+func (m *mockNvmlInstance) FabricStateSupported() bool {
 	return false
 }
 
-func (m *MockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
 	return nvidianvml.MemoryErrorManagementCapabilities{}
 }
 
-func (m *MockNvmlInstance) ProductName() string {
+func (m *mockNvmlInstance) ProductName() string {
 	return "NVIDIA Test GPU"
 }
 
-func (m *MockNvmlInstance) Architecture() string {
+func (m *mockNvmlInstance) Architecture() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) Brand() string {
+func (m *mockNvmlInstance) Brand() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) DriverVersion() string {
+func (m *mockNvmlInstance) DriverVersion() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) DriverMajor() int {
+func (m *mockNvmlInstance) DriverMajor() int {
 	return 0
 }
 
-func (m *MockNvmlInstance) CUDAVersion() string {
+func (m *mockNvmlInstance) CUDAVersion() string {
 	return ""
 }
 
-func (m *MockNvmlInstance) NVMLExists() bool {
+func (m *mockNvmlInstance) NVMLExists() bool {
 	return m.nvmlExists
 }
 
-func (m *MockNvmlInstance) Library() nvml_lib.Library {
+func (m *mockNvmlInstance) Library() nvml_lib.Library {
 	return nil
 }
 
-func (m *MockNvmlInstance) Shutdown() error {
+func (m *mockNvmlInstance) Shutdown() error {
 	return nil
 }
 
@@ -89,8 +89,11 @@ func MockMemoryComponent(
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	return &component{
-		ctx:           cctx,
-		cancel:        cancel,
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance:  nvmlInstance,
 		getMemoryFunc: getMemoryFunc,
 	}
@@ -98,7 +101,7 @@ func MockMemoryComponent(
 
 func TestNew(t *testing.T) {
 	ctx := context.Background()
-	mockNVMLInstance := &MockNvmlInstance{}
+	mockNVMLInstance := &mockNvmlInstance{}
 
 	// Create a GPUdInstance
 	gpudInstance := &components.GPUdInstance{
@@ -158,7 +161,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNVMLInstance := &MockNvmlInstance{
+	mockNVMLInstance := &mockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
@@ -217,7 +220,7 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNVMLInstance := &MockNvmlInstance{
+	mockNVMLInstance := &mockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
@@ -245,7 +248,7 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 func TestCheckOnce_NoDevices(t *testing.T) {
 	ctx := context.Background()
 
-	mockNVMLInstance := &MockNvmlInstance{
+	mockNVMLInstance := &mockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return map[string]device.Device{} // Empty map
 		},
@@ -280,7 +283,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNVMLInstance := &MockNvmlInstance{
+	mockNVMLInstance := &mockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
@@ -409,7 +412,7 @@ func TestStart(t *testing.T) {
 
 	// Create mock functions that count calls
 	callCount := &atomic.Int32{}
-	mockNVMLInstance := &MockNvmlInstance{
+	mockNVMLInstance := &mockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			callCount.Add(1)
 			return map[string]device.Device{}
@@ -673,7 +676,7 @@ func TestCheckOnce_NvmlNotExists(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a mock NVML instance where NVMLExists returns false
-	mockNVMLInstance := &MockNvmlInstance{
+	mockNVMLInstance := &mockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return map[string]device.Device{}
 		},
@@ -707,7 +710,7 @@ func TestCheck_GPULostError(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNVMLInstance := &MockNvmlInstance{
+	mockNVMLInstance := &mockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
@@ -748,7 +751,7 @@ func TestCheck_UnsupportedMemory(t *testing.T) {
 		uuid: mockDev,
 	}
 
-	mockNVMLInstance := &MockNvmlInstance{
+	mockNVMLInstance := &mockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
@@ -803,7 +806,7 @@ func TestCheck_MixedSupportedUnsupportedDevices(t *testing.T) {
 		uuid2: mockDev2,
 	}
 
-	mockNVMLInstance := &MockNvmlInstance{
+	mockNVMLInstance := &mockNvmlInstance{
 		DevicesFunc: func() map[string]device.Device {
 			return devs
 		},
@@ -847,4 +850,50 @@ func TestCheck_MixedSupportedUnsupportedDevices(t *testing.T) {
 	assert.Equal(t, "all 2 GPU(s) were checked, no memory issue found", data.reason, "reason should indicate successful check of all devices")
 	assert.Len(t, data.Memories, 1, "should have memory data only for supported device")
 	assert.Equal(t, uuid1, data.Memories[0].UUID, "should contain only the supported device")
+}
+
+func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) { return uuid, nvml.SUCCESS },
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	mockDevices := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	mockNVMLInstance := &mockNvmlInstance{
+		DevicesFunc: func() map[string]device.Device {
+			return mockDevices
+		},
+		nvmlExists: true,
+	}
+
+	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+		return nvidianvml.Memory{}, nvidianvml.ErrGPURequiresReset
+	}
+
+	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	result := component.Check()
+
+	// Verify check result carries suggested actions
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	require.NotNil(t, data)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+	assert.Equal(t, "GPU requires reset", data.reason)
+	if assert.NotNil(t, data.suggestedActions) {
+		assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
+		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	}
+
+	// Verify suggested actions propagates to health state output
+	states := component.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 }

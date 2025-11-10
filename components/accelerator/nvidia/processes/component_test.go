@@ -559,3 +559,59 @@ func TestCheck_GPULostError(t *testing.T) {
 	assert.Equal(t, "error getting processes", data.reason,
 		"reason should have '(GPU is lost)' suffix")
 }
+
+func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
+	ctx := context.Background()
+
+	// Create mock devices with no processes
+	mockDev1 := createMockDevice("gpu-uuid-1", nil)
+
+	mockDevices := map[string]device.Device{
+		"gpu-uuid-1": mockDev1,
+	}
+
+	mockInstance := &mockNVMLInstance{
+		nvmlExists: true,
+		devicesFunc: func() map[string]device.Device {
+			return mockDevices
+		},
+	}
+
+	// Create a mock GPUdInstance with the required fields
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	// Cast to component to access internal methods
+	c := comp.(*component)
+
+	// Create a getProcessesFunc that returns GPU requires reset error
+	c.getProcessesFunc = func(uuid string, dev device.Device) (nvidianvml.Processes, error) {
+		return nvidianvml.Processes{}, nvidianvml.ErrGPURequiresReset
+	}
+
+	// Run Check
+	result := c.Check()
+
+	// Verify check result carries suggested actions
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+	require.NotNil(t, data)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+	assert.Equal(t, "GPU requires reset", data.reason)
+	if assert.NotNil(t, data.suggestedActions) {
+		assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
+		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	}
+
+	// Verify suggested actions propagates to health state output
+	states := c.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+}
