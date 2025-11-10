@@ -732,8 +732,19 @@ func TestCheck_GPULostError(t *testing.T) {
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
-	assert.Equal(t, "error getting memory", data.reason,
-		"reason should have '(GPU is lost)' suffix")
+	assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+
+	// Verify suggested actions for GPU lost case
+	if assert.NotNil(t, data.suggestedActions) {
+		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	}
+
+	// Verify suggested actions propagates to health state output
+	states := component.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 }
 
 func TestCheck_UnsupportedMemory(t *testing.T) {

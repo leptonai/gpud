@@ -144,9 +144,19 @@ func (c *component) Check() components.CheckResult {
 			cr.reason = "error getting power"
 
 			if errors.Is(err, nvidianvml.ErrGPURequiresReset) {
-				cr.reason = "GPU requires reset"
+				cr.reason = nvidianvml.ErrGPURequiresReset.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
-					Description: "GPU requires reset",
+					Description: nvidianvml.ErrGPURequiresReset.Error(),
+					RepairActions: []apiv1.RepairActionType{
+						apiv1.RepairActionTypeRebootSystem,
+					},
+				}
+			}
+
+			if errors.Is(err, nvidianvml.ErrGPULost) {
+				cr.reason = nvidianvml.ErrGPULost.Error()
+				cr.suggestedActions = &apiv1.SuggestedActions{
+					Description: nvidianvml.ErrGPULost.Error(),
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeRebootSystem,
 					},
@@ -168,9 +178,19 @@ func (c *component) Check() components.CheckResult {
 			cr.reason = "error getting used percent"
 
 			if errors.Is(err, nvidianvml.ErrGPURequiresReset) {
-				cr.reason = "GPU requires reset"
+				cr.reason = nvidianvml.ErrGPURequiresReset.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
-					Description: "GPU requires reset",
+					Description: nvidianvml.ErrGPURequiresReset.Error(),
+					RepairActions: []apiv1.RepairActionType{
+						apiv1.RepairActionTypeRebootSystem,
+					},
+				}
+			}
+
+			if errors.Is(err, nvidianvml.ErrGPULost) {
+				cr.reason = nvidianvml.ErrGPULost.Error()
+				cr.suggestedActions = &apiv1.SuggestedActions{
+					Description: nvidianvml.ErrGPULost.Error(),
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeRebootSystem,
 					},

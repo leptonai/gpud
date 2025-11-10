@@ -12,10 +12,10 @@ var (
 	// Likely due to the GPU is physically removed from the machine.
 	// Also manifested as Xid 79 (GPU has fallen off the bus).
 	// ref. https://github.com/leptonai/gpud/issues/604
-	ErrGPULost = errors.New("gpu lost")
+	ErrGPULost = errors.New("GPU lost")
 	// ErrGPURequiresReset is an error that indicates the GPU requires reset.
 	// This typically appears when NVML reports "GPU requires reset".
-	ErrGPURequiresReset = errors.New("gpu requires reset")
+	ErrGPURequiresReset = errors.New("GPU requires reset")
 )
 
 // IsVersionMismatchError returns true if the error indicates a version mismatch.

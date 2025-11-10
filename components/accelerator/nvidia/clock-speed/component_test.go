@@ -545,8 +545,20 @@ func TestComponent_Check_GPU_Lost(t *testing.T) {
 	require.NotNil(t, c.lastCheckResult)
 	assert.True(t, errors.Is(c.lastCheckResult.err, nvidianvml.ErrGPULost))
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
-	assert.Equal(t, "error getting clock speed", c.lastCheckResult.reason)
+	assert.Equal(t, nvidianvml.ErrGPULost.Error(), c.lastCheckResult.reason)
 	assert.Equal(t, data, c.lastCheckResult)
+
+	// Verify suggested actions for GPU lost case
+	if assert.NotNil(t, data.suggestedActions) {
+		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	}
+
+	// Verify suggested actions propagates to health state output
+	states := c.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 }
 
 // TestComponent_Check_GPURequiresResetSuggestedActions tests the Check method when GPU requires reset
