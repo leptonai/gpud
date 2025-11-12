@@ -1,7 +1,12 @@
 package fabricmanager
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,51 +14,26 @@ import (
 )
 
 func Test_countSMINVSwitches_A10(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// A10 GPUs typically don't have NVSwitch in standard configurations
-	command := "cat ./testdata/nvidia-smi.nvlink.status.a10"
-
-	lines, err := countSMINVSwitches(ctx, command)
-	require.NoError(t, err)
+	lines := runCountSMIFromFixture(t, "testdata/nvidia-smi.nvlink.status.a10")
 	require.Equal(t, 0, len(lines), "A10 systems should not have NVSwitch")
 }
 
 func Test_countSMINVSwitches_A100(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	// A100 systems with NVSwitch (DGX A100, HGX A100) have 8 GPUs
-	command := "cat ./testdata/nvidia-smi.nvlink.status.a100"
-
-	lines, err := countSMINVSwitches(ctx, command)
-	require.NoError(t, err)
+	lines := runCountSMIFromFixture(t, "testdata/nvidia-smi.nvlink.status.a100")
 	require.Equal(t, 8, len(lines), "DGX/HGX A100 systems typically have 8 GPUs connected via NVSwitch")
 	require.Contains(t, lines[0], "NVIDIA", "Output should contain NVIDIA GPU information")
 }
 
 func Test_listPCIs_A10(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	// A10 systems don't have NVSwitch
-	command := "cat ./testdata/lspci.nn.a10"
-
-	lines, err := listPCIs(ctx, command, isNVIDIANVSwitchPCI)
-	require.NoError(t, err)
+	lines := runListPCIsFromFixture(t, "testdata/lspci.nn.a10")
 	require.Equal(t, 0, len(lines), "A10 systems should not have NVSwitch bridge devices")
 }
 
 func Test_listPCIs_A100(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	// A100 systems with NVSwitch have multiple bridge devices
-	command := "cat ./testdata/lspci.nn.a100"
-
-	lines, err := listPCIs(ctx, command, isNVIDIANVSwitchPCI)
-	require.NoError(t, err)
+	lines := runListPCIsFromFixture(t, "testdata/lspci.nn.a100")
 	require.Equal(t, 6, len(lines), "DGX/HGX A100 systems typically have 6 NVSwitch bridge devices")
 	require.Contains(t, lines[0], "NVIDIA", "Output should contain NVIDIA bridge information")
 }
@@ -127,4 +107,52 @@ func Test_isNVIDIANVSwitchPCI(t *testing.T) {
 			require.Equal(t, tt.expected, result, "isNVIDIANVSwitchPCI(%q) = %v, expected %v", tt.line, result, tt.expected)
 		})
 	}
+}
+
+func runCountSMIFromFixture(t *testing.T, relativePath string) []string {
+	t.Helper()
+	command := newFixtureCommand(t, relativePath)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	lines, err := countSMINVSwitches(ctx, command)
+	require.NoError(t, err)
+	return lines
+}
+
+func runListPCIsFromFixture(t *testing.T, relativePath string) []string {
+	t.Helper()
+	command := newFixtureCommand(t, relativePath)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	lines, err := listPCIs(ctx, command, isNVIDIANVSwitchPCI)
+	require.NoError(t, err)
+	return lines
+}
+
+func newFixtureCommand(t *testing.T, relativePath string) string {
+	t.Helper()
+	data, err := os.ReadFile(relativePath)
+	require.NoError(t, err)
+	script := buildPrintScript(t, data)
+	return script
+}
+
+func buildPrintScript(t *testing.T, data []byte) string {
+	t.Helper()
+	var buf bytes.Buffer
+	buf.WriteString("#!/bin/sh\n")
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		buf.WriteString("printf '%s\\n' '")
+		buf.WriteString(escapeSingleQuotes(scanner.Text()))
+		buf.WriteString("'\n")
+	}
+	require.NoError(t, scanner.Err())
+	scriptPath := filepath.Join(t.TempDir(), "emit.sh")
+	require.NoError(t, os.WriteFile(scriptPath, buf.Bytes(), 0o755))
+	return scriptPath
+}
+
+func escapeSingleQuotes(s string) string {
+	return strings.ReplaceAll(s, "'", "'\"'\"'")
 }
