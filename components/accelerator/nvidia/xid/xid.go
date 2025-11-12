@@ -3,6 +3,7 @@ package xid
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -3195,7 +3196,7 @@ func newSuggestedActions(actions ...apiv1.RepairActionType) *apiv1.SuggestedActi
 	}
 	out := make([]apiv1.RepairActionType, len(actions))
 	copy(out, actions)
-	return &apiv1.SuggestedActions{RepairActions:slices.Clone(actions)}
+	return &apiv1.SuggestedActions{RepairActions: slices.Clone(actions)}
 }
 
 func mergeSuggestedActions(base, addition *apiv1.SuggestedActions) *apiv1.SuggestedActions {
@@ -3228,5 +3229,5 @@ func copySuggestedActions(src *apiv1.SuggestedActions) *apiv1.SuggestedActions {
 	}
 	actions := make([]apiv1.RepairActionType, len(src.RepairActions))
 	copy(actions, src.RepairActions)
-	return &apiv1.SuggestedActions{RepairActions:slices.Clone(src.RepairActions)}
+	return &apiv1.SuggestedActions{RepairActions: slices.Clone(src.RepairActions)}
 }
