@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,9 +32,10 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	checkDependencyInstalled func() bool
-	checkKubeletRunning      func() bool
-	kubeletReadOnlyPort      int
+	checkKubeletInstalledFunc func() bool
+	getKubeletVersionFunc     func() (string, error)
+	checkKubeletRunning       func() bool
+	kubeletReadOnlyPort       int
 
 	failedCount          int
 	failedCountThreshold int
@@ -48,7 +50,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkDependencyInstalled: CheckKubeletInstalled,
+		checkKubeletInstalledFunc: checkKubeletInstalled,
+		getKubeletVersionFunc:     getKubeletVersion,
 		checkKubeletRunning: func() bool {
 			return netutil.IsPortOpen(DefaultKubeletReadOnlyPort)
 		},
@@ -122,12 +125,14 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
+	if c.checkKubeletInstalledFunc == nil || !c.checkKubeletInstalledFunc() {
 		// "kubelet" is not installed, thus not needed to check its activeness
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "kubelet is not installed"
 		return cr
 	}
+
+	c.recordKubeletVersion(cr)
 
 	if c.checkKubeletRunning == nil || !c.checkKubeletRunning() {
 		// "kubelet" is not running, thus not needed to check its activeness
@@ -162,11 +167,32 @@ func (c *component) Check() components.CheckResult {
 	return cr
 }
 
+func (c *component) recordKubeletVersion(cr *checkResult) {
+	if c.getKubeletVersionFunc == nil {
+		return
+	}
+	version, err := c.getKubeletVersionFunc()
+	if err != nil {
+		log.Logger.Warnw("failed to get kubelet version", "error", err)
+		return
+	}
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return
+	}
+	cr.KubeletVersion = version
+	metricVersion.WithLabelValues(version).Set(1.0)
+}
+
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
 	// KubeletServiceActive is true if the kubelet service is active.
 	KubeletServiceActive bool `json:"kubelet_service_active"`
+
+	// KubeletVersion is the version of the kubelet runtime.
+	KubeletVersion string `json:"kubelet_version,omitempty"`
+
 	// NodeName is the name of the node.
 	NodeName string `json:"node_name,omitempty"`
 	// Pods is the list of pods on the node.

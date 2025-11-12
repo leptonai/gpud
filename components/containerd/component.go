@@ -16,7 +16,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/kubelet"
+	componentkubelet "github.com/leptonai/gpud/components/kubelet"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/systemd"
@@ -48,6 +48,7 @@ type component struct {
 	getContainerdConfigFunc           func() ([]byte, error)
 
 	checkDependencyInstalledFunc  func() bool
+	getContainerdVersionFunc      func() (string, error)
 	checkSocketExistsFunc         func() bool
 	checkContainerdRunningFunc    func(context.Context) bool
 	checkServiceActiveFunc        func(context.Context) (bool, error)
@@ -78,7 +79,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return os.ReadFile("/etc/containerd/config.toml")
 		},
 
-		checkDependencyInstalledFunc: CheckContainerdInstalled,
+		checkDependencyInstalledFunc: checkContainerdInstalled,
+		getContainerdVersionFunc:     getContainerdVersion,
 		checkSocketExistsFunc:        CheckSocketExists,
 		checkContainerdRunningFunc:   CheckContainerdRunning,
 		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
@@ -181,6 +183,23 @@ func (c *component) checkContainerdActiveness(cr *checkResult) bool {
 	return true
 }
 
+func (c *component) recordContainerdVersion(cr *checkResult) {
+	if c.getContainerdVersionFunc == nil {
+		return
+	}
+	version, err := c.getContainerdVersionFunc()
+	if err != nil {
+		log.Logger.Warnw("failed to get containerd version", "error", err)
+		return
+	}
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return
+	}
+	cr.ContainerdVersion = version
+	metricVersion.WithLabelValues(version).Set(1.0)
+}
+
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking containerd pods", "endpoint", c.endpoint)
 	cr := &checkResult{
@@ -198,6 +217,8 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = "containerd not installed"
 		return cr
 	}
+
+	c.recordContainerdVersion(cr)
 
 	// below are the checks in case "containerd" is installed, thus requires activeness checks
 	if ok := c.checkContainerdActiveness(cr); !ok {
@@ -255,7 +276,7 @@ func (c *component) Check() components.CheckResult {
 
 		var danglingCount int
 		cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
-		_, kubeletPods, err := kubelet.ListPodsFromKubeletReadOnlyPort(cctx, kubelet.DefaultKubeletReadOnlyPort)
+		_, kubeletPods, err := componentkubelet.ListPodsFromKubeletReadOnlyPort(cctx, componentkubelet.DefaultKubeletReadOnlyPort)
 		ccancel()
 		if err != nil {
 			log.Logger.Errorf("error listing pods from kubelet: %v", err)
@@ -357,6 +378,9 @@ type checkResult struct {
 	// ContainerdServiceActive is true if the containerd service is active.
 	ContainerdServiceActive bool `json:"containerd_service_active"`
 
+	// ContainerdVersion is the version of the containerd runtime.
+	ContainerdVersion string `json:"containerd_version,omitempty"`
+
 	// Pods is the list of pods on the node.
 	Pods []PodSandbox `json:"pods,omitempty"`
 
@@ -451,7 +475,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{state}
 }
 
-func danglingPodCount(containerdPods []PodSandbox, kubeletPods []kubelet.PodStatus) int {
+func danglingPodCount(containerdPods []PodSandbox, kubeletPods []componentkubelet.PodStatus) int {
 	var danglingCount int
 	if len(kubeletPods) == 0 {
 		return danglingCount

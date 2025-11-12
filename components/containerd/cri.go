@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"regexp"
 	"sort"
 	"time"
 
@@ -159,16 +158,6 @@ func createClient(ctx context.Context, conn *grpc.ClientConn) (runtimeapi.Runtim
 	return runtimeClient, imageClient, nil
 }
 
-func CheckContainerdInstalled() bool {
-	p, err := pkgfile.LocateExecutable("containerd")
-	if err == nil {
-		log.Logger.Debugw("containerd found in PATH", "path", p)
-		return true
-	}
-	log.Logger.Debugw("containerd not found in PATH", "error", err)
-	return false
-}
-
 func CheckSocketExists() bool {
 	// if containerd is disabled or aborted (due to invalid config), the socket file will not exist
 	// vice versa, if the socket file exists, containerd is running
@@ -240,23 +229,6 @@ func GetVersionFromCli(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return parseContainerdVersion(string(out))
-}
-
-// matches "1.7.25" when "containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb"
-// supports optional v in front of the version number
-// e.g., "containerd containerd.io v1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb"
-const regexContainerdVersion = `\s+v?(\d+\.\d+\.\d+)(?:\s+|$)`
-
-var reContainerdVersion = regexp.MustCompile(regexContainerdVersion)
-
-// parseContainerdVersion parses the containerd version from the output of "containerd --version".
-// Returns "1.7.25" when given the input "containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb".
-func parseContainerdVersion(out string) (string, error) {
-	matches := reContainerdVersion.FindStringSubmatch(out)
-	if len(matches) < 2 {
-		return "", fmt.Errorf("invalid containerd version output: %s", out)
-	}
-	return matches[1], nil
 }
 
 // ListAllSandboxes lists all sandboxes from the containerd runtime.

@@ -332,11 +332,11 @@ func Test_componentCheck(t *testing.T) {
 
 	// Create component with our test port
 	c := &component{
-		ctx:                      ctx,
-		cancel:                   cancel,
-		checkDependencyInstalled: func() bool { return true },
-		checkKubeletRunning:      func() bool { kubeletRunningCalled++; return true },
-		kubeletReadOnlyPort:      int(port),
+		ctx:                       ctx,
+		cancel:                    cancel,
+		checkKubeletInstalledFunc: func() bool { return true },
+		checkKubeletRunning:       func() bool { kubeletRunningCalled++; return true },
+		kubeletReadOnlyPort:       int(port),
 	}
 
 	// Run the check
@@ -585,11 +585,11 @@ func Test_componentCheck_KubeletNotRunning(t *testing.T) {
 
 	// Create component with checkKubeletRunning that returns false
 	c := &component{
-		ctx:                      ctx,
-		cancel:                   cancel,
-		checkDependencyInstalled: func() bool { return true },
-		checkKubeletRunning:      func() bool { return false }, // Kubelet not running
-		kubeletReadOnlyPort:      10255,
+		ctx:                       ctx,
+		cancel:                    cancel,
+		checkKubeletInstalledFunc: func() bool { return true },
+		checkKubeletRunning:       func() bool { return false }, // Kubelet not running
+		kubeletReadOnlyPort:       10255,
 	}
 
 	// Run the check
@@ -604,7 +604,7 @@ func Test_componentCheck_KubeletNotRunning(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, dataResult.health)
 }
 
-// Test behavior with different checkDependencyInstalled and checkKubeletRunning combinations
+// Test behavior with different checkKubeletInstalledFunc and checkKubeletRunning combinations
 func Test_componentCheck_Dependencies(t *testing.T) {
 	testCases := []struct {
 		name                    string
@@ -659,11 +659,11 @@ func Test_componentCheck_Dependencies(t *testing.T) {
 
 			// Create component with the test conditions
 			c := &component{
-				ctx:                      ctx,
-				cancel:                   cancel,
-				checkDependencyInstalled: func() bool { return tc.dependencyInstalled },
-				checkKubeletRunning:      func() bool { return tc.kubeletRunning },
-				kubeletReadOnlyPort:      port,
+				ctx:                       ctx,
+				cancel:                    cancel,
+				checkKubeletInstalledFunc: func() bool { return tc.dependencyInstalled },
+				checkKubeletRunning:       func() bool { return tc.kubeletRunning },
+				kubeletReadOnlyPort:       port,
 			}
 
 			// Run the check

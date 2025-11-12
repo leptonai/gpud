@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,8 +26,17 @@ func mockComponent(
 	c := &component{
 		ctx:    cctx,
 		cancel: cancel,
-		checkDependencyInstalled: func() bool {
+		checkTailscaleInstalledFunc: func() bool {
 			return isInstalled
+		},
+		checkTailscaledInstalledFunc: func() bool {
+			return isInstalled
+		},
+		getTailscaleVersionFunc: func() (string, error) {
+			return "", nil
+		},
+		getTailscaledVersionFunc: func() (string, error) {
+			return "", nil
 		},
 		checkServiceActiveFunc: func() (bool, error) {
 			return isActive, activeError
@@ -72,7 +83,10 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.checkDependencyInstalled, "checkDependencyInstalled function should be set")
+	assert.NotNil(t, tc.checkTailscaleInstalledFunc, "checkTailscaleInstalledFunc should be set")
+	assert.NotNil(t, tc.checkTailscaledInstalledFunc, "checkTailscaledInstalledFunc should be set")
+	assert.NotNil(t, tc.getTailscaleVersionFunc, "getTailscaleVersionFunc should be set")
+	assert.NotNil(t, tc.getTailscaledVersionFunc, "getTailscaledVersionFunc should be set")
 	assert.NotNil(t, tc.checkServiceActiveFunc, "checkServiceActive function should be set")
 }
 
@@ -207,6 +221,65 @@ func TestCheckOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestComponentRecordsVersions(t *testing.T) {
+	metricTailscaleVersion.Reset()
+	metricTailscaledVersion.Reset()
+	ctx := context.Background()
+	c := &component{
+		ctx:                          ctx,
+		cancel:                       func() {},
+		checkTailscaleInstalledFunc:  func() bool { return true },
+		checkTailscaledInstalledFunc: func() bool { return true },
+		getTailscaleVersionFunc:      func() (string, error) { return "1.80.0", nil },
+		getTailscaledVersionFunc:     func() (string, error) { return "1.80.0", nil },
+		checkServiceActiveFunc:       func() (bool, error) { return true, nil },
+	}
+
+	res := c.Check().(*checkResult)
+	require.Equal(t, "1.80.0", res.TailscaleVersion)
+	require.Equal(t, "1.80.0", res.TailscaledVersion)
+	assert.Equal(t, 1.0, gaugeValue(t, metricTailscaleVersion.WithLabelValues("1.80.0")))
+	assert.Equal(t, 1.0, gaugeValue(t, metricTailscaledVersion.WithLabelValues("1.80.0")))
+}
+
+func TestComponentVersionErrorsDoNotAffectHealth(t *testing.T) {
+	metricTailscaleVersion.Reset()
+	metricTailscaledVersion.Reset()
+	ctx := context.Background()
+	c := &component{
+		ctx:                          ctx,
+		cancel:                       func() {},
+		checkTailscaleInstalledFunc:  func() bool { return true },
+		checkTailscaledInstalledFunc: func() bool { return true },
+		getTailscaleVersionFunc: func() (string, error) {
+			return "", errors.New("fail tailscale")
+		},
+		getTailscaledVersionFunc: func() (string, error) {
+			return "", errors.New("fail tailscaled")
+		},
+		checkServiceActiveFunc: func() (bool, error) { return true, nil },
+	}
+
+	res := c.Check().(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, res.health)
+	assert.Empty(t, res.TailscaleVersion)
+	assert.Empty(t, res.TailscaledVersion)
+	assert.Equal(t, 0.0, gaugeValue(t, metricTailscaleVersion.WithLabelValues("1.80.0")))
+	assert.Equal(t, 0.0, gaugeValue(t, metricTailscaledVersion.WithLabelValues("1.80.0")))
+
+}
+
+func gaugeValue(t *testing.T, g prometheus.Gauge) float64 {
+	t.Helper()
+	metric := &io_prometheus_client.Metric{}
+	require.NoError(t, g.Write(metric))
+	gauge := metric.GetGauge()
+	if gauge == nil {
+		return 0
+	}
+	return gauge.GetValue()
 }
 
 func TestStates(t *testing.T) {

@@ -4,6 +4,7 @@ package tailscale
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,8 +25,11 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	checkDependencyInstalled func() bool
-	checkServiceActiveFunc   func() (bool, error)
+	checkTailscaleInstalledFunc  func() bool
+	checkTailscaledInstalledFunc func() bool
+	getTailscaleVersionFunc      func() (string, error)
+	getTailscaledVersionFunc     func() (string, error)
+	checkServiceActiveFunc       func() (bool, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -37,7 +41,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkDependencyInstalled: checkTailscaledInstalled,
+		checkTailscaleInstalledFunc:  checkTailscaleInstalled,
+		checkTailscaledInstalledFunc: checkTailscaledInstalled,
+		getTailscaleVersionFunc:      getTailscaleVersion,
+		getTailscaledVersionFunc:     getTailscaledVersion,
 		checkServiceActiveFunc: func() (bool, error) {
 			return systemd.IsActive("tailscaled")
 		},
@@ -106,12 +113,18 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
+	if c.checkTailscaleInstalledFunc != nil && c.checkTailscaleInstalledFunc() {
+		c.recordTailscaleVersion(cr)
+	}
+
 	// assume "tailscaled" is not installed, thus not needed to check its activeness
-	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
+	if c.checkTailscaledInstalledFunc == nil || !c.checkTailscaledInstalledFunc() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "tailscaled is not installed"
 		return cr
 	}
+
+	c.recordTailscaledVersion(cr)
 
 	// below are the checks in case "tailscaled" is installed, thus requires activeness checks
 	if c.checkServiceActiveFunc != nil {
@@ -130,11 +143,50 @@ func (c *component) Check() components.CheckResult {
 	return cr
 }
 
+func (c *component) recordTailscaleVersion(cr *checkResult) {
+	if c.getTailscaleVersionFunc == nil {
+		return
+	}
+	version, err := c.getTailscaleVersionFunc()
+	if err != nil {
+		log.Logger.Warnw("failed to get tailscale version", "error", err)
+		return
+	}
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return
+	}
+	cr.TailscaleVersion = version
+	metricTailscaleVersion.WithLabelValues(version).Set(1.0)
+}
+
+func (c *component) recordTailscaledVersion(cr *checkResult) {
+	if c.getTailscaledVersionFunc == nil {
+		return
+	}
+	version, err := c.getTailscaledVersionFunc()
+	if err != nil {
+		log.Logger.Warnw("failed to get tailscaled version", "error", err)
+		return
+	}
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return
+	}
+	cr.TailscaledVersion = version
+	metricTailscaledVersion.WithLabelValues(version).Set(1.0)
+}
+
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
 	// TailscaledServiceActive is true if the tailscaled service is active.
 	TailscaledServiceActive bool `json:"tailscaled_service_active"`
+
+	// TailscaleVersion is the version of the tailscale runtime.
+	TailscaleVersion string `json:"tailscale_version,omitempty"`
+	// TailscaledVersion is the version of the tailscaled runtime.
+	TailscaledVersion string `json:"tailscaled_version,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

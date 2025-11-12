@@ -19,7 +19,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	nvidiamemory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
-	pkgcontainerd "github.com/leptonai/gpud/components/containerd"
+	componentcontainerd "github.com/leptonai/gpud/components/containerd"
 	"github.com/leptonai/gpud/pkg/asn"
 	"github.com/leptonai/gpud/pkg/disk"
 	pkgdisk "github.com/leptonai/gpud/pkg/disk"
@@ -74,8 +74,8 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 			return nil, fmt.Errorf("failed to get machine disk info: %w", err)
 		}
 
-		if pkgcontainerd.CheckContainerdInstalled() && pkgcontainerd.CheckContainerdRunning(ctx) {
-			containerdVersion, err := pkgcontainerd.GetVersion(ctx, pkgcontainerd.DefaultContainerRuntimeEndpoint)
+		if componentcontainerd.CheckContainerdInstalled() && componentcontainerd.CheckContainerdRunning(ctx) {
+			containerdVersion, err := componentcontainerd.GetVersion(ctx, componentcontainerd.DefaultContainerRuntimeEndpoint)
 			if err != nil {
 				log.Logger.Warnw("failed to check containerd version", "error", err)
 			} else {
