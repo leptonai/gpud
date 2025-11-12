@@ -3245,5 +3245,5 @@ func copySuggestedActions(src *apiv1.SuggestedActions) *apiv1.SuggestedActions {
 	}
 	actions := make([]apiv1.RepairActionType, len(src.RepairActions))
 	copy(actions, src.RepairActions)
-	return &apiv1.SuggestedActions{RepairActions: actions}
+	return &apiv1.SuggestedActions{RepairActions:slices.Clone(src.RepairActions)}
 }
