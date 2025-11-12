@@ -7,7 +7,7 @@ require (
 	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/coreos/go-systemd/v22 v22.5.0
-	github.com/docker/docker v25.0.6+incompatible
+	github.com/docker/docker v26.1.5+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-contrib/gzip v1.2.3
@@ -100,6 +100,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2 // indirect
 	github.com/mdlayher/socket v0.5.0 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
+	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
