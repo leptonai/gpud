@@ -3212,7 +3212,7 @@ func newSuggestedActions(actions ...apiv1.RepairActionType) *apiv1.SuggestedActi
 	}
 	out := make([]apiv1.RepairActionType, len(actions))
 	copy(out, actions)
-	return &apiv1.SuggestedActions{RepairActions: out}
+	return &apiv1.SuggestedActions{RepairActions:slices.Clone(actions)}
 }
 
 func mergeSuggestedActions(base, addition *apiv1.SuggestedActions) *apiv1.SuggestedActions {
