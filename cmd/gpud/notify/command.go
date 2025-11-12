@@ -49,7 +49,7 @@ func CommandStartup(cliContext *cli.Context) error {
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
-	machineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+	machineID, err := pkgmetadata.ReadMachineID(rootCtx, dbRO)
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func CommandStartup(cliContext *cli.Context) error {
 		Type: apiv1.NotificationTypeStartup,
 	}
 
-	dbToken, err := pkgmetadata.ReadTokenWithFallback(rootCtx, dbRW, dbRO, machineID)
+	dbToken, err := pkgmetadata.ReadToken(rootCtx, dbRO)
 	if err != nil || dbToken == "" {
 		log.Logger.Warn("machine not logged in, skipping notification")
 		os.Exit(0)
@@ -106,7 +106,7 @@ func CommandShutdown(cliContext *cli.Context) error {
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
-	machineID, err := pkgmetadata.ReadMachineIDWithFallback(rootCtx, dbRW, dbRO)
+	machineID, err := pkgmetadata.ReadMachineID(rootCtx, dbRO)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func CommandShutdown(cliContext *cli.Context) error {
 		Type: apiv1.NotificationTypeShutdown,
 	}
 
-	dbToken, err := pkgmetadata.ReadTokenWithFallback(rootCtx, dbRW, dbRO, machineID)
+	dbToken, err := pkgmetadata.ReadToken(rootCtx, dbRO)
 	if err != nil || dbToken == "" {
 		log.Logger.Warn("machine not logged in, skipping notification")
 		os.Exit(0)

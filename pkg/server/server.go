@@ -181,8 +181,8 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		}
 	}()
 
-	s.machineID, err = pkgmetadata.ReadMachineIDWithFallback(ctx, dbRW, dbRO)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	s.machineID, err = pkgmetadata.ReadMachineID(ctx, dbRO)
+	if err != nil {
 		return nil, fmt.Errorf("failed to read machine uid: %w", err)
 	}
 
@@ -453,8 +453,8 @@ func (s *Server) WaitUntilMachineID(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		machineID, err := pkgmetadata.ReadMachineIDWithFallback(ctx, s.dbRW, s.dbRO)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		machineID, err := pkgmetadata.ReadMachineID(ctx, s.dbRO)
+		if err != nil {
 			log.Logger.Errorw("failed to read machine uid", "error", err)
 			continue
 		}
@@ -479,7 +479,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 
 	var userToken string
 	pipePath := s.fifoPath
-	if dbToken, err := pkgmetadata.ReadTokenWithFallback(ctx, s.dbRW, s.dbRO, machineID); err == nil {
+	if dbToken, err := pkgmetadata.ReadToken(ctx, s.dbRO); err == nil {
 		userToken = dbToken
 
 		token.mu.Lock()
