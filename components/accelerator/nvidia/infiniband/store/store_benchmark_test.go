@@ -14,7 +14,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -107,7 +107,7 @@ func TestSimulatedEvents(t *testing.T) {
 		eventTime := now.Add(time.Duration(i*intervalSeconds) * time.Second)
 
 		// Create realistic IB ports with state evolution
-		ibPorts := make([]infiniband.IBPort, len(deviceNames))
+		ibPorts := make([]types.IBPort, len(deviceNames))
 		for j := 0; j < len(deviceNames); j++ {
 			// Simulate realistic state transitions based on port profile
 			profile := &currentPortStates[j]
@@ -149,7 +149,7 @@ func TestSimulatedEvents(t *testing.T) {
 				portNumber = uint(2) // Some devices have dual ports
 			}
 
-			ibPorts[j] = infiniband.IBPort{
+			ibPorts[j] = types.IBPort{
 				Device:          deviceNames[j],
 				Port:            portNumber,
 				State:           currentState,

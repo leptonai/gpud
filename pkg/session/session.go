@@ -18,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
+	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
@@ -26,7 +27,6 @@ import (
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
 )
@@ -148,7 +148,7 @@ type Session struct {
 
 	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
 
-	setDefaultIbExpectedPortStatesFunc func(states infiniband.ExpectedPortStates)
+	setDefaultIbExpectedPortStatesFunc func(states componentsnvidiainfinibanditypes.ExpectedPortStates)
 	setDefaultGPUCountsFunc            func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
 	setDefaultNFSGroupConfigsFunc      func(cfgs pkgnfschecker.Configs)
 	setDefaultXIDRebootThresholdFunc   func(threshold componentsxid.RebootThreshold)

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
 func TestDefaultExpectedPortStates(t *testing.T) {
@@ -15,7 +15,7 @@ func TestDefaultExpectedPortStates(t *testing.T) {
 	assert.Equal(t, 0, defaults.AtLeastRate)
 
 	// Test setting new values
-	newStates := infiniband.ExpectedPortStates{
+	newStates := types.ExpectedPortStates{
 		AtLeastPorts: 2,
 		AtLeastRate:  200,
 	}

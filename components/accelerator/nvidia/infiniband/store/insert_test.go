@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -55,7 +55,7 @@ func TestInsertWithValidData(t *testing.T) {
 
 	// Create test IB ports
 	eventTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	ibPorts := []infiniband.IBPort{
+	ibPorts := []types.IBPort{
 		{
 			Device:          "mlx5_0",
 			Port:            1,
@@ -134,7 +134,7 @@ func TestInsertWithNonIBPorts(t *testing.T) {
 
 	// Create test ports with mixed link layers
 	eventTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	ibPorts := []infiniband.IBPort{
+	ibPorts := []types.IBPort{
 		{
 			Device:          "mlx5_0",
 			Port:            1,
@@ -200,7 +200,7 @@ func TestInsertWithMinimumInterval(t *testing.T) {
 	s.configMu.Unlock()
 
 	// Create test IB port
-	ibPorts := []infiniband.IBPort{
+	ibPorts := []types.IBPort{
 		{
 			Device:          "mlx5_0",
 			Port:            1,
@@ -254,7 +254,7 @@ func TestInsertWithDatabaseError(t *testing.T) {
 	dbRW.Close()
 
 	eventTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	ibPorts := []infiniband.IBPort{
+	ibPorts := []types.IBPort{
 		{
 			Device:          "mlx5_0",
 			Port:            1,
@@ -281,7 +281,7 @@ func TestInsertWithEmptyPorts(t *testing.T) {
 
 	// Insert with empty ports slice
 	eventTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	err = store.Insert(eventTime, []infiniband.IBPort{})
+	err = store.Insert(eventTime, []types.IBPort{})
 	require.NoError(t, err)
 
 	// Verify no records were inserted
@@ -393,7 +393,7 @@ func TestInsertUpdatesDeviceAndPortValues(t *testing.T) {
 
 	// Insert test data
 	eventTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	ibPorts := []infiniband.IBPort{
+	ibPorts := []types.IBPort{
 		{
 			Device:          "mlx5_0",
 			Port:            1,
@@ -445,7 +445,7 @@ func TestInsertWithContextTimeout(t *testing.T) {
 	cancel()
 
 	eventTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	ibPorts := []infiniband.IBPort{
+	ibPorts := []types.IBPort{
 		{
 			Device:          "mlx5_0",
 			Port:            1,

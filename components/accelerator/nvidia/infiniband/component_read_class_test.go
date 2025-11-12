@@ -12,13 +12,15 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
-	infinibandclass "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/class"
-	infinibandstore "github.com/leptonai/gpud/pkg/nvidia-query/infiniband/store"
+	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
+	infinibandstore "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/store"
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
+const testClassDir = "class/testdata/sys-class-infiniband-h100.0"
+
 func TestComponentReadClass(t *testing.T) {
-	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
+	origClassDir := testClassDir
 	if _, err := os.Stat(origClassDir); err != nil {
 		t.Skip("skipping test, test class dir does not exist")
 	}
@@ -30,7 +32,7 @@ func TestComponentReadClass(t *testing.T) {
 	bucket, _ := es.Bucket(Name)
 
 	timeNow := time.Now().UTC()
-	threshold := infiniband.ExpectedPortStates{}
+	threshold := types.ExpectedPortStates{}
 	c := &component{
 		ctx:    context.Background(),
 		cancel: func() {},
@@ -45,7 +47,7 @@ func TestComponentReadClass(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return timeNow
 		},
-		getThresholdsFunc: func() infiniband.ExpectedPortStates {
+		getThresholdsFunc: func() types.ExpectedPortStates {
 			return threshold
 		},
 		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -55,14 +57,14 @@ func TestComponentReadClass(t *testing.T) {
 
 	// Test case 1: Basic healthy scenario with sufficient ports and rate
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 	cr := c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 	assert.Equal(t, cr.Summary(), "ok; no infiniband port issue")
 
 	// Test case 2: Unhealthy scenario - require more ports than available
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 10, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 10, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 	assert.Equal(t, cr.Summary(), "only 8 port(s) are active and >=400 Gb/s, expect >=10 port(s)")
@@ -72,7 +74,7 @@ func TestComponentReadClass(t *testing.T) {
 	updatePortState(t, classRootDir, "mlx5_1", 1, "Down")
 
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType()) // Should be healthy with 6 ports active
 	assert.Equal(t, cr.Summary(), "ok; no infiniband port issue")
@@ -82,7 +84,7 @@ func TestComponentReadClass(t *testing.T) {
 	updatePortPhysState(t, classRootDir, "mlx5_5", 1, "Disabled")
 
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 	assert.Contains(t, cr.Summary(), "only 6 port(s) are active and >=400 Gb/s, expect >=8 port(s)")
@@ -92,7 +94,7 @@ func TestComponentReadClass(t *testing.T) {
 	updatePortRate(t, classRootDir, "mlx5_7", 1, "200 Gb/sec (2X EDR)")
 
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 	assert.Contains(t, cr.Summary(), "only 4 port(s) are active and >=400 Gb/s, expect >=8 port(s)")
@@ -102,7 +104,7 @@ func TestComponentReadClass(t *testing.T) {
 	updateLinkDownedCounter(t, classRootDir, "mlx5_9", 1, 3)
 
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 	assert.Equal(t, cr.Summary(), "ok; no infiniband port issue")
@@ -114,7 +116,7 @@ func TestComponentReadClass(t *testing.T) {
 	updateErrorCounter(t, classRootDir, "mlx5_9", 1, "excessive_buffer_overrun_errors", 7)
 
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 	assert.Equal(t, cr.Summary(), "ok; no infiniband port issue")
@@ -128,14 +130,14 @@ func TestComponentReadClass(t *testing.T) {
 	updatePortRate(t, classRootDir, "mlx5_1", 1, "400 Gb/sec (4X EDR)")
 
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 	assert.Equal(t, cr.Summary(), "ok; no infiniband port issue")
 
 	// Test case 9: Test edge case - exactly meeting threshold
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 	assert.Equal(t, cr.Summary(), "ok; no infiniband port issue")
@@ -147,7 +149,7 @@ func TestComponentReadClass(t *testing.T) {
 	updatePortState(t, classRootDir, "mlx5_9", 1, "Down")
 
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType()) // Still healthy because other ports are active
 	assert.Equal(t, cr.Summary(), "ok; no infiniband port issue")
@@ -161,7 +163,7 @@ func TestComponentReadClass(t *testing.T) {
 	updatePortRate(t, classRootDir, "mlx5_1", 1, "400 Gb/sec (4X EDR)")
 
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 2, AtLeastRate: 400}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType()) // Still healthy because other ports meet threshold
 	assert.Equal(t, cr.Summary(), "ok; no infiniband port issue")
@@ -174,7 +176,7 @@ func TestComponentReadClass(t *testing.T) {
 	updateLinkDownedCounter(t, classRootDir, "mlx5_1", 1, 25)
 
 	timeNow = timeNow.Add(time.Minute)
-	threshold = infiniband.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 200}
+	threshold = types.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 200}
 	cr = c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
 	assert.Equal(t, cr.Summary(), "ok; no infiniband port issue")
@@ -279,7 +281,7 @@ func copyTestClassDir(t *testing.T, origClassDir string) string {
 
 // TestComponentReadClass_FlapDetection tests InfiniBand port flapping detection scenarios
 func TestComponentReadClass_FlapDetection(t *testing.T) {
-	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
+	origClassDir := testClassDir
 	if _, err := os.Stat(origClassDir); err != nil {
 		t.Skip("skipping test, test class dir does not exist")
 	}
@@ -294,7 +296,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 
 	// Test case 1: Classic Port Flap - Port bounces between Active and Down
 	t.Run("classic_port_flap", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime
 		linkDownedCount := uint64(10)
 
@@ -312,7 +314,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -357,7 +359,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 
 	// Test case 2: Rapid Flapping - Multiple quick state changes
 	t.Run("rapid_flapping", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(10 * time.Minute)
 		linkDownedCount := uint64(20)
 
@@ -375,7 +377,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -408,7 +410,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 
 	// Test case 3: Flap with increasing error counters
 	t.Run("flap_with_error_counters", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(20 * time.Minute)
 		linkDownedCount := uint64(30)
 		errorCount := uint64(100)
@@ -427,7 +429,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -462,7 +464,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 
 // TestComponentReadClass_DropDetection tests InfiniBand port drop detection scenarios
 func TestComponentReadClass_DropDetection(t *testing.T) {
-	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
+	origClassDir := testClassDir
 	if _, err := os.Stat(origClassDir); err != nil {
 		t.Skip("skipping test, test class dir does not exist")
 	}
@@ -477,7 +479,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 
 	// Test case 1: Persistent Port Drop - Port stays down for extended period
 	t.Run("persistent_port_drop", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime
 		linkDownedCount := uint64(10)
 
@@ -495,7 +497,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -531,7 +533,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 			updatePortPhysState(t, classRootDir, device, 1, "LinkUp")
 		}
 
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(10 * time.Minute)
 		errorCount := uint64(1000)
 
@@ -549,7 +551,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -579,7 +581,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 			updatePortPhysState(t, classRootDir, device, 1, "LinkUp")
 		}
 
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(20 * time.Minute)
 		linkDownedCount := uint64(15)
 
@@ -597,7 +599,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -640,7 +642,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 
 // TestComponentReadClass_CombinedFlapAndDrop tests combined flap and drop scenarios
 func TestComponentReadClass_CombinedFlapAndDrop(t *testing.T) {
-	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
+	origClassDir := testClassDir
 	if _, err := os.Stat(origClassDir); err != nil {
 		t.Skip("skipping test, test class dir does not exist")
 	}
@@ -655,7 +657,7 @@ func TestComponentReadClass_CombinedFlapAndDrop(t *testing.T) {
 
 	// Test case: Some ports flapping while others are persistently down
 	t.Run("mixed_flap_and_drop", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 6, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 6, AtLeastRate: 400}
 		timeNow := baseTime
 		linkDownedCount := uint64(20)
 
@@ -673,7 +675,7 @@ func TestComponentReadClass_CombinedFlapAndDrop(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -729,7 +731,7 @@ func TestComponentReadClass_CombinedFlapAndDrop(t *testing.T) {
 
 // TestComponentReadClass_ErrorCounterRates tests detection of high-rate packet drops through error counters
 func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
-	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
+	origClassDir := testClassDir
 	if _, err := os.Stat(origClassDir); err != nil {
 		t.Skip("skipping test, test class dir does not exist")
 	}
@@ -744,7 +746,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 
 	// Test case 1: High rate of receive errors
 	t.Run("high_rate_receive_errors", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime
 
 		c := &component{
@@ -761,7 +763,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -784,7 +786,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 
 	// Test case 2: Multiple error types increasing simultaneously
 	t.Run("multiple_error_types", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(10 * time.Minute)
 
 		c := &component{
@@ -801,7 +803,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -834,7 +836,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 
 	// Test case 3: Error burst followed by quiet period
 	t.Run("error_burst_pattern", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(20 * time.Minute)
 
 		c := &component{
@@ -851,7 +853,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -881,7 +883,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 
 // TestComponentReadClass_EdgeCases tests edge cases and boundary conditions
 func TestComponentReadClass_EdgeCases(t *testing.T) {
-	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
+	origClassDir := testClassDir
 	if _, err := os.Stat(origClassDir); err != nil {
 		t.Skip("skipping test, test class dir does not exist")
 	}
@@ -896,7 +898,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 
 	// Test case 1: Counter reset scenario
 	t.Run("counter_reset", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime
 
 		c := &component{
@@ -913,7 +915,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -943,7 +945,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 		// Create a fresh copy for this subtest
 		subClassRootDir := copyTestClassDir(t, origClassDir)
 		defer os.RemoveAll(subClassRootDir)
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(10 * time.Minute)
 		linkDownedBase := uint64(100)
 
@@ -961,7 +963,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -996,7 +998,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 
 	// Test case 3: Rate degradation without port down
 	t.Run("rate_degradation", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(20 * time.Minute)
 
 		c := &component{
@@ -1013,7 +1015,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -1043,7 +1045,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 
 	// Test case 4: Physical state changes without logical state changes
 	t.Run("physical_state_changes", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(30 * time.Minute)
 
 		c := &component{
@@ -1060,7 +1062,7 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -1096,7 +1098,7 @@ type mockIBPortsStore struct {
 	events []infinibandstore.Event
 }
 
-func (m *mockIBPortsStore) Insert(eventTime time.Time, ibPorts []infiniband.IBPort) error {
+func (m *mockIBPortsStore) Insert(eventTime time.Time, ibPorts []types.IBPort) error {
 	return nil
 }
 
@@ -1119,7 +1121,7 @@ func (m *mockIBPortsStore) Scan() error {
 // TestComponentReadClass_12PortsMeetingThresholdsWithEvents tests scenario with 12 total ports
 // where 8 ports meet thresholds, and some ports have drop/flap events that now always cause unhealthy state
 func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
-	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
+	origClassDir := testClassDir
 	if _, err := os.Stat(origClassDir); err != nil {
 		t.Skip("skipping test, test class dir does not exist")
 	}
@@ -1133,7 +1135,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 	baseTime := time.Now().UTC()
 
 	t.Run("12_ports_meeting_thresholds_with_events", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime
 
 		// Create mock store with drop/flap events that should be ignored
@@ -1142,7 +1144,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 			events: []infinibandstore.Event{
 				{
 					Time: timeNow,
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_4",
 						Port:   1,
 					},
@@ -1151,7 +1153,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 				},
 				{
 					Time: timeNow,
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_5",
 						Port:   1,
 					},
@@ -1176,7 +1178,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -1212,7 +1214,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 		updatePortPhysState(t, classRootDir, "mlx5_5", 1, "Polling")
 
 		// Lower threshold to 6 so we still meet it
-		threshold = infiniband.ExpectedPortStates{AtLeastPorts: 6, AtLeastRate: 400}
+		threshold = types.ExpectedPortStates{AtLeastPorts: 6, AtLeastRate: 400}
 
 		timeNow = timeNow.Add(30 * time.Second)
 		cr = c.Check()
@@ -1234,7 +1236,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 
 	// Test with actual threshold breach to show events are processed
 	t.Run("12_ports_failing_thresholds_with_events", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(10 * time.Minute)
 
 		// Create mock store with events
@@ -1242,7 +1244,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 			events: []infinibandstore.Event{
 				{
 					Time: timeNow,
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_0",
 						Port:   1,
 					},
@@ -1251,7 +1253,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 				},
 				{
 					Time: timeNow,
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_1",
 						Port:   1,
 					},
@@ -1276,7 +1278,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -1310,7 +1312,7 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 // TestComponentReadClass_RealisticScenarioWith12IBPorts tests a realistic production scenario
 // with 12 IB ports where 8 are healthy and 4 are down, based on actual ibstat output
 func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
-	origClassDir := "../../../../pkg/nvidia-query/infiniband/class/testdata/sys-class-infiniband-h100.0"
+	origClassDir := testClassDir
 	if _, err := os.Stat(origClassDir); err != nil {
 		t.Skip("skipping test, test class dir does not exist")
 	}
@@ -1325,7 +1327,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 
 	// Test case 1: Threshold exactly met (8 ports at 400 Gb/s) - should be healthy
 	t.Run("realistic_12_ports_meeting_threshold_exactly", func(t *testing.T) {
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime
 
 		// Create mock store with drop/flap events for the down ports
@@ -1334,7 +1336,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			events: []infinibandstore.Event{
 				{
 					Time: timeNow.Add(-5 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_1",
 						Port:   1,
 					},
@@ -1343,7 +1345,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 				},
 				{
 					Time: timeNow.Add(-3 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_2",
 						Port:   1,
 					},
@@ -1352,7 +1354,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 				},
 				{
 					Time: timeNow.Add(-2 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_7",
 						Port:   1,
 					},
@@ -1361,7 +1363,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 				},
 				{
 					Time: timeNow.Add(-1 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_8",
 						Port:   1,
 					},
@@ -1386,7 +1388,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -1419,7 +1421,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 		// So we have 6 healthy + 2 down = 8 total, which still demonstrates the principle
 
 		// Adjust threshold to match available test data
-		threshold = infiniband.ExpectedPortStates{AtLeastPorts: 6, AtLeastRate: 400}
+		threshold = types.ExpectedPortStates{AtLeastPorts: 6, AtLeastRate: 400}
 
 		timeNow = timeNow.Add(30 * time.Second)
 		cr := c.Check()
@@ -1442,7 +1444,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 		subClassRootDir := copyTestClassDir(t, origClassDir)
 		defer os.RemoveAll(subClassRootDir)
 
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 7, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 7, AtLeastRate: 400}
 		timeNow := baseTime.Add(10 * time.Minute)
 
 		// Same events as before
@@ -1450,7 +1452,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			events: []infinibandstore.Event{
 				{
 					Time: timeNow.Add(-5 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_1",
 						Port:   1,
 					},
@@ -1459,7 +1461,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 				},
 				{
 					Time: timeNow.Add(-1 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_7",
 						Port:   1,
 					},
@@ -1484,7 +1486,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -1527,7 +1529,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 		subClassRootDir := copyTestClassDir(t, origClassDir)
 		defer os.RemoveAll(subClassRootDir)
 
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
 		timeNow := baseTime.Add(20 * time.Minute)
 
 		// Multiple events for down ports
@@ -1535,7 +1537,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			events: []infinibandstore.Event{
 				{
 					Time: timeNow.Add(-10 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_1",
 						Port:   1,
 					},
@@ -1544,7 +1546,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 				},
 				{
 					Time: timeNow.Add(-8 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_4",
 						Port:   1,
 					},
@@ -1553,7 +1555,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 				},
 				{
 					Time: timeNow.Add(-5 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_5",
 						Port:   1,
 					},
@@ -1562,7 +1564,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 				},
 				{
 					Time: timeNow.Add(-2 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_7",
 						Port:   1,
 					},
@@ -1587,7 +1589,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
@@ -1634,7 +1636,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 		subClassRootDir := copyTestClassDir(t, origClassDir)
 		defer os.RemoveAll(subClassRootDir)
 
-		threshold := infiniband.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
+		threshold := types.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
 		timeNow := baseTime.Add(30 * time.Minute)
 
 		// Create a mock store with only drop events
@@ -1642,7 +1644,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			events: []infinibandstore.Event{
 				{
 					Time: timeNow.Add(-10 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_0",
 						Port:   1,
 					},
@@ -1651,7 +1653,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 				},
 				{
 					Time: timeNow.Add(-5 * time.Minute),
-					Port: infiniband.IBPort{
+					Port: types.IBPort{
 						Device: "mlx5_1",
 						Port:   1,
 					},
@@ -1676,7 +1678,7 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 			getTimeNowFunc: func() time.Time {
 				return timeNow
 			},
-			getThresholdsFunc: func() infiniband.ExpectedPortStates {
+			getThresholdsFunc: func() types.ExpectedPortStates {
 				return threshold
 			},
 			getClassDevicesFunc: func() (infinibandclass.Devices, error) {

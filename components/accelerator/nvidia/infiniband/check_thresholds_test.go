@@ -4,10 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
 func TestCheckPortsAndRateWithPhysicalState(t *testing.T) {
-	ports := []IBPort{
+	ports := []types.IBPort{
 		{
 			Device:        "mlx5_0",
 			State:         "Active",
@@ -42,7 +44,7 @@ func TestCheckPortsAndRateWithPhysicalState(t *testing.T) {
 func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 	tests := []struct {
 		name                   string
-		ports                  []IBPort
+		ports                  []types.IBPort
 		expectedPhysicalStates []string
 		atLeastRate            int
 		expectedMatchCount     int
@@ -50,7 +52,7 @@ func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 	}{
 		{
 			name: "mixed link layers - only infiniband should match",
-			ports: []IBPort{
+			ports: []types.IBPort{
 				{
 					Device:        "mlx5_0",
 					LinkLayer:     "Infiniband",
@@ -80,7 +82,7 @@ func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 		},
 		{
 			name: "all ethernet ports - none should match",
-			ports: []IBPort{
+			ports: []types.IBPort{
 				{
 					Device:        "eth0",
 					LinkLayer:     "Ethernet",
@@ -103,7 +105,7 @@ func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 		},
 		{
 			name: "all infiniband ports with case variations",
-			ports: []IBPort{
+			ports: []types.IBPort{
 				{
 					Device:        "mlx5_0",
 					LinkLayer:     "infiniband",
@@ -140,7 +142,7 @@ func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 		},
 		{
 			name: "infiniband ports with different physical states - filtering by IsIBPort first",
-			ports: []IBPort{
+			ports: []types.IBPort{
 				{
 					Device:        "mlx5_0",
 					LinkLayer:     "Infiniband",
@@ -170,7 +172,7 @@ func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 		},
 		{
 			name: "infiniband ports with rate filtering - IsIBPort check first",
-			ports: []IBPort{
+			ports: []types.IBPort{
 				{
 					Device:        "mlx5_0",
 					LinkLayer:     "Infiniband",
@@ -200,7 +202,7 @@ func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 		},
 		{
 			name: "empty link layer should not match",
-			ports: []IBPort{
+			ports: []types.IBPort{
 				{
 					Device:        "mlx5_0",
 					LinkLayer:     "",
@@ -223,7 +225,7 @@ func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 		},
 		{
 			name: "unknown link layer should not match",
-			ports: []IBPort{
+			ports: []types.IBPort{
 				{
 					Device:        "mlx5_0",
 					LinkLayer:     "Unknown",
@@ -253,7 +255,7 @@ func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 		},
 		{
 			name: "no physical state filter - only LinkLayer matters",
-			ports: []IBPort{
+			ports: []types.IBPort{
 				{
 					Device:        "mlx5_0",
 					LinkLayer:     "Infiniband",
@@ -308,7 +310,7 @@ func TestCheckPortsAndRate_IsIBPortFiltering(t *testing.T) {
 func TestEvaluatePortsAndRate(t *testing.T) {
 	tests := []struct {
 		name                 string
-		allPorts             []IBPort
+		allPorts             []types.IBPort
 		atLeastPorts         int
 		atLeastRate          int
 		expectError          bool
@@ -317,7 +319,7 @@ func TestEvaluatePortsAndRate(t *testing.T) {
 	}{
 		{
 			name: "all ports meet thresholds",
-			allPorts: []IBPort{
+			allPorts: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
 				{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
 			},
@@ -327,7 +329,7 @@ func TestEvaluatePortsAndRate(t *testing.T) {
 		},
 		{
 			name: "zero thresholds",
-			allPorts: []IBPort{
+			allPorts: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
 			},
 			atLeastPorts: 0,
@@ -336,7 +338,7 @@ func TestEvaluatePortsAndRate(t *testing.T) {
 		},
 		{
 			name: "insufficient ports with required rate",
-			allPorts: []IBPort{
+			allPorts: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
 				{Device: "mlx5_1", State: "Active", PhysicalState: "LinkUp", RateGBSec: 200, LinkLayer: "Infiniband"},
 			},
@@ -347,7 +349,7 @@ func TestEvaluatePortsAndRate(t *testing.T) {
 		},
 		{
 			name: "some ports disabled",
-			allPorts: []IBPort{
+			allPorts: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
 				{Device: "mlx5_1", State: "Down", PhysicalState: "Disabled", RateGBSec: 400, LinkLayer: "Infiniband"},
 			},
@@ -359,7 +361,7 @@ func TestEvaluatePortsAndRate(t *testing.T) {
 		},
 		{
 			name: "some ports polling",
-			allPorts: []IBPort{
+			allPorts: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
 				{Device: "mlx5_1", State: "Init", PhysicalState: "Polling", RateGBSec: 400, LinkLayer: "Infiniband"},
 			},
@@ -371,7 +373,7 @@ func TestEvaluatePortsAndRate(t *testing.T) {
 		},
 		{
 			name: "mixed disabled and polling",
-			allPorts: []IBPort{
+			allPorts: []types.IBPort{
 				{Device: "mlx5_0", State: "Active", PhysicalState: "LinkUp", RateGBSec: 400, LinkLayer: "Infiniband"},
 				{Device: "mlx5_1", State: "Down", PhysicalState: "Disabled", RateGBSec: 400, LinkLayer: "Infiniband"},
 				{Device: "mlx5_2", State: "Init", PhysicalState: "Polling", RateGBSec: 400, LinkLayer: "Infiniband"},
@@ -475,7 +477,7 @@ func TestIBPort_IsIBPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			port := IBPort{
+			port := types.IBPort{
 				LinkLayer: tt.linkLayer,
 			}
 			result := port.IsIBPort()
