@@ -86,9 +86,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		nvmlInstance:        gpudInstance.NVMLInstance,
-		getGPMSupportedFunc: nvidianvml.GPMSupportedByDevice,
+		getGPMSupportedFunc: GPMSupportedByDevice,
 		getGPMMetricsFunc: func(ctx2 context.Context, dev device.Device) (map[gonvml.GpmMetricId]float64, error) {
-			return nvidianvml.GetGPMMetrics(
+			return GetGPMMetrics(
 				ctx2,
 				dev,
 				sampleDuration,
@@ -257,7 +257,7 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		now := metav1.Time{Time: time.Now().UTC()}
-		cr.GPMMetrics = append(cr.GPMMetrics, nvidianvml.GPMMetrics{
+		cr.GPMMetrics = append(cr.GPMMetrics, GPMMetrics{
 			Time:           now,
 			UUID:           uuid,
 			SampleDuration: metav1.Duration{Duration: sampleDuration},
@@ -278,8 +278,8 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	GPMSupported bool                    `json:"gpm_supported,omitempty"`
-	GPMMetrics   []nvidianvml.GPMMetrics `json:"gpm_metrics,omitempty"`
+	GPMSupported bool         `json:"gpm_supported,omitempty"`
+	GPMMetrics   []GPMMetrics `json:"gpm_metrics,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

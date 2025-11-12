@@ -16,8 +16,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
-	"github.com/leptonai/gpud/pkg/kubelet"
+	"github.com/leptonai/gpud/components/kubelet"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/systemd"
@@ -55,7 +54,7 @@ type component struct {
 	getContainerdUptimeFunc       func() (*time.Duration, error)
 	activenssCheckUptimeThreshold time.Duration
 
-	listAllSandboxesFunc func(ctx context.Context, endpoint string) ([]pkgcontainerd.PodSandbox, error)
+	listAllSandboxesFunc func(ctx context.Context, endpoint string) ([]PodSandbox, error)
 
 	endpoint string
 
@@ -79,9 +78,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return os.ReadFile("/etc/containerd/config.toml")
 		},
 
-		checkDependencyInstalledFunc: pkgcontainerd.CheckContainerdInstalled,
-		checkSocketExistsFunc:        pkgcontainerd.CheckSocketExists,
-		checkContainerdRunningFunc:   pkgcontainerd.CheckContainerdRunning,
+		checkDependencyInstalledFunc: CheckContainerdInstalled,
+		checkSocketExistsFunc:        CheckSocketExists,
+		checkContainerdRunningFunc:   CheckContainerdRunning,
 		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
 			return systemd.IsActive("containerd")
 		},
@@ -90,9 +89,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		},
 		activenssCheckUptimeThreshold: defaultActivenssCheckUptimeThreshold,
 
-		listAllSandboxesFunc: pkgcontainerd.ListAllSandboxes,
+		listAllSandboxesFunc: ListAllSandboxes,
 
-		endpoint: pkgcontainerd.DefaultContainerRuntimeEndpoint,
+		endpoint: DefaultContainerRuntimeEndpoint,
 	}
 	return c, nil
 }
@@ -243,7 +242,7 @@ func (c *component) Check() components.CheckResult {
 		cr.Pods, cr.err = c.listAllSandboxesFunc(cctx, c.endpoint)
 		ccancel()
 		if cr.err != nil {
-			if pkgcontainerd.IsErrUnimplemented(cr.err) {
+			if IsErrUnimplemented(cr.err) {
 				cr.health = apiv1.HealthStateTypeHealthy
 				cr.reason = "containerd installed and active but containerd CRI is not enabled"
 			} else {
@@ -359,7 +358,7 @@ type checkResult struct {
 	ContainerdServiceActive bool `json:"containerd_service_active"`
 
 	// Pods is the list of pods on the node.
-	Pods []pkgcontainerd.PodSandbox `json:"pods,omitempty"`
+	Pods []PodSandbox `json:"pods,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time
@@ -452,7 +451,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{state}
 }
 
-func danglingPodCount(containerdPods []pkgcontainerd.PodSandbox, kubeletPods []kubelet.PodStatus) int {
+func danglingPodCount(containerdPods []PodSandbox, kubeletPods []kubelet.PodStatus) int {
 	var danglingCount int
 	if len(kubeletPods) == 0 {
 		return danglingCount

@@ -94,7 +94,7 @@ func (m *mockNVMLInstance) Shutdown() error {
 func mockComponent(
 	ctx context.Context,
 	devicesFunc func() map[string]device.Device,
-	getPersistenceModeFunc func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error),
+	getPersistenceModeFunc func(uuid string, dev device.Device) (PersistenceMode, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
@@ -118,7 +118,7 @@ func mockComponent(
 func MockPersistenceModeComponentWithNVMLExists(
 	ctx context.Context,
 	devicesFunc func() map[string]device.Device,
-	getPersistenceModeFunc func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error),
+	getPersistenceModeFunc func(uuid string, dev device.Device) (PersistenceMode, error),
 	nvmlExists bool,
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
@@ -207,12 +207,12 @@ func TestCheck_Success(t *testing.T) {
 		return devs
 	}
 
-	persistenceMode := nvidianvml.PersistenceMode{
+	persistenceMode := PersistenceMode{
 		UUID:    uuid,
 		Enabled: true,
 	}
 
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
+	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
 		return persistenceMode, nil
 	}
 
@@ -250,8 +250,8 @@ func TestCheck_PersistenceModeError(t *testing.T) {
 	}
 
 	errExpected := errors.New("persistence mode error")
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
-		return nvidianvml.PersistenceMode{}, errExpected
+	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
+		return PersistenceMode{}, errExpected
 	}
 
 	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
@@ -316,8 +316,8 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		return devs
 	}
 
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
-		return nvidianvml.PersistenceMode{
+	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
+		return PersistenceMode{
 			UUID:      uuid,
 			Enabled:   uuid == uuid1, // First device has persistence mode enabled
 			Supported: true,
@@ -338,7 +338,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 	assert.Len(t, data.PersistenceModes, 2)
 
 	// Verify each device's persistence mode status
-	var device1Mode, device2Mode nvidianvml.PersistenceMode
+	var device1Mode, device2Mode PersistenceMode
 	for _, mode := range data.PersistenceModes {
 		if mode.UUID == uuid1 {
 			device1Mode = mode
@@ -404,7 +404,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 	// Set test data
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
-		PersistenceModes: []nvidianvml.PersistenceMode{
+		PersistenceModes: []PersistenceMode{
 			{
 				UUID:    "gpu-uuid-123",
 				Enabled: true,
@@ -570,7 +570,7 @@ func TestData_String(t *testing.T) {
 		{
 			name: "with persistence modes",
 			data: &checkResult{
-				PersistenceModes: []nvidianvml.PersistenceMode{
+				PersistenceModes: []PersistenceMode{
 					{
 						UUID:      "gpu-uuid-123",
 						BusID:     "0000:01:00.0",
@@ -709,13 +709,13 @@ func TestIsSupported(t *testing.T) {
 func TestPersistenceModeCheck(t *testing.T) {
 	tests := []struct {
 		name              string
-		persistenceModes  []nvidianvml.PersistenceMode
+		persistenceModes  []PersistenceMode
 		expectedHealth    apiv1.HealthStateType
 		expectedReasonCmp string
 	}{
 		{
 			name: "all GPUs have persistence mode supported and enabled",
-			persistenceModes: []nvidianvml.PersistenceMode{
+			persistenceModes: []PersistenceMode{
 				{UUID: "GPU-1", Supported: true, Enabled: true},
 				{UUID: "GPU-2", Supported: true, Enabled: true},
 			},
@@ -724,7 +724,7 @@ func TestPersistenceModeCheck(t *testing.T) {
 		},
 		{
 			name: "some GPUs have persistence mode supported but not enabled",
-			persistenceModes: []nvidianvml.PersistenceMode{
+			persistenceModes: []PersistenceMode{
 				{UUID: "GPU-1", Supported: true, Enabled: true},
 				{UUID: "GPU-2", Supported: true, Enabled: false},
 			},
@@ -733,7 +733,7 @@ func TestPersistenceModeCheck(t *testing.T) {
 		},
 		{
 			name: "all GPUs have persistence mode supported but not enabled",
-			persistenceModes: []nvidianvml.PersistenceMode{
+			persistenceModes: []PersistenceMode{
 				{UUID: "GPU-1", Supported: true, Enabled: false},
 				{UUID: "GPU-2", Supported: true, Enabled: false},
 			},
@@ -742,7 +742,7 @@ func TestPersistenceModeCheck(t *testing.T) {
 		},
 		{
 			name: "GPU has persistence mode not supported",
-			persistenceModes: []nvidianvml.PersistenceMode{
+			persistenceModes: []PersistenceMode{
 				{UUID: "GPU-1", Supported: false, Enabled: false},
 			},
 			expectedHealth:    apiv1.HealthStateTypeHealthy,
@@ -774,13 +774,13 @@ func TestPersistenceModeCheck(t *testing.T) {
 			// Create component with mocked functions
 			c := &component{
 				nvmlInstance: mockNVML,
-				getPersistenceModeFunc: func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
+				getPersistenceModeFunc: func(uuid string, dev device.Device) (PersistenceMode, error) {
 					for _, pm := range tt.persistenceModes {
 						if pm.UUID == uuid {
 							return pm, nil
 						}
 					}
-					return nvidianvml.PersistenceMode{}, nil
+					return PersistenceMode{}, nil
 				},
 				getTimeNowFunc: func() time.Time {
 					return time.Now().UTC()
@@ -849,8 +849,8 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
-		return nvidianvml.PersistenceMode{}, nvmlerrors.ErrGPULost
+	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
+		return PersistenceMode{}, nvmlerrors.ErrGPULost
 	}
 
 	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
@@ -904,10 +904,10 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error via nvml.Return and mapping in GetPersistenceMode
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
+	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
 		// Use any API that would surface this return in underlying helper; directly return the mapped error here
 		// because the persistence mode component only checks errors.Is on ErrGPURequiresReset
-		return nvidianvml.PersistenceMode{}, nvmlerrors.ErrGPURequiresReset
+		return PersistenceMode{}, nvmlerrors.ErrGPURequiresReset
 	}
 
 	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)

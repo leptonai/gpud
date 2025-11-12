@@ -18,8 +18,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	nvidiamemory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
+	pkgcontainerd "github.com/leptonai/gpud/components/containerd"
 	"github.com/leptonai/gpud/pkg/asn"
-	pkgcontainerd "github.com/leptonai/gpud/pkg/containerd"
 	"github.com/leptonai/gpud/pkg/disk"
 	pkgdisk "github.com/leptonai/gpud/pkg/disk"
 	pkghost "github.com/leptonai/gpud/pkg/host"
@@ -315,7 +316,7 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 
 	for uuid, dev := range nvmlInstance.Devices() {
 		if info.Memory == "" {
-			gpuMemory, err := nvidianvml.GetMemory(uuid, dev)
+			gpuMemory, err := nvidiamemory.GetMemory(uuid, dev)
 			if err != nil {
 				return nil, err
 			}

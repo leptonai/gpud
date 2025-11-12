@@ -208,10 +208,10 @@ func TestCheck(t *testing.T) {
 	c := comp.(*component)
 
 	// Set the getProcessesFunc for testing
-	c.getProcessesFunc = func(uuid string, dev device.Device) (nvidianvml.Processes, error) {
-		return nvidianvml.Processes{
+	c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
+		return Processes{
 			UUID: uuid,
-			RunningProcesses: []nvidianvml.Process{
+			RunningProcesses: []Process{
 				{
 					PID:                1234,
 					GPUUsedMemoryBytes: 100000000,
@@ -261,8 +261,8 @@ func TestCheckError(t *testing.T) {
 
 	// Create a getProcessesFunc that returns an error
 	testErr := errors.New("test error")
-	c.getProcessesFunc = func(uuid string, dev device.Device) (nvidianvml.Processes, error) {
-		return nvidianvml.Processes{}, testErr
+	c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
+		return Processes{}, testErr
 	}
 
 	// Run Check
@@ -304,10 +304,10 @@ func TestLastHealthStates(t *testing.T) {
 func TestDataGetLastHealthStates(t *testing.T) {
 	// Test healthy data
 	healthyData := &checkResult{
-		Processes: []nvidianvml.Processes{
+		Processes: []Processes{
 			{
 				UUID: "gpu-uuid-1",
-				RunningProcesses: []nvidianvml.Process{
+				RunningProcesses: []Process{
 					{PID: 1234},
 				},
 			},
@@ -361,10 +361,10 @@ func TestDataString(t *testing.T) {
 
 	// Test data with processes
 	dataWithProcesses := &checkResult{
-		Processes: []nvidianvml.Processes{
+		Processes: []Processes{
 			{
 				UUID: "gpu-uuid-1",
-				RunningProcesses: []nvidianvml.Process{
+				RunningProcesses: []Process{
 					{PID: 1234},
 					{PID: 5678},
 				},
@@ -486,18 +486,18 @@ func TestCheckEdgeCases(t *testing.T) {
 		c := comp.(*component)
 
 		// Set up the getProcessesFunc to match device UUID
-		c.getProcessesFunc = func(uuid string, dev device.Device) (nvidianvml.Processes, error) {
+		c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
 			if uuid == "gpu-uuid-1" {
-				return nvidianvml.Processes{
+				return Processes{
 					UUID: uuid,
-					RunningProcesses: []nvidianvml.Process{
+					RunningProcesses: []Process{
 						{PID: 1234, GPUUsedMemoryBytes: 100000000},
 					},
 				}, nil
 			} else {
-				return nvidianvml.Processes{
+				return Processes{
 					UUID: uuid,
-					RunningProcesses: []nvidianvml.Process{
+					RunningProcesses: []Process{
 						{PID: 5678, GPUUsedMemoryBytes: 200000000},
 						{PID: 9012, GPUUsedMemoryBytes: 300000000},
 					},
@@ -545,8 +545,8 @@ func TestCheck_GPULostError(t *testing.T) {
 	c := comp.(*component)
 
 	// Create a getProcessesFunc that returns GPU lost error
-	c.getProcessesFunc = func(uuid string, dev device.Device) (nvidianvml.Processes, error) {
-		return nvidianvml.Processes{}, nvmlerrors.ErrGPULost
+	c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
+		return Processes{}, nvmlerrors.ErrGPULost
 	}
 
 	// Run Check
@@ -602,8 +602,8 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	c := comp.(*component)
 
 	// Create a getProcessesFunc that returns GPU requires reset error
-	c.getProcessesFunc = func(uuid string, dev device.Device) (nvidianvml.Processes, error) {
-		return nvidianvml.Processes{}, nvmlerrors.ErrGPURequiresReset
+	c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
+		return Processes{}, nvmlerrors.ErrGPURequiresReset
 	}
 
 	// Run Check

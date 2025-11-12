@@ -94,7 +94,7 @@ func (m *mockNVMLInstanceNVMLNotExists) NVMLExists() bool {
 func MockNVLinkComponent(
 	ctx context.Context,
 	devicesFunc func() map[string]device.Device,
-	getNVLinkFunc func(uuid string, dev device.Device) (nvidianvml.NVLink, error),
+	getNVLinkFunc func(uuid string, dev device.Device) (NVLink, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
@@ -182,7 +182,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		return devs
 	}
 
-	nvLinkState := nvidianvml.NVLinkState{
+	nvLinkState := NVLinkState{
 		Link:           0,
 		FeatureEnabled: true,
 		ReplayErrors:   5,
@@ -190,12 +190,12 @@ func TestCheckOnce_Success(t *testing.T) {
 		CRCErrors:      1,
 	}
 
-	nvLink := nvidianvml.NVLink{
+	nvLink := NVLink{
 		UUID:   uuid,
-		States: []nvidianvml.NVLinkState{nvLinkState, nvLinkState},
+		States: []NVLinkState{nvLinkState, nvLinkState},
 	}
 
-	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
+	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
 		return nvLink, nil
 	}
 
@@ -234,8 +234,8 @@ func TestCheckOnce_NVLinkError(t *testing.T) {
 	}
 
 	errExpected := errors.New("NVLink error")
-	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
-		return nvidianvml.NVLink{}, errExpected
+	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
+		return NVLink{}, errExpected
 	}
 
 	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
@@ -278,7 +278,7 @@ func TestStates_WithData(t *testing.T) {
 	component := MockNVLinkComponent(ctx, nil, nil).(*component)
 
 	// Set test data
-	nvLinkState := nvidianvml.NVLinkState{
+	nvLinkState := NVLinkState{
 		Link:           0,
 		FeatureEnabled: true,
 		ReplayErrors:   0,
@@ -288,10 +288,10 @@ func TestStates_WithData(t *testing.T) {
 
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
-		NVLinks: []nvidianvml.NVLink{
+		NVLinks: []NVLink{
 			{
 				UUID:   "gpu-uuid-123",
-				States: []nvidianvml.NVLinkState{nvLinkState, nvLinkState},
+				States: []NVLinkState{nvLinkState, nvLinkState},
 			},
 		},
 		health: apiv1.HealthStateTypeHealthy,
@@ -455,12 +455,12 @@ func TestData_String(t *testing.T) {
 		{
 			name: "with nvlink data",
 			data: &checkResult{
-				NVLinks: []nvidianvml.NVLink{
+				NVLinks: []NVLink{
 					{
 						UUID:      "gpu-uuid-123",
 						BusID:     "0000:01:00.0",
 						Supported: true,
-						States: []nvidianvml.NVLinkState{
+						States: []NVLinkState{
 							{
 								Link:           0,
 								FeatureEnabled: true,
@@ -617,11 +617,11 @@ func TestData_getLastHealthStates(t *testing.T) {
 		{
 			name: "healthy data",
 			data: &checkResult{
-				NVLinks: []nvidianvml.NVLink{
+				NVLinks: []NVLink{
 					{
 						UUID:      "gpu-uuid-123",
 						Supported: true,
-						States:    []nvidianvml.NVLinkState{},
+						States:    []NVLinkState{},
 					},
 				},
 				health: apiv1.HealthStateTypeHealthy,
@@ -633,11 +633,11 @@ func TestData_getLastHealthStates(t *testing.T) {
 		{
 			name: "unhealthy data with error",
 			data: &checkResult{
-				NVLinks: []nvidianvml.NVLink{
+				NVLinks: []NVLink{
 					{
 						UUID:      "gpu-uuid-123",
 						Supported: true,
-						States:    []nvidianvml.NVLinkState{},
+						States:    []NVLinkState{},
 					},
 				},
 				health: apiv1.HealthStateTypeUnhealthy,
@@ -689,7 +689,7 @@ func TestCheck_MetricsGeneration(t *testing.T) {
 	}
 
 	// Create NVLink data with specific error counts to check metric values
-	nvLinkStates := []nvidianvml.NVLinkState{
+	nvLinkStates := []NVLinkState{
 		{
 			Link:           0,
 			FeatureEnabled: true,
@@ -706,13 +706,13 @@ func TestCheck_MetricsGeneration(t *testing.T) {
 		},
 	}
 
-	nvLink := nvidianvml.NVLink{
+	nvLink := NVLink{
 		UUID:      uuid,
 		Supported: true,
 		States:    nvLinkStates,
 	}
 
-	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
+	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
 		return nvLink, nil
 	}
 
@@ -762,8 +762,8 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
-		return nvidianvml.NVLink{}, nvmlerrors.ErrGPULost
+	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
+		return NVLink{}, nvmlerrors.ErrGPULost
 	}
 
 	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
@@ -817,10 +817,10 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error via nvml.Return and mapping in GetNVLink
-	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
+	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
 		// Use any API that would surface this return in underlying helper; directly return the mapped error here
 		// because the nvlink component only checks errors.Is on ErrGPURequiresReset
-		return nvidianvml.NVLink{}, nvmlerrors.ErrGPURequiresReset
+		return NVLink{}, nvmlerrors.ErrGPURequiresReset
 	}
 
 	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
