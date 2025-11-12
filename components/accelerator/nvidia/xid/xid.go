@@ -3118,16 +3118,46 @@ func normalizeUnit(s string) string {
 	}, s)
 }
 
+// eventTypeFromImmediateBucket maps NVIDIA XID immediate action buckets to event severity types.
+// These buckets are defined in NVIDIA's official XID catalog: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
 func eventTypeFromImmediateBucket(bucket string) apiv1.EventType {
 	switch bucket {
-	case "CONTACT_SUPPORT", "CHECK_MECHANICALS", "WORKFLOW_NVLINK_ERR", "WORKFLOW_NVLINK5_ERR", "XID_154", "XID_154_EVAL", "RESTART_BM":
+	case "CONTACT_SUPPORT", // Critical GPU error requiring NVIDIA support intervention
+		"CHECK_MECHANICALS",    // Hardware connection issues (e.g., auxiliary power not connected, XID 54)
+		"WORKFLOW_NVLINK_ERR",  // NVLink hardware error requiring specific diagnostic workflow
+		"WORKFLOW_NVLINK5_ERR", // NVLink5-specific error on newer architectures (XIDs 144-150)
+		"XID_154",              // GPU Recovery Action Changed - another XID triggered GPU recovery mode change
+		"XID_154_EVAL",         // Evaluate if XID 154 should be triggered based on error context (remap errors)
+		"RESTART_BM":           // Restart bare metal system/reboot required (e.g., XID 79 - GPU fallen off bus)
 		return apiv1.EventTypeFatal
-	case "RESET_GPU", "RESTART_APP", "RESTART_VM", "CHECK_UVM", "WORKFLOW_XID_48", "WORKFLOW_XID_45", "UPDATE_SWFW":
+	case "RESET_GPU", // GPU reset required due to timeout, uncontained error, or hung state
+		"RESTART_APP",     // Application restart required (copy engine errors, GPU page faults, invalid push buffer)
+		"RESTART_VM",      // Virtual machine restart required (e.g., key rotation errors, XID 151)
+		"CHECK_UVM",       // Check Unified Virtual Memory subsystem for memory management errors
+		"WORKFLOW_XID_48", // XID 48 Double Bit ECC Error workflow - uncorrectable memory errors
+		"WORKFLOW_XID_45", // XID 45 Preemptive Removal workflow - cleanup after previous errors (multi-CUDA apps)
+		"UPDATE_SWFW":     // Software/firmware update required (e.g., vGPU start errors, XID 78)
 		return apiv1.EventTypeCritical
-	case "IGNORE", "":
+	case "IGNORE", // Non-critical error that can be ignored (e.g., firmware method errors, DLA SMMU errors)
+		"": // Empty bucket, typically for unused/deprecated XID codes
 		return apiv1.EventTypeInfo
 	default:
 		return apiv1.EventTypeWarning
+	}
+}
+
+func suggestedActionsFromBucket(bucket string) *apiv1.SuggestedActions {
+	switch bucket {
+	case "CONTACT_SUPPORT", "CHECK_MECHANICALS", "WORKFLOW_NVLINK_ERR", "WORKFLOW_NVLINK5_ERR", "XID_154", "XID_154_EVAL":
+		return newSuggestedActions(apiv1.RepairActionTypeHardwareInspection)
+	case "RESET_GPU", "RESTART_BM", "RESTART_VM", "CHECK_UVM":
+		return newSuggestedActions(apiv1.RepairActionTypeRebootSystem)
+	case "RESTART_APP", "WORKFLOW_XID_45", "WORKFLOW_XID_48", "UPDATE_SWFW":
+		return newSuggestedActions(apiv1.RepairActionTypeCheckUserAppAndGPU)
+	case "IGNORE", "":
+		return newSuggestedActions(apiv1.RepairActionTypeIgnoreNoActionRequired)
+	default:
+		return nil
 	}
 }
 
@@ -3172,21 +3202,6 @@ func severityRank(t apiv1.EventType) int {
 		return 4
 	default:
 		return 0
-	}
-}
-
-func suggestedActionsFromBucket(bucket string) *apiv1.SuggestedActions {
-	switch bucket {
-	case "CONTACT_SUPPORT", "CHECK_MECHANICALS", "WORKFLOW_NVLINK_ERR", "WORKFLOW_NVLINK5_ERR", "XID_154", "XID_154_EVAL":
-		return newSuggestedActions(apiv1.RepairActionTypeHardwareInspection)
-	case "RESET_GPU", "RESTART_BM", "RESTART_VM", "CHECK_UVM":
-		return newSuggestedActions(apiv1.RepairActionTypeRebootSystem)
-	case "RESTART_APP", "WORKFLOW_XID_45", "WORKFLOW_XID_48", "UPDATE_SWFW":
-		return newSuggestedActions(apiv1.RepairActionTypeCheckUserAppAndGPU)
-	case "IGNORE", "":
-		return newSuggestedActions(apiv1.RepairActionTypeIgnoreNoActionRequired)
-	default:
-		return nil
 	}
 }
 
