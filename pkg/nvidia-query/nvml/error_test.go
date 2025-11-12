@@ -548,9 +548,9 @@ func TestIsGPULostError(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "message contains 'gpu lost'",
+			name:     "message contains 'GPU lost'",
 			ret:      nvml.Return(9999), // custom error code
-			message:  "the gpu lost error occurred",
+			message:  "the GPU lost error occurred",
 			expected: true,
 		},
 		{
@@ -631,6 +631,44 @@ func TestIsNoSuchFileOrDirectoryError(t *testing.T) {
 				t.Errorf("Expected IsNoSuchFileOrDirectoryError to return %v for error '%v', got %v",
 					test.expected, test.err, result)
 			}
+		})
+	}
+}
+
+// TestIsGPURequiresReset verifies detection of the NVML error string "GPU requires reset".
+func TestIsGPURequiresReset(t *testing.T) {
+	// Save and restore original ErrorString
+	originalErrorString := nvml.ErrorString
+	defer func() { nvml.ErrorString = originalErrorString }()
+
+	// Override to simulate various returns
+	nvml.ErrorString = func(ret nvml.Return) string {
+		switch ret {
+		case nvml.Return(2000):
+			return "GPU requires reset"
+		case nvml.Return(2001):
+			return "GPU REQUIRES reset" // different casing
+		case nvml.Return(2002):
+			return "some other error"
+		default:
+			return originalErrorString(ret)
+		}
+	}
+
+	tests := []struct {
+		name     string
+		ret      nvml.Return
+		expected bool
+	}{
+		{name: "exact match", ret: nvml.Return(2000), expected: true},
+		{name: "case-insensitive match", ret: nvml.Return(2001), expected: true},
+		{name: "no match", ret: nvml.Return(2002), expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsGPURequiresReset(tt.ret)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }

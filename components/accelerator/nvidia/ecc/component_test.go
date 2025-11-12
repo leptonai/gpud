@@ -84,12 +84,12 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
-// MockNvmlInstanceNVMLNotLoaded is a special mock implementation that always returns false for NVMLExists
-type MockNvmlInstanceNVMLNotLoaded struct {
+// mockNvmlInstanceNVMLNotLoaded is a special mock implementation that always returns false for NVMLExists
+type mockNvmlInstanceNVMLNotLoaded struct {
 	*mockNVMLInstance
 }
 
-func (m *MockNvmlInstanceNVMLNotLoaded) NVMLExists() bool {
+func (m *mockNvmlInstanceNVMLNotLoaded) NVMLExists() bool {
 	return false
 }
 
@@ -107,8 +107,11 @@ func MockECCComponent(
 	}
 
 	return &component{
-		ctx:                   cctx,
-		cancel:                cancel,
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance:          mockInstance,
 		getECCModeEnabledFunc: getECCModeEnabledFunc,
 		getECCErrorsFunc:      getECCErrorsFunc,
@@ -653,8 +656,11 @@ func TestCheck_NilNvmlInstance(t *testing.T) {
 	// Create component with nil NVML instance
 	cctx, cancel := context.WithCancel(ctx)
 	component := &component{
-		ctx:                   cctx,
-		cancel:                cancel,
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance:          nil,
 		getECCModeEnabledFunc: nil,
 		getECCErrorsFunc:      nil,
@@ -678,14 +684,17 @@ func TestCheck_NvmlNotLoaded(t *testing.T) {
 	}
 
 	// Wrap it with our special mock that overrides NVMLExists
-	mockInstance := &MockNvmlInstanceNVMLNotLoaded{
+	mockInstance := &mockNvmlInstanceNVMLNotLoaded{
 		mockNVMLInstance: baseMock,
 	}
 
 	cctx, cancel := context.WithCancel(ctx)
 	component := &component{
-		ctx:                   cctx,
-		cancel:                cancel,
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance:          mockInstance,
 		getECCModeEnabledFunc: nil,
 		getECCErrorsFunc:      nil,
@@ -812,7 +821,13 @@ func TestCheck_GPULostError(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, "error getting ECC mode", data.reason, "reason should indicate GPU is lost")
+		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+
+		// Verify suggested actions for GPU lost case
+		if assert.NotNil(t, data.suggestedActions) {
+			assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
 	})
 
 	// Test ECC errors function returning GPU lost error
@@ -842,6 +857,101 @@ func TestCheck_GPULostError(t *testing.T) {
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, "error getting ECC errors", data.reason, "reason should indicate GPU is lost")
+		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+
+		// Verify suggested actions for GPU lost case
+		if assert.NotNil(t, data.suggestedActions) {
+			assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
+	})
+}
+
+func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) { return uuid, nvml.SUCCESS },
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	t.Run("GPU requires reset in ECC mode check", func(t *testing.T) {
+		getDevicesFunc := func() map[string]device.Device {
+			return devs
+		}
+
+		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
+			return nvidianvml.ECCMode{}, nvidianvml.ErrGPURequiresReset
+		}
+
+		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
+			return nvidianvml.ECCErrors{}, nil
+		}
+
+		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+		result := component.Check()
+
+		// Verify check result carries suggested actions
+		data, ok := result.(*checkResult)
+		require.True(t, ok)
+		require.NotNil(t, data)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+		assert.Equal(t, "GPU requires reset", data.reason)
+		if assert.NotNil(t, data.suggestedActions) {
+			assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
+			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
+
+		// Verify suggested actions propagates to health state output
+		states := component.LastHealthStates()
+		require.Len(t, states, 1)
+		assert.NotNil(t, states[0].SuggestedActions)
+		assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	})
+
+	t.Run("GPU requires reset in ECC errors check", func(t *testing.T) {
+		getDevicesFunc := func() map[string]device.Device {
+			return devs
+		}
+
+		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
+			return nvidianvml.ECCMode{
+				UUID:           uuid,
+				EnabledCurrent: true,
+				EnabledPending: true,
+				Supported:      true,
+			}, nil
+		}
+
+		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
+			return nvidianvml.ECCErrors{}, nvidianvml.ErrGPURequiresReset
+		}
+
+		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+		result := component.Check()
+
+		// Verify check result carries suggested actions
+		data, ok := result.(*checkResult)
+		require.True(t, ok)
+		require.NotNil(t, data)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+		assert.Equal(t, "GPU requires reset", data.reason)
+		if assert.NotNil(t, data.suggestedActions) {
+			assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
+			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+		}
+
+		// Verify suggested actions propagates to health state output
+		states := component.LastHealthStates()
+		require.Len(t, states, 1)
+		assert.NotNil(t, states[0].SuggestedActions)
+		assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 	})
 }

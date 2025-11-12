@@ -135,7 +135,7 @@ func TestGetClockSpeed(t *testing.T) {
 				UUID: testUUID,
 			},
 			expectError:         true,
-			expectedErrorString: "gpu lost",
+			expectedErrorString: "GPU lost",
 		},
 		{
 			name:           "GPU lost error on memory clock",
@@ -149,7 +149,7 @@ func TestGetClockSpeed(t *testing.T) {
 				ClockGraphicsSupported: true,
 			},
 			expectError:         true,
-			expectedErrorString: "gpu lost",
+			expectedErrorString: "GPU lost",
 		},
 	}
 

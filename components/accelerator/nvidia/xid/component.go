@@ -334,7 +334,7 @@ func (cr *checkResult) String() string {
 	outputs := make([]string, 0, len(cr.FoundErrors))
 	for _, foundErr := range cr.FoundErrors {
 		action := "unknown"
-		if foundErr.Detail != nil && len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
+		if foundErr.Detail != nil && foundErr.Detail.SuggestedActionsByGPUd != nil && len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
 			actions := make([]string, 0, len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions))
 			for _, action := range foundErr.Detail.SuggestedActionsByGPUd.RepairActions {
 				actions = append(actions, string(action))

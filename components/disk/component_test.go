@@ -2794,6 +2794,10 @@ func TestComponent_NFSPartitionsTimeoutSetsReasonAndError(t *testing.T) {
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
 	defer c.Close()
 
+	// Set a non-zero retry interval to avoid race condition between
+	// context.Done and time.After in the select statement
+	c.retryInterval = 10 * time.Millisecond
+
 	// Avoid unrelated degradation checks
 	c.freeSpaceThresholdBytesDegraded = 0
 
@@ -2820,12 +2824,23 @@ func TestComponent_NFSPartitionsTimeoutSetsReasonAndError(t *testing.T) {
 			},
 		}, nil
 	}
-	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
-		return nil, context.DeadlineExceeded
-	}
 
-	// Simulate the component context being canceled while fetching partitions
-	cancel()
+	// Track how many times getNFSPartitionsFunc is called
+	callCount := 0
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		callCount++
+		// On the first call, cancel the context to simulate timeout during operation
+		if callCount == 1 {
+			cancel()
+		}
+		// Check if context is done and return appropriate error
+		select {
+		case <-ctx.Done():
+			return nil, context.DeadlineExceeded
+		default:
+			return nil, context.DeadlineExceeded
+		}
+	}
 
 	result := c.Check()
 	cr, ok := result.(*checkResult)

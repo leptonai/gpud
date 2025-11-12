@@ -102,8 +102,11 @@ func MockNVLinkComponent(
 	}
 
 	return &component{
-		ctx:           cctx,
-		cancel:        cancel,
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance:  mockInstance,
 		getNVLinkFunc: getNVLinkFunc,
 	}
@@ -555,7 +558,10 @@ func TestCheckOnce_NilNVMLInstance(t *testing.T) {
 
 	// Create component with nil nvmlInstance
 	component := &component{
-		ctx:          ctx,
+		ctx: ctx,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance: nil,
 	}
 
@@ -578,7 +584,10 @@ func TestCheckOnce_NVMLNotLoaded(t *testing.T) {
 	}
 
 	component := &component{
-		ctx:          ctx,
+		ctx: ctx,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 		nvmlInstance: mockInstance,
 	}
 
@@ -766,6 +775,70 @@ func TestCheck_GPULostError(t *testing.T) {
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
-	assert.Equal(t, "error getting nvlink", data.reason,
-		"reason should have '(GPU is lost)' suffix")
+	assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+
+	// Verify suggested actions for GPU lost case
+	if assert.NotNil(t, data.suggestedActions) {
+		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	}
+
+	// Verify suggested actions propagates to health state output
+	states := component.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+}
+
+func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) { return uuid, nvml.SUCCESS },
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device { return devs }
+
+	// Simulate NVML returning a code whose string is "GPU requires reset"
+	originalErrorString := nvml.ErrorString
+	nvml.ErrorString = func(ret nvml.Return) string {
+		if ret == nvml.Return(5555) {
+			return "GPU requires reset"
+		}
+		return originalErrorString(ret)
+	}
+	defer func() { nvml.ErrorString = originalErrorString }()
+
+	// Return a Reset-like error via nvml.Return and mapping in GetNVLink
+	getNVLinkFunc := func(uuid string, dev device.Device) (nvidianvml.NVLink, error) {
+		// Use any API that would surface this return in underlying helper; directly return the mapped error here
+		// because the nvlink component only checks errors.Is on ErrGPURequiresReset
+		return nvidianvml.NVLink{}, nvidianvml.ErrGPURequiresReset
+	}
+
+	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	result := component.Check()
+
+	// Verify check result carries suggested actions
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+	require.NotNil(t, data)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+	assert.Equal(t, "GPU requires reset", data.reason)
+	if assert.NotNil(t, data.suggestedActions) {
+		assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
+		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	}
+
+	// Verify suggested actions propagates to health state output
+	states := component.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
 }

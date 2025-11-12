@@ -1019,6 +1019,32 @@ func TestDataString(t *testing.T) {
 			},
 			expected: "", // We'll just check that it doesn't panic and contains "unknown"
 		},
+		{
+			name: "with nil SuggestedActionsByGPUd",
+			data: &checkResult{
+				FoundErrors: []FoundError{
+					{
+						Kmsg: kmsg.Message{
+							Timestamp: metav1.NewTime(time.Now()),
+							Message:   "NVRM: Xid (PCI:0000:01:00): 31, GPU memory page fault",
+						},
+						XidError: XidError{
+							Xid:        31,
+							DeviceUUID: "GPU-12345678",
+							Detail: &Detail{
+								Description:            "GPU memory page fault",
+								SuggestedActionsByGPUd: nil, // This should not cause a panic (issue #1129)
+								EventType:              apiv1.EventTypeCritical,
+							},
+						},
+					},
+				},
+				ts:     time.Now(),
+				health: apiv1.HealthStateTypeUnhealthy,
+				reason: "found 1 error with nil suggested actions",
+			},
+			expected: "", // We'll just check that it doesn't panic and contains "unknown" for action
+		},
 	}
 
 	for _, tt := range tests {

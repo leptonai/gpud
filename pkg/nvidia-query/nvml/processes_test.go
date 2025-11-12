@@ -47,6 +47,40 @@ func TestGetProcessesWithGPULostError(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
 }
 
+// TestGetProcessesWithGPURequiresResetError tests handling of "GPU requires reset" errors
+func TestGetProcessesWithGPURequiresResetError(t *testing.T) {
+	testUUID := "GPU-RESET"
+
+	// Override nvml.ErrorString to simulate the message
+	originalErrorString := nvml.ErrorString
+	nvml.ErrorString = func(ret nvml.Return) string {
+		if ret == nvml.Return(4242) {
+			return "GPU requires reset"
+		}
+		return originalErrorString(ret)
+	}
+	defer func() { nvml.ErrorString = originalErrorString }()
+
+	// Create a mock device that returns a custom error code
+	mockDevice := &testutil.MockDevice{
+		Device: &mock.Device{
+			GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {
+				return nil, nvml.Return(4242)
+			},
+		},
+	}
+
+	// Call the function
+	_, err := GetProcesses(testUUID, mockDevice)
+
+	// Check that we get a GPU requires reset error
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrGPURequiresReset), "Expected GPU requires reset error")
+}
+
+// TestGetProcesses_ProcessUtilizationGPURequiresReset tests reset error handling in utilization path
+// Note: utilization path reset handling is exercised indirectly by other components.
+
 func TestProcessesJSON(t *testing.T) {
 	procs := Processes{
 		UUID: "GPU-12345678",

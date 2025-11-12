@@ -131,8 +131,18 @@ sudo rm /etc/systemd/system/gpud.service
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:   "endpoint",
-					Usage:  "endpoint for control plane",
+					Usage:  "(optional) endpoint for control plane",
 					Hidden: true,
+				},
+				&cli.StringFlag{
+					Name:   "machine-id",
+					Hidden: true,
+					Usage:  "(optional) for override default machine id",
+				},
+				&cli.StringFlag{
+					Name:   "token",
+					Hidden: true,
+					Usage:  "(optional) token for control plane",
 				},
 				&cli.StringFlag{
 					Name:  "log-level,l",

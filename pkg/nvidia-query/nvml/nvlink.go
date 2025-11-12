@@ -95,6 +95,9 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 		if IsGPULostError(ret) {
 			return nvlink, ErrGPULost
 		}
+		if IsGPURequiresReset(ret) {
+			return nvlink, ErrGPURequiresReset
+		}
 		if ret != nvml.SUCCESS {
 			log.Logger.Debugw("failed get nvlink state -- retrying", "link", link, "error", nvml.ErrorString(ret))
 			continue

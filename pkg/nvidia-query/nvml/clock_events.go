@@ -27,6 +27,9 @@ func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
 	if IsGPULostError(ret) {
 		return false, ErrGPULost
 	}
+	if IsGPURequiresReset(ret) {
+		return false, ErrGPURequiresReset
+	}
 	// not a "not supported" error, not a success return, thus return an error here
 	if IsNotReadyError(ret) {
 		return false, fmt.Errorf("device not initialized %v", nvml.ErrorString(ret))
@@ -113,6 +116,9 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	}
 	if IsGPULostError(ret) {
 		return clockEvents, ErrGPULost
+	}
+	if IsGPURequiresReset(ret) {
+		return clockEvents, ErrGPURequiresReset
 	}
 	// not a "not supported" error, not a success return, thus return an error here
 	if IsNotReadyError(ret) {

@@ -80,6 +80,9 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 	if IsGPULostError(ret) {
 		return procs, ErrGPULost
 	}
+	if IsGPURequiresReset(ret) {
+		return procs, ErrGPURequiresReset
+	}
 	if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 		return procs, fmt.Errorf("failed to get device compute processes: %v", nvml.ErrorString(ret))
 	}
@@ -129,6 +132,9 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 		}
 		if IsGPULostError(ret) {
 			return procs, ErrGPULost
+		}
+		if IsGPURequiresReset(ret) {
+			return procs, ErrGPURequiresReset
 		}
 		if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 			return procs, fmt.Errorf("failed to get process %d utilization (%v)", proc.Pid, nvml.ErrorString(ret))
