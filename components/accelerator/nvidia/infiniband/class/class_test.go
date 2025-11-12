@@ -72,9 +72,16 @@ func TestLoadDevices(t *testing.T) {
 	assert.Equal(t, 9, len(devices))
 
 	// Test with empty string (should use default)
+	// Result depends on whether the system has InfiniBand hardware
 	_, err = LoadDevices("")
-	// This will fail if default directory doesn't exist, which is expected
-	assert.Error(t, err)
+	if _, statErr := os.Stat(DefaultRootDir); os.IsNotExist(statErr) {
+		// Default directory doesn't exist - should return error
+		assert.Error(t, err, "Expected error when default directory doesn't exist")
+	} else {
+		// Default directory exists - may or may not have devices
+		// Just verify it doesn't panic or crash
+		t.Logf("Default InfiniBand directory exists, LoadDevices returned err=%v", err)
+	}
 
 	// Test with non-existent directory
 	_, err = LoadDevices("/non/existent/path")
