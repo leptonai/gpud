@@ -8,6 +8,7 @@ import (
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
+	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
@@ -34,6 +35,18 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 			}
 			if s.setDefaultIbExpectedPortStatesFunc != nil {
 				s.setDefaultIbExpectedPortStatesFunc(updateCfg)
+			}
+
+		case componentsnvidianvlink.Name:
+			setComponents[componentName] = struct{}{}
+			var updateCfg componentsnvidianvlink.ExpectedLinkStates
+			if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
+				log.Logger.Warnw("failed to unmarshal nvlink config", "error", err)
+				resp.Error = err.Error()
+				return
+			}
+			if s.setDefaultNVLinkExpectedLinkStatesFunc != nil {
+				s.setDefaultNVLinkExpectedLinkStatesFunc(updateCfg)
 			}
 
 		case componentsnvidiagpucounts.Name:
@@ -93,6 +106,10 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 	if _, ok := setComponents[componentsnvidiainfiniband.Name]; !ok && s.setDefaultIbExpectedPortStatesFunc != nil {
 		log.Logger.Infow("falling back to default empty infiniband config")
 		s.setDefaultIbExpectedPortStatesFunc(componentsnvidiainfinibanditypes.ExpectedPortStates{})
+	}
+	if _, ok := setComponents[componentsnvidianvlink.Name]; !ok && s.setDefaultNVLinkExpectedLinkStatesFunc != nil {
+		log.Logger.Infow("falling back to default empty nvlink config")
+		s.setDefaultNVLinkExpectedLinkStatesFunc(componentsnvidianvlink.ExpectedLinkStates{})
 	}
 	if _, ok := setComponents[componentsnvidiagpucounts.Name]; !ok && s.setDefaultGPUCountsFunc != nil {
 		log.Logger.Infow("falling back to default empty nvidia gpu counts config")

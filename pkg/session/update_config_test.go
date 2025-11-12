@@ -10,6 +10,7 @@ import (
 
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
+	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
@@ -18,27 +19,33 @@ func TestProcessUpdateConfig(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                                  string
-		configMap                             map[string]string
-		setDefaultIbExpectedPortStatesFunc    func(states componentsnvidiainfinibanditypes.ExpectedPortStates)
-		setDefaultNFSGroupConfigsFunc         func(cfgs pkgnfschecker.Configs)
-		setDefaultGPUCountsFunc               func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
-		setDefaultXIDRebootThresholdFunc      func(threshold componentsxid.RebootThreshold)
-		expectedError                         string
-		expectedIbExpectedPortStatesCalled    bool
-		expectedNFSGroupConfigsCalled         bool
-		expectedGPUCountsCalled               bool
-		expectedXIDRebootThresholdCalled      bool
-		expectedIbExpectedPortStatesCallCount int
-		expectedNFSGroupConfigsCallCount      int
-		expectedGPUCountsCallCount            int
-		expectedXIDRebootThresholdCallCount   int
+		name                                      string
+		configMap                                 map[string]string
+		setDefaultIbExpectedPortStatesFunc        func(states componentsnvidiainfinibanditypes.ExpectedPortStates)
+		setDefaultNVLinkExpectedLinkStatesFunc    func(states componentsnvidianvlink.ExpectedLinkStates)
+		setDefaultNFSGroupConfigsFunc             func(cfgs pkgnfschecker.Configs)
+		setDefaultGPUCountsFunc                   func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
+		setDefaultXIDRebootThresholdFunc          func(threshold componentsxid.RebootThreshold)
+		expectedError                             string
+		expectedIbExpectedPortStatesCalled        bool
+		expectedNVLinkExpectedLinkStatesCalled    bool
+		expectedNFSGroupConfigsCalled             bool
+		expectedGPUCountsCalled                   bool
+		expectedXIDRebootThresholdCalled          bool
+		expectedIbExpectedPortStatesCallCount     int
+		expectedNVLinkExpectedLinkStatesCallCount int
+		expectedNFSGroupConfigsCallCount          int
+		expectedGPUCountsCallCount                int
+		expectedXIDRebootThresholdCallCount       int
 	}{
 		{
 			name:      "empty config map",
 			configMap: map[string]string{},
 			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for empty config map")
+			},
+			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
+				t.Error("setDefaultNVLinkExpectedLinkStatesFunc should not be called for empty config map")
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				t.Error("setDefaultNFSGroupConfigsFunc should not be called for empty config map")
@@ -373,11 +380,81 @@ func TestProcessUpdateConfig(t *testing.T) {
 			expectedGPUCountsCallCount:            0,
 			expectedXIDRebootThresholdCallCount:   1,
 		},
+		{
+			name: "nvlink config",
+			configMap: map[string]string{
+				"accelerator-nvidia-nvlink": `{"at_least_gpus_with_all_links_feature_enabled": 8}`,
+			},
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
+				// This gets called with empty config due to fallback behavior
+				assert.Equal(t, 0, states.AtLeastPorts)
+				assert.Equal(t, 0, states.AtLeastRate)
+			},
+			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
+				assert.Equal(t, 8, states.AtLeastGPUsWithAllLinksFeatureEnabled)
+			},
+			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
+				// This gets called with empty config due to fallback behavior
+				assert.Len(t, cfgs, 0)
+			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				// This gets called with empty config due to fallback behavior
+				assert.Equal(t, 0, counts.Count)
+			},
+			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
+				// This gets called with default config due to fallback behavior
+				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+			},
+			expectedError:                             "",
+			expectedIbExpectedPortStatesCalled:        true,
+			expectedNVLinkExpectedLinkStatesCalled:    true,
+			expectedNFSGroupConfigsCalled:             true,
+			expectedGPUCountsCalled:                   true,
+			expectedXIDRebootThresholdCalled:          true,
+			expectedIbExpectedPortStatesCallCount:     1,
+			expectedNVLinkExpectedLinkStatesCallCount: 1,
+			expectedNFSGroupConfigsCallCount:          1,
+			expectedGPUCountsCallCount:                1,
+			expectedXIDRebootThresholdCallCount:       1,
+		},
+		{
+			name: "invalid nvlink config - malformed JSON",
+			configMap: map[string]string{
+				"accelerator-nvidia-nvlink": `{"at_least_gpus_with_all_links_feature_enabled":}`,
+			},
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
+				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for nvlink config")
+			},
+			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
+				t.Error("setDefaultNVLinkExpectedLinkStatesFunc should not be called for invalid JSON")
+			},
+			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
+				t.Error("setDefaultNFSGroupConfigsFunc should not be called for nvlink config")
+			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				t.Error("setDefaultGPUCountsFunc should not be called for nvlink config")
+			},
+			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
+				t.Error("setDefaultXIDRebootThresholdFunc should not be called for nvlink config")
+			},
+			expectedError:                             "invalid character '}' looking for beginning of value",
+			expectedIbExpectedPortStatesCalled:        false,
+			expectedNVLinkExpectedLinkStatesCalled:    false,
+			expectedNFSGroupConfigsCalled:             false,
+			expectedGPUCountsCalled:                   false,
+			expectedXIDRebootThresholdCalled:          false,
+			expectedIbExpectedPortStatesCallCount:     0,
+			expectedNVLinkExpectedLinkStatesCallCount: 0,
+			expectedNFSGroupConfigsCallCount:          0,
+			expectedGPUCountsCallCount:                0,
+			expectedXIDRebootThresholdCallCount:       0,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ibCallCount := 0
+			nvlinkCallCount := 0
 			nfsCallCount := 0
 			gpuCallCount := 0
 			xidCallCount := 0
@@ -399,6 +476,12 @@ func TestProcessUpdateConfig(t *testing.T) {
 					ibCallCount++
 					if tt.setDefaultIbExpectedPortStatesFunc != nil {
 						tt.setDefaultIbExpectedPortStatesFunc(states)
+					}
+				},
+				setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
+					nvlinkCallCount++
+					if tt.setDefaultNVLinkExpectedLinkStatesFunc != nil {
+						tt.setDefaultNVLinkExpectedLinkStatesFunc(states)
 					}
 				},
 				setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
@@ -427,6 +510,9 @@ func TestProcessUpdateConfig(t *testing.T) {
 			// Handle nil function cases
 			if tt.setDefaultIbExpectedPortStatesFunc == nil {
 				s.setDefaultIbExpectedPortStatesFunc = nil
+			}
+			if tt.setDefaultNVLinkExpectedLinkStatesFunc == nil {
+				s.setDefaultNVLinkExpectedLinkStatesFunc = nil
 			}
 			if tt.setDefaultNFSGroupConfigsFunc == nil {
 				s.setDefaultNFSGroupConfigsFunc = nil
@@ -467,6 +553,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 
 			// Verify function call counts
 			assert.Equal(t, tt.expectedIbExpectedPortStatesCallCount, ibCallCount, "Unexpected infiniband function call count")
+			assert.Equal(t, tt.expectedNVLinkExpectedLinkStatesCallCount, nvlinkCallCount, "Unexpected NVLink function call count")
 			assert.Equal(t, tt.expectedNFSGroupConfigsCallCount, nfsCallCount, "Unexpected NFS function call count")
 			assert.Equal(t, tt.expectedGPUCountsCallCount, gpuCallCount, "Unexpected GPU counts function call count")
 			assert.Equal(t, tt.expectedXIDRebootThresholdCallCount, xidCallCount, "Unexpected XID reboot threshold function call count")
@@ -478,6 +565,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		tempDir := t.TempDir()
 
 		ibCallCount := 0
+		nvlinkCallCount := 0
 		nfsCallCount := 0
 		gpuCallCount := 0
 		xidCallCount := 0
@@ -491,6 +579,11 @@ func TestProcessUpdateConfig(t *testing.T) {
 				// This gets called with empty config due to fallback behavior
 				assert.Equal(t, 0, states.AtLeastPorts)
 				assert.Equal(t, 0, states.AtLeastRate)
+			},
+			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
+				nvlinkCallCount++
+				// This gets called with empty config due to fallback behavior
+				assert.Equal(t, 0, states.AtLeastGPUsWithAllLinksFeatureEnabled)
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				nfsCallCount++
@@ -533,6 +626,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 
 		assert.Empty(t, resp.Error)
 		assert.Equal(t, 1, ibCallCount, "Unexpected infiniband function call count")
+		assert.Equal(t, 1, nvlinkCallCount, "Unexpected NVLink function call count")
 		assert.Equal(t, 1, nfsCallCount, "Unexpected NFS function call count")
 		assert.Equal(t, 1, gpuCallCount, "Unexpected GPU counts function call count")
 		assert.Equal(t, 1, xidCallCount, "Unexpected XID reboot threshold function call count")
@@ -542,6 +636,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		tempDir := t.TempDir()
 
 		ibCallCount := 0
+		nvlinkCallCount := 0
 		nfsCallCount := 0
 		gpuCallCount := 0
 		xidCallCount := 0
@@ -554,6 +649,11 @@ func TestProcessUpdateConfig(t *testing.T) {
 				ibCallCount++
 				assert.Equal(t, 4, states.AtLeastPorts)
 				assert.Equal(t, 200, states.AtLeastRate)
+			},
+			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
+				nvlinkCallCount++
+				// This gets called with empty config due to fallback behavior
+				assert.Equal(t, 0, states.AtLeastGPUsWithAllLinksFeatureEnabled)
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				nfsCallCount++
@@ -597,6 +697,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 
 		assert.Empty(t, resp.Error)
 		assert.Equal(t, 1, ibCallCount, "Unexpected infiniband function call count")
+		assert.Equal(t, 1, nvlinkCallCount, "Unexpected NVLink function call count")
 		assert.Equal(t, 1, nfsCallCount, "Unexpected NFS function call count")
 		assert.Equal(t, 1, gpuCallCount, "Unexpected GPU counts function call count")
 		assert.Equal(t, 1, xidCallCount, "Unexpected XID reboot threshold function call count")

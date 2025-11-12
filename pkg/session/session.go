@@ -19,6 +19,7 @@ import (
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
+	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
@@ -148,10 +149,11 @@ type Session struct {
 
 	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
 
-	setDefaultIbExpectedPortStatesFunc func(states componentsnvidiainfinibanditypes.ExpectedPortStates)
-	setDefaultGPUCountsFunc            func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
-	setDefaultNFSGroupConfigsFunc      func(cfgs pkgnfschecker.Configs)
-	setDefaultXIDRebootThresholdFunc   func(threshold componentsxid.RebootThreshold)
+	setDefaultIbExpectedPortStatesFunc     func(states componentsnvidiainfinibanditypes.ExpectedPortStates)
+	setDefaultNVLinkExpectedLinkStatesFunc func(states componentsnvidianvlink.ExpectedLinkStates)
+	setDefaultGPUCountsFunc                func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
+	setDefaultNFSGroupConfigsFunc          func(cfgs pkgnfschecker.Configs)
+	setDefaultXIDRebootThresholdFunc       func(threshold componentsxid.RebootThreshold)
 
 	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store
@@ -242,10 +244,11 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 
 		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
 
-		setDefaultIbExpectedPortStatesFunc: componentsnvidiainfiniband.SetDefaultExpectedPortStates,
-		setDefaultGPUCountsFunc:            componentsnvidiagpucounts.SetDefaultExpectedGPUCounts,
-		setDefaultNFSGroupConfigsFunc:      componentsnfs.SetDefaultConfigs,
-		setDefaultXIDRebootThresholdFunc:   componentsxid.SetDefaultRebootThreshold,
+		setDefaultIbExpectedPortStatesFunc:     componentsnvidiainfiniband.SetDefaultExpectedPortStates,
+		setDefaultNVLinkExpectedLinkStatesFunc: componentsnvidianvlink.SetDefaultExpectedLinkStates,
+		setDefaultGPUCountsFunc:                componentsnvidiagpucounts.SetDefaultExpectedGPUCounts,
+		setDefaultNFSGroupConfigsFunc:          componentsnfs.SetDefaultConfigs,
+		setDefaultXIDRebootThresholdFunc:       componentsxid.SetDefaultRebootThreshold,
 
 		nvmlInstance:       op.nvmlInstance,
 		metricsStore:       op.metricsStore,

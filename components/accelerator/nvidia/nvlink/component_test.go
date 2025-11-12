@@ -108,8 +108,9 @@ func MockNVLinkComponent(
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		nvmlInstance:  mockInstance,
-		getNVLinkFunc: getNVLinkFunc,
+		nvmlInstance:      mockInstance,
+		getNVLinkFunc:     getNVLinkFunc,
+		getThresholdsFunc: GetDefaultExpectedLinkStates,
 	}
 }
 
@@ -332,6 +333,30 @@ func TestStates_WithError(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Equal(t, "error getting nvlink", state.Reason)
 	assert.Equal(t, "test NVLink error", state.Error)
+}
+
+func TestStates_WithSuggestedActions(t *testing.T) {
+	ctx := context.Background()
+	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+
+	component.lastMu.Lock()
+	component.lastCheckResult = &checkResult{
+		ts:     time.Now().UTC(),
+		health: apiv1.HealthStateTypeUnhealthy,
+		reason: "nvlink threshold violated: require >=1 GPUs with all links active; got 0",
+		suggestedActions: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+		},
+	}
+	component.lastMu.Unlock()
+
+	states := component.LastHealthStates()
+	require.Len(t, states, 1)
+
+	state := states[0]
+	if assert.NotNil(t, state.SuggestedActions) {
+		assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, state.SuggestedActions.RepairActions)
+	}
 }
 
 func TestStates_NoData(t *testing.T) {
@@ -842,4 +867,125 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	states := component.LastHealthStates()
 	require.Len(t, states, 1)
 	assert.NotNil(t, states[0].SuggestedActions)
+}
+
+func TestCheck_ThresholdViolationInactive(t *testing.T) {
+	ctx := context.Background()
+	uuid := "gpu-uuid-inactive"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "arch", "brand", "cuda", "pci")
+
+	devs := map[string]device.Device{uuid: mockDev}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	nvLink := NVLink{
+		UUID:      uuid,
+		Supported: true,
+		States: []NVLinkState{
+			{FeatureEnabled: false},
+		},
+	}
+
+	component := MockNVLinkComponent(ctx, getDevicesFunc, func(string, device.Device) (NVLink, error) {
+		return nvLink, nil
+	}).(*component)
+	component.getThresholdsFunc = func() ExpectedLinkStates {
+		return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 1}
+	}
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, []string{uuid}, cr.InactiveNVLinkUUIDs)
+	assert.Contains(t, cr.reason, "threshold violated")
+	assert.Contains(t, cr.reason, uuid)
+}
+
+func TestCheck_ThresholdViolationUnsupported(t *testing.T) {
+	ctx := context.Background()
+	uuid := "gpu-uuid-unsupported"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "arch", "brand", "cuda", "pci")
+
+	devs := map[string]device.Device{uuid: mockDev}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	nvLink := NVLink{
+		UUID:      uuid,
+		Supported: false,
+	}
+
+	component := MockNVLinkComponent(ctx, getDevicesFunc, func(string, device.Device) (NVLink, error) {
+		return nvLink, nil
+	}).(*component)
+	component.getThresholdsFunc = func() ExpectedLinkStates {
+		return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 1}
+	}
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, []string{uuid}, cr.UnsupportedNVLinkUUIDs)
+	assert.Contains(t, cr.reason, "threshold violated")
+	assert.Contains(t, cr.reason, uuid)
+	assert.Empty(t, cr.InactiveNVLinkUUIDs)
+}
+
+func TestCheck_ThresholdSatisfied(t *testing.T) {
+	ctx := context.Background()
+	uuid := "gpu-uuid-healthy"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "arch", "brand", "cuda", "pci")
+
+	devs := map[string]device.Device{uuid: mockDev}
+
+	getDevicesFunc := func() map[string]device.Device {
+		return devs
+	}
+
+	nvLink := NVLink{
+		UUID:      uuid,
+		Supported: true,
+		States: []NVLinkState{
+			{FeatureEnabled: true},
+		},
+	}
+
+	component := MockNVLinkComponent(ctx, getDevicesFunc, func(string, device.Device) (NVLink, error) {
+		return nvLink, nil
+	}).(*component)
+	component.getThresholdsFunc = func() ExpectedLinkStates {
+		return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 1}
+	}
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Contains(t, cr.reason, "threshold satisfied")
+	assert.Empty(t, cr.InactiveNVLinkUUIDs)
+	assert.Empty(t, cr.UnsupportedNVLinkUUIDs)
 }
