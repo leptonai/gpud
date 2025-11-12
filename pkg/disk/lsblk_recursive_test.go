@@ -8,15 +8,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestIssue1107_RequiresBothFixes demonstrates that BOTH changes were necessary:
-// 1. Recursive processBlockDevice (for nested LVM)
-// 2. RAID support in DefaultDeviceTypeFunc (for RAID devices)
-func TestIssue1107_RequiresBothFixes(t *testing.T) {
+// This file contains tests for recursive block device processing and device type filtering.
+//
+// Background (Issue #1107):
+// Complex block device hierarchies require TWO key capabilities:
+//
+// Capability 1: Recursive Hierarchy Traversal
+//   - Scenario: disk → LVM PV → LVM rimage (no mount) → LVM LV (mounted)
+//   - Challenge: Mountpoints may exist at any depth in the hierarchy
+//   - Solution: Recursive processBlockDevice checks all descendant levels
+//
+// Capability 2: Comprehensive Device Type Support
+//   - Scenario: disk → partition → RAID device (type 'raid1', 'raid5', etc.)
+//   - Challenge: RAID/MD device types must be accepted by the filter
+//   - Solution: DefaultDeviceTypeFunc includes RAID/MD type patterns
+//
+// Both capabilities are essential:
+//   ✓ Without recursion: Deeply nested devices are missed
+//   ✓ Without RAID support: RAID devices are incorrectly filtered out
+//
+// Together, these capabilities handle real-world storage configurations that were
+// previously causing "no block device found" errors in production.
+
+// TestRecursiveProcessing_NestedAndRAID demonstrates that BOTH recursive processing
+// and RAID device type support are necessary for handling complex block device hierarchies.
+func TestRecursiveProcessing_NestedAndRAID(t *testing.T) {
 	ctx := context.Background()
 
 	// Test case 1: Nested LVM requires RECURSIVE processing
-	// Without processBlockDevice recursion, this would fail even with RAID support
+	// Without processBlockDevice recursion, deeply nested devices would be missed
+	// even with proper device type support
 	t.Run("nested_lvm_requires_recursive_processing", func(t *testing.T) {
+		// Structure: disk (LVM2_member) → rimage (no mount) → LV (mounted)
+		// The mountpoint is at the grandchild level, requiring recursive checks
 		nestedLVM := &BlockDevice{
 			Name:       "/dev/nvme0n1",
 			Type:       "disk",
@@ -50,15 +74,18 @@ func TestIssue1107_RequiresBothFixes(t *testing.T) {
 		fstypeCache := make(map[string]string)
 		result := processBlockDevice(ctx, nestedLVM, "", 0, op, fstypeCache)
 
-		// This ONLY works because processBlockDevice recursively checks grandchildren
+		// Recursive processing allows detection of mountpoints at any depth
 		assert.True(t, result, "nested LVM should be included with recursive processing")
 		require.Len(t, nestedLVM.Children, 1, "rimage should be preserved")
 		require.Len(t, nestedLVM.Children[0].Children, 1, "final LV should be preserved")
 	})
 
-	// Test case 2: RAID devices require RAID support in DefaultDeviceTypeFunc
-	// Without RAID support, this would fail even with recursive processing
+	// Test case 2: RAID devices require proper device type support
+	// Without RAID type acceptance in the filter, RAID devices would be rejected
+	// even with recursive processing in place
 	t.Run("raid_devices_require_device_type_support", func(t *testing.T) {
+		// Structure: disk → partition (linux_raid_member) → RAID device (mounted)
+		// The RAID device type (raid1, raid5, etc.) must be accepted by the filter
 		raidDevice := &BlockDevice{
 			Name:       "/dev/sda",
 			Type:       "disk",
@@ -73,7 +100,7 @@ func TestIssue1107_RequiresBothFixes(t *testing.T) {
 					Children: []BlockDevice{
 						{
 							Name:       "/dev/md127",
-							Type:       "raid1", // This type MUST be supported
+							Type:       "raid1", // Must be accepted by device type filter
 							FSType:     "ext4",
 							MountPoint: "/",
 						},
@@ -85,25 +112,26 @@ func TestIssue1107_RequiresBothFixes(t *testing.T) {
 		op := &Op{}
 		require.NoError(t, op.applyOpts([]OpOption{
 			WithMountPoint(DefaultMountPointFunc),
-			WithDeviceType(DefaultDeviceTypeFunc), // This MUST accept "raid1"
+			WithDeviceType(DefaultDeviceTypeFunc), // Must accept "raid*" types
 			WithFstype(DefaultFsTypeFunc),
 		}))
 
 		fstypeCache := make(map[string]string)
 		result := processBlockDevice(ctx, raidDevice, "", 0, op, fstypeCache)
 
-		// This ONLY works because DefaultDeviceTypeFunc now accepts "raid*" types
+		// RAID support in DefaultDeviceTypeFunc enables RAID device detection
 		assert.True(t, result, "RAID device should be included with RAID support")
 		require.Len(t, raidDevice.Children, 1, "partition should be preserved")
 		require.Len(t, raidDevice.Children[0].Children, 1, "RAID device should be preserved")
 		assert.Equal(t, "raid1", raidDevice.Children[0].Children[0].Type)
 	})
 
-	// Test case 3: The OLD implementation would have failed both cases
-	t.Run("old_device_type_func_would_reject_raid", func(t *testing.T) {
-		// Simulating the OLD DefaultDeviceTypeFunc (before fix)
-		oldDeviceTypeFunc := func(dt string) bool {
-			return dt == "disk" || dt == "lvm" || dt == "part" // No RAID support!
+	// Test case 3: Validate that the filter properly rejects unsupported device types
+	t.Run("device_type_filter_validation", func(t *testing.T) {
+		// Simulating a device type filter without RAID support
+		// to demonstrate the necessity of comprehensive type support
+		limitedDeviceTypeFunc := func(dt string) bool {
+			return dt == "disk" || dt == "lvm" || dt == "part" // No RAID support
 		}
 
 		raidDevice := &BlockDevice{
@@ -116,26 +144,29 @@ func TestIssue1107_RequiresBothFixes(t *testing.T) {
 		op := &Op{}
 		require.NoError(t, op.applyOpts([]OpOption{
 			WithMountPoint(DefaultMountPointFunc),
-			WithDeviceType(oldDeviceTypeFunc), // OLD function without RAID
+			WithDeviceType(limitedDeviceTypeFunc), // Limited filter without RAID
 			WithFstype(DefaultFsTypeFunc),
 		}))
 
 		fstypeCache := make(map[string]string)
 		result := processBlockDevice(ctx, raidDevice, "", 0, op, fstypeCache)
 
-		// This FAILS because old function doesn't support RAID
-		assert.False(t, result, "RAID device should be rejected by old function")
+		// Without RAID support, the device is correctly rejected by the filter
+		assert.False(t, result, "RAID device should be rejected by limited filter")
 	})
 }
 
-// TestIssue1107_FullFixValidation validates the complete fix using the actual test data structure
-func TestIssue1107_FullFixValidation(t *testing.T) {
+// TestRecursiveProcessing_ComplexHierarchies validates recursive processing with
+// real-world complex device structures that combine multiple layering technologies
+// (e.g., structures similar to those found in production that triggered issue #1107).
+func TestRecursiveProcessing_ComplexHierarchies(t *testing.T) {
 	ctx := context.Background()
 
-	// Simulate the actual problematic structure from lsblk.withlv.censored.json
-	// that was failing with the "no block device found" error
+	// Simulate complex structures combining multiple storage technologies:
+	// 1. Multi-level LVM with rimage intermediaries
+	// 2. RAID arrays built on partitions
 	problematicStructure := []BlockDevice{
-		// Problem 1: Nested LVM (needs recursive processing)
+		// Case 1: Multi-level LVM hierarchy (requires recursive descent)
 		{
 			Name:       "/dev/nvme2n1",
 			Type:       "disk",
@@ -146,19 +177,19 @@ func TestIssue1107_FullFixValidation(t *testing.T) {
 					Name:       "/dev/mapper/vg_nvme-lv_nvme_rimage_1",
 					Type:       "lvm",
 					FSType:     "",
-					MountPoint: "",
+					MountPoint: "", // Intermediate layer without mountpoint
 					Children: []BlockDevice{
 						{
 							Name:       "/dev/mapper/vg_nvme-lv_nvme",
 							Type:       "lvm",
 							FSType:     "ext4",
-							MountPoint: "/mnt/local_disk",
+							MountPoint: "/mnt/local_disk", // Final mounted volume
 						},
 					},
 				},
 			},
 		},
-		// Problem 2: RAID device (needs RAID support in filter)
+		// Case 2: RAID device hierarchy (requires RAID type support)
 		{
 			Name:       "/dev/sda",
 			Type:       "disk",
@@ -175,7 +206,7 @@ func TestIssue1107_FullFixValidation(t *testing.T) {
 							Name:       "/dev/md127",
 							Type:       "raid1",
 							FSType:     "ext4",
-							MountPoint: "/",
+							MountPoint: "/", // RAID device with root mount
 						},
 					},
 				},
@@ -193,6 +224,7 @@ func TestIssue1107_FullFixValidation(t *testing.T) {
 	fstypeCache := make(map[string]string)
 	foundDevices := 0
 
+	// Process all devices and count those successfully detected
 	for i := range problematicStructure {
 		dev := &problematicStructure[i]
 		if processBlockDevice(ctx, dev, "", 0, op, fstypeCache) {
@@ -200,28 +232,7 @@ func TestIssue1107_FullFixValidation(t *testing.T) {
 		}
 	}
 
-	// Both devices should be found with the complete fix
-	assert.Equal(t, 2, foundDevices, "both problematic devices should be found with complete fix")
+	// Both complex hierarchies should be successfully processed
+	assert.Equal(t, 2, foundDevices, "both complex device hierarchies should be detected")
 	assert.NotZero(t, foundDevices, "should NOT trigger 'no block device found' error")
-}
-
-// TestIssue1107_DocumentWhyBothChangesNeeded documents the necessity of both changes
-func TestIssue1107_DocumentWhyBothChangesNeeded(t *testing.T) {
-	t.Log("Issue #1107 had TWO distinct problems:")
-	t.Log("")
-	t.Log("Problem 1: Nested LVM Hierarchy")
-	t.Log("  - Structure: disk → LVM PV → LVM rimage (no mount) → LVM LV (mounted)")
-	t.Log("  - Old code: Only checked direct children, missed grandchildren")
-	t.Log("  - Fix: Recursive processBlockDevice to check all levels")
-	t.Log("")
-	t.Log("Problem 2: RAID Device Type Filtering")
-	t.Log("  - Structure: disk → partition → RAID device (type 'raid1')")
-	t.Log("  - Old code: DefaultDeviceTypeFunc didn't accept 'raid*' types")
-	t.Log("  - Fix: Added RAID/MD support to DefaultDeviceTypeFunc")
-	t.Log("")
-	t.Log("BOTH fixes were mandatory:")
-	t.Log("  ✓ Without recursive processing: Nested LVM would fail")
-	t.Log("  ✓ Without RAID support: RAID devices would fail")
-	t.Log("")
-	t.Log("The complete fix addresses BOTH root causes.")
 }
