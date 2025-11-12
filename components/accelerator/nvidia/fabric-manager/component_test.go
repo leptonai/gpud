@@ -452,13 +452,13 @@ func TestDataString(t *testing.T) {
 	// Test rendering fabric state table output
 	cr = &checkResult{
 		FabricStateSupported: true,
-		FabricStates: []fabricStateEntry{
+		FabricStates: []device.FabricStateEntry{
 			{
 				GPUUUID:  "GPU-0",
 				CliqueID: 4026,
 				State:    "Completed",
 				Status:   "Success",
-				Health: fabricHealthSnapshot{
+				Health: device.FabricHealthSnapshot{
 					Bandwidth: "Full",
 				},
 			},
@@ -1159,7 +1159,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 			fabricStateReport: fabricStateReport{
 				Healthy: false,
 				Reason:  "GPU GPU-0: bandwidth degraded",
-				Entries: []fabricStateEntry{{GPUUUID: "GPU-0"}},
+				Entries: []device.FabricStateEntry{{GPUUUID: "GPU-0"}},
 			},
 			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 			expectedReasonMatch: "NVIDIA GB200 with unhealthy fabric state: GPU GPU-0: bandwidth degraded",
@@ -1182,7 +1182,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				Healthy: false,
 				Reason:  "GPU GPU-1: route unhealthy",
 				Err:     assert.AnError,
-				Entries: []fabricStateEntry{{GPUUUID: "GPU-1"}},
+				Entries: []device.FabricStateEntry{{GPUUUID: "GPU-1"}},
 			},
 			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 			expectedReasonMatch: "NVIDIA H100 with unhealthy fabric state: GPU GPU-1: route unhealthy",
@@ -1193,7 +1193,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 			fabricStateReport: fabricStateReport{
 				Healthy: false,
 				Reason:  "GPU GPU-0: bandwidth degraded; GPU GPU-1: route recovery in progress",
-				Entries: []fabricStateEntry{
+				Entries: []device.FabricStateEntry{
 					{GPUUUID: "GPU-0"},
 					{GPUUUID: "GPU-1"},
 				},
@@ -1207,7 +1207,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 			fabricStateReport: fabricStateReport{
 				Healthy: true,
 				Reason:  "",
-				Entries: []fabricStateEntry{{GPUUUID: "GPU-0", State: "Completed"}},
+				Entries: []device.FabricStateEntry{{GPUUUID: "GPU-0", State: "Completed"}},
 			},
 			expectedHealth:      apiv1.HealthStateTypeHealthy,
 			expectedReasonMatch: "NVIDIA GB200 checked fabric state",

@@ -9,6 +9,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 type Memory struct {
@@ -70,7 +71,7 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 		} else {
 			log.Logger.Warnw("failed to get device memory info v1", "error", nvml.ErrorString(retV1))
 
-			if IsNotSupportError(retV1) {
+			if nvmlerrors.IsNotSupportError(retV1) {
 				// NOTE: "NVIDIA-GB10" NVIDIA RTX blackwell with "blackwell" architecture does not support v2/v1 API
 				// with the error "Not Supported" for both v2 and v1 API
 				log.Logger.Warnw("device memory info v1 is not supported", "error", nvml.ErrorString(retV1))
@@ -79,16 +80,16 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 				return mem, nil
 			}
 
-			if IsGPULostError(retV1) {
+			if nvmlerrors.IsGPULostError(retV1) {
 				log.Logger.Warnw("device memory info v1 is GPU lost", "error", nvml.ErrorString(retV1))
 
-				return mem, ErrGPULost
+				return mem, nvmlerrors.ErrGPULost
 			}
 
-			if IsGPURequiresReset(retV1) {
+			if nvmlerrors.IsGPURequiresReset(retV1) {
 				log.Logger.Warnw("device memory info v1 requires reset", "error", nvml.ErrorString(retV1))
 
-				return mem, ErrGPURequiresReset
+				return mem, nvmlerrors.ErrGPURequiresReset
 			}
 
 			// v2 API failed AND v1 API fallback failed

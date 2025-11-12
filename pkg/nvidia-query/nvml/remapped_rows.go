@@ -7,6 +7,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 
 	"github.com/leptonai/gpud/pkg/log"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 // RemappedRows represents the row remapping data.
@@ -55,17 +56,17 @@ func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g055e7c34f7f15b6ae9aac1dabd60870d
 	corrRows, uncRows, isPending, failureOccurred, ret := dev.GetRemappedRows()
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		// even for "NVIDIA GeForce RTX 4090", this returns no error
 		// thus "Supported" is not a reliable way to check if row remapping is supported
 		remRws.Supported = false
 		return remRws, nil
 	}
-	if IsGPULostError(ret) {
-		return remRws, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return remRws, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return remRws, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return remRws, nvmlerrors.ErrGPURequiresReset
 	}
 	if ret != nvml.SUCCESS {
 		// not a "not supported" error, not a success return, thus return an error here

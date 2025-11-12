@@ -15,6 +15,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
@@ -530,7 +531,7 @@ func TestComponent_Check_GPU_Lost(t *testing.T) {
 			nvmlExists: true,
 		},
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
-			return nvidianvml.ClockSpeed{}, nvidianvml.ErrGPULost
+			return nvidianvml.ClockSpeed{}, nvmlerrors.ErrGPULost
 		},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -543,14 +544,14 @@ func TestComponent_Check_GPU_Lost(t *testing.T) {
 
 	// Verify that lastCheckResult contains the error
 	require.NotNil(t, c.lastCheckResult)
-	assert.True(t, errors.Is(c.lastCheckResult.err, nvidianvml.ErrGPULost))
+	assert.True(t, errors.Is(c.lastCheckResult.err, nvmlerrors.ErrGPULost))
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.lastCheckResult.health)
-	assert.Equal(t, nvidianvml.ErrGPULost.Error(), c.lastCheckResult.reason)
+	assert.Equal(t, nvmlerrors.ErrGPULost.Error(), c.lastCheckResult.reason)
 	assert.Equal(t, data, c.lastCheckResult)
 
 	// Verify suggested actions for GPU lost case
 	if assert.NotNil(t, data.suggestedActions) {
-		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+		assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.suggestedActions.Description)
 		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 	}
 
@@ -579,7 +580,7 @@ func TestComponent_Check_GPURequiresResetSuggestedActions(t *testing.T) {
 			nvmlExists: true,
 		},
 		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
-			return nvidianvml.ClockSpeed{}, nvidianvml.ErrGPURequiresReset
+			return nvidianvml.ClockSpeed{}, nvmlerrors.ErrGPURequiresReset
 		},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -593,7 +594,7 @@ func TestComponent_Check_GPURequiresResetSuggestedActions(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, data)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+	assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPURequiresReset))
 	assert.Equal(t, "GPU requires reset", data.reason)
 	if assert.NotNil(t, data.suggestedActions) {
 		assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)

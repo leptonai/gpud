@@ -16,6 +16,7 @@ type MockDevice struct {
 	Brand                 string
 	CudaComputeCapability string
 	BusID                 string
+	DeviceUUID            string
 	Serial                string
 	MinorNumber           int
 	BoardID               uint32
@@ -23,17 +24,18 @@ type MockDevice struct {
 
 // NewMockDevice creates a new mock device with the given parameters
 func NewMockDevice(device *mock.Device, architecture, brand, cudaComputeCapability, pciBusID string) *MockDevice {
-	return NewMockDeviceWithIDs(device, architecture, brand, cudaComputeCapability, pciBusID, "MOCK-GPU-SERIAL", 0, 0)
+	return NewMockDeviceWithIDs(device, architecture, brand, cudaComputeCapability, pciBusID, "MOCK-GPU-UUID", "MOCK-GPU-SERIAL", 0, 0)
 }
 
 // NewMockDeviceWithIDs creates a new mock device with the given parameters including serial and minor number
-func NewMockDeviceWithIDs(device *mock.Device, architecture, brand, cudaComputeCapability, pciBusID, serial string, minorNumber int, boardID uint32) *MockDevice {
+func NewMockDeviceWithIDs(device *mock.Device, architecture, brand, cudaComputeCapability, pciBusID, uuid, serial string, minorNumber int, boardID uint32) *MockDevice {
 	return &MockDevice{
 		Device:                device,
 		Architecture:          architecture,
 		Brand:                 brand,
 		CudaComputeCapability: cudaComputeCapability,
 		BusID:                 pciBusID,
+		DeviceUUID:            uuid,
 		Serial:                serial,
 		MinorNumber:           minorNumber,
 		BoardID:               boardID,
@@ -102,4 +104,21 @@ func (d *MockDevice) VisitMigProfiles(func(p nvlibdevice.MigProfile) error) erro
 
 func (d *MockDevice) PCIBusID() string {
 	return d.BusID
+}
+
+func (d *MockDevice) UUID() string {
+	return d.DeviceUUID
+}
+
+func (d *MockDevice) GetFabricState() (device.FabricState, error) {
+	// Mock implementation returns a basic fabric state
+	// Tests can override this by embedding MockDevice
+	return device.FabricState{
+		CliqueID:      0,
+		ClusterUUID:   "",
+		State:         nvml.GPU_FABRIC_STATE_NOT_STARTED,
+		Status:        nvml.SUCCESS,
+		HealthMask:    0,
+		HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED,
+	}, nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -190,5 +191,5 @@ func TestUtilizationWithGPULostError(t *testing.T) {
 
 	// Check error handling
 	assert.Error(t, err)
-	assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
+	assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost), "Expected GPU lost error")
 }

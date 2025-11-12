@@ -16,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
@@ -847,9 +848,9 @@ func TestCheck_GPULostError(t *testing.T) {
 		return devs
 	}
 
-	// Use nvidianvml.ErrGPULost for the error
+	// Use nvmlerrors.ErrGPULost for the error
 	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
-		return nvidianvml.PersistenceMode{}, nvidianvml.ErrGPULost
+		return nvidianvml.PersistenceMode{}, nvmlerrors.ErrGPULost
 	}
 
 	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
@@ -861,12 +862,12 @@ func TestCheck_GPULostError(t *testing.T) {
 
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
-	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
-	assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+	assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPULost), "error should be nvmlerrors.ErrGPULost")
+	assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.reason)
 
 	// Verify suggested actions for GPU lost case
 	if assert.NotNil(t, data.suggestedActions) {
-		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+		assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.suggestedActions.Description)
 		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 	}
 
@@ -906,7 +907,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
 		// Use any API that would surface this return in underlying helper; directly return the mapped error here
 		// because the persistence mode component only checks errors.Is on ErrGPURequiresReset
-		return nvidianvml.PersistenceMode{}, nvidianvml.ErrGPURequiresReset
+		return nvidianvml.PersistenceMode{}, nvmlerrors.ErrGPURequiresReset
 	}
 
 	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
@@ -917,7 +918,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	require.True(t, ok, "result should be of type *checkResult")
 	require.NotNil(t, data)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+	assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPURequiresReset))
 	assert.Equal(t, "GPU requires reset", data.reason)
 	if assert.NotNil(t, data.suggestedActions) {
 		assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)

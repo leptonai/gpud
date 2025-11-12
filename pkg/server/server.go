@@ -189,7 +189,19 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	kmsgWriter := pkgkmsgwriter.NewWriter(pkgkmsgwriter.DefaultDevKmsg)
 	s.faultInjector = pkgfaultinjector.NewInjector(kmsgWriter)
 
-	nvmlInstance, err := nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
+	var nvmlInstance nvidianvml.Instance
+	if config.FailureInjector != nil && (len(config.FailureInjector.GPUUUIDsWithGPULost) > 0 ||
+		len(config.FailureInjector.GPUUUIDsWithGPURequiresReset) > 0 ||
+		len(config.FailureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy) > 0) {
+		// If failure injector is configured for NVML-level errors, use it
+		nvmlInstance, err = nvidianvml.NewWithFailureInjector(&nvidianvml.FailureInjectorConfig{
+			GPUUUIDsWithGPULost:                           config.FailureInjector.GPUUUIDsWithGPULost,
+			GPUUUIDsWithGPURequiresReset:                  config.FailureInjector.GPUUUIDsWithGPURequiresReset,
+			GPUUUIDsWithFabricStateHealthSummaryUnhealthy: config.FailureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy,
+		})
+	} else {
+		nvmlInstance, err = nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 	}

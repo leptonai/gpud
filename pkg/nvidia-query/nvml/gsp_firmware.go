@@ -5,6 +5,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 // GSPFirmwareMode is the GSP firmware mode of the device.
@@ -24,16 +25,16 @@ func GetGSPFirmwareMode(uuid string, dev device.Device) (GSPFirmwareMode, error)
 	}
 
 	gspEnabled, supported, ret := dev.GetGspFirmwareMode()
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		mode.Enabled = false
 		mode.Supported = false
 		return mode, nil
 	}
-	if IsGPULostError(ret) {
-		return mode, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return mode, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return mode, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return mode, nvmlerrors.ErrGPURequiresReset
 	}
 	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {

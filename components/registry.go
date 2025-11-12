@@ -46,11 +46,14 @@ type GPUdInstance struct {
 }
 
 type FailureInjector struct {
-	GPUUUIDsWithRowRemappingPending  []string
-	GPUUUIDsWithRowRemappingFailed   []string
-	GPUUUIDsWithHWSlowdown           []string
-	GPUUUIDsWithHWSlowdownThermal    []string
-	GPUUUIDsWithHWSlowdownPowerBrake []string
+	GPUUUIDsWithRowRemappingPending               []string
+	GPUUUIDsWithRowRemappingFailed                []string
+	GPUUUIDsWithHWSlowdown                        []string
+	GPUUUIDsWithHWSlowdownThermal                 []string
+	GPUUUIDsWithHWSlowdownPowerBrake              []string
+	GPUUUIDsWithGPULost                           []string
+	GPUUUIDsWithGPURequiresReset                  []string
+	GPUUUIDsWithFabricStateHealthSummaryUnhealthy []string
 }
 
 // InitFunc is the function that initializes a component.

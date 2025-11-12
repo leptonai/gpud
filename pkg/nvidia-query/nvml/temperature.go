@@ -8,6 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 type Temperature struct {
@@ -63,11 +64,11 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		temp.CurrentCelsiusGPUCore = tempCur
 	} else {
 		log.Logger.Warnw("failed to get device temperature", "error", nvml.ErrorString(ret))
-		if IsGPULostError(ret) {
-			return temp, ErrGPULost
+		if nvmlerrors.IsGPULostError(ret) {
+			return temp, nvmlerrors.ErrGPULost
 		}
-		if IsGPURequiresReset(ret) {
-			return temp, ErrGPURequiresReset
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return temp, nvmlerrors.ErrGPURequiresReset
 		}
 	}
 
@@ -82,11 +83,11 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		}
 	} else {
 		log.Logger.Warnw("failed to get device temperature shutdown limit", "error", nvml.ErrorString(ret))
-		if IsGPULostError(ret) {
-			return temp, ErrGPULost
+		if nvmlerrors.IsGPULostError(ret) {
+			return temp, nvmlerrors.ErrGPULost
 		}
-		if IsGPURequiresReset(ret) {
-			return temp, ErrGPURequiresReset
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return temp, nvmlerrors.ErrGPURequiresReset
 		}
 		temp.UsedPercentShutdown = "0.0"
 	}
@@ -102,11 +103,11 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		}
 	} else {
 		log.Logger.Warnw("failed to get device temperature slowdown limit", "error", nvml.ErrorString(ret))
-		if IsGPULostError(ret) {
-			return temp, ErrGPULost
+		if nvmlerrors.IsGPULostError(ret) {
+			return temp, nvmlerrors.ErrGPULost
 		}
-		if IsGPURequiresReset(ret) {
-			return temp, ErrGPURequiresReset
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return temp, nvmlerrors.ErrGPURequiresReset
 		}
 		temp.UsedPercentSlowdown = "0.0"
 	}
@@ -126,11 +127,11 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		}
 	} else {
 		log.Logger.Debugw("failed to get device temperature memory max limit", "error", nvml.ErrorString(ret))
-		if IsGPULostError(ret) {
-			return temp, ErrGPULost
+		if nvmlerrors.IsGPULostError(ret) {
+			return temp, nvmlerrors.ErrGPULost
 		}
-		if IsGPURequiresReset(ret) {
-			return temp, ErrGPURequiresReset
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return temp, nvmlerrors.ErrGPURequiresReset
 		}
 		temp.UsedPercentMemMax = "0.0"
 	}
@@ -146,8 +147,8 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		}
 	} else {
 		log.Logger.Warnw("failed to get device temperature gpu max limit", "error", nvml.ErrorString(ret))
-		if IsGPULostError(ret) {
-			return temp, ErrGPULost
+		if nvmlerrors.IsGPULostError(ret) {
+			return temp, nvmlerrors.ErrGPULost
 		}
 		temp.UsedPercentGPUMax = "0.0"
 	}

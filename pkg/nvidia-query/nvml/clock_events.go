@@ -12,6 +12,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 // Returns true if clock events is supported by this device.
@@ -21,17 +22,17 @@ func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
 	// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
 	_, ret := dev.GetCurrentClocksEventReasons()
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		return false, nil
 	}
-	if IsGPULostError(ret) {
-		return false, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return false, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return false, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return false, nvmlerrors.ErrGPURequiresReset
 	}
 	// not a "not supported" error, not a success return, thus return an error here
-	if IsNotReadyError(ret) {
+	if nvmlerrors.IsNotReadyError(ret) {
 		return false, fmt.Errorf("device not initialized %v", nvml.ErrorString(ret))
 	}
 	// not a "not supported" error, not a success return, thus return an error here
@@ -110,18 +111,18 @@ func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	// undefined symbol: nvmlDeviceGetCurrentClocksEventReasons
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
 	reasons, ret := dev.GetCurrentClocksEventReasons()
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		clockEvents.Supported = false
 		return clockEvents, nil
 	}
-	if IsGPULostError(ret) {
-		return clockEvents, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return clockEvents, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return clockEvents, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return clockEvents, nvmlerrors.ErrGPURequiresReset
 	}
 	// not a "not supported" error, not a success return, thus return an error here
-	if IsNotReadyError(ret) {
+	if nvmlerrors.IsNotReadyError(ret) {
 		return clockEvents, fmt.Errorf("device %s is not initialized %v", uuid, nvml.ErrorString(ret))
 	}
 	if ret != nvml.SUCCESS {

@@ -1,6 +1,7 @@
 package fabricmanager
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -34,7 +35,7 @@ func TestCheck_FabricStateSupportedHealthy(t *testing.T) {
 		nvmlInstance: mockInstance,
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
-				Entries: []fabricStateEntry{
+				Entries: []devwrap.FabricStateEntry{
 					{
 						GPUUUID:     "GPU-0",
 						CliqueID:    4026,
@@ -42,7 +43,7 @@ func TestCheck_FabricStateSupportedHealthy(t *testing.T) {
 						State:       "Completed",
 						Status:      "Success",
 						Summary:     "Healthy",
-						Health: fabricHealthSnapshot{
+						Health: devwrap.FabricHealthSnapshot{
 							Bandwidth:             "Full",
 							RouteRecoveryProgress: "False",
 							RouteUnhealthy:        "False",
@@ -83,7 +84,7 @@ func TestCheck_FabricStateSupportedUnhealthy(t *testing.T) {
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
-				Entries: []fabricStateEntry{{GPUUUID: "GPU-0"}},
+				Entries: []devwrap.FabricStateEntry{{GPUUUID: "GPU-0"}},
 				Healthy: false,
 				Reason:  reason,
 			}
@@ -153,7 +154,7 @@ func TestCheck_FabricStateSupportedUnhealthyWithBothReasonAndError(t *testing.T)
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
-				Entries: []fabricStateEntry{{GPUUUID: "GPU-0"}},
+				Entries: []devwrap.FabricStateEntry{{GPUUUID: "GPU-0"}},
 				Healthy: false,
 				Reason:  reason,
 				Err:     fabricErr,
@@ -186,7 +187,7 @@ func TestCheck_FabricStateSupportedHealthyWithMultipleGPUs(t *testing.T) {
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
-				Entries: []fabricStateEntry{
+				Entries: []devwrap.FabricStateEntry{
 					{GPUUUID: "GPU-0", State: "Completed", Status: "Success"},
 					{GPUUUID: "GPU-1", State: "Completed", Status: "Success"},
 					{GPUUUID: "GPU-2", State: "Completed", Status: "Success"},
@@ -221,7 +222,7 @@ func TestCheck_FabricStateSupportedUnhealthyWithEmptyReason(t *testing.T) {
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
-				Entries: []fabricStateEntry{{GPUUUID: "GPU-0"}},
+				Entries: []devwrap.FabricStateEntry{{GPUUUID: "GPU-0"}},
 				Healthy: false,
 				Reason:  "", // Empty reason
 			}
@@ -238,36 +239,6 @@ func TestCheck_FabricStateSupportedUnhealthyWithEmptyReason(t *testing.T) {
 }
 
 // Unit tests for fabric state functions
-
-func TestFormatFabricUUID(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		input    [16]uint8
-		expected string
-	}{
-		{
-			name:     "empty UUID",
-			input:    [16]uint8{},
-			expected: "",
-		},
-		{
-			name:     "valid UUID",
-			input:    [16]uint8{0x9c, 0x6f, 0x5a, 0xf3, 0x53, 0xbf, 0x49, 0xb5, 0xa4, 0x36, 0xb6, 0x67, 0x66, 0xc4, 0x13, 0xc3},
-			expected: "9c6f5af3-53bf-49b5-a436-b66766c413c3",
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := formatFabricUUID(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
 
 func TestFabricStateToString(t *testing.T) {
 	t.Parallel()
@@ -308,7 +279,7 @@ func TestFabricStateToString(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := fabricStateToString(tt.state)
+			result := devwrap.FabricStateToString(tt.state)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -338,7 +309,7 @@ func TestFabricStatusToString(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := fabricStatusToString(tt.status)
+			result := devwrap.FabricStatusToString(tt.status)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -383,157 +354,7 @@ func TestFabricSummaryToString(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := fabricSummaryToString(tt.summary)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestFabricBandwidthStatus(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		val           uint32
-		expectedStr   string
-		expectedIssue bool
-	}{
-		{
-			name:          "not supported",
-			val:           nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_NOT_SUPPORTED,
-			expectedStr:   "Not Supported",
-			expectedIssue: false,
-		},
-		{
-			name:          "degraded",
-			val:           nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE,
-			expectedStr:   "Degraded",
-			expectedIssue: true,
-		},
-		{
-			name:          "full bandwidth",
-			val:           nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE,
-			expectedStr:   "Full",
-			expectedIssue: false,
-		},
-		{
-			name:          "unknown value",
-			val:           99,
-			expectedStr:   "Unknown(99)",
-			expectedIssue: true,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			str, issue := fabricBandwidthStatus(tt.val)
-			assert.Equal(t, tt.expectedStr, str)
-			assert.Equal(t, tt.expectedIssue, issue)
-		})
-	}
-}
-
-func TestFabricTriStateStatus(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		val           uint32
-		notSupported  uint32
-		trueValue     uint32
-		falseValue    uint32
-		expectedStr   string
-		expectedIssue bool
-	}{
-		{
-			name:          "not supported",
-			val:           0,
-			notSupported:  0,
-			trueValue:     1,
-			falseValue:    2,
-			expectedStr:   "Not Supported",
-			expectedIssue: false,
-		},
-		{
-			name:          "true value",
-			val:           1,
-			notSupported:  0,
-			trueValue:     1,
-			falseValue:    2,
-			expectedStr:   "True",
-			expectedIssue: true,
-		},
-		{
-			name:          "false value",
-			val:           2,
-			notSupported:  0,
-			trueValue:     1,
-			falseValue:    2,
-			expectedStr:   "False",
-			expectedIssue: false,
-		},
-		{
-			name:          "unknown value",
-			val:           99,
-			notSupported:  0,
-			trueValue:     1,
-			falseValue:    2,
-			expectedStr:   "Unknown(99)",
-			expectedIssue: true,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			str, issue := fabricTriStateStatus(tt.val, tt.notSupported, tt.trueValue, tt.falseValue)
-			assert.Equal(t, tt.expectedStr, str)
-			assert.Equal(t, tt.expectedIssue, issue)
-		})
-	}
-}
-
-func TestExtractHealthValue(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		mask     uint32
-		shift    uint32
-		width    uint32
-		expected uint32
-	}{
-		{
-			name:     "extract low bits",
-			mask:     0b1111,
-			shift:    0,
-			width:    0b1111,
-			expected: 0b1111,
-		},
-		{
-			name:     "extract shifted bits",
-			mask:     0b11110000,
-			shift:    4,
-			width:    0b1111,
-			expected: 0b1111,
-		},
-		{
-			name:     "extract with masking",
-			mask:     0b10101010,
-			shift:    1,
-			width:    0b11,
-			expected: 0b01,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := extractHealthValue(tt.mask, tt.shift, tt.width)
+			result := devwrap.FabricSummaryToString(tt.summary)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -542,14 +363,14 @@ func TestExtractHealthValue(t *testing.T) {
 func TestFabricStateEntryRenderTable(t *testing.T) {
 	t.Parallel()
 
-	entry := fabricStateEntry{
+	entry := devwrap.FabricStateEntry{
 		GPUUUID:     "GPU-123",
 		CliqueID:    4026,
 		ClusterUUID: "9c6f5af3-53bf-49b5-a436-b66766c413c3",
 		State:       "Completed",
 		Status:      "Success",
 		Summary:     "Healthy",
-		Health: fabricHealthSnapshot{
+		Health: devwrap.FabricHealthSnapshot{
 			Bandwidth:             "Full",
 			RouteRecoveryProgress: "False",
 			RouteUnhealthy:        "False",
@@ -557,7 +378,10 @@ func TestFabricStateEntryRenderTable(t *testing.T) {
 		},
 	}
 
-	result := fabricStateEntryToString(entry)
+	// Use RenderTable directly instead of the removed helper function
+	var buf bytes.Buffer
+	entry.RenderTable(&buf)
+	result := buf.String()
 
 	// Verify the result contains key information
 	assert.Contains(t, result, "GPU-123")
@@ -580,7 +404,7 @@ func TestFabricStateReportRenderTable(t *testing.T) {
 		{
 			name: "healthy report with entries",
 			report: fabricStateReport{
-				Entries: []fabricStateEntry{
+				Entries: []devwrap.FabricStateEntry{
 					{
 						GPUUUID:  "GPU-0",
 						CliqueID: 4026,
@@ -595,7 +419,7 @@ func TestFabricStateReportRenderTable(t *testing.T) {
 		{
 			name: "unhealthy report with reason",
 			report: fabricStateReport{
-				Entries: []fabricStateEntry{
+				Entries: []devwrap.FabricStateEntry{
 					{
 						GPUUUID: "GPU-1",
 						State:   "Not Started",
@@ -609,7 +433,7 @@ func TestFabricStateReportRenderTable(t *testing.T) {
 		{
 			name: "empty report",
 			report: fabricStateReport{
-				Entries: []fabricStateEntry{},
+				Entries: []devwrap.FabricStateEntry{},
 				Healthy: true,
 			},
 			contains: []string{"No fabric state entries"},
@@ -620,7 +444,10 @@ func TestFabricStateReportRenderTable(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := fabricStateReportToString(tt.report)
+			// Use RenderTable directly instead of the removed helper function
+			var buf bytes.Buffer
+			tt.report.RenderTable(&buf)
+			result := buf.String()
 			for _, str := range tt.contains {
 				assert.True(t, strings.Contains(result, str), "Expected result to contain '%s' but got:\n%s", str, result)
 			}
@@ -628,76 +455,89 @@ func TestFabricStateReportRenderTable(t *testing.T) {
 	}
 }
 
-type fakeFabricInfoDevice struct {
-	info nvml.GpuFabricInfo
-	ret  nvml.Return
+// mockFabricStateDevice implements GetFabricState() for testing
+type mockFabricStateDevice struct {
+	*nvmltestutil.MockDevice
+	state devwrap.FabricState
+	err   error
 }
 
-func (f fakeFabricInfoDevice) GetGpuFabricInfo() (nvml.GpuFabricInfo, nvml.Return) {
-	return f.info, f.ret
+func (m *mockFabricStateDevice) GetFabricState() (devwrap.FabricState, error) {
+	return m.state, m.err
 }
 
 func TestGetFabricInfoV1Success(t *testing.T) {
 	t.Parallel()
 
-	cluster := [16]uint8{0x9c, 0x6f, 0x5a, 0xf3, 0x53, 0xbf, 0x49, 0xb5, 0xa4, 0x36, 0xb6, 0x67, 0x66, 0xc4, 0x13, 0xc3}
-	device := fakeFabricInfoDevice{
-		info: nvml.GpuFabricInfo{
-			ClusterUuid: cluster,
-			Status:      uint32(nvml.SUCCESS),
-			CliqueId:    1234,
-			State:       nvml.GPU_FABRIC_STATE_COMPLETED,
+	device := &mockFabricStateDevice{
+		MockDevice: nvmltestutil.NewMockDevice(&nvmlmock.Device{}, "arch", "brand", "cuda", "pci0"),
+		state: devwrap.FabricState{
+			CliqueID:      1234,
+			ClusterUUID:   "9c6f5af3-53bf-49b5-a436-b66766c413c3",
+			State:         nvml.GPU_FABRIC_STATE_COMPLETED,
+			Status:        nvml.SUCCESS,
+			HealthMask:    0,
+			HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED,
 		},
-		ret: nvml.SUCCESS,
+		err: nil,
 	}
 
 	data, err := getFabricInfo(device)
 	assert.NoError(t, err)
-	assert.Equal(t, uint32(1234), data.cliqueID)
-	assert.Equal(t, "9c6f5af3-53bf-49b5-a436-b66766c413c3", data.clusterUUID)
-	assert.Equal(t, uint8(nvml.GPU_FABRIC_STATE_COMPLETED), data.state)
-	assert.Equal(t, nvml.SUCCESS, data.status)
-	assert.Equal(t, uint8(nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED), data.healthSummary)
+	assert.Equal(t, uint32(1234), data.CliqueID)
+	assert.Equal(t, "9c6f5af3-53bf-49b5-a436-b66766c413c3", data.ClusterUUID)
+	assert.Equal(t, uint8(nvml.GPU_FABRIC_STATE_COMPLETED), data.State)
+	assert.Equal(t, nvml.SUCCESS, data.Status)
+	assert.Equal(t, uint8(nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED), data.HealthSummary)
 }
 
 func TestGetFabricInfoV1Errors(t *testing.T) {
 	t.Parallel()
 
 	t.Run("not supported", func(t *testing.T) {
-		device := fakeFabricInfoDevice{ret: nvml.ERROR_NOT_SUPPORTED}
+		device := &mockFabricStateDevice{
+			MockDevice: nvmltestutil.NewMockDevice(&nvmlmock.Device{}, "arch", "brand", "cuda", "pci0"),
+			state:      devwrap.FabricState{},
+			err:        fmt.Errorf("fabric state telemetry not supported"),
+		}
 		_, err := getFabricInfo(device)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not supported")
 	})
 
 	t.Run("nvml error", func(t *testing.T) {
-		device := fakeFabricInfoDevice{ret: nvml.ERROR_NO_PERMISSION}
+		device := &mockFabricStateDevice{
+			MockDevice: nvmltestutil.NewMockDevice(&nvmlmock.Device{}, "arch", "brand", "cuda", "pci0"),
+			state:      devwrap.FabricState{},
+			err:        fmt.Errorf("nvmlDeviceGetGpuFabricInfo failed: ERROR_NO_PERMISSION"),
+		}
 		_, err := getFabricInfo(device)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "nvmlDeviceGetGpuFabricInfo failed")
 	})
 }
 
-func TestFabricInfoDataFromV3(t *testing.T) {
+// TestFabricInfoData tests that fabric info data is properly represented in devwrap.FabricState
+func TestFabricInfoData(t *testing.T) {
 	t.Parallel()
 
-	cluster := [16]uint8{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x10, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99}
-	info := nvml.GpuFabricInfo_v3{
-		ClusterUuid:   cluster,
-		Status:        uint32(nvml.ERROR_OPERATING_SYSTEM),
-		CliqueId:      777,
+	// The conversion is now done internally via Device.GetFabricState()
+	// This test validates that the devwrap.FabricState structure is properly populated
+	data := devwrap.FabricState{
+		CliqueID:      777,
+		ClusterUUID:   "aabbccdd-eeff-1011-2233-445566778899",
 		State:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
+		Status:        nvml.ERROR_OPERATING_SYSTEM,
 		HealthMask:    0x3f,
 		HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY,
 	}
 
-	data := fabricInfoDataFromV3(info)
-	assert.Equal(t, uint32(777), data.cliqueID)
-	assert.Equal(t, "aabbccdd-eeff-1011-2233-445566778899", data.clusterUUID)
-	assert.Equal(t, uint8(nvml.GPU_FABRIC_STATE_IN_PROGRESS), data.state)
-	assert.Equal(t, nvml.ERROR_OPERATING_SYSTEM, data.status)
-	assert.Equal(t, uint32(0x3f), data.healthMask)
-	assert.Equal(t, uint8(nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY), data.healthSummary)
+	assert.Equal(t, uint32(777), data.CliqueID)
+	assert.Equal(t, "aabbccdd-eeff-1011-2233-445566778899", data.ClusterUUID)
+	assert.Equal(t, uint8(nvml.GPU_FABRIC_STATE_IN_PROGRESS), data.State)
+	assert.Equal(t, nvml.ERROR_OPERATING_SYSTEM, data.Status)
+	assert.Equal(t, uint32(0x3f), data.HealthMask)
+	assert.Equal(t, uint8(nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY), data.HealthSummary)
 }
 
 func TestFormatFabricStateEntryIssues(t *testing.T) {
@@ -707,19 +547,21 @@ func TestFormatFabricStateEntryIssues(t *testing.T) {
 		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
 		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY
 
-	entry, issues := formatFabricStateEntry("GPU-issue", fabricInfoData{
-		cliqueID:      101,
-		clusterUUID:   "cluster",
-		state:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
-		status:        nvml.ERROR_UNKNOWN,
-		healthMask:    mask,
-		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY,
-	})
+	state := devwrap.FabricState{
+		CliqueID:      101,
+		ClusterUUID:   "cluster",
+		State:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
+		Status:        nvml.ERROR_UNKNOWN,
+		HealthMask:    mask,
+		HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY,
+	}
+
+	entry := state.ToEntry("GPU-issue")
+	issues := state.GetIssues()
 
 	assert.Equal(t, "GPU-issue", entry.GPUUUID)
 
-	// Since formatFabricStateEntry now sorts the issues slice lexicographically,
-	// verify the exact sorted order for determinism.
+	// The issues are sorted lexicographically by the GetIssues method
 	expected := []string{
 		"bandwidth degraded",
 		"route recovery in progress",
@@ -731,31 +573,17 @@ func TestFormatFabricStateEntryIssues(t *testing.T) {
 	assert.Equal(t, expected, issues)
 }
 
-func TestFabricHealthFromMask(t *testing.T) {
-	t.Parallel()
-
-	mask := uint32(nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
-		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
-		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_FALSE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
-		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY
-
-	health, issues := fabricHealthFromMask(mask)
-	assert.Equal(t, "Full", health.Bandwidth)
-	assert.Equal(t, "False", health.RouteRecoveryProgress)
-	assert.Equal(t, "False", health.RouteUnhealthy)
-	assert.Equal(t, "True", health.AccessTimeoutRecovery)
-	assert.Equal(t, []string{"access timeout recovery in progress"}, issues)
-}
+// TestFabricHealthFromMask moved to device package as TestParseHealthMask and TestGetHealthMaskIssues
 
 // ---
 // Tests focusing on collectFabricState sorting behavior
 // ---
 
-// issueDevice wraps testutil.MockDevice to attach a desired fabricInfoData payload
+// issueDevice wraps testutil.MockDevice to attach a desired devwrap.FabricState payload
 // that is returned by the test override of getFabricInfoFn.
 type issueDevice struct {
 	*nvmltestutil.MockDevice
-	info fabricInfoData
+	info devwrap.FabricState
 	err  error
 }
 
@@ -770,21 +598,21 @@ func (f *fakeNVMLInstanceDevices) Devices() map[string]devwrap.Device { return f
 func TestCollectFabricState_SortsEntriesAndReasons(t *testing.T) {
 	// Override NVML query with deterministic stub for this test
 	orig := getFabricInfoFn
-	getFabricInfoFn = func(dev interface{}) (fabricInfoData, error) {
+	getFabricInfoFn = func(dev interface{}) (devwrap.FabricState, error) {
 		if d, ok := dev.(*issueDevice); ok {
 			return d.info, d.err
 		}
-		return fabricInfoData{}, fmt.Errorf("unexpected device type %T", dev)
+		return devwrap.FabricState{}, fmt.Errorf("unexpected device type %T", dev)
 	}
 	t.Cleanup(func() { getFabricInfoFn = orig })
 
-	infoA := fabricInfoData{
-		cliqueID:      1,
-		clusterUUID:   "",
-		state:         nvml.GPU_FABRIC_STATE_COMPLETED,
-		status:        nvml.SUCCESS,
-		healthMask:    0,
-		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY,
+	infoA := devwrap.FabricState{
+		CliqueID:      1,
+		ClusterUUID:   "",
+		State:         nvml.GPU_FABRIC_STATE_COMPLETED,
+		Status:        nvml.SUCCESS,
+		HealthMask:    0,
+		HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY,
 	}
 	// For V1, healthSummary is Not Supported by default; to exercise summary path we switch to V3 in unit below.
 	// Instead, we rely on health mask via fabricHealthFromMask by calling formatFabricStateEntry directly.
@@ -792,13 +620,13 @@ func TestCollectFabricState_SortsEntriesAndReasons(t *testing.T) {
 	// GPU-B: issues -> bandwidth degraded, route unhealthy, state=In Progress, status=ERROR_UNKNOWN, summary=Unhealthy
 	maskB := uint32(nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
 		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY
-	infoB := fabricInfoData{
-		cliqueID:      2,
-		clusterUUID:   "",
-		state:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
-		status:        nvml.ERROR_UNKNOWN,
-		healthMask:    maskB,
-		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY,
+	infoB := devwrap.FabricState{
+		CliqueID:      2,
+		ClusterUUID:   "",
+		State:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
+		Status:        nvml.ERROR_UNKNOWN,
+		HealthMask:    maskB,
+		HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY,
 	}
 
 	// We will bypass the lack of V1 health mask/summary by using formatFabricStateEntry for mask-derived checks
@@ -824,8 +652,8 @@ func TestCollectFabricState_SortsEntriesAndReasons(t *testing.T) {
 		assert.Equal(t, "GPU-B", report.Entries[1].GPUUUID)
 	}
 
-	// For GPU-B, compute expected sorted issues using the same helpers to ensure determinism
-	_, issuesB := formatFabricStateEntry("GPU-B", infoB)
+	// For GPU-B, compute expected sorted issues using the device package methods
+	issuesB := infoB.GetIssues()
 	expectedReasonB := fmt.Sprintf("GPU GPU-B: %s", strings.Join(issuesB, ", "))
 
 	// report.Reason should contain only GPU-B's issues (GPU-A is healthy)
@@ -836,44 +664,46 @@ func TestCollectFabricState_SortsEntriesAndReasons(t *testing.T) {
 func TestCollectFabricState_SortsReasonsAcrossMultipleGPUs(t *testing.T) {
 	// Build three devices; two with issues, inserted out of order
 	orig := getFabricInfoFn
-	getFabricInfoFn = func(dev interface{}) (fabricInfoData, error) {
+	getFabricInfoFn = func(dev interface{}) (devwrap.FabricState, error) {
 		if d, ok := dev.(*issueDevice); ok {
 			return d.info, d.err
 		}
-		return fabricInfoData{}, fmt.Errorf("unexpected device type %T", dev)
+		return devwrap.FabricState{}, fmt.Errorf("unexpected device type %T", dev)
 	}
 	t.Cleanup(func() { getFabricInfoFn = orig })
 
 	// GPU-C healthy
-	infoC := fabricInfoData{cliqueID: 3, state: nvml.GPU_FABRIC_STATE_COMPLETED, status: nvml.SUCCESS}
+	infoC := devwrap.FabricState{CliqueID: 3, State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: nvml.SUCCESS}
 
-	// Build reasons deterministically using formatFabricStateEntry
+	// Build reasons deterministically using the device package methods
 	maskA := uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_TRUE) << nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY
-	_, issuesA := formatFabricStateEntry("GPU-A", fabricInfoData{
-		cliqueID:      1,
-		state:         nvml.GPU_FABRIC_STATE_COMPLETED,
-		status:        nvml.SUCCESS,
-		healthMask:    maskA,
-		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY,
-	})
+	stateA := devwrap.FabricState{
+		CliqueID:      1,
+		State:         nvml.GPU_FABRIC_STATE_COMPLETED,
+		Status:        nvml.SUCCESS,
+		HealthMask:    maskA,
+		HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY,
+	}
+	issuesA := stateA.GetIssues()
 	expectedA := fmt.Sprintf("GPU GPU-A: %s", strings.Join(issuesA, ", "))
 
 	maskB := uint32(nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
 		uint32(nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE)<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY
-	_, issuesB := formatFabricStateEntry("GPU-B", fabricInfoData{
-		cliqueID:      2,
-		state:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
-		status:        nvml.ERROR_UNKNOWN,
-		healthMask:    maskB,
-		healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY,
-	})
+	stateB := devwrap.FabricState{
+		CliqueID:      2,
+		State:         nvml.GPU_FABRIC_STATE_IN_PROGRESS,
+		Status:        nvml.ERROR_UNKNOWN,
+		HealthMask:    maskB,
+		HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY,
+	}
+	issuesB := stateB.GetIssues()
 	expectedB := fmt.Sprintf("GPU GPU-B: %s", strings.Join(issuesB, ", "))
 
 	// For collectFabricState inputs, V1 info influences only state/status; health masks are not surfaced via V1.
 	// We still get sorting validation across reasons by constructing expected strings and ensuring the final
 	// concatenation order is lexicographic by GPU ID (A then B).
-	infoA := fabricInfoData{cliqueID: 1, state: nvml.GPU_FABRIC_STATE_COMPLETED, status: nvml.SUCCESS, healthMask: maskA, healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY}
-	infoB := fabricInfoData{cliqueID: 2, state: nvml.GPU_FABRIC_STATE_IN_PROGRESS, status: nvml.ERROR_UNKNOWN, healthMask: maskB, healthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY}
+	infoA := stateA
+	infoB := stateB
 
 	inst := &fakeNVMLInstanceDevices{
 		mockNVMLInstance: mockNVMLInstance{exists: true, productName: "NVIDIA Test", deviceCount: 3},

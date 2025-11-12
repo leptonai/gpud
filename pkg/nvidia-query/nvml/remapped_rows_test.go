@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -188,7 +189,7 @@ func TestGetRemappedRows(t *testing.T) {
 			},
 			expectError:       true,
 			errorContains:     "",
-			expectedErrorType: ErrGPULost,
+			expectedErrorType: nvmlerrors.ErrGPULost,
 		},
 	}
 

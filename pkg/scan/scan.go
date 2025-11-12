@@ -37,7 +37,20 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 
 	fmt.Printf("\n\n%s scanning the host (GOOS %s)\n\n", cmdcommon.InProgress, runtime.GOOS)
 
-	nvmlInstance, err := nvidianvml.New()
+	var nvmlInstance nvidianvml.Instance
+	var err error
+	if op.failureInjector != nil && (len(op.failureInjector.GPUUUIDsWithGPULost) > 0 ||
+		len(op.failureInjector.GPUUUIDsWithGPURequiresReset) > 0 ||
+		len(op.failureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy) > 0) {
+		// If failure injector is configured for NVML-level errors, use it
+		nvmlInstance, err = nvidianvml.NewWithFailureInjector(&nvidianvml.FailureInjectorConfig{
+			GPUUUIDsWithGPULost:                           op.failureInjector.GPUUUIDsWithGPULost,
+			GPUUUIDsWithGPURequiresReset:                  op.failureInjector.GPUUUIDsWithGPURequiresReset,
+			GPUUUIDsWithFabricStateHealthSummaryUnhealthy: op.failureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy,
+		})
+	} else {
+		nvmlInstance, err = nvidianvml.New()
+	}
 	if err != nil {
 		return err
 	}

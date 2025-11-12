@@ -8,6 +8,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -116,7 +117,7 @@ func TestGetMemory(t *testing.T) {
 			memory:          nvml.Memory{},
 			memoryRet:       nvml.ERROR_GPU_IS_LOST, // v1 reports GPU is lost
 			expectError:     true,
-			expectedErrType: ErrGPULost,
+			expectedErrType: nvmlerrors.ErrGPULost,
 		},
 	}
 
@@ -163,7 +164,7 @@ func TestGetMemoryWithDirectGPULostError(t *testing.T) {
 
 	// Check that we get a GPU lost error
 	assert.Error(t, err)
-	assert.True(t, errors.Is(err, ErrGPULost))
+	assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost))
 }
 
 func TestMemoryGetUsedPercent(t *testing.T) {

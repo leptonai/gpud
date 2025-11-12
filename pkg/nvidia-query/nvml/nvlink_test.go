@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
+
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 
@@ -23,6 +25,7 @@ type mockDevice struct {
 	crcErrorsErr      nvml.Return
 	fieldValuesErr    nvml.Return
 	busID             string
+	uuid              string
 }
 
 func (m *mockDevice) GetNvLinkState(link int) (nvml.EnableState, nvml.Return) {
@@ -44,6 +47,10 @@ func (m *mockDevice) GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCou
 
 func (m *mockDevice) PCIBusID() string {
 	return m.busID
+}
+
+func (m *mockDevice) UUID() string {
+	return m.uuid
 }
 
 // TestNVLinkStatesAllFeatureEnabled tests the AllFeatureEnabled method
@@ -213,7 +220,7 @@ func TestGetNVLink(t *testing.T) {
 					assert.Contains(t, err.Error(), tc.expectedErrorContains)
 				}
 				if tc.mockDev.nvLinkStateErr == nvml.ERROR_GPU_IS_LOST {
-					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
+					assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost), "Expected GPU lost error")
 				}
 				return
 			}

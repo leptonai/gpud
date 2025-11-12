@@ -33,6 +33,9 @@ func CreateCommand() func(*cli.Context) error {
 			cliContext.String("gpu-uuids-with-hw-slowdown"),
 			cliContext.String("gpu-uuids-with-hw-slowdown-thermal"),
 			cliContext.String("gpu-uuids-with-hw-slowdown-power-brake"),
+			cliContext.String("gpu-uuids-with-gpu-lost"),
+			cliContext.String("gpu-uuids-with-gpu-requires-reset"),
+			cliContext.String("gpu-uuids-with-fabric-state-health-summary-unhealthy"),
 			cliContext.Int("xid-reboot-threshold"),
 			cliContext.IsSet("xid-reboot-threshold"),
 		)
@@ -50,6 +53,9 @@ func cmdScan(
 	gpuUUIDsWithHWSlowdownRaw string,
 	gpuUUIDsWithHWSlowdownThermalRaw string,
 	gpuUUIDsWithHWSlowdownPowerBrakeRaw string,
+	gpuUUIDsWithGPULostRaw string,
+	gpuUUIDsWithGPURequiresResetRaw string,
+	gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw string,
 	xidRebootThreshold int,
 	xidRebootThresholdIsSet bool,
 ) error {
@@ -105,15 +111,21 @@ func cmdScan(
 	gpuUUIDsWithHWSlowdown := common.ParseGPUUUIDs(gpuUUIDsWithHWSlowdownRaw)
 	gpuUUIDsWithHWSlowdownThermal := common.ParseGPUUUIDs(gpuUUIDsWithHWSlowdownThermalRaw)
 	gpuUUIDsWithHWSlowdownPowerBrake := common.ParseGPUUUIDs(gpuUUIDsWithHWSlowdownPowerBrakeRaw)
+	gpuUUIDsWithGPULost := common.ParseGPUUUIDs(gpuUUIDsWithGPULostRaw)
+	gpuUUIDsWithGPURequiresReset := common.ParseGPUUUIDs(gpuUUIDsWithGPURequiresResetRaw)
+	gpuUUIDsWithFabricStateHealthSummaryUnhealthy := common.ParseGPUUUIDs(gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw)
 
 	opts := []scan.OpOption{
 		scan.WithInfinibandClassRootDir(ibClassRootDir),
 		scan.WithFailureInjector(&gpudcomponents.FailureInjector{
-			GPUUUIDsWithRowRemappingPending:  gpuUUIDsWithRowRemappingPending,
-			GPUUUIDsWithRowRemappingFailed:   gpuUUIDsWithRowRemappingFailed,
-			GPUUUIDsWithHWSlowdown:           gpuUUIDsWithHWSlowdown,
-			GPUUUIDsWithHWSlowdownThermal:    gpuUUIDsWithHWSlowdownThermal,
-			GPUUUIDsWithHWSlowdownPowerBrake: gpuUUIDsWithHWSlowdownPowerBrake,
+			GPUUUIDsWithRowRemappingPending:               gpuUUIDsWithRowRemappingPending,
+			GPUUUIDsWithRowRemappingFailed:                gpuUUIDsWithRowRemappingFailed,
+			GPUUUIDsWithHWSlowdown:                        gpuUUIDsWithHWSlowdown,
+			GPUUUIDsWithHWSlowdownThermal:                 gpuUUIDsWithHWSlowdownThermal,
+			GPUUUIDsWithHWSlowdownPowerBrake:              gpuUUIDsWithHWSlowdownPowerBrake,
+			GPUUUIDsWithGPULost:                           gpuUUIDsWithGPULost,
+			GPUUUIDsWithGPURequiresReset:                  gpuUUIDsWithGPURequiresReset,
+			GPUUUIDsWithFabricStateHealthSummaryUnhealthy: gpuUUIDsWithFabricStateHealthSummaryUnhealthy,
 		}),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error

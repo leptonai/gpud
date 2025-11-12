@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/log"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 // Processes represents the current clock events from the nvmlDeviceGetCurrentClocksEventReasons API.
@@ -73,15 +74,15 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g34afcba3d32066db223265aa022a6b80
 	computeProcs, ret := dev.GetComputeRunningProcesses()
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		procs.GetComputeRunningProcessesSupported = false
 		return procs, nil
 	}
-	if IsGPULostError(ret) {
-		return procs, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return procs, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return procs, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return procs, nvmlerrors.ErrGPURequiresReset
 	}
 	if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 		return procs, fmt.Errorf("failed to get device compute processes: %v", nvml.ErrorString(ret))
@@ -95,7 +96,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
 				continue
 			}
-			if IsNoSuchFileOrDirectoryError(err) {
+			if nvmlerrors.IsNoSuchFileOrDirectoryError(err) {
 				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
 				continue
 			}
@@ -104,7 +105,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 
 		args, err := procObject.CmdlineSlice()
 		if err != nil {
-			if IsNoSuchFileOrDirectoryError(err) {
+			if nvmlerrors.IsNoSuchFileOrDirectoryError(err) {
 				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
 				continue
 			}
@@ -112,7 +113,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 		}
 		createTimeUnixMS, err := procObject.CreateTime()
 		if err != nil {
-			if IsNoSuchFileOrDirectoryError(err) {
+			if nvmlerrors.IsNoSuchFileOrDirectoryError(err) {
 				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
 				continue
 			}
@@ -123,18 +124,18 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gb0ea5236f5e69e63bf53684a11c233bd
 		memUtil := uint32(0)
 		utils, ret := dev.GetProcessUtilization(uint64(proc.Pid))
-		if IsNotSupportError(ret) {
+		if nvmlerrors.IsNotSupportError(ret) {
 			procs.GetProcessUtilizationSupported = false
 			return procs, nil
 		}
-		if IsNotFoundError(ret) {
+		if nvmlerrors.IsNotFoundError(ret) {
 			continue
 		}
-		if IsGPULostError(ret) {
-			return procs, ErrGPULost
+		if nvmlerrors.IsGPULostError(ret) {
+			return procs, nvmlerrors.ErrGPULost
 		}
-		if IsGPURequiresReset(ret) {
-			return procs, ErrGPURequiresReset
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return procs, nvmlerrors.ErrGPURequiresReset
 		}
 		if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 			return procs, fmt.Errorf("failed to get process %d utilization (%v)", proc.Pid, nvml.ErrorString(ret))
@@ -152,7 +153,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 
 		status, err := procObject.Status()
 		if err != nil {
-			if IsNoSuchFileOrDirectoryError(err) {
+			if nvmlerrors.IsNoSuchFileOrDirectoryError(err) {
 				continue
 			}
 			return procs, fmt.Errorf("failed to get process %d status: %v", proc.Pid, err)
@@ -167,7 +168,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 
 		envs, err := procObject.Environ()
 		if err != nil {
-			if IsNoSuchFileOrDirectoryError(err) {
+			if nvmlerrors.IsNoSuchFileOrDirectoryError(err) {
 				continue
 			}
 			return procs, fmt.Errorf("failed to get process %d environ: %v", proc.Pid, err)

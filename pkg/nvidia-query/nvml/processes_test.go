@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -44,7 +45,7 @@ func TestGetProcessesWithGPULostError(t *testing.T) {
 
 	// Check that we get a GPU lost error
 	assert.Error(t, err)
-	assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
+	assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost), "Expected GPU lost error")
 }
 
 // TestGetProcessesWithGPURequiresResetError tests handling of "GPU requires reset" errors
@@ -75,7 +76,7 @@ func TestGetProcessesWithGPURequiresResetError(t *testing.T) {
 
 	// Check that we get a GPU requires reset error
 	assert.Error(t, err)
-	assert.True(t, errors.Is(err, ErrGPURequiresReset), "Expected GPU requires reset error")
+	assert.True(t, errors.Is(err, nvmlerrors.ErrGPURequiresReset), "Expected GPU requires reset error")
 }
 
 // TestGetProcesses_ProcessUtilizationGPURequiresReset tests reset error handling in utilization path
@@ -149,7 +150,7 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_NewProcess(t *testing.T) {
 // fails with a "no such file or directory" error, the process is skipped
 func TestGetProcesses_NoSuchFileOrDirectoryError_CmdlineSlice(t *testing.T) {
 	testUUID := "GPU-TEST"
-	noSuchFileErr := errors.New("not found") // Matches IsNoSuchFileOrDirectoryError
+	noSuchFileErr := errors.New("not found") // Matches nvmlerrors.IsNoSuchFileOrDirectoryError
 
 	// Create a mock device that returns one process
 	mockDevice := &testutil.MockDevice{
@@ -180,7 +181,7 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_CmdlineSlice(t *testing.T) {
 
 		for range computeProcs {
 			// Simulate the CmdlineSlice failure
-			if IsNoSuchFileOrDirectoryError(noSuchFileErr) {
+			if nvmlerrors.IsNoSuchFileOrDirectoryError(noSuchFileErr) {
 				continue // Process should be skipped
 			}
 		}
@@ -233,7 +234,7 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_CreateTime(t *testing.T) {
 		for range computeProcs {
 			// Simulate successful process creation and CmdlineSlice
 			// Then simulate CreateTime failure
-			if IsNoSuchFileOrDirectoryError(noSuchFileErr) {
+			if nvmlerrors.IsNoSuchFileOrDirectoryError(noSuchFileErr) {
 				continue // Process should be skipped (lines 106-109)
 			}
 		}
@@ -284,7 +285,7 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_Status(t *testing.T) {
 		for _, proc := range computeProcs {
 			// Simulate successful process creation, CmdlineSlice, CreateTime
 			// Then simulate Status failure - should continue (lines 143-145)
-			if IsNoSuchFileOrDirectoryError(noSuchFileErr) {
+			if nvmlerrors.IsNoSuchFileOrDirectoryError(noSuchFileErr) {
 				// Should continue to Environ call, not return
 				// Simulate Environ success
 				procs.RunningProcesses = append(procs.RunningProcesses, Process{
@@ -341,7 +342,7 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_Environ(t *testing.T) {
 		for _, proc := range computeProcs {
 			// Simulate successful process creation, CmdlineSlice, CreateTime, Status
 			// Then simulate Environ failure - should continue (lines 158-160)
-			if IsNoSuchFileOrDirectoryError(noSuchFileErr) {
+			if nvmlerrors.IsNoSuchFileOrDirectoryError(noSuchFileErr) {
 				// Should continue and complete the process
 				procs.RunningProcesses = append(procs.RunningProcesses, Process{
 					PID:        proc.Pid,
@@ -399,14 +400,14 @@ func TestGetProcesses_Integration_NoSuchFileOrDirectoryError(t *testing.T) {
 	// Call the actual getProcesses function
 	_, err := getProcesses(testUUID, mockDevice, mockNewProcessFunc)
 
-	// PID 1001 should be skipped due to IsNoSuchFileOrDirectoryError
+	// PID 1001 should be skipped due to nvmlerrors.IsNoSuchFileOrDirectoryError
 	// PID 1002 should cause the function to return an error since it's not a recognized error type
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get process 1002")
 }
 
 // TestGetProcesses_Integration_AllProcessesSkipped tests the case where all processes
-// are skipped due to IsNoSuchFileOrDirectoryError, but the function still succeeds
+// are skipped due to nvmlerrors.IsNoSuchFileOrDirectoryError, but the function still succeeds
 func TestGetProcesses_Integration_AllProcessesSkipped(t *testing.T) {
 	testUUID := "GPU-SKIP-ALL-TEST"
 
@@ -428,7 +429,7 @@ func TestGetProcesses_Integration_AllProcessesSkipped(t *testing.T) {
 
 	// Mock newProcessFunc that always returns "no such file or directory" error
 	mockNewProcessFunc := func(int32) (*process.Process, error) {
-		return nil, errors.New("not found") // Matches IsNoSuchFileOrDirectoryError
+		return nil, errors.New("not found") // Matches nvmlerrors.IsNoSuchFileOrDirectoryError
 	}
 
 	// Call the actual getProcesses function

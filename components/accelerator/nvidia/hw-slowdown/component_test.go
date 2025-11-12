@@ -16,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -1278,7 +1279,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				return true
 			},
 			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
-				return false, nvidianvml.ErrGPULost
+				return false, nvmlerrors.ErrGPULost
 			},
 			expectHealthy: false,
 			expectReason:  "error getting clock events supported",
@@ -1312,7 +1313,7 @@ func TestCheckEdgeCases(t *testing.T) {
 				return true, nil
 			},
 			mockGetClockEvents: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-				return nvidianvml.ClockEvents{}, nvidianvml.ErrGPULost
+				return nvidianvml.ClockEvents{}, nvmlerrors.ErrGPULost
 			},
 			expectHealthy: false,
 			expectReason:  "error getting clock events",

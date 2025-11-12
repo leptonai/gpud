@@ -212,33 +212,48 @@ sudo rm /etc/systemd/system/gpud.service
 
 				cli.StringFlag{
 					Name:   "infiniband-class-root-dir",
-					Usage:  "sets the infiniband class root directory (leave empty for default)",
+					Usage:  "(testing purposes) sets the infiniband class root directory (leave empty for default)",
 					Value:  "",
 					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-row-remapping-pending",
-					Usage:  "set the comma-separated gpu uuids with row remapping pending",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids with row remapping pending",
 					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-row-remapping-failed",
-					Usage:  "set the comma-separated gpu uuids with row remapping failed",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids with row remapping failed",
 					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-hw-slowdown",
-					Usage:  "set the comma-separated gpu uuids with hw slowdown",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids with hw slowdown",
 					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-hw-slowdown-thermal",
-					Usage:  "set the comma-separated gpu uuids with hw slowdown thermal",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids with hw slowdown thermal",
 					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-hw-slowdown-power-brake",
-					Usage:  "set the comma-separated gpu uuids with hw slowdown power brake",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids with hw slowdown power brake",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-gpu-lost",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return 'GPU lost' NVML error (nvml.ERROR_GPU_IS_LOST)",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-gpu-requires-reset",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return 'GPU requires reset' NVML error (nvml.ERROR_GPU_REQUIRES_RESET)",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-fabric-state-health-summary-unhealthy",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return GPU fabric health summary unhealthy (nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY)",
 					Hidden: true, // only for testing
 				},
 			},
