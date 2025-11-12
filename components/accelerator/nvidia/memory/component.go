@@ -33,7 +33,7 @@ type component struct {
 	getTimeNowFunc func() time.Time
 
 	nvmlInstance  nvidianvml.Instance
-	getMemoryFunc func(uuid string, dev device.Device) (nvidianvml.Memory, error)
+	getMemoryFunc func(uuid string, dev device.Device) (Memory, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -48,7 +48,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		nvmlInstance:  gpudInstance.NVMLInstance,
-		getMemoryFunc: nvidianvml.GetMemory,
+		getMemoryFunc: GetMemory,
 	}
 	return c, nil
 }
@@ -204,7 +204,7 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	Memories []nvidianvml.Memory `json:"memories,omitempty"`
+	Memories []Memory `json:"memories,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

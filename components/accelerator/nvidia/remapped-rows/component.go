@@ -35,7 +35,7 @@ type component struct {
 	getTimeNowFunc func() time.Time
 
 	nvmlInstance        nvidianvml.Instance
-	getRemappedRowsFunc func(uuid string, dev device.Device) (nvidianvml.RemappedRows, error)
+	getRemappedRowsFunc func(uuid string, dev device.Device) (RemappedRows, error)
 
 	gpuUUIDsWithRowRemappingPending map[string]any
 	gpuUUIDsWithRowRemappingFailed  map[string]any
@@ -55,7 +55,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		nvmlInstance:                    gpudInstance.NVMLInstance,
-		getRemappedRowsFunc:             nvml.GetRemappedRows,
+		getRemappedRowsFunc:             GetRemappedRows,
 		gpuUUIDsWithRowRemappingPending: make(map[string]any),
 		gpuUUIDsWithRowRemappingFailed:  make(map[string]any),
 	}
@@ -284,7 +284,7 @@ type checkResult struct {
 	// MemoryErrorManagementCapabilities contains the memory error management capabilities of the GPU.
 	MemoryErrorManagementCapabilities nvml.MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities"`
 	// RemappedRows maps from GPU UUID to the remapped rows data.
-	RemappedRows []nvml.RemappedRows `json:"remapped_rows,omitempty"`
+	RemappedRows []RemappedRows `json:"remapped_rows,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

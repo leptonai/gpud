@@ -86,7 +86,7 @@ func (m *mockNvmlInstance) Shutdown() error {
 func MockMemoryComponent(
 	ctx context.Context,
 	nvmlInstance nvidianvml.Instance,
-	getMemoryFunc func(uuid string, dev device.Device) (nvidianvml.Memory, error),
+	getMemoryFunc func(uuid string, dev device.Device) (Memory, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	return &component{
@@ -169,7 +169,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		nvmlExists: true,
 	}
 
-	memory := nvidianvml.Memory{
+	memory := Memory{
 		UUID:          uuid,
 		TotalBytes:    16 * 1024 * 1024 * 1024, // 16 GB
 		ReservedBytes: 1 * 1024 * 1024 * 1024,  // 1 GB
@@ -188,7 +188,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		Supported: true,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
 		return memory, nil
 	}
 
@@ -229,8 +229,8 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 	}
 
 	errExpected := errors.New("memory error")
-	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
-		return nvidianvml.Memory{}, errExpected
+	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+		return Memory{}, errExpected
 	}
 
 	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
@@ -292,7 +292,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 	}
 
 	// Create malformed memory data that will cause GetUsedPercent to fail
-	invalidMemory := nvidianvml.Memory{
+	invalidMemory := Memory{
 		UUID:           uuid,
 		TotalBytes:     16 * 1024 * 1024 * 1024,
 		UsedBytes:      8 * 1024 * 1024 * 1024,
@@ -304,7 +304,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		Supported:      true,      // Mark as supported so it doesn't get skipped
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
 		return invalidMemory, nil
 	}
 
@@ -328,7 +328,7 @@ func TestStates_WithData(t *testing.T) {
 	// Set test data
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
-		Memories: []nvidianvml.Memory{
+		Memories: []Memory{
 			{
 				UUID:              "gpu-uuid-123",
 				TotalBytes:        16 * 1024 * 1024 * 1024,
@@ -501,14 +501,14 @@ func TestData_String(t *testing.T) {
 		{
 			name: "empty memories",
 			data: &checkResult{
-				Memories: []nvidianvml.Memory{},
+				Memories: []Memory{},
 			},
 			expected: "no data",
 		},
 		{
 			name: "with memory data",
 			data: &checkResult{
-				Memories: []nvidianvml.Memory{
+				Memories: []Memory{
 					{
 						UUID:              "gpu-uuid-123",
 						TotalBytes:        16 * 1024 * 1024 * 1024,
@@ -541,7 +541,7 @@ func TestData_String(t *testing.T) {
 		{
 			name: "multiple memory entries",
 			data: &checkResult{
-				Memories: []nvidianvml.Memory{
+				Memories: []Memory{
 					{
 						UUID:              "gpu-uuid-123",
 						TotalBytes:        16 * 1024 * 1024 * 1024,
@@ -719,8 +719,8 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
-		return nvidianvml.Memory{}, nvmlerrors.ErrGPULost
+	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+		return Memory{}, nvmlerrors.ErrGPULost
 	}
 
 	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
@@ -771,12 +771,12 @@ func TestCheck_UnsupportedMemory(t *testing.T) {
 	}
 
 	// Return unsupported memory
-	unsupportedMemory := nvidianvml.Memory{
+	unsupportedMemory := Memory{
 		UUID:      uuid,
 		Supported: false,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
 		return unsupportedMemory, nil
 	}
 
@@ -825,10 +825,10 @@ func TestCheck_MixedSupportedUnsupportedDevices(t *testing.T) {
 		nvmlExists: true,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
 		if uuid == uuid1 {
 			// Return supported memory
-			return nvidianvml.Memory{
+			return Memory{
 				UUID:              uuid,
 				TotalBytes:        16 * 1024 * 1024 * 1024,
 				ReservedBytes:     1 * 1024 * 1024 * 1024,
@@ -843,7 +843,7 @@ func TestCheck_MixedSupportedUnsupportedDevices(t *testing.T) {
 			}, nil
 		} else {
 			// Return unsupported memory
-			return nvidianvml.Memory{
+			return Memory{
 				UUID:      uuid,
 				Supported: false,
 			}, nil
@@ -884,8 +884,8 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 		nvmlExists: true,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (nvidianvml.Memory, error) {
-		return nvidianvml.Memory{}, nvmlerrors.ErrGPURequiresReset
+	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+		return Memory{}, nvmlerrors.ErrGPURequiresReset
 	}
 
 	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)

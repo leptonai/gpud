@@ -11,12 +11,10 @@ import (
 	"testing"
 	"time"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/kubelet"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 )
 
@@ -51,7 +49,7 @@ func Test_marshalJSON(t *testing.T) {
 			data: checkResult{
 				KubeletServiceActive: true,
 				NodeName:             "test-node",
-				Pods: []kubelet.PodStatus{
+				Pods: []PodStatus{
 					{
 						Name:      "test-pod",
 						Namespace: "default",
@@ -109,7 +107,7 @@ func Test_getLastHealthStates(t *testing.T) {
 		{
 			name: "with pods",
 			data: checkResult{
-				Pods: []kubelet.PodStatus{
+				Pods: []PodStatus{
 					{Name: "pod1"},
 					{Name: "pod2"},
 				},
@@ -258,7 +256,7 @@ func Test_componentClose(t *testing.T) {
 	}
 }
 
-// Test context cancellation for kubelet.ListPodsFromKubeletReadOnlyPort
+// Test context cancellation for ListPodsFromKubeletReadOnlyPort
 func TestListPodsFromKubeletReadOnlyPort_ContextCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -278,7 +276,7 @@ func TestListPodsFromKubeletReadOnlyPort_ContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	// Should fail due to canceled context
-	nodeName, pods, err := kubelet.ListPodsFromKubeletReadOnlyPort(ctx, int(port))
+	nodeName, pods, err := ListPodsFromKubeletReadOnlyPort(ctx, int(port))
 	assert.Error(t, err)
 	assert.Empty(t, nodeName)
 	assert.Nil(t, pods)
@@ -302,7 +300,7 @@ func TestListPodsFromKubeletReadOnlyPort_HTTPError(t *testing.T) {
 	defer cancel()
 
 	// Should fail due to HTTP error
-	nodeName, pods, err := kubelet.ListPodsFromKubeletReadOnlyPort(ctx, int(port))
+	nodeName, pods, err := ListPodsFromKubeletReadOnlyPort(ctx, int(port))
 	assert.Error(t, err)
 	assert.Empty(t, nodeName)
 	assert.Nil(t, pods)
@@ -402,7 +400,7 @@ func Test_componentLastHealthStates_ConnectionErrors(t *testing.T) {
 func Test_componentLastHealthStates_ContextCancellation(t *testing.T) {
 	c := &component{
 		lastCheckResult: &checkResult{
-			Pods:   []kubelet.PodStatus{{Name: "test-pod"}},
+			Pods:   []PodStatus{{Name: "test-pod"}},
 			health: apiv1.HealthStateTypeHealthy,
 		},
 		failedCount: 0,
@@ -430,7 +428,7 @@ func Test_componentConstructor(t *testing.T) {
 	require.True(t, ok, "Component should be of type *component")
 
 	// Check fields
-	assert.Equal(t, kubelet.DefaultKubeletReadOnlyPort, c.kubeletReadOnlyPort)
+	assert.Equal(t, DefaultKubeletReadOnlyPort, c.kubeletReadOnlyPort)
 	assert.NotNil(t, c.ctx)
 	assert.NotNil(t, c.cancel)
 	assert.Equal(t, defaultFailedCountThreshold, c.failedCountThreshold)
@@ -464,7 +462,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 		{
 			name: "empty pods with error",
 			data: checkResult{
-				Pods:   []kubelet.PodStatus{},
+				Pods:   []PodStatus{},
 				err:    errors.New("no pods error"),
 				health: apiv1.HealthStateTypeUnhealthy,
 				reason: "no pods error",
@@ -495,7 +493,7 @@ func TestDataGetLastHealthStatesErrorReturn(t *testing.T) {
 			name: "no error with pods",
 			data: checkResult{
 				NodeName: "test-node",
-				Pods:     []kubelet.PodStatus{{Name: "pod1"}},
+				Pods:     []PodStatus{{Name: "pod1"}},
 				err:      nil,
 				health:   apiv1.HealthStateTypeHealthy,
 				reason:   "success",
@@ -700,7 +698,7 @@ func Test_componentConstructor_CheckKubeletRunning(t *testing.T) {
 	require.True(t, ok, "Component should be of type *component")
 
 	// Check fields
-	assert.Equal(t, kubelet.DefaultKubeletReadOnlyPort, c.kubeletReadOnlyPort)
+	assert.Equal(t, DefaultKubeletReadOnlyPort, c.kubeletReadOnlyPort)
 
 	// The checkKubeletRunning function should be set
 	assert.NotNil(t, c.checkKubeletRunning)

@@ -10,7 +10,6 @@ import (
 	cmddown "github.com/leptonai/gpud/cmd/gpud/down"
 	cmdinjectfault "github.com/leptonai/gpud/cmd/gpud/inject-fault"
 	cmdlistplugins "github.com/leptonai/gpud/cmd/gpud/list-plugins"
-	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	cmdmachineinfo "github.com/leptonai/gpud/cmd/gpud/machine-info"
 	cmdmetadata "github.com/leptonai/gpud/cmd/gpud/metadata"
 	cmdnotify "github.com/leptonai/gpud/cmd/gpud/notify"
@@ -661,52 +660,6 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "set-value",
 					Usage: "value to set for the metadata key",
-				},
-			},
-		},
-
-		//
-		//
-		//
-		// DEPRECATED: use "gpud up" instead
-		{
-			Name:   "login",
-			Usage:  "login gpud to lepton.ai (called automatically in gpud up with non-empty --token)",
-			Action: cmdlogin.Command,
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:  "log-level,l",
-					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
-				},
-				cli.StringFlag{
-					Name:  "token",
-					Usage: "lepton.ai workspace token for checking in",
-				},
-				cli.StringFlag{
-					Name:  "endpoint",
-					Usage: "endpoint for control plane",
-					Value: "gpud-manager-prod01.dgxc-lepton.nvidia.com",
-				},
-				cli.StringFlag{
-					Name:   "machine-id",
-					Hidden: true,
-					Usage:  "for override default machine id",
-				},
-				cli.StringFlag{
-					Name:  "node-group",
-					Usage: "node group to join",
-				},
-				cli.StringFlag{
-					Name:  "gpu-count",
-					Usage: "specify count of gpu",
-				},
-				cli.StringFlag{
-					Name:  "private-ip",
-					Usage: "can specify private ip for internal network",
-				},
-				cli.StringFlag{
-					Name:  "public-ip",
-					Usage: "can specify public ip for machine",
 				},
 			},
 		},

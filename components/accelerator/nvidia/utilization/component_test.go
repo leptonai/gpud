@@ -82,7 +82,7 @@ func (m *mockInstance) Shutdown() error {
 func MockUtilizationComponent(
 	ctx context.Context,
 	getDevicesFunc func() map[string]device.Device,
-	getUtilizationFunc func(uuid string, dev device.Device) (nvidianvml.Utilization, error),
+	getUtilizationFunc func(uuid string, dev device.Device) (Utilization, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
@@ -105,7 +105,7 @@ func MockUtilizationComponent(
 	}
 
 	if getUtilizationFunc == nil {
-		comp.getUtilizationFunc = nvidianvml.GetUtilization
+		comp.getUtilizationFunc = GetUtilization
 	}
 
 	return comp
@@ -179,14 +179,14 @@ func TestCheck_Success(t *testing.T) {
 		return devs
 	}
 
-	utilization := nvidianvml.Utilization{
+	utilization := Utilization{
 		UUID:              uuid,
 		GPUUsedPercent:    85, // 85% GPU utilization
 		MemoryUsedPercent: 70, // 70% Memory utilization
 		Supported:         true,
 	}
 
-	getUtilizationFunc := func(uuid string, dev device.Device) (nvidianvml.Utilization, error) {
+	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
 		return utilization, nil
 	}
 
@@ -224,8 +224,8 @@ func TestCheck_UtilizationError(t *testing.T) {
 	}
 
 	errExpected := errors.New("utilization error")
-	getUtilizationFunc := func(uuid string, dev device.Device) (nvidianvml.Utilization, error) {
-		return nvidianvml.Utilization{}, errExpected
+	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
+		return Utilization{}, errExpected
 	}
 
 	component := MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc).(*component)
@@ -268,7 +268,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 	// Set test data
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
-		Utilizations: []nvidianvml.Utilization{
+		Utilizations: []Utilization{
 			{
 				UUID:              "gpu-uuid-123",
 				GPUUsedPercent:    85,
@@ -436,7 +436,7 @@ func TestData_String(t *testing.T) {
 		{
 			name: "with utilization data",
 			data: &checkResult{
-				Utilizations: []nvidianvml.Utilization{
+				Utilizations: []Utilization{
 					{
 						UUID:              "gpu-uuid-123",
 						GPUUsedPercent:    75,
@@ -631,17 +631,17 @@ func TestCheck_MultipleGPUs(t *testing.T) {
 		return devs
 	}
 
-	getUtilizationFunc := func(uuid string, dev device.Device) (nvidianvml.Utilization, error) {
+	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
 		// Return different utilization values based on UUID
 		if uuid == uuid1 {
-			return nvidianvml.Utilization{
+			return Utilization{
 				UUID:              uuid1,
 				GPUUsedPercent:    75,
 				MemoryUsedPercent: 60,
 				Supported:         true,
 			}, nil
 		} else {
-			return nvidianvml.Utilization{
+			return Utilization{
 				UUID:              uuid2,
 				GPUUsedPercent:    90,
 				MemoryUsedPercent: 85,
@@ -701,8 +701,8 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getUtilizationFunc := func(uuid string, dev device.Device) (nvidianvml.Utilization, error) {
-		return nvidianvml.Utilization{}, nvmlerrors.ErrGPULost
+	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
+		return Utilization{}, nvmlerrors.ErrGPULost
 	}
 
 	component := MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc).(*component)
@@ -756,10 +756,10 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error via nvml.Return and mapping in GetUtilization
-	getUtilizationFunc := func(uuid string, dev device.Device) (nvidianvml.Utilization, error) {
+	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
 		// Use any API that would surface this return in underlying helper; directly return the mapped error here
 		// because the utilization component only checks errors.Is on ErrGPURequiresReset
-		return nvidianvml.Utilization{}, nvmlerrors.ErrGPURequiresReset
+		return Utilization{}, nvmlerrors.ErrGPURequiresReset
 	}
 
 	component := MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc).(*component)

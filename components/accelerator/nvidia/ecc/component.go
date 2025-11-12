@@ -33,8 +33,8 @@ type component struct {
 	getTimeNowFunc func() time.Time
 
 	nvmlInstance          nvidianvml.Instance
-	getECCModeEnabledFunc func(uuid string, dev device.Device) (nvidianvml.ECCMode, error)
-	getECCErrorsFunc      func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error)
+	getECCModeEnabledFunc func(uuid string, dev device.Device) (ECCMode, error)
+	getECCErrorsFunc      func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -49,8 +49,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		nvmlInstance:          gpudInstance.NVMLInstance,
-		getECCModeEnabledFunc: nvidianvml.GetECCModeEnabled,
-		getECCErrorsFunc:      nvidianvml.GetECCErrors,
+		getECCModeEnabledFunc: GetECCModeEnabled,
+		getECCErrorsFunc:      GetECCErrors,
 	}
 	return c, nil
 }
@@ -217,8 +217,8 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	ECCModes  []nvidianvml.ECCMode   `json:"ecc_modes,omitempty"`
-	ECCErrors []nvidianvml.ECCErrors `json:"ecc_errors,omitempty"`
+	ECCModes  []ECCMode   `json:"ecc_modes,omitempty"`
+	ECCErrors []ECCErrors `json:"ecc_errors,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

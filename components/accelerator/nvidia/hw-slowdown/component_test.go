@@ -104,7 +104,7 @@ func TestCheckOnce(t *testing.T) {
 	tests := []struct {
 		name               string
 		mockDevices        map[string]device.Device
-		mockClockEvents    map[string]nvidianvml.ClockEvents
+		mockClockEvents    map[string]ClockEvents
 		expectEvents       int
 		expectSlowdown     bool
 		expectThermal      bool
@@ -123,7 +123,7 @@ func TestCheckOnce(t *testing.T) {
 					"test-arch", "test-brand", "test-cuda", "test-pci",
 				),
 			},
-			mockClockEvents: map[string]nvidianvml.ClockEvents{
+			mockClockEvents: map[string]ClockEvents{
 				"gpu-0": {
 					UUID:                 "gpu-0",
 					Time:                 metav1.Time{Time: time.Now().UTC()},
@@ -151,7 +151,7 @@ func TestCheckOnce(t *testing.T) {
 					"test-arch", "test-brand", "test-cuda", "test-pci",
 				),
 			},
-			mockClockEvents: map[string]nvidianvml.ClockEvents{
+			mockClockEvents: map[string]ClockEvents{
 				"gpu-1": {
 					UUID:                 "gpu-1",
 					Time:                 metav1.Time{Time: time.Now().UTC()},
@@ -180,7 +180,7 @@ func TestCheckOnce(t *testing.T) {
 					"test-arch", "test-brand", "test-cuda", "test-pci",
 				),
 			},
-			mockClockEvents: map[string]nvidianvml.ClockEvents{
+			mockClockEvents: map[string]ClockEvents{
 				"gpu-2": {
 					UUID:                 "gpu-2",
 					Time:                 metav1.Time{Time: time.Now().UTC()},
@@ -217,7 +217,7 @@ func TestCheckOnce(t *testing.T) {
 					"test-arch", "test-brand", "test-cuda", "test-pci",
 				),
 			},
-			mockClockEvents: map[string]nvidianvml.ClockEvents{
+			mockClockEvents: map[string]ClockEvents{
 				"gpu-3": {
 					UUID:                 "gpu-3",
 					Time:                 metav1.Time{Time: time.Now().UTC()},
@@ -278,11 +278,11 @@ func TestCheckOnce(t *testing.T) {
 					health: apiv1.HealthStateTypeHealthy,
 					reason: "Initial state",
 				},
-				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+				getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
 					if events, ok := tc.mockClockEvents[uuid]; ok {
 						return events, nil
 					}
-					return nvidianvml.ClockEvents{}, fmt.Errorf("no mock clock events for %s", uuid)
+					return ClockEvents{}, fmt.Errorf("no mock clock events for %s", uuid)
 				},
 				getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
 					return true, nil
@@ -388,8 +388,8 @@ func TestComponentStates(t *testing.T) {
 			health: apiv1.HealthStateTypeHealthy,
 			reason: "Initial state",
 		},
-		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-			return nvidianvml.ClockEvents{
+		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+			return ClockEvents{
 				UUID:                 uuid,
 				Time:                 metav1.Time{Time: time.Now()},
 				HWSlowdown:           false,
@@ -538,8 +538,8 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 					health: apiv1.HealthStateTypeHealthy,
 					reason: "Initial state",
 				},
-				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-					return nvidianvml.ClockEvents{
+				getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+					return ClockEvents{
 						UUID:                 uuid,
 						Time:                 metav1.Time{Time: time.Now()},
 						HWSlowdown:           false,
@@ -663,8 +663,8 @@ func TestComponentStart(t *testing.T) {
 			reason: "Initial state",
 		},
 		// Initialize mock functions to avoid nil pointer dereference if Start() is called
-		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-			return nvidianvml.ClockEvents{
+		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+			return ClockEvents{
 				UUID:                 uuid,
 				Time:                 metav1.Time{Time: time.Now()},
 				HWSlowdown:           false,
@@ -736,8 +736,8 @@ func TestComponentEvents(t *testing.T) {
 		threshold:        0.1,
 		eventBucket:      bucket,
 		nvmlInstance:     mockNVML,
-		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-			return nvidianvml.ClockEvents{
+		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+			return ClockEvents{
 				UUID:                 uuid,
 				Time:                 metav1.Time{Time: time.Now()},
 				HWSlowdown:           false,
@@ -821,8 +821,8 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		threshold:        thresholdFrequency,
 		eventBucket:      bucket,
 		nvmlInstance:     mockNVML,
-		getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-			return nvidianvml.ClockEvents{
+		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+			return ClockEvents{
 				UUID:                 uuid,
 				Time:                 metav1.Time{Time: time.Now().UTC()},
 				HWSlowdown:           true,
@@ -917,7 +917,7 @@ func TestDataMethods(t *testing.T) {
 		{
 			name: "empty clock events",
 			checkResult: &checkResult{
-				ClockEvents: []nvidianvml.ClockEvents{},
+				ClockEvents: []ClockEvents{},
 				ts:          time.Now().UTC(),
 				reason:      "test reason",
 				health:      apiv1.HealthStateTypeHealthy,
@@ -932,7 +932,7 @@ func TestDataMethods(t *testing.T) {
 		{
 			name: "data with error",
 			checkResult: &checkResult{
-				ClockEvents: []nvidianvml.ClockEvents{
+				ClockEvents: []ClockEvents{
 					{
 						UUID:                 "gpu-0",
 						Time:                 metav1.Time{Time: time.Now().UTC()},
@@ -1061,7 +1061,7 @@ func TestCheckEdgeCases(t *testing.T) {
 		name                          string
 		nvmlInstance                  nvidianvml.Instance
 		mockGetClockEventsSupported   func(dev device.Device) (bool, error)
-		mockGetClockEvents            func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
+		mockGetClockEvents            func(uuid string, dev device.Device) (ClockEvents, error)
 		mockGetSystemDriverVersion    func() (string, error)
 		mockParseDriverVersion        func(driverVersion string) (int, int, int, error)
 		mockCheckClockEventsSupported func(major int) bool
@@ -1247,8 +1247,8 @@ func TestCheckEdgeCases(t *testing.T) {
 			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
 				return true, nil
 			},
-			mockGetClockEvents: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-				return nvidianvml.ClockEvents{}, fmt.Errorf("clock events error")
+			mockGetClockEvents: func(uuid string, dev device.Device) (ClockEvents, error) {
+				return ClockEvents{}, fmt.Errorf("clock events error")
 			},
 			expectHealthy: false,
 			expectReason:  "error getting clock events",
@@ -1312,8 +1312,8 @@ func TestCheckEdgeCases(t *testing.T) {
 			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
 				return true, nil
 			},
-			mockGetClockEvents: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
-				return nvidianvml.ClockEvents{}, nvmlerrors.ErrGPULost
+			mockGetClockEvents: func(uuid string, dev device.Device) (ClockEvents, error) {
+				return ClockEvents{}, nvmlerrors.ErrGPULost
 			},
 			expectHealthy: false,
 			expectReason:  "error getting clock events",
@@ -1533,9 +1533,9 @@ func TestFailureInjection(t *testing.T) {
 				gpuUUIDsWithHWSlowdown:           make(map[string]any),
 				gpuUUIDsWithHWSlowdownThermal:    make(map[string]any),
 				gpuUUIDsWithHWSlowdownPowerBrake: make(map[string]any),
-				getClockEventsFunc: func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error) {
+				getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
 					// Return clean state - injection should override these
-					return nvidianvml.ClockEvents{
+					return ClockEvents{
 						UUID:                 uuid,
 						Time:                 metav1.Time{Time: time.Now().UTC()},
 						HWSlowdown:           false,

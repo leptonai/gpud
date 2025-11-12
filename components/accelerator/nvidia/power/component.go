@@ -33,7 +33,7 @@ type component struct {
 	getTimeNowFunc func() time.Time
 
 	nvmlInstance nvidianvml.Instance
-	getPowerFunc func(uuid string, dev device.Device) (nvidianvml.Power, error)
+	getPowerFunc func(uuid string, dev device.Device) (Power, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -48,7 +48,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		nvmlInstance: gpudInstance.NVMLInstance,
-		getPowerFunc: nvidianvml.GetPower,
+		getPowerFunc: GetPower,
 	}
 	return c, nil
 }
@@ -213,7 +213,7 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	Powers []nvidianvml.Power `json:"powers,omitempty"`
+	Powers []Power `json:"powers,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

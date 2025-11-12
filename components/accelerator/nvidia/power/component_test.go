@@ -26,7 +26,7 @@ import (
 func MockPowerComponent(
 	ctx context.Context,
 	mockNVMLInstance *mockNVMLInstance,
-	getPowerFunc func(uuid string, dev device.Device) (nvidianvml.Power, error),
+	getPowerFunc func(uuid string, dev device.Device) (Power, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	return &component{
@@ -163,7 +163,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		devices: devs,
 	}
 
-	power := nvidianvml.Power{
+	power := Power{
 		UUID:                             uuid,
 		UsageMilliWatts:                  150000,  // 150W
 		EnforcedLimitMilliWatts:          250000,  // 250W
@@ -174,7 +174,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		GetPowerManagementLimitSupported: true,
 	}
 
-	getPowerFunc := func(uuid string, dev device.Device) (nvidianvml.Power, error) {
+	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
 		return power, nil
 	}
 
@@ -211,8 +211,8 @@ func TestCheckOnce_PowerError(t *testing.T) {
 	}
 
 	errExpected := errors.New("power error")
-	getPowerFunc := func(uuid string, dev device.Device) (nvidianvml.Power, error) {
-		return nvidianvml.Power{}, errExpected
+	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
+		return Power{}, errExpected
 	}
 
 	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
@@ -266,7 +266,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 	}
 
 	// Create power data with invalid UsedPercent format
-	invalidPower := nvidianvml.Power{
+	invalidPower := Power{
 		UUID:                             uuid,
 		UsageMilliWatts:                  150000,
 		EnforcedLimitMilliWatts:          250000,
@@ -277,7 +277,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		GetPowerManagementLimitSupported: true,
 	}
 
-	getPowerFunc := func(uuid string, dev device.Device) (nvidianvml.Power, error) {
+	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
 		return invalidPower, nil
 	}
 
@@ -300,7 +300,7 @@ func TestStates_WithData(t *testing.T) {
 	// Set test data
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
-		Powers: []nvidianvml.Power{
+		Powers: []Power{
 			{
 				UUID:                             "gpu-uuid-123",
 				UsageMilliWatts:                  150000, // 150W
@@ -389,9 +389,9 @@ func TestStart(t *testing.T) {
 		},
 	}
 
-	component := MockPowerComponent(ctx, mockNvml, func(uuid string, dev device.Device) (nvidianvml.Power, error) {
+	component := MockPowerComponent(ctx, mockNvml, func(uuid string, dev device.Device) (Power, error) {
 		callCount.Add(1)
-		return nvidianvml.Power{}, nil
+		return Power{}, nil
 	})
 
 	// Start should be non-blocking
@@ -477,8 +477,8 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getPowerFunc := func(uuid string, dev device.Device) (nvidianvml.Power, error) {
-		return nvidianvml.Power{}, nvmlerrors.ErrGPULost
+	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
+		return Power{}, nvmlerrors.ErrGPULost
 	}
 
 	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
@@ -534,10 +534,10 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error via nvml.Return and mapping in GetPower
-	getPowerFunc := func(uuid string, dev device.Device) (nvidianvml.Power, error) {
+	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
 		// Use any API that would surface this return in underlying helper; directly return the mapped error here
 		// because the power component only checks errors.Is on ErrGPURequiresReset
-		return nvidianvml.Power{}, nvmlerrors.ErrGPURequiresReset
+		return Power{}, nvmlerrors.ErrGPURequiresReset
 	}
 
 	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)

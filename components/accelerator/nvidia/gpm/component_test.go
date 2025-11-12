@@ -422,7 +422,7 @@ func TestStates_WithData(t *testing.T) {
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
 		GPMSupported: true,
-		GPMMetrics: []nvidianvml.GPMMetrics{
+		GPMMetrics: []GPMMetrics{
 			{
 				UUID: "gpu-uuid-123",
 				Metrics: map[nvml.GpmMetricId]float64{
@@ -761,7 +761,7 @@ func TestData_String(t *testing.T) {
 		{
 			name: "empty metrics",
 			data: &checkResult{
-				GPMMetrics: []nvidianvml.GPMMetrics{},
+				GPMMetrics: []GPMMetrics{},
 			},
 			shouldMatch: true,
 			contains:    "no data",
@@ -769,7 +769,7 @@ func TestData_String(t *testing.T) {
 		{
 			name: "with metrics",
 			data: &checkResult{
-				GPMMetrics: []nvidianvml.GPMMetrics{
+				GPMMetrics: []GPMMetrics{
 					{
 						UUID: "gpu-uuid-123",
 						Metrics: map[nvml.GpmMetricId]float64{
@@ -924,7 +924,7 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 
 	data := &checkResult{
 		GPMSupported: true,
-		GPMMetrics: []nvidianvml.GPMMetrics{
+		GPMMetrics: []GPMMetrics{
 			{
 				UUID:           uuid,
 				Metrics:        metrics,

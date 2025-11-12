@@ -96,7 +96,7 @@ func TestData_GetError(t *testing.T) {
 
 	// Test successful data
 	successData := &checkResult{
-		ClockSpeeds: []nvidianvml.ClockSpeed{
+		ClockSpeeds: []ClockSpeed{
 			{UUID: "test-uuid", GraphicsMHz: 1000, MemoryMHz: 2000},
 		},
 	}
@@ -109,7 +109,7 @@ func TestData_GetError(t *testing.T) {
 func TestData_GetStates(t *testing.T) {
 	// Test successful data
 	successData := &checkResult{
-		ClockSpeeds: []nvidianvml.ClockSpeed{
+		ClockSpeeds: []ClockSpeed{
 			{UUID: "test-uuid", GraphicsMHz: 1000, MemoryMHz: 2000},
 		},
 	}
@@ -142,7 +142,7 @@ func TestData_String(t *testing.T) {
 
 	// Test with clock speeds data
 	dataWithClockSpeeds := &checkResult{
-		ClockSpeeds: []nvidianvml.ClockSpeed{
+		ClockSpeeds: []ClockSpeed{
 			{
 				UUID:                   "test-uuid-1",
 				BusID:                  "0000:01:00.0",
@@ -298,8 +298,8 @@ func TestComponent_Start(t *testing.T) {
 		ctx:          ctx,
 		cancel:       cancel,
 		nvmlInstance: mockInstance,
-		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
-			return nvidianvml.ClockSpeed{}, nil
+		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+			return ClockSpeed{}, nil
 		},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -329,7 +329,7 @@ func TestComponent_States(t *testing.T) {
 	assert.Len(t, states, 1)
 
 	// Test with valid data
-	clockSpeeds := []nvidianvml.ClockSpeed{
+	clockSpeeds := []ClockSpeed{
 		{UUID: "test-uuid", GraphicsMHz: 1000, MemoryMHz: 2000},
 	}
 
@@ -368,8 +368,8 @@ func TestComponent_CheckOnce(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
-			return nvidianvml.ClockSpeed{
+		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+			return ClockSpeed{
 				UUID:        uuid,
 				GraphicsMHz: 1000,
 				MemoryMHz:   2000,
@@ -401,8 +401,8 @@ func TestComponent_CheckOnce(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
-			return nvidianvml.ClockSpeed{}, testErr
+		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+			return ClockSpeed{}, testErr
 		},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -486,8 +486,8 @@ func TestComponent_Check_MultipleDevices(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
-			return nvidianvml.ClockSpeed{
+		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+			return ClockSpeed{
 				UUID:                   uuid,
 				GraphicsMHz:            1000,
 				MemoryMHz:              2000,
@@ -530,8 +530,8 @@ func TestComponent_Check_GPU_Lost(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
-			return nvidianvml.ClockSpeed{}, nvmlerrors.ErrGPULost
+		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+			return ClockSpeed{}, nvmlerrors.ErrGPULost
 		},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -579,8 +579,8 @@ func TestComponent_Check_GPURequiresResetSuggestedActions(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (nvidianvml.ClockSpeed, error) {
-			return nvidianvml.ClockSpeed{}, nvmlerrors.ErrGPURequiresReset
+		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+			return ClockSpeed{}, nvmlerrors.ErrGPURequiresReset
 		},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()

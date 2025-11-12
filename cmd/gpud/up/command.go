@@ -2,14 +2,16 @@
 package up
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/urfave/cli"
 
-	cmdlogin "github.com/leptonai/gpud/cmd/gpud/login"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/login"
 	"github.com/leptonai/gpud/pkg/osutil"
 	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
@@ -32,9 +34,24 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	// step 1.
 	// perform "login" if and only if configured
-	if cliContext.String("token") != "" {
-		log.Logger.Debugw("non-empty --token provided, logging in")
-		if lerr := cmdlogin.Command(cliContext); lerr != nil {
+	if cliContext.IsSet("token") || cliContext.String("token") != "" {
+		log.Logger.Debugw("attempting control plane login")
+
+		// Create login configuration from CLI context
+		loginCtx, loginCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer loginCancel()
+
+		loginCfg := login.LoginConfig{
+			Token:     cliContext.String("token"),
+			Endpoint:  cliContext.String("endpoint"),
+			MachineID: cliContext.String("machine-id"),
+			NodeGroup: cliContext.String("node-group"),
+			GPUCount:  cliContext.String("gpu-count"),
+			PublicIP:  cliContext.String("public-ip"),
+			PrivateIP: cliContext.String("private-ip"),
+		}
+
+		if lerr := login.Login(loginCtx, loginCfg); lerr != nil {
 			return lerr
 		}
 		log.Logger.Debugw("successfully logged in")

@@ -455,11 +455,11 @@ func TestCheckOnceRemappingIssueDetection(t *testing.T) {
 	// Get the underlying component to modify getRemappedRowsFunc
 	c := comp.(*component)
 	c.eventBucket = eventBucket // Ensure eventBucket is set directly
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
 		switch uuid {
 		case "GPU1":
 			// Healthy GPU - no events expected
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 0,
 				RemappingFailed:                  false,
@@ -467,7 +467,7 @@ func TestCheckOnceRemappingIssueDetection(t *testing.T) {
 			}, nil
 		case "GPU2":
 			// Remapping pending - should be detected and reported
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 0,
 				RemappingFailed:                  false,
@@ -475,14 +475,14 @@ func TestCheckOnceRemappingIssueDetection(t *testing.T) {
 			}, nil
 		case "GPU3":
 			// Remapping failed - should be detected and reported
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 2,
 				RemappingFailed:                  true,
 				RemappingPending:                 false,
 			}, nil
 		default:
-			return nvml.RemappedRows{}, errors.New("unknown GPU")
+			return RemappedRows{}, errors.New("unknown GPU")
 		}
 	}
 
@@ -689,7 +689,7 @@ func TestComponentStates(t *testing.T) {
 	tests := []struct {
 		name                       string
 		rowRemappingSupported      bool
-		remappedRows               []nvml.RemappedRows
+		remappedRows               []RemappedRows
 		expectedHealth             apiv1.HealthStateType
 		expectedHealthy            bool
 		expectContainsRMAMessage   bool
@@ -699,21 +699,21 @@ func TestComponentStates(t *testing.T) {
 		{
 			name:                  "No row remapping support",
 			rowRemappingSupported: false,
-			remappedRows:          []nvml.RemappedRows{},
+			remappedRows:          []RemappedRows{},
 			expectedHealth:        apiv1.HealthStateTypeHealthy,
 			expectedHealthy:       true,
 		},
 		{
 			name:                  "Empty remapped rows",
 			rowRemappingSupported: true,
-			remappedRows:          []nvml.RemappedRows{},
+			remappedRows:          []RemappedRows{},
 			expectedHealth:        apiv1.HealthStateTypeHealthy,
 			expectedHealthy:       true,
 		},
 		{
 			name:                  "Healthy GPUs",
 			rowRemappingSupported: true,
-			remappedRows: []nvml.RemappedRows{
+			remappedRows: []RemappedRows{
 				{
 					UUID:                             "GPU1",
 					RemappedDueToUncorrectableErrors: 0,
@@ -727,7 +727,7 @@ func TestComponentStates(t *testing.T) {
 		{
 			name:                  "RMA qualifying GPU",
 			rowRemappingSupported: true,
-			remappedRows: []nvml.RemappedRows{
+			remappedRows: []RemappedRows{
 				{
 					UUID:                             "GPU1",
 					RemappedDueToUncorrectableErrors: 1,
@@ -747,7 +747,7 @@ func TestComponentStates(t *testing.T) {
 		{
 			name:                  "Reset required GPU",
 			rowRemappingSupported: true,
-			remappedRows: []nvml.RemappedRows{
+			remappedRows: []RemappedRows{
 				{
 					UUID:             "GPU1",
 					RemappingPending: true,
@@ -766,7 +766,7 @@ func TestComponentStates(t *testing.T) {
 		{
 			name:                  "Mixed state GPUs - RMA takes precedence for suggestedAction if both apply and RMA is later",
 			rowRemappingSupported: true,
-			remappedRows: []nvml.RemappedRows{
+			remappedRows: []RemappedRows{
 				{
 					UUID:                             "GPU1", // Healthy
 					RemappedDueToUncorrectableErrors: 0,
@@ -933,7 +933,7 @@ func TestComponentStatesWithError(t *testing.T) {
 	c.lastCheckResult = &checkResult{
 		ProductName:                       "NVIDIA Test GPU",
 		MemoryErrorManagementCapabilities: getMemoryErrorManagementCapabilitiesFunc(),
-		RemappedRows:                      []nvml.RemappedRows{},
+		RemappedRows:                      []RemappedRows{},
 		ts:                                time.Now(),
 		err:                               errors.New("test error"),
 		health:                            apiv1.HealthStateTypeUnhealthy,
@@ -1063,14 +1063,14 @@ func TestStateTransitions(t *testing.T) {
 	c.eventBucket = eventBucket
 
 	// Create a function that changes GPU state after each check
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
 		stateChangeMu.Lock()
 		defer stateChangeMu.Unlock()
 
 		switch stateCheckCount {
 		case 0: // First check - healthy
 			stateCheckCount++
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 0,
 				RemappingFailed:                  false,
@@ -1079,7 +1079,7 @@ func TestStateTransitions(t *testing.T) {
 
 		case 1: // Second check - remapping pending
 			stateCheckCount++
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 0,
 				RemappingFailed:                  false,
@@ -1088,7 +1088,7 @@ func TestStateTransitions(t *testing.T) {
 
 		case 2: // Third check - remapping failed
 			stateCheckCount++
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 2,
 				RemappingFailed:                  true,
@@ -1097,7 +1097,7 @@ func TestStateTransitions(t *testing.T) {
 
 		case 3: // Fourth check - remapping pending AND failed (failed should take precedence for suggestion)
 			stateCheckCount++
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 1, // Needs some uncorrectable for RMA
 				RemappingFailed:                  true,
@@ -1106,7 +1106,7 @@ func TestStateTransitions(t *testing.T) {
 
 		default: // Back to healthy
 			stateCheckCount = 0 // Reset for potential future loop if test extended
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 0,
 				RemappingFailed:                  false,
@@ -1245,8 +1245,8 @@ func TestRemappedRowsThresholds(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			// Configure the test case
-			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
-				return nvml.RemappedRows{
+			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
+				return RemappedRows{
 					UUID:                             uuid,
 					RemappedDueToUncorrectableErrors: tc.uncorrectableErrors,
 					RemappingFailed:                  tc.remappingFailed,
@@ -1333,11 +1333,11 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	c.eventBucket = eventBucket
 
 	// Configure mixed states for different GPUs
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
 		switch uuid {
 		case "GPU1":
 			// Healthy
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 0,
 				RemappingFailed:                  false,
@@ -1345,7 +1345,7 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 			}, nil
 		case "GPU2":
 			// Pending reset
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 0,
 				RemappingFailed:                  false,
@@ -1353,7 +1353,7 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 			}, nil
 		case "GPU3":
 			// Failed and RMA
-			return nvml.RemappedRows{
+			return RemappedRows{
 				UUID:                             uuid,
 				RemappedDueToUncorrectableErrors: 3,
 				RemappingFailed:                  true,
@@ -1361,9 +1361,9 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 			}, nil
 		case "GPU4":
 			// Error case
-			return nvml.RemappedRows{}, errors.New("GPU error")
+			return RemappedRows{}, errors.New("GPU error")
 		default:
-			return nvml.RemappedRows{}, errors.New("unknown GPU")
+			return RemappedRows{}, errors.New("unknown GPU")
 		}
 	}
 
@@ -1404,15 +1404,15 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 		name                    string
 		mockDeviceError         bool
 		mockCapabilitiesError   bool
-		mockGetRemappedRowsFunc func(uuid string, dev device.Device) (nvml.RemappedRows, error)
+		mockGetRemappedRowsFunc func(uuid string, dev device.Device) (RemappedRows, error)
 		expectedHealth          apiv1.HealthStateType
 	}{
 		{
 			name:                  "No errors",
 			mockDeviceError:       false,
 			mockCapabilitiesError: false,
-			mockGetRemappedRowsFunc: func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
-				return nvml.RemappedRows{UUID: uuid}, nil
+			mockGetRemappedRowsFunc: func(uuid string, dev device.Device) (RemappedRows, error) {
+				return RemappedRows{UUID: uuid}, nil
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 		},
@@ -1420,9 +1420,9 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 			name:                  "GetRemappedRows error",
 			mockDeviceError:       false,
 			mockCapabilitiesError: false,
-			mockGetRemappedRowsFunc: func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
+			mockGetRemappedRowsFunc: func(uuid string, dev device.Device) (RemappedRows, error) {
 				// Simulate error for remapped rows
-				return nvml.RemappedRows{}, errors.New("NVML error getting remapped rows")
+				return RemappedRows{}, errors.New("NVML error getting remapped rows")
 			},
 			// The component sets the overall health to Healthy when there are no issues detected
 			// Even with errors for individual GPUs, the component only becomes unhealthy if there are
@@ -1515,7 +1515,7 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 		{
 			name: "Empty rows",
 			data: &checkResult{
-				RemappedRows: []nvml.RemappedRows{},
+				RemappedRows: []RemappedRows{},
 				reason:       "no issue detected",
 			},
 			expectedStringPrefix: "no data",
@@ -1524,7 +1524,7 @@ func TestComponentDataStringAndSummary(t *testing.T) {
 		{
 			name: "With rows",
 			data: &checkResult{
-				RemappedRows: []nvml.RemappedRows{
+				RemappedRows: []RemappedRows{
 					{
 						UUID:                             "GPU1",
 						RemappedDueToCorrectableErrors:   1,
@@ -1652,8 +1652,8 @@ func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
 	}
 
 	// Configure getRemappedRowsFunc to indicate remapping is pending
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (nvml.RemappedRows, error) {
-		return nvml.RemappedRows{
+	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
+		return RemappedRows{
 			UUID:             uuid,
 			RemappingPending: true, // Condition that would normally trigger suggestedAction
 		}, nil

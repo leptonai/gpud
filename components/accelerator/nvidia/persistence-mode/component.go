@@ -33,7 +33,7 @@ type component struct {
 	getTimeNowFunc func() time.Time
 
 	nvmlInstance           nvidianvml.Instance
-	getPersistenceModeFunc func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error)
+	getPersistenceModeFunc func(uuid string, dev device.Device) (PersistenceMode, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -48,7 +48,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		nvmlInstance:           gpudInstance.NVMLInstance,
-		getPersistenceModeFunc: nvidianvml.GetPersistenceMode,
+		getPersistenceModeFunc: GetPersistenceMode,
 	}
 	return c, nil
 }
@@ -196,7 +196,7 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	PersistenceModes []nvidianvml.PersistenceMode `json:"persistence_modes,omitempty"`
+	PersistenceModes []PersistenceMode `json:"persistence_modes,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

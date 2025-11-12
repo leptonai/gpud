@@ -44,7 +44,7 @@ type component struct {
 
 	nvmlInstance                  nvidianvml.Instance
 	getClockEventsSupportedFunc   func(dev device.Device) (bool, error)
-	getClockEventsFunc            func(uuid string, dev device.Device) (nvidianvml.ClockEvents, error)
+	getClockEventsFunc            func(uuid string, dev device.Device) (ClockEvents, error)
 	getSystemDriverVersionFunc    func() (string, error)
 	parseDriverVersionFunc        func(driverVersion string) (int, int, int, error)
 	checkClockEventsSupportedFunc func(major int) bool
@@ -73,8 +73,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		},
 
 		nvmlInstance:                     gpudInstance.NVMLInstance,
-		getClockEventsSupportedFunc:      nvidianvml.ClockEventsSupportedByDevice,
-		getClockEventsFunc:               nvidianvml.GetClockEvents,
+		getClockEventsSupportedFunc:      ClockEventsSupportedByDevice,
+		getClockEventsFunc:               GetClockEvents,
 		gpuUUIDsWithHWSlowdown:           make(map[string]any),
 		gpuUUIDsWithHWSlowdownThermal:    make(map[string]any),
 		gpuUUIDsWithHWSlowdownPowerBrake: make(map[string]any),
@@ -389,7 +389,7 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	ClockEvents []nvidianvml.ClockEvents `json:"clock_events,omitempty"`
+	ClockEvents []ClockEvents `json:"clock_events,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

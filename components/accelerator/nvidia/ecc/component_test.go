@@ -98,8 +98,8 @@ func (m *mockNvmlInstanceNVMLNotLoaded) NVMLExists() bool {
 func MockECCComponent(
 	ctx context.Context,
 	devicesFunc func() map[string]device.Device,
-	getECCModeEnabledFunc func(uuid string, dev device.Device) (nvidianvml.ECCMode, error),
-	getECCErrorsFunc func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error),
+	getECCModeEnabledFunc func(uuid string, dev device.Device) (ECCMode, error),
+	getECCErrorsFunc func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
@@ -188,27 +188,27 @@ func TestCheck_Success(t *testing.T) {
 		return devs
 	}
 
-	eccMode := nvidianvml.ECCMode{
+	eccMode := ECCMode{
 		UUID:           uuid,
 		EnabledCurrent: true,
 		EnabledPending: true,
 		Supported:      true,
 	}
 
-	getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
+	getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
 		return eccMode, nil
 	}
 
-	eccErrors := nvidianvml.ECCErrors{
+	eccErrors := ECCErrors{
 		UUID: uuid,
-		Aggregate: nvidianvml.AllECCErrorCounts{
-			Total: nvidianvml.ECCErrorCounts{
+		Aggregate: AllECCErrorCounts{
+			Total: ECCErrorCounts{
 				Corrected:   5,
 				Uncorrected: 2,
 			},
 		},
-		Volatile: nvidianvml.AllECCErrorCounts{
-			Total: nvidianvml.ECCErrorCounts{
+		Volatile: AllECCErrorCounts{
+			Total: ECCErrorCounts{
 				Corrected:   3,
 				Uncorrected: 1,
 			},
@@ -216,7 +216,7 @@ func TestCheck_Success(t *testing.T) {
 		Supported: true,
 	}
 
-	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
+	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
 		return eccErrors, nil
 	}
 
@@ -256,12 +256,12 @@ func TestCheck_ECCModeError(t *testing.T) {
 	}
 
 	errExpected := errors.New("ECC mode error")
-	getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
-		return nvidianvml.ECCMode{}, errExpected
+	getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+		return ECCMode{}, errExpected
 	}
 
-	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
-		return nvidianvml.ECCErrors{}, nil
+	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+		return ECCErrors{}, nil
 	}
 
 	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
@@ -296,20 +296,20 @@ func TestCheck_ECCErrorsError(t *testing.T) {
 		return devs
 	}
 
-	eccMode := nvidianvml.ECCMode{
+	eccMode := ECCMode{
 		UUID:           uuid,
 		EnabledCurrent: true,
 		EnabledPending: true,
 		Supported:      true,
 	}
 
-	getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
+	getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
 		return eccMode, nil
 	}
 
 	errExpected := errors.New("ECC errors error")
-	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
-		return nvidianvml.ECCErrors{}, errExpected
+	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+		return ECCErrors{}, errExpected
 	}
 
 	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
@@ -353,7 +353,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 	// Set test data
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
-		ECCModes: []nvidianvml.ECCMode{
+		ECCModes: []ECCMode{
 			{
 				UUID:           "gpu-uuid-123",
 				EnabledCurrent: true,
@@ -361,11 +361,11 @@ func TestLastHealthStates_WithData(t *testing.T) {
 				Supported:      true,
 			},
 		},
-		ECCErrors: []nvidianvml.ECCErrors{
+		ECCErrors: []ECCErrors{
 			{
 				UUID: "gpu-uuid-123",
-				Aggregate: nvidianvml.AllECCErrorCounts{
-					Total: nvidianvml.ECCErrorCounts{
+				Aggregate: AllECCErrorCounts{
+					Total: ECCErrorCounts{
 						Corrected:   5,
 						Uncorrected: 2,
 					},
@@ -534,7 +534,7 @@ func TestData_String(t *testing.T) {
 		{
 			name: "with data",
 			data: &checkResult{
-				ECCModes: []nvidianvml.ECCMode{
+				ECCModes: []ECCMode{
 					{
 						UUID:           "gpu-uuid-123",
 						EnabledCurrent: true,
@@ -542,17 +542,17 @@ func TestData_String(t *testing.T) {
 						Supported:      true,
 					},
 				},
-				ECCErrors: []nvidianvml.ECCErrors{
+				ECCErrors: []ECCErrors{
 					{
 						UUID: "gpu-uuid-123",
-						Aggregate: nvidianvml.AllECCErrorCounts{
-							Total: nvidianvml.ECCErrorCounts{
+						Aggregate: AllECCErrorCounts{
+							Total: ECCErrorCounts{
 								Corrected:   10,
 								Uncorrected: 5,
 							},
 						},
-						Volatile: nvidianvml.AllECCErrorCounts{
-							Total: nvidianvml.ECCErrorCounts{
+						Volatile: AllECCErrorCounts{
+							Total: ECCErrorCounts{
 								Corrected:   3,
 								Uncorrected: 1,
 							},
@@ -739,8 +739,8 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		return devs
 	}
 
-	getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
-		return nvidianvml.ECCMode{
+	getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+		return ECCMode{
 			UUID:           uuid,
 			EnabledCurrent: true,
 			EnabledPending: true,
@@ -748,17 +748,17 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		}, nil
 	}
 
-	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
-		return nvidianvml.ECCErrors{
+	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+		return ECCErrors{
 			UUID: uuid,
-			Aggregate: nvidianvml.AllECCErrorCounts{
-				Total: nvidianvml.ECCErrorCounts{
+			Aggregate: AllECCErrorCounts{
+				Total: ECCErrorCounts{
 					Corrected:   5,
 					Uncorrected: 2,
 				},
 			},
-			Volatile: nvidianvml.AllECCErrorCounts{
-				Total: nvidianvml.ECCErrorCounts{
+			Volatile: AllECCErrorCounts{
+				Total: ECCErrorCounts{
 					Corrected:   3,
 					Uncorrected: 1,
 				},
@@ -806,12 +806,12 @@ func TestCheck_GPULostError(t *testing.T) {
 			return devs
 		}
 
-		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
-			return nvidianvml.ECCMode{}, nvmlerrors.ErrGPULost
+		getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+			return ECCMode{}, nvmlerrors.ErrGPULost
 		}
 
-		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
-			return nvidianvml.ECCErrors{}, nil
+		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+			return ECCErrors{}, nil
 		}
 
 		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
@@ -837,8 +837,8 @@ func TestCheck_GPULostError(t *testing.T) {
 			return devs
 		}
 
-		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
-			return nvidianvml.ECCMode{
+		getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+			return ECCMode{
 				UUID:           uuid,
 				EnabledCurrent: true,
 				EnabledPending: true,
@@ -846,8 +846,8 @@ func TestCheck_GPULostError(t *testing.T) {
 			}, nil
 		}
 
-		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
-			return nvidianvml.ECCErrors{}, nvmlerrors.ErrGPULost
+		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+			return ECCErrors{}, nvmlerrors.ErrGPULost
 		}
 
 		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
@@ -886,12 +886,12 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 			return devs
 		}
 
-		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
-			return nvidianvml.ECCMode{}, nvmlerrors.ErrGPURequiresReset
+		getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+			return ECCMode{}, nvmlerrors.ErrGPURequiresReset
 		}
 
-		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
-			return nvidianvml.ECCErrors{}, nil
+		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+			return ECCErrors{}, nil
 		}
 
 		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
@@ -921,8 +921,8 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 			return devs
 		}
 
-		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
-			return nvidianvml.ECCMode{
+		getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+			return ECCMode{
 				UUID:           uuid,
 				EnabledCurrent: true,
 				EnabledPending: true,
@@ -930,8 +930,8 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 			}, nil
 		}
 
-		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
-			return nvidianvml.ECCErrors{}, nvmlerrors.ErrGPURequiresReset
+		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+			return ECCErrors{}, nvmlerrors.ErrGPURequiresReset
 		}
 
 		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)

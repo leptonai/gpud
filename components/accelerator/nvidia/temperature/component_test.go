@@ -95,7 +95,7 @@ func (m *mockNVMLInstance) Shutdown() error {
 func MockTemperatureComponent(
 	ctx context.Context,
 	nvmlInstance nvidianvml.Instance,
-	getTemperatureFunc func(uuid string, dev device.Device) (nvidianvml.Temperature, error),
+	getTemperatureFunc func(uuid string, dev device.Device) (Temperature, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	c := &component{
@@ -198,7 +198,7 @@ func TestCheck_Success(t *testing.T) {
 		prodName: "Test GPU",
 	}
 
-	temperature := nvidianvml.Temperature{
+	temperature := Temperature{
 		UUID:                     uuid,
 		CurrentCelsiusGPUCore:    75,      // 75°C
 		ThresholdCelsiusShutdown: 120,     // 120°C
@@ -211,7 +211,7 @@ func TestCheck_Success(t *testing.T) {
 		UsedPercentGPUMax:        "75.00", // 75/100 = 75%
 	}
 
-	getTemperatureFunc := func(uuid string, dev device.Device) (nvidianvml.Temperature, error) {
+	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
 		return temperature, nil
 	}
 
@@ -251,8 +251,8 @@ func TestCheck_TemperatureError(t *testing.T) {
 	}
 
 	errExpected := errors.New("temperature error")
-	getTemperatureFunc := func(uuid string, dev device.Device) (nvidianvml.Temperature, error) {
-		return nvidianvml.Temperature{}, errExpected
+	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+		return Temperature{}, errExpected
 	}
 
 	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
@@ -312,7 +312,7 @@ func TestCheck_GetUsedPercentSlowdownError(t *testing.T) {
 	}
 
 	// Create temperature data with invalid UsedPercentSlowdown format
-	invalidTemperature := nvidianvml.Temperature{
+	invalidTemperature := Temperature{
 		UUID:                     uuid,
 		CurrentCelsiusGPUCore:    75,
 		ThresholdCelsiusShutdown: 120,
@@ -325,7 +325,7 @@ func TestCheck_GetUsedPercentSlowdownError(t *testing.T) {
 		UsedPercentGPUMax:        "75.00",
 	}
 
-	getTemperatureFunc := func(uuid string, dev device.Device) (nvidianvml.Temperature, error) {
+	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
 		return invalidTemperature, nil
 	}
 
@@ -354,7 +354,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 	// Set test data
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
-		Temperatures: []nvidianvml.Temperature{
+		Temperatures: []Temperature{
 			{
 				UUID:                     "gpu-uuid-123",
 				CurrentCelsiusGPUCore:    75,
@@ -471,9 +471,9 @@ func TestStart(t *testing.T) {
 		prodName: "Test GPU",
 	}
 
-	getTemperatureFunc := func(uuid string, dev device.Device) (nvidianvml.Temperature, error) {
+	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
 		callCount.Add(1)
-		return nvidianvml.Temperature{}, nil
+		return Temperature{}, nil
 	}
 
 	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc)
@@ -607,7 +607,7 @@ func TestCheck_MemoryTemperatureThreshold(t *testing.T) {
 				prodName: "Test GPU",
 			}
 
-			temperature := nvidianvml.Temperature{
+			temperature := Temperature{
 				UUID:                     uuid,
 				CurrentCelsiusGPUCore:    tt.currentTemp,
 				ThresholdCelsiusShutdown: 120,
@@ -620,7 +620,7 @@ func TestCheck_MemoryTemperatureThreshold(t *testing.T) {
 				UsedPercentGPUMax:        "80.00", // 80/100 = 80.00%
 			}
 
-			getTemperatureFunc := func(uuid string, dev device.Device) (nvidianvml.Temperature, error) {
+			getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
 				return temperature, nil
 			}
 
@@ -699,8 +699,8 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getTemperatureFunc := func(uuid string, dev device.Device) (nvidianvml.Temperature, error) {
-		return nvidianvml.Temperature{}, nvmlerrors.ErrGPULost
+	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+		return Temperature{}, nvmlerrors.ErrGPULost
 	}
 
 	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
@@ -758,8 +758,8 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error
-	getTemperatureFunc := func(uuid string, dev device.Device) (nvidianvml.Temperature, error) {
-		return nvidianvml.Temperature{}, nvmlerrors.ErrGPURequiresReset
+	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+		return Temperature{}, nvmlerrors.ErrGPURequiresReset
 	}
 
 	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
