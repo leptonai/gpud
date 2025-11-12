@@ -25,9 +25,11 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 	"github.com/leptonai/gpud/pkg/nvidia-query/infiniband"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
+	pkgsqlite "github.com/leptonai/gpud/pkg/sqlite"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 )
@@ -64,6 +66,11 @@ func Command(cliContext *cli.Context) error {
 
 	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
 	components := cliContext.String("components")
+
+	// Optional overrides for control plane connectivity
+	endpoint := cliContext.String("endpoint")
+	overrideMachineID := cliContext.String("machine-id")
+	token := cliContext.String("token")
 
 	gpuCount := cliContext.Int("gpu-count")
 	infinibandExpectedPortStates := cliContext.String("infiniband-expected-port-states")
@@ -172,6 +179,45 @@ func Command(cliContext *cli.Context) error {
 
 	if err := cfg.Validate(); err != nil {
 		return err
+	}
+
+	// Persist overrides to metadata for subsequent sessions.
+	if endpoint != "" || overrideMachineID != "" || token != "" {
+		mctx, mcancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer mcancel()
+
+		dbRW, err := pkgsqlite.Open(cfg.State)
+		if err != nil {
+			return fmt.Errorf("failed to open state for metadata overrides: %w", err)
+		}
+		defer func() {
+			_ = dbRW.Close()
+		}()
+
+		if err := pkgmetadata.CreateTableMetadata(mctx, dbRW); err != nil {
+			return fmt.Errorf("failed to ensure metadata table: %w", err)
+		}
+
+		if endpoint != "" {
+			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyEndpoint, endpoint); err != nil {
+				return fmt.Errorf("failed to set endpoint metadata: %w", err)
+			}
+			log.Logger.Infow("overriding endpoint from flag", "endpoint", endpoint)
+		}
+
+		if overrideMachineID != "" {
+			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyMachineID, overrideMachineID); err != nil {
+				return fmt.Errorf("failed to set machine-id metadata: %w", err)
+			}
+			log.Logger.Infow("overriding machine id from flag", "machineID", overrideMachineID)
+		}
+
+		if token != "" {
+			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyToken, token); err != nil {
+				return fmt.Errorf("failed to set token metadata: %w", err)
+			}
+			log.Logger.Infow("overriding token from flag")
+		}
 	}
 
 	rootCtx, rootCancel := context.WithCancel(context.Background())

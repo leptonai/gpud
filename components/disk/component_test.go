@@ -2496,7 +2496,9 @@ func TestComponent_GetPartitionsTimeoutIntegration(t *testing.T) {
 	// This simulates GetPartitions with very short timeout that could cause StatTimedOut
 	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
 		// Use GetPartitions with very short timeout to potentially trigger StatTimedOut
-		return disk.GetPartitions(ctx,
+		timeoutCtx, cancel := context.WithTimeout(ctx, getPartitionsTimeout)
+		defer cancel()
+		return disk.GetPartitions(timeoutCtx,
 			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
 			disk.WithSkipUsage(),
 			disk.WithStatTimeout(1*time.Nanosecond), // Very short timeout
@@ -2748,6 +2750,105 @@ func TestComponent_StatWithTimeoutDeadlineExceeded(t *testing.T) {
 
 	// Verify that MountTargetUsages is empty/nil due to the timeout
 	assert.Nil(t, cr.MountTargetUsages)
+}
+
+func TestComponent_Ext4PartitionsTimeoutSetsReasonAndError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := createTestComponent(ctx, []string{}, []string{})
+	defer c.Close()
+
+	// Avoid unrelated degradation checks
+	c.freeSpaceThresholdBytesDegraded = 0
+
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{
+			{Name: "sda", Type: "disk"},
+		}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return nil, context.DeadlineExceeded
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		t.Fatalf("getNFSPartitionsFunc should not be called when ext4 partitions fail")
+		return nil, nil
+	}
+
+	// Simulate the component context being canceled while fetching partitions
+	cancel()
+
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "failed to get ext4 partitions -- took too long", cr.reason)
+	assert.ErrorIs(t, cr.err, context.Canceled)
+}
+
+func TestComponent_NFSPartitionsTimeoutSetsReasonAndError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+	defer c.Close()
+
+	// Set a non-zero retry interval to avoid race condition between
+	// context.Done and time.After in the select statement
+	c.retryInterval = 10 * time.Millisecond
+
+	// Avoid unrelated degradation checks
+	c.freeSpaceThresholdBytesDegraded = 0
+
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{VolumePath: "/mnt/nfs"},
+		}
+	}
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{
+			{Name: "sda", Type: "disk"},
+		}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{
+			{
+				Device:     "/dev/sda1",
+				MountPoint: "/",
+				Usage: &disk.Usage{
+					TotalBytes: 10 * 1024 * 1024 * 1024,
+					FreeBytes:  10 * 1024 * 1024 * 1024,
+					UsedBytes:  0,
+				},
+			},
+		}, nil
+	}
+
+	// Track how many times getNFSPartitionsFunc is called
+	callCount := 0
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		callCount++
+		// On the first call, cancel the context to simulate timeout during operation
+		if callCount == 1 {
+			cancel()
+		}
+		// Check if context is done and return appropriate error
+		select {
+		case <-ctx.Done():
+			return nil, context.DeadlineExceeded
+		default:
+			return nil, context.DeadlineExceeded
+		}
+	}
+
+	result := c.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "failed to get nfs partitions -- took too long", cr.reason)
+	assert.ErrorIs(t, cr.err, context.Canceled)
 }
 
 // TestComponentWithMountPointFiltering tests that the component properly filters mount points

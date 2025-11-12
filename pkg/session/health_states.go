@@ -23,8 +23,8 @@ func (s *Session) getHealthStates(payload Request) (apiv1.GPUdComponentHealthSta
 		allComponents = payload.Components
 	}
 
-	// use BootTimeUnixSeconds which reads directly from system sources
-	// avoiding timezone parsing issues with "uptime -s"
+	// use BootTimeUnixSeconds which reads directly from system sources via syscall
+	// cached at initialization for performance and reliability
 	bootTimeUnix := pkghost.BootTimeUnixSeconds()
 	rebootTime := time.Unix(int64(bootTimeUnix), 0)
 

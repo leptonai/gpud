@@ -1,7 +1,7 @@
 ########################################
 # demonstrates a plugin that installs python and runs a simple script using "uv run"
 - plugin_name: nv-plugin-install-python
-  type: init
+  plugin_type: init
 
   health_state_plugin:
     steps:
@@ -203,4 +203,3 @@
 
 
 ########################################
-

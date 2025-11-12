@@ -1143,6 +1143,42 @@ func TestCheckNVSwitchFuncNil(t *testing.T) {
 
 // TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy tests that when fabric state
 // reports unhealthy (report.Healthy = false), the component health state becomes unhealthy
+func TestCheck_FabricStateSkippedWhenSingleGPU(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	sawFabricCall := false
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		nvmlInstance: &mockNVMLInstance{
+			exists:              true,
+			supportsFM:          false,
+			supportsFabricState: true,
+			productName:         "NVIDIA H100",
+			deviceCount:         1,
+		},
+		collectFabricStateFunc: func() fabricStateReport {
+			sawFabricCall = true
+			return fabricStateReport{Healthy: true}
+		},
+		getCountLspci: func(context.Context) (int, error) {
+			return 1, nil
+		},
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok, "Expected result to be of type *checkResult")
+
+	assert.False(t, sawFabricCall, "fabric state collection must be skipped for single GPU")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "detected 1 NVIDIA GPU device(s); skipping fabric state check", cr.reason)
+	assert.Equal(t, cr.reason, cr.FabricStateReason)
+	assert.True(t, cr.FabricStateSupported)
+}
+
 func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 	t.Parallel()
 

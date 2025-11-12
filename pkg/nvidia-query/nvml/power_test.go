@@ -76,6 +76,33 @@ func TestGetPower(t *testing.T) {
 		assert.True(t, errors.Is(err, ErrGPULost))
 	})
 
+	// Test GPU requires reset on power usage
+	t.Run("test GPU requires reset on power usage", func(t *testing.T) {
+		originalErrorString := nvml.ErrorString
+		nvml.ErrorString = func(ret nvml.Return) string {
+			if ret == nvml.Return(4242) {
+				return "GPU requires reset"
+			}
+			return originalErrorString(ret)
+		}
+		defer func() { nvml.ErrorString = originalErrorString }()
+
+		mockDevice := &mock.Device{
+			GetPowerUsageFunc: func() (uint32, nvml.Return) {
+				return 0, nvml.Return(4242)
+			},
+			GetUUIDFunc: func() (string, nvml.Return) {
+				return "GPU-TEST", nvml.SUCCESS
+			},
+		}
+
+		dev := testutil.NewMockDevice(mockDevice, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+		_, err := GetPower("GPU-TEST", dev)
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, ErrGPURequiresReset))
+	})
+
 	// Test power limit GPU lost error
 	t.Run("test GPU lost on power limit", func(t *testing.T) {
 		mockDevice := &mock.Device{

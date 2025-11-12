@@ -120,7 +120,7 @@ func newXIDErrorReason(xidVal int, deviceID string, devices map[string]device.De
 	}
 	var reason string
 	if xidDetail, ok := GetDetail(xidVal); ok {
-		reason = fmt.Sprintf("XID %d (%s) detected on %s", xidVal, xidDetail.Name, suffix)
+		reason = fmt.Sprintf("XID %d (%s) detected on %s", xidVal, xidDetail.Description, suffix)
 	} else {
 		reason = fmt.Sprintf("XID %d detected on %s", xidVal, suffix)
 	}

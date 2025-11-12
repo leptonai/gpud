@@ -45,6 +45,9 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 		if IsGPULostError(ret) {
 			return power, ErrGPULost
 		}
+		if IsGPURequiresReset(ret) {
+			return power, ErrGPURequiresReset
+		}
 		return power, fmt.Errorf("failed to get device power usage: %v", nvml.ErrorString(ret))
 	}
 	power.UsageMilliWatts = powerUsage
@@ -57,6 +60,9 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 		if IsGPULostError(ret) {
 			return power, ErrGPULost
 		}
+		if IsGPURequiresReset(ret) {
+			return power, ErrGPURequiresReset
+		}
 		return power, fmt.Errorf("failed to get device power limit: %v", nvml.ErrorString(ret))
 	}
 	power.EnforcedLimitMilliWatts = enforcedPowerLimit
@@ -68,6 +74,9 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 		if IsGPULostError(ret) {
 			return power, ErrGPULost
+		}
+		if IsGPURequiresReset(ret) {
+			return power, ErrGPURequiresReset
 		}
 		return power, fmt.Errorf("failed to get device power management limit: %v", nvml.ErrorString(ret))
 	}

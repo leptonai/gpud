@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -192,7 +193,7 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	case event := <-c.extraEventCh:
 		assert.Equal(t, "SetHealthy", event.Name)
 	default:
-		t.Error("expected event in channel but got none")
+		assert.Fail(t, "expected event in channel but got none")
 	}
 }
 
@@ -232,9 +233,7 @@ func TestXIDComponent_Events(t *testing.T) {
 	go c.start(eventCh, 1*time.Second)
 
 	defer func() {
-		if err := comp.Close(); err != nil {
-			t.Error("failed to close component")
-		}
+		assert.NoError(t, comp.Close())
 	}()
 
 	testEvents := eventstore.Events{
@@ -246,7 +245,7 @@ func TestXIDComponent_Events(t *testing.T) {
 		select {
 		case c.extraEventCh <- &event:
 		default:
-			t.Error("failed to insert event into channel")
+			require.FailNow(t, "failed to insert event into channel")
 		}
 	}
 
@@ -300,9 +299,7 @@ func TestXIDComponent_States(t *testing.T) {
 	go c.start(eventCh, 100*time.Millisecond)
 
 	defer func() {
-		if err := comp.Close(); err != nil {
-			t.Error("failed to close component")
-		}
+		assert.NoError(t, comp.Close())
 	}()
 
 	s := apiv1.HealthState{
@@ -352,7 +349,7 @@ func TestXIDComponent_States(t *testing.T) {
 				select {
 				case c.extraEventCh <- &event:
 				default:
-					t.Error("failed to insert event into channel")
+					require.FailNow(t, "failed to insert event into channel")
 				}
 				// wait for events to be processed
 				time.Sleep(1 * time.Second)
@@ -720,7 +717,7 @@ func TestClose(t *testing.T) {
 	case <-c.ctx.Done():
 		// Expected, context should be canceled
 	default:
-		t.Error("context should be canceled after Close")
+		assert.Fail(t, "context should be canceled after Close")
 	}
 }
 
@@ -985,7 +982,7 @@ func TestDataString(t *testing.T) {
 							Xid:        31,
 							DeviceUUID: "GPU-12345678",
 							Detail: &Detail{
-								Name: "GPU_HANG",
+								Description: "GPU_HANG",
 								SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 									RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 								},
@@ -1022,6 +1019,32 @@ func TestDataString(t *testing.T) {
 			},
 			expected: "", // We'll just check that it doesn't panic and contains "unknown"
 		},
+		{
+			name: "with nil SuggestedActionsByGPUd",
+			data: &checkResult{
+				FoundErrors: []FoundError{
+					{
+						Kmsg: kmsg.Message{
+							Timestamp: metav1.NewTime(time.Now()),
+							Message:   "NVRM: Xid (PCI:0000:01:00): 31, GPU memory page fault",
+						},
+						XidError: XidError{
+							Xid:        31,
+							DeviceUUID: "GPU-12345678",
+							Detail: &Detail{
+								Description:            "GPU memory page fault",
+								SuggestedActionsByGPUd: nil, // This should not cause a panic (issue #1129)
+								EventType:              apiv1.EventTypeCritical,
+							},
+						},
+					},
+				},
+				ts:     time.Now(),
+				health: apiv1.HealthStateTypeUnhealthy,
+				reason: "found 1 error with nil suggested actions",
+			},
+			expected: "", // We'll just check that it doesn't panic and contains "unknown" for action
+		},
 	}
 
 	for _, tt := range tests {
@@ -1034,7 +1057,7 @@ func TestDataString(t *testing.T) {
 				assert.Contains(t, result, "XID")
 				assert.Contains(t, result, tt.data.FoundErrors[0].DeviceUUID)
 				if tt.data.FoundErrors[0].Detail != nil {
-					assert.Contains(t, result, tt.data.FoundErrors[0].Detail.Name)
+					assert.Contains(t, result, tt.data.FoundErrors[0].Detail.Description)
 				} else {
 					// When Detail is nil, should contain "unknown"
 					assert.Contains(t, result, "unknown")
@@ -1238,9 +1261,7 @@ func TestCheckResult_getError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.cr.getError()
-			if result != tt.expected {
-				t.Errorf("getError() = %v, want %v", result, tt.expected)
-			}
+			assert.Equalf(t, tt.expected, result, "getError() mismatch for %s", tt.name)
 		})
 	}
 }
@@ -1287,9 +1308,7 @@ func TestStartWithXID63And64Skipping(t *testing.T) {
 	go c.start(kmsgCh, 100*time.Millisecond)
 
 	defer func() {
-		if err := comp.Close(); err != nil {
-			t.Error("failed to close component")
-		}
+		assert.NoError(t, comp.Close())
 	}()
 
 	// Send various XID messages including 63 and 64
@@ -1399,9 +1418,7 @@ func TestStartWithXID63And64NotSkippedWhenNoRowRemapping(t *testing.T) {
 	go c.start(kmsgCh, 100*time.Millisecond)
 
 	defer func() {
-		if err := comp.Close(); err != nil {
-			t.Error("failed to close component")
-		}
+		assert.NoError(t, comp.Close())
 	}()
 
 	// Send XID 63 and 64 messages

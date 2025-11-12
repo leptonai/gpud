@@ -15,7 +15,6 @@ import (
 	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
 )
 
-// TODO: drop tables with "v0_4_0"
 const schemaVersion = "v0_5_0"
 
 const (
@@ -94,11 +93,20 @@ func (d *database) Bucket(name string, opts ...OpOption) (Bucket, error) {
 		purgeInterval = 0
 	}
 
+	// safe to drop since the table is not used anymore since https://github.com/leptonai/gpud/blob/v0.5.1/pkg/eventstore/database.go
+	// TODO: remove drop table operations at v1.0.0 release.
+	legacyTable := defaultTableName(name, "v0_4_0")
+	dropCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := d.dbRW.ExecContext(dropCtx, fmt.Sprintf("DROP TABLE IF EXISTS %s", legacyTable)); err != nil {
+		return nil, fmt.Errorf("failed to drop legacy table %q: %w", legacyTable, err)
+	}
+
 	return newTable(d.dbRW, d.dbRO, name, d.retention, purgeInterval)
 }
 
 func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, purgeInterval time.Duration) (*table, error) {
-	tableName := defaultTableName(name)
+	tableName := defaultTableName(name, schemaVersion)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	err := createTable(ctx, dbRW, tableName)
 	cancel()
@@ -123,9 +131,9 @@ func newTable(dbRW *sql.DB, dbRO *sql.DB, name string, retention time.Duration, 
 }
 
 // defaultTableName creates the default table name for the component.
-// The table name is in the format of "components_{component_name}_events_v0_4_0".
+// The table name is in the format of "components_{component_name}_events_{schemaVersion}".
 // Suffix with the version, in case we change the table schema.
-func defaultTableName(componentName string) string {
+func defaultTableName(componentName string, schemaVersion string) string {
 	c := strings.ReplaceAll(componentName, " ", "_")
 	c = strings.ReplaceAll(c, "-", "_")
 	c = strings.ReplaceAll(c, "__", "_")

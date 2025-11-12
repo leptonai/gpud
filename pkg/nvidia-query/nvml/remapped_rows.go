@@ -64,6 +64,9 @@ func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 	if IsGPULostError(ret) {
 		return remRws, ErrGPULost
 	}
+	if IsGPURequiresReset(ret) {
+		return remRws, ErrGPURequiresReset
+	}
 	if ret != nvml.SUCCESS {
 		// not a "not supported" error, not a success return, thus return an error here
 		return remRws, fmt.Errorf("failed to get device remapped rows: %v", nvml.ErrorString(ret))

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -19,11 +20,35 @@ const (
 	// Group 1: Device UUID (with or without PCI: prefix)
 	// Group 2: Xid error code
 	RegexNVRMXidCombined = `NVRM: Xid \(((?:PCI:)?[0-9a-fA-F:]+)\).*?: (\d+),`
+
+	// Extended regex for NVLink5 errors (XIDs 144-150) with subcode information
+	// Captures: PCI address, XID, optional pid/name, subcode name, severity, XC type, injection, link, intrinfo, errorstatus
+	// Example: NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 08 (0x004505c6 0x00000000 ...)
+	// Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
+	RegexNVRMXidExtended = `NVRM: Xid \(PCI:([0-9a-fA-F:]+)\): (\d+)(?:, pid=(\d+), name=([^,]+))?, ([A-Z_]+(?:/[A-Z_]+)?)\s+(Nonfatal|Fatal)\s+(XC[01])\s+(i\d+)\s+Link\s+(-?\d+)\s+\((0x[0-9a-fA-F]+)\s+(0x[0-9a-fA-F]+)(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?`
 )
 
 var (
 	compiledRegexNVRMXidCombined = regexp.MustCompile(RegexNVRMXidCombined)
+	compiledRegexNVRMXidExtended = regexp.MustCompile(RegexNVRMXidExtended)
 )
+
+const (
+	nvrmXidRegexIdxDeviceUUID = 1 + iota
+	nvrmXidRegexIdxXid
+	nvrmXidRegexIdxPid
+	nvrmXidRegexIdxProcessName
+	nvrmXidRegexIdxSubCodeName
+	nvrmXidRegexIdxSeverity
+	nvrmXidRegexIdxCrossContainment
+	nvrmXidRegexIdxInjected
+	nvrmXidRegexIdxLink
+	nvrmXidRegexIdxIntrinfo
+	nvrmXidRegexIdxErrorStatus
+	nvrmXidRegexIdxOptionalHexStart
+)
+
+const nvrmXidRegexIdxOptionalHexEnd = nvrmXidRegexIdxOptionalHexStart + 3
 
 // ExtractNVRMXidInfo extracts both the nvidia Xid error code and device UUID from the dmesg log line.
 // Returns (xidCode, deviceUUID) or (0, "") if not found.
@@ -45,6 +70,109 @@ func ExtractNVRMXid(line string) int {
 	return id
 }
 
+// XidExtractedInfo contains detailed information extracted from NVLink5 XID error logs (XIDs 144-150).
+// Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
+type XidExtractedInfo struct {
+	DeviceUUID          string   `json:"device_uuid"`                     // PCI device address (e.g., "0018:01:00")
+	Xid                 int      `json:"xid"`                             // XID error code (144-150 for NVLink5)
+	Pid                 string   `json:"pid,omitempty"`                   // Process ID (optional, may be empty)
+	ProcessName         string   `json:"process_name,omitempty"`          // Process name (optional, may be empty)
+	SubCodeName         string   `json:"sub_code_name"`                   // Subcode mnemonic (e.g., "NETIR_LINK_EVT", "RLW_RXPIPE", "RLW_SRC_TRACK")
+	Severity            string   `json:"severity"`                        // "Fatal" or "Nonfatal"
+	CrossContainment    string   `json:"cross_containment"`               // "XC0" or "XC1" (cross-containment domain)
+	Injected            string   `json:"injected"`                        // Injection status (e.g., "i0")
+	Link                int      `json:"link"`                            // NVLink number (-1 for general errors)
+	Intrinfo            uint32   `json:"intrinfo"`                        // First hex value - used for subcode calculation
+	ErrorStatus         uint32   `json:"error_status"`                    // Second hex value - error status bits
+	AdditionalHexValues []uint32 `json:"additional_hex_values,omitempty"` // Up to 4 additional hex values
+	SubCode             int      `json:"sub_code"`                        // Calculated from bits 20-25 of intrinfo
+}
+
+// ExtractNVRMXidInfoExtended extracts detailed information from NVLink5 XID error logs (XIDs 144-150).
+// This function parses extended log format with subcode information.
+// Example log line:
+//
+//	NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 08 (0x004505c6 0x00000000 ...)
+//
+// Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
+// Returns nil if the line doesn't match the extended format.
+func ExtractNVRMXidInfoExtended(line string) *XidExtractedInfo {
+	match := compiledRegexNVRMXidExtended.FindStringSubmatch(line)
+	if match == nil {
+		return nil
+	}
+
+	if len(match) <= nvrmXidRegexIdxErrorStatus {
+		return nil
+	}
+
+	xidCode, err := strconv.Atoi(match[nvrmXidRegexIdxXid])
+	if err != nil {
+		return nil
+	}
+
+	// Parse intrinfo (first hex value)
+	intrinfoStr := match[nvrmXidRegexIdxIntrinfo]
+	intrinfo, err := strconv.ParseUint(intrinfoStr, 0, 32)
+	if err != nil {
+		return nil
+	}
+
+	// Parse errorstatus (second hex value)
+	errorStatusStr := match[nvrmXidRegexIdxErrorStatus]
+	errorStatus, err := strconv.ParseUint(errorStatusStr, 0, 32)
+	if err != nil {
+		return nil
+	}
+
+	// Parse link number
+	link, err := strconv.Atoi(match[nvrmXidRegexIdxLink])
+	if err != nil {
+		return nil
+	}
+
+	// Calculate subcode from bits 20-25 of intrinfo
+	// Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
+	// NVLink5 errors encode sub-type identifiers in bits 20-25 of the intrinfo field.
+	// Formula: idx = (intrinfo >> 20) & 0x3F
+	subCode := calculateSubCode(uint32(intrinfo))
+
+	// Parse optional additional hex values (indices 12-15)
+	var additionalHexValues []uint32
+	for i := nvrmXidRegexIdxOptionalHexStart; i <= nvrmXidRegexIdxOptionalHexEnd && i < len(match); i++ {
+		if match[i] == "" {
+			continue
+		}
+		if val, err := strconv.ParseUint(match[i], 0, 32); err == nil {
+			additionalHexValues = append(additionalHexValues, uint32(val))
+		}
+	}
+
+	return &XidExtractedInfo{
+		DeviceUUID:          match[nvrmXidRegexIdxDeviceUUID],
+		Xid:                 xidCode,
+		Pid:                 match[nvrmXidRegexIdxPid],         // May be empty
+		ProcessName:         match[nvrmXidRegexIdxProcessName], // May be empty
+		SubCodeName:         match[nvrmXidRegexIdxSubCodeName],
+		Severity:            match[nvrmXidRegexIdxSeverity],
+		CrossContainment:    match[nvrmXidRegexIdxCrossContainment],
+		Injected:            match[nvrmXidRegexIdxInjected],
+		Link:                link,
+		Intrinfo:            uint32(intrinfo),
+		ErrorStatus:         uint32(errorStatus),
+		AdditionalHexValues: additionalHexValues,
+		SubCode:             subCode,
+	}
+}
+
+// calculateSubCode extracts the subcode from the intrinfo field for NVLink5 XIDs (144-150).
+// The subcode is encoded in bits 20-25 of the intrinfo field.
+// Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
+// Formula: idx = (intrinfo >> 20) & 0x3F
+func calculateSubCode(intrinfo uint32) int {
+	return int((intrinfo >> 20) & 0x3F)
+}
+
 type XidError struct {
 	Xid        int     `json:"xid"`
 	DeviceUUID string  `json:"device_uuid"`
@@ -54,6 +182,20 @@ type XidError struct {
 // Match returns a matching xid error object if found.
 // Otherwise, returns nil.
 func Match(line string) *XidError {
+	if info := ExtractNVRMXidInfoExtended(line); info != nil {
+		if detail, ok := detailFromNVLinkInfo(info); ok {
+			deviceUUID := info.DeviceUUID
+			if deviceUUID != "" && !strings.HasPrefix(deviceUUID, "PCI:") {
+				deviceUUID = "PCI:" + deviceUUID
+			}
+			return &XidError{
+				Xid:        info.Xid,
+				DeviceUUID: deviceUUID,
+				Detail:     detail,
+			}
+		}
+	}
+
 	extractedID, deviceUUID := ExtractNVRMXidInfo(line)
 	if extractedID == 0 {
 		return nil

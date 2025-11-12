@@ -124,7 +124,7 @@ func TestGetECCModeEnabled(t *testing.T) {
 			pendingECC:            nvml.FEATURE_DISABLED,
 			eccModeRet:            nvml.ERROR_GPU_IS_LOST,
 			expectError:           true,
-			expectedErrorContains: "gpu lost",
+			expectedErrorContains: "GPU lost",
 		},
 	}
 

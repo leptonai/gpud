@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/olekukonko/tablewriter"
+	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -333,7 +334,7 @@ func (cr *checkResult) String() string {
 	outputs := make([]string, 0, len(cr.FoundErrors))
 	for _, foundErr := range cr.FoundErrors {
 		action := "unknown"
-		if foundErr.Detail != nil && len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
+		if foundErr.Detail != nil && foundErr.Detail.SuggestedActionsByGPUd != nil && len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions) > 0 {
 			actions := make([]string, 0, len(foundErr.Detail.SuggestedActionsByGPUd.RepairActions))
 			for _, action := range foundErr.Detail.SuggestedActionsByGPUd.RepairActions {
 				actions = append(actions, string(action))
@@ -348,7 +349,7 @@ func (cr *checkResult) String() string {
 
 		name := "unknown"
 		if foundErr.Detail != nil {
-			name = foundErr.Detail.Name
+			name = foundErr.Detail.Description
 		}
 
 		buf := bytes.NewBuffer(nil)
@@ -467,7 +468,7 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			id := uuid.New()
 			var xidName string
 			if xidErr.Detail != nil {
-				xidName = xidErr.Detail.Name
+				xidName = xidErr.Detail.Description
 			}
 			logger := log.Logger.With("id", id, "xid", xidErr.Xid, "xidName", xidName, "deviceUUID", xidErr.DeviceUUID)
 			logger.Infow("got xid event", "kmsg", message, "kmsgTimestamp", message.Timestamp.Unix())
@@ -494,6 +495,10 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 			logger.Infow("inserted the event successfully")
+			metricXIDErrs.With(prometheus.Labels{
+				"uuid": convertBusIDToUUID(xidErr.DeviceUUID, c.devices),
+				"xid":  strconv.Itoa(xidErr.Xid),
+			}).Inc()
 			if err = c.updateCurrentState(); err != nil {
 				logger.Errorw("failed to update current state", "error", err)
 				continue

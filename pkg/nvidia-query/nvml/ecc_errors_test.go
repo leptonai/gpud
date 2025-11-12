@@ -159,7 +159,7 @@ func TestGetECCErrors(t *testing.T) {
 			eccModeEnabled:        true,
 			totalECCRet:           nvml.ERROR_GPU_IS_LOST,
 			expectError:           true,
-			expectedErrorContains: "gpu lost",
+			expectedErrorContains: "GPU lost",
 		},
 		{
 			name:                  "GPU lost error on memory error counter",
@@ -168,7 +168,7 @@ func TestGetECCErrors(t *testing.T) {
 			totalECCRet:           nvml.SUCCESS,
 			memoryErrorRet:        nvml.ERROR_GPU_IS_LOST,
 			expectError:           true,
-			expectedErrorContains: "gpu lost",
+			expectedErrorContains: "GPU lost",
 		},
 	}
 

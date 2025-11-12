@@ -80,6 +80,9 @@ const (
 	defaultLookbackPeriod = 14 * 24 * time.Hour // 14 days
 
 	defaultFreeSpaceThresholdBytesDegraded = 500 * 1024 * 1024 // 500 MB
+
+	getBlockDevicesTimeout = 10 * time.Second
+	getPartitionsTimeout   = 10 * time.Second
 )
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -100,12 +103,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		lookbackPeriod:   defaultLookbackPeriod,
 
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
-			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultExt4FsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
+			timeoutCtx, cancel := context.WithTimeout(ctx, getPartitionsTimeout)
+			defer cancel()
+			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultExt4FsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
 		},
 		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			// statfs on nfs can incur network I/O or impact disk I/O performance
 			// do not track usage for nfs partitions
-			return disk.GetPartitions(ctx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
+			timeoutCtx, cancel := context.WithTimeout(ctx, getPartitionsTimeout)
+			defer cancel()
+			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
 		},
 
 		findMntFunc: disk.FindMnt,
@@ -119,8 +126,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	if runtime.GOOS == "linux" {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			timeoutCtx, cancel := context.WithTimeout(ctx, getBlockDevicesTimeout)
+			defer cancel()
 			return disk.GetBlockDevicesWithLsblk(
-				ctx,
+				timeoutCtx,
 				disk.WithFstype(disk.DefaultFsTypeFunc),
 				disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
 				disk.WithMountPoint(disk.DefaultMountPointFunc),
@@ -659,18 +668,27 @@ func (c *component) fetchBlockDevices(cr *checkResult) bool {
 	// "unexpected end of JSON input"
 	prevFailed := false
 	for i := 0; i < 5; i++ {
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		blks, err := c.getBlockDevicesFunc(cctx)
-		ccancel()
+		blks, err := c.getBlockDevicesFunc(c.ctx) // "getBlockDevicesFunc" itself already sets its own timeout
 		if err != nil {
-			log.Logger.Errorw("failed to get block devices", "error", err)
 
 			select {
 			case <-c.ctx.Done():
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.err = c.ctx.Err()
+
+				if cr.reason == "ok" {
+					cr.reason = ""
+				}
+				if cr.reason != "" {
+					cr.reason += "; "
+				}
+				cr.reason += "failed to get block devices -- took too long"
+
+				log.Logger.Warnw("failed to get block devices -- took too long", "error", err)
 				return false
+
 			case <-time.After(c.retryInterval):
+				log.Logger.Warnw("failed to get block devices -- retrying", "error", err)
 			}
 
 			prevFailed = true
@@ -709,15 +727,12 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 	// "unexpected end of JSON input"
 	prevFailed := false
 	for i := 0; i < 5; i++ {
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		parts, err := c.getExt4PartitionsFunc(cctx)
-		ccancel()
+		parts, err := c.getExt4PartitionsFunc(c.ctx) // "getExt4PartitionsFunc" itself already sets its own timeout
 		if err != nil {
-			log.Logger.Errorw("failed to get ext4 partitions", "error", err)
-
 			select {
 			case <-c.ctx.Done():
 				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
 
 				if cr.reason == "ok" {
 					cr.reason = ""
@@ -725,11 +740,13 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 				if cr.reason != "" {
 					cr.reason += "; "
 				}
-				cr.reason += "failed to get ext4 partitions"
+				cr.reason += "failed to get ext4 partitions -- took too long"
 
-				cr.err = c.ctx.Err()
+				log.Logger.Warnw("failed to get ext4 partitions -- took too long", "error", err)
 				return false
+
 			case <-time.After(c.retryInterval):
+				log.Logger.Warnw("failed to get ext4 partitions -- retrying", "error", err)
 			}
 
 			prevFailed = true
@@ -748,18 +765,26 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 	prevFailed := false
 	for i := 0; i < 5; i++ {
-		cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
-		parts, err := c.getNFSPartitionsFunc(cctx)
-		ccancel()
+		parts, err := c.getNFSPartitionsFunc(c.ctx) // "getNFSPartitionsFunc" itself already sets its own timeout
 		if err != nil {
-			log.Logger.Errorw("failed to get nfs partitions", "error", err)
-
 			select {
 			case <-c.ctx.Done():
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.err = c.ctx.Err()
+
+				if cr.reason == "ok" {
+					cr.reason = ""
+				}
+				if cr.reason != "" {
+					cr.reason += "; "
+				}
+				cr.reason += "failed to get nfs partitions -- took too long"
+
+				log.Logger.Warnw("failed to get nfs partitions -- took too long", "error", err)
 				return false
+
 			case <-time.After(c.retryInterval):
+				log.Logger.Warnw("failed to get nfs partitions -- retrying", "error", err)
 			}
 
 			prevFailed = true

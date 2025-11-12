@@ -43,6 +43,9 @@ func GetClockSpeed(uuid string, dev device.Device) (ClockSpeed, error) {
 		if IsGPULostError(ret) {
 			return clockSpeed, ErrGPULost
 		}
+		if IsGPURequiresReset(ret) {
+			return clockSpeed, ErrGPURequiresReset
+		}
 		return clockSpeed, fmt.Errorf("failed to get device clock info for nvml.CLOCK_GRAPHICS: %v", nvml.ErrorString(ret))
 	} else {
 		clockSpeed.ClockGraphicsSupported = true
@@ -56,6 +59,9 @@ func GetClockSpeed(uuid string, dev device.Device) (ClockSpeed, error) {
 	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 		if IsGPULostError(ret) {
 			return clockSpeed, ErrGPULost
+		}
+		if IsGPURequiresReset(ret) {
+			return clockSpeed, ErrGPURequiresReset
 		}
 		return clockSpeed, fmt.Errorf("failed to get device clock info for nvml.CLOCK_MEM: %v", nvml.ErrorString(ret))
 	} else {

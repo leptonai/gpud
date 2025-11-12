@@ -3,20 +3,63 @@ package xid
 
 import (
 	"fmt"
+	"slices"
+	"sort"
+	"strings"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 // Defines the Xid error information that is static.
 type Detail struct {
-	Xid  int    `json:"xid"`
-	Name string `json:"name"`
+	// Code is the error code of the Xid error, as documented in
+	// https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html.
+	Code int `json:"code"`
+
+	// Description is the description of the Xid error, as documented in
+	// https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html.
+	Description string `json:"description"`
+
+	// SubCode is populated for NVLink (144-150) XIDs after decoding intrinfo bits 20-25.
+	SubCode int `json:"sub_code"`
+	// SubCodeDescription describes the NVLink sub-component (e.g., NETIR_LINK_EVT).
+	SubCodeDescription string `json:"sub_code_description"`
 
 	// SuggestedActionsByGPUd is the suggested actions by GPUd.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
+
 	// EventType is the type of the event.
+	// The xid component health state is set to "Unhealthy"
+	// if this event type is "Critical" or "Fatal".
 	EventType apiv1.EventType `json:"event_type"`
 }
+
+type catalogEntry struct {
+	Code                    int
+	Mnemonic                string
+	Description             string
+	ImmediateResolution     string
+	InvestigatoryResolution string
+}
+
+type nvlinkRule struct {
+	Xid               int
+	Unit              string
+	IntrinfoPatternV1 string
+	IntrinfoPatternV2 string
+	ErrorStatus       uint32
+	Resolution        string
+	Investigatory     string
+	Severity          string
+	Action2           string
+	HwSw              string
+	LocalRemote       string
+}
+
+var (
+	detailsWithSubCodes map[int]map[int]Detail
+	nvlinkRulesByXID    = indexNVLinkRules()
+)
 
 // Returns the error if found.
 // Otherwise, returns false.
@@ -25,8 +68,25 @@ func GetDetail(id int) (*Detail, bool) {
 	return &e, ok
 }
 
+// GetDetailWithSubCode returns the XID detail for a given base code and subcode.
+// For XIDs 144-150, subcode information is derived from NVIDIA's NVLink catalog.
+func GetDetailWithSubCode(id int, subCode int) (*Detail, bool) {
+	if subMap, ok := detailsWithSubCodes[id]; ok {
+		if detail, ok := subMap[subCode]; ok {
+			copy := detail
+			return &copy, true
+		}
+		if detail, ok := subMap[0]; ok {
+			copy := detail
+			return &copy, true
+		}
+	}
+	return GetDetail(id)
+}
+
 // make sure we do not have unknown event type
 func init() {
+	detailsWithSubCodes = buildNVLinkSubCodeDetails()
 	for id, detail := range details {
 		if detail.EventType == apiv1.EventTypeUnknown || string(detail.EventType) == "" {
 			panic(fmt.Sprintf("unknown event type for Xid %d", id))
@@ -39,8 +99,8 @@ func init() {
 // and https://docs.nvidia.com/deploy/xid-errors/index.html for more details.
 var details = map[int]Detail{
 	1: {
-		Xid:  1,
-		Name: "Invalid or corrupted push buffer stream",
+		Code:        1,
+		Description: "Invalid or corrupted push buffer stream",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -48,8 +108,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	2: {
-		Xid:  2,
-		Name: "Invalid or corrupted push buffer stream",
+		Code:        2,
+		Description: "Invalid or corrupted push buffer stream",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -57,8 +117,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	3: {
-		Xid:  3,
-		Name: "Invalid or corrupted push buffer stream",
+		Code:        3,
+		Description: "Invalid or corrupted push buffer stream",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -66,8 +126,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	4: {
-		Xid:  4,
-		Name: "Invalid or corrupted push buffer stream",
+		Code:        4,
+		Description: "Invalid or corrupted push buffer stream",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -75,8 +135,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	5: {
-		Xid:  5,
-		Name: "Unused",
+		Code:        5,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -84,8 +144,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	6: {
-		Xid:  6,
-		Name: "Invalid or corrupted push buffer stream",
+		Code:        6,
+		Description: "Invalid or corrupted push buffer stream",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -93,8 +153,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	7: {
-		Xid:  7,
-		Name: "Invalid or corrupted push buffer address",
+		Code:        7,
+		Description: "Invalid or corrupted push buffer address",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -102,8 +162,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	8: {
-		Xid:  8,
-		Name: "GPU stopped processing",
+		Code:        8,
+		Description: "GPU stopped processing",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -111,8 +171,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	9: {
-		Xid:  9,
-		Name: "Driver error programming GPU",
+		Code:        9,
+		Description: "Driver error programming GPU",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -130,8 +190,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	10: {
-		Xid:  10,
-		Name: "Unused",
+		Code:        10,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -139,8 +199,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	11: {
-		Xid:  11,
-		Name: "Invalid or corrupted push buffer stream",
+		Code:        11,
+		Description: "Invalid or corrupted push buffer stream",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -148,8 +208,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	12: {
-		Xid:  12,
-		Name: "Driver error handling GPU exception",
+		Code:        12,
+		Description: "Driver error handling GPU exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -167,12 +227,11 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	13: {
-		Xid:  13,
-		Name: "Graphics Engine Exception",
+		Code:        13,
+		Description: "Graphics Engine Exception",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 13 is a potential hw/driver/user app/system memory corruption/bus/thermal issue/fb corruption.
-			// "NVIDIA Xid 13: GR: SW Notify Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-13-gr-sw-notify-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			// "NVIDIA GPU debug guidelines, https://docs.nvidia.com/deploy/gpu-debug-guidelines/index.html#xid-messages (accessed on Nov 3, 2024)
@@ -215,8 +274,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	14: {
-		Xid:  14,
-		Name: "Unused",
+		Code:        14,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -224,8 +283,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	15: {
-		Xid:  15,
-		Name: "Unused",
+		Code:        15,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -233,8 +292,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	16: {
-		Xid:  16,
-		Name: "Display engine hung",
+		Code:        16,
+		Description: "Display engine hung",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -252,8 +311,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	17: {
-		Xid:  17,
-		Name: "Unused",
+		Code:        17,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -261,8 +320,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	18: {
-		Xid:  18,
-		Name: "Bus mastering disabled in PCI Config Space",
+		Code:        18,
+		Description: "Bus mastering disabled in PCI Config Space",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -280,8 +339,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	19: {
-		Xid:  19,
-		Name: "Display Engine error",
+		Code:        19,
+		Description: "Display Engine error",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -299,8 +358,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	20: {
-		Xid:  20,
-		Name: "Invalid or corrupted Mpeg push buffer",
+		Code:        20,
+		Description: "Invalid or corrupted Mpeg push buffer",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -308,8 +367,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	21: {
-		Xid:  21,
-		Name: "Invalid or corrupted Motion Estimation push buffer",
+		Code:        21,
+		Description: "Invalid or corrupted Motion Estimation push buffer",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -317,8 +376,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	22: {
-		Xid:  22,
-		Name: "Invalid or corrupted Video Processor push buffer",
+		Code:        22,
+		Description: "Invalid or corrupted Video Processor push buffer",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -326,8 +385,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	23: {
-		Xid:  23,
-		Name: "Unused",
+		Code:        23,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -335,8 +394,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	24: {
-		Xid:  24,
-		Name: "GPU semaphore timeout",
+		Code:        24,
+		Description: "GPU semaphore timeout",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -344,8 +403,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	25: {
-		Xid:  25,
-		Name: "Invalid or illegal push buffer stream",
+		Code:        25,
+		Description: "Invalid or illegal push buffer stream",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -353,8 +412,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	26: {
-		Xid:  26,
-		Name: "Framebuffer timeout",
+		Code:        26,
+		Description: "Framebuffer timeout",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -372,8 +431,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	27: {
-		Xid:  27,
-		Name: "Video processor exception",
+		Code:        27,
+		Description: "Video processor exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -391,8 +450,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	28: {
-		Xid:  28,
-		Name: "Video processor exception",
+		Code:        28,
+		Description: "Video processor exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -410,8 +469,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	29: {
-		Xid:  29,
-		Name: "Video processor exception",
+		Code:        29,
+		Description: "Video processor exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -428,15 +487,15 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	30: {
-		Xid:  30,
-		Name: "GPU semaphore access error",
+		Code:        30,
+		Description: "GPU semaphore access error",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
-			// Xid 34 indicates GPU semaphore access error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
+			// Xid 30 indicates GPU semaphore access error, labeling a driver error as an only possible reason, thus we recommend rebooting the system.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
 			},
@@ -446,13 +505,12 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	31: {
-		Xid:  31,
-		Name: "GPU memory page fault",
+		Code:        31,
+		Description: "GPU memory page fault",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 31 as a user application issue, but can also be driver bugs or hardware issues.
 			// This event is logged when MMU reports a fault when an illegal address access is made by an application unit on the chip.
-			// "NVIDIA Xid 31: FIFO: MMU Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-31-fifo-mmu-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -498,13 +556,12 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	32: {
-		Xid:  32,
-		Name: "Invalid or corrupted push buffer stream",
+		Code:        32,
+		Description: "Invalid or corrupted push buffer stream",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 32 is a DMA controller error which manages the communication between the NVIDIA driver and GPU over the PCI-E bus.
 			// Which indicates the PCI quality issues, not the user application issues.
-			// "NVIDIA Xid 32: PBDMA Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-32-pbdma-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -549,8 +606,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	33: {
-		Xid:  33,
-		Name: "Internal micro-controller error",
+		Code:        33,
+		Description: "Internal micro-controller error",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -568,8 +625,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	34: {
-		Xid:  34,
-		Name: "Video processor exception",
+		Code:        34,
+		Description: "Video processor exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -587,8 +644,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	35: {
-		Xid:  35,
-		Name: "Video processor exception",
+		Code:        35,
+		Description: "Video processor exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -606,8 +663,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	36: {
-		Xid:  36,
-		Name: "Video processor exception",
+		Code:        36,
+		Description: "Video processor exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -625,8 +682,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	37: {
-		Xid:  37,
-		Name: "Driver firmware error",
+		Code:        37,
+		Description: "Driver firmware error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -634,8 +691,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	38: {
-		Xid:  38,
-		Name: "Driver firmware error",
+		Code:        38,
+		Description: "Driver firmware error",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 38 as a potential driver firmware error.
@@ -684,8 +741,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	39: {
-		Xid:  39,
-		Name: "Unused",
+		Code:        39,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -693,8 +750,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	40: {
-		Xid:  40,
-		Name: "Unused",
+		Code:        40,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -702,8 +759,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	41: {
-		Xid:  41,
-		Name: "Unused",
+		Code:        41,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -711,8 +768,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	42: {
-		Xid:  42,
-		Name: "Video processor exception",
+		Code:        42,
+		Description: "Video processor exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -729,12 +786,11 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	43: {
-		Xid:  43,
-		Name: "GPU stopped processing",
+		Code:        43,
+		Description: "GPU stopped processing",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 43 as a user application hitting a software induced faults.
-			// "NVIDIA Xid 43: Reset Channel Verif Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-43-reset-channel-verif-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -778,8 +834,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	44: {
-		Xid:  44,
-		Name: "Graphics Engine fault during context switch",
+		Code:        44,
+		Description: "Graphics Engine fault during context switch",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 44 as a potential driver issue.
@@ -828,12 +884,11 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	45: {
-		Xid:  45,
-		Name: "Preemptive cleanup, due to previous errors – Most likely to see when running multiple cuda applications and hitting a DBE.",
+		Code:        45,
+		Description: "Preemptive cleanup, due to previous errors – Most likely to see when running multiple cuda applications and hitting a DBE.",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 45 is returned when the kernel driver terminates a GPU application, as a result of a user of system action.
-			// "NVIDIA Xid 45: OS: Preemptive Channel Removal", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-45-os-preemptive-channel-removal (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -883,8 +938,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	46: {
-		Xid:  46,
-		Name: "GPU stopped processing",
+		Code:        46,
+		Description: "GPU stopped processing",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -902,8 +957,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	47: {
-		Xid:  47,
-		Name: "Video processor exception",
+		Code:        47,
+		Description: "Video processor exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -921,11 +976,10 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	48: {
-		Xid:  48,
-		Name: "Double Bit ECC Error",
+		Code:        48,
+		Description: "Double Bit ECC Error",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 48 indicates uncorrectable double bit errors (DBE), recommending GPU reset or system reboot.
-			// "NVIDIA Xid 48: DBE (Double Bit Error) ECC Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-48-dbe-double-bit-error-ecc-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -974,8 +1028,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	49: {
-		Xid:  49,
-		Name: "Unused",
+		Code:        49,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -983,8 +1037,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	50: {
-		Xid:  50,
-		Name: "Unused",
+		Code:        50,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -992,8 +1046,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	51: {
-		Xid:  51,
-		Name: "Unused",
+		Code:        51,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1001,8 +1055,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	52: {
-		Xid:  52,
-		Name: "Unused",
+		Code:        52,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1010,8 +1064,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	53: {
-		Xid:  53,
-		Name: "Unused",
+		Code:        53,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1019,8 +1073,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	54: {
-		Xid:  54,
-		Name: "Auxiliary power is not connected to the GPU board",
+		Code:        54,
+		Description: "Auxiliary power is not connected to the GPU board",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1028,8 +1082,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	55: {
-		Xid:  55,
-		Name: "Unused",
+		Code:        55,
+		Description: "Unused",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1037,8 +1091,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	56: {
-		Xid:  56,
-		Name: "Display Engine error",
+		Code:        56,
+		Description: "Display Engine error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1046,8 +1100,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	57: {
-		Xid:  57,
-		Name: "Error programming video memory interface",
+		Code:        57,
+		Description: "Error programming video memory interface",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1055,8 +1109,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	58: {
-		Xid:  58,
-		Name: "Unstable video memory interface detected",
+		Code:        58,
+		Description: "Unstable video memory interface detected",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1064,8 +1118,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	59: {
-		Xid:  59,
-		Name: "Internal micro-controller error (older drivers)",
+		Code:        59,
+		Description: "Internal micro-controller error (older drivers)",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -1083,8 +1137,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	60: {
-		Xid:  60,
-		Name: "Video processor exception",
+		Code:        60,
+		Description: "Video processor exception",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -1102,8 +1156,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	61: {
-		Xid:  61,
-		Name: "Internal micro-controller breakpoint/warning (newer drivers)",
+		Code:        61,
+		Description: "Internal micro-controller breakpoint/warning (newer drivers)",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 61 indicates internal micro-controller warning.
@@ -1151,8 +1205,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	62: {
-		Xid:  62,
-		Name: "Internal micro-controller halt (newer drivers)",
+		Code:        62,
+		Description: "Internal micro-controller halt (newer drivers)",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 62 indicates internal micro-controller halt.
@@ -1202,12 +1256,11 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	63: {
-		Xid:  63,
-		Name: "ECC page retirement or row remapping recording event",
+		Code:        63,
+		Description: "ECC page retirement or row remapping recording event",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 63 indicates ECC page retirement recording event for legacy GPUs or row-remapping recording event for A100.
-			// "NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -1260,12 +1313,11 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	64: {
-		Xid:  64,
-		Name: "ECC page retirement or row remapper recording failure",
+		Code:        64,
+		Description: "ECC page retirement or row remapper recording failure",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 64 indicates ECC page retirement recording failure or row-remapping recording failure.
-			// "NVIDIA Xid 63, 64: ECC Page Retirement or Row Remapping", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-63-64-ecc-page-retirement-or-row-remapping (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -1316,8 +1368,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	65: {
-		Xid:  65,
-		Name: "Video processor exception",
+		Code:        65,
+		Description: "Video processor exception",
 
 		// "Triggered when the GPU handles memory ECC errors on the GPU"
 		// "most instances can be resolved by simply resetting the GPU to retain optimal performance."
@@ -1333,8 +1385,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeCritical,
 	},
 	66: {
-		Xid:  66,
-		Name: "Illegal access by driver",
+		Code:        66,
+		Description: "Illegal access by driver",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1342,8 +1394,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	67: {
-		Xid:  67,
-		Name: "Illegal access by driver",
+		Code:        67,
+		Description: "Illegal access by driver",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1351,8 +1403,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	68: {
-		Xid:  68,
-		Name: "NVDEC0 Exception",
+		Code:        68,
+		Description: "NVDEC0 Exception",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 68 as a potential hardware/driver issue or a user application error.
@@ -1407,8 +1459,8 @@ var details = map[int]Detail{
 		// TODO: verify whether this is still true https://github.com/NVIDIA/k8s-device-plugin/issues/945
 	},
 	69: {
-		Xid:  69,
-		Name: "Graphics Engine class error",
+		Code:        69,
+		Description: "Graphics Engine class error",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 69 as a potential hardware/driver issue.
@@ -1457,8 +1509,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	70: {
-		Xid:  70,
-		Name: "CE3: Unknown Error",
+		Code:        70,
+		Description: "CE3: Unknown Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1466,8 +1518,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	71: {
-		Xid:  71,
-		Name: "CE4: Unknown Error",
+		Code:        71,
+		Description: "CE4: Unknown Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1475,8 +1527,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	72: {
-		Xid:  72,
-		Name: "CE5: Unknown Error",
+		Code:        72,
+		Description: "CE5: Unknown Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1484,8 +1536,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	73: {
-		Xid:  73,
-		Name: "NVENC2 Error",
+		Code:        73,
+		Description: "NVENC2 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1493,13 +1545,12 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	74: {
-		Xid:  74,
-		Name: "NVLINK Error",
+		Code:        74,
+		Description: "NVLINK Error",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 74 indicates a connection problem between GPUs, or NVSwitch over NVLink.
 			// GPU reset or system reboot is needed to clear the error.
-			// "NVIDIA Xid 74: NVLink Error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-74-nvlink-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -1545,8 +1596,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	75: {
-		Xid:  75,
-		Name: "CE6: Unknown Error",
+		Code:        75,
+		Description: "CE6: Unknown Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1554,8 +1605,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	76: {
-		Xid:  76,
-		Name: "CE7: Unknown Error",
+		Code:        76,
+		Description: "CE7: Unknown Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1563,8 +1614,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	77: {
-		Xid:  77,
-		Name: "CE8: Unknown Error",
+		Code:        77,
+		Description: "CE8: Unknown Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1572,8 +1623,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	78: {
-		Xid:  78,
-		Name: "vGPU Start Error",
+		Code:        78,
+		Description: "vGPU Start Error",
 
 		// if nvidia says this can be only because of driver error, then we only reboot
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -1591,12 +1642,11 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	79: {
-		Xid:  79,
-		Name: "GPU has fallen off the bus",
+		Code:        79,
+		Description: "GPU has fallen off the bus",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 79 indicates GPUs not being accessible, due to the PCI express connection failures.
-			// "NVIDIA Xid 79: GPU has fallen off the bus", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-79-gpu-has-fallen-off-the-bus (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -1642,8 +1692,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	80: {
-		Xid:  80,
-		Name: "Corrupted data sent to GPU",
+		Code:        80,
+		Description: "Corrupted data sent to GPU",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1651,8 +1701,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	81: {
-		Xid:  81,
-		Name: "VGA Subsystem Error",
+		Code:        81,
+		Description: "VGA Subsystem Error",
 
 		// if nvidia says only possible reason is hw, then we do hard inspections directly
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -1670,8 +1720,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	82: {
-		Xid:  82,
-		Name: "NVJPG0 Error",
+		Code:        82,
+		Description: "NVJPG0 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1679,8 +1729,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	83: {
-		Xid:  83,
-		Name: "NVDEC1 Error",
+		Code:        83,
+		Description: "NVDEC1 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1688,8 +1738,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	84: {
-		Xid:  84,
-		Name: "NVDEC2 Error",
+		Code:        84,
+		Description: "NVDEC2 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1697,8 +1747,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	85: {
-		Xid:  85,
-		Name: "CE9: Unknown Error",
+		Code:        85,
+		Description: "CE9: Unknown Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1706,8 +1756,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	86: {
-		Xid:  86,
-		Name: "OFA Exception",
+		Code:        86,
+		Description: "OFA Exception",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1715,8 +1765,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	87: {
-		Xid:  87,
-		Name: "Reserved",
+		Code:        87,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1724,8 +1774,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	88: {
-		Xid:  88,
-		Name: "NVDEC3 Error",
+		Code:        88,
+		Description: "NVDEC3 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1733,8 +1783,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	89: {
-		Xid:  89,
-		Name: "NVDEC4 Error",
+		Code:        89,
+		Description: "NVDEC4 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1742,8 +1792,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	90: {
-		Xid:  90,
-		Name: "Reserved",
+		Code:        90,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1751,8 +1801,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	91: {
-		Xid:  91,
-		Name: "Reserved",
+		Code:        91,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1760,8 +1810,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	92: {
-		Xid:  92,
-		Name: "High single-bit ECC error rate",
+		Code:        92,
+		Description: "High single-bit ECC error rate",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 92 as a potential hardware or driver issue.
@@ -1810,8 +1860,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	93: {
-		Xid:  93,
-		Name: "Non-fatal violation of provisioned InfoROM wear limit",
+		Code:        93,
+		Description: "Non-fatal violation of provisioned InfoROM wear limit",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1819,12 +1869,11 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	94: {
-		Xid:  94,
-		Name: "Contained ECC error",
+		Code:        94,
+		Description: "Contained ECC error",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 94 indicates a contained ECC error, successfully suppressed.
-			// "NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 
@@ -1875,12 +1924,11 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeCritical,
 	},
 	95: {
-		Xid:  95,
-		Name: "Uncontained ECC error",
+		Code:        95,
+		Description: "Uncontained ECC error",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 95 indicates a uncontained ECC error.
-			// "NVIDIA Xid 94, 95: Contained/uncontained", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-94-95-contained-uncontained (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 
@@ -1929,8 +1977,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	96: {
-		Xid:  96,
-		Name: "NVDEC5 Error",
+		Code:        96,
+		Description: "NVDEC5 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1938,8 +1986,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	97: {
-		Xid:  97,
-		Name: "NVDEC6 Error",
+		Code:        97,
+		Description: "NVDEC6 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1947,8 +1995,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	98: {
-		Xid:  98,
-		Name: "NVDEC7 Error",
+		Code:        98,
+		Description: "NVDEC7 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1956,8 +2004,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	99: {
-		Xid:  99,
-		Name: "NVJPG1 Error",
+		Code:        99,
+		Description: "NVJPG1 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1965,8 +2013,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	100: {
-		Xid:  100,
-		Name: "NVJPG2 Error",
+		Code:        100,
+		Description: "NVJPG2 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1974,8 +2022,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	101: {
-		Xid:  101,
-		Name: "NVJPG3 Error",
+		Code:        101,
+		Description: "NVJPG3 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1983,8 +2031,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	102: {
-		Xid:  102,
-		Name: "NVJPG4 Error",
+		Code:        102,
+		Description: "NVJPG4 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -1992,8 +2040,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	103: {
-		Xid:  103,
-		Name: "NVJPG5 Error",
+		Code:        103,
+		Description: "NVJPG5 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2001,8 +2049,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	104: {
-		Xid:  104,
-		Name: "NVJPG6 Error",
+		Code:        104,
+		Description: "NVJPG6 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2010,8 +2058,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	105: {
-		Xid:  105,
-		Name: "NVJPG7 Error",
+		Code:        105,
+		Description: "NVJPG7 Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2019,8 +2067,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	106: {
-		Xid:  106,
-		Name: "SMBPBI Test Message",
+		Code:        106,
+		Description: "SMBPBI Test Message",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2028,8 +2076,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	107: {
-		Xid:  107,
-		Name: "SMBPBI Test Message Silent",
+		Code:        107,
+		Description: "SMBPBI Test Message Silent",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2037,8 +2085,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	108: {
-		Xid:  108,
-		Name: "Reserved",
+		Code:        108,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2046,8 +2094,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	109: {
-		Xid:  109,
-		Name: "Context Switch Timeout Error",
+		Code:        109,
+		Description: "Context Switch Timeout Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2055,8 +2103,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	110: {
-		Xid:  110,
-		Name: "Security Fault Error",
+		Code:        110,
+		Description: "Security Fault Error",
 
 		// if nvidia says only possible reason is hw, then we do hard inspections directly
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
@@ -2074,8 +2122,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	111: {
-		Xid:  111,
-		Name: "Display Bundle Error Event",
+		Code:        111,
+		Description: "Display Bundle Error Event",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2083,8 +2131,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	112: {
-		Xid:  112,
-		Name: "Display Supervisor Error",
+		Code:        112,
+		Description: "Display Supervisor Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2092,8 +2140,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	113: {
-		Xid:  113,
-		Name: "DP Link Training Erro",
+		Code:        113,
+		Description: "DP Link Training Erro",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2101,8 +2149,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	114: {
-		Xid:  114,
-		Name: "Display Pipeline Underflow Error",
+		Code:        114,
+		Description: "Display Pipeline Underflow Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2110,8 +2158,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	115: {
-		Xid:  115,
-		Name: "Display Core Channel Error",
+		Code:        115,
+		Description: "Display Core Channel Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2119,8 +2167,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	116: {
-		Xid:  116,
-		Name: "Display Window Channel Error",
+		Code:        116,
+		Description: "Display Window Channel Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2128,8 +2176,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	117: {
-		Xid:  117,
-		Name: "Display Cursor Channel Error",
+		Code:        117,
+		Description: "Display Cursor Channel Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2137,8 +2185,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	118: {
-		Xid:  118,
-		Name: "Display Pixel Pipeline Error",
+		Code:        118,
+		Description: "Display Pixel Pipeline Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2146,13 +2194,12 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	119: {
-		Xid:  119,
-		Name: "GSP RPC Timeout",
+		Code:        119,
+		Description: "GSP RPC Timeout",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 119 indicates GSP module failures to respond to RPC messages,
 			// recommending GPU reset or node power cycle if the issue persists.
-			// "Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -2198,13 +2245,12 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	120: {
-		Xid:  120,
-		Name: "GSP Error",
+		Code:        120,
+		Description: "GSP Error",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 120 indicates GSP module failures to respond to RPC messages,
 			// recommending GPU reset or node power cycle if the issue persists.
-			// "Xid 119, 120: GSP RPC Timeout / GSP Error", https//docs.nvidia.com/deploy/xid-errors/index.html#xid-119-120-gsp-rpc-timeout-gsp-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -2250,13 +2296,12 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	121: {
-		Xid:  121,
-		Name: "C2C Link Error",
+		Code:        121,
+		Description: "C2C Link Error",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 121 indicates corrected errors on the C2C NVLink connection to a Grace CPU, with no operational impact,
 			// recommending the GPU reset to retrain the link.
-			// "NVIDIA Xid 121: C2C Link corrected error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-121-c2c-link-corrected-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -2302,8 +2347,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	122: {
-		Xid:  122,
-		Name: "SPI PMU RPC Read Failure",
+		Code:        122,
+		Description: "SPI PMU RPC Read Failure",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2311,8 +2356,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	123: {
-		Xid:  123,
-		Name: "SPI PMU RPC Write Failure",
+		Code:        123,
+		Description: "SPI PMU RPC Write Failure",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 123 indicates potential hardware or driver errors.
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
@@ -2360,8 +2405,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	124: {
-		Xid:  124,
-		Name: "SPI PMU RPC Erase Failure",
+		Code:        124,
+		Description: "SPI PMU RPC Erase Failure",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2369,8 +2414,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	125: {
-		Xid:  125,
-		Name: "Inforom FS Failure",
+		Code:        125,
+		Description: "Inforom FS Failure",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2378,8 +2423,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	126: {
-		Xid:  126,
-		Name: "Reserved",
+		Code:        126,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2387,8 +2432,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	127: {
-		Xid:  127,
-		Name: "Reserved",
+		Code:        127,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2396,8 +2441,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	128: {
-		Xid:  128,
-		Name: "Reserved",
+		Code:        128,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2405,8 +2450,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	129: {
-		Xid:  129,
-		Name: "Reserved",
+		Code:        129,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2414,8 +2459,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	130: {
-		Xid:  130,
-		Name: "Reserved",
+		Code:        130,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2423,8 +2468,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	131: {
-		Xid:  131,
-		Name: "Reserved",
+		Code:        131,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2432,8 +2477,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	132: {
-		Xid:  132,
-		Name: "Reserved",
+		Code:        132,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2441,8 +2486,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	134: {
-		Xid:  134,
-		Name: "Reserved",
+		Code:        134,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2450,8 +2495,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	135: {
-		Xid:  135,
-		Name: "Reserved",
+		Code:        135,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2459,8 +2504,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	136: {
-		Xid:  136,
-		Name: "Reserved",
+		Code:        136,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2468,12 +2513,11 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	137: {
-		Xid:  137,
-		Name: "NVLink FLA privilege error",
+		Code:        137,
+		Description: "NVLink FLA privilege error",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 137 indicates a user application error, recommending cuda-memcheck or CUDA-GDB for debugging.
-			// "NVIDIA Xid 137: NVLink FLA privilege error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-137-nvlink-fla-privilege-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -2518,8 +2562,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	138: {
-		Xid:  138,
-		Name: "Reserved",
+		Code:        138,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2527,8 +2571,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	139: {
-		Xid:  139,
-		Name: "Reserved",
+		Code:        139,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2536,13 +2580,12 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	140: {
-		Xid:  140,
-		Name: "Unrecovered ECC Error",
+		Code:        140,
+		Description: "Unrecovered ECC Error",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// NOTE: The official nvidia doc explains Xid 140 indicates uncorrectable GPU memory errors, which may impact the dynamic page offlining or row remapping,
 			// recommending GPU reset if the issue persists.
-			// "NVIDIA Xid 140: ECC unrecovered error", https://docs.nvidia.com/deploy/xid-errors/index.html#xid-140-ecc-unrecovered-error (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/xid-errors/index.html (accessed on Nov 3, 2024)
 			// "NVIDIA Xid Errors", https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf (Sep 2024)
 			//
@@ -2588,8 +2631,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 	141: {
-		Xid:  141,
-		Name: "Reserved",
+		Code:        141,
+		Description: "Reserved",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2597,8 +2640,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	142: {
-		Xid:  142,
-		Name: "Unrecovered ECC Error",
+		Code:        142,
+		Description: "Unrecovered ECC Error",
 
 		SuggestedActionsByGPUd: nil,
 
@@ -2606,8 +2649,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	143: {
-		Xid:  143,
-		Name: "GPU Initialization Failure",
+		Code:        143,
+		Description: "GPU Initialization Failure",
 
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			// e.g., "Error status 0x... while polling for FSP boot complete"
@@ -2624,50 +2667,50 @@ var details = map[int]Detail{
 	},
 
 	144: {
-		Xid:                    144,
-		Name:                   "NVLINK: SAW Error",
+		Code:                   144,
+		Description:            "NVLINK: SAW Error",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	145: {
-		Xid:                    145,
-		Name:                   "NVLINK: RLW Error",
+		Code:                   145,
+		Description:            "NVLINK: RLW Error",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	146: {
-		Xid:                    146,
-		Name:                   "NVLINK: TLW Error",
+		Code:                   146,
+		Description:            "NVLINK: TLW Error",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	147: {
-		Xid:                    147,
-		Name:                   "NVLINK: TREX Error",
+		Code:                   147,
+		Description:            "NVLINK: TREX Error",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	148: {
-		Xid:                    148,
-		Name:                   "NVLINK: NVLPW_CTRL Error",
+		Code:                   148,
+		Description:            "NVLINK: NVLPW_CTRL Error",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	149: {
-		Xid:                    149,
-		Name:                   "NVLINK: NETIR Error",
+		Code:                   149,
+		Description:            "NVLINK: NETIR Error",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	150: {
-		Xid:                    150,
-		Name:                   "NVLINK: MSE Error",
+		Code:                   150,
+		Description:            "NVLINK: MSE Error",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	151: {
-		Xid:  151,
-		Name: "Key rotation Error",
+		Code:        151,
+		Description: "Key rotation Error",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2676,27 +2719,27 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	152: {
-		Xid:  152,
-		Name: "DLA SMMU Error",
+		Code:        152,
+		Description: "DLA SMMU Error",
 
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	153: {
-		Xid:                    153,
-		Name:                   "DLA timeout Error",
+		Code:                   153,
+		Description:            "DLA timeout Error",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	154: {
-		Xid:                    154,
-		Name:                   "GPU Recovery Action Changed",
+		Code:                   154,
+		Description:            "GPU Recovery Action Changed",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	155: {
-		Xid:  155,
-		Name: "NVLINK: SW Defined Error",
+		Code:        155,
+		Description: "NVLINK: SW Defined Error",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2705,8 +2748,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	156: {
-		Xid:  156,
-		Name: "Resource Retirement Event",
+		Code:        156,
+		Description: "Resource Retirement Event",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2715,14 +2758,14 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	157: {
-		Xid:                    157,
-		Name:                   "Resource Retirement Failure",
+		Code:                   157,
+		Description:            "Resource Retirement Failure",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	158: {
-		Xid:  158,
-		Name: "GPU Fatal Timeout",
+		Code:        158,
+		Description: "GPU Fatal Timeout",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2731,32 +2774,32 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	159: {
-		Xid:                    159,
-		Name:                   "CHI Non-Data Error",
+		Code:                   159,
+		Description:            "CHI Non-Data Error",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	160: {
-		Xid:                    160,
-		Name:                   "Channel Retirement Event",
+		Code:                   160,
+		Description:            "Channel Retirement Event",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	161: {
-		Xid:                    161,
-		Name:                   "Channel Retirement Failure",
+		Code:                   161,
+		Description:            "Channel Retirement Failure",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	162: {
-		Xid:                    162,
-		Name:                   "Power Smoothing HW Circuitry capability reengaged",
+		Code:                   162,
+		Description:            "Power Smoothing HW Circuitry capability reengaged",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	163: {
-		Xid:  163,
-		Name: "Power Smoothing HW Circuitry capability disengaged",
+		Code:        163,
+		Description: "Power Smoothing HW Circuitry capability disengaged",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2765,20 +2808,20 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	164: {
-		Xid:                    164,
-		Name:                   "Power Smoothing HW Circuitry low lifetime reached",
+		Code:                   164,
+		Description:            "Power Smoothing HW Circuitry low lifetime reached",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	165: {
-		Xid:                    165,
-		Name:                   "Power Smoothing HW Circuitry lifetime exhausted",
+		Code:                   165,
+		Description:            "Power Smoothing HW Circuitry lifetime exhausted",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeInfo, // ignore for now
 	},
 	166: {
-		Xid:  166,
-		Name: "CC traffic seen prior to link properly being configured for encrypted traffic",
+		Code:        166,
+		Description: "CC traffic seen prior to link properly being configured for encrypted traffic",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2787,8 +2830,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	167: {
-		Xid:  167,
-		Name: "PCIE_FATAL_TIMEOUT",
+		Code:        167,
+		Description: "PCIE_FATAL_TIMEOUT",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2797,14 +2840,14 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	168: {
-		Xid:                    168,
-		Name:                   "Errors found in WPR (write protected region)",
+		Code:                   168,
+		Description:            "Errors found in WPR (write protected region)",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	169: {
-		Xid:  169,
-		Name: "Internal micro-controller halt",
+		Code:        169,
+		Description: "Internal micro-controller halt",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2813,8 +2856,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	170: {
-		Xid:  170,
-		Name: "Interrupt seen in CC mode",
+		Code:        170,
+		Description: "Interrupt seen in CC mode",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeCheckUserAppAndGPU,
@@ -2823,14 +2866,14 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	171: {
-		Xid:                    171,
-		Name:                   "Additional to Xid 48 providing more details on particulars of fault to differentiate DRAM/SRAM",
+		Code:                   171,
+		Description:            "Additional to Xid 48 providing more details on particulars of fault to differentiate DRAM/SRAM",
 		SuggestedActionsByGPUd: nil,
 		EventType:              apiv1.EventTypeWarning,
 	},
 	172: {
-		Xid:  172,
-		Name: "Additional to Xid 48 providing more details on particulars of fault to differentiate DRAM/SRAM",
+		Code:        172,
+		Description: "Additional to Xid 48 providing more details on particulars of fault to differentiate DRAM/SRAM",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2839,8 +2882,8 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeWarning,
 	},
 	173: {
-		Xid:  173,
-		Name: "C2C Fatal Link Failure",
+		Code:        173,
+		Description: "C2C Fatal Link Failure",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -2848,4 +2891,358 @@ var details = map[int]Detail{
 		},
 		EventType: apiv1.EventTypeWarning,
 	},
+}
+
+func detailFromNVLinkInfo(info *XidExtractedInfo) (*Detail, bool) {
+	base, ok := GetDetail(info.Xid)
+	if !ok {
+		return nil, false
+	}
+
+	detail := *base
+	if subMap, ok := detailsWithSubCodes[info.Xid]; ok {
+		if subDetail, ok := subMap[info.SubCode]; ok {
+			detail = subDetail
+		}
+	}
+
+	if rule, ok := lookupNVLinkRule(info); ok {
+		severityEvent := eventTypeFromSeverity(rule.Severity)
+		if severityEvent == apiv1.EventTypeUnknown {
+			severityEvent = eventTypeFromImmediateBucket(rule.Resolution)
+		}
+		if severityEvent != apiv1.EventTypeUnknown {
+			detail.EventType = severityEvent
+		}
+		if actions := suggestedActionsFromBucket(rule.Resolution); actions != nil {
+			detail.SuggestedActionsByGPUd = copySuggestedActions(actions)
+		}
+	}
+
+	detail.SubCode = info.SubCode
+	detail.SubCodeDescription = info.SubCodeName
+	detail.EventType = maxEventType(detail.EventType, eventTypeFromLogSeverity(info.Severity))
+	if detail.SuggestedActionsByGPUd == nil {
+		detail.SuggestedActionsByGPUd = copySuggestedActions(base.SuggestedActionsByGPUd)
+	}
+	return &detail, true
+}
+
+func buildNVLinkSubCodeDetails() map[int]map[int]Detail {
+	result := make(map[int]map[int]Detail)
+	for _, rule := range nvlinkRules {
+		if rule.Xid < 144 || rule.Xid > 150 {
+			continue
+		}
+		subCode, ok := subCodeFromRule(rule)
+		if !ok {
+			continue
+		}
+		if _, ok := result[rule.Xid]; !ok {
+			result[rule.Xid] = make(map[int]Detail)
+		}
+
+		aggregated, exists := result[rule.Xid][subCode]
+		if !exists {
+			base, ok := GetDetail(rule.Xid)
+			if !ok {
+				continue
+			}
+			aggregated = *base
+			aggregated.SubCode = subCode
+			aggregated.SubCodeDescription = rule.Unit
+			aggregated.EventType = apiv1.EventTypeUnknown
+		}
+
+		ruleEvent := eventTypeFromSeverity(rule.Severity)
+		if ruleEvent == apiv1.EventTypeUnknown {
+			ruleEvent = eventTypeFromImmediateBucket(rule.Resolution)
+		}
+		aggregated.EventType = maxEventType(aggregated.EventType, ruleEvent)
+		if actions := suggestedActionsFromBucket(rule.Resolution); actions != nil {
+			aggregated.SuggestedActionsByGPUd = mergeSuggestedActions(aggregated.SuggestedActionsByGPUd, actions)
+		}
+
+		result[rule.Xid][subCode] = aggregated
+	}
+
+	applyOperationalOverrides(result)
+	return result
+}
+
+func applyOperationalOverrides(result map[int]map[int]Detail) {
+	if subMap, ok := result[149]; ok {
+		if detail, ok := subMap[4]; ok {
+			detail.EventType = apiv1.EventTypeFatal
+			detail.SubCodeDescription = "NETIR_LINK_EVT/NETIR_LINK_DOWN (cartridge error)"
+			detail.Description = "NVLINK: NETIR Link Event - Possible NVLink cartridge error (contact provider)"
+			detail.SuggestedActionsByGPUd = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}
+			subMap[4] = detail
+		}
+		if detail, ok := subMap[10]; ok {
+			detail.EventType = apiv1.EventTypeFatal
+			detail.SubCodeDescription = "NETIR_LINK_EVT/NETIR_LINK_DOWN (PHY timeout)"
+			detail.Description = "NVLINK: NETIR Link Event - Physical layer retransmission timeout (contact provider)"
+			detail.SuggestedActionsByGPUd = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}
+			subMap[10] = detail
+		}
+	}
+}
+
+func indexNVLinkRules() map[int][]nvlinkRule {
+	indexed := make(map[int][]nvlinkRule)
+	for _, rule := range nvlinkRules {
+		indexed[rule.Xid] = append(indexed[rule.Xid], rule)
+	}
+	return indexed
+}
+
+func lookupNVLinkRule(info *XidExtractedInfo) (*nvlinkRule, bool) {
+	rules := nvlinkRulesByXID[info.Xid]
+	for i := range rules {
+		rule := &rules[i]
+		if !unitMatches(rule.Unit, info.SubCodeName) {
+			continue
+		}
+		if rule.ErrorStatus != info.ErrorStatus {
+			continue
+		}
+		if patternMatches(rule.IntrinfoPatternV2, info.Intrinfo) || patternMatches(rule.IntrinfoPatternV1, info.Intrinfo) {
+			return rule, true
+		}
+	}
+	return nil, false
+}
+
+func subCodeFromRule(rule nvlinkRule) (int, bool) {
+	if value, ok := sampleFromPattern(rule.IntrinfoPatternV2); ok {
+		return int((value >> 20) & 0x3F), true
+	}
+	if value, ok := sampleFromPattern(rule.IntrinfoPatternV1); ok {
+		return int((value >> 20) & 0x3F), true
+	}
+	return 0, false
+}
+
+func sampleFromPattern(pattern string) (uint32, bool) {
+	if pattern == "" {
+		return 0, false
+	}
+	if len(pattern) != 32 {
+		return 0, false
+	}
+	var value uint32
+	for idx, r := range pattern {
+		bit := 31 - idx
+		switch r {
+		case '1':
+			value |= 1 << bit
+		case '0', '-':
+		default:
+			return 0, false
+		}
+	}
+	return value, true
+}
+
+func patternMatches(pattern string, intrinfo uint32) bool {
+	if pattern == "" {
+		return true
+	}
+	if len(pattern) != 32 {
+		return false
+	}
+	for idx, r := range pattern {
+		bit := uint(31 - idx)
+		switch r {
+		case '1':
+			if ((intrinfo >> bit) & 1) == 0 {
+				return false
+			}
+		case '0':
+			if ((intrinfo >> bit) & 1) == 1 {
+				return false
+			}
+		case '-':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func unitMatches(ruleUnit, logUnit string) bool {
+	canonicalLog := normalizeUnit(logUnit)
+	if canonicalLog == "" {
+		return false
+	}
+	for _, alias := range unitAliases(ruleUnit) {
+		if normalizeUnit(alias) == canonicalLog {
+			return true
+		}
+	}
+	return false
+}
+
+func unitAliases(ruleUnit string) []string {
+	aliases := strings.FieldsFunc(ruleUnit, func(r rune) bool {
+		switch r {
+		case '/', ',', '(', ')', ' ':
+			return true
+		default:
+			return false
+		}
+	})
+	if len(aliases) == 0 {
+		aliases = []string{ruleUnit}
+	}
+	aliases = append(aliases, ruleUnit)
+	return aliases
+}
+
+func normalizeUnit(s string) string {
+	s = strings.ToUpper(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, "-", "_")
+	return strings.Map(func(r rune) rune {
+		if r >= 'A' && r <= 'Z' {
+			return r
+		}
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		if r == '_' {
+			return r
+		}
+		return -1
+	}, s)
+}
+
+// eventTypeFromImmediateBucket maps NVIDIA XID immediate action buckets to event severity types.
+// These buckets are defined in NVIDIA's official XID catalog: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
+func eventTypeFromImmediateBucket(bucket string) apiv1.EventType {
+	switch bucket {
+	case "CONTACT_SUPPORT", // Critical GPU error requiring NVIDIA support intervention
+		"CHECK_MECHANICALS",    // Hardware connection issues (e.g., auxiliary power not connected, XID 54)
+		"WORKFLOW_NVLINK_ERR",  // NVLink hardware error requiring specific diagnostic workflow
+		"WORKFLOW_NVLINK5_ERR", // NVLink5-specific error on newer architectures (XIDs 144-150)
+		"XID_154",              // GPU Recovery Action Changed - another XID triggered GPU recovery mode change
+		"XID_154_EVAL",         // Evaluate if XID 154 should be triggered based on error context (remap errors)
+		"RESTART_BM":           // Restart bare metal system/reboot required (e.g., XID 79 - GPU fallen off bus)
+		return apiv1.EventTypeFatal
+	case "RESET_GPU", // GPU reset required due to timeout, uncontained error, or hung state
+		"RESTART_APP",     // Application restart required (copy engine errors, GPU page faults, invalid push buffer)
+		"RESTART_VM",      // Virtual machine restart required (e.g., key rotation errors, XID 151)
+		"CHECK_UVM",       // Check Unified Virtual Memory subsystem for memory management errors
+		"WORKFLOW_XID_48", // XID 48 Double Bit ECC Error workflow - uncorrectable memory errors
+		"WORKFLOW_XID_45", // XID 45 Preemptive Removal workflow - cleanup after previous errors (multi-CUDA apps)
+		"UPDATE_SWFW":     // Software/firmware update required (e.g., vGPU start errors, XID 78)
+		return apiv1.EventTypeCritical
+	case "IGNORE", // Non-critical error that can be ignored (e.g., firmware method errors, DLA SMMU errors)
+		"": // Empty bucket, typically for unused/deprecated XID codes
+		return apiv1.EventTypeInfo
+	default:
+		return apiv1.EventTypeWarning
+	}
+}
+
+func suggestedActionsFromBucket(bucket string) *apiv1.SuggestedActions {
+	switch bucket {
+	case "CONTACT_SUPPORT", "CHECK_MECHANICALS", "WORKFLOW_NVLINK_ERR", "WORKFLOW_NVLINK5_ERR", "XID_154", "XID_154_EVAL":
+		return newSuggestedActions(apiv1.RepairActionTypeHardwareInspection)
+	case "RESET_GPU", "RESTART_BM", "RESTART_VM", "CHECK_UVM":
+		return newSuggestedActions(apiv1.RepairActionTypeRebootSystem)
+	case "RESTART_APP", "WORKFLOW_XID_45", "WORKFLOW_XID_48", "UPDATE_SWFW":
+		return newSuggestedActions(apiv1.RepairActionTypeCheckUserAppAndGPU)
+	case "IGNORE", "":
+		return newSuggestedActions(apiv1.RepairActionTypeIgnoreNoActionRequired)
+	default:
+		return nil
+	}
+}
+
+func eventTypeFromSeverity(severity string) apiv1.EventType {
+	switch strings.TrimSpace(strings.ToLower(severity)) {
+	case "fatal", "fatal**", "link fatal", "link fatal?":
+		return apiv1.EventTypeFatal
+	case "non-fatal", "non-fatal*":
+		return apiv1.EventTypeWarning
+	default:
+		return apiv1.EventTypeUnknown
+	}
+}
+
+func eventTypeFromLogSeverity(severity string) apiv1.EventType {
+	switch strings.TrimSpace(strings.ToLower(severity)) {
+	case "fatal":
+		return apiv1.EventTypeFatal
+	case "nonfatal", "non-fatal":
+		return apiv1.EventTypeWarning
+	default:
+		return apiv1.EventTypeUnknown
+	}
+}
+
+func maxEventType(a, b apiv1.EventType) apiv1.EventType {
+	if severityRank(b) > severityRank(a) {
+		return b
+	}
+	return a
+}
+
+func severityRank(t apiv1.EventType) int {
+	switch t {
+	case apiv1.EventTypeInfo:
+		return 1
+	case apiv1.EventTypeWarning:
+		return 2
+	case apiv1.EventTypeCritical:
+		return 3
+	case apiv1.EventTypeFatal:
+		return 4
+	default:
+		return 0
+	}
+}
+
+func newSuggestedActions(actions ...apiv1.RepairActionType) *apiv1.SuggestedActions {
+	if len(actions) == 0 {
+		return nil
+	}
+	out := make([]apiv1.RepairActionType, len(actions))
+	copy(out, actions)
+	return &apiv1.SuggestedActions{RepairActions: slices.Clone(actions)}
+}
+
+func mergeSuggestedActions(base, addition *apiv1.SuggestedActions) *apiv1.SuggestedActions {
+	if base == nil {
+		return copySuggestedActions(addition)
+	}
+	if addition == nil {
+		return copySuggestedActions(base)
+	}
+	set := make(map[apiv1.RepairActionType]struct{})
+	for _, act := range base.RepairActions {
+		set[act] = struct{}{}
+	}
+	for _, act := range addition.RepairActions {
+		set[act] = struct{}{}
+	}
+	actions := make([]apiv1.RepairActionType, 0, len(set))
+	for act := range set {
+		actions = append(actions, act)
+	}
+	sort.Slice(actions, func(i, j int) bool {
+		return actions[i] < actions[j]
+	})
+	return &apiv1.SuggestedActions{RepairActions: actions}
+}
+
+func copySuggestedActions(src *apiv1.SuggestedActions) *apiv1.SuggestedActions {
+	if src == nil {
+		return nil
+	}
+	actions := make([]apiv1.RepairActionType, len(src.RepairActions))
+	copy(actions, src.RepairActions)
+	return &apiv1.SuggestedActions{RepairActions: slices.Clone(src.RepairActions)}
 }

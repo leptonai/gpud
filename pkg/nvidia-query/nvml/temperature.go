@@ -66,6 +66,9 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		if IsGPULostError(ret) {
 			return temp, ErrGPULost
 		}
+		if IsGPURequiresReset(ret) {
+			return temp, ErrGPURequiresReset
+		}
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g271ba78911494f33fc079b204a929405
@@ -81,6 +84,9 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		log.Logger.Warnw("failed to get device temperature shutdown limit", "error", nvml.ErrorString(ret))
 		if IsGPULostError(ret) {
 			return temp, ErrGPULost
+		}
+		if IsGPURequiresReset(ret) {
+			return temp, ErrGPURequiresReset
 		}
 		temp.UsedPercentShutdown = "0.0"
 	}
@@ -98,6 +104,9 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		log.Logger.Warnw("failed to get device temperature slowdown limit", "error", nvml.ErrorString(ret))
 		if IsGPULostError(ret) {
 			return temp, ErrGPULost
+		}
+		if IsGPURequiresReset(ret) {
+			return temp, ErrGPURequiresReset
 		}
 		temp.UsedPercentSlowdown = "0.0"
 	}
@@ -119,6 +128,9 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		log.Logger.Debugw("failed to get device temperature memory max limit", "error", nvml.ErrorString(ret))
 		if IsGPULostError(ret) {
 			return temp, ErrGPULost
+		}
+		if IsGPURequiresReset(ret) {
+			return temp, ErrGPURequiresReset
 		}
 		temp.UsedPercentMemMax = "0.0"
 	}

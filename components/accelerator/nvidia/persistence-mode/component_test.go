@@ -107,6 +107,9 @@ func mockComponent(
 		cancel:                 cancel,
 		nvmlInstance:           mockInstance,
 		getPersistenceModeFunc: getPersistenceModeFunc,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 }
 
@@ -129,6 +132,9 @@ func MockPersistenceModeComponentWithNVMLExists(
 		cancel:                 cancel,
 		nvmlInstance:           mockInstance,
 		getPersistenceModeFunc: getPersistenceModeFunc,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 }
 
@@ -357,6 +363,9 @@ func TestCheck_NilNVMLInstance(t *testing.T) {
 		ctx:          cctx,
 		cancel:       cancel,
 		nvmlInstance: nil, // Explicitly set to nil
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	result := component.Check()
@@ -666,6 +675,9 @@ func TestIsSupported(t *testing.T) {
 		ctx:          cctx,
 		cancel:       cancel,
 		nvmlInstance: nil, // Explicitly nil
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 	assert.False(t, comp.IsSupported())
 
@@ -769,6 +781,9 @@ func TestPersistenceModeCheck(t *testing.T) {
 					}
 					return nvidianvml.PersistenceMode{}, nil
 				},
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
 			}
 
 			result := c.Check().(*checkResult)
@@ -799,6 +814,9 @@ func TestCheck_EmptyProductName(t *testing.T) {
 		ctx:          cctx,
 		cancel:       cancel,
 		nvmlInstance: mockNVML,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	result := component.Check()
@@ -844,6 +862,71 @@ func TestCheck_GPULostError(t *testing.T) {
 	require.NotNil(t, data, "data should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
 	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be nvidianvml.ErrGPULost")
-	assert.Equal(t, "error getting persistence mode", data.reason,
-		"reason should have '(GPU is lost)' suffix")
+	assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+
+	// Verify suggested actions for GPU lost case
+	if assert.NotNil(t, data.suggestedActions) {
+		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	}
+
+	// Verify suggested actions propagates to health state output
+	states := component.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+}
+
+func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) { return uuid, nvml.SUCCESS },
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	getDevicesFunc := func() map[string]device.Device { return devs }
+
+	// Simulate NVML returning a code whose string is "GPU requires reset"
+	originalErrorString := nvml.ErrorString
+	nvml.ErrorString = func(ret nvml.Return) string {
+		if ret == nvml.Return(5555) {
+			return "GPU requires reset"
+		}
+		return originalErrorString(ret)
+	}
+	defer func() { nvml.ErrorString = originalErrorString }()
+
+	// Return a Reset-like error via nvml.Return and mapping in GetPersistenceMode
+	getPersistenceModeFunc := func(uuid string, dev device.Device) (nvidianvml.PersistenceMode, error) {
+		// Use any API that would surface this return in underlying helper; directly return the mapped error here
+		// because the persistence mode component only checks errors.Is on ErrGPURequiresReset
+		return nvidianvml.PersistenceMode{}, nvidianvml.ErrGPURequiresReset
+	}
+
+	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	result := component.Check()
+
+	// Verify check result carries suggested actions
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+	require.NotNil(t, data)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+	assert.Equal(t, "GPU requires reset", data.reason)
+	if assert.NotNil(t, data.suggestedActions) {
+		assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
+		assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	}
+
+	// Verify suggested actions propagates to health state output
+	states := component.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 }
