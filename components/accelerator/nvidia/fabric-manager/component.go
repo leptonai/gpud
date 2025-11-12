@@ -87,6 +87,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"sync"
 	"time"
@@ -98,6 +99,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
+	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 )
 
@@ -120,6 +122,8 @@ type component struct {
 
 	nvmlInstance nvidianvml.Instance
 
+	getCountLspci func(ctx context.Context) (int, error)
+
 	collectFabricStateFunc  func() fabricStateReport
 	checkNVSwitchExistsFunc func() bool
 
@@ -140,6 +144,14 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cancel: ccancel,
 
 		nvmlInstance: gpudInstance.NVMLInstance,
+
+		getCountLspci: func(ctx context.Context) (int, error) {
+			devs, err := nvidiaquery.ListPCIGPUs(ctx)
+			if err != nil {
+				return 0, err
+			}
+			return len(devs), nil
+		},
 
 		collectFabricStateFunc: func() fabricStateReport {
 			return collectFabricState(gpudInstance.NVMLInstance)
@@ -283,8 +295,23 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if c.nvmlInstance.FabricStateSupported() {
-		report := c.collectFabricStateFunc()
 		cr.FabricStateSupported = true
+		if c.getCountLspci != nil {
+			count, err := c.getCountLspci(c.ctx)
+			if err != nil {
+				log.Logger.Warnw("failed to count GPUs via lspci for fabric check", "error", err)
+			} else if count < 2 {
+				// The "fabric" here is NVLink/NVSwitch that bonds multiple GPUs; Fabric Manager docs explain it needs multi-GPU fabrics https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html#:~:text=To%20additionally%20scale%20the%20performance,at%20the%20total%20NVLink%20speed.
+				// With only one GPU there is nothing for NVLink to wire together, and NVML responds like on single-GPU H200 boxes where FabricState shows "Not Supported" with "Unknown Error" status.
+				log.Logger.Warnw("skipping fabric state check because NVLink fabric requires multiple GPUs", "gpu_count", count)
+				cr.health = apiv1.HealthStateTypeHealthy
+				cr.reason = fmt.Sprintf("detected %d NVIDIA GPU device(s); skipping fabric state check", count)
+				cr.FabricStateReason = cr.reason
+				return cr
+			}
+		}
+
+		report := c.collectFabricStateFunc()
 		cr.FabricStates = report.Entries
 		if report.Reason != "" {
 			cr.FabricStateReason = report.Reason
