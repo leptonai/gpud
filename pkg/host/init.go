@@ -39,17 +39,6 @@ func init() {
 	loadInfo()
 }
 
-// TODO: remove this logic after https://github.com/shirou/gopsutil/pull/1902
-var armModelToModelName = map[string]string{
-	"0xd4f": "Neoverse-V2",
-	"0xd81": "Cortex-A720",
-	"0xd82": "Cortex-X4",
-	"0xd84": "Neoverse-V3",
-	"0xd85": "Cortex-X925",
-	"0xd87": "Cortex-A725",
-	"0xd8e": "Neoverse-N3",
-}
-
 func loadInfo() {
 	var err error
 
@@ -78,12 +67,8 @@ func loadInfo() {
 		currentCPUFamily = infos[0].Family
 	}
 
-	// TODO: remove this logic after https://github.com/shirou/gopsutil/pull/1902
 	if strings.Contains(strings.ToLower(currentCPUModelName), "undefined") {
-		if v, ok := armModelToModelName[currentCPUModel]; ok && v != "" {
-			currentCPUModel = v
-			currentCPUModelName = v
-		}
+		log.Logger.Warnw("undefined cpu model name", "model", currentCPUModel, "model_name", currentCPUModelName)
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
