@@ -101,6 +101,7 @@ import (
 	netutil "github.com/leptonai/gpud/pkg/netutil"
 	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 )
 
 const (
@@ -441,7 +442,7 @@ type checkResult struct {
 	FabricStateSupported bool `json:"fabric_state_supported,omitempty"`
 	// FabricStates captures per-GPU fabric probe results pulled from
 	// nvmlDeviceGetGpuFabricInfo*.
-	FabricStates []fabricStateEntry `json:"fabric_states,omitempty"`
+	FabricStates []device.FabricStateEntry `json:"fabric_states,omitempty"`
 	// FabricStateReason captures any aggregated fabric health warnings.
 	FabricStateReason string `json:"fabric_state_reason,omitempty"`
 

@@ -19,6 +19,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 const Name = "accelerator-nvidia-ecc"
@@ -145,20 +146,20 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting ECC mode"
 
-			if errors.Is(err, nvidianvml.ErrGPURequiresReset) {
-				cr.reason = nvidianvml.ErrGPURequiresReset.Error()
+			if errors.Is(err, nvmlerrors.ErrGPURequiresReset) {
+				cr.reason = nvmlerrors.ErrGPURequiresReset.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
-					Description: nvidianvml.ErrGPURequiresReset.Error(),
+					Description: nvmlerrors.ErrGPURequiresReset.Error(),
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeRebootSystem,
 					},
 				}
 			}
 
-			if errors.Is(err, nvidianvml.ErrGPULost) {
-				cr.reason = nvidianvml.ErrGPULost.Error()
+			if errors.Is(err, nvmlerrors.ErrGPULost) {
+				cr.reason = nvmlerrors.ErrGPULost.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
-					Description: nvidianvml.ErrGPULost.Error(),
+					Description: nvmlerrors.ErrGPULost.Error(),
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeRebootSystem,
 					},
@@ -176,20 +177,20 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = "error getting ECC errors"
 
-			if errors.Is(err, nvidianvml.ErrGPURequiresReset) {
-				cr.reason = nvidianvml.ErrGPURequiresReset.Error()
+			if errors.Is(err, nvmlerrors.ErrGPURequiresReset) {
+				cr.reason = nvmlerrors.ErrGPURequiresReset.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
-					Description: nvidianvml.ErrGPURequiresReset.Error(),
+					Description: nvmlerrors.ErrGPURequiresReset.Error(),
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeRebootSystem,
 					},
 				}
 			}
 
-			if errors.Is(err, nvidianvml.ErrGPULost) {
-				cr.reason = nvidianvml.ErrGPULost.Error()
+			if errors.Is(err, nvmlerrors.ErrGPULost) {
+				cr.reason = nvmlerrors.ErrGPULost.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
-					Description: nvidianvml.ErrGPULost.Error(),
+					Description: nvmlerrors.ErrGPULost.Error(),
 					RepairActions: []apiv1.RepairActionType{
 						apiv1.RepairActionTypeRebootSystem,
 					},

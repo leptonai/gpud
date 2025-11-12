@@ -7,6 +7,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -94,7 +95,7 @@ func TestGetGSPFirmwareMode(t *testing.T) {
 					assert.Contains(t, err.Error(), tc.expectedErrorContains)
 				}
 				if tc.gspFirmwareRet == nvml.ERROR_GPU_IS_LOST {
-					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
+					assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost), "Expected GPU lost error")
 				}
 			} else {
 				assert.NoError(t, err)

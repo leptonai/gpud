@@ -6,6 +6,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 // ClockSpeed represents the data from the nvmlDeviceGetClockInfo API.
@@ -37,14 +38,14 @@ func GetClockSpeed(uuid string, dev device.Device) (ClockSpeed, error) {
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g2efc4dd4096173f01d80b2a8bbfd97ad
 	graphicsClock, ret := dev.GetClockInfo(nvml.CLOCK_GRAPHICS)
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		clockSpeed.ClockGraphicsSupported = false
 	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
-		if IsGPULostError(ret) {
-			return clockSpeed, ErrGPULost
+		if nvmlerrors.IsGPULostError(ret) {
+			return clockSpeed, nvmlerrors.ErrGPULost
 		}
-		if IsGPURequiresReset(ret) {
-			return clockSpeed, ErrGPURequiresReset
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return clockSpeed, nvmlerrors.ErrGPURequiresReset
 		}
 		return clockSpeed, fmt.Errorf("failed to get device clock info for nvml.CLOCK_GRAPHICS: %v", nvml.ErrorString(ret))
 	} else {
@@ -54,14 +55,14 @@ func GetClockSpeed(uuid string, dev device.Device) (ClockSpeed, error) {
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g2efc4dd4096173f01d80b2a8bbfd97ad
 	memClock, ret := dev.GetClockInfo(nvml.CLOCK_MEM)
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		clockSpeed.ClockMemorySupported = false
 	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
-		if IsGPULostError(ret) {
-			return clockSpeed, ErrGPULost
+		if nvmlerrors.IsGPULostError(ret) {
+			return clockSpeed, nvmlerrors.ErrGPULost
 		}
-		if IsGPURequiresReset(ret) {
-			return clockSpeed, ErrGPURequiresReset
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return clockSpeed, nvmlerrors.ErrGPURequiresReset
 		}
 		return clockSpeed, fmt.Errorf("failed to get device clock info for nvml.CLOCK_MEM: %v", nvml.ErrorString(ret))
 	} else {

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -415,7 +416,7 @@ func TestGetTemperatureWithGPULostError(t *testing.T) {
 
 	// Check error handling
 	assert.Error(t, err)
-	assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
+	assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost), "Expected GPU lost error")
 }
 
 // TestGetTemperatureWithGPULostErrorCases tests all cases where the temperature functions can return GPU lost errors
@@ -518,7 +519,7 @@ func TestGetTemperatureWithGPULostErrorCases(t *testing.T) {
 			// Verify results
 			if tc.expectedErrorMatch {
 				assert.Error(t, err)
-				assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error for case: %s", tc.name)
+				assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost), "Expected GPU lost error for case: %s", tc.name)
 			} else {
 				assert.NoError(t, err)
 			}

@@ -14,6 +14,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -225,7 +226,7 @@ func TestGetClockEvents(t *testing.T) {
 					t.Errorf("error message mismatch: got %v, want to contain %v", err.Error(), tc.expectedErrMsg)
 				}
 				if tc.mockReturn == nvml.ERROR_GPU_IS_LOST {
-					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
+					assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost), "Expected GPU lost error")
 				}
 				return
 			}

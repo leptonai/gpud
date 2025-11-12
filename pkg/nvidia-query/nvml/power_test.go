@@ -6,8 +6,10 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	"github.com/stretchr/testify/assert"
+
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
+	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
 func TestGetUsedPercent(t *testing.T) {
@@ -73,7 +75,7 @@ func TestGetPower(t *testing.T) {
 
 		_, err := GetPower("GPU-TEST", dev)
 		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrGPULost))
+		assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost))
 	})
 
 	// Test GPU requires reset on power usage
@@ -100,7 +102,7 @@ func TestGetPower(t *testing.T) {
 
 		_, err := GetPower("GPU-TEST", dev)
 		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrGPURequiresReset))
+		assert.True(t, errors.Is(err, nvmlerrors.ErrGPURequiresReset))
 	})
 
 	// Test power limit GPU lost error
@@ -121,7 +123,7 @@ func TestGetPower(t *testing.T) {
 
 		_, err := GetPower("GPU-TEST", dev)
 		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrGPULost))
+		assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost))
 	})
 
 	// Test power management GPU lost error
@@ -145,7 +147,7 @@ func TestGetPower(t *testing.T) {
 
 		_, err := GetPower("GPU-TEST", dev)
 		assert.Error(t, err)
-		assert.True(t, errors.Is(err, ErrGPULost))
+		assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost))
 	})
 
 	// Test successful case

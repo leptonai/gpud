@@ -5,6 +5,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 // PersistenceMode is the persistence mode of the device.
@@ -39,15 +40,15 @@ func GetPersistenceMode(uuid string, dev device.Device) (PersistenceMode, error)
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g1224ad7b15d7407bebfff034ec094c6b
 	pm, ret := dev.GetPersistenceMode()
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		mode.Supported = false
 		return mode, nil
 	}
-	if IsGPULostError(ret) {
-		return mode, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return mode, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return mode, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return mode, nvmlerrors.ErrGPURequiresReset
 	}
 	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {

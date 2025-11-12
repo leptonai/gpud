@@ -5,6 +5,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 // Utilization represents the data from the nvmlDeviceGetUtilizationRates API.
@@ -39,15 +40,15 @@ func GetUtilization(uuid string, dev device.Device) (Utilization, error) {
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g540824faa6cef45500e0d1dc2f50b321
 	rates, ret := dev.GetUtilizationRates()
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		util.Supported = false
 		return util, nil
 	}
-	if IsGPULostError(ret) {
-		return util, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return util, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return util, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return util, nvmlerrors.ErrGPURequiresReset
 	}
 	if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
 		return util, fmt.Errorf("failed to get device utilization rates: %v", nvml.ErrorString(ret))

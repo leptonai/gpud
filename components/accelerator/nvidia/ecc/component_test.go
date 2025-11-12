@@ -16,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
@@ -806,7 +807,7 @@ func TestCheck_GPULostError(t *testing.T) {
 		}
 
 		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
-			return nvidianvml.ECCMode{}, nvidianvml.ErrGPULost
+			return nvidianvml.ECCMode{}, nvmlerrors.ErrGPULost
 		}
 
 		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
@@ -820,12 +821,12 @@ func TestCheck_GPULostError(t *testing.T) {
 		require.True(t, ok, "result should be of type *checkResult")
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
-		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+		assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPULost), "error should be ErrGPULost")
+		assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.reason)
 
 		// Verify suggested actions for GPU lost case
 		if assert.NotNil(t, data.suggestedActions) {
-			assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+			assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.suggestedActions.Description)
 			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 		}
 	})
@@ -846,7 +847,7 @@ func TestCheck_GPULostError(t *testing.T) {
 		}
 
 		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
-			return nvidianvml.ECCErrors{}, nvidianvml.ErrGPULost
+			return nvidianvml.ECCErrors{}, nvmlerrors.ErrGPULost
 		}
 
 		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
@@ -856,12 +857,12 @@ func TestCheck_GPULostError(t *testing.T) {
 		require.True(t, ok, "result should be of type *checkResult")
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
-		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+		assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPULost), "error should be ErrGPULost")
+		assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.reason)
 
 		// Verify suggested actions for GPU lost case
 		if assert.NotNil(t, data.suggestedActions) {
-			assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+			assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.suggestedActions.Description)
 			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 		}
 	})
@@ -886,7 +887,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 		}
 
 		getECCModeEnabledFunc := func(uuid string, dev device.Device) (nvidianvml.ECCMode, error) {
-			return nvidianvml.ECCMode{}, nvidianvml.ErrGPURequiresReset
+			return nvidianvml.ECCMode{}, nvmlerrors.ErrGPURequiresReset
 		}
 
 		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
@@ -901,7 +902,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 		require.True(t, ok)
 		require.NotNil(t, data)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+		assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPURequiresReset))
 		assert.Equal(t, "GPU requires reset", data.reason)
 		if assert.NotNil(t, data.suggestedActions) {
 			assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
@@ -930,7 +931,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 		}
 
 		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (nvidianvml.ECCErrors, error) {
-			return nvidianvml.ECCErrors{}, nvidianvml.ErrGPURequiresReset
+			return nvidianvml.ECCErrors{}, nvmlerrors.ErrGPURequiresReset
 		}
 
 		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
@@ -941,7 +942,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 		require.True(t, ok)
 		require.NotNil(t, data)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
-		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+		assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPURequiresReset))
 		assert.Equal(t, "GPU requires reset", data.reason)
 		if assert.NotNil(t, data.suggestedActions) {
 			assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)

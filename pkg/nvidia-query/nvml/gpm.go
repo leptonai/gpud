@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/log"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 func GPMSupportedByDevice(dev device.Device) (bool, error) {
@@ -18,20 +19,20 @@ func GPMSupportedByDevice(dev device.Device) (bool, error) {
 
 	// may fail due to "Argument version mismatch"
 	// with driver mismatch
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		return false, nil
 	}
 	// Version mismatch errors are considered as not supported errors
 	// since they indicate that the NVML library is not compatible
 	// with the corresponding API call.
-	if IsVersionMismatchError(ret) {
+	if nvmlerrors.IsVersionMismatchError(ret) {
 		return false, nil
 	}
-	if IsGPULostError(ret) {
-		return false, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return false, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return false, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return false, nvmlerrors.ErrGPURequiresReset
 	}
 	if ret != nvml.SUCCESS {
 		return false, fmt.Errorf("could not query GPM support: %v", nvml.ErrorString(ret))
@@ -68,20 +69,20 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.D
 	}
 
 	sample1, ret := nvml.GpmSampleAlloc()
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		return nil, nil
 	}
 	// Version mismatch errors are considered as not supported errors
 	// since they indicate that the NVML library is not compatible
 	// with the corresponding API call.
-	if IsVersionMismatchError(ret) {
+	if nvmlerrors.IsVersionMismatchError(ret) {
 		return nil, nil
 	}
-	if IsGPULostError(ret) {
-		return nil, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return nil, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return nil, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return nil, nvmlerrors.ErrGPURequiresReset
 	}
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("could not allocate sample: %v", nvml.ErrorString(ret))

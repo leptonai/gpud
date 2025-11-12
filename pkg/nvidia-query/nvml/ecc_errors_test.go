@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 
@@ -190,7 +191,7 @@ func TestGetECCErrors(t *testing.T) {
 					assert.Contains(t, err.Error(), tc.expectedErrorContains)
 				}
 				if tc.totalECCRet == nvml.ERROR_GPU_IS_LOST || tc.memoryErrorRet == nvml.ERROR_GPU_IS_LOST {
-					assert.True(t, errors.Is(err, ErrGPULost), "Expected GPU lost error")
+					assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost), "Expected GPU lost error")
 				}
 			} else {
 				assert.NoError(t, err)

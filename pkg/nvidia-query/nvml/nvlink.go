@@ -5,6 +5,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 type NVLink struct {
@@ -88,15 +89,15 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 		// may fail at the beginning
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1g774a9e6cb2f4897701cbc01c5a0a1f3a
 		state, ret := nvml.DeviceGetNvLinkState(dev, link)
-		if IsNotSupportError(ret) {
+		if nvmlerrors.IsNotSupportError(ret) {
 			nvlink.Supported = false
 			break
 		}
-		if IsGPULostError(ret) {
-			return nvlink, ErrGPULost
+		if nvmlerrors.IsGPULostError(ret) {
+			return nvlink, nvmlerrors.ErrGPULost
 		}
-		if IsGPURequiresReset(ret) {
-			return nvlink, ErrGPURequiresReset
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return nvlink, nvmlerrors.ErrGPURequiresReset
 		}
 		if ret != nvml.SUCCESS {
 			log.Logger.Debugw("failed get nvlink state -- retrying", "link", link, "error", nvml.ErrorString(ret))

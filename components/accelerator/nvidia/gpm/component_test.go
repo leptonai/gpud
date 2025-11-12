@@ -18,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
@@ -992,7 +993,7 @@ func TestCheck_GPMLostError(t *testing.T) {
 
 	// Test GPM support function returning GPU lost error
 	t.Run("GPU lost in GPM support check", func(t *testing.T) {
-		errExpected := nvidianvml.ErrGPULost
+		errExpected := nvmlerrors.ErrGPULost
 		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
 			return false, errExpected
 		}
@@ -1004,12 +1005,12 @@ func TestCheck_GPMLostError(t *testing.T) {
 		require.True(t, ok, "result should be of type *checkResult")
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
-		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+		assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPULost), "error should be ErrGPULost")
+		assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.reason)
 
 		// Verify suggested actions for GPU lost case
 		if assert.NotNil(t, data.suggestedActions) {
-			assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+			assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.suggestedActions.Description)
 			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 		}
 
@@ -1026,7 +1027,7 @@ func TestCheck_GPMLostError(t *testing.T) {
 			return true, nil
 		}
 
-		errExpected := nvidianvml.ErrGPULost
+		errExpected := nvmlerrors.ErrGPULost
 		getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
 			return nil, errExpected
 		}
@@ -1038,12 +1039,12 @@ func TestCheck_GPMLostError(t *testing.T) {
 		require.True(t, ok, "result should be of type *checkResult")
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
-		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPULost), "error should be ErrGPULost")
-		assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.reason)
+		assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPULost), "error should be ErrGPULost")
+		assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.reason)
 
 		// Verify suggested actions for GPU lost case
 		if assert.NotNil(t, data.suggestedActions) {
-			assert.Equal(t, nvidianvml.ErrGPULost.Error(), data.suggestedActions.Description)
+			assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.suggestedActions.Description)
 			assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 		}
 
@@ -1076,7 +1077,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 
 	// Test GPM support function returning GPU requires reset error
 	t.Run("GPU requires reset in GPM support check", func(t *testing.T) {
-		errExpected := nvidianvml.ErrGPURequiresReset
+		errExpected := nvmlerrors.ErrGPURequiresReset
 		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
 			return false, errExpected
 		}
@@ -1088,7 +1089,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 		require.True(t, ok, "result should be of type *checkResult")
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
-		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+		assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPURequiresReset))
 		assert.Equal(t, "GPU requires reset", data.reason)
 		if assert.NotNil(t, data.suggestedActions) {
 			assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)
@@ -1111,7 +1112,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 			return true, nil
 		}
 
-		errExpected := nvidianvml.ErrGPURequiresReset
+		errExpected := nvmlerrors.ErrGPURequiresReset
 		getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
 			return nil, errExpected
 		}
@@ -1123,7 +1124,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 		require.True(t, ok, "result should be of type *checkResult")
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health, "data should be marked unhealthy")
-		assert.True(t, errors.Is(data.err, nvidianvml.ErrGPURequiresReset))
+		assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPURequiresReset))
 		assert.Equal(t, "GPU requires reset", data.reason)
 		if assert.NotNil(t, data.suggestedActions) {
 			assert.Equal(t, "GPU requires reset", data.suggestedActions.Description)

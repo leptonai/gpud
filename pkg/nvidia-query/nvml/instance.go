@@ -14,6 +14,13 @@ import (
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 )
 
+// FailureInjectorConfig holds configuration for test failure injection
+type FailureInjectorConfig struct {
+	GPUUUIDsWithGPULost                           []string
+	GPUUUIDsWithGPURequiresReset                  []string
+	GPUUUIDsWithFabricStateHealthSummaryUnhealthy []string
+}
+
 var _ Instance = &instance{}
 
 // Instance is the interface for the NVML library connector.
@@ -67,7 +74,7 @@ type Instance interface {
 // New creates a new instance of the NVML library.
 // If NVML is not installed, it returns no-op nvml instance.
 func New() (Instance, error) {
-	return newInstance(context.TODO(), nil)
+	return newInstance(context.TODO(), nil, nil)
 }
 
 // NewWithExitOnSuccessfulLoad creates a new instance of the NVML library.
@@ -76,7 +83,12 @@ func New() (Instance, error) {
 // The exit function is only called when the NVML library is not found.
 // Other errors are returned as is.
 func NewWithExitOnSuccessfulLoad(ctx context.Context) (Instance, error) {
-	return newInstance(ctx, refreshNVMLAndExit)
+	return newInstance(ctx, refreshNVMLAndExit, nil)
+}
+
+// NewWithFailureInjector creates a new instance with failure injection configuration.
+func NewWithFailureInjector(failureInjector *FailureInjectorConfig) (Instance, error) {
+	return newInstance(context.TODO(), nil, failureInjector)
 }
 
 // refreshNVMLAndExit exits 0 if NVML is successfully loaded.
@@ -106,7 +118,7 @@ func refreshNVMLAndExit(ctx context.Context) {
 // newInstance creates a new instance of the NVML library.
 // If NVML is not installed, it returns no-op nvml instance.
 // The "refreshNVML" function is only called when the NVML library is not found.
-func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) (Instance, error) {
+func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), failureInjector *FailureInjectorConfig) (Instance, error) {
 	nvmlLib, err := nvmllib.New()
 	if err != nil {
 		if errors.Is(err, nvmllib.ErrNVMLNotFound) {
@@ -170,7 +182,33 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context)) 
 				return nil, err
 			}
 
-			devs[uuid] = device.New(dev, busID)
+			// Build device options based on failure injector
+			var opts []device.OpOption
+			if failureInjector != nil {
+				// Check if this UUID should inject GPU Lost error
+				for _, injectedUUID := range failureInjector.GPUUUIDsWithGPULost {
+					if uuid == injectedUUID {
+						opts = append(opts, device.WithGPULost())
+						break
+					}
+				}
+				// Check if this UUID should inject GPU Requires Reset error
+				for _, injectedUUID := range failureInjector.GPUUUIDsWithGPURequiresReset {
+					if uuid == injectedUUID {
+						opts = append(opts, device.WithGPURequiresReset())
+						break
+					}
+				}
+				// Check if this UUID should inject Fabric Health Unhealthy
+				for _, injectedUUID := range failureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy {
+					if uuid == injectedUUID {
+						opts = append(opts, device.WithFabricHealthUnhealthy())
+						break
+					}
+				}
+			}
+
+			devs[uuid] = device.New(dev, busID, opts...)
 		}
 
 		var err error

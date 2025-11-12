@@ -5,6 +5,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 )
 
 type ECCMode struct {
@@ -35,15 +36,15 @@ func GetECCModeEnabled(uuid string, dev device.Device) (ECCMode, error) {
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gbf6a8f2d0ed49e920e8ec20365381100
 	current, pending, ret := dev.GetEccMode()
-	if IsNotSupportError(ret) {
+	if nvmlerrors.IsNotSupportError(ret) {
 		result.Supported = false
 		return result, nil
 	}
-	if IsGPULostError(ret) {
-		return result, ErrGPULost
+	if nvmlerrors.IsGPULostError(ret) {
+		return result, nvmlerrors.ErrGPULost
 	}
-	if IsGPURequiresReset(ret) {
-		return result, ErrGPURequiresReset
+	if nvmlerrors.IsGPURequiresReset(ret) {
+		return result, nvmlerrors.ErrGPURequiresReset
 	}
 	// not a "not supported" error, not a success return, thus return an error here
 	if ret != nvml.SUCCESS {
