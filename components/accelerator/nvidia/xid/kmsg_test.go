@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,9 +48,7 @@ func TestExtractNVRMXid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, _ := ExtractNVRMXidInfo(tt.input)
-			if result != tt.expected {
-				t.Errorf("ExtractNVRMXidInfo(%q) = %d, want %d", tt.input, result, tt.expected)
-			}
+			assert.Equalf(t, tt.expected, result, "ExtractNVRMXidInfo(%q) mismatch", tt.input)
 		})
 	}
 }
@@ -97,9 +96,7 @@ func TestExtractNVRMXidDeviceUUID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, result := ExtractNVRMXidInfo(tt.input)
-			if result != tt.expected {
-				t.Errorf("ExtractNVRMXidInfo(%q) = %q, want %q", tt.input, result, tt.expected)
-			}
+			assert.Equalf(t, tt.expected, result, "ExtractNVRMXidInfo(%q) device mismatch", tt.input)
 		})
 	}
 }
@@ -207,27 +204,14 @@ func TestMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := Match(tt.input)
 			if tt.expectNil {
-				if result != nil {
-					t.Errorf("Match(%q) = %+v, want nil", tt.input, result)
-				}
+				assert.Nilf(t, result, "Match(%q) expected nil", tt.input)
 				return
 			}
 
-			if result == nil {
-				t.Fatalf("Match(%q) = nil, want non-nil", tt.input)
-			}
-
-			if result.Xid != tt.expectedXid {
-				t.Errorf("Match(%q).Xid = %d, want %d", tt.input, result.Xid, tt.expectedXid)
-			}
-
-			if result.DeviceUUID != tt.expectedDevice {
-				t.Errorf("Match(%q).DeviceUUID = %q, want %q", tt.input, result.DeviceUUID, tt.expectedDevice)
-			}
-
-			if result.Detail == nil {
-				t.Errorf("Match(%q).Detail = nil, want non-nil", tt.input)
-			}
+			require.NotNilf(t, result, "Match(%q) expected non-nil", tt.input)
+			assert.Equalf(t, tt.expectedXid, result.Xid, "Match(%q) XID mismatch", tt.input)
+			assert.Equalf(t, tt.expectedDevice, result.DeviceUUID, "Match(%q) device mismatch", tt.input)
+			require.NotNilf(t, result.Detail, "Match(%q) detail expected", tt.input)
 		})
 	}
 }
@@ -237,9 +221,7 @@ func TestMatchDmesgWithXid119(t *testing.T) {
 
 	// Read the test data file
 	data, err := os.ReadFile("testdata/dmesg-with-xid-119.log")
-	if err != nil {
-		t.Fatalf("Failed to read test data file: %v", err)
-	}
+	require.NoError(t, err, "failed to read test data file")
 
 	// Split the file into lines
 	lines := strings.Split(string(data), "\n")
@@ -253,9 +235,7 @@ func TestMatchDmesgWithXid119(t *testing.T) {
 	}
 
 	// Verify we found exactly 5 XID errors
-	if len(xidErrors) != 5 {
-		t.Errorf("Expected 5 XID errors, got %d", len(xidErrors))
-	}
+	require.Len(t, xidErrors, 5, "unexpected number of XID errors")
 
 	// Verify each XID error
 	expectedErrors := []struct {
@@ -270,21 +250,10 @@ func TestMatchDmesgWithXid119(t *testing.T) {
 	}
 
 	for i, expected := range expectedErrors {
-		if i >= len(xidErrors) {
-			t.Errorf("Missing XID error at index %d", i)
-			continue
-		}
-
 		actual := xidErrors[i]
-		if actual.Xid != expected.xid {
-			t.Errorf("XID error %d: expected Xid %d, got %d", i, expected.xid, actual.Xid)
-		}
-		if actual.DeviceUUID != expected.deviceUUID {
-			t.Errorf("XID error %d: expected DeviceUUID %s, got %s", i, expected.deviceUUID, actual.DeviceUUID)
-		}
-		if actual.Detail == nil {
-			t.Errorf("XID error %d: expected non-nil Detail", i)
-		}
+		assert.Equalf(t, expected.xid, actual.Xid, "XID error %d: Xid mismatch", i)
+		assert.Equalf(t, expected.deviceUUID, actual.DeviceUUID, "XID error %d: device mismatch", i)
+		require.NotNilf(t, actual.Detail, "XID error %d: expected non-nil detail", i)
 	}
 }
 
