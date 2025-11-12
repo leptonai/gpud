@@ -212,6 +212,16 @@ func BootTimeUnixSeconds() uint64 {
 	return currentBootTimeUnixSeconds
 }
 
+// BootTime returns the host boot time in UTC. A zero value indicates the boot
+// time could not be determined during initialization.
+func BootTime() time.Time {
+	if currentBootTimeUnixSeconds == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(int64(currentBootTimeUnixSeconds), 0).UTC()
+}
+
 func BootID() string {
 	return currentBootID
 }

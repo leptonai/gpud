@@ -635,6 +635,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
+				&cli.BoolFlag{
+					Name:  "reboot-history",
+					Usage: "show reboot history recorded by gpud (default: false)",
+				},
 				&cli.StringFlag{
 					Name:  "set-key",
 					Usage: "metadata key to set/update",

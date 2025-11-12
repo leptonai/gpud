@@ -2,13 +2,19 @@ package metadata
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"os"
+	"text/tabwriter"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/urfave/cli"
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
+	"github.com/leptonai/gpud/pkg/eventstore"
+	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	"github.com/leptonai/gpud/pkg/osutil"
@@ -60,6 +66,13 @@ func Command(cliContext *cli.Context) error {
 		fmt.Printf("%s: %s\n", k, v)
 	}
 
+	showRebootHistory := cliContext.Bool("reboot-history")
+	if showRebootHistory {
+		if err := displayRebootHistory(rootCtx, dbRO, stateFile); err != nil {
+			return err
+		}
+	}
+
 	setKey := cliContext.String("set-key")
 	setValue := cliContext.String("set-value")
 	if setKey == "" || setValue == "" { // no update/insert needed
@@ -81,5 +94,53 @@ func Command(cliContext *cli.Context) error {
 	log.Logger.Debugw("successfully updated metadata")
 
 	fmt.Printf("%s successfully updated metadata\n", cmdcommon.CheckMark)
+	return nil
+}
+
+func displayRebootHistory(ctx context.Context, dbRO *sql.DB, stateFile string) error {
+	log.Logger.Debugw("opening state file for reboot history")
+	dbRW, err := sqlite.Open(stateFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state file for reboot history: %w", err)
+	}
+	defer dbRW.Close()
+
+	eventStore, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	if err != nil {
+		return fmt.Errorf("failed to open event store: %w", err)
+	}
+
+	rebootStore := pkghost.NewRebootEventStore(eventStore)
+	log.Logger.Debugw("loading reboot history")
+	events, err := rebootStore.GetRebootEvents(ctx, time.Time{})
+	if err != nil {
+		return fmt.Errorf("failed to load reboot events: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Println("Reboot History:")
+	if len(events) == 0 {
+		fmt.Println("  (no reboot events recorded)")
+		return nil
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	if _, err := fmt.Fprintln(w, "TIME (UTC)\tAGE\tMESSAGE"); err != nil {
+		return err
+	}
+
+	now := time.Now()
+	for _, ev := range events {
+		age := humanize.RelTime(ev.Time, now, "ago", "from now")
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", ev.Time.UTC().Format(time.RFC3339), age, ev.Message); err != nil {
+			return err
+		}
+	}
+
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("failed to flush reboot history table: %w", err)
+	}
+
+	fmt.Println()
 	return nil
 }
