@@ -14,8 +14,8 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 )
 
 func TestGetClockEventReasons(t *testing.T) {

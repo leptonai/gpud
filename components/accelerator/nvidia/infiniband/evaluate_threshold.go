@@ -14,7 +14,24 @@ var (
 )
 
 // evaluateHealthStateWithThresholds evaluates the current infiniband port states against the thresholds
-// and it DOES NOT take historical states into account
+// and it DOES NOT take historical states into account.
+//
+// This function is called FIRST in the Check() sequence and sets:
+// 1. cr.health - initial health state based on current thresholds
+// 2. cr.thresholdsFailing - flag indicating if current state violates thresholds
+//
+// The thresholdsFailing flag is critical for the sticky window logic:
+// - When true: all drop events are processed (Condition 1)
+// - When false: drop events may still be processed via Conditions 2 & 3
+//
+// OLD BEHAVIOR (pre-sticky window):
+// - If this function set health=Healthy, drop events would be completely ignored
+// - This caused immediate Unhealthy→Healthy flips when ports recovered
+//
+// NEW BEHAVIOR (with sticky window):
+//   - This function sets the initial state, but drop event processing (which runs
+//     after this) can override it based on three conditions, preventing premature
+//     recovery to Healthy state.
 func evaluateHealthStateWithThresholds(thresholds types.ExpectedPortStates, ibports []types.IBPort, cr *checkResult) {
 	// DO NOT auto-detect infiniband devices/PCI buses
 	// strictly rely on the user-specified config.
@@ -24,6 +41,7 @@ func evaluateHealthStateWithThresholds(thresholds types.ExpectedPortStates, ibpo
 		cr.reason = reasonNoThreshold
 
 		cr.unhealthyIBPorts = nil
+		cr.thresholdsFailing = false
 
 		cr.err = nil
 		return
@@ -34,6 +52,7 @@ func evaluateHealthStateWithThresholds(thresholds types.ExpectedPortStates, ibpo
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = reasonNoIbPortData
 		log.Logger.Warnw(cr.reason)
+		cr.thresholdsFailing = false
 		return
 	}
 
@@ -45,6 +64,7 @@ func evaluateHealthStateWithThresholds(thresholds types.ExpectedPortStates, ibpo
 		cr.unhealthyIBPorts = unhealthy
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = err.Error()
+		cr.thresholdsFailing = true
 
 		// NOTE: do not set suggested actions to "apiv1.RepairActionTypeHardwareInspection" here
 		// since this port mismatch often self-recovers
@@ -58,4 +78,5 @@ func evaluateHealthStateWithThresholds(thresholds types.ExpectedPortStates, ibpo
 	cr.reason = reasonNoIbPortIssue
 
 	cr.unhealthyIBPorts = nil
+	cr.thresholdsFailing = false
 }

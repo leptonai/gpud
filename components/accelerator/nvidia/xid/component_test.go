@@ -18,9 +18,9 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/kmsg"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -935,8 +935,8 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 	return false
 }
 
-func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvml.MemoryErrorManagementCapabilities {
-	return nvml.MemoryErrorManagementCapabilities{
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
+	return nvidiaproduct.MemoryErrorManagementCapabilities{
 		ErrorContainment:     false,
 		DynamicPageOfflining: false,
 		RowRemapping:         m.rowRemappingSupported,

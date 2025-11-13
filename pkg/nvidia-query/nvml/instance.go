@@ -12,6 +12,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // FailureInjectorConfig holds configuration for test failure injection
@@ -65,7 +66,7 @@ type Instance interface {
 	FabricStateSupported() bool
 
 	// GetMemoryErrorManagementCapabilities returns the memory error management capabilities of the GPU.
-	GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities
+	GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities
 
 	// Shutdown shuts down the NVML library.
 	Shutdown() error
@@ -225,9 +226,9 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 		}
 	}
 
-	fmSupported := SupportedFMByGPUProduct(productName)
-	fabricStateSupported := SupportFabricStateByGPUProduct(productName)
-	memMgmtCaps := SupportedMemoryMgmtCapsByGPUProduct(productName)
+	fmSupported := nvidiaproduct.SupportedFMByGPUProduct(productName)
+	fabricStateSupported := nvidiaproduct.SupportFabricStateByGPUProduct(productName)
+	memMgmtCaps := nvidiaproduct.SupportedMemoryMgmtCapsByGPUProduct(productName)
 
 	return &instance{
 		nvmlLib:              nvmlLib,
@@ -237,7 +238,7 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 		driverMajor:          driverMajor,
 		cudaVersion:          cudaVersion,
 		devices:              devs,
-		sanitizedProductName: SanitizeProductName(productName),
+		sanitizedProductName: nvidiaproduct.SanitizeProductName(productName),
 		architecture:         archFamily,
 		brand:                brand,
 		fabricMgrSupported:   fmSupported,
@@ -266,7 +267,7 @@ type instance struct {
 
 	fabricMgrSupported   bool
 	fabricStateSupported bool
-	memMgmtCaps          MemoryErrorManagementCapabilities
+	memMgmtCaps          nvidiaproduct.MemoryErrorManagementCapabilities
 }
 
 func (inst *instance) NVMLExists() bool {
@@ -313,7 +314,7 @@ func (inst *instance) FabricStateSupported() bool {
 	return inst.fabricStateSupported
 }
 
-func (inst *instance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
+func (inst *instance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return inst.memMgmtCaps
 }
 
@@ -344,7 +345,7 @@ func (inst *noOpInstance) DriverMajor() int                  { return 0 }
 func (inst *noOpInstance) CUDAVersion() string               { return "" }
 func (inst *noOpInstance) FabricManagerSupported() bool      { return false }
 func (inst *noOpInstance) FabricStateSupported() bool        { return false }
-func (inst *noOpInstance) GetMemoryErrorManagementCapabilities() MemoryErrorManagementCapabilities {
-	return MemoryErrorManagementCapabilities{}
+func (inst *noOpInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
+	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
 func (inst *noOpInstance) Shutdown() error { return nil }

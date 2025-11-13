@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 )
 
 // createECCErrorsDevice creates a mock device for ECC errors testing

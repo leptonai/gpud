@@ -1,4 +1,4 @@
-package nvml
+package product
 
 import "strings"
 

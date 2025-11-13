@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 )
 
 func TestRemappedRows_QualifiesForRMA(t *testing.T) {

@@ -16,9 +16,9 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // mockEventBucket implements a mock for eventstore.Bucket
@@ -142,9 +142,9 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 	return args.Bool(0)
 }
 
-func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	args := m.Called()
-	return args.Get(0).(nvidianvml.MemoryErrorManagementCapabilities)
+	return args.Get(0).(nvidiaproduct.MemoryErrorManagementCapabilities)
 }
 
 func (m *mockNVMLInstance) Shutdown() error {
@@ -198,7 +198,7 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
-		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
+		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
 		comp := &component{
 			nvmlInstance: mockNvml,
@@ -215,7 +215,7 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
-		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
+		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
 		mockReadAllKmsg := func(ctx context.Context) ([]kmsg.Message, error) {
 			return nil, assert.AnError
@@ -237,7 +237,7 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
-		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
+		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
 		mockReadAllKmsg := func(ctx context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
@@ -263,7 +263,7 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("NVMLExists").Return(true)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
-		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidianvml.MemoryErrorManagementCapabilities{})
+		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
 		mockReadAllKmsg := func(ctx context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{

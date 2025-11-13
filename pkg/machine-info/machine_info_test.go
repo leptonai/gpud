@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/leptonai/gpud/pkg/log"
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidiadev "github.com/leptonai/gpud/pkg/nvidia/dev"
 )
 
 func TestGetMachineNetwork(t *testing.T) {
@@ -74,7 +74,7 @@ func TestGetSystemResourceGPUCount(t *testing.T) {
 		}
 	}()
 
-	devCnt, err := nvidiaquery.CountAllDevicesFromDevDir()
+	devCnt, err := nvidiadev.CountAllDevicesFromDevDir()
 	assert.NoError(t, err)
 	gpuCnt, err := GetSystemResourceGPUCount(nvmlInstance)
 	assert.NoError(t, err)

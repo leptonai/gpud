@@ -12,8 +12,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 )
 
 func TestGetProcessesWithNilDevice(t *testing.T) {
