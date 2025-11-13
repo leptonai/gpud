@@ -266,13 +266,13 @@ func TestCheckOnce(t *testing.T) {
 			mockNVML := createMockNVMLInstance(tc.mockDevices)
 
 			c := &component{
-				ctx:              ctx,
-				getTimeNowFunc:   getTestTimeFunc(),
-				cancel:           cancel,
-				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-				eventBucket:      bucket,
-				nvmlInstance:     mockNVML,
+				ctx:                        ctx,
+				getTimeNowFunc:             getTestTimeFunc(),
+				cancel:                     cancel,
+				freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+				freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+				eventBucket:                bucket,
+				nvmlInstance:               mockNVML,
 				// Initialize lastCheckResult to avoid nil pointer dereference
 				lastCheckResult: &checkResult{
 					ts:     time.Now().UTC(),
@@ -377,13 +377,13 @@ func TestComponentStates(t *testing.T) {
 
 	// Create component with test data
 	c := &component{
-		ctx:              ctx,
-		getTimeNowFunc:   getTestTimeFunc(),
-		cancel:           cancel,
-		evaluationWindow: 10 * time.Minute,
-		threshold:        0.1,
-		eventBucket:      bucket,
-		nvmlInstance:     mockNVML,
+		ctx:                        ctx,
+		getTimeNowFunc:             getTestTimeFunc(),
+		cancel:                     cancel,
+		freqPerMinEvaluationWindow: 10 * time.Minute,
+		freqPerMinThreshold:        0.1,
+		eventBucket:                bucket,
+		nvmlInstance:               mockNVML,
 		lastCheckResult: &checkResult{
 			ts:     time.Now(),
 			health: apiv1.HealthStateTypeHealthy,
@@ -527,13 +527,13 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			mockNVML := createMockNVMLInstance(mockDevices)
 
 			c := &component{
-				ctx:              ctx,
-				getTimeNowFunc:   getTestTimeFunc(),
-				cancel:           cancel,
-				evaluationWindow: tc.window,
-				threshold:        tc.thresholdPerMinute,
-				eventBucket:      bucket,
-				nvmlInstance:     mockNVML,
+				ctx:                        ctx,
+				getTimeNowFunc:             getTestTimeFunc(),
+				cancel:                     cancel,
+				freqPerMinEvaluationWindow: tc.window,
+				freqPerMinThreshold:        tc.thresholdPerMinute,
+				eventBucket:                bucket,
+				nvmlInstance:               mockNVML,
 				lastCheckResult: &checkResult{
 					ts:     time.Now().UTC(),
 					health: apiv1.HealthStateTypeHealthy,
@@ -651,13 +651,13 @@ func TestComponentStart(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	c := &component{
-		ctx:              ctx,
-		getTimeNowFunc:   getTestTimeFunc(),
-		cancel:           cancel,
-		nvmlInstance:     mockNVML,
-		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
-		eventBucket:      bucket,
+		ctx:                        ctx,
+		getTimeNowFunc:             getTestTimeFunc(),
+		cancel:                     cancel,
+		nvmlInstance:               mockNVML,
+		freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+		eventBucket:                bucket,
 		lastCheckResult: &checkResult{
 			ts:     time.Now().UTC(),
 			health: apiv1.HealthStateTypeHealthy,
@@ -730,13 +730,13 @@ func TestComponentEvents(t *testing.T) {
 	mockNVML := createMockNVMLInstance(mockDevices)
 
 	c := &component{
-		ctx:              ctx,
-		getTimeNowFunc:   getTestTimeFunc(),
-		cancel:           cancel,
-		evaluationWindow: 10 * time.Minute,
-		threshold:        0.1,
-		eventBucket:      bucket,
-		nvmlInstance:     mockNVML,
+		ctx:                        ctx,
+		getTimeNowFunc:             getTestTimeFunc(),
+		cancel:                     cancel,
+		freqPerMinEvaluationWindow: 10 * time.Minute,
+		freqPerMinThreshold:        0.1,
+		eventBucket:                bucket,
+		nvmlInstance:               mockNVML,
 		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
 			return ClockEvents{
 				UUID:                 uuid,
@@ -815,13 +815,13 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 
 	// Create component for testing
 	c := &component{
-		ctx:              ctx,
-		getTimeNowFunc:   getTestTimeFunc(),
-		cancel:           cancel,
-		evaluationWindow: window,
-		threshold:        thresholdFrequency,
-		eventBucket:      bucket,
-		nvmlInstance:     mockNVML,
+		ctx:                        ctx,
+		getTimeNowFunc:             getTestTimeFunc(),
+		cancel:                     cancel,
+		freqPerMinEvaluationWindow: window,
+		freqPerMinThreshold:        thresholdFrequency,
+		eventBucket:                bucket,
+		nvmlInstance:               mockNVML,
 		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
 			return ClockEvents{
 				UUID:                 uuid,
@@ -1328,12 +1328,12 @@ func TestCheckEdgeCases(t *testing.T) {
 			defer cancel()
 
 			c := &component{
-				ctx:              ctx,
-				getTimeNowFunc:   getTestTimeFunc(),
-				cancel:           cancel,
-				nvmlInstance:     tc.nvmlInstance,
-				evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-				threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+				ctx:                        ctx,
+				getTimeNowFunc:             getTestTimeFunc(),
+				cancel:                     cancel,
+				nvmlInstance:               tc.nvmlInstance,
+				freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+				freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 				lastCheckResult: &checkResult{
 					health: apiv1.HealthStateTypeHealthy, // Initialize with a default state
 				},
@@ -1391,12 +1391,12 @@ func TestComponentEventsWithNilBucket(t *testing.T) {
 	defer cancel()
 
 	c := &component{
-		ctx:              ctx,
-		getTimeNowFunc:   getTestTimeFunc(),
-		cancel:           cancel,
-		eventBucket:      nil,
-		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+		ctx:                        ctx,
+		getTimeNowFunc:             getTestTimeFunc(),
+		cancel:                     cancel,
+		eventBucket:                nil,
+		freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 	}
 
 	// Events should always return nil regardless of eventBucket state
@@ -1528,8 +1528,8 @@ func TestFailureInjection(t *testing.T) {
 				getTimeNowFunc:                   getTestTimeFunc(),
 				cancel:                           cancel,
 				nvmlInstance:                     mockNVML,
-				evaluationWindow:                 DefaultStateHWSlowdownEvaluationWindow,
-				threshold:                        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+				freqPerMinEvaluationWindow:       DefaultStateHWSlowdownEvaluationWindow,
+				freqPerMinThreshold:              DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
 				eventBucket:                      bucket,
 				gpuUUIDsWithHWSlowdown:           make(map[string]any),
 				gpuUUIDsWithHWSlowdownThermal:    make(map[string]any),

@@ -372,7 +372,7 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.clockEvents.Event()
+			got := tt.clockEvents.HWSlowdownEvent()
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Event() = %v, want %v", got, tt.want)
 			}
@@ -380,7 +380,29 @@ func TestCreateEventFromClockEvents(t *testing.T) {
 	}
 }
 
+func TestGetClockEventsWithTimeUsesInjectedTimestamp(t *testing.T) {
+	timestamp := time.Date(2024, time.March, 14, 15, 9, 26, 0, time.UTC)
+
+	device := &testutil.MockDevice{
+		Device: &mock.Device{
+			GetCurrentClocksEventReasonsFunc: func() (uint64, nvml.Return) {
+				return 0, nvml.SUCCESS
+			},
+		},
+	}
+
+	events, err := GetClockEventsWithTime("gpu-123", device, func() time.Time { return timestamp })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !events.Time.Time.Equal(timestamp) {
+		t.Fatalf("expected timestamp %v, got %v", timestamp, events.Time.Time)
+	}
+}
+
 // TestGetClockEventsWithNotSupported adds a test for the not supported case
+
 func TestGetClockEventsWithNotSupported(t *testing.T) {
 	testUUID := "GPU-ABCDEF"
 

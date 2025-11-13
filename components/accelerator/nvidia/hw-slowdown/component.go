@@ -55,8 +55,8 @@ type component struct {
 
 	eventBucket eventstore.Bucket
 
-	evaluationWindow time.Duration
-	threshold        float64
+	freqPerMinEvaluationWindow time.Duration
+	freqPerMinThreshold        float64
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -79,8 +79,12 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		gpuUUIDsWithHWSlowdownThermal:    make(map[string]any),
 		gpuUUIDsWithHWSlowdownPowerBrake: make(map[string]any),
 
-		evaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
-		threshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+		freqPerMinEvaluationWindow: DefaultStateHWSlowdownEvaluationWindow,
+		freqPerMinThreshold:        DefaultStateHWSlowdownEventsThresholdFrequencyPerMinute,
+	}
+
+	c.getClockEventsFunc = func(uuid string, dev device.Device) (ClockEvents, error) {
+		return GetClockEventsWithTime(uuid, dev, c.getTimeNowFunc)
 	}
 
 	if gpudInstance.NVMLInstance != nil && gpudInstance.NVMLInstance.NVMLExists() {
@@ -92,8 +96,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 
 	if gpudInstance.EventStore != nil {
+		// do not purge unless set healthy is called
+		// retain all hw slowdown events in order to evaluate hw inspection
+		// hw inspection should NOT be self-resolved unless set healthy is explicitly called
 		var err error
-		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name, eventstore.WithDisablePurge())
 		if err != nil {
 			ccancel()
 			return nil, err
@@ -291,7 +298,7 @@ func (c *component) Check() components.CheckResult {
 
 		cr.ClockEvents = append(cr.ClockEvents, clockEvents)
 
-		ev := clockEvents.Event()
+		ev := clockEvents.HWSlowdownEvent()
 		if ev == nil {
 			// no clock event found, skip
 			continue
@@ -326,7 +333,7 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
-	if c.evaluationWindow == 0 {
+	if c.freqPerMinEvaluationWindow == 0 {
 		// no time window to evaluate /state
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "no time window to evaluate states"
@@ -339,7 +346,7 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	since := c.getTimeNowFunc().Add(-c.evaluationWindow)
+	since := c.getTimeNowFunc().Add(-c.freqPerMinEvaluationWindow)
 	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
 	latestEvents, err := c.eventBucket.Get(cctx, since)
 	ccancel()
@@ -363,19 +370,19 @@ func (c *component) Check() components.CheckResult {
 		eventsByMinute[minute] = struct{}{}
 	}
 	totalEvents := len(eventsByMinute)
-	minutes := c.evaluationWindow.Minutes()
+	minutes := c.freqPerMinEvaluationWindow.Minutes()
 	freqPerMin := float64(totalEvents) / minutes
 
-	if freqPerMin < c.threshold {
+	if freqPerMin < c.freqPerMinThreshold {
 		// hw slowdown events happened but within its threshold
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
+		cr.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) is less than threshold %.2f for the last %s", freqPerMin, totalEvents, c.freqPerMinThreshold, c.freqPerMinEvaluationWindow)
 		return cr
 	}
 
 	// hw slowdown events happened and beyond its threshold
 	cr.health = apiv1.HealthStateTypeUnhealthy
-	cr.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.threshold, c.evaluationWindow)
+	cr.reason = fmt.Sprintf("hw slowdown events frequency per minute %.2f (total events per minute count %d) exceeded threshold %.2f for the last %s", freqPerMin, totalEvents, c.freqPerMinThreshold, c.freqPerMinEvaluationWindow)
 	cr.suggestedActions = &apiv1.SuggestedActions{
 		// Hardware slowdown are often caused by GPU overheating or power supply unit (PSU) failing, please do a hardware inspection to mitigate the issue
 		RepairActions: []apiv1.RepairActionType{

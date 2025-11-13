@@ -79,16 +79,19 @@ type ClockEvents struct {
 	Supported bool `json:"supported"`
 }
 
-// Event creates a apiv1.Event from ClockEvents if there are hardware slowdown reasons.
-// Returns nil if there are no hardware slowdown reasons.
-func (evs *ClockEvents) Event() *eventstore.Event {
+// EventNameHWSlowdown defines the name of the event for hw slowdown events.
+const EventNameHWSlowdown = "hw_slowdown"
+
+// HWSlowdownEvent returns an eventstore.Event if there are hardware slowdown reasons.
+// Returns nil if there is no hardware slowdown reason.
+func (evs *ClockEvents) HWSlowdownEvent() *eventstore.Event {
 	if len(evs.HWSlowdownReasons) == 0 {
 		return nil
 	}
 
 	return &eventstore.Event{
 		Time:    evs.Time.Time,
-		Name:    "hw_slowdown",
+		Name:    EventNameHWSlowdown,
 		Type:    string(apiv1.EventTypeWarning),
 		Message: strings.Join(evs.HWSlowdownReasons, ", "),
 		ExtraInfo: map[string]string{
@@ -99,8 +102,20 @@ func (evs *ClockEvents) Event() *eventstore.Event {
 }
 
 func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
+	return GetClockEventsWithTime(uuid, dev, nil)
+}
+
+// GetClockEventsWithTime allows callers to inject a custom time source (primarily for tests).
+// When timeNow is nil, time.Now().UTC() is used.
+func GetClockEventsWithTime(uuid string, dev device.Device, timeNow func() time.Time) (ClockEvents, error) {
+	if timeNow == nil {
+		timeNow = func() time.Time { return time.Now().UTC() }
+	}
+
+	timestamp := timeNow().UTC()
+
 	clockEvents := ClockEvents{
-		Time:      metav1.Time{Time: time.Now().UTC()},
+		Time:      metav1.Time{Time: timestamp},
 		UUID:      uuid,
 		BusID:     dev.PCIBusID(),
 		Supported: true,
