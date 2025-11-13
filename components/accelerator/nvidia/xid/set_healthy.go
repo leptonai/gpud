@@ -1,9 +1,10 @@
 package xid
 
 import (
-	apiv1 "github.com/leptonai/gpud/api/v1"
+	"context"
+	"time"
+
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -12,17 +13,22 @@ var _ components.HealthSettable = &component{}
 func (c *component) SetHealthy() error {
 	log.Logger.Infow("set healthy event received for xid")
 
-	setHealthyEvent := &eventstore.Event{
-		Component: Name,
-		Time:      c.getTimeNowFunc(),
-		Name:      "SetHealthy",
-		Type:      string(apiv1.EventTypeInfo),
+	if c.eventBucket != nil {
+		now := c.getTimeNowFunc()
+		cctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
+		purged, err := c.eventBucket.Purge(cctx, now.Unix())
+		cancel()
+		if err != nil {
+			return err
+		}
+		log.Logger.Infow("successfully purged xid events", "count", purged)
 	}
 
-	select {
-	case c.extraEventCh <- setHealthyEvent:
-	default:
-		log.Logger.Debugw("channel full, set healthy event skipped")
+	// Immediately update current state to reflect the purge
+	// This matches the old behavior where SetHealthy event triggered immediate state update
+	if err := c.updateCurrentState(); err != nil {
+		log.Logger.Errorw("failed to update current state after purge", "error", err)
+		return err
 	}
 
 	return nil

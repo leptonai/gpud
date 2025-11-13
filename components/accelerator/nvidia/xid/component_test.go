@@ -159,6 +159,42 @@ func TestMergeEvents(t *testing.T) {
 	})
 }
 
+func TestTrimEventsAfterSetHealthy(t *testing.T) {
+	now := time.Now()
+
+	t.Run("dropsEventsOlderThanSetHealthy", func(t *testing.T) {
+		events := eventstore.Events{
+			{Time: now, Name: EventNameErrorXid},
+			{Time: now.Add(-time.Minute), Name: "SetHealthy"},
+			{Time: now.Add(-2 * time.Minute), Name: EventNameErrorXid},
+		}
+
+		trimmed := trimEventsAfterSetHealthy(events)
+		assert.Len(t, trimmed, 1)
+		assert.Equal(t, EventNameErrorXid, trimmed[0].Name)
+		assert.Equal(t, now.Unix(), trimmed[0].Time.Unix())
+	})
+
+	t.Run("noSetHealthyReturnsOriginal", func(t *testing.T) {
+		events := eventstore.Events{
+			{Time: now, Name: EventNameErrorXid},
+			{Time: now.Add(-time.Minute), Name: EventNameErrorXid},
+		}
+
+		trimmed := trimEventsAfterSetHealthy(events)
+		assert.Equal(t, events, trimmed)
+	})
+
+	t.Run("onlySetHealthyReturnsEmpty", func(t *testing.T) {
+		events := eventstore.Events{
+			{Time: now, Name: "SetHealthy"},
+		}
+
+		trimmed := trimEventsAfterSetHealthy(events)
+		assert.Empty(t, trimmed)
+	})
+}
+
 func TestXIDComponent_SetHealthy(t *testing.T) {
 	// initialize component
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -182,19 +218,57 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	// Cast to HealthSettable interface
+	c := comp.(*component)
+
+	// Insert some XID events in the past
+	pastTime := time.Now().Add(-10 * time.Minute)
+	event1 := eventstore.Event{
+		Time:      pastTime,
+		Name:      EventNameErrorXid,
+		Type:      string(apiv1.EventTypeCritical),
+		ExtraInfo: map[string]string{EventKeyErrorXidData: "94", EventKeyDeviceUUID: "test-uuid"},
+	}
+	event2 := eventstore.Event{
+		Time:      pastTime.Add(time.Second),
+		Name:      EventNameErrorXid,
+		Type:      string(apiv1.EventTypeFatal),
+		ExtraInfo: map[string]string{EventKeyErrorXidData: "79", EventKeyDeviceUUID: "test-uuid-2"},
+	}
+	err = c.eventBucket.Insert(ctx, event1)
+	assert.NoError(t, err)
+	err = c.eventBucket.Insert(ctx, event2)
+	assert.NoError(t, err)
+
+	// Verify events exist
+	events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.Len(t, events, 2, "should have 2 events before SetHealthy")
+
+	// Force an update to show unhealthy state
+	err = c.updateCurrentState()
+	assert.NoError(t, err)
+
+	// Verify component is unhealthy before SetHealthy
+	states := c.LastHealthStates()
+	assert.Len(t, states, 1)
+	assert.NotEqual(t, apiv1.HealthStateTypeHealthy, states[0].Health, "should be unhealthy before SetHealthy")
+
+	// Cast to HealthSettable interface and call SetHealthy
 	healthSettable, ok := comp.(components.HealthSettable)
 	assert.True(t, ok, "component should implement HealthSettable interface")
 	err = healthSettable.SetHealthy()
 	assert.NoError(t, err)
 
-	c := comp.(*component)
-	select {
-	case event := <-c.extraEventCh:
-		assert.Equal(t, "SetHealthy", event.Name)
-	default:
-		assert.Fail(t, "expected event in channel but got none")
-	}
+	// Verify all events were purged
+	events, err = c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.Len(t, events, 0, "should have 0 events after SetHealthy purge")
+
+	// Verify health state was updated IMMEDIATELY (not waiting for ticker)
+	states = c.LastHealthStates()
+	assert.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health, "should be healthy immediately after SetHealthy")
+	assert.Equal(t, "XIDComponent is healthy", states[0].Reason)
 }
 
 func TestXIDComponent_Events(t *testing.T) {
@@ -294,14 +368,6 @@ func TestXIDComponent_States(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	// Setup a test channel for events to avoid using kmsg
-	eventCh := make(chan kmsg.Message, 1)
-	go c.start(eventCh, 100*time.Millisecond)
-
-	defer func() {
-		assert.NoError(t, comp.Close())
-	}()
-
 	s := apiv1.HealthState{
 		Name:   StateNameErrorXid,
 		Health: apiv1.HealthStateTypeHealthy,
@@ -344,15 +410,13 @@ func TestXIDComponent_States(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// insert test events
 			for i, event := range tt.events {
-				select {
-				case c.extraEventCh <- &event:
-				default:
-					require.FailNow(t, "failed to insert event into channel")
-				}
-				// wait for events to be processed
-				time.Sleep(1 * time.Second)
+				err := c.eventBucket.Insert(ctx, event)
+				assert.NoError(t, err)
+
+				err = c.updateCurrentState()
+				assert.NoError(t, err)
+
 				states = comp.LastHealthStates()
 				t.Log(states[0])
 				assert.Len(t, states, 1, "index %d", i)
@@ -365,14 +429,14 @@ func TestXIDComponent_States(t *testing.T) {
 				}
 			}
 
-			// Cast to HealthSettable interface
 			healthSettable, ok := comp.(components.HealthSettable)
 			assert.True(t, ok, "component should implement HealthSettable interface")
-			err = healthSettable.SetHealthy()
+			err := healthSettable.SetHealthy()
 			assert.NoError(t, err)
 
-			// wait for events to be processed
-			time.Sleep(1 * time.Second)
+			states = comp.LastHealthStates()
+			assert.Len(t, states, 1)
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		})
 	}
 }
@@ -833,25 +897,6 @@ func TestUpdateCurrentState(t *testing.T) {
 	assert.Len(t, rebootStates, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, rebootStates[0].Health, "State should be healthy after reboot")
 	assert.Nil(t, rebootStates[0].SuggestedActions, "Should not have suggested actions")
-
-	// Insert a SetHealthy event
-	healthyTime := time.Now().Add(-1 * time.Minute)
-	healthyEvent := eventstore.Event{
-		Time: healthyTime,
-		Name: "SetHealthy",
-	}
-	err = c.eventBucket.Insert(ctx, healthyEvent)
-	assert.NoError(t, err)
-
-	// Update state after SetHealthy
-	err = c.updateCurrentState()
-	assert.NoError(t, err)
-
-	// Check that the state is still healthy
-	healthyStates := comp.LastHealthStates()
-	assert.Len(t, healthyStates, 1)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, healthyStates[0].Health, "State should remain healthy after SetHealthy")
-	assert.Nil(t, healthyStates[0].SuggestedActions, "Should not have suggested actions")
 
 	// Test with nil rebootEventStore
 	c.rebootEventStore = nil

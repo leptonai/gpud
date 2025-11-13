@@ -7,6 +7,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -86,14 +87,41 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
 
-	t.Run("SetHealthy", func(t *testing.T) {
-		events := eventstore.Events{
-			{Name: "SetHealthy"},
-			createXidEvent(time.Time{}, 789, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
-		}
+	t.Run("EmptyEvents_ReturnsHealthy", func(t *testing.T) {
+		events := eventstore.Events{}
 		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		assert.Nil(t, state.SuggestedActions)
+		assert.Equal(t, "XIDComponent is healthy", state.Reason)
+	})
+
+	t.Run("rebootCountingResetAfterPurgeMatchesLegacy", func(t *testing.T) {
+		now := time.Now()
+		localEvents := eventstore.Events{
+			createXidEvent(now, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			{Time: now.Add(-1 * time.Minute), Name: "SetHealthy"},
+			createXidEvent(now.Add(-2*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			createXidEvent(now.Add(-4*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+		}
+
+		trimmed := trimEventsAfterSetHealthy(localEvents)
+		require.Len(t, trimmed, 1)
+		assert.Equal(t, now.Unix(), trimmed[0].Time.Unix())
+
+		rebootEvents := eventstore.Events{
+			{Time: now.Add(-3 * time.Minute), Name: "reboot"},
+			{Time: now.Add(-5 * time.Minute), Name: "reboot"},
+		}
+
+		merged := mergeEvents(rebootEvents, trimmed)
+		require.Len(t, merged, 3)
+		assert.Equal(t, []string{"error_xid", "reboot", "reboot"}, []string{merged[0].Name, merged[1].Name, merged[2].Name})
+
+		state := evolveHealthyState(merged, nil, DefaultRebootThreshold)
+		require.NotNil(t, state.SuggestedActions)
+		require.NotEmpty(t, state.SuggestedActions.RepairActions)
+		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	})
 
 	t.Run("invalid xid", func(t *testing.T) {
