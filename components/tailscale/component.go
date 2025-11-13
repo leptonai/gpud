@@ -24,7 +24,7 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	checkDependencyInstalled func() bool
+	checkTailscaledInstalled func() bool
 	checkServiceActiveFunc   func() (bool, error)
 
 	lastMu          sync.RWMutex
@@ -37,7 +37,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkDependencyInstalled: checkTailscaledInstalled,
+		checkTailscaledInstalled: checkTailscaledInstalled,
 		checkServiceActiveFunc: func() (bool, error) {
 			return systemd.IsActive("tailscaled")
 		},
@@ -107,7 +107,7 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	// assume "tailscaled" is not installed, thus not needed to check its activeness
-	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
+	if c.checkTailscaledInstalled == nil || !c.checkTailscaledInstalled() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "tailscaled is not installed"
 		return cr

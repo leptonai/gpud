@@ -16,7 +16,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/components/kubelet"
+	componentkubelet "github.com/leptonai/gpud/components/kubelet"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/systemd"
@@ -78,7 +78,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return os.ReadFile("/etc/containerd/config.toml")
 		},
 
-		checkDependencyInstalledFunc: CheckContainerdInstalled,
+		checkDependencyInstalledFunc: checkContainerdInstalled,
 		checkSocketExistsFunc:        CheckSocketExists,
 		checkContainerdRunningFunc:   CheckContainerdRunning,
 		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
@@ -255,7 +255,7 @@ func (c *component) Check() components.CheckResult {
 
 		var danglingCount int
 		cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
-		_, kubeletPods, err := kubelet.ListPodsFromKubeletReadOnlyPort(cctx, kubelet.DefaultKubeletReadOnlyPort)
+		_, kubeletPods, err := componentkubelet.ListPodsFromKubeletReadOnlyPort(cctx, componentkubelet.DefaultKubeletReadOnlyPort)
 		ccancel()
 		if err != nil {
 			log.Logger.Errorf("error listing pods from kubelet: %v", err)
@@ -451,7 +451,7 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	return apiv1.HealthStates{state}
 }
 
-func danglingPodCount(containerdPods []PodSandbox, kubeletPods []kubelet.PodStatus) int {
+func danglingPodCount(containerdPods []PodSandbox, kubeletPods []componentkubelet.PodStatus) int {
 	var danglingCount int
 	if len(kubeletPods) == 0 {
 		return danglingCount

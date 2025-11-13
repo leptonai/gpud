@@ -24,7 +24,7 @@ func mockComponent(
 	c := &component{
 		ctx:    cctx,
 		cancel: cancel,
-		checkDependencyInstalled: func() bool {
+		checkTailscaledInstalled: func() bool {
 			return isInstalled
 		},
 		checkServiceActiveFunc: func() (bool, error) {
@@ -72,7 +72,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, tc.ctx, "Context should be set")
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
-	assert.NotNil(t, tc.checkDependencyInstalled, "checkDependencyInstalled function should be set")
+	assert.NotNil(t, tc.checkTailscaledInstalled, "checkTailscaledInstalledFunc should be set")
 	assert.NotNil(t, tc.checkServiceActiveFunc, "checkServiceActive function should be set")
 }
 

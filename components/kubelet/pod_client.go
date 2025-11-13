@@ -11,21 +11,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	pkg_file "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
 const DefaultKubeletReadOnlyPort = 10255
-
-func CheckKubeletInstalled() bool {
-	p, err := pkg_file.LocateExecutable("kubelet")
-	if err == nil {
-		log.Logger.Debugw("kubelet found in PATH", "path", p)
-		return true
-	}
-	log.Logger.Debugw("kubelet not found in PATH", "error", err)
-	return false
-}
 
 // ListPodsFromKubeletReadOnlyPort returns the node name and the list of pods
 func ListPodsFromKubeletReadOnlyPort(ctx context.Context, port int) (string, []PodStatus, error) {

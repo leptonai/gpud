@@ -31,9 +31,9 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	checkDependencyInstalled func() bool
-	checkKubeletRunning      func() bool
-	kubeletReadOnlyPort      int
+	checkKubeletInstalled func() bool
+	checkKubeletRunning   func() bool
+	kubeletReadOnlyPort   int
 
 	failedCount          int
 	failedCountThreshold int
@@ -48,7 +48,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkDependencyInstalled: CheckKubeletInstalled,
+		checkKubeletInstalled: checkKubeletInstalled,
 		checkKubeletRunning: func() bool {
 			return netutil.IsPortOpen(DefaultKubeletReadOnlyPort)
 		},
@@ -122,7 +122,7 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	if c.checkDependencyInstalled == nil || !c.checkDependencyInstalled() {
+	if c.checkKubeletInstalled == nil || !c.checkKubeletInstalled() {
 		// "kubelet" is not installed, thus not needed to check its activeness
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "kubelet is not installed"
@@ -167,6 +167,7 @@ var _ components.CheckResult = &checkResult{}
 type checkResult struct {
 	// KubeletServiceActive is true if the kubelet service is active.
 	KubeletServiceActive bool `json:"kubelet_service_active"`
+
 	// NodeName is the name of the node.
 	NodeName string `json:"node_name,omitempty"`
 	// Pods is the list of pods on the node.

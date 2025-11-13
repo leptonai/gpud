@@ -266,6 +266,8 @@ type MachineInfo struct {
 	CUDAVersion string `json:"cudaVersion,omitempty"`
 	// ContainerRuntime Version reported by the node through runtime remote API (e.g. containerd://1.4.2).
 	ContainerRuntimeVersion string `json:"containerRuntimeVersion,omitempty"`
+	// TailscaleVersion represents the version of the tailscale client binary (e.g. 1.76.6).
+	TailscaleVersion string `json:"tailscaleVersion,omitempty"`
 	// Kernel Version reported by the node from 'uname -r' (e.g. 3.16.0-0.bpo.4-amd64).
 	KernelVersion string `json:"kernelVersion,omitempty"`
 	// OS Image reported by the node from /etc/os-release (e.g. Debian GNU/Linux 7 (wheezy)).
