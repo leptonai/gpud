@@ -19,6 +19,22 @@ const (
 // where nvidia-smi prints "Unable to retrieve NVLink information as all links are inActive"),
 // this method surfaces the state as unhealthy. See https://github.com/leptonai/gpud/issues/1085
 // for background.
+//
+// GB200 Architecture Note:
+// - GB200 NVL72 has NO direct GPU-to-GPU NVLink connectivity within compute trays
+// - All NVLink connections go through external NVSwitches in the rack
+// - Each B200 GPU has 18 NVLink ports connecting to NVSwitch chips
+// - This threshold measures rack-level switch connectivity, not local GPU links
+// - Issue #1085 documented real B200 production failure: "all links are inActive"
+// - Root cause unknown (NVSwitch failure, driver issue, or fabric manager problem)
+// - The threshold remains valid: it detects when links that SHOULD be active are inactive
+// Ref: https://nebius.com/blog/posts/leveraging-nvidia-gb200-nvl72-gpu-interconnect
+//
+// NVLink Disable Scenarios (Why operators might disable NVLink with multiple GPUs):
+// 1. H100x1/A100-80Gx1: Must disable NVLink to run CUDA (per DigitalOcean docs)
+// 2. Independent workloads: No benefit when GPUs run separate tasks (hyperparameter search, etc.)
+// 3. Benchmarking: Disable to compare performance (via NCCL_P2P_DISABLE=1)
+// Ref: https://docs.digitalocean.com/products/paperspace/machines/how-to/manage-nvlink/
 func evaluateHealthStateWithThresholds(cr *checkResult) {
 	if cr == nil {
 		return

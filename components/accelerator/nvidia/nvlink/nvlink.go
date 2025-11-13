@@ -88,6 +88,14 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 	for link := 0; link < int(nvml.NVLINK_MAX_LINKS); link++ {
 		// may fail at the beginning
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1g774a9e6cb2f4897701cbc01c5a0a1f3a
+		//
+		// Note: DeviceGetNvLinkState reports per-link status (FEATURE_ENABLED or FEATURE_DISABLED).
+		// For traditional GPUs (H100, A100): links connect directly to other GPUs
+		// For GB200 B200 GPUs: links connect to external NVSwitch chips in the rack
+		// When this returns FEATURE_DISABLED for all links, nvidia-smi shows:
+		//   "Unable to retrieve NVLink information as all links are inActive"
+		// Production case (issue #1085): B200 GPU reported all links inactive despite
+		// hardware supporting NVLink. Root cause unknown but threshold detection is needed.
 		state, ret := nvml.DeviceGetNvLinkState(dev, link)
 		if nvmlerrors.IsNotSupportError(ret) {
 			nvlink.Supported = false
@@ -106,7 +114,7 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 
 		nvlinkState := NVLinkState{
 			Link:           link,
-			FeatureEnabled: state == nvml.FEATURE_ENABLED,
+			FeatureEnabled: state == nvml.FEATURE_ENABLED, // false when link is inactive/disabled
 		}
 
 		// e.g.,
