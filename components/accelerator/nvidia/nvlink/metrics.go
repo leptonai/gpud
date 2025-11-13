@@ -13,6 +13,16 @@ var (
 		pkgmetrics.MetricComponentLabelKey: Name,
 	}
 
+	metricSupported = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "",
+			Subsystem: SubSystem,
+			Name:      "supported",
+			Help:      "tracks whether NVLink is supported per GPU",
+		},
+		[]string{pkgmetrics.MetricComponentLabelKey, "uuid"},
+	).MustCurryWith(componentLabel)
+
 	metricFeatureEnabled = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "",
@@ -56,6 +66,7 @@ var (
 
 func init() {
 	pkgmetrics.MustRegister(
+		metricSupported,
 		metricFeatureEnabled,
 		metricReplayErrors,
 		metricRecoveryErrors,

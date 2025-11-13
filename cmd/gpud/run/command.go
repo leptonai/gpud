@@ -21,6 +21,7 @@ import (
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
+	componentsnvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/config"
@@ -74,6 +75,7 @@ func Command(cliContext *cli.Context) error {
 
 	gpuCount := cliContext.Int("gpu-count")
 	infinibandExpectedPortStates := cliContext.String("infiniband-expected-port-states")
+	nvlinkExpectedLinkStates := cliContext.String("nvlink-expected-link-states")
 	nfsCheckerConfigs := cliContext.String("nfs-checker-configs")
 	xidRebootThreshold := cliContext.Int("xid-reboot-threshold")
 
@@ -93,6 +95,16 @@ func Command(cliContext *cli.Context) error {
 		componentsinfiniband.SetDefaultExpectedPortStates(expectedPortStates)
 
 		log.Logger.Infow("set infiniband expected port states", "infinibandExpectedPortStates", infinibandExpectedPortStates)
+	}
+
+	if len(nvlinkExpectedLinkStates) > 0 {
+		var expectedLinkStates componentsnvlink.ExpectedLinkStates
+		if err := json.Unmarshal([]byte(nvlinkExpectedLinkStates), &expectedLinkStates); err != nil {
+			return err
+		}
+		componentsnvlink.SetDefaultExpectedLinkStates(expectedLinkStates)
+
+		log.Logger.Infow("set nvlink expected link states", "nvlinkExpectedLinkStates", nvlinkExpectedLinkStates)
 	}
 
 	if len(nfsCheckerConfigs) > 0 {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -32,8 +33,9 @@ type component struct {
 
 	getTimeNowFunc func() time.Time
 
-	nvmlInstance  nvidianvml.Instance
-	getNVLinkFunc func(uuid string, dev device.Device) (NVLink, error)
+	nvmlInstance      nvidianvml.Instance
+	getNVLinkFunc     func(uuid string, dev device.Device) (NVLink, error)
+	getThresholdsFunc func() ExpectedLinkStates
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -47,8 +49,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		nvmlInstance:  gpudInstance.NVMLInstance,
-		getNVLinkFunc: GetNVLink,
+		nvmlInstance:      gpudInstance.NVMLInstance,
+		getNVLinkFunc:     GetNVLink,
+		getThresholdsFunc: GetDefaultExpectedLinkStates,
 	}
 	return c, nil
 }
@@ -114,6 +117,10 @@ func (c *component) Check() components.CheckResult {
 	cr := &checkResult{
 		ts: c.getTimeNowFunc(),
 	}
+	if c.getThresholdsFunc != nil {
+		thresholds := c.getThresholdsFunc()
+		cr.ExpectedLinkStates = &thresholds
+	}
 	defer func() {
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
@@ -170,18 +177,42 @@ func (c *component) Check() components.CheckResult {
 
 		cr.NVLinks = append(cr.NVLinks, nvLink)
 
-		if nvLink.States.AllFeatureEnabled() {
-			metricFeatureEnabled.With(prometheus.Labels{"uuid": uuid}).Set(float64(1.0))
+		labels := prometheus.Labels{"uuid": uuid}
+		if nvLink.Supported {
+			metricSupported.With(labels).Set(1.0)
 		} else {
-			metricFeatureEnabled.With(prometheus.Labels{"uuid": uuid}).Set(float64(0.0))
+			metricSupported.With(labels).Set(0.0)
+			cr.UnsupportedNVLinkUUIDs = append(cr.UnsupportedNVLinkUUIDs, uuid)
+			continue
+		}
+
+		featureEnabled := len(nvLink.States) > 0 && nvLink.States.AllFeatureEnabled()
+		if featureEnabled {
+			metricFeatureEnabled.With(labels).Set(1.0)
+			cr.ActiveNVLinkUUIDs = append(cr.ActiveNVLinkUUIDs, uuid)
+		} else {
+			metricFeatureEnabled.With(labels).Set(0.0)
+			cr.InactiveNVLinkUUIDs = append(cr.InactiveNVLinkUUIDs, uuid)
 		}
 		metricReplayErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalReplayErrors()))
 		metricRecoveryErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalRecoveryErrors()))
 		metricCRCErrors.With(prometheus.Labels{"uuid": uuid}).Set(float64(nvLink.States.TotalCRCErrors()))
 	}
 
+	if len(cr.ActiveNVLinkUUIDs) > 0 {
+		sort.Strings(cr.ActiveNVLinkUUIDs)
+	}
+	if len(cr.InactiveNVLinkUUIDs) > 0 {
+		sort.Strings(cr.InactiveNVLinkUUIDs)
+	}
+	if len(cr.UnsupportedNVLinkUUIDs) > 0 {
+		sort.Strings(cr.UnsupportedNVLinkUUIDs)
+	}
+
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no nvlink issue found", len(devs))
+
+	evaluateHealthStateWithThresholds(cr)
 
 	return cr
 }
@@ -189,7 +220,25 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
+	// NVLinks contains detailed NVLink information for all GPUs checked
 	NVLinks []NVLink `json:"nvlinks,omitempty"`
+
+	// ActiveNVLinkUUIDs lists GPUs where NVLink is supported AND all links have FeatureEnabled=true
+	// (i.e., len(States) > 0 && States.AllFeatureEnabled() == true)
+	// These GPUs have fully operational NVLink connectivity
+	ActiveNVLinkUUIDs []string `json:"active_nvlink_uuids,omitempty"`
+
+	// InactiveNVLinkUUIDs lists GPUs where NVLink is supported BUT at least one link has FeatureEnabled=false
+	// This corresponds to nvidia-smi showing "all links are inActive"
+	// Common causes: disabled via driver, fabric manager issues, NVSwitch connectivity problems
+	InactiveNVLinkUUIDs []string `json:"inactive_nvlink_uuids,omitempty"`
+
+	// UnsupportedNVLinkUUIDs lists GPUs that do not support NVLink at hardware/firmware level
+	UnsupportedNVLinkUUIDs []string `json:"unsupported_nvlink_uuids,omitempty"`
+
+	// ExpectedLinkStates defines the threshold for how many GPUs must have active NVLink
+	// Used by evaluateHealthStateWithThresholds to determine if the system is healthy
+	ExpectedLinkStates *ExpectedLinkStates `json:"expected_link_states,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time
@@ -221,7 +270,8 @@ func (cr *checkResult) String() string {
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
 	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "NVLink Enabled", "NVLink Supported"})
 	for _, nvlink := range cr.NVLinks {
-		table.Append([]string{nvlink.UUID, nvlink.BusID, fmt.Sprintf("%t", nvlink.States.AllFeatureEnabled()), fmt.Sprintf("%t", nvlink.Supported)})
+		featureEnabled := nvlink.Supported && len(nvlink.States) > 0 && nvlink.States.AllFeatureEnabled()
+		table.Append([]string{nvlink.UUID, nvlink.BusID, fmt.Sprintf("%t", featureEnabled), fmt.Sprintf("%t", nvlink.Supported)})
 	}
 	table.Render()
 
@@ -240,6 +290,13 @@ func (cr *checkResult) HealthStateType() apiv1.HealthStateType {
 		return ""
 	}
 	return cr.health
+}
+
+func (cr *checkResult) getSuggestedActions() *apiv1.SuggestedActions {
+	if cr == nil {
+		return nil
+	}
+	return cr.suggestedActions
 }
 
 func (cr *checkResult) getError() string {
@@ -263,12 +320,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		SuggestedActions: cr.getSuggestedActions(),
+		Error:            cr.getError(),
+		Health:           cr.health,
 	}
 
 	// propagate suggested actions to health state if present

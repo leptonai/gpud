@@ -200,6 +200,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "set the infiniband expected port states in JSON (leave empty for default, useful for testing)",
 				},
 				&cli.StringFlag{
+					Name:  "nvlink-expected-link-states",
+					Usage: "set the nvlink expected link states in JSON (leave empty for default, useful for testing)",
+				},
+				&cli.StringFlag{
 					Name:  "nfs-checker-configs",
 					Usage: "set the NFS checker group configs in JSON (leave empty for default, useful for testing)",
 				},
@@ -490,6 +494,10 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "infiniband-expected-port-states",
 					Usage: "set the infiniband expected port states in JSON (leave empty for default, useful for testing)",
+				},
+				&cli.StringFlag{
+					Name:  "nvlink-expected-link-states",
+					Usage: "set the nvlink expected link states in JSON (leave empty for default, useful for testing)",
 				},
 				&cli.StringFlag{
 					Name:  "nfs-checker-configs",
