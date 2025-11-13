@@ -19,7 +19,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 )
 
 const Name = "accelerator-nvidia-clock-speed"

@@ -8,7 +8,7 @@ import (
 
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 )
 
 type Temperature struct {

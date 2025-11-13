@@ -6,7 +6,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 )
 
 type Power struct {
