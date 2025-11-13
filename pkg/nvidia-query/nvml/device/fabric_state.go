@@ -9,7 +9,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/olekukonko/tablewriter"
 
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
 )
 
 // FabricState represents fabric state information for a GPU device.

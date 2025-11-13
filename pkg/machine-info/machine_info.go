@@ -27,8 +27,8 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
 	"github.com/leptonai/gpud/pkg/providers"
 	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 	"github.com/leptonai/gpud/pkg/providers/nebius"
@@ -293,7 +293,7 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
-		devs, err := nvidiaquery.ListPCIGPUs(ctx)
+		devs, err := nvidiapci.ListPCIGPUs(ctx)
 		if err != nil {
 			log.Logger.Errorw("failed to list nvidia pci devices", "error", err)
 		}

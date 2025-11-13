@@ -7,7 +7,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 

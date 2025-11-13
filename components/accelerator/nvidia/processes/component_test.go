@@ -14,11 +14,11 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // Override the metricRunningProcesses for testing
@@ -48,8 +48,8 @@ func (m *mockNVMLInstance) DriverMajor() int             { return 1 }
 func (m *mockNVMLInstance) CUDAVersion() string          { return "1.0" }
 func (m *mockNVMLInstance) FabricManagerSupported() bool { return true }
 func (m *mockNVMLInstance) FabricStateSupported() bool   { return false }
-func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
-	return nvidianvml.MemoryErrorManagementCapabilities{}
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
+	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
 func (m *mockNVMLInstance) Shutdown() error { return nil }
 

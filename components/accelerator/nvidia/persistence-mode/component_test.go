@@ -14,11 +14,11 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // mockNVMLInstance implements the nvml.InstanceV2 interface for testing
@@ -35,8 +35,8 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	return nil
 }
 
-func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
-	return nvidianvml.MemoryErrorManagementCapabilities{
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
+	return nvidiaproduct.MemoryErrorManagementCapabilities{
 		ErrorContainment:     true,
 		DynamicPageOfflining: true,
 		RowRemapping:         true,

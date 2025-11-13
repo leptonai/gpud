@@ -20,10 +20,10 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -112,7 +112,7 @@ func (m *mockLibrary) Shutdown() gonvml.Return {
 type mockNVMLInstance struct {
 	getDevicesFunc                           func() map[string]device.Device
 	getProductNameFunc                       func() string
-	getMemoryErrorManagementCapabilitiesFunc func() nvml.MemoryErrorManagementCapabilities
+	getMemoryErrorManagementCapabilitiesFunc func() nvidiaproduct.MemoryErrorManagementCapabilities
 }
 
 func (m *mockNVMLInstance) Devices() map[string]device.Device {
@@ -151,7 +151,7 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 	return false
 }
 
-func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvml.MemoryErrorManagementCapabilities {
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return m.getMemoryErrorManagementCapabilitiesFunc()
 }
 
@@ -190,8 +190,8 @@ func TestNew(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -231,8 +231,8 @@ func TestTags(t *testing.T) {
 		getProductNameFunc: func() string {
 			return "NVIDIA Test GPU"
 		},
-		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
-			return nvml.MemoryErrorManagementCapabilities{}
+		getMemoryErrorManagementCapabilitiesFunc: func() nvidiaproduct.MemoryErrorManagementCapabilities {
+			return nvidiaproduct.MemoryErrorManagementCapabilities{}
 		},
 	}
 
@@ -274,8 +274,8 @@ func TestIsSupported(t *testing.T) {
 			getProductNameFunc: func() string {
 				return "NVIDIA Test GPU"
 			},
-			getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
-				return nvml.MemoryErrorManagementCapabilities{}
+			getMemoryErrorManagementCapabilitiesFunc: func() nvidiaproduct.MemoryErrorManagementCapabilities {
+				return nvidiaproduct.MemoryErrorManagementCapabilities{}
 			},
 		},
 	}
@@ -354,8 +354,8 @@ func TestEvents(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -427,8 +427,8 @@ func TestCheckOnceRemappingIssueDetection(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -534,8 +534,8 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -566,7 +566,7 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	c.lastMu.Lock()
 	c.lastCheckResult = &checkResult{
 		ProductName: "NVIDIA Test GPU",
-		MemoryErrorManagementCapabilities: nvml.MemoryErrorManagementCapabilities{
+		MemoryErrorManagementCapabilities: nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		},
 		ts:     time.Now(),
@@ -641,8 +641,8 @@ func TestEventsWithDB(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -806,8 +806,8 @@ func TestComponentStates(t *testing.T) {
 			getProductNameFunc := func() string {
 				return "NVIDIA Test GPU"
 			}
-			getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-				return nvml.MemoryErrorManagementCapabilities{
+			getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+				return nvidiaproduct.MemoryErrorManagementCapabilities{
 					RowRemapping: tt.rowRemappingSupported,
 				}
 			}
@@ -901,8 +901,8 @@ func TestComponentStatesWithError(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -963,8 +963,8 @@ func TestComponentStatesWithNilData(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -1036,8 +1036,8 @@ func TestStateTransitions(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -1203,8 +1203,8 @@ func TestRemappedRowsThresholds(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -1306,8 +1306,8 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	getProductNameFunc := func() string {
 		return "NVIDIA Test GPU"
 	}
-	getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-		return nvml.MemoryErrorManagementCapabilities{
+	getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{
 			RowRemapping: true,
 		}
 	}
@@ -1450,8 +1450,8 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 			getProductNameFunc := func() string {
 				return "NVIDIA Test GPU"
 			}
-			getMemoryErrorManagementCapabilitiesFunc := func() nvml.MemoryErrorManagementCapabilities {
-				return nvml.MemoryErrorManagementCapabilities{
+			getMemoryErrorManagementCapabilitiesFunc := func() nvidiaproduct.MemoryErrorManagementCapabilities {
+				return nvidiaproduct.MemoryErrorManagementCapabilities{
 					RowRemapping: true,
 				}
 			}
@@ -1625,8 +1625,8 @@ func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
 		getProductNameFunc: func() string {
 			return "NVIDIA Test GPU"
 		},
-		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
-			return nvml.MemoryErrorManagementCapabilities{
+		getMemoryErrorManagementCapabilitiesFunc: func() nvidiaproduct.MemoryErrorManagementCapabilities {
+			return nvidiaproduct.MemoryErrorManagementCapabilities{
 				RowRemapping: true, // Supports remapping
 			}
 		},
@@ -1698,8 +1698,8 @@ func TestNewWithFailureInjector(t *testing.T) {
 		getProductNameFunc: func() string {
 			return "NVIDIA Test GPU"
 		},
-		getMemoryErrorManagementCapabilitiesFunc: func() nvml.MemoryErrorManagementCapabilities {
-			return nvml.MemoryErrorManagementCapabilities{
+		getMemoryErrorManagementCapabilitiesFunc: func() nvidiaproduct.MemoryErrorManagementCapabilities {
+			return nvidiaproduct.MemoryErrorManagementCapabilities{
 				RowRemapping: true,
 			}
 		},

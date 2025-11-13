@@ -20,6 +20,7 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -675,8 +676,8 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 	return m.supportsFabricState
 }
 
-func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
-	return nvidianvml.MemoryErrorManagementCapabilities{}
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
+	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
 
 func (m *mockNVMLInstance) Shutdown() error {

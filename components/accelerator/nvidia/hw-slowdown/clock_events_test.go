@@ -14,7 +14,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 

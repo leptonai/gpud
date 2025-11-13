@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	e2emock "github.com/leptonai/gpud/e2e/mock"
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
+	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
 )
 
 func TestMock(t *testing.T) {
@@ -45,7 +45,7 @@ func TestMock(t *testing.T) {
 	var lastErr error
 
 	for i := 0; i < maxRetries; i++ {
-		deviceNames, err = nvidiaquery.ListPCIGPUs(ctx)
+		deviceNames, err = nvidiapci.ListPCIGPUs(ctx)
 		if err == nil && len(deviceNames) > 0 {
 			break
 		}

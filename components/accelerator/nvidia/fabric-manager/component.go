@@ -99,9 +99,9 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
-	nvidiaquery "github.com/leptonai/gpud/pkg/nvidia-query"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
 )
 
 const (
@@ -147,7 +147,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		nvmlInstance: gpudInstance.NVMLInstance,
 
 		getCountLspci: func(ctx context.Context) (int, error) {
-			devs, err := nvidiaquery.ListPCIGPUs(ctx)
+			devs, err := nvidiapci.ListPCIGPUs(ctx)
 			if err != nil {
 				return 0, err
 			}

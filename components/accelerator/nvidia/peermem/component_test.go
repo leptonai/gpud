@@ -13,9 +13,9 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // mockNVMLInstance is a mock implementation of nvidianvml.Instance
@@ -67,8 +67,8 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 	return false
 }
 
-func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidianvml.MemoryErrorManagementCapabilities {
-	return nvidianvml.MemoryErrorManagementCapabilities{}
+func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
+	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
 
 func (m *mockNVMLInstance) Shutdown() error {

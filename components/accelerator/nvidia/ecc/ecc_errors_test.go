@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 )
 

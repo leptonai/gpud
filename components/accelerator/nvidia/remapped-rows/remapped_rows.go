@@ -7,7 +7,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 
 	"github.com/leptonai/gpud/pkg/log"
-	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia-query/nvml/errors"
+	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/error"
 )
 
 // RemappedRows represents the row remapping data.

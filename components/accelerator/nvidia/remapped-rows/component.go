@@ -18,9 +18,9 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 // Name is the ID of the remapped rows component.
@@ -282,7 +282,7 @@ type checkResult struct {
 	// ProductName is the product name of the GPU.
 	ProductName string `json:"product_name"`
 	// MemoryErrorManagementCapabilities contains the memory error management capabilities of the GPU.
-	MemoryErrorManagementCapabilities nvml.MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities"`
+	MemoryErrorManagementCapabilities nvidiaproduct.MemoryErrorManagementCapabilities `json:"memory_error_management_capabilities"`
 	// RemappedRows maps from GPU UUID to the remapped rows data.
 	RemappedRows []RemappedRows `json:"remapped_rows,omitempty"`
 
