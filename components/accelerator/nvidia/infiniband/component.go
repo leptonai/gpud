@@ -31,6 +31,22 @@ const (
 
 	defaultCheckInterval  = 30 * time.Second
 	defaultRequestTimeout = 15 * time.Second
+
+	// defaultDropStickyWindow defines the stabilization period after an IB port drop
+	// during which the component remains unhealthy even if thresholds recover.
+	//
+	// WHY THIS IS NEEDED:
+	// Previously, IB port drops were "ephemeral" - as soon as thresholds recovered
+	// (e.g., port came back up), the component would immediately flip from Unhealthy
+	// back to Healthy. This created operator confusion because:
+	// 1. At time T: Component marked Unhealthy with HARDWARE_INSPECTION suggested
+	// 2. At time T+30s: Port recovers, component immediately becomes Healthy
+	// 3. Operators miss the alert or find contradictory states in logs
+	//
+	// With this sticky window, drops remain unhealthy for a stabilization period,
+	// giving operators time to observe and investigate, similar to how flaps work.
+	// This creates consistency: both flaps and drops suggest inspection that persists.
+	defaultDropStickyWindow = 10 * time.Minute
 )
 
 var _ components.Component = &component{}
@@ -41,6 +57,11 @@ type component struct {
 
 	checkInterval  time.Duration
 	requestTimeout time.Duration
+
+	// dropStickyWindow defines how long after an IB port drop event
+	// the component should remain unhealthy even if thresholds recover.
+	// This provides a stabilization period for operators to observe issues.
+	dropStickyWindow time.Duration
 
 	nvmlInstance   nvidianvml.Instance
 	toolOverwrites pkgconfigcommon.ToolOverwrites
@@ -55,6 +76,10 @@ type component struct {
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
+
+	// Track when thresholds last recovered for sticky window logic
+	thresholdRecoveryTimeMu sync.RWMutex
+	thresholdRecoveryTime   *time.Time
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -63,8 +88,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkInterval:  defaultCheckInterval,
-		requestTimeout: defaultRequestTimeout,
+		checkInterval:    defaultCheckInterval,
+		requestTimeout:   defaultRequestTimeout,
+		dropStickyWindow: defaultDropStickyWindow,
 
 		nvmlInstance:   gpudInstance.NVMLInstance,
 		toolOverwrites: gpudInstance.NVIDIAToolOverwrites,
@@ -186,19 +212,34 @@ func (c *component) Close() error {
 
 // Check evaluates the health of InfiniBand ports by:
 // 1. Checking current port states against configured thresholds
-// 2. Processing historical port events based on threshold status:
-//   - Flap events: Always processed (indicate intermittent connectivity issues)
-//   - Drop events: Only processed when thresholds are NOT met (prevents flagging dormant ports)
+// 2. Processing historical port events with different persistence behaviors:
+//   - Flap events: Always processed (sticky until SetHealthy is called)
+//   - Drop events: Processed when either:
+//     a) Thresholds are currently not met (immediate detection)
+//     b) Event occurred within the sticky window (default 10 minutes)
+//     c) Thresholds recently recovered AND we're still within sticky window
 //
 // 3. Returning unhealthy if either:
 //   - Current state violates thresholds, OR
-//   - Flap events exist (always), OR
-//   - Drop events exist AND thresholds are not met
+//   - Flap events exist (always sticky until SetHealthy), OR
+//   - Drop events exist AND (thresholds not met OR within sticky window OR recovery window)
 //
-// This logic ensures that dormant/unused ports beyond the required threshold are not flagged
-// as problematic. For example, if only 8 ports are required but the machine has 12 ports total
-// with 4 being dormant/down, those 4 ports will not trigger drop event alerts as long as the
-// 8 required ports are healthy.
+// WHY THE STICKY WINDOW IS NEEDED FOR DROPS:
+// Previously, when a port dropped and caused threshold failure:
+// - 08:00: Port drops, thresholds fail, marked Unhealthy with HARDWARE_INSPECTION
+// - 08:05: Port recovers, thresholds pass, immediately flips to Healthy
+// - Result: Operators see contradictory states - inspection was requested then cleared
+//
+// Now with sticky window:
+// - 08:00: Port drops, marked Unhealthy with HARDWARE_INSPECTION
+// - 08:05: Port recovers but STAYS Unhealthy for 10 minutes (stabilization)
+// - 08:15: After sticky window expires, becomes Healthy if no new issues
+// - Result: Consistent experience - inspection request persists for observation
+//
+// This also handles dormant ports correctly: ports beyond required thresholds
+// won't trigger alerts after the sticky window expires, avoiding false positives
+// for unused ports on machines with more ports than required (e.g., 12 ports
+// when only 8 are needed).
 //
 // Historical events require manual inspection and clearing via SetHealthy to reset state.
 func (c *component) Check() components.CheckResult {
@@ -301,11 +342,58 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
+	// STEP 1: Evaluate current threshold status
+	// This sets the initial health state based on whether current port states meet thresholds.
+	// If ports have recovered, this will mark the component as Healthy and set thresholdsFailing=false.
+	// However, this doesn't mean we're done - we still need to check historical drop/flap events below.
 	evaluateHealthStateWithThresholds(thresholds, sysClassIBPorts, cr)
 
+	// RECOVERY TRACKING FOR CONDITION 3:
+	// Track when thresholds transition from failing to passing (recovery).
+	// This timestamp is used to implement the recovery sticky window, which keeps
+	// the component unhealthy for a stabilization period after ports come back up.
+	//
+	// Example scenario this prevents:
+	// - 08:00: Port mlx5_7 goes down, only 7/8 ports active, marked Unhealthy
+	// - 08:47: Port mlx5_7 recovers, now 8/8 ports active
+	// - WITHOUT recovery tracking: Immediately becomes Healthy (confusing!)
+	// - WITH recovery tracking: Stays Unhealthy until 08:57 for observation
+	c.lastMu.RLock()
+	prevCheckResult := c.lastCheckResult
+	c.lastMu.RUnlock()
+
+	c.thresholdRecoveryTimeMu.Lock()
+	currentThresholdsFailing := cr.thresholdsFailing
+	previousThresholdsFailing := prevCheckResult != nil && prevCheckResult.thresholdsFailing
+
+	if !currentThresholdsFailing && previousThresholdsFailing && c.thresholdRecoveryTime == nil {
+		// Thresholds just transitioned from failing to passing - track recovery time
+		now := c.getTimeNowFunc()
+		c.thresholdRecoveryTime = &now
+
+		log.Logger.Infow("infiniband thresholds recovered, starting sticky window",
+			"recoveryTime", now,
+			"stickyWindow", c.dropStickyWindow)
+	} else if currentThresholdsFailing {
+		// Thresholds are failing, clear recovery time
+		c.thresholdRecoveryTime = nil
+	}
+	recoveryTime := c.thresholdRecoveryTime
+	c.thresholdRecoveryTimeMu.Unlock()
+
 	// Check for IB port drop/flap events
-	// Note: Drop events are only processed when thresholds are not met to avoid
-	// flagging dormant ports that are beyond the required threshold count
+	//
+	// THE OLD PROBLEM (before sticky window):
+	// Drop events were ONLY processed when thresholds were currently failing.
+	// This meant: evaluateHealthStateWithThresholds() runs first → if port recovered,
+	// it would set Healthy and clear unhealthyIBPorts → then drop event checking would
+	// skip processing because len(unhealthyIBPorts) == 0 → result: immediate Unhealthy→Healthy flip.
+	//
+	// THE FIX (with sticky window):
+	// Drop events are now processed under THREE conditions (see below), not just when
+	// thresholds are failing. This prevents threshold recovery from immediately clearing
+	// the unhealthy state, while still handling dormant ports correctly after the sticky
+	// window expires.
 	if c.ibPortsStore != nil {
 		// we DO NOT discard past latestIbportEvents until the user explicitly
 		// inspected and set healthy, in order to not miss critical latestIbportEvents
@@ -340,17 +428,100 @@ func (c *component) Check() components.CheckResult {
 			// This avoids redundant event storage while ensuring critical events are not missed.
 			ibDropDevs := []string{}
 			ibFlapDevs := []string{}
+
+			type portKey struct {
+				device string
+				port   uint
+			}
+			currentPortStates := make(map[portKey]string, len(sysClassIBPorts))
+			for _, port := range sysClassIBPorts {
+				currentPortStates[portKey{device: port.Device, port: port.Port}] = port.State
+			}
 			for _, event := range latestIbportEvents {
 				switch event.EventType {
 				case infinibandstore.EventTypeIbPortDrop:
-					// Skip IB port drop checks if threshold checks are passing.
-					// We only process drop events when there are ports failing threshold checks.
-					// This prevents marking excessive/stale IB ports beyond the thresholds as problematic
-					// when they are not meant to be used (e.g., only need 8 ports but a machine may have
-					// 12 ports total with 4 being dormant thus down, in this case we should not mark
-					// such 4 ports as IB port drop).
-					if len(cr.unhealthyIBPorts) > 0 {
-						log.Logger.Warnw(event.EventReason)
+					// WHY WE NEED THREE CONDITIONS FOR PROCESSING DROPS:
+					//
+					// CONDITION 1: Thresholds currently failing (e.g., only 7/8 ports active)
+					// - Process ALL drops immediately for visibility into what's broken
+					// - This includes old drops from dormant ports to show full picture
+					//
+					// CONDITION 2: Drop occurred recently (within sticky window, e.g., < 10 min ago)
+					// - Even if thresholds pass NOW, recent drops indicate instability
+					// - Prevents "blink and you miss it" scenarios where issues self-heal quickly
+					//
+					// CONDITION 3: Thresholds JUST recovered AND within recovery sticky window
+					// - Port was down causing threshold failure, then recovered
+					// - Without this: Unhealthy→Healthy flip within 30s confuses operators
+					// - With this: Stays Unhealthy for stabilization period after recovery
+					// - Example timeline from production:
+					//   08:00: Port drops, marked Unhealthy + HARDWARE_INSPECTION
+					//   08:47: Port recovers, thresholds pass
+					//   08:47: WITHOUT sticky: Immediately Healthy (confusing!)
+					//   08:47: WITH sticky: Remains Unhealthy until 08:57 (clear)
+					//
+					// This design preserves dormant port handling: ports beyond thresholds
+					// (e.g., ports 9-12 when only 8 needed) won't cause false alerts after
+					// the sticky window expires.
+
+					// CONDITION 1: Check if thresholds are currently failing
+					thresholdsFailing := cr.thresholdsFailing
+					now := c.getTimeNowFunc()
+					dropAge := now.Sub(event.Time)
+					if dropAge < 0 {
+						// Future-dated event (clock skew?) - treat as very recent but log warning
+						log.Logger.Warnw("drop event has future timestamp, possible clock skew",
+							"eventTime", event.Time,
+							"currentTime", now,
+							"device", event.Port.Device)
+						dropAge = 0
+					}
+
+					// CONDITION 2: Check if drop is recent (within sticky window from event time)
+					dropWithinStickyWindow := false
+					if c.dropStickyWindow > 0 {
+						dropWithinStickyWindow = dropAge < c.dropStickyWindow
+					}
+
+					// CONDITION 3: Check if we're within recovery sticky window
+					// This handles the case where:
+					// - Thresholds were failing (port down)
+					// - Thresholds just recovered (port came back up)
+					// - We want to stay unhealthy for stabilization period
+					withinRecoveryStickyWindow := false
+					timeSinceRecovery := time.Duration(0)
+					portRecovered := false
+					if state, ok := currentPortStates[portKey{device: event.Port.Device, port: event.Port.Port}]; ok {
+						portRecovered = strings.EqualFold(state, "ACTIVE") || strings.EqualFold(state, "UP")
+					}
+					if recoveryTime != nil && c.dropStickyWindow > 0 && portRecovered {
+						timeSinceRecovery = now.Sub(*recoveryTime)
+						if timeSinceRecovery < 0 {
+							timeSinceRecovery = 0
+						}
+						if timeSinceRecovery < c.dropStickyWindow {
+							withinRecoveryStickyWindow = true
+						}
+					}
+
+					// Process drop if ANY of the three conditions are met
+					//
+					// KEY FIX: Previously this would be: if thresholdsFailing { ... }
+					// That meant once thresholds passed (port recovered), drop events were ignored,
+					// causing the immediate state flip. Now we use OR logic with three conditions,
+					// ensuring drop events persist even after threshold recovery.
+					shouldProcessDrop := thresholdsFailing || dropWithinStickyWindow || withinRecoveryStickyWindow
+
+					if shouldProcessDrop {
+						log.Logger.Warnw(event.EventReason,
+							"thresholdsFailing", thresholdsFailing,
+							"dropAge", dropAge,
+							"dropWithinStickyWindow", dropWithinStickyWindow,
+							"withinRecoveryStickyWindow", withinRecoveryStickyWindow,
+							"timeSinceRecovery", timeSinceRecovery,
+							"stickyWindow", c.dropStickyWindow,
+							"recoveryTimeTracked", recoveryTime != nil,
+							"portRecovered", portRecovered)
 						ibDropDevs = append(ibDropDevs, event.Port.Device)
 					}
 
@@ -415,6 +586,13 @@ type checkResult struct {
 	// current unhealthy ib ports that are problematic
 	// (down/polling/disabled, below expected ib port thresholds)
 	unhealthyIBPorts []types.IBPort `json:"-"`
+
+	// indicates whether threshold evaluation failed during this check
+	// This flag is used for sticky window logic (Condition 1):
+	// - true: all drop events are processed immediately
+	// - false: drop events may still be processed via Conditions 2 & 3 (sticky window)
+	// This prevents threshold recovery from immediately clearing the unhealthy state.
+	thresholdsFailing bool `json:"-"`
 
 	// timestamp of the last check
 	ts time.Time
