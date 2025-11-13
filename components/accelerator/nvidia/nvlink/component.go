@@ -220,11 +220,25 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	NVLinks                []NVLink            `json:"nvlinks,omitempty"`
-	ActiveNVLinkUUIDs      []string            `json:"active_nvlink_uuids,omitempty"`
-	InactiveNVLinkUUIDs    []string            `json:"inactive_nvlink_uuids,omitempty"`
-	UnsupportedNVLinkUUIDs []string            `json:"unsupported_nvlink_uuids,omitempty"`
-	ExpectedLinkStates     *ExpectedLinkStates `json:"expected_link_states,omitempty"`
+	// NVLinks contains detailed NVLink information for all GPUs checked
+	NVLinks []NVLink `json:"nvlinks,omitempty"`
+
+	// ActiveNVLinkUUIDs lists GPUs where NVLink is supported AND all links have FeatureEnabled=true
+	// (i.e., len(States) > 0 && States.AllFeatureEnabled() == true)
+	// These GPUs have fully operational NVLink connectivity
+	ActiveNVLinkUUIDs []string `json:"active_nvlink_uuids,omitempty"`
+
+	// InactiveNVLinkUUIDs lists GPUs where NVLink is supported BUT at least one link has FeatureEnabled=false
+	// This corresponds to nvidia-smi showing "all links are inActive"
+	// Common causes: disabled via driver, fabric manager issues, NVSwitch connectivity problems
+	InactiveNVLinkUUIDs []string `json:"inactive_nvlink_uuids,omitempty"`
+
+	// UnsupportedNVLinkUUIDs lists GPUs that do not support NVLink at hardware/firmware level
+	UnsupportedNVLinkUUIDs []string `json:"unsupported_nvlink_uuids,omitempty"`
+
+	// ExpectedLinkStates defines the threshold for how many GPUs must have active NVLink
+	// Used by evaluateHealthStateWithThresholds to determine if the system is healthy
+	ExpectedLinkStates *ExpectedLinkStates `json:"expected_link_states,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time
