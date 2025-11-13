@@ -2,6 +2,7 @@ package sxid
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"runtime"
@@ -153,6 +154,42 @@ func TestMergeEvents(t *testing.T) {
 	})
 }
 
+func TestTrimEventsAfterSetHealthy(t *testing.T) {
+	now := time.Now()
+
+	t.Run("dropsEventsOlderThanSetHealthy", func(t *testing.T) {
+		events := eventstore.Events{
+			{Time: now, Name: EventNameErrorSXid},
+			{Time: now.Add(-time.Minute), Name: "SetHealthy"},
+			{Time: now.Add(-2 * time.Minute), Name: EventNameErrorSXid},
+		}
+
+		trimmed := trimEventsAfterSetHealthy(events)
+		assert.Len(t, trimmed, 1)
+		assert.Equal(t, EventNameErrorSXid, trimmed[0].Name)
+		assert.Equal(t, now.Unix(), trimmed[0].Time.Unix())
+	})
+
+	t.Run("noSetHealthyReturnsOriginal", func(t *testing.T) {
+		events := eventstore.Events{
+			{Time: now, Name: EventNameErrorSXid},
+			{Time: now.Add(-time.Minute), Name: EventNameErrorSXid},
+		}
+
+		trimmed := trimEventsAfterSetHealthy(events)
+		assert.Equal(t, events, trimmed)
+	})
+
+	t.Run("onlySetHealthyReturnsEmpty", func(t *testing.T) {
+		events := eventstore.Events{
+			{Time: now, Name: "SetHealthy"},
+		}
+
+		trimmed := trimEventsAfterSetHealthy(events)
+		assert.Empty(t, trimmed)
+	})
+}
+
 func TestSXIDComponent_SetHealthy(t *testing.T) {
 	// Initialize component
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -161,37 +198,76 @@ func TestSXIDComponent_SetHealthy(t *testing.T) {
 	component, cleanup := initComponentForTest(ctx, t)
 	defer cleanup()
 
-	err := component.SetHealthy()
-	assert.NoError(t, err)
+	// Insert some SXID events in the past with properly formatted JSON
+	pastTime := time.Now().Add(-10 * time.Minute)
 
-	select {
-	case event := <-component.extraEventCh:
-		assert.Equal(t, "SetHealthy", event.Name)
-	default:
-		t.Error("expected event in channel but got none")
+	// Create SXID event 1 with proper JSON formatting
+	sxidErr1 := sxidErrorEventDetail{
+		SXid:       94,
+		DataSource: "test",
+		DeviceUUID: "test-uuid",
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+		},
 	}
-}
-
-func TestSXIDComponent_SetHealthy_ChannelFull(t *testing.T) {
-	// Initialize component
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	component, cleanup := initComponentForTest(ctx, t)
-	defer cleanup()
-
-	// Create a channel with a small buffer capacity
-	component.extraEventCh = make(chan *eventstore.Event, 1)
-
-	// Fill the channel
-	component.extraEventCh <- &eventstore.Event{
-		Time: time.Now(),
-		Name: "dummy",
+	sxidData1, _ := json.Marshal(sxidErr1)
+	event1 := eventstore.Event{
+		Time:      pastTime,
+		Name:      EventNameErrorSXid,
+		Type:      string(apiv1.EventTypeFatal),
+		ExtraInfo: map[string]string{EventKeyErrorSXidData: string(sxidData1)},
 	}
 
-	// SetHealthy should not block when the channel is full
-	err := component.SetHealthy()
+	// Create SXID event 2 with proper JSON formatting
+	sxidErr2 := sxidErrorEventDetail{
+		SXid:       79,
+		DataSource: "test",
+		DeviceUUID: "test-uuid-2",
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+		},
+	}
+	sxidData2, _ := json.Marshal(sxidErr2)
+	event2 := eventstore.Event{
+		Time:      pastTime.Add(time.Second),
+		Name:      EventNameErrorSXid,
+		Type:      string(apiv1.EventTypeFatal),
+		ExtraInfo: map[string]string{EventKeyErrorSXidData: string(sxidData2)},
+	}
+
+	err := component.eventBucket.Insert(ctx, event1)
 	assert.NoError(t, err)
+	err = component.eventBucket.Insert(ctx, event2)
+	assert.NoError(t, err)
+
+	// Verify events exist
+	events, err := component.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.Len(t, events, 2, "should have 2 events before SetHealthy")
+
+	// Force an update to show unhealthy state
+	err = component.updateCurrentState()
+	assert.NoError(t, err)
+
+	// Verify component is unhealthy before SetHealthy
+	states := component.LastHealthStates()
+	assert.Len(t, states, 1)
+	assert.NotEqual(t, apiv1.HealthStateTypeHealthy, states[0].Health, "should be unhealthy before SetHealthy")
+
+	// Call SetHealthy
+	err = component.SetHealthy()
+	assert.NoError(t, err)
+
+	// Verify all events were purged
+	events, err = component.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.Len(t, events, 0, "should have 0 events after SetHealthy purge")
+
+	// Verify health state was updated IMMEDIATELY (not waiting for ticker)
+	states = component.LastHealthStates()
+	assert.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health, "should be healthy immediately after SetHealthy")
+	assert.Equal(t, "SXIDComponent is healthy", states[0].Reason)
 }
 
 func TestSXIDComponent_Events(t *testing.T) {
@@ -248,11 +324,6 @@ func TestSXIDComponent_States(t *testing.T) {
 	component, cleanup := initComponentForTest(ctx, t)
 	defer cleanup()
 
-	// Create a channel with a buffer to avoid blocking
-	msgCh := make(chan kmsg.Message, 1)
-	go component.start(msgCh, 100*time.Millisecond)
-	defer component.Close()
-
 	s := apiv1.HealthState{
 		Name:   StateNameErrorSXid,
 		Health: apiv1.HealthStateTypeHealthy,
@@ -295,12 +366,10 @@ func TestSXIDComponent_States(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Insert test events directly into eventBucket rather than using extraEventCh
 			for i, event := range tt.events {
 				err := component.eventBucket.Insert(ctx, event)
 				assert.NoError(t, err)
 
-				// Manually trigger state update rather than waiting for channel
 				err = component.updateCurrentState()
 				assert.NoError(t, err)
 
@@ -315,10 +384,13 @@ func TestSXIDComponent_States(t *testing.T) {
 					assert.Equal(t, tt.wantState[i].SuggestedActions.RepairActions, states[0].SuggestedActions.RepairActions, "index %d", i)
 				}
 			}
+
 			err := component.SetHealthy()
 			assert.NoError(t, err)
-			// Wait for events to be processed
-			time.Sleep(500 * time.Millisecond)
+
+			states := component.LastHealthStates()
+			assert.Len(t, states, 1)
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
 		})
 	}
 }
