@@ -2,9 +2,9 @@ package host
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -36,6 +36,9 @@ var _ RebootEventStore = &rebootEventStore{}
 type rebootEventStore struct {
 	getBootTime func() time.Time
 	eventStore  eventstore.Store
+
+	bucketMu    sync.Mutex
+	eventBucket eventstore.Bucket
 }
 
 func NewRebootEventStore(eventStore eventstore.Store) RebootEventStore {
@@ -46,20 +49,41 @@ func NewRebootEventStore(eventStore eventstore.Store) RebootEventStore {
 }
 
 func (s *rebootEventStore) RecordReboot(ctx context.Context) error {
-	return recordEvent(ctx, s.eventStore, time.Now().UTC(), s.getBootTime)
+	return recordEvent(ctx, s, time.Now().UTC(), s.getBootTime)
 }
 
 func (s *rebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
-	return getEvents(ctx, s.eventStore, since)
+	return getEvents(ctx, s, since)
 }
 
-var ErrBootTimeUnavailable = errors.New("boot time unavailable")
+func (s *rebootEventStore) getBucket() (eventstore.Bucket, error) {
+	s.bucketMu.Lock()
+	defer s.bucketMu.Unlock()
 
-func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now time.Time, getBootTime func() time.Time) error {
-	currentBootTime := getBootTime()
-	if currentBootTime.IsZero() {
-		return ErrBootTimeUnavailable
+	if s.eventBucket != nil {
+		return s.eventBucket, nil
 	}
+	bucket, err := s.eventStore.Bucket(EventBucketName)
+	if err != nil {
+		return nil, err
+	}
+	s.eventBucket = bucket
+	return bucket, nil
+}
+
+func (s *rebootEventStore) Close() error {
+	s.bucketMu.Lock()
+	defer s.bucketMu.Unlock()
+
+	if s.eventBucket != nil {
+		s.eventBucket.Close()
+		s.eventBucket = nil
+	}
+	return nil
+}
+
+func recordEvent(ctx context.Context, store *rebootEventStore, now time.Time, getLastRebootTime func() time.Time) error {
+	currentBootTime := getLastRebootTime()
 
 	// if now - event time > retention, then skip
 	if now.Sub(currentBootTime) >= eventstore.DefaultRetention {
@@ -74,11 +98,10 @@ func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now tim
 		Message: fmt.Sprintf("system reboot detected %v", currentBootTime),
 	}
 
-	bucket, err := rebootEventStore.Bucket(EventBucketName)
+	bucket, err := store.getBucket()
 	if err != nil {
 		return err
 	}
-	defer bucket.Close()
 
 	// to prevent duplicate events
 	// in case boot time syscall returns an already recorded timestamp
@@ -116,13 +139,11 @@ func recordEvent(ctx context.Context, rebootEventStore eventstore.Store, now tim
 	return bucket.Insert(ctx, curRebootEvent)
 }
 
-func getEvents(ctx context.Context, eventStore eventstore.Store, since time.Time) (eventstore.Events, error) {
-	rebootBucket, err := eventStore.Bucket(EventBucketName, eventstore.WithDisablePurge())
+func getEvents(ctx context.Context, store *rebootEventStore, since time.Time) (eventstore.Events, error) {
+	rebootBucket, err := store.getBucket()
 	if err != nil {
 		return nil, err
 	}
-	defer rebootBucket.Close()
-
 	// we used the same bucket "os" for both reboot and os events
 	// until we migrate, we need manual filtering
 	// otherwise, we will get non-reboot events from the "os" component kmsg watcher

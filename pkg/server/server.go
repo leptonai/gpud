@@ -374,16 +374,24 @@ func (s *Server) Stop() {
 		}
 	}
 
+	if s.gpudInstance != nil && s.gpudInstance.RebootEventStore != nil {
+		if closer, ok := s.gpudInstance.RebootEventStore.(io.Closer); ok {
+			if err := closer.Close(); err != nil {
+				log.Logger.Warnw("failed to close reboot event store", "error", err)
+			}
+		}
+	}
+
 	if s.dbRW != nil {
 		if cerr := s.dbRW.Close(); cerr != nil {
-			log.Logger.Debugw("failed to close read-write db", "error", cerr)
+			log.Logger.Warnw("failed to close read-write db", "error", cerr)
 		} else {
 			log.Logger.Debugw("successfully closed read-write db")
 		}
 	}
 	if s.dbRO != nil {
 		if cerr := s.dbRO.Close(); cerr != nil {
-			log.Logger.Debugw("failed to close read-only db", "error", cerr)
+			log.Logger.Warnw("failed to close read-only db", "error", cerr)
 		} else {
 			log.Logger.Debugw("successfully closed read-only db")
 		}
@@ -391,12 +399,12 @@ func (s *Server) Stop() {
 
 	if s.fifo != nil {
 		if err := s.fifo.Close(); err != nil {
-			log.Logger.Errorf("failed to close fifo: %v", err)
+			log.Logger.Warnw("failed to close fifo", "error", err)
 		}
 	}
 	if s.fifoPath != "" {
 		if err := stdos.Remove(s.fifoPath); err != nil {
-			log.Logger.Errorf("failed to remove fifo: %s", err)
+			log.Logger.Warnw("failed to remove fifo", "error", err)
 		}
 	}
 }
