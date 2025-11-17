@@ -22,6 +22,7 @@ import (
 	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
+	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
@@ -30,6 +31,8 @@ import (
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/process"
+	sessionstates "github.com/leptonai/gpud/pkg/session/states"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 type Op struct {
@@ -449,9 +452,16 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 
 	if resp.StatusCode != http.StatusOK {
 		log.Logger.Warnw("session reader: request resp not ok -- retrying", "status", resp.Status, "statusCode", resp.StatusCode)
+
+		// Persist 403 Forbidden errors to session_states table
+		if resp.StatusCode == http.StatusForbidden {
+			s.persistLoginFailure(ctx, resp)
+		}
+
 		close(pipeFinishCh)
 		return
 	}
+
 	serverID := resp.Header.Get("X-GPUD-Server-ID")
 	log.Logger.Infow("session reader got X-GPUD-Server-ID", "serverID", serverID)
 
@@ -573,6 +583,52 @@ func (s *Session) handleReaderPipe(respBody io.ReadCloser, closec, finish chan a
 			}
 		}
 	}
+}
+
+func (s *Session) persistLoginFailure(ctx context.Context, resp *http.Response) {
+	// Read response body to get error message
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Logger.Warnw("failed to read response body for login failure", "error", err)
+		return
+	}
+
+	message := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))
+	if len(message) > 500 {
+		message = message[:500] // Truncate long messages
+	}
+
+	s.persistLoginStatus(ctx, false, message)
+}
+
+func (s *Session) persistLoginStatus(ctx context.Context, success bool, message string) {
+	stateFile, err := config.DefaultStateFile()
+	if err != nil {
+		log.Logger.Warnw("failed to get state file for login status", "error", err)
+		return
+	}
+
+	dbRW, err := sqlite.Open(stateFile)
+	if err != nil {
+		log.Logger.Warnw("failed to open state file for login status", "error", err)
+		return
+	}
+	defer dbRW.Close()
+
+	// Ensure table exists
+	if err := sessionstates.CreateTable(ctx, dbRW); err != nil {
+		log.Logger.Warnw("failed to create session_states table", "error", err)
+		return
+	}
+
+	// Insert login status entry
+	timestamp := time.Now().Unix()
+	if err := sessionstates.Insert(ctx, dbRW, timestamp, success, message); err != nil {
+		log.Logger.Warnw("failed to insert login status", "error", err)
+		return
+	}
+
+	log.Logger.Infow("persisted login status entry", "success", success, "message", message, "timestamp", timestamp)
 }
 
 func (s *Session) Stop() {

@@ -67,6 +67,12 @@ func Command(cliContext *cli.Context) error {
 		return err
 	}
 
+	log.Logger.Debugw("displaying login status from session_states table")
+	if err := displayLoginStatus(rootCtx, dbRO); err != nil {
+		return fmt.Errorf("failed to display login status: %w", err)
+	}
+	log.Logger.Debugw("successfully displayed login status")
+
 	var active bool
 	if systemd.SystemctlExists() {
 		active, err = systemd.IsActive("gpud.service")
