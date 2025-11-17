@@ -13,6 +13,7 @@ import (
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/server"
+	sessionstates "github.com/leptonai/gpud/pkg/session/states"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
@@ -66,6 +67,12 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 		return fmt.Errorf("failed to create metadata table: %w", err)
 	}
 	log.Logger.Debugw("successfully created metadata table")
+
+	log.Logger.Debugw("creating session states table")
+	if err := sessionstates.CreateTable(ctx, dbRW); err != nil {
+		return fmt.Errorf("failed to create session states table: %w", err)
+	}
+	log.Logger.Debugw("successfully created session states table")
 
 	log.Logger.Debugw("reading machine ID")
 	prevMachineID, err := pkgmetadata.ReadMachineID(ctx, dbRO)

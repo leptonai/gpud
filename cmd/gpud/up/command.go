@@ -9,10 +9,13 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
 	"github.com/leptonai/gpud/pkg/osutil"
+	sessionstates "github.com/leptonai/gpud/pkg/session/states"
+	"github.com/leptonai/gpud/pkg/sqlite"
 	pkdsystemd "github.com/leptonai/gpud/pkg/systemd"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
 )
@@ -55,6 +58,10 @@ func Command(cliContext *cli.Context) (retErr error) {
 			return lerr
 		}
 		log.Logger.Debugw("successfully logged in")
+
+		if err := recordLoginSuccessState(loginCtx); err != nil {
+			log.Logger.Warnw("failed to persist login success state", "error", err)
+		}
 	} else {
 		log.Logger.Infow("no --token provided, skipping login")
 	}
@@ -98,6 +105,29 @@ func Command(cliContext *cli.Context) (retErr error) {
 	log.Logger.Debugw("successfully restarted systemd unit")
 
 	log.Logger.Debugw("successfully started gpud (run 'gpud status' for checking status)")
+	return nil
+}
+
+func recordLoginSuccessState(ctx context.Context) error {
+	stateFile, err := config.DefaultStateFile()
+	if err != nil {
+		return fmt.Errorf("failed to get state file: %w", err)
+	}
+
+	dbRW, err := sqlite.Open(stateFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRW.Close()
+
+	if err := sessionstates.CreateTable(ctx, dbRW); err != nil {
+		return fmt.Errorf("failed to create session states table: %w", err)
+	}
+
+	if err := sessionstates.Insert(ctx, dbRW, time.Now().Unix(), true, "Session connected successfully"); err != nil {
+		return fmt.Errorf("failed to record login success state: %w", err)
+	}
+
 	return nil
 }
 
