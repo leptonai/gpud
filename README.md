@@ -61,6 +61,8 @@ If you plan to join the Lepton platform (using the `--token` flag), your node mu
 - 4+ CPU cores (e.g., AWS c6a.xlarge)
 - 8+ GiB memory
 
+**Why these requirements:** GPUd periodically reads system files from `/sys/class/infiniband/`, `/proc/`, and other paths to collect telemetry data. On nodes with less than 4 GiB memory, the Linux page cache cannot retain these files between polling cycles, causing every read to hit the disk and resulting in excessive I/O (measured at 5+ MB/s on 2 GiB nodes vs. 0 MB/s on larger nodes). The 4 GiB minimum ensures sufficient page cache for GPUd to operate as a lightweight daemon without causing disk I/O pressure.
+
 For complete hardware, software, and network requirements, see the official [NVIDIA DGX Cloud Lepton BYOC Requirements](https://docs.nvidia.com/dgx-cloud/lepton/compute/bring-your-own-compute/requirements/).
 
 > **Note:** These requirements apply only when joining the Lepton platform; standalone `gpud` operation has lower requirements.
