@@ -14,6 +14,7 @@ var (
 //
 // e.g.,
 // "NVIDIA H100 80GB HBM3" becomes "NVIDIA-H100-80GB-HBM3"
+// "NVIDIA H100 PCIe" becomes "NVIDIA-H100-PCIe"
 //
 // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/f666bc3f836a09ae2fda439f3d7a8d8b06b48ac4/internal/lm/resource.go#L187-L204
 // ref. https://github.com/NVIDIA/k8s-device-plugin/blob/f666bc3f836a09ae2fda439f3d7a8d8b06b48ac4/internal/lm/resource.go#L314-L322
