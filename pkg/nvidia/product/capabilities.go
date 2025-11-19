@@ -47,6 +47,13 @@ var (
 // NVSM-based fabric state telemetry available on newer systems like GB200.
 func SupportedFMByGPUProduct(gpuProductName string) bool {
 	p := strings.ToLower(gpuProductName)
+	// PCIe variants of H100/H200 do not use NVSwitches and thus do not require/support
+	// the NVIDIA Fabric Manager, which is designed for NVSwitch systems (e.g., HGX/DGX SXM).
+	// Ref: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
+	// "The NVIDIA Fabric Manager for NVSwitch Systems User Guide"
+	if strings.Contains(p, "pcie") {
+		return false
+	}
 	longestName, supported := "", false
 	for k, v := range gpuProductToFMSupported {
 		if !strings.Contains(p, k) {
@@ -77,6 +84,13 @@ func SupportedFMByGPUProduct(gpuProductName string) bool {
 //     Documents H100/H200 fabric state monitoring and registration process
 func SupportFabricStateByGPUProduct(gpuProductName string) bool {
 	p := strings.ToLower(gpuProductName)
+	// PCIe variants of H100/H200 do not use NVSwitches and thus do not support
+	// the fabric state API, which queries NVSwitch fabric registration status.
+	// Calling this API on PCIe cards returns "Not Supported".
+	// Ref: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
+	if strings.Contains(p, "pcie") {
+		return false
+	}
 	return strings.Contains(p, "gb200") ||
 		strings.Contains(p, "h100") ||
 		strings.Contains(p, "h200")

@@ -186,6 +186,16 @@ func TestSupportedFMByGPUProduct(t *testing.T) {
 			gpuProductName: "NVIDIA-GB200",
 			expected:       false,
 		},
+		{
+			name:           "H100 PCIe does not support",
+			gpuProductName: "NVIDIA H100 PCIe",
+			expected:       false,
+		},
+		{
+			name:           "H200 PCIe does not support",
+			gpuProductName: "NVIDIA H200 PCIe",
+			expected:       false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -231,7 +241,12 @@ func TestSupportFabricStateByGPUProduct(t *testing.T) {
 		{
 			name:           "H100 PCIe variant",
 			gpuProductName: "NVIDIA H100 PCIe",
-			expected:       true,
+			expected:       false,
+		},
+		{
+			name:           "H200 PCIe variant",
+			gpuProductName: "NVIDIA H200 PCIe",
+			expected:       false,
 		},
 		{
 			name:           "H100 NVL variant",
