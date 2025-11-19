@@ -172,6 +172,7 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 			return nil, fmt.Errorf("failed to get device name: %v", nvml.ErrorString(ret))
 		}
 		productName = name
+		log.Logger.Debugw("detected product name", "productName", productName)
 
 		for _, dev := range devices {
 			uuid, ret := dev.GetUUID()
