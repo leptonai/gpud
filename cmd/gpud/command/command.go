@@ -51,8 +51,8 @@ func App() *cli.App {
 			UsageText: `# to start gpud as a systemd unit (recommended)
 sudo gpud up
 
-# to enable machine monitoring powered by lepton.ai platform
-# sign up here: https://lepton.ai
+# to enable machine monitoring powered by https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton platform
+# sign up here: https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton
 sudo gpud up --token <LEPTON_AI_TOKEN>
 
 # to start gpud without a systemd unit (e.g., mac)
@@ -71,7 +71,7 @@ nohup sudo gpud run &>> <your log file path> &
 				// optional, only required for logging into platform/control plane
 				cli.StringFlag{
 					Name:  "token",
-					Usage: "(optional) lepton.ai workspace token for checking in",
+					Usage: "(optional) https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton workspace token for checking in",
 				},
 				cli.StringFlag{
 					Name:  "private-ip",
@@ -125,7 +125,7 @@ sudo rm /etc/systemd/system/gpud.service
 		},
 		{
 			Name:   "run",
-			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux)",
+			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux) -- if --token is provided, it will perform login",
 			Action: cmdrun.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
