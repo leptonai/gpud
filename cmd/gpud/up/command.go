@@ -35,6 +35,12 @@ func Command(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
+	gpuCount := cliContext.Int("gpu-count")
+	gpuCountStr := ""
+	if gpuCount > 0 {
+		gpuCountStr = fmt.Sprintf("%d", gpuCount)
+	}
+
 	// step 1.
 	// perform "login" if and only if configured
 	if cliContext.IsSet("token") || cliContext.String("token") != "" {
@@ -49,7 +55,9 @@ func Command(cliContext *cli.Context) (retErr error) {
 			Endpoint:  cliContext.String("endpoint"),
 			MachineID: cliContext.String("machine-id"),
 			NodeGroup: cliContext.String("node-group"),
-			GPUCount:  cliContext.String("gpu-count"),
+
+			GPUCount: gpuCountStr,
+
 			PublicIP:  cliContext.String("public-ip"),
 			PrivateIP: cliContext.String("private-ip"),
 		}

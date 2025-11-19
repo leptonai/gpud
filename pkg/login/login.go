@@ -26,7 +26,11 @@ type LoginConfig struct {
 	Endpoint  string
 	MachineID string // optional: can be empty
 	NodeGroup string // optional
-	GPUCount  string // optional
+
+	// GPUCount is the number of GPUs to be reported to the control plane.
+	// If not specified, the control plane will use the detected number of GPUs.
+	GPUCount string
+
 	PublicIP  string // optional: overrides detected public IP
 	PrivateIP string // optional: overrides detected private IP
 }

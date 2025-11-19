@@ -27,9 +27,11 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/login"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
+	sessionstates "github.com/leptonai/gpud/pkg/session/states"
 	pkgsqlite "github.com/leptonai/gpud/pkg/sqlite"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
@@ -45,6 +47,50 @@ func Command(cliContext *cli.Context) error {
 	log.Logger = log.CreateLogger(zapLvl, logFile)
 
 	log.Logger.Debugw("starting run command")
+
+	gpuCount := cliContext.Int("gpu-count")
+	gpuCountStr := ""
+	if gpuCount > 0 {
+		gpuCountStr = fmt.Sprintf("%d", gpuCount)
+		componentsnvidiagpucounts.SetDefaultExpectedGPUCounts(componentsnvidiagpucounts.ExpectedGPUCounts{
+			Count: gpuCount,
+		})
+		log.Logger.Infow("set gpu count", "gpuCount", gpuCount)
+	}
+
+	// step 1.
+	// perform "login" if and only if configured
+	// Optional overrides for control plane connectivity
+	controlPlaneEndpoint := cliContext.String("endpoint")
+	controlPlaneLoginToken := cliContext.String("token")
+	machineIDForOverride := cliContext.String("machine-id")
+
+	if cliContext.IsSet("token") || controlPlaneLoginToken != "" {
+		log.Logger.Debugw("attempting control plane login")
+
+		// Create login configuration from CLI context
+		loginCtx, loginCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer loginCancel()
+
+		loginCfg := login.LoginConfig{
+			Token:     controlPlaneLoginToken,
+			Endpoint:  controlPlaneEndpoint,
+			MachineID: machineIDForOverride,
+
+			GPUCount: gpuCountStr,
+		}
+
+		if lerr := login.Login(loginCtx, loginCfg); lerr != nil {
+			return lerr
+		}
+		log.Logger.Debugw("successfully logged in")
+
+		if err := recordLoginSuccessState(loginCtx); err != nil {
+			log.Logger.Warnw("failed to persist login success state", "error", err)
+		}
+	} else {
+		log.Logger.Infow("no --token provided, skipping login")
+	}
 
 	if runtime.GOOS != "linux" {
 		fmt.Printf("gpud run on %q not supported\n", runtime.GOOS)
@@ -68,24 +114,10 @@ func Command(cliContext *cli.Context) error {
 	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
 	components := cliContext.String("components")
 
-	// Optional overrides for control plane connectivity
-	endpoint := cliContext.String("endpoint")
-	overrideMachineID := cliContext.String("machine-id")
-	token := cliContext.String("token")
-
-	gpuCount := cliContext.Int("gpu-count")
 	infinibandExpectedPortStates := cliContext.String("infiniband-expected-port-states")
 	nvlinkExpectedLinkStates := cliContext.String("nvlink-expected-link-states")
 	nfsCheckerConfigs := cliContext.String("nfs-checker-configs")
 	xidRebootThreshold := cliContext.Int("xid-reboot-threshold")
-
-	if gpuCount > 0 {
-		componentsnvidiagpucounts.SetDefaultExpectedGPUCounts(componentsnvidiagpucounts.ExpectedGPUCounts{
-			Count: gpuCount,
-		})
-
-		log.Logger.Infow("set gpu count", "gpuCount", gpuCount)
-	}
 
 	if len(infinibandExpectedPortStates) > 0 {
 		var expectedPortStates componentsnvidiainfinibanditypes.ExpectedPortStates
@@ -206,7 +238,7 @@ func Command(cliContext *cli.Context) error {
 	}
 
 	// Persist overrides to metadata for subsequent sessions.
-	if endpoint != "" || overrideMachineID != "" || token != "" {
+	if controlPlaneEndpoint != "" || controlPlaneLoginToken != "" || machineIDForOverride != "" {
 		mctx, mcancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer mcancel()
 
@@ -222,25 +254,25 @@ func Command(cliContext *cli.Context) error {
 			return fmt.Errorf("failed to ensure metadata table: %w", err)
 		}
 
-		if endpoint != "" {
-			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyEndpoint, endpoint); err != nil {
+		if controlPlaneEndpoint != "" {
+			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyEndpoint, controlPlaneEndpoint); err != nil {
 				return fmt.Errorf("failed to set endpoint metadata: %w", err)
 			}
-			log.Logger.Infow("overriding endpoint from flag", "endpoint", endpoint)
+			log.Logger.Infow("overriding endpoint from flag", "endpoint", controlPlaneEndpoint)
 		}
 
-		if overrideMachineID != "" {
-			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyMachineID, overrideMachineID); err != nil {
-				return fmt.Errorf("failed to set machine-id metadata: %w", err)
-			}
-			log.Logger.Infow("overriding machine id from flag", "machineID", overrideMachineID)
-		}
-
-		if token != "" {
-			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyToken, token); err != nil {
+		if controlPlaneLoginToken != "" {
+			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyToken, controlPlaneLoginToken); err != nil {
 				return fmt.Errorf("failed to set token metadata: %w", err)
 			}
 			log.Logger.Infow("overriding token from flag")
+		}
+
+		if machineIDForOverride != "" {
+			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyMachineID, machineIDForOverride); err != nil {
+				return fmt.Errorf("failed to set machine-id metadata: %w", err)
+			}
+			log.Logger.Infow("overriding machine id from flag", "machineID", machineIDForOverride)
 		}
 	}
 
@@ -288,6 +320,29 @@ func Command(cliContext *cli.Context) error {
 
 	log.Logger.Infow("successfully booted", "tookSeconds", time.Since(start).Seconds())
 	<-done
+
+	return nil
+}
+
+func recordLoginSuccessState(ctx context.Context) error {
+	stateFile, err := config.DefaultStateFile()
+	if err != nil {
+		return fmt.Errorf("failed to get state file: %w", err)
+	}
+
+	dbRW, err := pkgsqlite.Open(stateFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer dbRW.Close()
+
+	if err := sessionstates.CreateTable(ctx, dbRW); err != nil {
+		return fmt.Errorf("failed to create session states table: %w", err)
+	}
+
+	if err := sessionstates.Insert(ctx, dbRW, time.Now().Unix(), true, "Session connected successfully"); err != nil {
+		return fmt.Errorf("failed to record login success state: %w", err)
+	}
 
 	return nil
 }
