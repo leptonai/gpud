@@ -44,6 +44,14 @@ func App() *cli.App {
 	app.Usage = usage
 	app.Description = "GPU health checkers"
 
+	app.Flags = []cli.Flag{
+		&cli.StringFlag{
+			Name:  "data-dir",
+			Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+			Value: pkgconfig.DefaultDataDir,
+		},
+	}
+
 	app.Commands = []cli.Command{
 		{
 			Name:  "up",

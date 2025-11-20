@@ -10,6 +10,7 @@ import (
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
@@ -136,7 +137,7 @@ func (s *Session) serve() {
 
 func (s *Session) delete() {
 	// cleanup packages
-	if err := createNeedDeleteFiles("/var/lib/gpud/packages"); err != nil {
+	if err := createNeedDeleteFiles(config.PackagesDir(s.dataDir)); err != nil {
 		log.Logger.Errorw("failed to delete packages",
 			"error", err,
 		)
@@ -144,6 +145,12 @@ func (s *Session) delete() {
 }
 
 func createNeedDeleteFiles(rootPath string) error {
+	if _, err := os.Stat(rootPath); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
 	return filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

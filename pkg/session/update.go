@@ -13,7 +13,7 @@ import (
 // processUpdate handles the update request
 func (s *Session) processUpdate(_ context.Context, payload Request, response *Response, restartExitCode *int) {
 	if targetVersion := strings.Split(payload.UpdateVersion, ":"); len(targetVersion) == 2 {
-		err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL)
+		err := update.PackageUpdate(targetVersion[0], targetVersion[1], update.DefaultUpdateURL, s.dataDir)
 		log.Logger.Infow("update received for machine", "version", targetVersion[1], "package", targetVersion[0], "error", err)
 	} else {
 		if !s.enableAutoUpdate {

@@ -5,12 +5,13 @@ import (
 	"errors"
 	"os"
 
+	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 )
 
-const DefaultVersionFile = "/var/lib/gpud/target_version"
+var DefaultVersionFile = config.VersionFilePath(config.DefaultDataDir)
 
 func UpdateTargetVersion(versionFile string, autoExitCode int) error {
 	return updateTargetVersion(

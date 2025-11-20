@@ -3,12 +3,12 @@ package update
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/osutil"
 )
@@ -50,15 +50,21 @@ func UpdateExecutable(targetVersion string, url string, requireRoot bool) error 
 	return nil
 }
 
-func PackageUpdate(targetPackage, ver, baseUrl string) error {
+func PackageUpdate(targetPackage, ver, baseUrl, dataDir string) error {
 	dlDir, err := os.UserCacheDir()
 	if err != nil {
 		dlDir = os.TempDir()
 	}
-	return packageUpdate(dlDir, targetPackage, ver, baseUrl)
+
+	resolvedDataDir, err := config.ResolveDataDir(dataDir)
+	if err != nil {
+		return err
+	}
+
+	return packageUpdate(dlDir, resolvedDataDir, targetPackage, ver, baseUrl)
 }
 
-func packageUpdate(dlDir string, targetPackage string, ver string, baseUrl string) error {
+func packageUpdate(dlDir string, dataDir string, targetPackage string, ver string, baseUrl string) error {
 	if err := os.MkdirAll(dlDir, 0700); err != nil {
 		return err
 	}
@@ -74,7 +80,12 @@ func packageUpdate(dlDir string, targetPackage string, ver string, baseUrl strin
 	}
 	defer os.Remove(dlPath)
 
-	if err = copyFile(dlPath, fmt.Sprintf("/var/lib/gpud/packages/%s/init.sh", targetPackage)); err != nil {
+	targetPath := filepath.Join(config.PackagesDir(dataDir), targetPackage, "init.sh")
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		return err
+	}
+
+	if err = copyFile(dlPath, targetPath); err != nil {
 		return err
 	}
 	return nil

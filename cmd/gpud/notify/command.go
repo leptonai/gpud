@@ -14,7 +14,7 @@ import (
 	"github.com/urfave/cli"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/config"
+	gpudcommon "github.com/leptonai/gpud/cmd/gpud/common"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -30,7 +30,7 @@ func CommandStartup(cliContext *cli.Context) error {
 
 	log.Logger.Debugw("starting notify startup command")
 
-	stateFile, err := config.DefaultStateFile()
+	stateFile, err := gpudcommon.StateFileFromContext(cliContext)
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
@@ -87,7 +87,7 @@ func CommandShutdown(cliContext *cli.Context) error {
 
 	log.Logger.Debugw("starting notify shutdown command")
 
-	stateFile, err := config.DefaultStateFile()
+	stateFile, err := gpudcommon.StateFileFromContext(cliContext)
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}

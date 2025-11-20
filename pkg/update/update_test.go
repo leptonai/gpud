@@ -39,13 +39,13 @@ func TestPackageUpdate(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Test error path for non-existent directory
-	err = packageUpdate("/non-existent/dir", "test-pkg", "0.0.1", DefaultUpdateURL)
+	err = packageUpdate("/non-existent/dir", t.TempDir(), "test-pkg", "0.0.1", DefaultUpdateURL)
 	if err == nil {
 		t.Error("Expected error for non-existent directory")
 	}
 
 	// Test with valid temp directory
-	err = packageUpdate(tempDir, "test-pkg", "0.0.1", DefaultUpdateURL)
+	err = packageUpdate(tempDir, tempDir, "test-pkg", "0.0.1", DefaultUpdateURL)
 	// This will fail due to download failing, but we're testing the logic flow
 	if err == nil {
 		t.Error("Expected error for failed download")
@@ -53,7 +53,7 @@ func TestPackageUpdate(t *testing.T) {
 
 	// Test with package that would need root to install
 	if os.Geteuid() != 0 {
-		err = PackageUpdate("test-pkg", "0.0.1", DefaultUpdateURL)
+		err = PackageUpdate("test-pkg", "0.0.1", DefaultUpdateURL, tempDir)
 		if err == nil {
 			t.Error("Expected error when running PackageUpdate as non-root")
 		}

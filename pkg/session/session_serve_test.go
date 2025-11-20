@@ -211,6 +211,7 @@ func setupTestSession() (*Session, *mockComponentRegistry, *mockMetricsStore, *m
 		reader:             reader,
 		writer:             writer,
 		componentsRegistry: componentsRegistry,
+		dataDir:            os.TempDir(),
 		metricsStore:       metricsStore,
 		processRunner:      processRunner,
 		faultInjector:      faultInjector,

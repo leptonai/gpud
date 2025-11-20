@@ -16,6 +16,7 @@ import (
 const (
 	DefaultAPIVersion = "v1"
 	DefaultGPUdPort   = 15132
+	DefaultDataDir    = "/var/lib/gpud"
 )
 
 var (
@@ -36,9 +37,15 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		return nil, err
 	}
 
+	dataDir, err := ResolveDataDir(options.DataDir)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		APIVersion:       DefaultAPIVersion,
 		Address:          fmt.Sprintf(":%d", DefaultGPUdPort),
+		DataDir:          dataDir,
 		RetentionPeriod:  DefaultRetentionPeriod,
 		CompactPeriod:    DefaultCompactPeriod,
 		Pprof:            false,
@@ -50,23 +57,35 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	}
 
 	if cfg.State == "" {
-		var err error
-		cfg.State, err = DefaultStateFile()
-		if err != nil {
-			return nil, err
-		}
+		cfg.State = StateFilePath(cfg.DataDir)
 	}
 
 	return cfg, nil
 }
 
-const defaultVarLib = "/var/lib/gpud"
+// ResolveDataDir resolves and validates a data directory path.
+// If dataDir is empty or matches DefaultDataDir, it uses platform-specific logic:
+//   - For root users (or when /var/lib exists): /var/lib/gpud
+//   - For non-root users: $HOME/.gpud
+//
+// For non-empty custom paths, it ensures the directory exists and is writable.
+// The directory is created with 0755 permissions if it doesn't exist.
+func ResolveDataDir(dataDir string) (string, error) {
+	if dataDir == "" {
+		return setupDefaultDir()
+	}
+
+	if err := stdos.MkdirAll(dataDir, 0755); err != nil {
+		return "", err
+	}
+	return dataDir, nil
+}
 
 func setupDefaultDir() (string, error) {
 	asRoot := stdos.Geteuid() == 0 // running as root
 
-	d := defaultVarLib
-	_, err := stdos.Stat("/var/lib")
+	d := DefaultDataDir
+	_, err := stdos.Stat(filepath.Dir(d))
 	if !asRoot || stdos.IsNotExist(err) {
 		homeDir, err := homedir.Dir()
 		if err != nil {
@@ -84,17 +103,37 @@ func setupDefaultDir() (string, error) {
 }
 
 func DefaultStateFile() (string, error) {
-	dir, err := setupDefaultDir()
+	dir, err := ResolveDataDir("")
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "gpud.state"), nil
+	return StateFilePath(dir), nil
 }
 
 func DefaultFifoFile() (string, error) {
-	f, err := setupDefaultDir()
+	dir, err := ResolveDataDir("")
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(f, "gpud.fifo"), nil
+	return FifoFilePath(dir), nil
+}
+
+// StateFilePath returns the state DB file path under the dataDir.
+func StateFilePath(dataDir string) string {
+	return filepath.Join(dataDir, "gpud.state")
+}
+
+// FifoFilePath returns the FIFO pipe path under the dataDir.
+func FifoFilePath(dataDir string) string {
+	return filepath.Join(dataDir, "gpud.fifo")
+}
+
+// PackagesDir returns the packages directory under the dataDir.
+func PackagesDir(dataDir string) string {
+	return filepath.Join(dataDir, "packages")
+}
+
+// VersionFilePath returns the version file path under the dataDir.
+func VersionFilePath(dataDir string) string {
+	return filepath.Join(dataDir, "target_version")
 }

@@ -42,6 +42,7 @@ type Op struct {
 	enableAutoUpdate    bool
 	autoUpdateExitCode  int
 	componentsRegistry  components.Registry
+	dataDir             string
 	nvmlInstance        nvidianvml.Instance
 	metricsStore        pkgmetrics.Store
 	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
@@ -106,6 +107,12 @@ func WithNvidiaInstance(nvmlInstance nvidianvml.Instance) OpOption {
 	}
 }
 
+func WithDataDir(dataDir string) OpOption {
+	return func(op *Op) {
+		op.dataDir = dataDir
+	}
+}
+
 func WithMetricsStore(metricsStore pkgmetrics.Store) OpOption {
 	return func(op *Op) {
 		op.metricsStore = metricsStore
@@ -148,7 +155,8 @@ type Session struct {
 	// epControlPlane is the endpoint of the control plane
 	epControlPlane string
 
-	token string
+	token   string
+	dataDir string
 
 	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
 
@@ -225,6 +233,11 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		return nil, err
 	}
 
+	dataDir, err := config.ResolveDataDir(op.dataDir)
+	if err != nil {
+		return nil, err
+	}
+
 	cps := make([]string, 0)
 	for _, c := range op.componentsRegistry.All() {
 		cps = append(cps, c.Name())
@@ -244,6 +257,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 
 		machineID: op.machineID,
 		token:     token,
+		dataDir:   dataDir,
 
 		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
 
@@ -602,11 +616,7 @@ func (s *Session) persistLoginFailure(ctx context.Context, resp *http.Response) 
 }
 
 func (s *Session) persistLoginStatus(ctx context.Context, success bool, message string) {
-	stateFile, err := config.DefaultStateFile()
-	if err != nil {
-		log.Logger.Warnw("failed to get state file for login status", "error", err)
-		return
-	}
+	stateFile := config.StateFilePath(s.dataDir)
 
 	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {

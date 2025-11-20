@@ -12,12 +12,8 @@ import (
 
 // processLogout handles the logout request
 func (s *Session) processLogout(ctx context.Context, response *Response) {
-	stateFile, err := config.DefaultStateFile()
-	if err != nil {
-		log.Logger.Errorw("failed to get state file", "error", err)
-		response.Error = err.Error()
-		return
-	}
+	stateFile := config.StateFilePath(s.dataDir)
+
 	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {
 		log.Logger.Errorw("failed to open state file", "error", err)

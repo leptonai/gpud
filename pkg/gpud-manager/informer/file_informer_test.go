@@ -178,14 +178,15 @@ func TestResolveDependenciesWithEmptyString(t *testing.T) {
 
 // TestNewFileInformer tests the constructor with default paths
 func TestNewFileInformer(t *testing.T) {
-	ch := NewFileInformer()
+	ch := NewFileInformer(t.TempDir())
 	assert.NotNil(t, ch, "NewFileInformer should return a channel")
 }
 
 // TestNewFileInformerWithConfig tests the constructor with custom paths
 func TestNewFileInformerWithConfig(t *testing.T) {
-	packagesDir := "/custom/packages"
-	rootDir := "/custom/root"
+	tempDir := t.TempDir()
+	packagesDir := filepath.Join(tempDir, "packages")
+	rootDir := filepath.Join(tempDir, "root")
 
 	ch := NewFileInformerWithConfig(packagesDir, rootDir)
 	assert.NotNil(t, ch, "NewFileInformerWithConfig should return a channel")
