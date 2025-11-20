@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli"
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
+	gpudcommon "github.com/leptonai/gpud/cmd/gpud/common"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
@@ -46,7 +47,7 @@ func Command(cliContext *cli.Context) error {
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer rootCancel()
 
-	stateFile, err := config.DefaultStateFile()
+	stateFile, err := gpudcommon.StateFileFromContext(cliContext)
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}

@@ -81,6 +81,8 @@ type Server struct {
 	fifoPath string
 	fifo     *stdos.File
 
+	dataDir string
+
 	gpudInstance *components.GPUdInstance
 	session      *session.Session
 
@@ -108,6 +110,15 @@ func createURL(endpoint string) string {
 func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Config, packageManager *gpudmanager.Manager) (_ *Server, retErr error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("failed to validate config: %w", err)
+	}
+
+	dataDir, err := lepconfig.ResolveDataDir(config.DataDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve data dir: %w", err)
+	}
+	config.DataDir = dataDir
+	if config.State == "" {
+		config.State = lepconfig.StateFilePath(config.DataDir)
 	}
 
 	stateFile := ":memory:"
@@ -158,10 +169,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	promRecorder := pkgmetricsrecorder.NewPrometheusRecorder(ctx, 15*time.Minute, dbRO)
 	promRecorder.Start()
 
-	fifoPath, err := lepconfig.DefaultFifoFile()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get fifo path: %w", err)
-	}
+	fifoPath := lepconfig.FifoFilePath(config.DataDir)
 	s := &Server{
 		auditLogger: auditLogger,
 
@@ -169,6 +177,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		dbRO: dbRO,
 
 		fifoPath: fifoPath,
+		dataDir:  config.DataDir,
 
 		enableAutoUpdate:   config.EnableAutoUpdate,
 		autoUpdateExitCode: config.AutoUpdateExitCode,
@@ -520,6 +529,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 			session.WithComponentsRegistry(s.componentsRegistry),
+			session.WithDataDir(s.dataDir),
 			session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 			session.WithMetricsStore(metricsStore),
 			session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
@@ -578,6 +588,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 				session.WithComponentsRegistry(s.componentsRegistry),
+				session.WithDataDir(s.dataDir),
 				session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 				session.WithMetricsStore(metricsStore),
 				session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {

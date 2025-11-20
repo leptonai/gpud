@@ -10,6 +10,8 @@ type Op struct {
 	pkgconfigcommon.ToolOverwrites
 
 	FailureInjector *components.FailureInjector
+
+	DataDir string
 }
 
 type OpOption func(*Op)
@@ -36,5 +38,12 @@ func WithInfinibandClassRootDir(p string) OpOption {
 func WithFailureInjector(injector *components.FailureInjector) OpOption {
 	return func(op *Op) {
 		op.FailureInjector = injector
+	}
+}
+
+// WithDataDir overrides the default data directory for GPUd artifacts.
+func WithDataDir(dataDir string) OpOption {
+	return func(op *Op) {
+		op.DataDir = dataDir
 	}
 }

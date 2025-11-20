@@ -19,15 +19,25 @@ type fileInformer struct {
 	rootDir     string
 }
 
-func NewFileInformer() chan packages.PackageInfo {
+func NewFileInformer(dataDir string) chan packages.PackageInfo {
+	packagesDir := filepath.Join(dataDir, "packages")
+	if err := os.MkdirAll(packagesDir, 0755); err != nil {
+		log.Logger.Error(err)
+	}
 	i := &fileInformer{
-		packagesDir: "/var/lib/gpud/packages",
-		rootDir:     "/var/lib/gpud/",
+		packagesDir: packagesDir,
+		rootDir:     dataDir,
 	}
 	return i.Start()
 }
 
 func NewFileInformerWithConfig(packagesDir, rootDir string) chan packages.PackageInfo {
+	if err := os.MkdirAll(packagesDir, 0755); err != nil {
+		log.Logger.Error(err)
+	}
+	if err := os.MkdirAll(rootDir, 0755); err != nil {
+		log.Logger.Error(err)
+	}
 	i := &fileInformer{
 		packagesDir: packagesDir,
 		rootDir:     rootDir,
