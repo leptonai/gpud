@@ -15,24 +15,32 @@ import (
 // FabricState represents fabric state information for a GPU device.
 // This struct encapsulates all fabric-related data from V3 and V1 APIs.
 type FabricState struct {
-	CliqueID      uint32
-	ClusterUUID   string
-	State         uint8
-	Status        nvml.Return
-	HealthMask    uint32
+	CliqueID    uint32
+	ClusterUUID string
+	State       uint8
+	Status      nvml.Return
+	HealthMask  uint32
+
+	// HealthSummary is the health summary of the fabric.
+	// This is a uint8 value that can be converted to a string using FabricSummaryToString.
+	// NOTE: "NVIDIA H100 80GB HBM3" returns nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED.
 	HealthSummary uint8
 }
 
 // FabricStateEntry represents a displayable fabric state entry with formatted fields.
 // This is used for rendering fabric state information in human-readable format.
 type FabricStateEntry struct {
-	GPUUUID     string               `json:"gpu_uuid"`
-	CliqueID    uint32               `json:"clique_id"`
-	ClusterUUID string               `json:"cluster_uuid,omitempty"`
-	State       string               `json:"state"`
-	Status      string               `json:"status"`
-	Summary     string               `json:"summary,omitempty"`
-	Health      FabricHealthSnapshot `json:"health"`
+	GPUUUID     string `json:"gpu_uuid"`
+	CliqueID    uint32 `json:"clique_id"`
+	ClusterUUID string `json:"cluster_uuid,omitempty"`
+	State       string `json:"state"`
+	Status      string `json:"status"`
+
+	// Summary is converted from HealthSummary using FabricSummaryToString.
+	// NOTE: "NVIDIA H100 80GB HBM3" returns nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED.
+	Summary string `json:"summary,omitempty"`
+
+	Health FabricHealthSnapshot `json:"health"`
 }
 
 // FabricHealthSnapshot represents the health status of fabric components.

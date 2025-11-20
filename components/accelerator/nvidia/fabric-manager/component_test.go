@@ -80,10 +80,11 @@ func TestComponentEvents(t *testing.T) {
 	assert.Equal(t, expectedEvent.Message, events[0].Message)
 
 	comp.checkFMExistsFunc = func() bool { return false }
+	_ = comp.Check()
 	states := comp.LastHealthStates()
 	assert.Len(t, states, 1)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
-	assert.Equal(t, "fabric manager found and active", states[0].Reason)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+	assert.Contains(t, states[0].Reason, "fabric manager supported but nv-fabricmanager executable not found")
 }
 
 func TestCheckFMExists(t *testing.T) {
@@ -241,8 +242,8 @@ func TestStatesWhenFabricManagerDoesNotExist(t *testing.T) {
 	require.NotNil(t, states)
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
-	assert.Equal(t, "nv-fabricmanager executable not found", states[0].Reason)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, "fabric manager supported but nv-fabricmanager executable not found", states[0].Reason)
 }
 
 func TestComponentName(t *testing.T) {
@@ -370,7 +371,7 @@ func TestStatesWhenFabricManagerExistsButNotActive(t *testing.T) {
 	assert.Len(t, states, 1)
 	assert.Equal(t, Name, states[0].Name)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
-	assert.Equal(t, "nv-fabricmanager found but fabric manager service is not active", states[0].Reason)
+	assert.Equal(t, "fabric manager found but not active", states[0].Reason)
 }
 
 func TestDataGetError(t *testing.T) {
@@ -564,8 +565,8 @@ func TestCheckAllBranches(t *testing.T) {
 			checkNVSwitchExists: true,
 			fmExists:            false,
 			fmActive:            false,
-			expectedState:       apiv1.HealthStateTypeHealthy,
-			expectedReason:      "nv-fabricmanager executable not found",
+			expectedState:       apiv1.HealthStateTypeUnhealthy,
+			expectedReason:      "fabric manager supported but nv-fabricmanager executable not found",
 			expectedFMActive:    false,
 		},
 		{
@@ -574,7 +575,7 @@ func TestCheckAllBranches(t *testing.T) {
 			fmExists:            true,
 			fmActive:            false,
 			expectedState:       apiv1.HealthStateTypeUnhealthy,
-			expectedReason:      "nv-fabricmanager found but fabric manager service is not active",
+			expectedReason:      "fabric manager found but not active",
 			expectedFMActive:    false,
 		},
 		{
@@ -733,8 +734,8 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 		{
 			name:                    "nvml exists with NVSwitch but FM executable not found",
 			nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
-			expectedHealth:          apiv1.HealthStateTypeHealthy,
-			expectedReason:          "nv-fabricmanager executable not found",
+			expectedHealth:          apiv1.HealthStateTypeUnhealthy,
+			expectedReason:          "fabric manager supported but nv-fabricmanager executable not found",
 			checkNVSwitchExistsFunc: func() bool { return true },
 			checkFMExistsFunc:       func() bool { return false },
 			checkFMActiveFunc:       func() bool { return false },
@@ -743,7 +744,7 @@ func TestComponentCheck_NVMLInstance(t *testing.T) {
 			name:                    "nvml exists, NVSwitch found, FM executable found but not active",
 			nvmlInstance:            &mockNVMLInstance{exists: true, supportsFM: true, productName: "Test GPU", deviceCount: 2},
 			expectedHealth:          apiv1.HealthStateTypeUnhealthy,
-			expectedReason:          "nv-fabricmanager found but fabric manager service is not active",
+			expectedReason:          "fabric manager found but not active",
 			checkNVSwitchExistsFunc: func() bool { return true },
 			checkFMExistsFunc:       func() bool { return true },
 			checkFMActiveFunc:       func() bool { return false },
@@ -897,7 +898,7 @@ func TestCheckDeviceCountLogic(t *testing.T) {
 			deviceCount:         2,
 			checkNVSwitchExists: true,
 			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
-			expectedReason:      "nv-fabricmanager found but fabric manager service is not active",
+			expectedReason:      "fabric manager found but not active",
 			expectedFMActive:    false,
 		},
 		{
@@ -913,7 +914,7 @@ func TestCheckDeviceCountLogic(t *testing.T) {
 			deviceCount:         4,
 			checkNVSwitchExists: true,
 			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
-			expectedReason:      "nv-fabricmanager found but fabric manager service is not active",
+			expectedReason:      "fabric manager found but not active",
 			expectedFMActive:    false,
 		},
 	}
@@ -1065,8 +1066,8 @@ func TestCheckNVSwitchNotDetected(t *testing.T) {
 			name:                "NVSwitch detected but FM not found",
 			deviceCount:         4,
 			checkNVSwitchExists: true,
-			expectedHealth:      apiv1.HealthStateTypeHealthy,
-			expectedReason:      "nv-fabricmanager executable not found",
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
+			expectedReason:      "fabric manager supported but nv-fabricmanager executable not found",
 			expectedFMActive:    false,
 		},
 	}
@@ -1187,7 +1188,6 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 		name                string
 		productName         string
 		fabricStateReport   fabricStateReport
-		expectedHealth      apiv1.HealthStateType
 		expectedReasonMatch string // substring to match in reason
 	}{
 		{
@@ -1198,7 +1198,6 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				Reason:  "GPU GPU-0: bandwidth degraded",
 				Entries: []device.FabricStateEntry{{GPUUUID: "GPU-0"}},
 			},
-			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 			expectedReasonMatch: "NVIDIA GB200 with unhealthy fabric state: GPU GPU-0: bandwidth degraded",
 		},
 		{
@@ -1209,7 +1208,6 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				Reason:  "",
 				Err:     assert.AnError,
 			},
-			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 			expectedReasonMatch: "NVIDIA GB200 NVL72 with unhealthy fabric state: ",
 		},
 		{
@@ -1221,7 +1219,6 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				Err:     assert.AnError,
 				Entries: []device.FabricStateEntry{{GPUUUID: "GPU-1"}},
 			},
-			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 			expectedReasonMatch: "NVIDIA H100 with unhealthy fabric state: GPU GPU-1: route unhealthy",
 		},
 		{
@@ -1235,7 +1232,6 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 					{GPUUUID: "GPU-1"},
 				},
 			},
-			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 			expectedReasonMatch: "NVIDIA GB200 with unhealthy fabric state: GPU GPU-0: bandwidth degraded; GPU GPU-1: route recovery in progress",
 		},
 		{
@@ -1246,7 +1242,6 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				Reason:  "",
 				Entries: []device.FabricStateEntry{{GPUUUID: "GPU-0", State: "Completed"}},
 			},
-			expectedHealth:      apiv1.HealthStateTypeHealthy,
 			expectedReasonMatch: "NVIDIA GB200 checked fabric state",
 		},
 	}
@@ -1275,13 +1270,16 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 			cr, ok := result.(*checkResult)
 			require.True(t, ok, "Expected result to be of type *checkResult")
 
-			// Verify health state matches expected
-			assert.Equal(t, tc.expectedHealth, cr.health,
+			expectedHealth := apiv1.HealthStateTypeHealthy
+
+			expectReason := appendReason(tc.expectedReasonMatch, tc.productName+" does not support fabric manager")
+
+			assert.Equal(t, expectedHealth, cr.health,
 				"Health state should be %s when fabric state Healthy=%v",
-				tc.expectedHealth, tc.fabricStateReport.Healthy)
+				expectedHealth, tc.fabricStateReport.Healthy)
 
 			// Verify reason contains expected substring
-			assert.Equal(t, tc.expectedReasonMatch, cr.reason,
+			assert.Equal(t, expectReason, cr.reason,
 				"Reason should match expected pattern")
 
 			// Verify FabricStateSupported is true
@@ -1295,12 +1293,123 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 			// Verify via LastHealthStates as well
 			states := comp.LastHealthStates()
 			require.Len(t, states, 1)
-			assert.Equal(t, tc.expectedHealth, states[0].Health,
+			assert.Equal(t, expectedHealth, states[0].Health,
 				"Health state via LastHealthStates should match")
-			assert.Equal(t, tc.expectedReasonMatch, states[0].Reason,
+			assert.Equal(t, expectReason, states[0].Reason,
 				"Reason via LastHealthStates should match")
 		})
 	}
+}
+
+func TestCheck_FabricStateSupported_ReportsLegacyFMStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		fmExists         bool
+		fmActive         bool
+		expectedFMActive bool
+	}{
+		{
+			name:             "fm running",
+			fmExists:         true,
+			fmActive:         true,
+			expectedFMActive: true,
+		},
+		{
+			name:             "fm installed but inactive",
+			fmExists:         true,
+			fmActive:         false,
+			expectedFMActive: false,
+		},
+		{
+			name:             "fm missing",
+			fmExists:         false,
+			fmActive:         false,
+			expectedFMActive: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			comp := &component{
+				ctx:    context.Background(),
+				cancel: func() {},
+				nvmlInstance: &mockNVMLInstance{
+					exists:              true,
+					supportsFM:          true,
+					supportsFabricState: true,
+					productName:         "NVIDIA H100",
+					deviceCount:         2,
+				},
+				collectFabricStateFunc: func() fabricStateReport {
+					return fabricStateReport{Healthy: true}
+				},
+				checkFMExistsFunc: func() bool { return tc.fmExists },
+				checkFMActiveFunc: func() bool { return tc.fmActive },
+			}
+
+			result := comp.Check()
+			cr, ok := result.(*checkResult)
+			require.True(t, ok)
+
+			expectedHealth := apiv1.HealthStateTypeHealthy
+			expectedReason := "NVIDIA H100 checked fabric state"
+			if tc.fmActive {
+				expectedReason = "fabric manager found and active"
+			} else {
+				expectedHealth = apiv1.HealthStateTypeUnhealthy
+				if tc.fmExists {
+					expectedReason = appendReason(expectedReason, "fabric manager found but not active")
+				} else {
+					expectedReason = appendReason(expectedReason, "fabric manager supported but nv-fabricmanager executable not found")
+				}
+			}
+
+			assert.Equal(t, expectedHealth, cr.health)
+			assert.Equal(t, expectedReason, cr.reason)
+			assert.True(t, cr.FabricStateSupported)
+			assert.Equal(t, tc.expectedFMActive, cr.FabricManagerActive)
+		})
+	}
+}
+
+func TestCheck_FabricStateSupported_SkipsLegacyFMForGB200(t *testing.T) {
+	t.Parallel()
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+		nvmlInstance: &mockNVMLInstance{
+			exists:              true,
+			supportsFM:          false, // GB200 reports legacy FM unsupported
+			supportsFabricState: true,
+			productName:         "NVIDIA GB200",
+			deviceCount:         2,
+		},
+		collectFabricStateFunc: func() fabricStateReport {
+			return fabricStateReport{Healthy: true}
+		},
+		checkFMExistsFunc: func() bool {
+			assert.FailNow(t, "legacy FM check should be skipped for GB200")
+			return false
+		},
+		checkFMActiveFunc: func() bool {
+			assert.FailNow(t, "legacy FM check should be skipped for GB200")
+			return false
+		},
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.True(t, cr.FabricStateSupported)
+	assert.False(t, cr.FabricManagerActive)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA GB200 checked fabric state; NVIDIA GB200 does not support fabric manager", cr.reason)
 }
 
 // TestCheck_FabricStateUnhealthyLogging verifies that when fabric state is unhealthy,
@@ -1332,7 +1441,7 @@ func TestCheck_FabricStateUnhealthyLogging(t *testing.T) {
 	require.True(t, ok)
 
 	// Verify the component is unhealthy
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 	assert.Contains(t, cr.reason, "with unhealthy fabric state: test unhealthy reason")
 
 	// The logging happens in the Check method - we can't directly verify logs in tests,
