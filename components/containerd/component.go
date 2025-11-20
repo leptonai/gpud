@@ -24,9 +24,10 @@ import (
 
 // Name is the ID of the containerd component.
 const (
-	Name                       = "containerd"
-	DanglingDegradedThreshold  = 5
-	DanglingUnhealthyThreshold = 10
+	Name                        = "containerd"
+	DanglingDegradedThreshold   = 5
+	DanglingUnhealthyThreshold  = 10
+	defaultContainerdConfigPath = "/etc/containerd/config.toml"
 
 	defaultActivenssCheckUptimeThreshold = 5 * time.Minute
 
@@ -75,7 +76,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		},
 		containerToolkitCreationThreshold: 10 * time.Minute,
 		getContainerdConfigFunc: func() ([]byte, error) {
-			return os.ReadFile("/etc/containerd/config.toml")
+			return os.ReadFile(defaultContainerdConfigPath)
 		},
 
 		checkDependencyInstalledFunc: checkContainerdInstalled,
@@ -306,10 +307,7 @@ func (c *component) Check() components.CheckResult {
 		if toolkitCtrCreatedAt.IsZero() {
 			reason := "nvidia GPUs found but nvidia-container-toolkit pod is not found"
 
-			if cr.reason != "" {
-				cr.reason += "; "
-			}
-			cr.reason += reason
+			cr.appendReason(reason)
 			log.Logger.Warnw(reason)
 
 		} else {
@@ -322,20 +320,14 @@ func (c *component) Check() components.CheckResult {
 				if err != nil {
 					reason := "error getting containerd config"
 
-					if cr.reason != "" {
-						cr.reason += "; "
-					}
-					cr.reason += reason
+					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
 
 				} else if !bytes.Contains(config, []byte(containerdConfigNvidiaDefaultRuntime)) ||
 					!bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePlugin)) {
-					reason := "nvidia GPUs and nvidia-container-toolkit pod found but containerd config does not contain nvidia"
+					reason := fmt.Sprintf("nvidia-container-toolkit pod is running but %s is missing NVIDIA runtime configuration", defaultContainerdConfigPath)
 
-					if cr.reason != "" {
-						cr.reason += "; "
-					}
-					cr.reason += reason
+					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
 
 					cr.health = apiv1.HealthStateTypeUnhealthy
@@ -419,6 +411,19 @@ func (cr *checkResult) getError() string {
 		return ""
 	}
 	return cr.err.Error()
+}
+
+func (cr *checkResult) appendReason(reason string) {
+	if cr == nil || reason == "" {
+		return
+	}
+
+	if cr.reason == "" || cr.reason == "ok" {
+		cr.reason = reason
+		return
+	}
+
+	cr.reason += "; " + reason
 }
 
 func (cr *checkResult) HealthStates() apiv1.HealthStates {

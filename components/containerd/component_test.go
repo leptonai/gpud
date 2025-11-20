@@ -2096,7 +2096,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 			},
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeUnhealthy,
-			expectedReason:                    "nvidia GPUs and nvidia-container-toolkit pod found but containerd config does not contain nvidia",
+			expectedReason:                    "nvidia-container-toolkit pod is running but /etc/containerd/config.toml is missing NVIDIA runtime configuration",
 		},
 		{
 			name: "nvml with container toolkit but not running long enough",
@@ -2276,13 +2276,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 			require.True(t, ok, "Expected checkResult type")
 
 			assert.Equal(t, tt.expectedHealth, checkResult.health, "Health state should match expected")
-			if tt.expectedReason != "" && tt.expectedReason != "ok" {
-				assert.Contains(t, checkResult.reason, tt.expectedReason, "Reason should contain expected text")
-			} else if tt.expectedReason == "ok" {
-				// For "ok" cases, check that reason starts with "ok" or is exactly "ok"
-				assert.True(t, checkResult.reason == "ok" || (len(checkResult.reason) >= 2 && checkResult.reason[:2] == "ok"),
-					"Reason should be 'ok' or start with 'ok', got: %s", checkResult.reason)
-			}
+			assert.Equal(t, tt.expectedReason, checkResult.reason, "Reason should match expected text exactly")
 		})
 	}
 }
@@ -3340,7 +3334,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 			},
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
-			expectedReason:                    "ok",
+			expectedReason:                    "nvidia GPUs found but nvidia-container-toolkit pod is not found",
 		},
 		{
 			name: "container toolkit found and running long enough",
@@ -3444,7 +3438,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 			},
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
-			expectedReason:                    "ok",
+			expectedReason:                    "nvidia GPUs found but nvidia-container-toolkit pod is not found",
 		},
 	}
 
@@ -3492,13 +3486,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 			require.True(t, ok, "Expected checkResult type")
 
 			assert.Equal(t, tt.expectedHealth, checkResult.health, "Health state should match expected")
-			if tt.expectedReason != "" && tt.expectedReason != "ok" {
-				assert.Contains(t, checkResult.reason, tt.expectedReason, "Reason should contain expected text")
-			} else if tt.expectedReason == "ok" {
-				// For "ok" cases, check that reason starts with "ok" or is exactly "ok"
-				assert.True(t, checkResult.reason == "ok" || (len(checkResult.reason) >= 2 && checkResult.reason[:2] == "ok"),
-					"Reason should be 'ok' or start with 'ok', got: %s", checkResult.reason)
-			}
+			assert.Equal(t, tt.expectedReason, checkResult.reason, "Reason should match expected text exactly")
 		})
 	}
 }
