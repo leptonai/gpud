@@ -11,6 +11,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	devwrap "github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
@@ -56,12 +57,15 @@ func TestCheck_FabricStateSupportedHealthy(t *testing.T) {
 		},
 	}
 
+	// Ensure the mock advertises fabric state support so we take the fabric-state path.
+	require.True(t, comp.nvmlInstance.FabricStateSupported())
+
 	result := comp.Check()
 	cr, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.True(t, cr.FabricStateSupported)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "NVIDIA GB200 checked fabric state", cr.reason)
+	assert.Equal(t, "NVIDIA GB200 checked fabric state; NVIDIA GB200 does not support fabric manager", cr.reason)
 	assert.Len(t, cr.FabricStates, 1)
 	assert.Equal(t, "", cr.FabricStateReason)
 	assert.Nil(t, cr.err)
@@ -91,14 +95,16 @@ func TestCheck_FabricStateSupportedUnhealthy(t *testing.T) {
 		},
 	}
 
+	require.True(t, comp.nvmlInstance.FabricStateSupported())
+
 	result := comp.Check()
 	cr, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.False(t, cr.FabricManagerActive)
 	assert.True(t, cr.FabricStateSupported)
-	// When fabric state is unhealthy, component should be unhealthy
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: "+reason, cr.reason)
+	// FM unsupported path appends its reason and keeps health healthy
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: "+reason+"; NVIDIA GB200 does not support fabric manager", cr.reason)
 	assert.Equal(t, reason, cr.FabricStateReason)
 	assert.Nil(t, cr.err)
 }
@@ -126,13 +132,14 @@ func TestCheck_FabricStateSupportedError(t *testing.T) {
 		},
 	}
 
+	require.True(t, comp.nvmlInstance.FabricStateSupported())
+
 	result := comp.Check()
 	cr, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.True(t, cr.FabricStateSupported)
-	// When fabric state has an error, component should be unhealthy
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ", cr.reason)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ; NVIDIA GB200 does not support fabric manager", cr.reason)
 	assert.Nil(t, cr.err)
 }
 
@@ -166,8 +173,8 @@ func TestCheck_FabricStateSupportedUnhealthyWithBothReasonAndError(t *testing.T)
 	cr, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.True(t, cr.FabricStateSupported)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "NVIDIA GB200 NVL72 with unhealthy fabric state: "+reason, cr.reason)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA GB200 NVL72 with unhealthy fabric state: "+reason+"; NVIDIA GB200 NVL72 does not support fabric manager", cr.reason)
 	assert.Equal(t, reason, cr.FabricStateReason)
 	assert.Nil(t, cr.err)
 }
@@ -202,7 +209,7 @@ func TestCheck_FabricStateSupportedHealthyWithMultipleGPUs(t *testing.T) {
 	assert.True(t, ok)
 	assert.True(t, cr.FabricStateSupported)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "NVIDIA H100 checked fabric state", cr.reason)
+	assert.Equal(t, "NVIDIA H100 checked fabric state; NVIDIA H100 does not support fabric manager", cr.reason)
 	assert.Len(t, cr.FabricStates, 3)
 	assert.Equal(t, "", cr.FabricStateReason)
 }
@@ -233,8 +240,8 @@ func TestCheck_FabricStateSupportedUnhealthyWithEmptyReason(t *testing.T) {
 	cr, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.True(t, cr.FabricStateSupported)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ", cr.reason)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ; NVIDIA GB200 does not support fabric manager", cr.reason)
 	assert.Equal(t, "", cr.FabricStateReason)
 }
 

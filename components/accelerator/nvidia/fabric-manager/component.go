@@ -358,27 +358,37 @@ func (c *component) Check() components.CheckResult {
 			cr.health = apiv1.HealthStateTypeHealthy
 			cr.reason = c.nvmlInstance.ProductName() + " checked fabric state"
 		}
-
-		return cr
 	}
 
 	if !c.nvmlInstance.FabricManagerSupported() {
 		cr.FabricManagerActive = false
+
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = c.nvmlInstance.ProductName() + " does not support fabric manager"
+		cr.reason = appendReason(cr.reason, c.nvmlInstance.ProductName()+" does not support fabric manager")
+
+		// no reason to proceed the fabric-manager activeness checks
 		return cr
 	}
 
 	if c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
+		cr.FabricManagerActive = false
+
 		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = "NVSwitch not detected, skipping fabric manager check"
+		cr.reason = appendReason(cr.reason, "NVSwitch not detected, skipping fabric manager check")
+
+		// no reason to proceed the fabric-manager activeness checks
 		return cr
 	}
 
 	if !c.checkFMExistsFunc() {
 		cr.FabricManagerActive = false
-		cr.health = apiv1.HealthStateTypeHealthy
-		cr.reason = "nv-fabricmanager executable not found"
+
+		if cr.health == "" || cr.health == apiv1.HealthStateTypeHealthy {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+		}
+		cr.reason = appendReason(cr.reason, "fabric manager supported but nv-fabricmanager executable not found")
+
+		// no reason to proceed the fabric-manager activeness checks
 		return cr
 	}
 
@@ -386,17 +396,31 @@ func (c *component) Check() components.CheckResult {
 	if !active {
 		cr.FabricManagerActive = false
 
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "nv-fabricmanager found but fabric manager service is not active"
+		if cr.health == "" || cr.health == apiv1.HealthStateTypeHealthy {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+		}
+		cr.reason = appendReason(cr.reason, "fabric manager found but not active")
 
 		return cr
 	}
 
 	cr.FabricManagerActive = true
+
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "fabric manager found and active"
 
 	return cr
+}
+
+// appendReason combines an existing reason with an additional fragment.
+func appendReason(existing, addition string) string {
+	if existing == "" {
+		return addition
+	}
+	if addition == "" {
+		return existing
+	}
+	return existing + "; " + addition
 }
 
 // checkFMExists returns true if the fabric manager executable is found in the system.
