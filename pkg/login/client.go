@@ -19,6 +19,35 @@ var ErrEmptyMachineID = errors.New("login request failed with empty machine ID")
 
 // SendRequest sends a login request and blocks until the login request is processed.
 // It also validates the response field to ensure the login request is processed successfully.
+//
+// The server responds with the following status codes and messages:
+//
+// Success:
+// - 200 OK: Login successful. Returns Machine ID and Token.
+//
+// Failures:
+// - 400 Bad Request:
+//   - Invalid JSON
+//   - Missing Machine Info
+//   - Missing Token
+//   - Missing ID/NodeGroup
+//   - Node Group Mismatch
+//
+// - 401 Unauthorized: Invalid Token
+// - 403 Forbidden:
+//   - Forbidden Access (machine not owned by workspace)
+//   - Forbidden Node Group (node group not owned by workspace)
+//
+// - 404 Not Found:
+//   - Machine Not Found
+//   - Node Group Not Found
+//
+// - 500 Internal Server Error:
+//   - Token Validation Failed
+//   - Session Token Error
+//   - Machine Retrieval/Creation/Update Errors
+//   - Node Group Error
+//   - ID Generation Error
 func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
 	url, err := httputil.CreateURL("https", endpoint, "/api/v1/login")
 	if err != nil {
