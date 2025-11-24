@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/pkg/log"
 )
 
 const (
@@ -44,6 +45,7 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 		if cr.reason == "" {
 			cr.reason = reasonNoThresholdConfigured
 		}
+		log.Logger.Debugw("nvlink threshold evaluation skipped", "expected_link_states", cr.ExpectedLinkStates)
 		return
 	}
 
@@ -59,11 +61,14 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 	if active >= required {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = fmt.Sprintf("nvlink threshold satisfied: require >=%d GPUs with all links active; got %d", required, active)
+		log.Logger.Debugw("nvlink threshold satisfied", "required", required, "active", active)
 		return
 	}
 
 	cr.health = apiv1.HealthStateTypeUnhealthy
 	cr.reason = fmt.Sprintf("nvlink threshold violated: require >=%d GPUs with all links active; got %d", required, active)
+	log.Logger.Warnw(cr.reason, "requiredGPUs", required, "activeGPUs", active)
+
 	detailParts := []string{}
 	if len(cr.InactiveNVLinkUUIDs) > 0 {
 		detailParts = append(detailParts, fmt.Sprintf("inactive nvlinks=%s", strings.Join(cr.InactiveNVLinkUUIDs, ",")))
