@@ -27,6 +27,8 @@ type LoginConfig struct {
 	MachineID string // optional: can be empty
 	NodeGroup string // optional
 
+	DataDir string
+
 	// GPUCount is the number of GPUs to be reported to the control plane.
 	// If not specified, the control plane will use the detected number of GPUs.
 	GPUCount string
@@ -74,11 +76,13 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 		return ErrEmptyToken
 	}
 
-	log.Logger.Debugw("getting state file")
-	stateFile, err := config.DefaultStateFile()
+	dataDir, err := config.ResolveDataDir(cfg.DataDir)
 	if err != nil {
-		return fmt.Errorf("failed to get state file: %w", err)
+		return fmt.Errorf("failed to resolve data dir: %w", err)
 	}
+
+	log.Logger.Debugw("getting state file")
+	stateFile := config.StateFilePath(dataDir)
 	log.Logger.Debugw("successfully got state file")
 
 	log.Logger.Debugw("opening state file for writing")
@@ -216,10 +220,7 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	log.Logger.Debugw("successfully recorded private IP")
 
 	log.Logger.Debugw("getting fifo file")
-	fifoFile, err := config.DefaultFifoFile()
-	if err != nil {
-		return fmt.Errorf("failed to get fifo file: %w", err)
-	}
+	fifoFile := config.FifoFilePath(dataDir)
 	log.Logger.Debugw("successfully got fifo file")
 
 	log.Logger.Debugw("recording login success")

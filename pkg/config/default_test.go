@@ -3,6 +3,8 @@ package config
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +25,7 @@ func TestDefaultConfig(t *testing.T) {
 		assert.Equal(t, DefaultCompactPeriod, cfg.CompactPeriod)
 		assert.False(t, cfg.Pprof)
 		assert.True(t, cfg.EnableAutoUpdate)
+		assert.NotEmpty(t, cfg.DataDir)
 
 		// We can't reliably test State path since it depends on environment
 		assert.NotEmpty(t, cfg.State, "State path should be set")
@@ -35,6 +38,20 @@ func TestDefaultConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, classDir, cfg.NvidiaToolOverwrites.InfinibandClassRootDir)
+	})
+
+	t.Run("with custom data dir", func(t *testing.T) {
+		tempDir := t.TempDir()
+		customDir := filepath.Join(tempDir, "data-dir")
+
+		cfg, err := DefaultConfig(ctx, WithDataDir(customDir))
+		require.NoError(t, err)
+
+		assert.Equal(t, customDir, cfg.DataDir)
+		assert.Equal(t, filepath.Join(customDir, "gpud.state"), cfg.State)
+
+		_, err = os.Stat(customDir)
+		assert.NoError(t, err)
 	})
 }
 

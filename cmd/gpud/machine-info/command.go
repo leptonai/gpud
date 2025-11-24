@@ -9,7 +9,7 @@ import (
 	"github.com/urfave/cli"
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
-	"github.com/leptonai/gpud/pkg/config"
+	gpudcommon "github.com/leptonai/gpud/cmd/gpud/common"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
@@ -28,7 +28,7 @@ func Command(cliContext *cli.Context) error {
 
 	log.Logger.Debugw("starting machine-info command")
 
-	stateFile, err := config.DefaultStateFile()
+	stateFile, err := gpudcommon.StateFileFromContext(cliContext)
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}

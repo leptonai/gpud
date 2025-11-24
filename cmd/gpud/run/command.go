@@ -48,6 +48,11 @@ func Command(cliContext *cli.Context) error {
 
 	log.Logger.Debugw("starting run command")
 
+	dataDir, err := common.ResolveDataDir(cliContext)
+	if err != nil {
+		return err
+	}
+
 	gpuCount := cliContext.Int("gpu-count")
 	gpuCountStr := ""
 	if gpuCount > 0 {
@@ -76,6 +81,7 @@ func Command(cliContext *cli.Context) error {
 			Token:     controlPlaneLoginToken,
 			Endpoint:  controlPlaneEndpoint,
 			MachineID: machineIDForOverride,
+			DataDir:   dataDir,
 
 			GPUCount: gpuCountStr,
 		}
@@ -85,7 +91,7 @@ func Command(cliContext *cli.Context) error {
 		}
 		log.Logger.Debugw("successfully logged in")
 
-		if err := recordLoginSuccessState(loginCtx); err != nil {
+		if err := recordLoginSuccessState(loginCtx, dataDir); err != nil {
 			log.Logger.Warnw("failed to persist login success state", "error", err)
 		}
 	} else {
@@ -109,6 +115,7 @@ func Command(cliContext *cli.Context) error {
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
 	versionFile := cliContext.String("version-file")
+	versionFileSet := cliContext.IsSet("version-file")
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
 
 	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
@@ -185,6 +192,7 @@ func Command(cliContext *cli.Context) error {
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthy := common.ParseGPUUUIDs(gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw)
 
 	configOpts := []config.OpOption{
+		config.WithDataDir(dataDir),
 		config.WithInfinibandClassRootDir(ibClassRootDir),
 		config.WithFailureInjector(&gpudcomponents.FailureInjector{
 			GPUUUIDsWithRowRemappingPending:               gpuUUIDsWithRowRemappingPending,
@@ -219,6 +227,9 @@ func Command(cliContext *cli.Context) error {
 
 	cfg.EnableAutoUpdate = enableAutoUpdate
 	cfg.AutoUpdateExitCode = autoUpdateExitCode
+	if !versionFileSet {
+		versionFile = config.VersionFilePath(cfg.DataDir)
+	}
 	cfg.VersionFile = versionFile
 
 	cfg.PluginSpecsFile = pluginSpecsFile
@@ -298,11 +309,13 @@ func Command(cliContext *cli.Context) error {
 	// start the signal handler as soon as we can to make sure that
 	// we don't miss any signals during boot
 	signal.Notify(signals, gpudserver.DefaultSignalsToHandle...)
-	m, err := gpudmanager.New()
+	m, err := gpudmanager.New(cfg.DataDir)
 	if err != nil {
 		return err
 	}
-	m.Start(rootCtx)
+	if err := m.Start(rootCtx); err != nil {
+		return err
+	}
 
 	server, err := gpudserver.New(rootCtx, auditLogger, cfg, m)
 	if err != nil {
@@ -324,11 +337,13 @@ func Command(cliContext *cli.Context) error {
 	return nil
 }
 
-func recordLoginSuccessState(ctx context.Context) error {
-	stateFile, err := config.DefaultStateFile()
+func recordLoginSuccessState(ctx context.Context, dataDir string) error {
+	resolvedDataDir, err := config.ResolveDataDir(dataDir)
 	if err != nil {
-		return fmt.Errorf("failed to get state file: %w", err)
+		return fmt.Errorf("failed to resolve data dir for state: %w", err)
 	}
+
+	stateFile := config.StateFilePath(resolvedDataDir)
 
 	dbRW, err := pkgsqlite.Open(stateFile)
 	if err != nil {

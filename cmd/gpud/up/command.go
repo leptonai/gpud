@@ -9,6 +9,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/leptonai/gpud/cmd/gpud/common"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
 	"github.com/leptonai/gpud/pkg/log"
@@ -30,6 +31,11 @@ func Command(cliContext *cli.Context) (retErr error) {
 	log.Logger = log.CreateLogger(zapLvl, logFile)
 
 	log.Logger.Debugw("starting up command")
+
+	dataDir, err := common.ResolveDataDir(cliContext)
+	if err != nil {
+		return err
+	}
 
 	if err := osutil.RequireRoot(); err != nil {
 		return err
@@ -55,6 +61,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 			Endpoint:  cliContext.String("endpoint"),
 			MachineID: cliContext.String("machine-id"),
 			NodeGroup: cliContext.String("node-group"),
+			DataDir:   dataDir,
 
 			GPUCount: gpuCountStr,
 
@@ -67,7 +74,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 		}
 		log.Logger.Debugw("successfully logged in")
 
-		if err := recordLoginSuccessState(loginCtx); err != nil {
+		if err := recordLoginSuccessState(loginCtx, dataDir); err != nil {
 			log.Logger.Warnw("failed to persist login success state", "error", err)
 		}
 	} else {
@@ -116,11 +123,13 @@ func Command(cliContext *cli.Context) (retErr error) {
 	return nil
 }
 
-func recordLoginSuccessState(ctx context.Context) error {
-	stateFile, err := config.DefaultStateFile()
+func recordLoginSuccessState(ctx context.Context, dataDir string) error {
+	resolvedDataDir, err := config.ResolveDataDir(dataDir)
 	if err != nil {
-		return fmt.Errorf("failed to get state file: %w", err)
+		return fmt.Errorf("failed to resolve data dir: %w", err)
 	}
+
+	stateFile := config.StateFilePath(resolvedDataDir)
 
 	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {

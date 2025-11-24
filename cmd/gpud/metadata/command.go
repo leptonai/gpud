@@ -12,7 +12,7 @@ import (
 	"github.com/urfave/cli"
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
-	"github.com/leptonai/gpud/pkg/config"
+	gpudcommon "github.com/leptonai/gpud/cmd/gpud/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -39,7 +39,7 @@ func Command(cliContext *cli.Context) error {
 	defer rootCancel()
 
 	log.Logger.Debugw("getting state file")
-	stateFile, err := config.DefaultStateFile()
+	stateFile, err := gpudcommon.StateFileFromContext(cliContext)
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}

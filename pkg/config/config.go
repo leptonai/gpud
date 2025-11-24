@@ -20,6 +20,9 @@ type Config struct {
 	// Address for the server to listen on.
 	Address string `json:"address"`
 
+	// DataDir is the root directory for GPUd state and package artifacts.
+	DataDir string `json:"data_dir"`
+
 	// State file that persists the latest status.
 	// If empty, the states are not persisted to file.
 	State string `json:"state"`
