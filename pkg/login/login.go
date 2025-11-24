@@ -37,6 +37,38 @@ type LoginConfig struct {
 
 // Login performs the login operation with the control plane.
 // This function extracts the core login logic from the original login command.
+//
+// It handles the following scenarios based on the Login API Specification:
+//
+// Success:
+// - HTTP 200 OK: Returns Machine ID and Session Token.
+//
+// Failures:
+// - Validation Errors (HTTP 400):
+//   - Invalid JSON: "cannot parse json, ..."
+//   - Missing Machine Info: "machine info cannot be nil"
+//   - Missing Token: "token is required"
+//   - Missing ID/NodeGroup: "must specify a machine id or a node group id"
+//
+// - Token Validation Errors:
+//   - Invalid Token (HTTP 401): "invalid token"
+//   - Token Validation Failed (HTTP 500): "failed to validate token"
+//
+// - Machine/Node Group Validation Errors:
+//   - Machine Not Found (HTTP 404): "machine not found"
+//   - Node Group Mismatch (HTTP 400): "node group does not match"
+//   - Node Group Not Found (HTTP 404): "node group <name> not found"
+//   - Forbidden Access (HTTP 403): "only allowed to check in machines your owned"
+//   - Forbidden Node Group (HTTP 403): "node group is not owned by the workspace"
+//
+// - Internal Server Errors (HTTP 500):
+//   - Session Token Error: "failed to find session token"
+//   - Machine Retrieval Error: "failed to get machine"
+//   - Update Status Error: "failed to update machine info"
+//   - Node Group Error: "failed to find node group"
+//   - ID Generation Error: "failed to generate id"
+//   - Machine Creation Error: "failed to add machine"
+//   - Login Finalization Error: "failed to login, please try again"
 func Login(ctx context.Context, cfg LoginConfig) error {
 	if cfg.Token == "" {
 		return ErrEmptyToken
