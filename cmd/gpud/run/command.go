@@ -67,10 +67,15 @@ func Command(cliContext *cli.Context) error {
 	// perform "login" if and only if configured
 	// Optional overrides for control plane connectivity
 	controlPlaneEndpoint := cliContext.String("endpoint")
-	controlPlaneLoginToken := cliContext.String("token")
+
+	// Represents the machine registration login token.
+	// This is the token that GPUd sends to the control plane to register the machine.
+	// This is NOT the token that GPUd uses for session authentication.
+	controlPlaneLoginRegistrationToken := cliContext.String("token")
+
 	machineIDForOverride := cliContext.String("machine-id")
 
-	if cliContext.IsSet("token") || controlPlaneLoginToken != "" {
+	if cliContext.IsSet("token") || controlPlaneLoginRegistrationToken != "" {
 		log.Logger.Debugw("attempting control plane login")
 
 		// Create login configuration from CLI context
@@ -78,7 +83,7 @@ func Command(cliContext *cli.Context) error {
 		defer loginCancel()
 
 		loginCfg := login.LoginConfig{
-			Token:     controlPlaneLoginToken,
+			Token:     controlPlaneLoginRegistrationToken,
 			Endpoint:  controlPlaneEndpoint,
 			MachineID: machineIDForOverride,
 			DataDir:   dataDir,
@@ -86,6 +91,7 @@ func Command(cliContext *cli.Context) error {
 			GPUCount: gpuCountStr,
 		}
 
+		// on successful login, we persist the session token in the metadata for future re-use
 		if lerr := login.Login(loginCtx, loginCfg); lerr != nil {
 			return lerr
 		}
@@ -249,7 +255,7 @@ func Command(cliContext *cli.Context) error {
 	}
 
 	// Persist overrides to metadata for subsequent sessions.
-	if controlPlaneEndpoint != "" || controlPlaneLoginToken != "" || machineIDForOverride != "" {
+	if controlPlaneEndpoint != "" || machineIDForOverride != "" {
 		mctx, mcancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer mcancel()
 
@@ -272,12 +278,9 @@ func Command(cliContext *cli.Context) error {
 			log.Logger.Infow("overriding endpoint from flag", "endpoint", controlPlaneEndpoint)
 		}
 
-		if controlPlaneLoginToken != "" {
-			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyToken, controlPlaneLoginToken); err != nil {
-				return fmt.Errorf("failed to set token metadata: %w", err)
-			}
-			log.Logger.Infow("overriding token from flag")
-		}
+		// DO NOT overwrite "pkgmetadata.MetadataKeyToken"
+		// because successful login operation will persist the session token in the metadata
+		// NOT the registration token
 
 		if machineIDForOverride != "" {
 			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyMachineID, machineIDForOverride); err != nil {
