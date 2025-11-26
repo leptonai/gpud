@@ -88,25 +88,31 @@ spec:
             path: /dev
             type: Directory
 
+        {{- if .Values.gpud.mountHostSys }}
         # Sysfs virtual filesystem for hardware and device information
         # Required by:
         # - components/accelerator/nvidia/infiniband/class/class.go:34 (/sys/class/infiniband - InfiniBand monitoring)
         # - pkg/host/machine_id.go:152 (/sys/class/dmi - DMI/hardware info for machine ID)
         # - pkg/fuse/fuse.go:18 (/sys/fs/fuse/connections - FUSE filesystem monitoring)
+        # Can be disabled for security-sensitive environments via gpud.mountHostSys=false
         - name: host-sys
           hostPath:
             path: /sys
             type: Directory
+        {{- end }}
 
+        {{- if .Values.gpud.mountHostProc }}
         # Procfs virtual filesystem for process and kernel information
         # Required by:
         # - pkg/file/descriptors_linux.go:27,41 (/proc/sys/fs/file-max, file-nr - file descriptor limits)
         # - pkg/host/boot_id.go:9 (/proc/sys/kernel/random/boot_id - unique boot identifier)
         # - pkg/disk/mount.go:14,105 (/proc/self/mountinfo - mount point information)
+        # Can be disabled for security-sensitive environments via gpud.mountHostProc=false
         - name: host-proc
           hostPath:
             path: /proc
             type: Directory
+        {{- end }}
 
         # GPUd's persistent data directory for state, cache, and configuration
         # Used for storing GPUd runtime data, labels from nodeLabelExporter, etc.
@@ -218,42 +224,57 @@ spec:
             - /bin/sh
             - -ec
             - |
+              # Shell safety options:
+              # - errexit: Exit immediately if any command fails
+              # - nounset: Treat unset variables as errors
+              # - pipefail: Pipeline fails if any command fails (not just the last)
               set -o errexit
               set -o nounset
               set -o pipefail 2>/dev/null || true  # pipefail not supported in dash (Ubuntu's /bin/sh)
 
-              # Node label file (if nodeLabelExporter sidecar is enabled)
+              # --- OPTIONAL: Read configuration from Kubernetes node labels ---
+              # If nodeLabelExporter sidecar is enabled, it writes node labels to this file.
+              # This allows dynamic configuration of endpoint/token/machine-id from K8s labels.
               LABEL_FILE="{{ .Values.nodeLabelExporter.outputFile }}"
 
-              # Label keys (can be overridden via env)
+              # Label keys can be overridden via environment variables (useful for testing)
               EP_LABEL_KEY="${GPUD_ENDPOINT_LABEL_KEY:-{{ .Values.nodeLabelExporter.labelKeys.endpoint }}}"
               TOKEN_LABEL_KEY="${GPUD_TOKEN_LABEL_KEY:-{{ .Values.nodeLabelExporter.labelKeys.token }}}"
               MID_LABEL_KEY="${GPUD_MACHINE_ID_LABEL_KEY:-{{ .Values.nodeLabelExporter.labelKeys.machineId }}}"
+
+              # Initialize empty - will be populated from label file if it exists
               EP=""
               TOKEN=""
               MID=""
+
               if [ -f "$LABEL_FILE" ]; then
-                # Use awk with index() for exact string matching to:
-                # 1. Avoid regex issues (dots/slashes in keys are literal)
-                # 2. Preserve '=' characters in values (important for base64 tokens)
+                # Parse label file using awk with index() for EXACT string matching:
+                # - index($0, key"=") == 1: Line must START with "key=" (prevents partial matches)
+                # - substr($0, length(key)+2): Extract everything AFTER the "=" sign
+                # - This handles dots/slashes in keys and preserves "=" in values (e.g., base64)
+                # Example: "gpud.dgxc.lepton.ai/endpoint=https://api.example.com" -> "https://api.example.com"
                 EP="$(awk -v key="$EP_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
                 TOKEN="$(awk -v key="$TOKEN_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
                 MID="$(awk -v key="$MID_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
               fi
 
-              # Build final command arguments using set -- for safety (avoids eval and quoting issues)
+              # --- Build gpud command arguments ---
+              # Using "set --" to safely build argument list without eval or quoting issues.
+              # Each "set -- "$@" ..." appends to the positional parameters ($1, $2, etc.)
               set -- run
               set -- "$@" --listen-address="{{ .Values.gpud.listenAddress }}"
               set -- "$@" --log-level="{{ .Values.gpud.logLevel }}"
 
-              # Determine endpoint (label takes precedence over values.yaml)
+              # Endpoint priority: Node label > values.yaml > (none)
               ENDPOINT="{{ .Values.gpud.endpoint }}"
               if [ -n "$EP" ]; then
-                ENDPOINT="$EP"
+                ENDPOINT="$EP"  # Label value overrides values.yaml
               fi
               if [ -n "$ENDPOINT" ]; then
                 set -- "$@" --endpoint="$ENDPOINT"
               fi
+
+              # Token and machine-id are only added if present (from node labels)
               if [ -n "$TOKEN" ]; then
                 set -- "$@" --token="$TOKEN"
               fi
@@ -264,6 +285,8 @@ spec:
               set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
               set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
 
+              # Log the command for debugging, then exec to replace shell with gpud.
+              # Using exec ensures gpud receives signals directly (important for graceful shutdown).
               echo "Starting: /usr/local/bin/gpud $*"
               exec /usr/local/bin/gpud "$@"
 
@@ -275,7 +298,9 @@ spec:
           ports:
             - name: https
               # Must match the port in gpud.listenAddress (default 15132)
-              containerPort: {{ .Values.livenessProbe.httpGet.port }}
+              # Uses service.port for reliability - livenessProbe.httpGet.port may not exist
+              # if user customizes livenessProbe to use exec or tcpSocket instead of httpGet.
+              containerPort: {{ .Values.service.port }}
               protocol: TCP
           {{- end }}
 
@@ -301,6 +326,7 @@ spec:
             - name: host-dev
               mountPath: /dev
 
+            {{- if .Values.gpud.mountHostSys }}
             # Sysfs - Hardware/device info (read-only for safety)
             # - /sys/class/infiniband: InfiniBand network monitoring
             # - /sys/class/dmi: Hardware/DMI information
@@ -308,7 +334,9 @@ spec:
             - name: host-sys
               mountPath: /sys
               readOnly: true
+            {{- end }}
 
+            {{- if .Values.gpud.mountHostProc }}
             # Procfs - Kernel/process info (read-only for safety)
             # - /proc/sys/fs/file-*: File descriptor limits and usage
             # - /proc/sys/kernel/random/boot_id: Unique boot identifier
@@ -316,6 +344,7 @@ spec:
             - name: host-proc
               mountPath: /proc
               readOnly: true
+            {{- end }}
 
             # GPUd data directory for runtime state and configuration
             - name: lib-gpud
