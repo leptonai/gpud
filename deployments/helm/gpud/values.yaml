@@ -48,6 +48,18 @@ gpud:
   # Set to "true" only if your environment supports /dev/mem and you need deep diagnostics.
   mountHostDevMem: false
 
+  # Mount /sys for hardware and device information access.
+  # Required for: InfiniBand monitoring, DMI/hardware info, FUSE filesystem stats.
+  # Defaults to true as it's essential for most gpud functionality.
+  # Set to false in security-sensitive environments where these features aren't needed.
+  mountHostSys: true
+
+  # Mount /proc for kernel and process information access.
+  # Required for: file descriptor limits, boot_id, mount point information.
+  # Defaults to true as it's essential for most gpud functionality.
+  # Set to false in security-sensitive environments where these features aren't needed.
+  mountHostProc: true
+
 # Reference to one or more secrets to be used for pulling images from private registries.
 # Example for NVIDIA NGC registry (nvcr.io):
 #
@@ -66,11 +78,19 @@ imagePullSecrets: []
 # Additional annotations to add to the pod.
 podAnnotations: {}
 
-# A Service can be created for the DaemonSet, e.g., for Prometheus scraping.
+# Creates a headless Service for the DaemonSet.
+# When enabled, this creates:
+# - A headless Service (clusterIP: None) for ServiceMonitor/Prometheus discovery
+# - containerPort definition in the pod spec
+#
+# Use cases:
+# - Prometheus ServiceMonitor: Set enabled=true, then create a ServiceMonitor targeting this Service
+# - Prometheus PodMonitor: Set enabled=true (for containerPort), then create a PodMonitor
+# - Direct access: GPUd uses hostNetwork, so access via https://<node-ip>:15132 always works
 service:
   enabled: false
-  type: ClusterIP
-  port: 80
+  # Port must match the port in gpud.listenAddress (default 15132).
+  port: 15132
 
 # Liveness and Readiness probes.
 livenessProbe:
