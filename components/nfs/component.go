@@ -42,6 +42,8 @@ type component struct {
 	checkChecker          func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult
 	cleanChecker          func(checker pkgnfschecker.Checker) error
 
+	getRPCRetransmissions func() (uint64, error)
+
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
@@ -72,6 +74,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cleanChecker: func(checker pkgnfschecker.Checker) error {
 			return checker.Clean()
 		},
+
+		getRPCRetransmissions: readDefaultRPCRetransmissions,
 	}
 
 	return c, nil
@@ -132,6 +136,9 @@ func (c *component) Check() components.CheckResult {
 	cr := &checkResult{
 		ts: time.Now().UTC(),
 	}
+
+	// Experimental metric collection matches node_exporter's RPC stats.
+	c.collectRPCRetransmissionsMetric()
 
 	defer func() {
 		c.lastMu.Lock()
@@ -252,6 +259,21 @@ func (c *component) Check() components.CheckResult {
 	log.Logger.Debugw(cr.reason)
 
 	return cr
+}
+
+func (c *component) collectRPCRetransmissionsMetric() {
+	if c.getRPCRetransmissions == nil {
+		return
+	}
+
+	value, err := c.getRPCRetransmissions()
+	if err != nil {
+		// Experimental metrics: warn only.
+		log.Logger.Warnw("failed to collect nfs rpc retransmissions (experimental; health unaffected)", "error", err)
+		return
+	}
+
+	recordRPCRetransmissions(value)
 }
 
 var _ components.CheckResult = &checkResult{}
