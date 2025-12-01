@@ -86,8 +86,9 @@ type Server struct {
 	gpudInstance *components.GPUdInstance
 	session      *session.Session
 
-	enableAutoUpdate   bool
-	autoUpdateExitCode int
+	enableAutoUpdate        bool
+	autoUpdateExitCode      int
+	skipSessionUpdateConfig bool
 
 	pluginSpecsFile string
 	faultInjector   pkgfaultinjector.Injector
@@ -179,8 +180,9 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		fifoPath: fifoPath,
 		dataDir:  config.DataDir,
 
-		enableAutoUpdate:   config.EnableAutoUpdate,
-		autoUpdateExitCode: config.AutoUpdateExitCode,
+		enableAutoUpdate:        config.EnableAutoUpdate,
+		autoUpdateExitCode:      config.AutoUpdateExitCode,
+		skipSessionUpdateConfig: config.SkipSessionUpdateConfig,
 
 		pluginSpecsFile: config.PluginSpecsFile,
 	}
@@ -528,6 +530,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+			session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
 			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithDataDir(s.dataDir),
 			session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
@@ -587,6 +590,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+				session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
 				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithDataDir(s.dataDir),
 				session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),

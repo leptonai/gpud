@@ -123,6 +123,7 @@ func Command(cliContext *cli.Context) error {
 	versionFile := cliContext.String("version-file")
 	versionFileSet := cliContext.IsSet("version-file")
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
+	skipSessionUpdateConfig := cliContext.Bool("skip-session-update-config")
 
 	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
 	components := cliContext.String("components")
@@ -239,6 +240,7 @@ func Command(cliContext *cli.Context) error {
 	cfg.VersionFile = versionFile
 
 	cfg.PluginSpecsFile = pluginSpecsFile
+	cfg.SkipSessionUpdateConfig = skipSessionUpdateConfig
 
 	if components != "" {
 		cfg.Components = strings.Split(components, ",")

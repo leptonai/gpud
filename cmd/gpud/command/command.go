@@ -197,6 +197,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "sets the components to enable (comma-separated, leave empty for default to enable all components, set 'none' or any other non-matching value to disable all components, prefix component name with '-' to disable it)",
 					Value: "",
 				},
+				&cli.BoolFlag{
+					Name:   "skip-session-update-config",
+					Usage:  "skips processing session updateConfig requests (testing only)",
+					Hidden: true,
+				},
 
 				&cli.IntFlag{
 					Name:  "gpu-count",

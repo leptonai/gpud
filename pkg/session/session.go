@@ -41,6 +41,7 @@ type Op struct {
 	pipeInterval        time.Duration
 	enableAutoUpdate    bool
 	autoUpdateExitCode  int
+	skipUpdateConfig    bool
 	componentsRegistry  components.Registry
 	dataDir             string
 	nvmlInstance        nvidianvml.Instance
@@ -92,6 +93,13 @@ func WithPipeInterval(t time.Duration) OpOption {
 func WithEnableAutoUpdate(enableAutoUpdate bool) OpOption {
 	return func(op *Op) {
 		op.enableAutoUpdate = enableAutoUpdate
+	}
+}
+
+// WithSkipUpdateConfig skips processing updateConfig session requests when true.
+func WithSkipUpdateConfig(skip bool) OpOption {
+	return func(op *Op) {
+		op.skipUpdateConfig = skip
 	}
 }
 
@@ -183,6 +191,7 @@ type Session struct {
 
 	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
 	faultInjector       pkgfaultinjector.Injector
+	skipUpdateConfig    bool
 
 	lastPackageTimestampMu sync.RWMutex
 	lastPackageTimestamp   time.Time
@@ -276,6 +285,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 
 		savePluginSpecsFunc: op.savePluginSpecsFunc,
 		faultInjector:       op.faultInjector,
+		skipUpdateConfig:    op.skipUpdateConfig,
 
 		enableAutoUpdate:   op.enableAutoUpdate,
 		autoUpdateExitCode: op.autoUpdateExitCode,
