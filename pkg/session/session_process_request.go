@@ -81,6 +81,10 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 		s.processUpdate(ctx, payload, response, restartExitCode)
 
 	case "updateConfig":
+		if s.skipUpdateConfig {
+			log.Logger.Warnw("skipping updateConfig request", "reason", "skip-session-update-config flag enabled")
+			break
+		}
 		s.processUpdateConfig(payload.UpdateConfig, response)
 
 	case "bootstrap":

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
@@ -265,6 +266,61 @@ func TestSession_processRequest(t *testing.T) {
 
 		assert.False(t, handledAsync, "unknown method should be handled synchronously")
 		assert.Equal(t, -1, restartExitCode)
+	})
+
+	t.Run("updateConfig processed when skip disabled", func(t *testing.T) {
+		called := false
+		session := &Session{
+			ctx: context.Background(),
+			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
+				called = true
+			},
+		}
+
+		payload := Request{
+			Method: "updateConfig",
+			UpdateConfig: map[string]string{
+				componentsnvidianvlink.Name: `{}`,
+			},
+		}
+
+		response := &Response{}
+		restartExitCode := -1
+
+		handledAsync := session.processRequest(context.Background(), "req-update-config", payload, response, &restartExitCode)
+
+		assert.False(t, handledAsync, "updateConfig should be handled synchronously")
+		assert.True(t, called, "updateConfig should invoke processUpdateConfig when not skipped")
+		assert.Equal(t, -1, restartExitCode)
+		assert.Empty(t, response.Error)
+	})
+
+	t.Run("updateConfig skipped when flag enabled", func(t *testing.T) {
+		called := false
+		session := &Session{
+			ctx:              context.Background(),
+			skipUpdateConfig: true,
+			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
+				called = true
+			},
+		}
+
+		payload := Request{
+			Method: "updateConfig",
+			UpdateConfig: map[string]string{
+				componentsnvidianvlink.Name: `{}`,
+			},
+		}
+
+		response := &Response{}
+		restartExitCode := -1
+
+		handledAsync := session.processRequest(context.Background(), "req-update-config-skip", payload, response, &restartExitCode)
+
+		assert.False(t, handledAsync, "updateConfig should remain synchronous even when skipped")
+		assert.False(t, called, "updateConfig should not be processed when skip flag is set")
+		assert.Equal(t, -1, restartExitCode)
+		assert.Empty(t, response.Error)
 	})
 }
 
