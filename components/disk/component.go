@@ -63,6 +63,13 @@ type component struct {
 	// Default is 500MB.
 	freeSpaceThresholdBytesDegraded uint64
 
+	// freeSpaceThresholdPercent is the threshold for free space as a percentage
+	// of total space. When free space falls below this percentage on the root
+	// partition, a warning is logged. This mirrors Kubernetes' nodefs.available
+	// threshold for DiskPressure detection.
+	// Default is 10% (matches Kubernetes default).
+	freeSpaceThresholdPercent float64
+
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
 	kmsgSyncer       *kmsg.Syncer
@@ -80,6 +87,12 @@ const (
 	defaultLookbackPeriod = 14 * 24 * time.Hour // 14 days
 
 	defaultFreeSpaceThresholdBytesDegraded = 500 * 1024 * 1024 // 500 MB
+
+	// defaultFreeSpaceThresholdPercent mirrors Kubernetes' default nodefs.available
+	// hard eviction threshold. When free space on the root partition falls below
+	// this percentage, kubelet reports DiskPressure and may evict pods.
+	// ref. https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/
+	defaultFreeSpaceThresholdPercent = 10.0 // 10%
 
 	getBlockDevicesTimeout = 10 * time.Second
 	getPartitionsTimeout   = 10 * time.Second
@@ -121,6 +134,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
 
 		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
+		freeSpaceThresholdPercent:       defaultFreeSpaceThresholdPercent,
 	}
 
 	if runtime.GOOS == "linux" {
@@ -600,13 +614,28 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		if p.Usage.FreeBytes < c.freeSpaceThresholdBytesDegraded {
-			reason := fmt.Sprintf("%s: free space %s is below %s threshold (%s total)",
+			reason := fmt.Sprintf("ext4 partition %s: free space %s is below %s threshold (%s total)",
 				p.MountPoint,
 				humanize.IBytes(p.Usage.FreeBytes),
 				humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
 				humanize.IBytes(p.Usage.TotalBytes))
-			log.Logger.Debugw(reason, "device", p.Device)
+			log.Logger.Warnw(reason, "device", p.Device)
 			degradedPartitionsDueToThresholdExceeded = append(degradedPartitionsDueToThresholdExceeded, reason)
+		}
+
+		// Check percentage-based threshold (mirrors Kubernetes nodefs.available for DiskPressure)
+		// This is logged as a warning but does not affect health state separately
+		// ref. https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/
+		freePercent := (float64(p.Usage.FreeBytes) / float64(p.Usage.TotalBytes)) * 100.0
+		if freePercent < c.freeSpaceThresholdPercent {
+			log.Logger.Warnw("ext4 partition free space below kubernetes DiskPressure threshold (nodefs.available)",
+				"mount_point", p.MountPoint,
+				"device", p.Device,
+				"free_percent", fmt.Sprintf("%.1f%%", freePercent),
+				"threshold_percent", fmt.Sprintf("%.0f%%", c.freeSpaceThresholdPercent),
+				"free_bytes", humanize.IBytes(p.Usage.FreeBytes),
+				"total_bytes", humanize.IBytes(p.Usage.TotalBytes),
+			)
 		}
 	}
 	for _, p := range cr.NFSPartitions {
@@ -615,7 +644,7 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		if p.Usage.FreeBytes < c.freeSpaceThresholdBytesDegraded {
-			reason := fmt.Sprintf("%s: free space %s is below %s threshold (%s total)",
+			reason := fmt.Sprintf("nfs partition %s: free space %s is below %s threshold (%s total)",
 				p.MountPoint,
 				humanize.IBytes(p.Usage.FreeBytes),
 				humanize.IBytes(c.freeSpaceThresholdBytesDegraded),
