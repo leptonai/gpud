@@ -41,7 +41,7 @@ To specify a version:
 curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.8.0
 ```
 
-Note that the install script does not currenlty support other architectures (e.g., arm64) and OSes (e.g., macOS).
+The install script also currently support other architectures (e.g., arm64) and OSes (e.g., macOS).
 
 ---
 
