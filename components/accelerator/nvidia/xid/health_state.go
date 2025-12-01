@@ -95,7 +95,7 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 	if lastXidErr == nil {
 		reason = "XIDComponent is healthy"
 	} else {
-		reason = newXIDErrorReason(int(lastXidErr.Xid), lastXidErr.DeviceUUID, devices)
+		reason = newXIDErrorReasonWithDetail(int(lastXidErr.Xid), int(lastXidErr.SubCode), lastXidErr.SubCodeDescription, lastXidErr.DeviceUUID, devices)
 	}
 	return apiv1.HealthState{
 		Name:             StateNameErrorXid,
@@ -106,6 +106,10 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 }
 
 func newXIDErrorReason(xidVal int, deviceID string, devices map[string]device.Device) string {
+	return newXIDErrorReasonWithDetail(xidVal, 0, "", deviceID, devices)
+}
+
+func newXIDErrorReasonWithDetail(xidVal, subCode int, subCodeDesc, deviceID string, devices map[string]device.Device) string {
 	var suffix string
 	uuid := convertBusIDToUUID(deviceID, devices)
 	if uuid != "" {
@@ -113,13 +117,49 @@ func newXIDErrorReason(xidVal int, deviceID string, devices map[string]device.De
 	} else {
 		suffix = fmt.Sprintf("GPU %s", deviceID)
 	}
-	var reason string
-	if xidDetail, ok := GetDetail(xidVal); ok {
-		reason = fmt.Sprintf("XID %d (%s) detected on %s", xidVal, xidDetail.Description, suffix)
-	} else {
-		reason = fmt.Sprintf("XID %d detected on %s", xidVal, suffix)
+
+	detail, ok := GetDetailWithSubCode(xidVal, subCode)
+	if !ok {
+		return fmt.Sprintf("XID %d detected on %s", xidVal, suffix)
 	}
-	return reason
+
+	desc := detail.Description
+	// IMPORTANT: Prioritize the parsed sub-code name (subCodeDesc) from the kmsg over the catalog entry.
+	//
+	// NVLink XIDs (144-150) can have many different sub-component identifiers parsed from kmsg,
+	// such as RLW_CTRL, RLW_REMAP, RLW_RXPIPE, SAW_MVB, SAW_EGR, etc. These subcodes indicate
+	// different failure modes within the same base XID. The catalog entry (detail.SubCodeDescription)
+	// may only have a generic fallback like "RLW_CTRL" for subcode 0, which would incorrectly
+	// label all RLW errors as "RLW_CTRL" even when the actual kmsg shows "RLW_REMAP".
+	//
+	// By prioritizing the parsed subCodeDesc, we ensure users can distinguish between:
+	//   "XID 145/RLW_CTRL (NVLINK: RLW Error - RLW_CTRL)"  vs
+	//   "XID 145/RLW_REMAP (NVLINK: RLW Error - RLW_REMAP)"
+	//
+	// Without this priority, both would incorrectly display as "XID 145 (NVLINK: RLW Error - RLW_CTRL)"
+	// making it impossible to differentiate the actual failure sub-component from the error message.
+	if subCodeDesc != "" {
+		// Avoid duplicating if already present in the base description.
+		if !strings.Contains(strings.ToLower(desc), strings.ToLower(subCodeDesc)) {
+			desc = fmt.Sprintf("%s - %s", desc, subCodeDesc)
+		}
+	} else if detail.SubCodeDescription != "" {
+		// Fall back to the catalog sub-code description when no parsed value is available.
+		if !strings.Contains(strings.ToLower(desc), strings.ToLower(detail.SubCodeDescription)) {
+			desc = fmt.Sprintf("%s - %s", desc, detail.SubCodeDescription)
+		}
+	}
+
+	codeLabel := fmt.Sprintf("XID %d", xidVal)
+	if subCodeDesc != "" {
+		codeLabel = fmt.Sprintf("XID %d/%s", xidVal, subCodeDesc)
+	} else if detail.SubCodeDescription != "" {
+		codeLabel = fmt.Sprintf("XID %d/%s", xidVal, detail.SubCodeDescription)
+	} else if subCode > 0 {
+		codeLabel = fmt.Sprintf("XID %d.%d", xidVal, subCode)
+	}
+
+	return fmt.Sprintf("%s (%s) detected on %s", codeLabel, desc, suffix)
 }
 
 func convertBusIDToUUID(busID string, devices map[string]device.Device) string {
@@ -136,28 +176,87 @@ func convertBusIDToUUID(busID string, devices map[string]device.Device) string {
 
 func resolveXIDEvent(event eventstore.Event, devices map[string]device.Device) eventstore.Event {
 	ret := event
-	if event.ExtraInfo != nil {
-		if currXid, err := strconv.Atoi(event.ExtraInfo[EventKeyErrorXidData]); err == nil {
-			detail, ok := GetDetail(currXid)
-			if !ok {
-				return ret
-			}
-			ret.Type = string(detail.EventType)
-			ret.Message = newXIDErrorReason(currXid, event.ExtraInfo[EventKeyDeviceUUID], devices)
+	if event.ExtraInfo == nil {
+		return ret
+	}
 
-			xidErr := xidErrorEventDetail{
-				Time:                   metav1.NewTime(event.Time),
-				DataSource:             "kmsg",
-				DeviceUUID:             event.ExtraInfo[EventKeyDeviceUUID],
-				Xid:                    uint64(currXid),
-				SuggestedActionsByGPUd: detail.SuggestedActionsByGPUd,
-			}
+	rawData := event.ExtraInfo[EventKeyErrorXidData]
 
-			raw, _ := json.Marshal(xidErr)
-			ret.ExtraInfo[EventKeyErrorXidData] = string(raw)
+	// First, attempt to unmarshal the new JSON payload format.
+	var xidErr xidErrorEventDetail
+	if err := json.Unmarshal([]byte(rawData), &xidErr); err == nil && xidErr.Xid != 0 {
+		ret = enrichEventWithDetail(ret, &xidErr, devices)
+		return ret
+	}
+
+	// Fallback: legacy format stores only the XID code as a string.
+	if currXid, err := strconv.Atoi(rawData); err == nil {
+		detail, ok := GetDetail(currXid)
+		if !ok {
+			return ret
+		}
+
+		xidErr := xidErrorEventDetail{
+			Time:                   metav1.NewTime(event.Time),
+			DataSource:             "kmsg",
+			DeviceUUID:             event.ExtraInfo[EventKeyDeviceUUID],
+			Xid:                    uint64(currXid),
+			SuggestedActionsByGPUd: detail.SuggestedActionsByGPUd,
+		}
+
+		ret = enrichEventWithDetail(ret, &xidErr, devices)
+	}
+
+	return ret
+}
+
+// enrichEventWithDetail populates event fields/message from parsed XID detail and
+// rewrites the stored ExtraInfo payload in JSON form for downstream consumers.
+func enrichEventWithDetail(ev eventstore.Event, xidErr *xidErrorEventDetail, devices map[string]device.Device) eventstore.Event {
+	detail, ok := GetDetailWithSubCode(int(xidErr.Xid), xidErr.SubCode)
+	if !ok {
+		detail = nil
+	}
+
+	if detail != nil {
+		if detail.EventType != apiv1.EventTypeUnknown {
+			ev.Type = string(detail.EventType)
+		}
+		if xidErr.Description == "" {
+			xidErr.Description = detail.Description
+		}
+		if xidErr.SubCode == 0 {
+			xidErr.SubCode = detail.SubCode
+		}
+		if xidErr.SubCodeDescription == "" {
+			xidErr.SubCodeDescription = detail.SubCodeDescription
+		}
+		if xidErr.SuggestedActionsByGPUd == nil {
+			xidErr.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
 		}
 	}
-	return ret
+
+	if detail == nil && ev.Type == "" {
+		ev.Type = string(apiv1.EventTypeUnknown)
+	}
+
+	ev.Message = newXIDErrorReasonWithDetail(int(xidErr.Xid), xidErr.SubCode, xidErr.SubCodeDescription, xidErr.DeviceUUID, devices)
+
+	// Ensure time/data source are populated for JSON consumers.
+	if xidErr.Time.IsZero() {
+		xidErr.Time = metav1.NewTime(ev.Time)
+	}
+	if xidErr.DataSource == "" {
+		xidErr.DataSource = "kmsg"
+	}
+
+	if ev.ExtraInfo == nil {
+		ev.ExtraInfo = make(map[string]string)
+	}
+	raw, _ := json.Marshal(xidErr)
+	ev.ExtraInfo[EventKeyErrorXidData] = string(raw)
+
+	return ev
 }
 
 // xidErrorEventDetail represents an Xid error from kmsg.
@@ -174,6 +273,15 @@ type xidErrorEventDetail struct {
 	// Xid is the corresponding Xid from the raw event.
 	// The monitoring component can use this Xid to decide its own action.
 	Xid uint64 `json:"xid"`
+
+	// SubCode represents the NVLink sub-code extracted from intrinfo (bits 20-25).
+	SubCode int `json:"sub_code,omitempty"`
+
+	// SubCodeDescription provides the NVLink sub-component mnemonic (e.g., RLW_CTRL).
+	SubCodeDescription string `json:"sub_code_description,omitempty"`
+
+	// Description is the human readable XID detail description, including NVLink context when available.
+	Description string `json:"description,omitempty"`
 
 	// SuggestedActionsByGPUd are the suggested actions for the error.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`

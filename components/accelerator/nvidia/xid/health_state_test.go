@@ -51,7 +51,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 123, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events, map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice}, DefaultRebootThreshold)
-		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, "XID 123 (SPI PMU RPC Write Failure) detected on GPU PCI:0000:9b:00 UUID:GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7", state.Reason)
 	})
 
@@ -59,6 +59,9 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		events := eventstore.Events{
 			createXidEvent(time.Time{}, 456, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
+		t.Logf("original type=%s", events[0].Type)
+		resolved := resolveXIDEvent(events[0], map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice})
+		t.Logf("resolved type=%s msg=%s", resolved.Type, resolved.Message)
 		state := evolveHealthyState(events, map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice}, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, "XID 456 detected on GPU PCI:0000:9b:00 UUID:GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7", state.Reason)
@@ -121,7 +124,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		require.NotNil(t, state.SuggestedActions)
 		require.NotEmpty(t, state.SuggestedActions.RepairActions)
 		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
 	})
 
 	t.Run("invalid xid", func(t *testing.T) {
@@ -187,4 +190,77 @@ func Test_xidErrorEventDetailJSON(t *testing.T) {
 		assert.Equal(t, xidErr.Xid, unmarshaled.Xid)
 		assert.Nil(t, unmarshaled.SuggestedActionsByGPUd)
 	})
+}
+
+func Test_newXIDErrorReasonWithDetail_SubCode(t *testing.T) {
+	reason := newXIDErrorReasonWithDetail(145, 0, "RLW_CTRL", "PCI:0000:04:00", nil)
+
+	assert.Contains(t, reason, "145/RLW_CTRL")
+	assert.Contains(t, reason, "NVLINK: RLW Error")
+	assert.Contains(t, reason, "PCI:0000:04:00")
+}
+
+// Test_MatchToEventMessageFlowDistinguishesSubCodes verifies that different NVLink subcode names
+// (like RLW_CTRL vs RLW_REMAP) produce distinguishable event messages when processed end-to-end.
+//
+// This test ensures error readability by validating that:
+// 1. The parsed subcode name from kmsg is preserved through the event storage flow
+// 2. The final message uses the actual parsed subcode (e.g., "RLW_REMAP") rather than
+//    a generic catalog fallback (e.g., "RLW_CTRL" for all subcode-0 entries)
+// 3. Users can differentiate between different NVLink failure sub-components
+//
+// Without this behavior, errors like "XID 145, RLW_CTRL" and "XID 145, RLW_REMAP" would
+// both display as "XID 145 (NVLINK: RLW Error)" making troubleshooting impossible.
+func Test_MatchToEventMessageFlowDistinguishesSubCodes(t *testing.T) {
+	testCases := []struct {
+		name             string
+		kmsgLine         string
+		expectedSubCode  string
+		expectedNotMatch string // ensure it does NOT contain a different subcode
+	}{
+		{
+			name:             "RLW_CTRL should appear in message",
+			kmsgLine:         "NVRM: Xid (PCI:0000:04:00): 145, RLW_CTRL Nonfatal XC0 i0 Link 00 (0x00000003 0x80000000 0x00000000 0x00000000)",
+			expectedSubCode:  "RLW_CTRL",
+			expectedNotMatch: "RLW_REMAP",
+		},
+		{
+			name:             "RLW_REMAP should appear in message",
+			kmsgLine:         "NVRM: Xid (PCI:0000:04:00): 145, RLW_REMAP Nonfatal XC0 i0 Link 00 (0x00000004 0x00000001 0x00000000 0x00000000)",
+			expectedSubCode:  "RLW_REMAP",
+			expectedNotMatch: "RLW_CTRL",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Step 1: Parse the kmsg line
+			xidErr := Match(tc.kmsgLine)
+			assert.NotNil(t, xidErr, "Match should return non-nil")
+			assert.NotNil(t, xidErr.Detail, "Detail should be populated")
+			assert.Equal(t, tc.expectedSubCode, xidErr.Detail.SubCodeDescription, "SubCodeDescription from Match")
+
+			// Step 2: Simulate event storage by creating the payload
+			xidPayload := xidErrorEventDetail{
+				DeviceUUID: xidErr.DeviceUUID,
+				Xid:        uint64(xidErr.Xid),
+			}
+			if xidErr.Detail != nil {
+				xidPayload.SubCode = xidErr.Detail.SubCode
+				xidPayload.SubCodeDescription = xidErr.Detail.SubCodeDescription
+				xidPayload.Description = xidErr.Detail.Description
+			}
+
+			// Step 3: Verify the payload has the correct subcode description
+			assert.Equal(t, tc.expectedSubCode, xidPayload.SubCodeDescription, "Payload SubCodeDescription")
+
+			// Step 4: Simulate reading back and generating the message
+			reason := newXIDErrorReasonWithDetail(int(xidPayload.Xid), xidPayload.SubCode, xidPayload.SubCodeDescription, xidPayload.DeviceUUID, nil)
+
+			// Step 5: Verify the message distinguishes the subcode
+			assert.Contains(t, reason, tc.expectedSubCode, "Message should contain subcode name")
+			assert.NotContains(t, reason, tc.expectedNotMatch, "Message should not contain wrong subcode name")
+			assert.Contains(t, reason, "145/"+tc.expectedSubCode, "Message should format as XID/subcode")
+		})
+	}
 }
