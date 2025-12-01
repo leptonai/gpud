@@ -95,7 +95,7 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 	if lastXidErr == nil {
 		reason = "XIDComponent is healthy"
 	} else {
-		reason = newXIDErrorReasonWithDetail(int(lastXidErr.Xid), int(lastXidErr.SubCode), lastXidErr.SubCodeDescription, lastXidErr.DeviceUUID, devices)
+		reason = newXIDErrorReasonWithDetail(int(lastXidErr.Xid), lastXidErr.SubCode, lastXidErr.SubCodeDescription, lastXidErr.DeviceUUID, devices)
 	}
 	return apiv1.HealthState{
 		Name:             StateNameErrorXid,
@@ -103,10 +103,6 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 		Reason:           reason,
 		SuggestedActions: lastSuggestedAction,
 	}
-}
-
-func newXIDErrorReason(xidVal int, deviceID string, devices map[string]device.Device) string {
-	return newXIDErrorReasonWithDetail(xidVal, 0, "", deviceID, devices)
 }
 
 func newXIDErrorReasonWithDetail(xidVal, subCode int, subCodeDesc, deviceID string, devices map[string]device.Device) string {

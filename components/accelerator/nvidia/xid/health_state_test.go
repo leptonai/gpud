@@ -204,10 +204,10 @@ func Test_newXIDErrorReasonWithDetail_SubCode(t *testing.T) {
 // (like RLW_CTRL vs RLW_REMAP) produce distinguishable event messages when processed end-to-end.
 //
 // This test ensures error readability by validating that:
-// 1. The parsed subcode name from kmsg is preserved through the event storage flow
-// 2. The final message uses the actual parsed subcode (e.g., "RLW_REMAP") rather than
-//    a generic catalog fallback (e.g., "RLW_CTRL" for all subcode-0 entries)
-// 3. Users can differentiate between different NVLink failure sub-components
+//  1. The parsed subcode name from kmsg is preserved through the event storage flow
+//  2. The final message uses the actual parsed subcode (e.g., "RLW_REMAP") rather than
+//     a generic catalog fallback (e.g., "RLW_CTRL" for all subcode-0 entries)
+//  3. Users can differentiate between different NVLink failure sub-components
 //
 // Without this behavior, errors like "XID 145, RLW_CTRL" and "XID 145, RLW_REMAP" would
 // both display as "XID 145 (NVLINK: RLW Error)" making troubleshooting impossible.
