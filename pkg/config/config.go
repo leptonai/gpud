@@ -64,6 +64,9 @@ type Config struct {
 
 	// FailureInjector is the failure injector.
 	FailureInjector *components.FailureInjector `json:"failure_injector,omitempty"`
+
+	// SkipSessionUpdateConfig skips processing of updateConfig session commands. Intended for testing.
+	SkipSessionUpdateConfig bool `json:"skip_session_update_config"`
 }
 
 func (config *Config) Validate() error {
