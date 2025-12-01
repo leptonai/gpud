@@ -400,3 +400,126 @@ func TestCheck(t *testing.T) {
 
 	fmt.Println(rs.String())
 }
+
+func TestKubernetesMemoryPressureThreshold(t *testing.T) {
+	t.Run("available_memory_below_threshold_logs_warning", func(t *testing.T) {
+		// Setup mocks
+		mockEventBucket := new(MockEventBucket)
+
+		// Mock virtual memory function with available memory below 100Mi threshold
+		mockVMStat := &mem.VirtualMemoryStat{
+			Total:        16 * 1024 * 1024 * 1024, // 16GB
+			Available:    50 * 1024 * 1024,        // 50MB (below 100Mi threshold)
+			Used:         16*1024*1024*1024 - 50*1024*1024,
+			UsedPercent:  99.7,
+			Free:         10 * 1024 * 1024, // 10MB
+			VmallocTotal: 32 * 1024 * 1024 * 1024,
+			VmallocUsed:  16 * 1024 * 1024 * 1024,
+		}
+
+		mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+			return mockVMStat, nil
+		}
+
+		c := &component{
+			ctx:    context.Background(),
+			cancel: func() {},
+			getTimeNowFunc: func() time.Time {
+				return time.Now().UTC()
+			},
+			getVirtualMemoryFunc:    mockGetVMFunc,
+			availableThresholdBytes: defaultAvailableThresholdBytes, // 100Mi
+			eventBucket:             mockEventBucket,
+		}
+
+		// Test
+		result := c.Check()
+
+		// Verify - health should still be healthy (threshold only logs warning)
+		assert.NotNil(t, c.lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
+		assert.Equal(t, "ok", c.lastCheckResult.reason)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	})
+
+	t.Run("available_memory_above_threshold_no_warning", func(t *testing.T) {
+		// Setup mocks
+		mockEventBucket := new(MockEventBucket)
+
+		// Mock virtual memory function with available memory above 100Mi threshold
+		mockVMStat := &mem.VirtualMemoryStat{
+			Total:        16 * 1024 * 1024 * 1024, // 16GB
+			Available:    8 * 1024 * 1024 * 1024,  // 8GB (well above 100Mi threshold)
+			Used:         8 * 1024 * 1024 * 1024,
+			UsedPercent:  50.0,
+			Free:         7 * 1024 * 1024 * 1024,
+			VmallocTotal: 32 * 1024 * 1024 * 1024,
+			VmallocUsed:  16 * 1024 * 1024 * 1024,
+		}
+
+		mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+			return mockVMStat, nil
+		}
+
+		c := &component{
+			ctx:    context.Background(),
+			cancel: func() {},
+			getTimeNowFunc: func() time.Time {
+				return time.Now().UTC()
+			},
+			getVirtualMemoryFunc:    mockGetVMFunc,
+			availableThresholdBytes: defaultAvailableThresholdBytes, // 100Mi
+			eventBucket:             mockEventBucket,
+		}
+
+		// Test
+		result := c.Check()
+
+		// Verify - health should be healthy
+		assert.NotNil(t, c.lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
+		assert.Equal(t, "ok", c.lastCheckResult.reason)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	})
+
+	t.Run("custom_threshold_value", func(t *testing.T) {
+		// Setup mocks
+		mockEventBucket := new(MockEventBucket)
+
+		// Mock virtual memory function with available memory at 150MB
+		mockVMStat := &mem.VirtualMemoryStat{
+			Total:        16 * 1024 * 1024 * 1024, // 16GB
+			Available:    150 * 1024 * 1024,       // 150MB
+			Used:         16*1024*1024*1024 - 150*1024*1024,
+			UsedPercent:  99.1,
+			Free:         100 * 1024 * 1024,
+			VmallocTotal: 32 * 1024 * 1024 * 1024,
+			VmallocUsed:  16 * 1024 * 1024 * 1024,
+		}
+
+		mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+			return mockVMStat, nil
+		}
+
+		c := &component{
+			ctx:    context.Background(),
+			cancel: func() {},
+			getTimeNowFunc: func() time.Time {
+				return time.Now().UTC()
+			},
+			getVirtualMemoryFunc:    mockGetVMFunc,
+			availableThresholdBytes: 200 * 1024 * 1024, // Custom 200Mi threshold
+			eventBucket:             mockEventBucket,
+		}
+
+		// Test
+		result := c.Check()
+
+		// Verify - health should still be healthy (threshold only logs warning)
+		// 150MB is below 200MB custom threshold, so warning would be logged
+		assert.NotNil(t, c.lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
+		assert.Equal(t, "ok", c.lastCheckResult.reason)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	})
+}
