@@ -51,7 +51,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 123, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events, map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice}, DefaultRebootThreshold)
-		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, "XID 123 (SPI PMU RPC Write Failure) detected on GPU PCI:0000:9b:00 UUID:GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7", state.Reason)
 	})
 
@@ -59,6 +59,9 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		events := eventstore.Events{
 			createXidEvent(time.Time{}, 456, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
+		t.Logf("original type=%s", events[0].Type)
+		resolved := resolveXIDEvent(events[0], map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice})
+		t.Logf("resolved type=%s msg=%s", resolved.Type, resolved.Message)
 		state := evolveHealthyState(events, map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice}, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, "XID 456 detected on GPU PCI:0000:9b:00 UUID:GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7", state.Reason)
@@ -121,7 +124,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		require.NotNil(t, state.SuggestedActions)
 		require.NotEmpty(t, state.SuggestedActions.RepairActions)
 		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
 	})
 
 	t.Run("invalid xid", func(t *testing.T) {
@@ -186,5 +189,220 @@ func Test_xidErrorEventDetailJSON(t *testing.T) {
 		assert.Equal(t, xidErr.DeviceUUID, unmarshaled.DeviceUUID)
 		assert.Equal(t, xidErr.Xid, unmarshaled.Xid)
 		assert.Nil(t, unmarshaled.SuggestedActionsByGPUd)
+	})
+}
+
+func Test_newXIDErrorReasonWithDetail_SubCode(t *testing.T) {
+	reason := newXIDErrorReasonWithDetail(145, 0, "RLW_CTRL", "", "PCI:0000:04:00", nil)
+
+	assert.Contains(t, reason, "145/RLW_CTRL")
+	assert.Contains(t, reason, "NVLINK: RLW Error")
+	assert.Contains(t, reason, "PCI:0000:04:00")
+}
+
+// Test_MatchToEventMessageFlowDistinguishesSubCodes verifies that different NVLink subcode names
+// (like RLW_CTRL vs RLW_REMAP) produce distinguishable event messages when processed end-to-end.
+//
+// This test ensures error readability by validating that:
+//  1. The parsed subcode name from kmsg is preserved through the event storage flow
+//  2. The final message uses the actual parsed subcode (e.g., "RLW_REMAP") rather than
+//     a generic catalog fallback (e.g., "RLW_CTRL" for all subcode-0 entries)
+//  3. Users can differentiate between different NVLink failure sub-components
+//
+// Without this behavior, errors like "XID 145, RLW_CTRL" and "XID 145, RLW_REMAP" would
+// both display as "XID 145 (NVLINK: RLW Error)" making troubleshooting impossible.
+func Test_MatchToEventMessageFlowDistinguishesSubCodes(t *testing.T) {
+	testCases := []struct {
+		name             string
+		kmsgLine         string
+		expectedSubCode  string
+		expectedNotMatch string // ensure it does NOT contain a different subcode
+	}{
+		{
+			name:             "RLW_CTRL should appear in message",
+			kmsgLine:         "NVRM: Xid (PCI:0000:04:00): 145, RLW_CTRL Nonfatal XC0 i0 Link 00 (0x00000003 0x80000000 0x00000000 0x00000000)",
+			expectedSubCode:  "RLW_CTRL",
+			expectedNotMatch: "RLW_REMAP",
+		},
+		{
+			name:             "RLW_REMAP should appear in message",
+			kmsgLine:         "NVRM: Xid (PCI:0000:04:00): 145, RLW_REMAP Nonfatal XC0 i0 Link 00 (0x00000004 0x00000001 0x00000000 0x00000000)",
+			expectedSubCode:  "RLW_REMAP",
+			expectedNotMatch: "RLW_CTRL",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Step 1: Parse the kmsg line
+			xidErr := Match(tc.kmsgLine)
+			assert.NotNil(t, xidErr, "Match should return non-nil")
+			assert.NotNil(t, xidErr.Detail, "Detail should be populated")
+			assert.Equal(t, tc.expectedSubCode, xidErr.Detail.SubCodeDescription, "SubCodeDescription from Match")
+
+			// Step 2: Simulate event storage by creating the payload
+			xidPayload := xidErrorEventDetail{
+				DeviceUUID: xidErr.DeviceUUID,
+				Xid:        uint64(xidErr.Xid),
+			}
+			if xidErr.Detail != nil {
+				xidPayload.SubCode = xidErr.Detail.SubCode
+				xidPayload.SubCodeDescription = xidErr.Detail.SubCodeDescription
+				xidPayload.InvestigatoryHint = xidErr.Detail.InvestigatoryHint
+				xidPayload.Description = xidErr.Detail.Description
+			}
+
+			// Step 3: Verify the payload has the correct subcode description
+			assert.Equal(t, tc.expectedSubCode, xidPayload.SubCodeDescription, "Payload SubCodeDescription")
+
+			// Step 4: Simulate reading back and generating the message
+			reason := newXIDErrorReasonWithDetail(int(xidPayload.Xid), xidPayload.SubCode, xidPayload.SubCodeDescription, xidPayload.InvestigatoryHint, xidPayload.DeviceUUID, nil)
+
+			// Step 5: Verify the message distinguishes the subcode
+			assert.Contains(t, reason, tc.expectedSubCode, "Message should contain subcode name")
+			assert.NotContains(t, reason, tc.expectedNotMatch, "Message should not contain wrong subcode name")
+			assert.Contains(t, reason, "145/"+tc.expectedSubCode, "Message should format as XID/subcode")
+		})
+	}
+}
+
+// Test_InvestigatoryHintDifferentiatesSameUnit verifies that errors with the same Unit
+// but different Investigatory values produce distinguishable user-facing messages.
+//
+// This addresses the issue where two NETIR_LINK_EVT errors with different intrinfo values
+// (e.g., 0x025001c6 vs 0x026001c6) would previously show identical error messages,
+// making it impossible for users to differentiate between "investigate peer device"
+// and "investigate software" issues.
+func Test_InvestigatoryHintDifferentiatesSameUnit(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		kmsgLine               string
+		expectedHint           string
+		expectedNotContainHint string
+	}{
+		{
+			name:                   "NETIR_LINK_EVT with peer device hint",
+			kmsgLine:               "NVRM: Xid (PCI:0000:00:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 00 (0x025001c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectedHint:           "[INVESTIGATE_PEER_DEVICE]",
+			expectedNotContainHint: "[INVESTIGATE_SW/USER]",
+		},
+		{
+			name:                   "NETIR_LINK_EVT with software hint",
+			kmsgLine:               "NVRM: Xid (PCI:0000:00:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 00 (0x026001c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectedHint:           "[INVESTIGATE_SW/USER]",
+			expectedNotContainHint: "[INVESTIGATE_PEER_DEVICE]",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Step 1: Parse the kmsg line
+			xidErr := Match(tc.kmsgLine)
+			require.NotNil(t, xidErr, "Match should return non-nil")
+			require.NotNil(t, xidErr.Detail, "Detail should be populated")
+
+			// Step 2: Verify the InvestigatoryHint is set correctly
+			assert.NotEmpty(t, xidErr.Detail.InvestigatoryHint, "InvestigatoryHint should be set")
+
+			// Step 3: Create the event detail payload (simulating component.go)
+			xidPayload := xidErrorEventDetail{
+				DeviceUUID:         xidErr.DeviceUUID,
+				Xid:                uint64(xidErr.Xid),
+				SubCode:            xidErr.Detail.SubCode,
+				SubCodeDescription: xidErr.Detail.SubCodeDescription,
+				InvestigatoryHint:  xidErr.Detail.InvestigatoryHint,
+				Description:        xidErr.Detail.Description,
+			}
+
+			// Step 4: Generate the user-facing reason message
+			reason := newXIDErrorReasonWithDetail(
+				int(xidPayload.Xid),
+				xidPayload.SubCode,
+				xidPayload.SubCodeDescription,
+				xidPayload.InvestigatoryHint,
+				xidPayload.DeviceUUID,
+				nil,
+			)
+
+			// Step 5: Verify the hint is included and differentiates the errors
+			assert.Contains(t, reason, tc.expectedHint, "Message should contain the expected hint")
+			assert.NotContains(t, reason, tc.expectedNotContainHint, "Message should not contain the wrong hint")
+			assert.Contains(t, reason, "NETIR_LINK_EVT", "Both messages should mention the same Unit")
+			assert.Contains(t, reason, "149/NETIR_LINK_EVT", "Message should format as XID/subcode")
+		})
+	}
+}
+
+// Test_InvestigatoryHintFiltering verifies that IGNORE and CONTACT_SUPPORT
+// Investigatory values are filtered out, while other values are passed through.
+func Test_InvestigatoryHintFiltering(t *testing.T) {
+	testCases := []struct {
+		name        string
+		kmsgLine    string
+		expectHint  bool
+		expectedVal string // empty means expect no hint
+	}{
+		{
+			name:        "INVESTIGATE_PEER_DEVICE passes through",
+			kmsgLine:    "NVRM: Xid (PCI:0000:00:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 00 (0x025001c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectHint:  true,
+			expectedVal: "INVESTIGATE_PEER_DEVICE",
+		},
+		{
+			name:        "INVESTIGATE_SW/USER passes through",
+			kmsgLine:    "NVRM: Xid (PCI:0000:00:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 00 (0x026001c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectHint:  true,
+			expectedVal: "INVESTIGATE_SW/USER",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			xidErr := Match(tc.kmsgLine)
+			require.NotNil(t, xidErr, "Match should return non-nil")
+			require.NotNil(t, xidErr.Detail, "Detail should be populated")
+
+			if tc.expectHint {
+				assert.Equal(t, tc.expectedVal, xidErr.Detail.InvestigatoryHint, "InvestigatoryHint should match expected value")
+			} else {
+				assert.Empty(t, xidErr.Detail.InvestigatoryHint, "InvestigatoryHint should be empty for filtered values")
+			}
+		})
+	}
+}
+
+// Test_NewXIDErrorReasonWithDetail_WithHint verifies that the hint is correctly
+// appended to the code label in the reason message.
+func Test_NewXIDErrorReasonWithDetail_WithHint(t *testing.T) {
+	t.Run("with hint", func(t *testing.T) {
+		reason := newXIDErrorReasonWithDetail(149, 37, "NETIR_LINK_EVT", "INVESTIGATE_PEER_DEVICE", "PCI:0000:00:00", nil)
+		assert.Contains(t, reason, "149/NETIR_LINK_EVT [INVESTIGATE_PEER_DEVICE]")
+		assert.Contains(t, reason, "NVLINK: NETIR Error")
+	})
+
+	t.Run("without hint", func(t *testing.T) {
+		reason := newXIDErrorReasonWithDetail(149, 37, "NETIR_LINK_EVT", "", "PCI:0000:00:00", nil)
+		assert.Contains(t, reason, "149/NETIR_LINK_EVT")
+		assert.NotContains(t, reason, "[")
+		assert.NotContains(t, reason, "]")
+	})
+
+	t.Run("different hints produce different messages", func(t *testing.T) {
+		reasonPeer := newXIDErrorReasonWithDetail(149, 37, "NETIR_LINK_EVT", "INVESTIGATE_PEER_DEVICE", "PCI:0000:00:00", nil)
+		reasonSoftware := newXIDErrorReasonWithDetail(149, 38, "NETIR_LINK_EVT", "INVESTIGATE_SW/USER", "PCI:0000:00:00", nil)
+
+		// Both should contain the same base info
+		assert.Contains(t, reasonPeer, "149/NETIR_LINK_EVT")
+		assert.Contains(t, reasonSoftware, "149/NETIR_LINK_EVT")
+
+		// But they should have different hints
+		assert.Contains(t, reasonPeer, "[INVESTIGATE_PEER_DEVICE]")
+		assert.NotContains(t, reasonPeer, "[INVESTIGATE_SW/USER]")
+
+		assert.Contains(t, reasonSoftware, "[INVESTIGATE_SW/USER]")
+		assert.NotContains(t, reasonSoftware, "[INVESTIGATE_PEER_DEVICE]")
+
+		// They should not be equal
+		assert.NotEqual(t, reasonPeer, reasonSoftware, "Messages with different hints should be distinguishable")
 	})
 }

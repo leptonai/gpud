@@ -25,6 +25,11 @@ type Detail struct {
 	// SubCodeDescription describes the NVLink sub-component (e.g., NETIR_LINK_EVT).
 	SubCodeDescription string `json:"sub_code_description"`
 
+	// InvestigatoryHint is a short, user-friendly hint derived from the NVLink rule's
+	// Investigatory field. It helps differentiate errors that have the same Unit but
+	// different root causes (e.g., "peer" vs "software" for NETIR_LINK_EVT errors).
+	InvestigatoryHint string `json:"investigatory_hint,omitempty"`
+
 	// SuggestedActionsByGPUd is the suggested actions by GPUd.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 
@@ -2916,6 +2921,11 @@ func detailFromNVLinkInfo(info *XidExtractedInfo) (*Detail, bool) {
 		}
 		if actions := suggestedActionsFromBucket(rule.Resolution); actions != nil {
 			detail.SuggestedActionsByGPUd = copySuggestedActions(actions)
+		}
+		// Set the investigatory hint to help differentiate errors with the same Unit.
+		// Skip generic values like IGNORE or CONTACT_SUPPORT that don't provide actionable guidance.
+		if rule.Investigatory != "" && rule.Investigatory != "IGNORE" && rule.Investigatory != "CONTACT_SUPPORT" {
+			detail.InvestigatoryHint = rule.Investigatory
 		}
 	}
 
