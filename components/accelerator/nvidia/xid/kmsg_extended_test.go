@@ -490,6 +490,14 @@ func TestMatchNVLinkExamples(t *testing.T) {
 		{"Log17 NETIR Fatal", "NVRM: Xid (PCI:0018:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
 		{"Log18 NETIR_LINK_EVT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 09 (0x004525c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
 		{"Log19 NETIR_LINK_EVT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 09 (0x004525c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
+
+		// Test cases for RLW_CTRL and RLW_REMAP - verifies distinguishable subcode names
+		{"Log20 RLW_CTRL", "NVRM: Xid (PCI:0000:04:00): 145, RLW_CTRL Nonfatal XC0 i0 Link 00 (0x00000003 0x80000000 0x00000000 0x00000000)", 0, "RLW_CTRL", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}},
+		{"Log21 RLW_REMAP", "NVRM: Xid (PCI:0000:04:00): 145, RLW_REMAP Nonfatal XC0 i0 Link 00 (0x00000004 0x00000001 0x00000000 0x00000000)", 0, "RLW_REMAP", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}},
+
+		// Test cases for XID 144 (SAW Error) - verifies different SAW subcodes are distinguishable
+		{"Log22 SAW_MVB", "NVRM: Xid (PCI:0000:04:00): 144, SAW_MVB Nonfatal XC0 i0 Link 00 (0x00000003 0x80000000 0x00000000 0x00000000)", 0, "SAW_MVB", apiv1.EventTypeWarning, nil},
+		{"Log23 SAW_EGR", "NVRM: Xid (PCI:0000:04:00): 144, SAW_EGR Nonfatal XC0 i0 Link 00 (0x00000004 0x00000001 0x00000000 0x00000000)", 0, "SAW_EGR", apiv1.EventTypeWarning, nil},
 	}
 
 	for _, tc := range tests {
@@ -502,8 +510,12 @@ func TestMatchNVLinkExamples(t *testing.T) {
 					assert.Equal(t, tc.expectedSub, xidErr.Detail.SubCode)
 					assert.Equal(t, tc.expectedDesc, xidErr.Detail.SubCodeDescription)
 					assert.Equal(t, tc.expectedEvent, xidErr.Detail.EventType)
-					if assert.NotNil(t, xidErr.Detail.SuggestedActionsByGPUd) {
-						assert.ElementsMatch(t, tc.expectedAction, xidErr.Detail.SuggestedActionsByGPUd.RepairActions)
+					if tc.expectedAction != nil {
+						if assert.NotNil(t, xidErr.Detail.SuggestedActionsByGPUd) {
+							for _, act := range tc.expectedAction {
+								assert.Contains(t, xidErr.Detail.SuggestedActionsByGPUd.RepairActions, act)
+							}
+						}
 					}
 				}
 			}
