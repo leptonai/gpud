@@ -1378,11 +1378,13 @@ var details = map[int]Detail{
 			// Row-remapping happened (Xid 65, see https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html) -- user applications can keep running, but to achieve optimal performance, reset the GPU or reboot the system when convenient.
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
+				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
 
-		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM but no immediate reboot is required
-		EventType: apiv1.EventTypeCritical,
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
+		EventType: apiv1.EventTypeFatal,
 	},
 	66: {
 		Code:        66,
@@ -1448,8 +1450,6 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeHardwareInspection,
 			},
 		},
-		// TODO
-		// ignore first xid 68 occurrences
 
 		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
 		EventType: apiv1.EventTypeFatal,
@@ -1917,11 +1917,10 @@ var details = map[int]Detail{
 				apiv1.RepairActionTypeIgnoreNoActionRequired,
 			},
 		},
-		// TODO
-		// ignore the first few occurrences and then suggest reboot
 
-		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM but no immediate reboot is required
-		EventType: apiv1.EventTypeCritical,
+		// Xids whose GPUd.RepairActions is REBOOT_SYSTEM
+		// Xids whose GPUd.RepairActions is HARDWARE_INSPECTION
+		EventType: apiv1.EventTypeFatal,
 	},
 	95: {
 		Code:        95,
