@@ -25,6 +25,14 @@ type Detail struct {
 	// SubCodeDescription describes the NVLink sub-component (e.g., NETIR_LINK_EVT).
 	SubCodeDescription string `json:"sub_code_description"`
 
+	// ErrorStatus is the NVLink error status word associated with the decoded rule (if applicable).
+	ErrorStatus uint32 `json:"error_status,omitempty"`
+
+	// InvestigatoryHint is a short, user-friendly hint derived from the NVLink rule's
+	// Investigatory field. It helps differentiate errors that have the same Unit but
+	// different root causes (e.g., "peer" vs "software" for NETIR_LINK_EVT errors).
+	InvestigatoryHint string `json:"investigatory_hint,omitempty"`
+
 	// SuggestedActionsByGPUd is the suggested actions by GPUd.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
 
@@ -58,7 +66,9 @@ type nvlinkRule struct {
 
 var (
 	detailsWithSubCodes map[int]map[int]Detail
-	nvlinkRulesByXID    = indexNVLinkRules()
+	// detailsWithSubCodesByStatus keeps rule-specific details keyed by XID -> subcode -> errorStatus.
+	detailsWithSubCodesByStatus map[int]map[int]map[uint32]Detail
+	nvlinkRulesByXID            = indexNVLinkRules()
 )
 
 // Returns the error if found.
@@ -84,9 +94,23 @@ func GetDetailWithSubCode(id int, subCode int) (*Detail, bool) {
 	return GetDetail(id)
 }
 
+// GetDetailWithSubCodeAndStatus returns the XID detail for a given base code, subcode, and errorStatus
+// for NVLink XIDs (144-150). Falls back progressively to subcode-only and then to base detail.
+func GetDetailWithSubCodeAndStatus(id int, subCode int, errorStatus uint32) (*Detail, bool) {
+	if statusMap, ok := detailsWithSubCodesByStatus[id]; ok {
+		if subMap, ok := statusMap[subCode]; ok {
+			if detail, ok := subMap[errorStatus]; ok {
+				copy := detail
+				return &copy, true
+			}
+		}
+	}
+	return GetDetailWithSubCode(id, subCode)
+}
+
 // make sure we do not have unknown event type
 func init() {
-	detailsWithSubCodes = buildNVLinkSubCodeDetails()
+	detailsWithSubCodes, detailsWithSubCodesByStatus = buildNVLinkSubCodeDetails()
 	for id, detail := range details {
 		if detail.EventType == apiv1.EventTypeUnknown || string(detail.EventType) == "" {
 			panic(fmt.Sprintf("unknown event type for Xid %d", id))
@@ -2899,11 +2923,12 @@ func detailFromNVLinkInfo(info *XidExtractedInfo) (*Detail, bool) {
 		return nil, false
 	}
 
-	detail := *base
-	if subMap, ok := detailsWithSubCodes[info.Xid]; ok {
-		if subDetail, ok := subMap[info.SubCode]; ok {
-			detail = subDetail
-		}
+	detailLookup, ok := GetDetailWithSubCodeAndStatus(info.Xid, info.SubCode, info.ErrorStatus)
+	var detail Detail
+	if ok && detailLookup != nil {
+		detail = *detailLookup
+	} else {
+		detail = *base
 	}
 
 	if rule, ok := lookupNVLinkRule(info); ok {
@@ -2917,10 +2942,17 @@ func detailFromNVLinkInfo(info *XidExtractedInfo) (*Detail, bool) {
 		if actions := suggestedActionsFromBucket(rule.Resolution); actions != nil {
 			detail.SuggestedActionsByGPUd = copySuggestedActions(actions)
 		}
+		detail.ErrorStatus = rule.ErrorStatus
+		// Set the investigatory hint to help differentiate errors with the same Unit.
+		// Skip generic values like IGNORE or CONTACT_SUPPORT that don't provide actionable guidance.
+		if rule.Investigatory != "" && rule.Investigatory != "IGNORE" && rule.Investigatory != "CONTACT_SUPPORT" {
+			detail.InvestigatoryHint = rule.Investigatory
+		}
 	}
 
 	detail.SubCode = info.SubCode
 	detail.SubCodeDescription = info.SubCodeName
+	detail.ErrorStatus = info.ErrorStatus
 	detail.EventType = maxEventType(detail.EventType, eventTypeFromLogSeverity(info.Severity))
 	if detail.SuggestedActionsByGPUd == nil {
 		detail.SuggestedActionsByGPUd = copySuggestedActions(base.SuggestedActionsByGPUd)
@@ -2928,8 +2960,9 @@ func detailFromNVLinkInfo(info *XidExtractedInfo) (*Detail, bool) {
 	return &detail, true
 }
 
-func buildNVLinkSubCodeDetails() map[int]map[int]Detail {
+func buildNVLinkSubCodeDetails() (map[int]map[int]Detail, map[int]map[int]map[uint32]Detail) {
 	result := make(map[int]map[int]Detail)
+	resultByStatus := make(map[int]map[int]map[uint32]Detail)
 	for _, rule := range nvlinkRules {
 		if rule.Xid < 144 || rule.Xid > 150 {
 			continue
@@ -2941,36 +2974,58 @@ func buildNVLinkSubCodeDetails() map[int]map[int]Detail {
 		if _, ok := result[rule.Xid]; !ok {
 			result[rule.Xid] = make(map[int]Detail)
 		}
-
-		aggregated, exists := result[rule.Xid][subCode]
-		if !exists {
-			base, ok := GetDetail(rule.Xid)
-			if !ok {
-				continue
-			}
-			aggregated = *base
-			aggregated.SubCode = subCode
-			aggregated.SubCodeDescription = rule.Unit
-			aggregated.EventType = apiv1.EventTypeUnknown
+		if _, ok := resultByStatus[rule.Xid]; !ok {
+			resultByStatus[rule.Xid] = make(map[int]map[uint32]Detail)
 		}
+		if _, ok := resultByStatus[rule.Xid][subCode]; !ok {
+			resultByStatus[rule.Xid][subCode] = make(map[uint32]Detail)
+		}
+
+		base, ok := GetDetail(rule.Xid)
+		if !ok {
+			continue
+		}
+		// Rule-specific detail (preserve rule severity).
+		detail := *base
+		detail.SubCode = subCode
+		detail.SubCodeDescription = rule.Unit
+		detail.ErrorStatus = rule.ErrorStatus
 
 		ruleEvent := eventTypeFromSeverity(rule.Severity)
 		if ruleEvent == apiv1.EventTypeUnknown {
 			ruleEvent = eventTypeFromImmediateBucket(rule.Resolution)
 		}
-		aggregated.EventType = maxEventType(aggregated.EventType, ruleEvent)
+		if ruleEvent != apiv1.EventTypeUnknown {
+			detail.EventType = ruleEvent
+		}
 		if actions := suggestedActionsFromBucket(rule.Resolution); actions != nil {
-			aggregated.SuggestedActionsByGPUd = mergeSuggestedActions(aggregated.SuggestedActionsByGPUd, actions)
+			detail.SuggestedActionsByGPUd = copySuggestedActions(actions)
 		}
 
+		// Store rule-specific detail keyed by error status (no aggregation across statuses).
+		existing, exists := resultByStatus[rule.Xid][subCode][rule.ErrorStatus]
+		if exists {
+			detail.EventType = maxEventType(existing.EventType, detail.EventType)
+			detail.SuggestedActionsByGPUd = mergeSuggestedActions(existing.SuggestedActionsByGPUd, detail.SuggestedActionsByGPUd)
+		}
+		resultByStatus[rule.Xid][subCode][rule.ErrorStatus] = detail
+
+		// Subcode-level fallback: keep base severity (do not escalate across statuses), but merge actions.
+		aggregated, ok := result[rule.Xid][subCode]
+		if !ok {
+			aggregated = *base
+			aggregated.SubCode = subCode
+			aggregated.SubCodeDescription = rule.Unit
+		}
+		aggregated.SuggestedActionsByGPUd = mergeSuggestedActions(aggregated.SuggestedActionsByGPUd, detail.SuggestedActionsByGPUd)
 		result[rule.Xid][subCode] = aggregated
 	}
 
-	applyOperationalOverrides(result)
-	return result
+	applyOperationalOverrides(result, resultByStatus)
+	return result, resultByStatus
 }
 
-func applyOperationalOverrides(result map[int]map[int]Detail) {
+func applyOperationalOverrides(result map[int]map[int]Detail, resultByStatus map[int]map[int]map[uint32]Detail) {
 	if subMap, ok := result[149]; ok {
 		if detail, ok := subMap[4]; ok {
 			detail.EventType = apiv1.EventTypeFatal
@@ -2978,6 +3033,11 @@ func applyOperationalOverrides(result map[int]map[int]Detail) {
 			detail.Description = "NVLINK: NETIR Link Event - Possible NVLink cartridge error (contact provider)"
 			detail.SuggestedActionsByGPUd = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}
 			subMap[4] = detail
+			if statusMap, ok := resultByStatus[149][4]; ok {
+				for status := range statusMap {
+					statusMap[status] = detail
+				}
+			}
 		}
 		if detail, ok := subMap[10]; ok {
 			detail.EventType = apiv1.EventTypeFatal
@@ -2985,6 +3045,11 @@ func applyOperationalOverrides(result map[int]map[int]Detail) {
 			detail.Description = "NVLINK: NETIR Link Event - Physical layer retransmission timeout (contact provider)"
 			detail.SuggestedActionsByGPUd = &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}
 			subMap[10] = detail
+			if statusMap, ok := resultByStatus[149][10]; ok {
+				for status := range statusMap {
+					statusMap[status] = detail
+				}
+			}
 		}
 	}
 }

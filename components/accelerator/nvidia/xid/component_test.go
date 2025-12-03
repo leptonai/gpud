@@ -398,7 +398,7 @@ func TestXIDComponent_States(t *testing.T) {
 			},
 			wantState: []apiv1.HealthState{
 				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
 				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
 				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
 				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
