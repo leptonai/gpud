@@ -1,0 +1,66 @@
+name: 'helm'
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, closed]
+
+permissions:
+  id-token: write
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "checkout"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - uses: actions/setup-python@v5
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.7.0
+
+      - name: Run chart-testing
+        run: |
+          ct lint --debug --all --config ./.github/configs/ct-lint.yaml \
+            --lint-conf ./.github/configs/lintconf.yaml \
+            --target-branch ${{ github.event.pull_request.base.ref }}
+
+      - name: Run kubeconform
+        run: |
+          helm plugin install https://github.com/melmorabity/helm-kubeconform
+          helm kubeconform chart --verbose --summary --strict --exit-on-error
+
+      - name: Run helm unit tests
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest
+          helm unittest chart
+
+      - name: validate
+        run: |
+          .github/scripts/validate.sh
+
+      - name: release
+        if: github.event.pull_request.merged == true
+        env:
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          REPO_NAME=$(echo "${GITHUB_REPOSITORY}" | cut -d'/' -f2)
+          CHART_NAME="$(grep "name:" chart/Chart.yaml | sed 's/name: //')"
+          echo '${{ secrets.GITHUB_TOKEN }}' | helm registry login -u '${{ github.actor }}' --password-stdin 'ghcr.io'
+          helm package chart --version "${IMAGEVERSION}" --app-version "${IMAGEVERSION}"
+          echo "Pushing helm chart ${CHART_NAME}-${IMAGEVERSION}.tgz to oci://ghcr.io/${REPOSITORY_OWNER}"
+          helm push "${CHART_NAME}-${IMAGEVERSION}.tgz" "oci://ghcr.io/${REPOSITORY_OWNER}"
+
+
