@@ -5,6 +5,7 @@ package xid
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -473,13 +474,37 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			logger := log.Logger.With("id", id, "xid", xidErr.Xid, "xidName", xidName, "deviceUUID", xidErr.DeviceUUID)
 			logger.Infow("got xid event", "kmsg", message, "kmsgTimestamp", message.Timestamp.Unix())
 
+			xidPayload := xidErrorEventDetail{
+				Time:       metav1.NewTime(message.Timestamp.Time),
+				DataSource: "kmsg",
+				DeviceUUID: xidErr.DeviceUUID,
+				Xid:        uint64(xidErr.Xid),
+			}
+			if xidErr.Detail != nil {
+				xidPayload.SubCode = xidErr.Detail.SubCode
+				xidPayload.SubCodeDescription = xidErr.Detail.SubCodeDescription
+				xidPayload.InvestigatoryHint = xidErr.Detail.InvestigatoryHint
+				xidPayload.Description = xidErr.Detail.Description
+				xidPayload.ErrorStatus = xidErr.Detail.ErrorStatus
+				xidPayload.SuggestedActionsByGPUd = xidErr.Detail.SuggestedActionsByGPUd
+			}
+
+			rawPayload, err := json.Marshal(xidPayload)
+			if err != nil {
+				logger.Errorw("failed to marshal xid payload", "error", err)
+			}
+
 			event := eventstore.Event{
 				Time: message.Timestamp.Time,
 				Name: EventNameErrorXid,
 				ExtraInfo: map[string]string{
-					EventKeyErrorXidData: strconv.FormatInt(int64(xidErr.Xid), 10),
-					EventKeyDeviceUUID:   xidErr.DeviceUUID,
+					EventKeyDeviceUUID: xidErr.DeviceUUID,
 				},
+			}
+			if len(rawPayload) > 0 {
+				event.ExtraInfo[EventKeyErrorXidData] = string(rawPayload)
+			} else {
+				event.ExtraInfo[EventKeyErrorXidData] = strconv.FormatInt(int64(xidErr.Xid), 10)
 			}
 			sameEvent, err := c.eventBucket.Find(c.ctx, event)
 			if err != nil {
