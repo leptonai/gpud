@@ -114,7 +114,9 @@ func TestUpdateRunner(t *testing.T) {
 	// Create a temporary directory for test scripts
 	tempDir, err := os.MkdirTemp("", "package-controller-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a test script that returns version info
 	scriptPath := filepath.Join(tempDir, "update-test.sh")
@@ -175,7 +177,9 @@ func TestInstallRunner(t *testing.T) {
 	// Create a temporary directory for test scripts
 	tempDir, err := os.MkdirTemp("", "package-controller-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a test script for installation
 	scriptPath := filepath.Join(tempDir, "install-test.sh")
@@ -234,7 +238,9 @@ func TestDeleteRunner(t *testing.T) {
 	// Create a temporary directory for test scripts
 	tempDir, err := os.MkdirTemp("", "package-controller-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a test script for deletion
 	scriptPath := filepath.Join(tempDir, "delete-test.sh")
@@ -283,7 +289,9 @@ func TestStatusRunner(t *testing.T) {
 	// Create a temporary directory for test scripts
 	tempDir, err := os.MkdirTemp("", "package-controller-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a test script that returns OK status
 	workingScriptPath := filepath.Join(tempDir, "status-ok.sh")
@@ -338,7 +346,9 @@ func TestRunCommand(t *testing.T) {
 	// Create a temporary directory for test scripts
 	tempDir, err := os.MkdirTemp("", "package-controller-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a simple test script
 	scriptPath := filepath.Join(tempDir, "test-script.sh")

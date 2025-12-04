@@ -72,7 +72,7 @@ func TestPromRecorder_Interfaces(t *testing.T) {
 	recorder := NewPrometheusRecorder(ctx, time.Minute, dbRO)
 
 	// Verify it implements the Recorder interface
-	var _ pkgmetrics.Recorder = recorder
+	require.Implements(t, (*pkgmetrics.Recorder)(nil), recorder)
 }
 
 func TestPromRecorder_Record(t *testing.T) {

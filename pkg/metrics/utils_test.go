@@ -112,9 +112,10 @@ func TestConvertToLeptonMetrics_MultipleComponents(t *testing.T) {
 	// Components may be in any order, so find them by name
 	var comp1, comp2 v1.ComponentMetrics
 	for _, c := range result {
-		if c.Component == "component1" {
+		switch c.Component {
+		case "component1":
 			comp1 = c
-		} else if c.Component == "component2" {
+		case "component2":
 			comp2 = c
 		}
 	}

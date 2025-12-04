@@ -671,10 +671,11 @@ func TestCheck_MultipleGPUs(t *testing.T) {
 
 	// Check the values for each GPU
 	for _, util := range data.Utilizations {
-		if util.UUID == uuid1 {
+		switch util.UUID {
+		case uuid1:
 			assert.Equal(t, uint32(75), util.GPUUsedPercent)
 			assert.Equal(t, uint32(60), util.MemoryUsedPercent)
-		} else if util.UUID == uuid2 {
+		case uuid2:
 			assert.Equal(t, uint32(90), util.GPUUsedPercent)
 			assert.Equal(t, uint32(85), util.MemoryUsedPercent)
 		}

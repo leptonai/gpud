@@ -281,7 +281,9 @@ func TestSXIDComponent_Events(t *testing.T) {
 	// Create a channel with a buffer to avoid blocking
 	msgCh := make(chan kmsg.Message, 1)
 	go component.start(msgCh, 500*time.Millisecond)
-	defer component.Close()
+	defer func() {
+		_ = component.Close()
+	}()
 
 	testEvents := eventstore.Events{
 		createTestEvent(time.Now()),

@@ -77,16 +77,17 @@ func TestFetchIMDSV2Token(t *testing.T) {
 				targetURL = server.URL
 			} else {
 				// For tests where the server isn't supposed to be reached or doesn't matter
-				if tc.name == "request creation fails due to invalid URL" {
+				switch tc.name {
+				case "request creation fails due to invalid URL":
 					// Use an invalid URL that causes http.NewRequestWithContext to fail
 					_, err := fetchToken(ctx, "\n") // Invalid URL with control character
 					require.Error(t, err)
 					require.Contains(t, err.Error(), tc.expectedError)
 					return // Test case finished
-				} else if tc.name == "client.Do fails (e.g. connection refused)" {
+				case "client.Do fails (e.g. connection refused)":
 					// Use a non-routable / non-listening address
 					targetURL = "http://localhost:12345"
-				} else {
+				default:
 					// Default for other no-handler cases, though ideally all cases are explicit
 					targetURL = "http://localhost:9999" // Some other unlikely-to-be-listening port
 				}
@@ -252,23 +253,22 @@ func TestFetchAvailabilityZone(t *testing.T) {
 			name: "successful az fetch",
 			mockHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Check for token request (PUT) vs metadata request (GET)
-				if r.Method == http.MethodPut {
+				switch r.Method {
+				case http.MethodPut:
 					// Token request
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("test-token"))
 					require.NoError(t, err)
-					return
-				} else if r.Method == http.MethodGet {
+				case http.MethodGet:
 					// Metadata request
 					require.Equal(t, "test-token", r.Header.Get(headerToken))
 					require.Contains(t, r.URL.Path, "/placement/availability-zone")
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("us-west-2a"))
 					require.NoError(t, err)
-					return
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 				}
-
-				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 			},
 			expectedAZ:       "us-west-2a",
 			checkRequestPath: true,
@@ -277,21 +277,20 @@ func TestFetchAvailabilityZone(t *testing.T) {
 			name: "az fetch failure",
 			mockHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Check for token request (PUT) vs metadata request (GET)
-				if r.Method == http.MethodPut {
+				switch r.Method {
+				case http.MethodPut:
 					// Token request
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("test-token"))
 					require.NoError(t, err)
-					return
-				} else if r.Method == http.MethodGet {
+				case http.MethodGet:
 					// Metadata request - return 404 for testing error case
 					w.WriteHeader(http.StatusNotFound)
 					_, err := w.Write([]byte("Not found"))
 					require.NoError(t, err)
-					return
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 				}
-
-				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 			},
 			expectedError: "failed to fetch metadata: received status code 404",
 		},
@@ -322,14 +321,13 @@ func TestFetchAvailabilityZone(t *testing.T) {
 func TestFetchAvailabilityZonePublic(t *testing.T) {
 	// Create a common handler for both token and metadata requests
 	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check for token request (PUT) vs metadata request (GET)
-		if r.Method == http.MethodPut {
+		switch r.Method {
+		case http.MethodPut:
 			// Token request
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte("test-token"))
 			require.NoError(t, err)
-			return
-		} else if r.Method == http.MethodGet {
+		case http.MethodGet:
 			// Metadata request
 			require.Equal(t, "test-token", r.Header.Get(headerToken))
 
@@ -341,10 +339,9 @@ func TestFetchAvailabilityZonePublic(t *testing.T) {
 			}
 
 			w.WriteHeader(http.StatusNotFound)
-			return
+		default:
+			t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 		}
-
-		t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 	})
 
 	// Start a test server
@@ -376,23 +373,22 @@ func TestFetchPublicIPv4(t *testing.T) {
 			name: "successful ip fetch",
 			mockHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Check for token request (PUT) vs metadata request (GET)
-				if r.Method == http.MethodPut {
+				switch r.Method {
+				case http.MethodPut:
 					// Token request
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("test-token"))
 					require.NoError(t, err)
-					return
-				} else if r.Method == http.MethodGet {
+				case http.MethodGet:
 					// Metadata request
 					require.Equal(t, "test-token", r.Header.Get(headerToken))
 					require.Contains(t, r.URL.Path, "/public-ipv4")
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("203.0.113.1"))
 					require.NoError(t, err)
-					return
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 				}
-
-				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 			},
 			expectedIP: "203.0.113.1",
 		},
@@ -400,21 +396,20 @@ func TestFetchPublicIPv4(t *testing.T) {
 			name: "ip fetch failure - not assigned (404 returns no error)",
 			mockHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Check for token request (PUT) vs metadata request (GET)
-				if r.Method == http.MethodPut {
+				switch r.Method {
+				case http.MethodPut:
 					// Token request
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("test-token"))
 					require.NoError(t, err)
-					return
-				} else if r.Method == http.MethodGet {
+				case http.MethodGet:
 					// Metadata request - Some EC2 instances don't have public IPs
 					w.WriteHeader(http.StatusNotFound)
 					_, err := w.Write([]byte("Not found"))
 					require.NoError(t, err)
-					return
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 				}
-
-				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 			},
 			expectedIP: "", // 404 should return empty string with no error
 		},
@@ -422,21 +417,20 @@ func TestFetchPublicIPv4(t *testing.T) {
 			name: "ip fetch failure - server error",
 			mockHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Check for token request (PUT) vs metadata request (GET)
-				if r.Method == http.MethodPut {
+				switch r.Method {
+				case http.MethodPut:
 					// Token request
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("test-token"))
 					require.NoError(t, err)
-					return
-				} else if r.Method == http.MethodGet {
+				case http.MethodGet:
 					// Metadata request - return server error
 					w.WriteHeader(http.StatusInternalServerError)
 					_, err := w.Write([]byte("Internal Server Error"))
 					require.NoError(t, err)
-					return
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 				}
-
-				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 			},
 			expectedError: "failed to fetch metadata: received status code 500",
 		},
@@ -467,14 +461,13 @@ func TestFetchPublicIPv4(t *testing.T) {
 func TestFetchPublicIPv4Public(t *testing.T) {
 	// Create a common handler for both token and metadata requests
 	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check for token request (PUT) vs metadata request (GET)
-		if r.Method == http.MethodPut {
+		switch r.Method {
+		case http.MethodPut:
 			// Token request
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte("test-token"))
 			require.NoError(t, err)
-			return
-		} else if r.Method == http.MethodGet {
+		case http.MethodGet:
 			// Metadata request
 			require.Equal(t, "test-token", r.Header.Get(headerToken))
 
@@ -486,10 +479,9 @@ func TestFetchPublicIPv4Public(t *testing.T) {
 			}
 
 			w.WriteHeader(http.StatusNotFound)
-			return
+		default:
+			t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 		}
-
-		t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 	})
 
 	// Start a test server
@@ -514,14 +506,13 @@ func TestFetchPublicIPv4Public(t *testing.T) {
 func TestFetchMetadata(t *testing.T) {
 	// Create a common handler for both token and metadata requests
 	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check for token request (PUT) vs metadata request (GET)
-		if r.Method == http.MethodPut {
+		switch r.Method {
+		case http.MethodPut:
 			// Token request
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte("test-token"))
 			require.NoError(t, err)
-			return
-		} else if r.Method == http.MethodGet {
+		case http.MethodGet:
 			// Metadata request
 			require.Equal(t, "test-token", r.Header.Get(headerToken))
 
@@ -537,10 +528,9 @@ func TestFetchMetadata(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			_, err := w.Write([]byte("Not found"))
 			require.NoError(t, err)
-			return
+		default:
+			t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 		}
-
-		t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 	})
 
 	// Start a test server
@@ -612,46 +602,42 @@ func TestFetchLocalIPv4(t *testing.T) {
 		{
 			name: "successful local ip fetch",
 			mockHandler: func(w http.ResponseWriter, r *http.Request) {
-				// Check for token request (PUT) vs metadata request (GET)
-				if r.Method == http.MethodPut {
+				switch r.Method {
+				case http.MethodPut:
 					// Token request
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("test-token"))
 					require.NoError(t, err)
-					return
-				} else if r.Method == http.MethodGet {
+				case http.MethodGet:
 					// Metadata request
 					require.Equal(t, "test-token", r.Header.Get(headerToken))
 					require.Contains(t, r.URL.Path, "/local-ipv4")
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("10.0.1.5"))
 					require.NoError(t, err)
-					return
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 				}
-
-				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 			},
 			expectedIP: "10.0.1.5",
 		},
 		{
 			name: "local ip fetch failure",
 			mockHandler: func(w http.ResponseWriter, r *http.Request) {
-				// Check for token request (PUT) vs metadata request (GET)
-				if r.Method == http.MethodPut {
+				switch r.Method {
+				case http.MethodPut:
 					// Token request
 					w.WriteHeader(http.StatusOK)
 					_, err := w.Write([]byte("test-token"))
 					require.NoError(t, err)
-					return
-				} else if r.Method == http.MethodGet {
+				case http.MethodGet:
 					// Metadata request - return error
 					w.WriteHeader(http.StatusInternalServerError)
 					_, err := w.Write([]byte("Server error"))
 					require.NoError(t, err)
-					return
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 				}
-
-				t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 			},
 			expectedError: "failed to fetch metadata: received status code 500",
 		},
@@ -682,14 +668,13 @@ func TestFetchLocalIPv4(t *testing.T) {
 func TestFetchLocalIPv4Public(t *testing.T) {
 	// Create a common handler for both token and metadata requests
 	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check for token request (PUT) vs metadata request (GET)
-		if r.Method == http.MethodPut {
+		switch r.Method {
+		case http.MethodPut:
 			// Token request
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte("test-token"))
 			require.NoError(t, err)
-			return
-		} else if r.Method == http.MethodGet {
+		case http.MethodGet:
 			// Metadata request
 			require.Equal(t, "test-token", r.Header.Get(headerToken))
 
@@ -701,10 +686,9 @@ func TestFetchLocalIPv4Public(t *testing.T) {
 			}
 
 			w.WriteHeader(http.StatusNotFound)
-			return
+		default:
+			t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 		}
-
-		t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
 	})
 
 	// Start a test server

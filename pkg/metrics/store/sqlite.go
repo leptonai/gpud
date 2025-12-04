@@ -229,7 +229,9 @@ FROM %s
 		}
 		return nil, err
 	}
-	defer queryRows.Close()
+	defer func() {
+		_ = queryRows.Close()
+	}()
 
 	rows := make(pkgmetrics.Metrics, 0)
 	for queryRows.Next() {

@@ -78,7 +78,9 @@ func packageUpdate(dlDir string, dataDir string, targetPackage string, ver strin
 	if err != nil {
 		return err
 	}
-	defer os.Remove(dlPath)
+	defer func() {
+		_ = os.Remove(dlPath)
+	}()
 
 	targetPath := filepath.Join(config.PackagesDir(dataDir), targetPackage, "init.sh")
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {

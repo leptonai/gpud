@@ -249,7 +249,9 @@ func TestDeduperWithRealData(t *testing.T) {
 	// Open the test data file
 	testFile, err := os.Open("testdata/kmsg.2.peermem.log")
 	require.NoError(t, err)
-	defer testFile.Close()
+	defer func() {
+		_ = testFile.Close()
+	}()
 
 	// Use a fixed boot time for deterministic testing
 	bootTime := time.Unix(1000, 0)

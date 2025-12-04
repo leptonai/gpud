@@ -23,7 +23,7 @@ func TestNewStore(t *testing.T) {
 	require.NotNil(t, store)
 
 	// Verify that the store implements the Store interface
-	var _ Store = store
+	require.Implements(t, (*Store)(nil), store)
 }
 
 func TestNewStoreWithCustomValues(t *testing.T) {
@@ -87,7 +87,7 @@ func TestReadAllDeviceValuesErrorHandling(t *testing.T) {
 	assert.Contains(t, devices, "mlx5_1")
 
 	// Test with closed database
-	dbRO.Close()
+	_ = dbRO.Close()
 	_, err = readAllDeviceValues(ctx, dbRO, tableName)
 	require.Error(t, err)
 }
@@ -132,7 +132,7 @@ func TestReadAllPortValuesErrorHandling(t *testing.T) {
 	assert.Contains(t, ports, uint(2))
 
 	// Test with closed database
-	dbRO.Close()
+	_ = dbRO.Close()
 	_, err = readAllPortValues(ctx, dbRO, tableName)
 	require.Error(t, err)
 }
@@ -149,7 +149,7 @@ func TestCreateHistoryTableTransactionErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test with closed database - should fail to begin transaction
-	dbRW.Close()
+	_ = dbRW.Close()
 	err = createHistoryTable(ctx, dbRW, "test_table_2")
 	require.Error(t, err)
 }
@@ -160,7 +160,7 @@ func TestCreateTableErrors(t *testing.T) {
 	defer cleanup()
 
 	// Close database to simulate error conditions
-	dbRW.Close()
+	_ = dbRW.Close()
 
 	// Test transaction begin failure
 	err := createHistoryTable(ctx, dbRW, "test_table")
@@ -204,7 +204,9 @@ func TestCreateHistoryTableSuccess(t *testing.T) {
 	query = fmt.Sprintf(`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='%s'`, testTable)
 	rows, err := dbRO.QueryContext(ctx, query)
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var indexCount int
 	for rows.Next() {
@@ -222,7 +224,7 @@ func TestGetLastTimestampWithClosedDB(t *testing.T) {
 	defer cleanup()
 
 	// Close the read-only database to force an error
-	dbRO.Close()
+	_ = dbRO.Close()
 
 	// This should return an error when trying to query a closed database
 	_, err := readLastTimestamp(ctx, dbRO, "non_existent_table")
@@ -279,7 +281,7 @@ func TestSelectAllDevicesWithErrors(t *testing.T) {
 	assert.Nil(t, devices)
 
 	// Test with closed database
-	dbRO.Close()
+	_ = dbRO.Close()
 	devices, err = readAllDeviceValues(ctx, dbRO, "any_table")
 	require.Error(t, err)
 	assert.Nil(t, devices)
@@ -338,7 +340,7 @@ func TestSelectAllPortsWithErrors(t *testing.T) {
 	assert.Nil(t, ports)
 
 	// Test with closed database
-	dbRO.Close()
+	_ = dbRO.Close()
 	ports, err = readAllPortValues(ctx, dbRO, "any_table")
 	require.Error(t, err)
 	assert.Nil(t, ports)
@@ -355,7 +357,7 @@ func TestSelectAllDevicesQueryError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the database after creating table to force rows.Err()
-	dbRO.Close()
+	_ = dbRO.Close()
 
 	// This should succeed initially but fail on query
 	devices, err := readAllDeviceValues(ctx, dbRO, tableName)
@@ -393,7 +395,7 @@ func TestNewStoreWithSelectErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the read-only database to force selectAllDevices/selectAllPorts to fail
-	dbRO.Close()
+	_ = dbRO.Close()
 
 	// New should fail when it can't query existing devices/ports
 	_, err = New(ctx, dbRW, dbRO)
@@ -410,7 +412,7 @@ func TestNewStoreWithGetLastTimestampError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the read-only database to force getLastTimestamp to fail
-	dbRO.Close()
+	_ = dbRO.Close()
 
 	// New should fail when it can't get the last timestamp
 	_, err = New(ctx, dbRW, dbRO)
@@ -427,7 +429,7 @@ func TestNewStoreWithMetadataTableCreationError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the write database to force metadata table creation to fail
-	dbRW.Close()
+	_ = dbRW.Close()
 
 	// New should fail when it can't create metadata table
 	_, err = New(ctx, dbRW, dbRO)

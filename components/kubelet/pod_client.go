@@ -29,7 +29,9 @@ func ListPodsFromKubeletReadOnlyPort(ctx context.Context, port int) (string, []P
 	if err != nil {
 		return "", nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	pods, err := parsePodsFromKubeletReadOnlyPort(resp.Body)
 	if err != nil {

@@ -39,13 +39,17 @@ func Command(cliContext *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to open state file: %w", err)
 		}
-		defer dbRW.Close()
+		defer func() {
+			_ = dbRW.Close()
+		}()
 
 		dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
 		if err != nil {
 			return fmt.Errorf("failed to open state file: %w", err)
 		}
-		defer dbRO.Close()
+		defer func() {
+			_ = dbRO.Close()
+		}()
 
 		rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer rootCancel()

@@ -11,7 +11,9 @@ import (
 func TestGetLimit(t *testing.T) {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	testPath := filepath.Join(tmpDir, "file-max")
 	err = os.WriteFile(testPath, []byte("1000000\n"), 0644)
@@ -37,7 +39,9 @@ func TestGetLimit(t *testing.T) {
 func TestGetFileHandles(t *testing.T) {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	testPath := filepath.Join(tmpDir, "file-nr")
 	err = os.WriteFile(testPath, []byte("1000 500 10000\n"), 0644)

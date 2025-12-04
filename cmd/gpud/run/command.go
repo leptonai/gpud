@@ -354,7 +354,9 @@ func recordLoginSuccessState(ctx context.Context, dataDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRW.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
 
 	if err := sessionstates.CreateTable(ctx, dbRW); err != nil {
 		return fmt.Errorf("failed to create session states table: %w", err)

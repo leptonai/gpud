@@ -23,14 +23,18 @@ func TestNewComponent_PstoreInitialization(t *testing.T) {
 	// Create a temporary directory for the test database
 	tmpDir, err := os.MkdirTemp("", "gpud_pstore_test_*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	// Initialize the database
 	db, err := sqlite.Open(dbPath)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		assert.NoError(t, db.Close())
+	}()
 
 	// Initialize event store
 	eventStore, err := eventstore.New(db, db, 24*time.Hour)
@@ -116,14 +120,18 @@ func TestNewComponent_PstoreDisabled(t *testing.T) {
 	// Create a temporary directory for the test database
 	tmpDir, err := os.MkdirTemp("", "gpud_pstore_test_*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	// Initialize the database
 	db, err := sqlite.Open(dbPath)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Mock gpudInstance without EventStore to disable pstore (pstore is only initialized when EventStore != nil)
 	gpudInstance := &components.GPUdInstance{
@@ -151,14 +159,18 @@ func TestNewComponent_PstoreDirectoryDoesNotExist(t *testing.T) {
 	// Create a temporary directory for the test database
 	tmpDir, err := os.MkdirTemp("", "gpud_pstore_test_*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	// Initialize the database
 	db, err := sqlite.Open(dbPath)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Initialize event store
 	eventStore, err := eventstore.New(db, db, 24*time.Hour)
@@ -193,14 +205,18 @@ func TestNewComponent_PstoreIsFile(t *testing.T) {
 	// Create a temporary directory for the test database
 	tmpDir, err := os.MkdirTemp("", "gpud_pstore_test_*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	// Initialize the database
 	db, err := sqlite.Open(dbPath)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Initialize event store
 	eventStore, err := eventstore.New(db, db, 24*time.Hour)
@@ -239,14 +255,18 @@ func TestNewComponent_PstoreEventConversionAndInsertion(t *testing.T) {
 	// Create a temporary directory for the test database
 	tmpDir, err := os.MkdirTemp("", "gpud_pstore_test_*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	// Initialize the database
 	db, err := sqlite.Open(dbPath)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Initialize event store
 	eventStore, err := eventstore.New(db, db, 24*time.Hour)
@@ -334,14 +354,18 @@ func TestNewComponent_PstoreEventDuplication(t *testing.T) {
 	// Create a temporary directory for the test database
 	tmpDir, err := os.MkdirTemp("", "gpud_pstore_test_*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	// Initialize the database
 	db, err := sqlite.Open(dbPath)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	// Initialize event store
 	eventStore, err := eventstore.New(db, db, 24*time.Hour)

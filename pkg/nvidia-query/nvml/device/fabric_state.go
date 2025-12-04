@@ -276,7 +276,7 @@ func fabricTriStateStatus(val, notSupported, trueValue, falseValue uint32) strin
 // This method properly handles GPU lost and reset required errors.
 func (d *nvDevice) GetFabricState() (FabricState, error) {
 	// Try V3 API first (provides detailed health metrics)
-	handler := d.Device.GetGpuFabricInfoV()
+	handler := d.GetGpuFabricInfoV()
 	info, ret := handler.V3()
 	if ret == nvml.SUCCESS {
 		return FabricState{
@@ -291,7 +291,7 @@ func (d *nvDevice) GetFabricState() (FabricState, error) {
 	// V3 failed, fall through to V1
 
 	// Try V1 API (basic fabric information)
-	infoV1, ret := d.Device.GetGpuFabricInfo()
+	infoV1, ret := d.GetGpuFabricInfo()
 
 	// Check for GPU errors first
 	if nvmlerrors.IsGPULostError(ret) {

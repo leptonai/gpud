@@ -84,7 +84,11 @@ func dumpStacks(file string) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil {
+			log.Logger.Errorw("failed to close stack trace file", "error", cerr)
+		}
+	}()
 
 	_, err = f.WriteString(string(buf))
 	if err != nil {

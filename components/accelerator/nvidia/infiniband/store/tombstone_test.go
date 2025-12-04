@@ -84,7 +84,7 @@ func TestTombstoneWithClosedDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the database
-	dbRW.Close()
+	_ = dbRW.Close()
 
 	// Trying to set tombstone on closed database should fail
 	testTime := time.Now().UTC()
@@ -206,7 +206,7 @@ func TestSetTombstoneTimestampWithClosedDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the database
-	dbRW.Close()
+	_ = dbRW.Close()
 
 	// Try to set tombstone timestamp on closed database
 	testTime := time.Now().UTC()
@@ -305,7 +305,7 @@ func TestGetTombstoneTimestampWithClosedDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the database
-	dbRO.Close()
+	_ = dbRO.Close()
 
 	// Try to get tombstone timestamp from closed database
 	retrievedTime, err := getTombstoneTimestamp(ctx, dbRO, metadataTable)

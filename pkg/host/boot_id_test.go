@@ -12,7 +12,9 @@ func TestGetBootID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create test files
 	existingFilePath := filepath.Join(tempDir, "boot_id")
@@ -87,7 +89,9 @@ func TestGetBootIDWithTestData(t *testing.T) {
 	if err := os.WriteFile(testFile, []byte("sample-boot-id-12345"), 0644); err != nil {
 		t.Fatalf("Failed to write to test file: %v", err)
 	}
-	defer os.Remove(testFile)
+	defer func() {
+		_ = os.Remove(testFile)
+	}()
 
 	id, err := getBootID(testFile)
 	if err != nil {

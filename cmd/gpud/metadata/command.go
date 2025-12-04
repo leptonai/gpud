@@ -50,7 +50,9 @@ func Command(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 	log.Logger.Debugw("successfully opened state file for reading")
 
 	metadata, err := pkgmetadata.ReadAllMetadata(rootCtx, dbRO)
@@ -84,7 +86,9 @@ func Command(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRW.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
 	log.Logger.Debugw("successfully opened state file for writing")
 
 	log.Logger.Debugw("setting metadata", "key", setKey, "value", setValue)
@@ -103,7 +107,9 @@ func displayRebootHistory(ctx context.Context, dbRO *sql.DB, stateFile string) e
 	if err != nil {
 		return fmt.Errorf("failed to open state file for reboot history: %w", err)
 	}
-	defer dbRW.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
 
 	eventStore, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	if err != nil {

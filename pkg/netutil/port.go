@@ -14,7 +14,9 @@ func IsPortOpen(port int) bool {
 	if err != nil {
 		return false
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	return true
 }

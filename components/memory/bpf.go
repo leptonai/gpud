@@ -44,7 +44,9 @@ func readBPFJITBufferBytes(file string) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	totalSize := uint64(0)
 	scanner := bufio.NewScanner(f)

@@ -319,7 +319,9 @@ func TestGetBlockDevicesWithMountPointFilter(t *testing.T) {
 	// Create a temporary file for mock lsblk output
 	tmpfile, err := os.CreateTemp("", "lsblk-test-*.json")
 	require.NoError(t, err)
-	defer os.Remove(tmpfile.Name())
+	defer func() {
+		_ = os.Remove(tmpfile.Name())
+	}()
 
 	jsonData := `{
 		"blockdevices": [

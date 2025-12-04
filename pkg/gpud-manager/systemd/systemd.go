@@ -81,7 +81,9 @@ func processEnvFileLines(file string, endpoint string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer readFile.Close()
+	defer func() {
+		_ = readFile.Close()
+	}()
 
 	lines := make([]string, 0)
 	scanner := bufio.NewScanner(readFile)

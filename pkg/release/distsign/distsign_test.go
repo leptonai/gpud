@@ -96,7 +96,7 @@ func TestDownload(t *testing.T) {
 
 			dst := filepath.Join(t.TempDir(), tt.src)
 			t.Cleanup(func() {
-				os.Remove(dst)
+				_ = os.Remove(dst)
 			})
 			err := c.Download(context.Background(), tt.src, dst)
 			if err != nil {
@@ -344,7 +344,7 @@ func TestParseRootKey(t *testing.T) {
 			desc: "invalid PEM tag",
 			generate: func() ([]byte, []byte, error) {
 				priv, pub, err := GenerateRootKey()
-				priv = bytes.Replace(priv, []byte("ROOT "), nil, -1)
+				priv = bytes.ReplaceAll(priv, []byte("ROOT "), nil)
 				return priv, pub, err
 			},
 			wantErr: true,
@@ -402,7 +402,7 @@ func TestParseSigningKey(t *testing.T) {
 			desc: "invalid PEM tag",
 			generate: func() ([]byte, []byte, error) {
 				priv, pub, err := GenerateSigningKey()
-				priv = bytes.Replace(priv, []byte("SIGNING "), nil, -1)
+				priv = bytes.ReplaceAll(priv, []byte("SIGNING "), nil)
 				return priv, pub, err
 			},
 			wantErr: true,

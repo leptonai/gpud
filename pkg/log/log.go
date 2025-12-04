@@ -45,7 +45,7 @@ func CreateLoggerWithLumberjack(logFile string, maxSize int, logLevel zapcore.Le
 }
 
 func ParseLogLevel(logLevel string) (zap.AtomicLevel, error) {
-	var zapLvl zap.AtomicLevel = zap.NewAtomicLevel() // info level by default
+	zapLvl := zap.NewAtomicLevel() // info level by default
 	if logLevel != "" && logLevel != "info" {
 		var err error
 		zapLvl, err = zap.ParseAtomicLevel(logLevel)
@@ -93,16 +93,17 @@ func (l *gpudLogger) Errorw(msg string, keysAndValues ...interface{}) {
 		}
 		if err, ok := keysAndValues[i+1].(error); ok {
 			if strings.Contains(err.Error(), context.Canceled.Error()) {
-				l.SugaredLogger.Warnw(msg, keysAndValues...)
+				l.Warnw(msg, keysAndValues...)
 				return
 			}
 		}
 	}
 
-	l.SugaredLogger.Errorw(msg, keysAndValues...)
+	// Use underlying logger to avoid recursion into this wrapper.
+	l.SugaredLogger.Errorw(msg, keysAndValues...) // nolint:staticcheck
 }
 
 // Implements "tailscale.com/types/logger".Logf.
 func (l *gpudLogger) Printf(format string, v ...any) {
-	l.SugaredLogger.Infof(format, v...)
+	l.Infof(format, v...)
 }

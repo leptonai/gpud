@@ -191,7 +191,9 @@ func (pr *pstoreReader) Get(ctx context.Context, since time.Time) ([]History, er
 		}
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	histories := make([]History, 0)
 	for rows.Next() {
@@ -294,7 +296,9 @@ func findHistoryByRawMessage(ctx context.Context, dbRO *sql.DB, tableName string
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	if !rows.Next() {
 		return 0, nil

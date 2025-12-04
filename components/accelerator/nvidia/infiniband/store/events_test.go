@@ -262,7 +262,7 @@ func TestSetEventTypeWithClosedDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the database
-	dbRW.Close()
+	_ = dbRW.Close()
 
 	// Test update with closed database
 	device := "mlx5_0"
@@ -408,7 +408,7 @@ func TestSetEventTypeRowsAffectedError(t *testing.T) {
 	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// Close database after insert to trigger RowsAffected error
-	dbRW.Close()
+	_ = dbRW.Close()
 
 	// Test update - should fail when trying to check RowsAffected
 	err = store.SetEventType(device, port, timestamp, eventType, "test_reason")
@@ -821,7 +821,7 @@ func TestEventsWithClosedDatabase(t *testing.T) {
 	populateStoreDevicePortMaps(store, []string{"mlx5_0"}, []uint{1})
 
 	// Close the database
-	dbRO.Close()
+	_ = dbRO.Close()
 
 	// Test retrieving events with closed database
 	since := time.Now().Add(-1 * time.Hour)

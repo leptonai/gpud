@@ -157,8 +157,12 @@ func setupTestDB(t *testing.T) (*sql.DB, *sql.DB) {
 
 func TestPstoreNew(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 
@@ -170,8 +174,12 @@ func TestPstoreNew(t *testing.T) {
 
 func TestPstoreScanWithTestData(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	// Copy test data to temporary directory
 	tempDir := t.TempDir()
@@ -265,8 +273,12 @@ func TestPstoreScanWithTestData(t *testing.T) {
 
 func TestPstoreNoDuplicates(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	// Create test data
 	tempDir := t.TempDir()
@@ -334,8 +346,12 @@ func TestPstoreNoDuplicates(t *testing.T) {
 
 func TestPstoreGetWithTimeFilter(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 	testData := `<6>[  201.650687] sysrq: SysRq : Trigger a crash`
@@ -373,8 +389,12 @@ func TestPstoreGetWithTimeFilter(t *testing.T) {
 
 func TestPstoreEmptyDirectory(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 
@@ -400,8 +420,12 @@ func TestPstoreEmptyDirectory(t *testing.T) {
 
 func TestPstoreSchemaVersioning(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 
@@ -420,8 +444,12 @@ func TestPstoreSchemaVersioning(t *testing.T) {
 
 func TestPstorePurgeWithLookbackPeriod(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 	testData := `<6>[  201.650687] sysrq: SysRq : Trigger a crash
@@ -480,8 +508,12 @@ func TestPstorePurgeWithLookbackPeriod(t *testing.T) {
 
 func TestPstoreLookbackPeriodDuringDuplicateCheck(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 	testData := `<6>[  201.650687] sysrq: SysRq : Trigger a crash`
@@ -546,8 +578,12 @@ func TestPstoreLookbackPeriodDuringDuplicateCheck(t *testing.T) {
 
 func TestPstoreCustomTimeFunction(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 	testData := `<6>[  201.650687] sysrq: SysRq : Trigger a crash`
@@ -595,8 +631,12 @@ func TestPstoreCustomTimeFunction(t *testing.T) {
 
 func TestPstoreNonExistentDirectory(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	nonExistentDir := "/path/that/does/not/exist"
 
@@ -616,8 +656,12 @@ func TestPstoreNonExistentDirectory(t *testing.T) {
 
 func TestPstoreGetNoRows(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 
@@ -635,8 +679,12 @@ func TestPstoreGetNoRows(t *testing.T) {
 
 func TestPstoreScanWithRecursiveDirectories(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	// Create temp directory with a subdirectory structure like real pstore
 	tempDir := t.TempDir()
@@ -701,8 +749,12 @@ func TestPstoreScanWithRecursiveDirectories(t *testing.T) {
 
 func TestPstoreScanWithEmptyLinesAndMatchingLines(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 	// Create test data with empty lines and non-matching lines
@@ -768,8 +820,12 @@ func TestPstoreScanWithEmptyLinesAndMatchingLines(t *testing.T) {
 
 func TestPstoreGetWithSQLErrNoRows(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 
@@ -783,7 +839,7 @@ func TestPstoreGetWithSQLErrNoRows(t *testing.T) {
 	pr := store.(*pstoreReader)
 
 	// Test by closing the database connection to force an error
-	dbRO.Close()
+	_ = dbRO.Close()
 
 	_, err = pr.Get(ctx, time.Now().Add(-1*time.Hour))
 	assert.Error(t, err, "Expected error when querying with closed database")
@@ -791,8 +847,12 @@ func TestPstoreGetWithSQLErrNoRows(t *testing.T) {
 
 func TestPstoreFindHistoryByRawMessageEmpty(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 
@@ -822,8 +882,12 @@ func TestPstoreFindHistoryByRawMessageEmpty(t *testing.T) {
 
 func TestPstoreWithCorruptedFile(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	tempDir := t.TempDir()
 
@@ -874,8 +938,12 @@ func TestPstoreDefaultConstants(t *testing.T) {
 
 func TestPstoreMaxDepthLimit(t *testing.T) {
 	dbRW, dbRO := setupTestDB(t)
-	defer dbRW.Close()
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	// Create temp directory with nested structure beyond max depth
 	tempDir := t.TempDir()

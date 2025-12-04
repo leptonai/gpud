@@ -26,7 +26,9 @@ func TestComponentReadClass(t *testing.T) {
 	}
 
 	classRootDir := copyTestClassDir(t, origClassDir)
-	defer os.RemoveAll(classRootDir)
+	defer func() {
+		_ = os.RemoveAll(classRootDir)
+	}()
 
 	es := &mockEventStore{}
 	bucket, _ := es.Bucket(Name)
@@ -264,13 +266,17 @@ func copyTestClassDir(t *testing.T, origClassDir string) string {
 		if err != nil {
 			return err
 		}
-		defer srcFile.Close()
+		defer func() {
+			_ = srcFile.Close()
+		}()
 
 		destFile, err := os.Create(destPath)
 		if err != nil {
 			return err
 		}
-		defer destFile.Close()
+		defer func() {
+			_ = destFile.Close()
+		}()
 
 		_, err = destFile.ReadFrom(srcFile)
 		return err
@@ -287,7 +293,9 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 	}
 
 	classRootDir := copyTestClassDir(t, origClassDir)
-	defer os.RemoveAll(classRootDir)
+	defer func() {
+		_ = os.RemoveAll(classRootDir)
+	}()
 
 	es := &mockEventStore{}
 	bucket, _ := es.Bucket(Name)
@@ -470,7 +478,9 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 	}
 
 	classRootDir := copyTestClassDir(t, origClassDir)
-	defer os.RemoveAll(classRootDir)
+	defer func() {
+		_ = os.RemoveAll(classRootDir)
+	}()
 
 	es := &mockEventStore{}
 	bucket, _ := es.Bucket(Name)
@@ -648,7 +658,9 @@ func TestComponentReadClass_CombinedFlapAndDrop(t *testing.T) {
 	}
 
 	classRootDir := copyTestClassDir(t, origClassDir)
-	defer os.RemoveAll(classRootDir)
+	defer func() {
+		_ = os.RemoveAll(classRootDir)
+	}()
 
 	es := &mockEventStore{}
 	bucket, _ := es.Bucket(Name)
@@ -737,7 +749,9 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 	}
 
 	classRootDir := copyTestClassDir(t, origClassDir)
-	defer os.RemoveAll(classRootDir)
+	defer func() {
+		_ = os.RemoveAll(classRootDir)
+	}()
 
 	es := &mockEventStore{}
 	bucket, _ := es.Bucket(Name)
@@ -889,7 +903,9 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 	}
 
 	classRootDir := copyTestClassDir(t, origClassDir)
-	defer os.RemoveAll(classRootDir)
+	defer func() {
+		_ = os.RemoveAll(classRootDir)
+	}()
 
 	es := &mockEventStore{}
 	bucket, _ := es.Bucket(Name)
@@ -944,7 +960,9 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 	t.Run("all_ports_flapping", func(t *testing.T) {
 		// Create a fresh copy for this subtest
 		subClassRootDir := copyTestClassDir(t, origClassDir)
-		defer os.RemoveAll(subClassRootDir)
+		defer func() {
+			_ = os.RemoveAll(subClassRootDir)
+		}()
 		threshold := types.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400}
 		timeNow := baseTime.Add(10 * time.Minute)
 		linkDownedBase := uint64(100)
@@ -1127,7 +1145,9 @@ func TestComponentReadClass_12PortsMeetingThresholdsWithEvents(t *testing.T) {
 	}
 
 	classRootDir := copyTestClassDir(t, origClassDir)
-	defer os.RemoveAll(classRootDir)
+	defer func() {
+		_ = os.RemoveAll(classRootDir)
+	}()
 
 	es := &mockEventStore{}
 	bucket, _ := es.Bucket(Name)
@@ -1318,7 +1338,9 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 	}
 
 	classRootDir := copyTestClassDir(t, origClassDir)
-	defer os.RemoveAll(classRootDir)
+	defer func() {
+		_ = os.RemoveAll(classRootDir)
+	}()
 
 	es := &mockEventStore{}
 	bucket, _ := es.Bucket(Name)
@@ -1442,7 +1464,9 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 	t.Run("realistic_12_ports_failing_threshold_by_one", func(t *testing.T) {
 		// Use fresh directory for this test
 		subClassRootDir := copyTestClassDir(t, origClassDir)
-		defer os.RemoveAll(subClassRootDir)
+		defer func() {
+			_ = os.RemoveAll(subClassRootDir)
+		}()
 
 		threshold := types.ExpectedPortStates{AtLeastPorts: 7, AtLeastRate: 400}
 		timeNow := baseTime.Add(10 * time.Minute)
@@ -1527,7 +1551,9 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 	t.Run("realistic_many_ports_down_but_meeting_threshold", func(t *testing.T) {
 		// Use fresh directory for this test
 		subClassRootDir := copyTestClassDir(t, origClassDir)
-		defer os.RemoveAll(subClassRootDir)
+		defer func() {
+			_ = os.RemoveAll(subClassRootDir)
+		}()
 
 		threshold := types.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
 		timeNow := baseTime.Add(20 * time.Minute)
@@ -1634,7 +1660,9 @@ func TestComponentReadClass_RealisticScenarioWith12IBPorts(t *testing.T) {
 	t.Run("healthy_ports_with_drop_events_ignored", func(t *testing.T) {
 		// Use fresh directory for this test
 		subClassRootDir := copyTestClassDir(t, origClassDir)
-		defer os.RemoveAll(subClassRootDir)
+		defer func() {
+			_ = os.RemoveAll(subClassRootDir)
+		}()
 
 		threshold := types.ExpectedPortStates{AtLeastPorts: 4, AtLeastRate: 400}
 		timeNow := baseTime.Add(30 * time.Minute)

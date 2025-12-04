@@ -31,7 +31,9 @@ func TestOpenKmsgForWrite(t *testing.T) {
 	if os.Geteuid() == 0 {
 		writer, err := openKmsgForWrite(DefaultDevKmsg)
 		if err == nil {
-			defer writer.(*os.File).Close()
+			defer func() {
+				_ = writer.(*os.File).Close()
+			}()
 			assert.NotNil(t, writer)
 		}
 	}
@@ -41,13 +43,17 @@ func TestOpenKmsgForWrite_WithTempFile(t *testing.T) {
 	// Create a temporary file to simulate kmsg device
 	tmpFile, err := os.CreateTemp("", "test-kmsg-*")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	require.NoError(t, tmpFile.Close())
 
 	// Test opening the temporary file
 	writer, err := openKmsgForWrite(tmpFile.Name())
 	if err == nil {
-		defer writer.(*os.File).Close()
+		defer func() {
+			_ = writer.(*os.File).Close()
+		}()
 		assert.NotNil(t, writer)
 
 		// Test writing to the file

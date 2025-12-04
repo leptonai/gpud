@@ -310,7 +310,11 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer func() {
+			if cerr := f.Close(); cerr != nil {
+				log.Logger.Warnw("failed to close log file", "error", cerr)
+			}
+		}()
 		ops = append(ops, process.WithOutputFile(f))
 	}
 

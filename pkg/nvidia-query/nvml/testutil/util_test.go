@@ -75,7 +75,7 @@ func TestMockDevice(t *testing.T) {
 			assert.Equal(t, tt.pciBusID, pciBusID)
 
 			// Test UUID from mock device
-			uuid, ret := mockDevice.Device.GetUUID()
+			uuid, ret := mockDevice.GetUUID()
 			assert.Equal(t, tt.uuid, uuid)
 			assert.Equal(t, nvml.SUCCESS, ret)
 

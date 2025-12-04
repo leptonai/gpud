@@ -92,7 +92,9 @@ func TestInsertWithValidData(t *testing.T) {
 	query = fmt.Sprintf(`SELECT device, port, state, physical_state, rate_gb_sec, total_link_downed FROM %s WHERE timestamp = ? ORDER BY device`, defaultHistoryTable)
 	rows, err := dbRO.QueryContext(ctx, query, eventTime.Unix())
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var devices []string
 	var ports []uint
@@ -251,7 +253,7 @@ func TestInsertWithDatabaseError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the database to force an error
-	dbRW.Close()
+	_ = dbRW.Close()
 
 	eventTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	ibPorts := []types.IBPort{
@@ -370,7 +372,7 @@ func TestReadLastTimestampWithError(t *testing.T) {
 	require.Error(t, err)
 
 	// Test with closed database
-	dbRO.Close()
+	_ = dbRO.Close()
 	_, err = readLastTimestamp(ctx, dbRO, defaultHistoryTable)
 	require.Error(t, err)
 }

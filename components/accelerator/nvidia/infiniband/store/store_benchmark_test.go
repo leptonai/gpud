@@ -292,13 +292,13 @@ func openTestDBForBenchmark(b *testing.B) (*sql.DB, *sql.DB, func()) {
 	// Open read-only connection
 	dbRO, err := sql.Open("sqlite3", dbPath+"?_busy_timeout=10000&mode=ro")
 	if err != nil {
-		dbRW.Close()
+		_ = dbRW.Close()
 		b.Fatalf("failed to open RO database: %v", err)
 	}
 
 	cleanup := func() {
-		dbRW.Close()
-		dbRO.Close()
+		_ = dbRW.Close()
+		_ = dbRO.Close()
 	}
 
 	return dbRW, dbRO, cleanup

@@ -29,7 +29,9 @@ func getMachineInfo(cli *http.Client, req *http.Request) (*apiv1.MachineInfo, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request to %q: %w", req.URL, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("server not ready, response not 200")

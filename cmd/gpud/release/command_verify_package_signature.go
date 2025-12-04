@@ -41,7 +41,11 @@ func CommandVerifyPackageSignature(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	defer pkg.Close()
+	defer func() {
+		if cerr := pkg.Close(); cerr != nil {
+			log.Logger.Warnw("failed to close package file", "error", cerr)
+		}
+	}()
 	pkgHash := distsign.NewPackageHash()
 	if _, err := io.Copy(pkgHash, pkg); err != nil {
 		return fmt.Errorf("reading %q: %w", packagePath, err)

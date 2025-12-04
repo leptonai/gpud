@@ -172,8 +172,12 @@ func TestProcessWithTempFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	defer func() {
+		_ = tmpFile.Close()
+	}()
 
 	p, err := New(
 		WithCommand("echo", "hello"),
@@ -615,7 +619,7 @@ func TestProcessWithBashScriptTmpDirAndPattern(t *testing.T) {
 	// Only remove if the directory still exists
 	defer func() {
 		if _, err := os.Stat(tmpDir); err == nil {
-			os.RemoveAll(tmpDir)
+			_ = os.RemoveAll(tmpDir)
 		}
 	}()
 

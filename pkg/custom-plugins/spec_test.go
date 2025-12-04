@@ -614,7 +614,9 @@ func TestLoadMultiStepPlaintextPlugin(t *testing.T) {
 	// Write the test file
 	err := os.WriteFile(testFile, []byte(testYAML), 0644)
 	assert.NoError(t, err)
-	defer os.Remove(testFile)
+	defer func() {
+		_ = os.Remove(testFile)
+	}()
 
 	// Load the plugins
 	plugins, err := LoadSpecs(testFile)
@@ -690,7 +692,9 @@ health_state_plugin:
 	// Write the test file
 	err := os.WriteFile(testFile, []byte(malformedYAML), 0644)
 	assert.NoError(t, err)
-	defer os.Remove(testFile)
+	defer func() {
+		_ = os.Remove(testFile)
+	}()
 
 	// Try to load the plugins
 	plugins, err := LoadSpecs(testFile)
@@ -1125,7 +1129,9 @@ func TestLoadSpecsWithInvalidSpec(t *testing.T) {
 	// Write the test file
 	err := os.WriteFile(testFile, []byte(invalidSpecYAML), 0644)
 	assert.NoError(t, err)
-	defer os.Remove(testFile)
+	defer func() {
+		_ = os.Remove(testFile)
+	}()
 
 	// Try to load the plugin specs
 	specs, err := LoadSpecs(testFile)
@@ -2075,7 +2081,9 @@ func TestComponentListFileParameterInheritance(t *testing.T) {
 	// Create a temporary file for testing
 	tmpFile, err := os.CreateTemp("", "component-list-*.txt")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	// Write test components to the file
 	components := `# This is a comment
@@ -2097,12 +2105,14 @@ backup
 `
 	_, err = tmpFile.WriteString(components)
 	assert.NoError(t, err)
-	tmpFile.Close()
+	assert.NoError(t, tmpFile.Close())
 
 	emptyFile, err := os.CreateTemp("", "component-list-*.txt")
 	assert.NoError(t, err)
-	defer os.Remove(emptyFile.Name())
-	emptyFile.Close()
+	defer func() {
+		_ = os.Remove(emptyFile.Name())
+	}()
+	assert.NoError(t, emptyFile.Close())
 
 	testCases := []struct {
 		name          string
@@ -4022,7 +4032,9 @@ func TestLoadSpecsWithDeprecatedTypeField(t *testing.T) {
 
 	err := os.WriteFile(testFile, []byte(yamlContent), 0644)
 	assert.NoError(t, err)
-	defer os.Remove(testFile)
+	defer func() {
+		_ = os.Remove(testFile)
+	}()
 
 	// Load the specs; deprecated field alone should now fail validation.
 	_, err = LoadSpecs(testFile)
@@ -4052,7 +4064,9 @@ func TestLoadSpecsWithBothDeprecatedAndNewTypeFields(t *testing.T) {
 
 	err := os.WriteFile(testFile, []byte(yamlContent), 0644)
 	assert.NoError(t, err)
-	defer os.Remove(testFile)
+	defer func() {
+		_ = os.Remove(testFile)
+	}()
 
 	// Load the specs
 	specs, err := LoadSpecs(testFile)
@@ -4083,7 +4097,9 @@ func TestLoadSpecsInvalidYAML(t *testing.T) {
 
 	err := os.WriteFile(testFile, []byte(invalidYAML), 0644)
 	assert.NoError(t, err)
-	defer os.Remove(testFile)
+	defer func() {
+		_ = os.Remove(testFile)
+	}()
 
 	// Load the specs
 	_, err = LoadSpecs(testFile)
@@ -4107,7 +4123,9 @@ func TestLoadSpecsExpandedValidateFailure(t *testing.T) {
 
 	err := os.WriteFile(testFile, []byte(yamlContent), 0644)
 	assert.NoError(t, err)
-	defer os.Remove(testFile)
+	defer func() {
+		_ = os.Remove(testFile)
+	}()
 
 	// Load the specs - should fail during validation
 	_, err = LoadSpecs(testFile)

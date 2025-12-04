@@ -67,7 +67,9 @@ func TestAddDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create subdirectories
 	subDir1 := filepath.Join(tempDir, "subdir1")
@@ -198,7 +200,9 @@ func TestFileInformerListPackages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create test package directories
 	testPackages := []string{"package1", "package2", "package3"}
@@ -239,7 +243,9 @@ func TestFileInformerProcessInitialPackages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create test package with init.sh script
 	pkgDir := filepath.Join(tempDir, "testpkg")
@@ -290,7 +296,9 @@ func TestFileInformerHandleFileEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create the expected directory structure: /tmp/testXXX/var/lib/gpud/packages/testpkg/
 	varDir := filepath.Join(tempDir, "var")
@@ -352,7 +360,9 @@ func TestFileInformerHandleFileEventCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a subdirectory to simulate directory creation
 	newDir := filepath.Join(tempDir, "newdir")
@@ -370,7 +380,9 @@ func TestFileInformerHandleFileEventCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create watcher: %v", err)
 	}
-	defer watcher.Close()
+	defer func() {
+		_ = watcher.Close()
+	}()
 
 	// Create channel (won't be used for CREATE events)
 	ch := make(chan packages.PackageInfo, 10)
@@ -399,7 +411,9 @@ func TestFileInformerHandleFileEventRemove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create watcher: %v", err)
 	}
-	defer watcher.Close()
+	defer func() {
+		_ = watcher.Close()
+	}()
 
 	// Create channel (won't be used for REMOVE events)
 	ch := make(chan packages.PackageInfo, 10)
@@ -423,7 +437,9 @@ func TestFileInformerHandleFileEventNonInitScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create test file that's not init.sh
 	pkgDir := filepath.Join(tempDir, "testpkg")
@@ -494,7 +510,9 @@ func TestFileInformerIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	packagesDir := filepath.Join(tempDir, "packages")
 	if err := os.Mkdir(packagesDir, 0755); err != nil {

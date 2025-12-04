@@ -53,7 +53,9 @@ func (fs *classDir) readFile(file string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer b.Close()
+	defer func() {
+		_ = b.Close()
+	}()
 
 	value, err := io.ReadAll(b)
 	if err != nil {

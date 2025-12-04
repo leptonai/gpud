@@ -207,7 +207,7 @@ func TestErrNoFaultFound(t *testing.T) {
 func TestRequest_Validate_NilRequestPointer(t *testing.T) {
 	// Test behavior when request itself would be nil (edge case)
 	// This tests the method on a nil KernelMessage field specifically
-	var request *Request = &Request{KernelMessage: nil}
+	request := &Request{KernelMessage: nil}
 	err := request.Validate()
 	require.Error(t, err)
 	require.Equal(t, ErrNoFaultFound, err)

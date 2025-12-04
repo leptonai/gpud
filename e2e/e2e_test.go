@@ -67,17 +67,23 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 	randSfx1, err := randStr(10)
 	Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
 	fileToWrite1 := filepath.Join(os.TempDir(), "testplugin"+randSfx1)
-	defer os.Remove(fileToWrite1)
+	defer func() {
+		_ = os.Remove(fileToWrite1)
+	}()
 
 	randSfx2, err := randStr(10)
 	Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
 	fileToWrite2 := filepath.Join(os.TempDir(), "testplugin"+randSfx2)
-	defer os.Remove(fileToWrite2)
+	defer func() {
+		_ = os.Remove(fileToWrite2)
+	}()
 
 	randSfx3, err := randStr(10)
 	Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
 	fileToWrite3 := filepath.Join(os.TempDir(), "testplugin"+randSfx3)
-	defer os.Remove(fileToWrite3)
+	defer func() {
+		_ = os.Remove(fileToWrite3)
+	}()
 
 	randStrToEcho, err := randStr(100)
 	Expect(err).NotTo(HaveOccurred(), "failed to rand suffix")
@@ -108,7 +114,7 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 		listener, err := net.Listen("tcp", "localhost:0")
 		Expect(err).NotTo(HaveOccurred(), "failed to find a free port")
 		port := listener.Addr().(*net.TCPAddr).Port
-		listener.Close()
+		Expect(listener.Close()).To(Succeed())
 		ep = fmt.Sprintf("localhost:%d", port)
 
 		By("create plugin specs")
@@ -242,7 +248,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 		specFile, err := os.CreateTemp(os.TempDir(), "plugins.yaml")
 		Expect(err).NotTo(HaveOccurred(), "failed to create temp file")
-		defer os.Remove(specFile.Name())
+		defer func() {
+			_ = os.Remove(specFile.Name())
+		}()
 		_, err = specFile.Write(marshaledSpecs)
 		Expect(err).NotTo(HaveOccurred(), "failed to write init plugin specs")
 		Expect(specFile.Close()).To(Succeed(), "failed to close temp file")
@@ -329,7 +337,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 			body, err := io.ReadAll(resp.Body)
@@ -352,7 +362,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 			gr, err := gzip.NewReader(resp.Body)
@@ -380,7 +392,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 			body, err := io.ReadAll(resp.Body)
@@ -412,7 +426,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 			body, err := io.ReadAll(resp.Body)
@@ -557,7 +573,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 			body, err := io.ReadAll(resp.Body)
@@ -608,7 +626,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 			body, err := io.ReadAll(resp.Body)
@@ -645,7 +665,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 			gr, err := gzip.NewReader(resp.Body)
@@ -666,7 +688,9 @@ var _ = Describe("[GPUD E2E]", Ordered, func() {
 
 			resp, err := client.Do(req)
 			Expect(err).NotTo(HaveOccurred(), "failed to make request")
-			defer resp.Body.Close()
+			defer func() {
+				_ = resp.Body.Close()
+			}()
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 			body, err := io.ReadAll(resp.Body)

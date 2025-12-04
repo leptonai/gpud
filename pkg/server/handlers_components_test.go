@@ -422,9 +422,10 @@ func TestGetHealthStates(t *testing.T) {
 	// Find comp1 states
 	var comp1States, comp2States apiv1.ComponentHealthStates
 	for _, s := range states {
-		if s.Component == "comp1" {
+		switch s.Component {
+		case "comp1":
 			comp1States = s
-		} else if s.Component == "comp2" {
+		case "comp2":
 			comp2States = s
 		}
 	}
@@ -491,9 +492,10 @@ func TestGetEvents(t *testing.T) {
 	// Find comp1 events
 	var comp1Events, comp2Events apiv1.ComponentEvents
 	for _, e := range events {
-		if e.Component == "comp1" {
+		switch e.Component {
+		case "comp1":
 			comp1Events = e
-		} else if e.Component == "comp2" {
+		case "comp2":
 			comp2Events = e
 		}
 	}

@@ -22,7 +22,7 @@ func TestNewClassDirInterface(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				return tmpDir, func() { os.RemoveAll(tmpDir) }
+				return tmpDir, func() { _ = os.RemoveAll(tmpDir) }
 			},
 			wantErr: false,
 		},
@@ -41,8 +41,10 @@ func TestNewClassDirInterface(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				tmpFile.Close()
-				return tmpFile.Name(), func() { os.Remove(tmpFile.Name()) }
+				if err := tmpFile.Close(); err != nil {
+					t.Fatal(err)
+				}
+				return tmpFile.Name(), func() { _ = os.Remove(tmpFile.Name()) }
 			},
 			wantErr: true,
 			errMsg:  "is not a directory",
@@ -75,7 +77,7 @@ func TestClassDirExists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create test files and directories
 	testFile := filepath.Join(tmpDir, "test.txt")
@@ -151,7 +153,7 @@ func TestClassDirReadFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create test files
 	testContent := "test content"
@@ -260,7 +262,7 @@ func TestClassDirListDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create test structure
 	// tmpDir/
@@ -380,7 +382,7 @@ func TestClassDirIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create a structure similar to /sys/class/infiniband
 	deviceDir := filepath.Join(tmpDir, "mlx5_0")
@@ -448,7 +450,7 @@ func TestClassDirErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cd, err := newClassDirInterface(tmpDir)
 	if err != nil {
@@ -491,7 +493,7 @@ func TestClassDirPermissions(t *testing.T) {
 	defer func() {
 		// Restore permissions before cleanup
 		_ = os.Chmod(tmpDir, 0755)
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 	}()
 
 	// Create unreadable directory
@@ -525,7 +527,7 @@ func TestClassDirConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create test files
 	for i := 0; i < 10; i++ {

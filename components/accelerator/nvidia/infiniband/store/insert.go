@@ -76,7 +76,9 @@ func (s *ibPortsStore) Insert(eventTime time.Time, ibPorts []types.IBPort) error
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() {
+		_ = stmt.Close()
+	}()
 
 	allDevs := make(map[string]any)
 	allPorts := make(map[uint]any)

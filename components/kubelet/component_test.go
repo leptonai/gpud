@@ -309,13 +309,14 @@ func TestListPodsFromKubeletReadOnlyPort_HTTPError(t *testing.T) {
 // Test_componentCheck tests the Check method of the component
 func Test_componentCheck(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/healthz" {
+		switch r.URL.Path {
+		case "/healthz":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("ok"))
-		} else if r.URL.Path == "/pods" {
+		case "/pods":
 			w.Header().Set("Content-Type", "application/json")
 			http.ServeFile(w, r, "kubelet-readonly-pods.json")
-		} else {
+		default:
 			http.Error(w, "Not found", http.StatusNotFound)
 		}
 	}))

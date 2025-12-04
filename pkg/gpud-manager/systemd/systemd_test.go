@@ -43,7 +43,9 @@ func TestProcessEnvFileLines(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file without FLAGS line
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -65,7 +67,9 @@ func TestProcessEnvFileLines(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file with FLAGS but without log file flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -86,7 +90,9 @@ func TestProcessEnvFileLines(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file with FLAGS but without endpoint flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -108,7 +114,9 @@ func TestProcessEnvFileLines(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file with FLAGS containing both flags
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -130,7 +138,9 @@ func TestProcessEnvFileLines(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file that doesn't exist
 		testFile := filepath.Join(tmpDir, "non-existent-file")
@@ -146,7 +156,9 @@ func TestWriteEnvFile(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file path that doesn't exist yet
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -165,7 +177,9 @@ func TestWriteEnvFile(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file path that doesn't exist yet
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -186,7 +200,9 @@ func TestWriteEnvFile(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file with existing flags but without log file flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -212,7 +228,9 @@ FLAGS="--log-level=debug"
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file with existing flags including log file flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -237,7 +255,9 @@ FLAGS="--log-level=debug"
 	t.Run("file exists without endpoint, new endpoint provided", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		testFile := filepath.Join(tmpDir, "gpud-env")
 		initialContent := "FLAGS=\"--log-level=warn --log-file=/var/log/mygpud.log\""
@@ -261,7 +281,9 @@ FLAGS="--log-level=debug"
 	t.Run("file exists with endpoint, different endpoint provided", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		testFile := filepath.Join(tmpDir, "gpud-env")
 		initialContent := "FLAGS=\"--log-level=debug --log-file=/custom/path.log --endpoint=https://old.example.com\""
@@ -286,7 +308,9 @@ FLAGS="--log-level=debug"
 	t.Run("file exists with endpoint, empty endpoint provided", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		testFile := filepath.Join(tmpDir, "gpud-env")
 		initialContent := "FLAGS=\"--log-level=info --log-file=/another/path.log --endpoint=https://remove.me.com\""
@@ -309,7 +333,9 @@ FLAGS="--log-level=debug"
 	t.Run("file exists with endpoint, same endpoint provided", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		testFile := filepath.Join(tmpDir, "gpud-env")
 		originalEndpoint := "https://keep.this.com"
@@ -338,7 +364,9 @@ func TestUpdateFlagsFromExistingEnvFile(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file without FLAGS line
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -361,7 +389,9 @@ SOME_OTHER_VAR="value"`
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file with FLAGS but without log file flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -384,7 +414,9 @@ FLAGS="--log-level=debug"
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file with FLAGS already containing log file flag
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -410,7 +442,9 @@ FLAGS="--log-level=debug"
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file with multiple FLAGS lines
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -444,7 +478,9 @@ FLAGS="--other-flag=true"`
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Create a file with FLAGS but without endpoint
 		testFile := filepath.Join(tmpDir, "gpud-env")
@@ -466,7 +502,9 @@ FLAGS="--other-flag=true"`
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		// Path to a file that doesn't exist
 		nonExistentFile := filepath.Join(tmpDir, "does-not-exist")

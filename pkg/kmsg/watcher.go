@@ -86,7 +86,9 @@ func ReadAll(ctx context.Context) ([]Message, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer kmsgFile.Close()
+	defer func() {
+		_ = kmsgFile.Close()
+	}()
 
 	// upstream "github.com/euank/go-kmsg-parser" uses "syscall.Sysinfo_t"
 	// which breaks darwin builds

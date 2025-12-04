@@ -135,7 +135,9 @@ func createTestComponentWithTime(ctx context.Context, mountPoints, mountTargets 
 func TestComponentName(t *testing.T) {
 	ctx := context.Background()
 	c := createTestComponent(ctx, []string{}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	assert.Equal(t, Name, c.Name())
 }
@@ -143,7 +145,9 @@ func TestComponentName(t *testing.T) {
 func TestTags(t *testing.T) {
 	ctx := context.Background()
 	c := createTestComponent(ctx, []string{}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	expectedTags := []string{
 		Name,
@@ -160,7 +164,9 @@ func TestNewComponent(t *testing.T) {
 	mountTargets := []string{"/mnt/test2"}
 
 	c := createTestComponent(ctx, mountPoints, mountTargets)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Check if mount points are correctly added to the tracking map
 	assert.Contains(t, c.mountPointsToTrackUsage, "/mnt/test1")
@@ -181,7 +187,9 @@ func TestComponentStart(t *testing.T) {
 	defer cancel()
 
 	c := createTestComponent(ctx, []string{}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	err := c.Start()
 	assert.NoError(t, err)
@@ -198,7 +206,9 @@ func TestComponentClose(t *testing.T) {
 func TestComponentEvents(t *testing.T) {
 	ctx := context.Background()
 	c := createTestComponent(ctx, []string{}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	events, err := c.Events(ctx, time.Now())
 	assert.NoError(t, err)
@@ -208,7 +218,9 @@ func TestComponentEvents(t *testing.T) {
 func TestEmptyDataStates(t *testing.T) {
 	ctx := context.Background()
 	c := createTestComponent(ctx, []string{}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// No data set yet
 	states := c.LastHealthStates()
@@ -273,7 +285,9 @@ func TestDataGetStatesWithError(t *testing.T) {
 func TestComponentStatesWithError(t *testing.T) {
 	ctx := context.Background()
 	c := createTestComponent(ctx, []string{}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Manually set lastCheckResult with an error
 	c.lastMu.Lock()
@@ -308,7 +322,9 @@ func TestCheckOnce(t *testing.T) {
 
 	t.Run("successful check", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Disable free-space degraded threshold for this test scenario
 		c.freeSpaceThresholdBytesDegraded = 0
@@ -335,7 +351,9 @@ func TestCheckOnce(t *testing.T) {
 
 	t.Run("no block devices", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{}, nil
@@ -354,7 +372,9 @@ func TestCheckOnce(t *testing.T) {
 
 	t.Run("no ext4 partitions", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{mockDevice}, nil
@@ -394,7 +414,9 @@ func TestErrorRetry(t *testing.T) {
 
 	t.Run("retry on block device error", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		callCount := 0
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -422,7 +444,9 @@ func TestErrorRetry(t *testing.T) {
 
 	t.Run("retry on partition error", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{mockDevice}, nil
@@ -475,10 +499,14 @@ func TestMountTargetUsages(t *testing.T) {
 	t.Run("track mount target", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		c := createTestComponent(ctx, []string{}, []string{tmpDir})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{mockDevice}, nil
@@ -505,10 +533,14 @@ func TestMountTargetUsages(t *testing.T) {
 	t.Run("mount target error handling", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		c := createTestComponent(ctx, []string{}, []string{tmpDir})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{mockDevice}, nil
@@ -535,7 +567,9 @@ func TestMountTargetUsages(t *testing.T) {
 		nonExistentDir := "/path/that/doesnt/exist"
 
 		c := createTestComponent(ctx, []string{}, []string{nonExistentDir})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{mockDevice}, nil
@@ -580,7 +614,9 @@ func TestMetricsTracking(t *testing.T) {
 	}
 
 	c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Disable free-space degraded threshold for this test scenario
 	c.freeSpaceThresholdBytesDegraded = 0
@@ -631,7 +667,9 @@ func TestCheckWithFixedTime(t *testing.T) {
 	fixedTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
 
 	c := createTestComponentWithTime(ctx, []string{}, []string{}, fixedTime)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Mock the partition functions to return predictable data
 	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
@@ -775,7 +813,9 @@ func TestFindMntRetryLogic(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "gpud-disk-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a file in the directory to ensure it exists and has content
 	testFile := tempDir + "/testfile"
@@ -901,7 +941,9 @@ func TestMountTargetUsagesInitialization(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "gpud-disk-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a file in the directory to ensure it exists and has content
 	testFile := tempDir + "/testfile"
@@ -979,7 +1021,9 @@ func TestFindMntLogging(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "gpud-disk-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a file in the directory to ensure it exists and has content
 	testFile := tempDir + "/testfile"
@@ -1078,7 +1122,9 @@ func TestNFSPartitionsRetrieval(t *testing.T) {
 
 	t.Run("successful NFS partitions retrieval", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Disable free-space degraded threshold for this test scenario
 		c.freeSpaceThresholdBytesDegraded = 0
@@ -1116,7 +1162,9 @@ func TestNFSPartitionsRetrieval(t *testing.T) {
 
 	t.Run("no NFS partitions", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Disable free-space degraded threshold for this test scenario
 		c.freeSpaceThresholdBytesDegraded = 0
@@ -1144,7 +1192,9 @@ func TestNFSPartitionsRetrieval(t *testing.T) {
 
 	t.Run("skip NFS partitions when no configs", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Disable free-space degraded threshold for this test scenario
 		c.freeSpaceThresholdBytesDegraded = 0
@@ -1206,7 +1256,9 @@ func TestNFSPartitionsErrorRetry(t *testing.T) {
 
 	t.Run("retry on NFS partition error", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Disable free-space degraded threshold for this test scenario
 		c.freeSpaceThresholdBytesDegraded = 0
@@ -1263,7 +1315,9 @@ func TestNFSMetricsTracking(t *testing.T) {
 	}
 
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Disable free-space degraded threshold for this test scenario
 	c.freeSpaceThresholdBytesDegraded = 0
@@ -1339,7 +1393,9 @@ func TestCombinedPartitions(t *testing.T) {
 	}
 
 	c := createTestComponent(ctx, []string{"/mnt/data1", "/mnt/nfs"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Disable free-space degraded threshold for this test scenario
 	c.freeSpaceThresholdBytesDegraded = 0
@@ -1397,7 +1453,9 @@ func TestDeviceUsagesWithNFS(t *testing.T) {
 	}
 
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Provide non-empty configs to enable NFS checking
 	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
@@ -1534,7 +1592,9 @@ func TestNFSPartitionsStringMethod(t *testing.T) {
 func TestComponentIsSupported(t *testing.T) {
 	ctx := context.Background()
 	c := createTestComponent(ctx, []string{}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	isSupported := c.IsSupported()
 	assert.True(t, isSupported, "disk component should be supported")
@@ -1687,7 +1747,9 @@ func TestNewComponentMoreCases(t *testing.T) {
 
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Check component type
 	component, ok := c.(*component)
@@ -1721,7 +1783,9 @@ func TestNew_EventStoreHandling(t *testing.T) {
 		}
 		comp, err := New(gpudInstance)
 		require.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		diskComp, ok := comp.(*component)
 		require.True(t, ok)
@@ -1746,7 +1810,9 @@ func TestNew_EventStoreHandling(t *testing.T) {
 		comp, err := New(gpudInstance)
 		require.NoError(t, err)
 		require.NotNil(t, comp)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		diskComp, ok := comp.(*component)
 		require.True(t, ok)
@@ -1798,7 +1864,9 @@ func TestComponentEvents_WithEventBucket(t *testing.T) {
 		// This scenario is implicitly tested by createTestComponent when no EventStore is set up,
 		// leading to c.eventBucket being nil.
 		c := createTestComponent(ctx, []string{}, []string{}) // This component will have c.eventBucket = nil
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		evs, err := c.Events(ctx, time.Now())
 		assert.NoError(t, err)
@@ -1816,7 +1884,9 @@ func TestComponentEvents_WithEventBucket(t *testing.T) {
 
 		// Create component and manually set the eventBucket
 		c := createTestComponent(ctx, []string{}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 		c.eventBucket = mockBucket // Manually set mock bucket
 
 		evs, err := c.Events(ctx, sinceTime)
@@ -1838,7 +1908,9 @@ func TestComponentEvents_WithEventBucket(t *testing.T) {
 		mockBucket.On("Close").Return().Maybe()
 
 		c := createTestComponent(ctx, []string{}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 		c.eventBucket = mockBucket // Manually set mock bucket
 
 		evs, err := c.Events(ctx, sinceTime)
@@ -1926,7 +1998,9 @@ func TestComponent_StatTimedOut_SetsHealthDegraded(t *testing.T) {
 	}
 
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Provide non-empty NFS configs to ensure NFS partitions are checked
 	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
@@ -1994,7 +2068,9 @@ func TestComponent_StatTimedOut_MultiplePartitions(t *testing.T) {
 	}
 
 	c := createTestComponent(ctx, []string{"/mnt/nfs1", "/mnt/nfs2"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Provide non-empty NFS configs to ensure NFS partitions are checked
 	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
@@ -2036,9 +2112,10 @@ func TestComponent_StatTimedOut_MultiplePartitions(t *testing.T) {
 	// Find the partitions and verify their StatTimedOut values
 	var partition1, partition2 *disk.Partition
 	for i := range lastCheckResult.NFSPartitions {
-		if lastCheckResult.NFSPartitions[i].MountPoint == "/mnt/nfs1" {
+		switch lastCheckResult.NFSPartitions[i].MountPoint {
+		case "/mnt/nfs1":
 			partition1 = &lastCheckResult.NFSPartitions[i]
-		} else if lastCheckResult.NFSPartitions[i].MountPoint == "/mnt/nfs2" {
+		case "/mnt/nfs2":
 			partition2 = &lastCheckResult.NFSPartitions[i]
 		}
 	}
@@ -2072,7 +2149,9 @@ func TestComponent_StatTimedOut_False_HealthyState(t *testing.T) {
 	}
 
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Disable free-space degraded threshold for this test scenario
 	c.freeSpaceThresholdBytesDegraded = 0
@@ -2147,7 +2226,9 @@ func TestComponent_StatTimedOut_ExtPartitionsIgnored(t *testing.T) {
 	}
 
 	c := createTestComponent(ctx, []string{"/mnt/ext4", "/mnt/nfs"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Disable free-space degraded threshold for this test scenario
 	c.freeSpaceThresholdBytesDegraded = 0
@@ -2230,7 +2311,9 @@ func TestComponent_StatTimedOut_ReasonMessage(t *testing.T) {
 			}
 
 			c := createTestComponent(ctx, []string{tt.mountPoint}, []string{})
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			// Provide non-empty NFS configs to ensure NFS partitions are checked
 			c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
@@ -2284,7 +2367,9 @@ func TestComponent_StatTimedOut_NoNFSPartitions(t *testing.T) {
 	}
 
 	c := createTestComponent(ctx, []string{"/mnt/ext4"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{mockDevice}, nil
@@ -2364,7 +2449,9 @@ func TestComponent_TimeoutScenarios_CompleteFlow(t *testing.T) {
 
 			// Create test component with NFS mount points
 			c := createTestComponent(ctx, []string{}, []string{"/mnt/nfs-test"})
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			// Provide non-empty NFS configs to ensure NFS partitions are checked
 			c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
@@ -2448,7 +2535,9 @@ func TestComponent_MountTargetTimeoutHandling(t *testing.T) {
 
 	// Create component with mount targets that don't exist (to simulate timeout)
 	c := createTestComponent(ctx, []string{}, []string{"/nonexistent/mount/target"})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Mock functions to return minimal data so we focus on mount target checking
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
@@ -2482,7 +2571,9 @@ func TestComponent_GetPartitionsTimeoutIntegration(t *testing.T) {
 
 	// Create component that will use real GetPartitions with very short timeout
 	c := createTestComponent(ctx, []string{}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{
@@ -2559,7 +2650,9 @@ func TestComponent_LookbackPeriodUsage(t *testing.T) {
 
 	comp, err := New(gpudInstance)
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	// Get the component and set custom lookback period
 	c := comp.(*component)
@@ -2646,7 +2739,9 @@ func TestComponent_ContextErrorTypes(t *testing.T) {
 			ctx := context.Background()
 
 			c := createTestComponent(ctx, []string{}, []string{})
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			// Provide non-empty NFS configs to ensure NFS partitions are checked
 			c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
@@ -2714,7 +2809,9 @@ func TestComponent_StatWithTimeoutDeadlineExceeded(t *testing.T) {
 	tempDir := t.TempDir()
 
 	c := createTestComponent(ctx, []string{}, []string{tempDir})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Override statWithTimeoutFunc to return context.DeadlineExceeded
 	c.statWithTimeoutFunc = func(ctx context.Context, path string) (os.FileInfo, error) {
@@ -2757,7 +2854,9 @@ func TestComponent_Ext4PartitionsTimeoutSetsReasonAndError(t *testing.T) {
 	defer cancel()
 
 	c := createTestComponent(ctx, []string{}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Avoid unrelated degradation checks
 	c.freeSpaceThresholdBytesDegraded = 0
@@ -2792,7 +2891,9 @@ func TestComponent_NFSPartitionsTimeoutSetsReasonAndError(t *testing.T) {
 	defer cancel()
 
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Set a non-zero retry interval to avoid race condition between
 	// context.Done and time.After in the select statement
@@ -2862,7 +2963,9 @@ func TestComponentWithMountPointFiltering(t *testing.T) {
 
 		c, err := New(gpudInstance)
 		require.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		component, ok := c.(*component)
 		require.True(t, ok)
@@ -2909,7 +3012,9 @@ func TestComponentWithMountPointFiltering(t *testing.T) {
 		}
 
 		c := createTestComponent(ctx, []string{"/"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Provide non-empty NFS configs to ensure NFS partitions are checked
 		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
@@ -3744,7 +3849,9 @@ func TestDiskUsageThresholds(t *testing.T) {
 
 	t.Run("ext4 root partition exceeds degraded threshold", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Set thresholds for testing (free bytes)
 		c.freeSpaceThresholdBytesDegraded = 20 * 1024 * 1024 * 1024 // 20GB
@@ -3783,7 +3890,9 @@ func TestDiskUsageThresholds(t *testing.T) {
 
 	t.Run("nfs partition below degraded threshold does not affect health", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Set thresholds for testing (free bytes)
 		c.freeSpaceThresholdBytesDegraded = 40 * 1024 * 1024 * 1024 // 40GB
@@ -3836,7 +3945,9 @@ func TestDiskUsageThresholds(t *testing.T) {
 
 	t.Run("partition with nil usage", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		mockDevice := disk.BlockDevice{
 			Name: "sda",
@@ -3866,7 +3977,9 @@ func TestDiskUsageThresholds(t *testing.T) {
 
 	t.Run("partition with zero total bytes", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/mnt/data1"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		mockDevice := disk.BlockDevice{
 			Name: "sda",
@@ -3900,7 +4013,9 @@ func TestDiskUsageThresholds(t *testing.T) {
 
 	t.Run("default thresholds on rootfs", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Verify default free-space threshold is 500MB
 		assert.Equal(t, uint64(500*1024*1024), c.freeSpaceThresholdBytesDegraded)
@@ -3939,7 +4054,9 @@ func TestDiskUsageThresholds(t *testing.T) {
 
 	t.Run("combined with other failure reasons (rootfs + NFS)", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/", "/mnt/nfs"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Set thresholds for testing (free bytes)
 		c.freeSpaceThresholdBytesDegraded = 10 * 1024 * 1024 * 1024 // 10GB
@@ -3998,7 +4115,9 @@ func TestDiskUsageThresholds(t *testing.T) {
 
 	t.Run("kubernetes_DiskPressure_percentage_threshold_warning", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Set percentage threshold explicitly (matches Kubernetes default nodefs.available<10%)
 		c.freeSpaceThresholdPercent = 10.0
@@ -4040,7 +4159,9 @@ func TestDiskUsageThresholds(t *testing.T) {
 
 	t.Run("kubernetes_DiskPressure_threshold_above_10_percent_no_warning", func(t *testing.T) {
 		c := createTestComponent(ctx, []string{"/"}, []string{})
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 
 		// Set percentage threshold explicitly
 		c.freeSpaceThresholdPercent = 10.0

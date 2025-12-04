@@ -52,7 +52,9 @@ func TestPurge(t *testing.T) {
 	// Verify remaining data
 	rows, err := dbRW.QueryContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName))
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var count int
 	require.True(t, rows.Next())
@@ -106,7 +108,9 @@ func TestPurgeWithAllEventsHavingEventTypes(t *testing.T) {
 	// Verify all data remains
 	rows, err := dbRW.QueryContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName))
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var count int
 	require.True(t, rows.Next())
@@ -143,7 +147,9 @@ func TestPurgeWithOnlyRecentData(t *testing.T) {
 	// Verify all data remains
 	rows, err := dbRW.QueryContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName))
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var count int
 	require.True(t, rows.Next())
@@ -169,7 +175,7 @@ func TestPurgeEventsWithClosedDB(t *testing.T) {
 	defer cleanup()
 
 	// Close database to force error
-	dbRW.Close()
+	_ = dbRW.Close()
 
 	// Purge should fail
 	_, err := purge(ctx, dbRW, "test_table", time.Now().Unix(), false)
@@ -232,7 +238,9 @@ func TestPurgeWithLargeDataSet(t *testing.T) {
 	// Verify remaining data count
 	rows, err := dbRW.QueryContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName))
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var count int
 	require.True(t, rows.Next())
@@ -414,7 +422,9 @@ func TestPurgeAllEventsTrue(t *testing.T) {
 	// Verify remaining data
 	rows, err := dbRW.QueryContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName))
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var count int
 	require.True(t, rows.Next())

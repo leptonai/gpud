@@ -241,9 +241,10 @@ func TestGetInfo(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
+			switch tt.contentType {
+			case httputil.RequestHeaderYAML:
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
+			case httputil.RequestHeaderJSON:
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
@@ -342,9 +343,10 @@ func TestGetStates(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
+			switch tt.contentType {
+			case httputil.RequestHeaderYAML:
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
+			case httputil.RequestHeaderJSON:
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
@@ -411,11 +413,12 @@ func TestReadComponents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := []OpOption{}
 			if tt.contentType != "" {
-				if tt.contentType == httputil.RequestHeaderYAML {
+				switch tt.contentType {
+				case httputil.RequestHeaderYAML:
 					opts = append(opts, WithRequestContentTypeYAML())
-				} else if tt.contentType == httputil.RequestHeaderJSON {
+				case httputil.RequestHeaderJSON:
 					opts = append(opts, WithRequestContentTypeJSON())
-				} else {
+				default:
 					opts = append(opts, func(op *Op) {
 						op.requestContentType = tt.contentType
 					})
@@ -508,9 +511,10 @@ func TestDeregisterComponent(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
+			switch tt.contentType {
+			case httputil.RequestHeaderYAML:
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
+			case httputil.RequestHeaderJSON:
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
@@ -627,9 +631,10 @@ func TestGetEvents(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
+			switch tt.contentType {
+			case httputil.RequestHeaderYAML:
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
+			case httputil.RequestHeaderJSON:
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
@@ -742,11 +747,12 @@ func TestReadEvents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := []OpOption{}
 			if tt.contentType != "" {
-				if tt.contentType == httputil.RequestHeaderYAML {
+				switch tt.contentType {
+				case httputil.RequestHeaderYAML:
 					opts = append(opts, WithRequestContentTypeYAML())
-				} else if tt.contentType == httputil.RequestHeaderJSON {
+				case httputil.RequestHeaderJSON:
 					opts = append(opts, WithRequestContentTypeJSON())
-				} else {
+				default:
 					opts = append(opts, func(op *Op) {
 						op.requestContentType = tt.contentType
 					})
@@ -877,9 +883,10 @@ func TestGetMetrics(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
+			switch tt.contentType {
+			case httputil.RequestHeaderYAML:
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
+			case httputil.RequestHeaderJSON:
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {
@@ -993,11 +1000,12 @@ func TestReadMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := []OpOption{}
 			if tt.contentType != "" {
-				if tt.contentType == httputil.RequestHeaderYAML {
+				switch tt.contentType {
+				case httputil.RequestHeaderYAML:
 					opts = append(opts, WithRequestContentTypeYAML())
-				} else if tt.contentType == httputil.RequestHeaderJSON {
+				case httputil.RequestHeaderJSON:
 					opts = append(opts, WithRequestContentTypeJSON())
-				} else {
+				default:
 					opts = append(opts, func(op *Op) {
 						op.requestContentType = tt.contentType
 					})

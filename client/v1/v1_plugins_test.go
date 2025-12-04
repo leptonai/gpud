@@ -128,16 +128,17 @@ func TestReadCustomPluginSpecs_Comprehensive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := []OpOption{}
-			if tt.contentType != "" {
-				if tt.contentType == httputil.RequestHeaderYAML {
-					opts = append(opts, WithRequestContentTypeYAML())
-				} else if tt.contentType == httputil.RequestHeaderJSON {
-					opts = append(opts, WithRequestContentTypeJSON())
-				} else {
-					opts = append(opts, func(op *Op) {
-						op.requestContentType = tt.contentType
-					})
-				}
+			switch tt.contentType {
+			case httputil.RequestHeaderYAML:
+				opts = append(opts, WithRequestContentTypeYAML())
+			case httputil.RequestHeaderJSON:
+				opts = append(opts, WithRequestContentTypeJSON())
+			case "":
+				// no-op
+			default:
+				opts = append(opts, func(op *Op) {
+					op.requestContentType = tt.contentType
+				})
 			}
 			if tt.acceptEncoding != "" {
 				opts = append(opts, WithAcceptEncodingGzip())
@@ -259,9 +260,10 @@ func TestGetCustomPlugins(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
+			switch tt.contentType {
+			case httputil.RequestHeaderYAML:
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
+			case httputil.RequestHeaderJSON:
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {

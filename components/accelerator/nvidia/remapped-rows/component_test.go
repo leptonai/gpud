@@ -671,9 +671,10 @@ func TestEventsWithDB(t *testing.T) {
 	// Verify the events by checking their names are present
 	foundEvent1, foundEvent2 := false, false
 	for _, e := range events {
-		if e.Name == "test_event" {
+		switch e.Name {
+		case "test_event":
 			foundEvent1 = true
-		} else if e.Name == "another_test_event" {
+		case "another_test_event":
 			foundEvent2 = true
 		}
 	}

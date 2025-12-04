@@ -15,8 +15,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	defer func() {
+		_ = tmpFile.Close()
+	}()
 
 	// NOTE: stderr/stdout piping sometimes doesn't work on mac
 	// if run as a bash script

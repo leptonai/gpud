@@ -572,7 +572,9 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			userToken = string(buffer[:n])
 		}
 
-		pipe.Close()
+		if err := pipe.Close(); err != nil {
+			log.Logger.Errorf("error closing pipe: %v", err)
+		}
 		if userToken != "" {
 			token.mu.Lock()
 			token.userToken = userToken

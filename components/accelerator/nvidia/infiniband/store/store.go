@@ -273,7 +273,9 @@ func readAllDeviceValues(ctx context.Context, dbRO *sql.DB, tableName string) (m
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	devices := make(map[string]any)
 	for rows.Next() {
@@ -322,7 +324,9 @@ func readAllPortValues(ctx context.Context, dbRO *sql.DB, tableName string) (map
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	ports := make(map[uint]any)
 	for rows.Next() {

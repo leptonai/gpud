@@ -43,7 +43,9 @@ func fetchToken(ctx context.Context, url string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch IMDS token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("failed to fetch IMDS token: received status code %d", resp.StatusCode)
@@ -97,7 +99,9 @@ func fetchMetadataByPathWithStatusCode(ctx context.Context, tokenURL string, met
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to fetch metadata: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", resp.StatusCode, fmt.Errorf("failed to fetch metadata: received status code %d", resp.StatusCode)

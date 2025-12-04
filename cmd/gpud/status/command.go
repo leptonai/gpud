@@ -47,7 +47,9 @@ func Command(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to open state file %q: %w", stateFile, err)
 	}
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 	log.Logger.Debugw("successfully opened state file for reading", "file", stateFile)
 
 	log.Logger.Debugw("reading machine id")

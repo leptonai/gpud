@@ -15,7 +15,9 @@ import (
 func TestNewChecker(t *testing.T) {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	t.Run("valid config", func(t *testing.T) {
 		cfg := &MemberConfig{
@@ -53,7 +55,9 @@ func TestNewChecker(t *testing.T) {
 func TestChecker_Write(t *testing.T) {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	cfg := &MemberConfig{
 		Config: Config{
@@ -120,7 +124,7 @@ func TestChecker_Write(t *testing.T) {
 		// Ensure cleanup happens even if test fails
 		defer func() {
 			// Force remove all contents to prevent "directory not empty" errors
-			os.RemoveAll(timeoutTempDir)
+			_ = os.RemoveAll(timeoutTempDir)
 		}()
 
 		cfg := &MemberConfig{
@@ -153,7 +157,7 @@ func TestChecker_Write(t *testing.T) {
 		// Ensure cleanup happens even if test fails
 		defer func() {
 			// Force remove all contents to prevent "directory not empty" errors
-			os.RemoveAll(cancelTempDir)
+			_ = os.RemoveAll(cancelTempDir)
 		}()
 
 		cfg := &MemberConfig{
@@ -185,7 +189,7 @@ func TestChecker_Write(t *testing.T) {
 		// Ensure cleanup happens even if test fails
 		defer func() {
 			// Force remove all contents to prevent "directory not empty" errors
-			os.RemoveAll(timeoutTempDir)
+			_ = os.RemoveAll(timeoutTempDir)
 		}()
 
 		cfg := &MemberConfig{
@@ -223,7 +227,7 @@ func TestChecker_Write(t *testing.T) {
 		// Ensure cleanup happens even if test fails
 		defer func() {
 			// Force remove all contents to prevent "directory not empty" errors
-			os.RemoveAll(cancelTempDir)
+			_ = os.RemoveAll(cancelTempDir)
 		}()
 
 		cfg := &MemberConfig{
@@ -299,7 +303,7 @@ func TestChecker_Write(t *testing.T) {
 				// Ensure cleanup happens even if test fails
 				defer func() {
 					// Force remove all contents to prevent "directory not empty" errors
-					os.RemoveAll(scenarioTempDir)
+					_ = os.RemoveAll(scenarioTempDir)
 				}()
 
 				cfg := &MemberConfig{
@@ -357,7 +361,9 @@ func TestChecker_Write(t *testing.T) {
 func TestChecker_Clean(t *testing.T) {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dirName := "clean-test-dir"
 
@@ -397,7 +403,9 @@ func TestChecker_Clean(t *testing.T) {
 func TestChecker_Check(t *testing.T) {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	t.Run("successful check with expected files", func(t *testing.T) {
 		dirName := "success-test-dir"
@@ -560,7 +568,9 @@ func TestChecker_Check(t *testing.T) {
 func TestChecker_Check_TimeoutErrorField(t *testing.T) {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	t.Run("timeout error sets TimeoutError to true", func(t *testing.T) {
 		dirName := "timeout-error-test-dir"
@@ -778,7 +788,7 @@ func TestChecker_TimeoutErrorField_ComprehensiveScenarios(t *testing.T) {
 			// Ensure cleanup happens even if test fails
 			defer func() {
 				// Force remove all contents to prevent "directory not empty" errors
-				os.RemoveAll(tempDir)
+				_ = os.RemoveAll(tempDir)
 			}()
 
 			cfg := &MemberConfig{

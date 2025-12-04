@@ -12,7 +12,9 @@ func TestScanUUIDFromDmidecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	scanner := bufio.NewScanner(f)
 	uuid := ""
@@ -33,7 +35,9 @@ func TestGetOSMachineID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create test files
 	firstFilePath := filepath.Join(tempDir, "first_id")

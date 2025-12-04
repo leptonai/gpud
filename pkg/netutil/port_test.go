@@ -15,7 +15,9 @@ func TestIsPortOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start test server: %v", err)
 	}
-	defer listener.Close()
+	defer func() {
+		_ = listener.Close()
+	}()
 
 	// Get the port that was assigned
 	_, portStr, err := net.SplitHostPort(listener.Addr().String())
@@ -33,7 +35,7 @@ func TestIsPortOpen(t *testing.T) {
 	})
 
 	// Close the listener to free up the port
-	listener.Close()
+	_ = listener.Close()
 
 	// Find a port that's very likely to be closed
 	// Using a high port number that's unlikely to be in use

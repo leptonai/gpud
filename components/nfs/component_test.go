@@ -57,7 +57,9 @@ func TestNewComponent(t *testing.T) {
 		MachineID:  "test-machine",
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	assert.Equal(t, Name, comp.Name())
 	assert.True(t, comp.IsSupported())
@@ -106,7 +108,7 @@ func TestStart(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Clean up
-	c.Close()
+	require.NoError(t, c.Close())
 }
 
 func TestClose(t *testing.T) {
@@ -487,7 +489,9 @@ func TestCheckWithWriteError(t *testing.T) {
 
 	// Make the directory read-only to cause write to fail
 	require.NoError(t, os.Chmod(readOnlyDir, 0555))
-	defer os.RemoveAll(readOnlyDir)
+	defer func() {
+		_ = os.RemoveAll(readOnlyDir)
+	}()
 
 	c := createTestComponent()
 	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
@@ -633,7 +637,9 @@ func TestComponentWithRealData(t *testing.T) {
 		MachineID:  "test-machine",
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	// Test the actual Check method
 	result := comp.Check()

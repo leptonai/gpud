@@ -59,7 +59,9 @@ func fetchMetadataByPath(ctx context.Context, metadataURL string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch metadata: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("failed to fetch metadata: received status code %d", resp.StatusCode)

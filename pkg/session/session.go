@@ -410,7 +410,9 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *coo
 
 func (s *Session) handleWriterPipe(writer *io.PipeWriter, closec, finish chan any) {
 	defer close(finish)
-	defer writer.Close()
+	defer func() {
+		_ = writer.Close()
+	}()
 
 	log.Logger.Debugw("session writer: pipe handler started")
 	for {
@@ -514,7 +516,9 @@ func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) err
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server health check failed: %s", resp.Status)
@@ -587,7 +591,7 @@ func (s *Session) handleReaderPipe(respBody io.ReadCloser, closec, finish chan a
 	threshold := 2 * time.Minute
 	ticker := time.NewTicker(1 * time.Second)
 	defer func() {
-		respBody.Close()
+		_ = respBody.Close()
 		ticker.Stop()
 	}()
 	for {
@@ -633,7 +637,9 @@ func (s *Session) persistLoginStatus(ctx context.Context, success bool, message 
 		log.Logger.Warnw("failed to open state file for login status", "error", err)
 		return
 	}
-	defer dbRW.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
 
 	// Ensure table exists
 	if err := sessionstates.CreateTable(ctx, dbRW); err != nil {

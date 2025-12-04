@@ -275,7 +275,7 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	}
 
 	sort.Slice(events, func(i, j int) bool {
-		return events[i].Time.Time.After(events[j].Time.Time)
+		return events[i].Time.After(events[j].Time.Time)
 	})
 
 	return events, nil

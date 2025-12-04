@@ -29,7 +29,9 @@ func TestCreateLoggerWithLumberjackErrors(t *testing.T) {
 func TestCreateLoggerWithLumberjackBasic(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "gpud-log-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	logFile := filepath.Join(tmpDir, "test.log")
 	maxSize := 5 // 5MB
@@ -64,7 +66,9 @@ func TestCreateLoggerWithLumberjackBasic(t *testing.T) {
 func TestLogRotation(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "gpud-log-rotation-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	testCases := []struct {
 		name          string
@@ -182,7 +186,9 @@ func TestParseLogLevel(t *testing.T) {
 func TestLeptonLoggerErrorw(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "gpud-log-errorw-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	logFile := filepath.Join(tmpDir, "test.log")
 	logger := CreateLoggerWithLumberjack(logFile, 1, zap.InfoLevel)
@@ -227,7 +233,9 @@ func TestCreateLogger(t *testing.T) {
 	t.Run("with logFile creates file logger", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-create-logger-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		logFile := filepath.Join(tmpDir, "test.log")
 		logLevel, err := ParseLogLevel("debug")

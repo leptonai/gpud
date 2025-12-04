@@ -230,13 +230,13 @@ func (c *Client) Download(ctx context.Context, srcPath, dstPath string) error {
 	sig, err := Fetch(sigURL, signatureSizeLimit)
 	if err != nil {
 		// Best-effort clean up of downloaded package.
-		os.Remove(dstPathUnverified)
+		_ = os.Remove(dstPathUnverified)
 		return err
 	}
 	msg := binary.LittleEndian.AppendUint64(hash, uint64(len))
 	if !VerifyAny(sigPub, msg, sig) {
 		// Best-effort clean up of downloaded package.
-		os.Remove(dstPathUnverified)
+		_ = os.Remove(dstPathUnverified)
 		return fmt.Errorf("signature %q for file %q does not validate with the current release signing key; either you are under attack, or attempting to download an old version of Tailscale which was signed with an older signing key", sigURL, srcURL)
 	}
 	c.logf("Signature OK")
@@ -266,7 +266,9 @@ func (c *Client) ValidateLocalBinary(srcURLPath, localFilePath string) error {
 	if err != nil {
 		return err
 	}
-	defer localFile.Close()
+	defer func() {
+		_ = localFile.Close()
+	}()
 
 	h := NewPackageHash()
 	_, err = io.Copy(h, localFile)
@@ -321,7 +323,9 @@ func Fetch(url string, limit int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	return io.ReadAll(io.LimitReader(resp.Body, limit))
 }
@@ -355,7 +359,9 @@ func (c *Client) download(ctx context.Context, url, dst string, limit int64) ([]
 	if err != nil {
 		return nil, 0, err
 	}
-	defer dlRes.Body.Close()
+	defer func() {
+		_ = dlRes.Body.Close()
+	}()
 	// TODO(bradfitz): resume from existing partial file on disk
 	if dlRes.StatusCode != http.StatusOK {
 		return nil, 0, fmt.Errorf("GET %q: %v", url, dlRes.Status)
@@ -365,7 +371,9 @@ func (c *Client) download(ctx context.Context, url, dst string, limit int64) ([]
 	if err != nil {
 		return nil, 0, err
 	}
-	defer of.Close()
+	defer func() {
+		_ = of.Close()
+	}()
 	pw := &progressWriter{total: res.ContentLength, logf: c.logf}
 	h := NewPackageHash()
 	n, err := io.Copy(io.MultiWriter(of, h, pw), io.LimitReader(dlRes.Body, limit))

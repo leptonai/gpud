@@ -59,7 +59,9 @@ func writeFile(r io.Reader, path string, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 	if _, err := io.Copy(f, r); err != nil {
 		return err
 	}
@@ -71,12 +73,16 @@ func unpackLinuxTarball(fileToUnpack string, fileToReplace string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 	gr, err := gzip.NewReader(f)
 	if err != nil {
 		return err
 	}
-	defer gr.Close()
+	defer func() {
+		_ = gr.Close()
+	}()
 	tr := tar.NewReader(gr)
 	files := make(map[string]int)
 	wantFiles := map[string]int{
@@ -116,7 +122,9 @@ func downloadFile(url, filepath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("bad status: %s", resp.Status)
@@ -126,7 +134,9 @@ func downloadFile(url, filepath string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		_ = out.Close()
+	}()
 
 	_, err = io.Copy(out, resp.Body)
 	return err
@@ -137,13 +147,17 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() {
+		_ = sourceFile.Close()
+	}()
 
 	destinationFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destinationFile.Close()
+	defer func() {
+		_ = destinationFile.Close()
+	}()
 
 	_, err = io.Copy(destinationFile, sourceFile)
 	if err != nil {
