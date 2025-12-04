@@ -87,7 +87,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createXidEvent(time.Time{}, 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
 		}
 		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
-		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
 
@@ -125,7 +125,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		require.NotNil(t, state.SuggestedActions)
 		require.NotEmpty(t, state.SuggestedActions.RepairActions)
 		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
-		assert.Equal(t, apiv1.HealthStateTypeDegraded, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	})
 
 	t.Run("invalid xid", func(t *testing.T) {

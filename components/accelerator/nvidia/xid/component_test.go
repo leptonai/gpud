@@ -399,11 +399,11 @@ func TestXIDComponent_States(t *testing.T) {
 			wantState: []apiv1.HealthState{
 				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
 				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
-				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
 				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
 				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.HealthStateTypeDegraded, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
+				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}}},
 			},
 		},
 	}
@@ -843,10 +843,10 @@ func TestUpdateCurrentState(t *testing.T) {
 	err = c.updateCurrentState()
 	assert.NoError(t, err)
 
-	// Check that the state was updated to degraded
+	// Check that the state was updated to unhealthy (XID 94 is fatal in catalog)
 	warningStates := comp.LastHealthStates()
 	assert.Len(t, warningStates, 1)
-	assert.Equal(t, apiv1.HealthStateTypeDegraded, warningStates[0].Health, "State should be degraded after warning event")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, warningStates[0].Health, "State should be unhealthy after XID 94 event")
 	assert.NotNil(t, warningStates[0].SuggestedActions, "Should have suggested actions")
 	assert.Contains(t, warningStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 
