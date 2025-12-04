@@ -1,0 +1,1147 @@
+================================================================================
+THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
+================================================================================
+
+This file contains the licenses and notices for third-party software used in
+gpud (https://github.com/leptonai/gpud).
+
+gpud itself is licensed under the Apache License 2.0. See the LICENSE file
+in the root directory for details.
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+
+1. Go Module Dependencies
+2. Docker Image System Packages
+3. NVIDIA Base Container
+
+================================================================================
+1. GO MODULE DEPENDENCIES
+================================================================================
+
+--------------------------------------------------------------------------------
+Copyright NVIDIA Corporation - Apache License 2.0
+License Text: https://www.apache.org/licenses/LICENSE-2.0
+--------------------------------------------------------------------------------
+
+// Copyright (c) NVIDIA Corporation.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+Packages:
+- github.com/NVIDIA/go-nvlib v0.8.1
+- github.com/NVIDIA/go-nvml v0.13.0-1
+
+
+--------------------------------------------------------------------------------
+Copyright Manuel Martinez-Almeida - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// The MIT License (MIT)
+//
+// Copyright (c) 2014 Manuel Martinez-Almeida
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/gin-gonic/gin v1.10.1
+- github.com/gin-contrib/gzip v1.2.3
+- github.com/gin-contrib/requestid v1.0.5
+- github.com/gin-contrib/zap v1.1.5
+- github.com/gin-contrib/sse v1.0.0
+
+
+--------------------------------------------------------------------------------
+Copyright Docker, Inc. - Apache License 2.0
+License Text: https://www.apache.org/licenses/LICENSE-2.0
+--------------------------------------------------------------------------------
+
+// Copyright 2013-2018 Docker, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+Packages:
+- github.com/docker/docker v26.1.5+incompatible
+- github.com/docker/go-connections v0.5.0
+- github.com/docker/go-units v0.5.0
+
+
+--------------------------------------------------------------------------------
+Copyright Uber Technologies, Inc. - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// Copyright (c) 2016-2024 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- go.uber.org/zap v1.27.0
+- go.uber.org/multierr v1.11.0
+- go.uber.org/automaxprocs v1.6.0
+
+
+--------------------------------------------------------------------------------
+Copyright The Prometheus Authors - Apache License 2.0
+License Text: https://www.apache.org/licenses/LICENSE-2.0
+--------------------------------------------------------------------------------
+
+// Copyright The Prometheus Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+Packages:
+- github.com/prometheus/client_golang v1.21.1
+- github.com/prometheus/client_model v0.6.1
+- github.com/prometheus/procfs v0.16.1
+- github.com/prometheus/common v0.62.0
+
+
+--------------------------------------------------------------------------------
+Copyright The Kubernetes Authors - Apache License 2.0
+License Text: https://www.apache.org/licenses/LICENSE-2.0
+--------------------------------------------------------------------------------
+
+// Copyright The Kubernetes Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+Packages:
+- k8s.io/api v0.32.0
+- k8s.io/apimachinery v0.32.0
+- k8s.io/cri-api v0.32.0
+- k8s.io/klog/v2 v2.130.1
+- k8s.io/utils v0.0.0-20241210054802-24370beab758
+- sigs.k8s.io/yaml v1.6.0
+- sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3
+- sigs.k8s.io/structured-merge-diff/v4 v4.4.2
+
+
+--------------------------------------------------------------------------------
+Copyright Tailscale Inc & AUTHORS - BSD 3-Clause License
+License Text: https://opensource.org/licenses/BSD-3-Clause
+--------------------------------------------------------------------------------
+
+// Copyright (c) Tailscale Inc & AUTHORS
+// SPDX-License-Identifier: BSD-3-Clause
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice,
+//    this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+//    this list of conditions and the following disclaimer in the documentation
+//    and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors
+//    may be used to endorse or promote products derived from this software
+//    without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+Packages:
+- tailscale.com v1.68.2
+- github.com/tailscale/go-winio v0.0.0-20231025203758-c4f33415bf55
+- github.com/tailscale/goupnp v1.0.1-0.20210804011211-c64d0f06ea05
+- github.com/tailscale/netlink v1.1.1-0.20240822203006-4d49adab4de7
+
+
+--------------------------------------------------------------------------------
+Copyright Mat Ryer, Tyler Bunnell and contributors - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// MIT License
+//
+// Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/stretchr/testify v1.11.1
+- github.com/stretchr/objx v0.5.2
+
+
+--------------------------------------------------------------------------------
+Copyright Onsi Fakhouri - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// Copyright (c) 2013-2014 Onsi Fakhouri
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/onsi/ginkgo/v2 v2.23.4
+- github.com/onsi/gomega v1.37.0
+
+
+--------------------------------------------------------------------------------
+Copyright Yasuhiro Matsumoto - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// The MIT License (MIT)
+//
+// Copyright (c) 2014 Yasuhiro Matsumoto
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/mattn/go-sqlite3 v1.14.32
+- github.com/mattn/go-isatty v0.0.20
+- github.com/mattn/go-runewidth v0.0.16
+
+
+--------------------------------------------------------------------------------
+Copyright The Go Authors - BSD 3-Clause License
+License Text: https://opensource.org/licenses/BSD-3-Clause
+--------------------------------------------------------------------------------
+
+// Copyright (c) The Go Authors. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// * Redistributions of source code must retain the above copyright notice,
+//   this list of conditions and the following disclaimer.
+// * Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+// * Neither the name of Google Inc. nor the names of its contributors may be
+//   used to endorse or promote products derived from this software without
+//   specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+Packages:
+- golang.org/x/crypto v0.45.0
+- golang.org/x/sys v0.38.0
+- golang.org/x/net v0.47.0
+- golang.org/x/sync v0.18.0
+- golang.org/x/text v0.31.0
+- golang.org/x/time v0.7.0
+- golang.org/x/tools v0.38.0
+- golang.org/x/mod v0.29.0
+- golang.org/x/arch v0.15.0
+- golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
+
+
+--------------------------------------------------------------------------------
+Copyright Google LLC - Apache License 2.0
+License Text: https://www.apache.org/licenses/LICENSE-2.0
+--------------------------------------------------------------------------------
+
+// Copyright Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+Packages:
+- github.com/google/go-cmp v0.7.0
+- github.com/google/uuid v1.6.0
+- github.com/google/gofuzz v1.2.0
+- github.com/google/nftables v0.2.1-0.20240414091927-5e242ec57806
+- github.com/google/pprof v0.0.0-20250403155104-27863c87afa6
+- google.golang.org/grpc v1.71.1
+- google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f
+- google.golang.org/protobuf v1.36.6
+
+
+--------------------------------------------------------------------------------
+Copyright CoreOS, Inc. - Apache License 2.0
+License Text: https://www.apache.org/licenses/LICENSE-2.0
+--------------------------------------------------------------------------------
+
+// Copyright 2015 CoreOS, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+Packages:
+- github.com/coreos/go-systemd/v22 v22.5.0
+- github.com/coreos/go-iptables v0.7.1-0.20240112124308-65c67c9f46e6
+
+
+--------------------------------------------------------------------------------
+Copyright Jeff Hodges - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// Copyright (c) 2012 Jeff Hodges. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/dustin/go-humanize v1.0.1
+
+
+--------------------------------------------------------------------------------
+Copyright Henry de Valence - ISC License
+License Text: https://opensource.org/licenses/ISC
+--------------------------------------------------------------------------------
+
+// Copyright (c) Henry de Valence
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+// ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+// ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+// OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Packages:
+- github.com/hdevalence/ed25519consensus v0.2.0
+
+
+--------------------------------------------------------------------------------
+Copyright Mitchell Hashimoto - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// The MIT License (MIT)
+//
+// Copyright (c) 2013 Mitchell Hashimoto
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/mitchellh/go-homedir v1.1.0
+- github.com/mitchellh/go-ps v1.0.0
+
+
+--------------------------------------------------------------------------------
+Copyright Oleku Konko - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// Copyright (c) 2014 Oleku Konko
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/olekukonko/tablewriter v0.0.5
+
+
+--------------------------------------------------------------------------------
+Copyright Patrick Mylund Nielsen - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// Copyright (c) 2012-2017 Patrick Mylund Nielsen and contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/patrickmn/go-cache v2.1.0+incompatible
+
+
+--------------------------------------------------------------------------------
+Copyright Shirou Wakayama - BSD 3-Clause License
+License Text: https://opensource.org/licenses/BSD-3-Clause
+--------------------------------------------------------------------------------
+
+// BSD 3-Clause License
+//
+// Copyright (c) 2014, WAKAYAMA Shirou
+// Copyright (c) 2009, Brent Pedersen
+// Copyright (c) 2016, psutil contributors
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice,
+//    this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+//    this list of conditions and the following disclaimer in the documentation
+//    and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors
+//    may be used to endorse or promote products derived from this software
+//    without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+Packages:
+- github.com/shirou/gopsutil/v4 v4.25.9
+
+
+--------------------------------------------------------------------------------
+Copyright The Swaggo Authors - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// The MIT License (MIT)
+//
+// Copyright (c) 2017 swaggo
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/swaggo/files v1.0.1
+- github.com/swaggo/gin-swagger v1.6.0
+- github.com/swaggo/swag/v2 v2.0.0-rc4
+- github.com/swaggo/swag v1.8.12
+
+
+--------------------------------------------------------------------------------
+Copyright The urfave/cli Authors - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// MIT License
+//
+// Copyright (c) 2016 Jeremy Saenz & Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/urfave/cli v1.22.16
+
+
+--------------------------------------------------------------------------------
+Copyright Natefinch - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// The MIT License (MIT)
+//
+// Copyright (c) 2014 Nate Finch
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- gopkg.in/natefinch/lumberjack.v2 v2.2.1
+
+
+--------------------------------------------------------------------------------
+Copyright OpenTelemetry Authors - Apache License 2.0
+License Text: https://www.apache.org/licenses/LICENSE-2.0
+--------------------------------------------------------------------------------
+
+// Copyright The OpenTelemetry Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+Packages:
+- go.opentelemetry.io/auto/sdk v1.1.0
+- go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0
+- go.opentelemetry.io/otel v1.34.0
+- go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.28.0
+- go.opentelemetry.io/otel/metric v1.34.0
+- go.opentelemetry.io/otel/trace v1.34.0
+
+
+--------------------------------------------------------------------------------
+Copyright Filippo Valsorda - BSD 3-Clause License
+License Text: https://opensource.org/licenses/BSD-3-Clause
+--------------------------------------------------------------------------------
+
+// Copyright (c) 2021 Filippo Valsorda
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice,
+//    this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+//    this list of conditions and the following disclaimer in the documentation
+//    and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors
+//    may be used to endorse or promote products derived from this software
+//    without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+Packages:
+- filippo.io/edwards25519 v1.1.0
+
+
+--------------------------------------------------------------------------------
+Copyright Microsoft Corporation - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// The MIT License (MIT)
+//
+// Copyright (c) 2015 Microsoft Corporation
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- github.com/Microsoft/go-winio v0.6.1
+
+
+--------------------------------------------------------------------------------
+Copyright PaesslerAG - BSD 3-Clause License
+License Text: https://opensource.org/licenses/BSD-3-Clause
+--------------------------------------------------------------------------------
+
+// BSD 3-Clause License
+//
+// Copyright (c) 2017, PaesslerAG
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice,
+//    this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+//    this list of conditions and the following disclaimer in the documentation
+//    and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its contributors
+//    may be used to endorse or promote products derived from this software
+//    without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+Packages:
+- github.com/PaesslerAG/jsonpath v0.1.1
+- github.com/PaesslerAG/gval v1.0.0
+
+
+--------------------------------------------------------------------------------
+Copyright FSNotify Authors - BSD 3-Clause License
+License Text: https://opensource.org/licenses/BSD-3-Clause
+--------------------------------------------------------------------------------
+
+// Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// * Redistributions of source code must retain the above copyright notice,
+//   this list of conditions and the following disclaimer.
+// * Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+// * Neither the name of the project nor the names of its contributors may be
+//   used to endorse or promote products derived from this software without
+//   specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+Packages:
+- github.com/fsnotify/fsnotify v1.9.0
+
+
+--------------------------------------------------------------------------------
+Copyright nhooyr.io - MIT License
+License Text: https://opensource.org/licenses/MIT
+--------------------------------------------------------------------------------
+
+// Copyright (c) 2018 nhooyr
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+Packages:
+- nhooyr.io/websocket v1.8.10
+
+
+--------------------------------------------------------------------------------
+Additional Indirect Dependencies - Various Licenses
+--------------------------------------------------------------------------------
+
+The following indirect dependencies are included with their respective licenses:
+
+Apache License 2.0:
+- github.com/beorn7/perks v1.0.1
+- github.com/containerd/log v0.1.0
+- github.com/distribution/reference v0.6.0
+- github.com/felixge/httpsnoop v1.0.4
+- github.com/go-logr/logr v1.4.2
+- github.com/go-logr/stdr v1.2.2
+- github.com/go-openapi/jsonpointer v0.21.0
+- github.com/go-openapi/jsonreference v0.20.4
+- github.com/go-openapi/spec v0.20.9
+- github.com/go-openapi/swag v0.23.0
+- github.com/gogo/protobuf v1.3.2
+- github.com/moby/docker-image-spec v1.3.1
+- github.com/moby/term v0.5.0
+- github.com/morikuni/aec v1.0.0
+- github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
+- github.com/opencontainers/go-digest v1.0.0
+- github.com/opencontainers/image-spec v1.1.0-rc6
+- github.com/sv-tools/openapi v0.2.1
+
+MIT License:
+- github.com/KyleBanks/depth v1.2.1
+- github.com/akutz/memconn v0.1.0
+- github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa
+- github.com/bytedance/sonic v1.13.2
+- github.com/bytedance/sonic/loader v0.2.4
+- github.com/cespare/xxhash/v2 v2.3.0
+- github.com/cloudwego/base64x v0.1.5
+- github.com/cpuguy83/go-md2man/v2 v2.0.6
+- github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
+- github.com/dblohm7/wingoes v0.0.0-20240119213807-a09d6be7affa
+- github.com/ebitengine/purego v0.9.0
+- github.com/gabriel-vasile/mimetype v1.4.8
+- github.com/go-ole/go-ole v1.3.0
+- github.com/go-playground/locales v0.14.1
+- github.com/go-playground/universal-translator v0.18.1
+- github.com/go-playground/validator/v10 v10.26.0
+- github.com/go-task/slim-sprig/v3 v3.0.0
+- github.com/goccy/go-json v0.10.5
+- github.com/josharian/intern v1.0.0
+- github.com/json-iterator/go v1.1.12
+- github.com/klauspost/compress v1.18.0
+- github.com/klauspost/cpuid/v2 v2.2.10
+- github.com/leodido/go-urn v1.4.0
+- github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0
+- github.com/mailru/easyjson v0.7.7
+- github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+- github.com/modern-go/reflect2 v1.0.2
+- github.com/pelletier/go-toml/v2 v2.2.3
+- github.com/pkg/errors v0.9.1
+- github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
+- github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55
+- github.com/rivo/uniseg v0.4.4
+- github.com/russross/blackfriday/v2 v2.1.0
+- github.com/tcnksm/go-httpstat v0.2.0
+- github.com/tklauser/go-sysconf v0.3.15
+- github.com/tklauser/numcpus v0.10.0
+- github.com/twitchyliquid64/golang-asm v0.15.1
+- github.com/ugorji/go/codec v1.2.12
+- github.com/x448/float16 v0.8.4
+- github.com/yusufpapurcu/wmi v1.2.4
+- gotest.tools/v3 v3.5.1
+
+BSD 2-Clause/3-Clause License:
+- github.com/fxamacker/cbor/v2 v2.7.0
+- github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
+- github.com/josharian/native v1.1.1-0.20230202152459-5c7d0dd6ab86
+- github.com/jsimonetti/rtnetlink v1.4.0
+- github.com/mdlayher/netlink v1.7.2
+- github.com/mdlayher/socket v0.5.0
+- github.com/vishvananda/netns v0.0.4
+- golang.zx2c4.com/wireguard/windows v0.5.3
+- go4.org/mem v0.0.0-20220726221520-4f986261bf13
+- go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
+- gopkg.in/inf.v0 v0.9.1
+- gopkg.in/yaml.v2 v2.4.0
+- gopkg.in/yaml.v3 v3.0.1
+- go.yaml.in/yaml/v2 v2.4.2
+
+
+================================================================================
+2. DOCKER IMAGE SYSTEM PACKAGES
+================================================================================
+
+The following system packages are installed in the Docker image via apt-get.
+Source code for these packages is available from Ubuntu package archives
+using `apt-get source <package-name>`.
+
+--------------------------------------------------------------------------------
+ca-certificates - MPL-2.0 / GPL-2.0
+Source: https://salsa.debian.org/debian/ca-certificates
+--------------------------------------------------------------------------------
+
+Package providing CA certificates for SSL/TLS verification.
+
+
+--------------------------------------------------------------------------------
+curl - MIT/X derivate (curl license)
+Source: https://github.com/curl/curl
+Copyright: Daniel Stenberg and contributors
+--------------------------------------------------------------------------------
+
+// COPYRIGHT AND PERMISSION NOTICE
+//
+// Copyright (c) 1996 - 2024, Daniel Stenberg, <daniel@haxx.se>, and many
+// contributors, see the THANKS file.
+//
+// All rights reserved.
+//
+// Permission to use, copy, modify, and distribute this software for any purpose
+// with or without fee is hereby granted, provided that the above copyright
+// notice and this permission notice appear in all copies.
+
+
+--------------------------------------------------------------------------------
+gnupg - GPL-3.0
+Source: https://dev.gnupg.org/source/gnupg.git
+Copyright: Free Software Foundation
+--------------------------------------------------------------------------------
+
+GNU Privacy Guard - encryption and signing tool.
+Licensed under the GNU General Public License version 3.
+
+
+--------------------------------------------------------------------------------
+pciutils - GPL-2.0
+Source: https://github.com/pciutils/pciutils
+Copyright: Martin Mares
+--------------------------------------------------------------------------------
+
+PCI utilities for Linux - lspci, setpci.
+Licensed under the GNU General Public License version 2.
+
+
+--------------------------------------------------------------------------------
+dmidecode - GPL-2.0
+Source: https://github.com/mirror/dmidecode
+Copyright: Jean Delvare
+--------------------------------------------------------------------------------
+
+Tool for dumping DMI (SMBIOS) data.
+Licensed under the GNU General Public License version 2.
+
+
+--------------------------------------------------------------------------------
+util-linux - GPL-2.0 / LGPL-2.1 / BSD-3-Clause / Public Domain
+Source: https://github.com/util-linux/util-linux
+Copyright: Various authors
+--------------------------------------------------------------------------------
+
+Miscellaneous system utilities for Linux.
+Various licenses apply to different components.
+
+
+--------------------------------------------------------------------------------
+kmod - LGPL-2.1
+Source: https://github.com/kmod-project/kmod
+Copyright: Lucas De Marchi and contributors
+--------------------------------------------------------------------------------
+
+Linux kernel module handling utilities.
+Licensed under the GNU Lesser General Public License version 2.1.
+
+
+--------------------------------------------------------------------------------
+sudo - ISC License
+Source: https://github.com/sudo-project/sudo
+Copyright: Todd C. Miller
+--------------------------------------------------------------------------------
+
+// Permission to use, copy, modify, and distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS.
+
+
+--------------------------------------------------------------------------------
+docker-ce-cli - Apache License 2.0
+Source: https://github.com/docker/cli
+Copyright: Docker, Inc.
+--------------------------------------------------------------------------------
+
+Docker command-line interface.
+Licensed under the Apache License, Version 2.0.
+
+
+--------------------------------------------------------------------------------
+containerd.io - Apache License 2.0
+Source: https://github.com/containerd/containerd
+Copyright: The containerd Authors
+--------------------------------------------------------------------------------
+
+An open and reliable container runtime.
+Licensed under the Apache License, Version 2.0.
+
+
+================================================================================
+3. NVIDIA BASE CONTAINER
+================================================================================
+
+--------------------------------------------------------------------------------
+nvidia/cuda - NVIDIA Container License
+Source: https://hub.docker.com/r/nvidia/cuda
+--------------------------------------------------------------------------------
+
+This container uses nvidia/cuda:${CUDA_VERSION}-runtime-${OS_NAME}${OS_VERSION}
+as its base image.
+
+The NVIDIA CUDA container images are subject to NVIDIA's license terms.
+See: https://docs.nvidia.com/cuda/eula/index.html
+
+The container includes:
+- NVIDIA CUDA Runtime Libraries
+- NVIDIA cuBLAS
+- NVIDIA cuFFT
+- NVIDIA cuRAND
+- NVIDIA cuSOLVER
+- NVIDIA cuSPARSE
+- NVIDIA NPP
+- NVIDIA nvJPEG
+
+For complete license information about the NVIDIA base container,
+refer to /NGC-DL-CONTAINER-LICENSE inside the container or visit:
+https://developer.download.nvidia.com/licenses/NVIDIA_Deep_Learning_Container_License.pdf
+
+
+================================================================================
+END OF THIRD-PARTY NOTICES
+================================================================================
