@@ -16,8 +16,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	defer func() {
+		_ = tmpFile.Close()
+	}()
 
 	p, err := process.New(
 		process.WithCommand("echo hello"),

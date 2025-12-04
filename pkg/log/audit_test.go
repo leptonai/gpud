@@ -178,7 +178,9 @@ func TestNewAuditLogger(t *testing.T) {
 	t.Run("with log file", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-audit-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		logFile := filepath.Join(tmpDir, "audit.log")
 		logger := NewAuditLogger(logFile)
@@ -225,7 +227,8 @@ func TestNewAuditLogger(t *testing.T) {
 		// Verify timestamp format - field is "ts" not "@timestamp"
 		ts, ok := logEntry["ts"].(string)
 		assert.True(t, ok)
-		_, err = time.Parse(time.RFC3339, ts)
+		// zap ISO8601 encoder outputs layout 2006-01-02T15:04:05.000Z0700 (no colon in zone)
+		_, err = time.Parse("2006-01-02T15:04:05.000Z0700", ts)
 		assert.NoError(t, err)
 	})
 
@@ -244,7 +247,9 @@ func TestAuditLoggerLog(t *testing.T) {
 	t.Run("logs with all fields", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-audit-full-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		logFile := filepath.Join(tmpDir, "audit.log")
 		logger := NewAuditLogger(logFile)
@@ -293,7 +298,9 @@ func TestAuditLoggerLog(t *testing.T) {
 	t.Run("logs with minimal fields and defaults", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-audit-minimal-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		logFile := filepath.Join(tmpDir, "audit.log")
 		logger := NewAuditLogger(logFile)
@@ -324,7 +331,9 @@ func TestAuditLoggerLog(t *testing.T) {
 	t.Run("multiple log entries", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-audit-multiple-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		logFile := filepath.Join(tmpDir, "audit.log")
 		logger := NewAuditLogger(logFile)
@@ -362,7 +371,9 @@ func TestAuditLoggerEdgeCases(t *testing.T) {
 	t.Run("empty strings in options", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-audit-empty-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		logFile := filepath.Join(tmpDir, "audit.log")
 		logger := NewAuditLogger(logFile)
@@ -391,7 +402,9 @@ func TestAuditLoggerEdgeCases(t *testing.T) {
 	t.Run("complex nested data", func(t *testing.T) {
 		tmpDir, err := os.MkdirTemp("", "gpud-audit-nested-test-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		logFile := filepath.Join(tmpDir, "audit.log")
 		logger := NewAuditLogger(logFile)

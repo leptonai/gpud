@@ -49,8 +49,12 @@ func TestProcessWithRunBashInline_QuotesAndMeta(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmp.Name())
-	defer tmp.Close()
+	defer func() {
+		_ = os.Remove(tmp.Name())
+	}()
+	defer func() {
+		_ = tmp.Close()
+	}()
 
 	p, err := New(
 		WithBashScriptContentsToRun(`echo 'hello "world"' && echo a|tr 'a' 'A'`),
@@ -98,8 +102,12 @@ func TestProcessWithRunBashInline_MultiCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmp.Name())
-	defer tmp.Close()
+	defer func() {
+		_ = os.Remove(tmp.Name())
+	}()
+	defer func() {
+		_ = tmp.Close()
+	}()
 
 	p, err := New(
 		WithCommand("echo", "hello world"),

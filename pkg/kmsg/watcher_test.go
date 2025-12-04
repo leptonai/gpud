@@ -16,7 +16,9 @@ func Test_parseLineWithTestData(t *testing.T) {
 
 	f, err := os.Open("testdata/kmsg.1.log")
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	buf := bufio.NewScanner(f)
 	for buf.Scan() {
@@ -255,7 +257,9 @@ func Test_readFollow(t *testing.T) {
 	// Open the test data file
 	testFile, err := os.Open("testdata/kmsg.1.log")
 	require.NoError(t, err)
-	defer testFile.Close()
+	defer func() {
+		_ = testFile.Close()
+	}()
 
 	// Use a fixed boot time for deterministic testing
 	bootTime := time.Unix(1000, 0)
@@ -290,7 +294,7 @@ func Test_readFollow(t *testing.T) {
 	// Close the file after a short delay to trigger termination
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		testFile.Close()
+		_ = testFile.Close()
 	}()
 
 	messageCollection()
@@ -316,7 +320,9 @@ func Test_readFollowMalformedData(t *testing.T) {
 	// Create a temporary file with malformed data
 	tmpFile, err := os.CreateTemp("", "kmsg-test-malformed")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	// Write malformed data to the file
 	_, err = tmpFile.WriteString("malformed data without proper format\n")

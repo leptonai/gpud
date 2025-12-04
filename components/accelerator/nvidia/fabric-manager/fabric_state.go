@@ -32,9 +32,9 @@ func (r fabricStateReport) RenderTable(wr io.Writer) {
 	}
 
 	if !r.Healthy && r.Reason != "" {
-		_, _ = wr.Write([]byte(fmt.Sprintf("\nOverall Status: UNHEALTHY - %s\n", r.Reason)))
+		_, _ = fmt.Fprintf(wr, "\nOverall Status: UNHEALTHY - %s\n", r.Reason)
 	} else if r.Healthy {
-		_, _ = wr.Write([]byte("\nOverall Status: HEALTHY\n"))
+		_, _ = fmt.Fprintf(wr, "\nOverall Status: HEALTHY\n")
 	}
 }
 

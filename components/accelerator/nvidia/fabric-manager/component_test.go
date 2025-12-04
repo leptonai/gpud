@@ -58,7 +58,9 @@ func TestComponentEvents(t *testing.T) {
 		eventBucket:      bucket,
 		logLineProcessor: llp,
 	}
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	_ = comp.Check()
 
@@ -110,7 +112,9 @@ func TestCheckFMActive(t *testing.T) {
 	t.Run("port active", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:6666")
 		require.NoError(t, err)
-		defer listener.Close()
+		defer func() {
+			_ = listener.Close()
+		}()
 
 		assert.True(t, checkFMActive())
 	})
@@ -308,7 +312,9 @@ func TestComponentStart(t *testing.T) {
 		checkFMExistsFunc: func() bool { return true },
 		checkFMActiveFunc: func() bool { return true },
 	}
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	err := comp.Start()
 	assert.NoError(t, err)

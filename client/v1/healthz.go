@@ -39,7 +39,9 @@ func checkHealthz(cli *http.Client, req *http.Request, exp []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to make request to /healthz: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server not ready, response not 200")

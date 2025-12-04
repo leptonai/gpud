@@ -219,7 +219,9 @@ Following text`), "test_plugin", "auto")
 		// Create a temporary file for testing
 		tmpFile, err := os.CreateTemp("", "plugin-output-*.log")
 		require.NoError(t, err)
-		defer os.Remove(tmpFile.Name())
+		defer func() {
+			_ = os.Remove(tmpFile.Name())
+		}()
 
 		po := &PluginOutputParseConfig{
 			LogPath: tmpFile.Name(),
@@ -1608,7 +1610,9 @@ func TestExtractExtraInfoWithLogPathSubstitution(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "plugin-output-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		po := &PluginOutputParseConfig{
 			LogPath: filepath.Join(tmpDir, "${PLUGIN}_${TRIGGER}.log"),
@@ -1642,7 +1646,9 @@ func TestExtractExtraInfoWithLogPathSubstitution(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "plugin-output-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		po := &PluginOutputParseConfig{
 			LogPath: filepath.Join(tmpDir, "${TRIGGER}.log"),
@@ -1670,7 +1676,9 @@ func TestExtractExtraInfoWithLogPathSubstitution(t *testing.T) {
 		// Create a temporary directory for testing
 		tmpDir, err := os.MkdirTemp("", "plugin-output-*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		po := &PluginOutputParseConfig{
 			LogPath: filepath.Join(tmpDir, "${PLUGIN}.log"),

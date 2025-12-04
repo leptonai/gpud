@@ -335,16 +335,16 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 	}
 
 	table.Render()
-	fmt.Fprintf(wr, "\n")
+	_, _ = fmt.Fprintf(wr, "\n")
 
 	if i.DiskInfo != nil {
 		i.DiskInfo.RenderTable(wr)
-		fmt.Fprintf(wr, "\n")
+		_, _ = fmt.Fprintf(wr, "\n")
 	}
 
 	if i.GPUInfo != nil {
 		i.GPUInfo.RenderTable(wr)
-		fmt.Fprintf(wr, "\n")
+		_, _ = fmt.Fprintf(wr, "\n")
 	}
 }
 

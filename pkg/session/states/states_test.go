@@ -260,7 +260,9 @@ func TestInsertPreservesLatestEntries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to query entries: %v", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var timestamps []int64
 	for rows.Next() {

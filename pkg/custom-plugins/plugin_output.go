@@ -74,7 +74,9 @@ func (po *PluginOutputParseConfig) extractExtraInfo(input []byte, pluginName str
 		if err != nil {
 			return nil, fmt.Errorf("failed to open log file: %w", err)
 		}
-		defer f.Close()
+		defer func() {
+			_ = f.Close()
+		}()
 
 		// Add timestamp to the log entry
 		timestamp := time.Now().UTC().Format(time.RFC3339)

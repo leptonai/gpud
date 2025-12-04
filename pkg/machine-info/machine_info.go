@@ -23,7 +23,6 @@ import (
 	componenttailscale "github.com/leptonai/gpud/components/tailscale"
 	"github.com/leptonai/gpud/pkg/asn"
 	"github.com/leptonai/gpud/pkg/disk"
-	pkgdisk "github.com/leptonai/gpud/pkg/disk"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
@@ -111,7 +110,7 @@ func GetSystemResourceRootVolumeTotal() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	usage, err := pkgdisk.GetUsage(ctx, "/")
+	usage, err := disk.GetUsage(ctx, "/")
 	if err != nil {
 		return "", fmt.Errorf("failed to get disk usage: %w", err)
 	}
@@ -452,7 +451,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 			return nil, serr
 		}
 		if serr == nil {
-			out, err := pkgdisk.FindMnt(ctx, "/var/lib/kubelet")
+			out, err := disk.FindMnt(ctx, "/var/lib/kubelet")
 			if err != nil {
 				return nil, err
 			}

@@ -142,7 +142,9 @@ func TestProcessWithCustomBashScriptDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// Create a process with a custom bash script directory
 	p, err := New(
@@ -388,8 +390,12 @@ func TestProcessWithOutputFileAndReaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	defer func() {
+		_ = tmpFile.Close()
+	}()
 
 	// Create a process with output file
 	p, err := New(

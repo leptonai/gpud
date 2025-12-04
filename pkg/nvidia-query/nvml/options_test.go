@@ -28,11 +28,15 @@ func TestOpApplyOpts(t *testing.T) {
 	t.Run("with custom databases", func(t *testing.T) {
 		dbRW, err := sqlite.Open(":memory:")
 		assert.NoError(t, err)
-		defer dbRW.Close()
+		defer func() {
+			assert.NoError(t, dbRW.Close())
+		}()
 
 		dbRO, err := sqlite.Open(":memory:", sqlite.WithReadOnly(true))
 		assert.NoError(t, err)
-		defer dbRO.Close()
+		defer func() {
+			assert.NoError(t, dbRO.Close())
+		}()
 
 		op := &Op{}
 		err = op.applyOpts([]OpOption{
@@ -58,11 +62,15 @@ func TestOpApplyOpts(t *testing.T) {
 	t.Run("with all options combined", func(t *testing.T) {
 		dbRW, err := sqlite.Open(":memory:")
 		assert.NoError(t, err)
-		defer dbRW.Close()
+		defer func() {
+			assert.NoError(t, dbRW.Close())
+		}()
 
 		dbRO, err := sqlite.Open(":memory:", sqlite.WithReadOnly(true))
 		assert.NoError(t, err)
-		defer dbRO.Close()
+		defer func() {
+			assert.NoError(t, dbRO.Close())
+		}()
 
 		bucket := &mockEventBucket{}
 
@@ -83,7 +91,9 @@ func TestOpApplyOpts(t *testing.T) {
 func TestWithDBRW(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	assert.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		assert.NoError(t, db.Close())
+	}()
 
 	op := &Op{}
 	opt := WithDBRW(db)
@@ -94,7 +104,9 @@ func TestWithDBRW(t *testing.T) {
 func TestWithDBRO(t *testing.T) {
 	db, err := sqlite.Open(":memory:", sqlite.WithReadOnly(true))
 	assert.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		assert.NoError(t, db.Close())
+	}()
 
 	op := &Op{}
 	opt := WithDBRO(db)
@@ -115,7 +127,9 @@ func TestOpOptionsErrorHandling(t *testing.T) {
 		// Create an invalid database connection
 		invalidDB, err := sql.Open("sqlite3", "/nonexistent/path")
 		assert.NoError(t, err) // Open doesn't actually connect
-		defer invalidDB.Close()
+		defer func() {
+			_ = invalidDB.Close()
+		}()
 
 		op := &Op{}
 		err = op.applyOpts([]OpOption{

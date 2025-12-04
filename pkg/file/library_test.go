@@ -11,7 +11,9 @@ import (
 func TestFindLibrary(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "library_test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// Create test files
 	testLib := filepath.Join(tmpDir, "test.so")
@@ -136,12 +138,16 @@ func TestFindLibrary(t *testing.T) {
 func TestFileExists(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "file_exists_test")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	// Create a directory that we can't read
 	tmpDir, err := os.MkdirTemp("", "file_exists_test_dir")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	unreadableDir := filepath.Join(tmpDir, "unreadable")
 	err = os.Mkdir(unreadableDir, 0000)
@@ -273,7 +279,9 @@ func TestWithAlternativeLibraryName(t *testing.T) {
 func TestDirectoryExists(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "dir_exists_test")
 	assert.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// Create a directory that we can't read
 	unreadableDir := filepath.Join(tmpDir, "unreadable")

@@ -49,7 +49,9 @@ func TestWriteFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	testFile := filepath.Join(tempDir, "test.txt")
 	testContent := "test content"
@@ -103,7 +105,9 @@ func TestDownloadFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Test successful download
 	successPath := filepath.Join(tempDir, "success.txt")
@@ -136,7 +140,9 @@ func TestCopyFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create source file
 	srcPath := filepath.Join(tempDir, "source.txt")
@@ -193,13 +199,19 @@ func createTestTarball(t *testing.T, path string) {
 	if err != nil {
 		t.Fatalf("Failed to create test tarball: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	gw := gzip.NewWriter(f)
-	defer gw.Close()
+	defer func() {
+		_ = gw.Close()
+	}()
 
 	tw := tar.NewWriter(gw)
-	defer tw.Close()
+	defer func() {
+		_ = tw.Close()
+	}()
 
 	// Add a dummy gpud file
 	hdr := &tar.Header{
@@ -220,7 +232,9 @@ func TestUnpackLinuxTarball(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a test tarball
 	tarballPath := filepath.Join(tempDir, "test.tgz")

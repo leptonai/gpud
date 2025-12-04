@@ -27,7 +27,9 @@ func TestCreateMetadataTable(t *testing.T) {
 	// Verify the table was created with correct schema
 	rows, err := dbRW.Query(fmt.Sprintf("PRAGMA table_info(%s)", tableName))
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	columns := make(map[string]string)
 	for rows.Next() {
@@ -81,7 +83,7 @@ func TestCreateMetadataTableWithClosedDB(t *testing.T) {
 	defer cleanup()
 
 	// Close database to force error
-	dbRW.Close()
+	_ = dbRW.Close()
 
 	tableName := "test_metadata_table_error"
 
@@ -156,7 +158,9 @@ CREATE TABLE %s (
 	// Verify original table still exists (transaction was rolled back properly)
 	rows, err := dbRW.Query(fmt.Sprintf("PRAGMA table_info(%s)", tableName))
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	columns := make([]string, 0)
 	for rows.Next() {

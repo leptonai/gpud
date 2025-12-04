@@ -44,7 +44,9 @@ func TestComponentName(t *testing.T) {
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 	assert.Equal(t, Name, comp.Name())
 }
 
@@ -55,7 +57,9 @@ func TestTags(t *testing.T) {
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	expectedTags := []string{
 		"network",
@@ -74,7 +78,9 @@ func TestComponentEvents(t *testing.T) {
 		RootCtx: context.Background(),
 	})
 	assert.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	events, err := comp.Events(context.Background(), time.Now())
 	assert.NoError(t, err)
@@ -187,7 +193,9 @@ func TestCheckHealthState(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	rs := comp.Check()
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, rs.HealthStateType())

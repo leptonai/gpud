@@ -162,7 +162,9 @@ func createNeedDeleteFiles(rootPath string) error {
 			if err != nil {
 				return fmt.Errorf("failed to create needDelete file in %s: %w", path, err)
 			}
-			defer file.Close()
+			defer func() {
+				_ = file.Close()
+			}()
 		}
 		return nil
 	})

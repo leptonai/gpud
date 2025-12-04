@@ -13,7 +13,9 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbFile := filepath.Join(tmpDir, "test.db")
 
@@ -25,7 +27,9 @@ func TestOpen(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer dbRO.Close()
+				defer func() {
+					_ = dbRO.Close()
+				}()
 
 				if _, err = dbRO.Exec("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)"); err == nil {
 					t.Fatal("expected error when creating table in read-only mode, got nil")
@@ -41,7 +45,9 @@ func TestOpen(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer dbRW.Close()
+				defer func() {
+					_ = dbRW.Close()
+				}()
 
 				// Test table creation
 				if _, err = dbRW.Exec("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)"); err != nil {
@@ -58,7 +64,9 @@ func TestOpen(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer rows.Close()
+				defer func() {
+					_ = rows.Close()
+				}()
 
 				// Verify connection settings
 				stats := dbRW.Stats()
@@ -84,7 +92,9 @@ func TestReadDBSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbFile := filepath.Join(tmpDir, "size_test.db")
 
@@ -98,7 +108,7 @@ func TestReadDBSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dbInit.Close()
+	_ = dbInit.Close()
 
 	ctx := context.Background()
 
@@ -108,7 +118,9 @@ func TestReadDBSize(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer dbRO.Close()
+		defer func() {
+			_ = dbRO.Close()
+		}()
 
 		size, err := ReadDBSize(ctx, dbRO)
 		if err != nil {
@@ -125,7 +137,9 @@ func TestReadDBSize(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer dbRO.Close()
+		defer func() {
+			_ = dbRO.Close()
+		}()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -141,14 +155,18 @@ func TestCompact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbFile := filepath.Join(tmpDir, "compact_test.db")
 	db, err := Open(dbFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	ctx := context.Background()
 
@@ -211,7 +229,9 @@ func TestRunCompact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbFile := filepath.Join(tmpDir, "runcompact_test.db")
 	db, err := Open(dbFile)
@@ -242,7 +262,7 @@ func TestRunCompact(t *testing.T) {
 	}
 
 	// Close the DB connection before running RunCompact
-	db.Close()
+	_ = db.Close()
 
 	t.Run("successful compaction", func(t *testing.T) {
 		err := RunCompact(ctx, dbFile)
@@ -289,7 +309,7 @@ func TestRunCompact(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		db.Close()
+		_ = db.Close()
 
 		// Get size before compaction
 		dbRO, err := Open(dbFile, WithReadOnly(true))
@@ -300,7 +320,7 @@ func TestRunCompact(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		dbRO.Close()
+		_ = dbRO.Close()
 
 		// Run compaction
 		err = RunCompact(ctx, dbFile)
@@ -317,7 +337,7 @@ func TestRunCompact(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		dbRO.Close()
+		_ = dbRO.Close()
 
 		if sizeAfterCompact >= sizeBeforeCompact {
 			t.Errorf("expected size to decrease after compacting, before: %d, after: %d", sizeBeforeCompact, sizeAfterCompact)
@@ -330,14 +350,18 @@ func TestTableExists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dbFile := filepath.Join(tmpDir, "table_exists_test.db")
 	db, err := Open(dbFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	ctx := context.Background()
 

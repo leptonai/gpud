@@ -90,7 +90,9 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 	if err != nil {
 		return nil, err
 	}
-	defer httpResp.Body.Close()
+	defer func() {
+		_ = httpResp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {

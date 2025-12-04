@@ -1,8 +1,8 @@
 # https://github.com/uber-go/nilaway
-# https://github.com/golangci/golangci-lint/releases/tag/v1.61.0
+# https://github.com/golangci/golangci-lint/releases/latest
 
 # This has to be >= v1.57.0 for module plugin system support.
-version: v1.61.0
+version: v2.7.0
 plugins:
   - module: "go.uber.org/nilaway"
     import: "go.uber.org/nilaway/cmd/gclplugin"

@@ -290,7 +290,9 @@ func TestGetStatesFromComponent(t *testing.T) {
 func TestCreateNeedDeleteFiles(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "test-create-need-delete-files")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create test directories
 	subDir1 := filepath.Join(tempDir, "subdir1")
@@ -1336,7 +1338,9 @@ func TestSessionDelete(t *testing.T) {
 	// Create a temporary directory structure for testing
 	tempDir, err := os.MkdirTemp("", "test-session-delete")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create subdirectories
 	subDir1 := filepath.Join(tempDir, "subdir1")

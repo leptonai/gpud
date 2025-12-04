@@ -158,7 +158,9 @@ func TestDiscoverPublicIPMalformedResponse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer conn.Close()
+		defer func() {
+			_ = conn.Close()
+		}()
 
 		// Send a partial/malformed HTTP response
 		_, _ = conn.Write([]byte("HTTP/1.1 200 OK\r\n"))

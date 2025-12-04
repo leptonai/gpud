@@ -248,7 +248,9 @@ func TestComponent(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		})
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		// States should return default state when no data
 		states := comp.LastHealthStates()
@@ -263,7 +265,9 @@ func TestComponent(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		})
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		// Instead of directly calling Events, which has a bug with nil eventBucket,
 		// we'll test that rebootEventStore is correctly set and accessible
@@ -288,7 +292,9 @@ func TestComponent(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		})
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			assert.NoError(t, comp.Close())
+		}()
 
 		// Trigger CheckOnce manually
 		c := comp.(*component)
@@ -326,7 +332,9 @@ func TestComponent_States(t *testing.T) {
 		RebootEventStore: mockRebootStore,
 	})
 	assert.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		assert.NoError(t, comp.Close())
+	}()
 
 	t.Run("component states with no data", func(t *testing.T) {
 		// States should return default state when no data
@@ -444,7 +452,9 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		})
 		assert.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 		comp := c.(*component)
 
 		// Override the process counting function to return an error
@@ -474,7 +484,9 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		})
 		assert.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 		comp := c.(*component)
 
 		// Override the process counting function to return normal processes
@@ -534,7 +546,9 @@ func TestComponent_UptimeError(t *testing.T) {
 		RebootEventStore: mockRebootStore,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 	comp := c.(*component)
 
 	// Directly set error data to simulate an uptime error
@@ -571,7 +585,9 @@ func TestComponent_EventsWithNilStore(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		assert.NoError(t, comp.Close())
+	}()
 
 	// Call Events and verify it returns empty slice and no error
 	since := time.Now().Add(-1 * time.Hour)
@@ -732,7 +748,9 @@ func TestComponent_ManualCheckSimulation(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		assert.NoError(t, c.Close())
+	}()
 
 	comp := c.(*component)
 
@@ -770,7 +788,9 @@ func TestComponent_CheckWithUptimeError(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		assert.NoError(t, c.Close())
+	}()
 
 	comp := c.(*component)
 
@@ -871,7 +891,9 @@ func TestComponent_GetHostUptimeFunc(t *testing.T) {
 				RootCtx: ctx,
 			})
 			assert.NoError(t, err)
-			defer c.Close()
+			defer func() {
+				assert.NoError(t, c.Close())
+			}()
 
 			comp := c.(*component)
 
@@ -925,7 +947,9 @@ func TestComponent_GetHostUptimeFuncTimeout(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		assert.NoError(t, c.Close())
+	}()
 
 	comp := c.(*component)
 
@@ -978,7 +1002,9 @@ func TestComponent_GetHostUptimeFuncHealthStates(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		assert.NoError(t, c.Close())
+	}()
 
 	comp := c.(*component)
 
@@ -1030,7 +1056,9 @@ func TestComponent_CheckWithProcessError(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		assert.NoError(t, c.Close())
+	}()
 
 	comp := c.(*component)
 
@@ -1059,7 +1087,9 @@ func TestComponent_CheckWithZombieProcesses(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -1096,7 +1126,9 @@ func TestComponent_SystemManufacturer(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -1140,7 +1172,9 @@ func TestComponent_WithRebootEventStore(t *testing.T) {
 		RebootEventStore: mockStore,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	// Skip Events test since eventBucket is nil in this test setup
 	// Just test that the component can be checked successfully
@@ -1600,7 +1634,9 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 	// Set the default thresholds
@@ -1727,7 +1763,9 @@ func TestComponent_FileDescriptorErrors(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -1850,7 +1888,9 @@ func TestComponent_ThresholdRunningPIDs(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -2076,7 +2116,9 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -2168,7 +2210,9 @@ func TestComponent_MetricsUpdate(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -2262,7 +2306,9 @@ func TestComponent_GoroutinesMetricValue(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -2329,7 +2375,9 @@ func TestComponent_MacOSSpecificHandling(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -2437,7 +2485,9 @@ func TestComponent_ZombieProcessThresholdEdgeCases(t *testing.T) {
 				RootCtx: ctx,
 			})
 			assert.NoError(t, err)
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			comp := c.(*component)
 			comp.zombieProcessCountThresholdDegraded = tt.threshold
@@ -2497,7 +2547,9 @@ func TestComponent_ZombieProcessMetrics(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -2593,7 +2645,9 @@ func TestComponent_ProcessStatusMap(t *testing.T) {
 				RootCtx: ctx,
 			})
 			assert.NoError(t, err)
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			comp := c.(*component)
 
@@ -2635,7 +2689,9 @@ func TestComponent_ZombieProcessHealthStates(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 	comp.zombieProcessCountThresholdDegraded = 10
@@ -2793,7 +2849,9 @@ func TestComponent_ZombieProcessLowHighThresholds(t *testing.T) {
 				RootCtx: ctx,
 			})
 			assert.NoError(t, err)
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			comp := c.(*component)
 			comp.zombieProcessCountThresholdDegraded = tt.lowThreshold
@@ -2865,7 +2923,9 @@ func TestComponent_ZombieProcessThresholdsWithErrors(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 	comp.zombieProcessCountThresholdDegraded = 100
@@ -2960,7 +3020,9 @@ func TestComponent_ZombieProcessMetricsWithThresholds(t *testing.T) {
 				RootCtx: ctx,
 			})
 			assert.NoError(t, err)
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			comp := c.(*component)
 			comp.zombieProcessCountThresholdDegraded = tc.lowThreshold
@@ -3187,7 +3249,9 @@ func TestComponent_SuggestedActionsIntegration(t *testing.T) {
 				RootCtx: ctx,
 			})
 			assert.NoError(t, err)
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			comp := c.(*component)
 			comp.zombieProcessCountThresholdDegraded = tt.degradedThreshold
@@ -3357,7 +3421,9 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 				RootCtx: ctx,
 			})
 			assert.NoError(t, err)
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			comp := c.(*component)
 
@@ -3495,7 +3561,9 @@ func TestComponent_AllocatedFileHandlesThresholdPercentageChecks(t *testing.T) {
 				RootCtx: ctx,
 			})
 			assert.NoError(t, err)
-			defer c.Close()
+			defer func() {
+				_ = c.Close()
+			}()
 
 			comp := c.(*component)
 
@@ -3550,7 +3618,9 @@ func TestComponent_ThresholdPercentageChecksPriority(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -3606,7 +3676,9 @@ func TestComponent_ThresholdPercentageChecksWithAllHealthyConditions(t *testing.
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -3662,7 +3734,9 @@ func TestComponent_ThresholdPercentageMetricsUpdates(t *testing.T) {
 		RootCtx: ctx,
 	})
 	assert.NoError(t, err)
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+	}()
 
 	comp := c.(*component)
 
@@ -3775,7 +3849,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -3786,7 +3862,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			},
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -3812,7 +3890,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		})
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -3859,7 +3939,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -3871,7 +3953,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -3881,9 +3965,10 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		eventNames := make(map[string]int)
 		for _, event := range events {
 			eventNames[event.Name]++
-			if event.Name == pkghost.EventNameReboot {
+			switch event.Name {
+			case pkghost.EventNameReboot:
 				assert.Equal(t, "Reboot event from rebootEventStore", event.Message)
-			} else if event.Name == "disk-error" {
+			case "disk-error":
 				assert.Equal(t, "Disk error event", event.Message)
 			}
 		}
@@ -3924,7 +4009,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -3935,7 +4022,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			},
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -3967,7 +4056,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -3979,7 +4070,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -4011,7 +4104,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -4023,7 +4118,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.Error(t, err)
@@ -4052,7 +4149,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -4064,7 +4163,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			RebootEventStore: errRebootStore,
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.Error(t, err)
@@ -4078,7 +4179,9 @@ func TestComponent_EventsRebootDuplicateFiltering(t *testing.T) {
 			// Both EventStore and RebootEventStore are nil
 		})
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -4146,7 +4249,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -4158,7 +4263,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -4167,22 +4274,22 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		// Verify events are sorted by time in descending order (newest first)
 		// Expected order: memory-warning, reboot, disk-error, older-reboot
 		assert.Equal(t, "memory-warning", events[0].Name, "Newest event should be first")
-		assert.Equal(t, newestTime.Unix(), events[0].Time.Time.Unix(), "First event should have newest timestamp")
+		assert.Equal(t, newestTime.Unix(), events[0].Time.Unix(), "First event should have newest timestamp")
 
 		assert.Equal(t, pkghost.EventNameReboot, events[1].Name, "Second newest event should be reboot")
-		assert.Equal(t, newerTime.Unix(), events[1].Time.Time.Unix(), "Second event should have second newest timestamp")
+		assert.Equal(t, newerTime.Unix(), events[1].Time.Unix(), "Second event should have second newest timestamp")
 		assert.Equal(t, "System reboot event", events[1].Message)
 
 		assert.Equal(t, "disk-error", events[2].Name, "Third newest event should be disk-error")
-		assert.Equal(t, olderTime.Unix(), events[2].Time.Time.Unix(), "Third event should have third newest timestamp")
+		assert.Equal(t, olderTime.Unix(), events[2].Time.Unix(), "Third event should have third newest timestamp")
 
 		assert.Equal(t, pkghost.EventNameReboot, events[3].Name, "Oldest event should be older reboot")
-		assert.Equal(t, oldestTime.Unix(), events[3].Time.Time.Unix(), "Fourth event should have oldest timestamp")
+		assert.Equal(t, oldestTime.Unix(), events[3].Time.Unix(), "Fourth event should have oldest timestamp")
 		assert.Equal(t, "Older system reboot event", events[3].Message)
 
 		// Verify sorting order by comparing adjacent timestamps
 		for i := 0; i < len(events)-1; i++ {
-			assert.True(t, events[i].Time.Time.After(events[i+1].Time.Time) || events[i].Time.Time.Equal(events[i+1].Time.Time),
+			assert.True(t, events[i].Time.After(events[i+1].Time.Time) || events[i].Time.Time.Equal(events[i+1].Time.Time),
 				"Event %d should be newer than or equal to event %d", i, i+1)
 		}
 	})
@@ -4227,7 +4334,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -4239,7 +4348,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -4247,7 +4358,7 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 
 		// All events should have the same timestamp
 		for _, event := range events {
-			assert.Equal(t, sameTime.Unix(), event.Time.Time.Unix(), "All events should have same timestamp")
+			assert.Equal(t, sameTime.Unix(), event.Time.Unix(), "All events should have same timestamp")
 		}
 	})
 
@@ -4282,7 +4393,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -4294,7 +4407,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -4303,14 +4418,14 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		// Verify sorting: newer event first
 		assert.Equal(t, pkghost.EventNameReboot, events[0].Name)
 		assert.Equal(t, "Second reboot", events[0].Message, "Newer reboot should be first")
-		assert.Equal(t, newestTime.Unix(), events[0].Time.Time.Unix())
+		assert.Equal(t, newestTime.Unix(), events[0].Time.Unix())
 
 		assert.Equal(t, pkghost.EventNameReboot, events[1].Name)
 		assert.Equal(t, "First reboot", events[1].Message, "Older reboot should be second")
-		assert.Equal(t, oldestTime.Unix(), events[1].Time.Time.Unix())
+		assert.Equal(t, oldestTime.Unix(), events[1].Time.Unix())
 
 		// Verify descending order
-		assert.True(t, events[0].Time.Time.After(events[1].Time.Time), "First event should be newer than second")
+		assert.True(t, events[0].Time.After(events[1].Time.Time), "First event should be newer than second")
 	})
 
 	t.Run("empty rebootEventStore with sorted non-reboot events", func(t *testing.T) {
@@ -4344,7 +4459,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -4356,7 +4473,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -4364,13 +4483,13 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 
 		// Verify sorting: newer event first
 		assert.Equal(t, "cpu-warning", events[0].Name, "Newer event should be first")
-		assert.Equal(t, newerTime.Unix(), events[0].Time.Time.Unix())
+		assert.Equal(t, newerTime.Unix(), events[0].Time.Unix())
 
 		assert.Equal(t, "network-error", events[1].Name, "Older event should be second")
-		assert.Equal(t, oldestTime.Unix(), events[1].Time.Time.Unix())
+		assert.Equal(t, oldestTime.Unix(), events[1].Time.Unix())
 
 		// Verify descending order
-		assert.True(t, events[0].Time.Time.After(events[1].Time.Time), "First event should be newer than second")
+		assert.True(t, events[0].Time.After(events[1].Time.Time), "First event should be newer than second")
 	})
 
 	t.Run("single event from each source sorted correctly", func(t *testing.T) {
@@ -4405,7 +4524,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		// Create temporary pstore directory
 		tmpPstoreDir, err := os.MkdirTemp("", "pstore_test_*")
 		require.NoError(t, err)
-		defer os.RemoveAll(tmpPstoreDir)
+		defer func() {
+			_ = os.RemoveAll(tmpPstoreDir)
+		}()
 
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx: ctx,
@@ -4417,7 +4538,9 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 			RebootEventStore: mockRebootStore,
 		}, tmpPstoreDir)
 		assert.NoError(t, err)
-		defer comp.Close()
+		defer func() {
+			_ = comp.Close()
+		}()
 
 		events, err := comp.Events(ctx, since)
 		assert.NoError(t, err)
@@ -4425,13 +4548,13 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 
 		// Verify sorting: reboot event (newer) should be first
 		assert.Equal(t, pkghost.EventNameReboot, events[0].Name, "Newer reboot event should be first")
-		assert.Equal(t, newerTime.Unix(), events[0].Time.Time.Unix())
+		assert.Equal(t, newerTime.Unix(), events[0].Time.Unix())
 
 		assert.Equal(t, "io-error", events[1].Name, "Older non-reboot event should be second")
-		assert.Equal(t, olderTime.Unix(), events[1].Time.Time.Unix())
+		assert.Equal(t, olderTime.Unix(), events[1].Time.Unix())
 
 		// Verify descending order
-		assert.True(t, events[0].Time.Time.After(events[1].Time.Time), "Reboot event should be newer than IO error event")
+		assert.True(t, events[0].Time.After(events[1].Time.Time), "Reboot event should be newer than IO error event")
 	})
 }
 

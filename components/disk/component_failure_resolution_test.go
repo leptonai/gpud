@@ -88,7 +88,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -126,7 +126,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -161,7 +161,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -196,7 +196,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -231,7 +231,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -266,7 +266,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -301,7 +301,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -350,7 +350,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -401,7 +401,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -426,7 +426,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		c, mockBucket, _ := createTestComponentWithEvents(diskEvents, rebootEvents)
 		defer func() {
-			c.Close()
+			assert.NoError(t, c.Close())
 			mockBucket.AssertExpectations(t)
 		}()
 
@@ -562,6 +562,6 @@ func TestFailureReasonMapCleanup(t *testing.T) {
 		assert.NotContains(t, cr.reason, msg, "Failure reason should be cleaned up: %s", msg)
 	}
 
-	c.Close()
+	assert.NoError(t, c.Close())
 	mockBucket.AssertExpectations(t)
 }

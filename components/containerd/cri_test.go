@@ -331,7 +331,9 @@ func TestCreateClient(t *testing.T) {
 		// Create a connection to a non-existent endpoint (connection creation will succeed due to lazy initialization)
 		conn, err := grpc.DialContext(context.Background(), "unix:///non-existent-path", grpc.WithInsecure()) //nolint:staticcheck
 		require.NoError(t, err)
-		defer conn.Close()
+		defer func() {
+			_ = conn.Close()
+		}()
 
 		// The client creation should fail because the context is canceled
 		_, _, err = createClient(ctx, conn)

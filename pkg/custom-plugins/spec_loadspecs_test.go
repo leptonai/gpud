@@ -102,7 +102,9 @@ func TestLoadSpecsWithComponentListFromFile(t *testing.T) {
 	// Test component_list_file functionality
 	tmpDir, err := os.MkdirTemp("", "loadspecs-file-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// Create a component list file
 	componentsPath := filepath.Join(tmpDir, "components.txt")
@@ -274,7 +276,9 @@ func TestLoadSpecsComponentListEdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir, err := os.MkdirTemp("", "loadspecs-edge-test-*")
 			require.NoError(t, err)
-			defer os.RemoveAll(tmpDir)
+			defer func() {
+				_ = os.RemoveAll(tmpDir)
+			}()
 
 			yamlPath := filepath.Join(tmpDir, "test-plugins.yaml")
 			err = os.WriteFile(yamlPath, []byte(tt.yamlContent), 0644)

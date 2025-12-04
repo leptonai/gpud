@@ -18,16 +18,16 @@ func (s *Session) processLogout(ctx context.Context, response *Response) {
 	if err != nil {
 		log.Logger.Errorw("failed to open state file", "error", err)
 		response.Error = err.Error()
-		dbRW.Close()
 		return
 	}
+	defer func() {
+		_ = dbRW.Close()
+	}()
 	if err = pkgmetadata.DeleteAllMetadata(ctx, dbRW); err != nil {
 		log.Logger.Errorw("failed to purge metadata", "error", err)
 		response.Error = err.Error()
-		dbRW.Close()
 		return
 	}
-	dbRW.Close()
 	err = pkghost.Stop(s.ctx, pkghost.WithDelaySeconds(10))
 	if err != nil {
 		log.Logger.Errorf("failed to trigger stop gpud: %v", err)

@@ -340,9 +340,10 @@ func TestCheck_MultipleDevices(t *testing.T) {
 	// Verify each device's persistence mode status
 	var device1Mode, device2Mode PersistenceMode
 	for _, mode := range data.PersistenceModes {
-		if mode.UUID == uuid1 {
+		switch mode.UUID {
+		case uuid1:
 			device1Mode = mode
-		} else if mode.UUID == uuid2 {
+		case uuid2:
 			device2Mode = mode
 		}
 	}

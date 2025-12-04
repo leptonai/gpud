@@ -141,7 +141,7 @@ func TestPrintSummary(t *testing.T) {
 			printSummary(tt.checkResult)
 
 			// Restore stdout and get the output
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 			var buf bytes.Buffer
 			_, _ = buf.ReadFrom(r)

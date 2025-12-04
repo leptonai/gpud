@@ -126,8 +126,10 @@ func TestWriteToken(t *testing.T) {
 	// Create a temporary file to use as a FIFO (we won't actually make it a FIFO for testing)
 	tempFile, err := os.CreateTemp("", "gpud-token-test")
 	require.NoError(t, err, "Should create temp file without error")
-	defer os.Remove(tempFile.Name())
-	tempFile.Close()
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+	}()
+	require.NoError(t, tempFile.Close())
 
 	// Test writing a token
 	token := "test-token-123"
@@ -176,7 +178,9 @@ func TestWriteTokenErrors(t *testing.T) {
 	// Test with invalid FIFO file (directory instead of file)
 	tempDir, err := os.MkdirTemp("", "gpud-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	err = WriteToken("test-token", tempDir)
 	require.Error(t, err)
@@ -186,7 +190,9 @@ func TestServerWithFifoFile(t *testing.T) {
 	// Create a temporary directory for the test
 	tempDir, err := os.MkdirTemp("", "gpud-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Create a FIFO file
 	fifoPath := filepath.Join(tempDir, "test.fifo")
@@ -237,8 +243,8 @@ func setupTestDB(t *testing.T) (*sql.DB, *sql.DB, func()) {
 	require.NoError(t, err, "Should create read-only in-memory DB without error")
 
 	cleanup := func() {
-		db.Close()
-		dbRO.Close()
+		_ = db.Close()
+		_ = dbRO.Close()
 	}
 
 	return db, dbRO, cleanup

@@ -37,7 +37,9 @@ func TestNewComponent(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	assert.Equal(t, Name, comp.Name())
 
@@ -72,7 +74,9 @@ func TestComponentStates(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	// Get initial state
 	states := comp.LastHealthStates()
@@ -101,7 +105,9 @@ func TestComponentEvents(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	// No events initially
 	since := time.Now().Add(-1 * time.Hour)
@@ -231,10 +237,14 @@ func TestCheckOnce_VirtualMachine(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c.currentVirtEnv = host.VirtualizationEnvironment{
 		Type:  "baremetal",
@@ -272,10 +282,14 @@ func TestCheckOnce_EventCreation(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c.currentVirtEnv = host.VirtualizationEnvironment{
 		Type:  "baremetal",
@@ -429,7 +443,9 @@ func TestComponent_States(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	t.Run("component states with no data", func(t *testing.T) {
 		// States should return default state when no data
@@ -501,10 +517,14 @@ func TestCheckOnce_ListFuncError(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c.currentVirtEnv = host.VirtualizationEnvironment{
 		Type:  "baremetal",
@@ -557,7 +577,9 @@ func TestCheckOnce_ACSDevices(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -636,7 +658,9 @@ func TestCheckOnce_NoACSDevices(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -707,7 +731,9 @@ func TestCheckOnce_RecentEvent(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -759,7 +785,9 @@ func TestCheckOnce_EventBucketLatestError(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -970,7 +998,9 @@ func TestData_CreateEvent(t *testing.T) {
 				EventStore: store,
 			})
 			require.NoError(t, err)
-			defer comp.Close()
+			defer func() {
+				_ = comp.Close()
+			}()
 
 			c := comp.(*component)
 			uuids := c.findACSEnabledDeviceUUIDsFunc(cr.Devices)
@@ -1001,7 +1031,9 @@ func TestConcurrentAccess(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -1046,7 +1078,9 @@ func TestKVMEnvironment(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -1094,7 +1128,9 @@ func TestStartWithBadPeriod(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	// Start the component
 	err = comp.Start()
@@ -1129,7 +1165,9 @@ func TestCheckOnce_EventBucketInsertError(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -1184,7 +1222,9 @@ func TestStartAndClose(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	// Start the component
 	err = comp.Start()
@@ -1218,7 +1258,9 @@ func TestEvents(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 	if c.eventBucket == nil {
@@ -1417,7 +1459,9 @@ func TestStartWithEvents(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -1464,7 +1508,9 @@ func TestStartWithBucketLatestError(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -1509,7 +1555,9 @@ func TestCheckWithRealDevicesOnLinux(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -1545,7 +1593,9 @@ func TestCheckWithUnknownVirtEnv(t *testing.T) {
 		EventStore: store,
 	})
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 

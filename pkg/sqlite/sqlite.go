@@ -100,13 +100,17 @@ func RunCompact(ctx context.Context, dbFile string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRW.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
 
 	dbRO, err := Open(dbFile, WithReadOnly(true))
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	dbSize, err := ReadDBSize(ctx, dbRO)
 	if err != nil {

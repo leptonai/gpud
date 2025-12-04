@@ -41,7 +41,9 @@ func GetComponents(ctx context.Context, addr string, opts ...OpOption) ([]string
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("server not ready, response not 200")
 	}
@@ -62,7 +64,9 @@ func ReadComponents(rd io.Reader, opts ...OpOption) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gr.Close()
+		defer func() {
+			_ = gr.Close()
+		}()
 
 		switch op.requestContentType {
 		case httputil.RequestHeaderJSON, "":
@@ -140,7 +144,9 @@ func DeregisterComponent(ctx context.Context, addr string, componentName string,
 	if err != nil {
 		return fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("server not ready, response not 200")
@@ -219,7 +225,9 @@ func GetInfo(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdCompone
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("server not ready, response not 200")
 	}
@@ -240,7 +248,9 @@ func ReadInfo(rd io.Reader, opts ...OpOption) (v1.GPUdComponentInfos, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gr.Close()
+		defer func() {
+			_ = gr.Close()
+		}()
 
 		switch op.requestContentType {
 		case httputil.RequestHeaderJSON, "":
@@ -342,7 +352,9 @@ func GetHealthStates(ctx context.Context, addr string, opts ...OpOption) (v1.GPU
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
@@ -367,7 +379,9 @@ func ReadHealthStates(rd io.Reader, opts ...OpOption) (v1.GPUdComponentHealthSta
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gr.Close()
+		defer func() {
+			_ = gr.Close()
+		}()
 
 		switch op.requestContentType {
 		case httputil.RequestHeaderJSON, "":
@@ -429,7 +443,9 @@ func GetEvents(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdCompo
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("server not ready, response not 200")
 	}
@@ -450,7 +466,9 @@ func ReadEvents(rd io.Reader, opts ...OpOption) (v1.GPUdComponentEvents, error) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gr.Close()
+		defer func() {
+			_ = gr.Close()
+		}()
 
 		switch op.requestContentType {
 		case httputil.RequestHeaderJSON, "":
@@ -512,7 +530,9 @@ func GetMetrics(ctx context.Context, addr string, opts ...OpOption) (v1.GPUdComp
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("server not ready, response not 200")
 	}
@@ -533,7 +553,9 @@ func ReadMetrics(rd io.Reader, opts ...OpOption) (v1.GPUdComponentMetrics, error
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gr.Close()
+		defer func() {
+			_ = gr.Close()
+		}()
 
 		switch op.requestContentType {
 		case httputil.RequestHeaderJSON, "":

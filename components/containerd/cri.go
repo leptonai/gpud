@@ -200,7 +200,9 @@ func GetVersion(ctx context.Context, endpoint string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	// ref. https://github.com/kubernetes/kubernetes/blob/v1.32.0-alpha.0/staging/src/k8s.io/cri-client/pkg/remote_runtime.go
 	runtimeClient := runtimeapi.NewRuntimeServiceClient(conn)
@@ -237,7 +239,9 @@ func ListAllSandboxes(ctx context.Context, endpoint string) ([]PodSandbox, error
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	client, _, err := createClient(ctx, conn)
 	if err != nil {

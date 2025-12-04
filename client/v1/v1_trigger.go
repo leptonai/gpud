@@ -49,7 +49,9 @@ func TriggerComponent(ctx context.Context, addr string, componentName string, op
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("server not ready, response not 200")
@@ -100,7 +102,9 @@ func TriggerComponentCheckByTag(ctx context.Context, addr string, tagName string
 	if err != nil {
 		return fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("server not ready, response not 200")

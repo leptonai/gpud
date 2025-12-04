@@ -77,18 +77,18 @@ func TestMockDeviceClocks(t *testing.T) {
 
 			// Test clock info for different clock types
 			for clockType, expectedClock := range tt.expectedClocks {
-				clock, ret := mockDevice.Device.GetClockInfo(clockType)
+				clock, ret := mockDevice.GetClockInfo(clockType)
 				assert.Equal(t, expectedClock, clock)
 				assert.Equal(t, tt.expectedReturns[clockType], ret)
 			}
 
 			// Test unknown clock type
-			clock, ret := mockDevice.Device.GetClockInfo(999)
+			clock, ret := mockDevice.GetClockInfo(999)
 			assert.Equal(t, uint32(0), clock)
 			assert.Equal(t, nvml.ERROR_UNKNOWN, ret)
 
 			// Test UUID
-			uuid, ret := mockDevice.Device.GetUUID()
+			uuid, ret := mockDevice.GetUUID()
 			assert.Equal(t, tt.uuid, uuid)
 			assert.Equal(t, nvml.SUCCESS, ret)
 		})

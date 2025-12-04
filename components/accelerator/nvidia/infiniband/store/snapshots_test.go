@@ -192,7 +192,7 @@ func TestReadDevPortSnapshotsWithClosedDB(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close the read-only database
-	dbRO.Close()
+	_ = dbRO.Close()
 
 	// Test reading snapshots with closed database
 	snapshots, err := store.readDevPortSnapshots("mlx5_0", 1, time.Time{})

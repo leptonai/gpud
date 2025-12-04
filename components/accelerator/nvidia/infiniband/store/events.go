@@ -147,7 +147,9 @@ func (s *ibPortsStore) lastEvents(device string, port uint, since time.Time) ([]
 		}
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	events := make([]Event, 0)
 	for rows.Next() {

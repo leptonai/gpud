@@ -100,9 +100,10 @@ func TestTriggerComponentCheck(t *testing.T) {
 			defer srv.Close()
 
 			opts := []OpOption{}
-			if tt.contentType == httputil.RequestHeaderYAML {
+			switch tt.contentType {
+			case httputil.RequestHeaderYAML:
 				opts = append(opts, WithRequestContentTypeYAML())
-			} else if tt.contentType == httputil.RequestHeaderJSON {
+			case httputil.RequestHeaderJSON:
 				opts = append(opts, WithRequestContentTypeJSON())
 			}
 			if tt.acceptEncoding == httputil.RequestHeaderEncodingGzip {

@@ -64,7 +64,7 @@ func TestCheckLoginSuccess(t *testing.T) {
 			err := checkLoginSuccess(tt.loginSuccess, tt.machineID)
 
 			// Restore stdout
-			w.Close()
+			require.NoError(t, w.Close())
 			os.Stdout = old
 
 			// Read captured output

@@ -617,9 +617,10 @@ func TestSQLiteReadNullLabel(t *testing.T) {
 
 	// Verify labels are preserved correctly
 	for _, result := range results {
-		if result.Component == "component1" {
+		switch result.Component {
+		case "component1":
 			assert.Empty(t, result.Labels)
-		} else if result.Component == "component2" {
+		case "component2":
 			assert.Equal(t, "label2", result.Labels["label"])
 		}
 	}

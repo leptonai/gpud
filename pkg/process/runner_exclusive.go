@@ -41,8 +41,12 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 	if err != nil {
 		return nil, 0, err
 	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	defer func() {
+		_ = tmpFile.Close()
+	}()
 
 	p, err := New(
 		WithBashScriptContentsToRun(script),

@@ -226,9 +226,10 @@ func TestSetHealthyComponents(t *testing.T) {
 			// Prepare options
 			opts := []OpOption{}
 			if tt.contentType != "" {
-				if tt.contentType == httputil.RequestHeaderJSON {
+				switch tt.contentType {
+				case httputil.RequestHeaderJSON:
 					opts = append(opts, WithRequestContentTypeJSON())
-				} else if tt.contentType == httputil.RequestHeaderYAML {
+				case httputil.RequestHeaderYAML:
 					opts = append(opts, WithRequestContentTypeYAML())
 				}
 			}

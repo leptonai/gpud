@@ -86,7 +86,7 @@ func TestGetMachineInfo(t *testing.T) {
 						// Hijack the connection and close it immediately
 						conn, _, err := w.(http.Hijacker).Hijack()
 						require.NoError(t, err)
-						conn.Close()
+						require.NoError(t, conn.Close())
 						return
 					}
 

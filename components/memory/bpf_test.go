@@ -13,7 +13,9 @@ import (
 func Test_processLineBPFJITAllocExec(t *testing.T) {
 	f, err := os.Open("testdata/vmallocinfo.bpf_jit_alloc_exec")
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	totalSize := uint64(0)
 	scanner := bufio.NewScanner(f)
@@ -51,8 +53,10 @@ func Test_readBPFJITBufferBytes_EmptyFile(t *testing.T) {
 	// Create a temporary empty file
 	tmpFile, err := os.CreateTemp("", "empty_vmallocinfo")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	tmpFile.Close()
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+	require.NoError(t, tmpFile.Close())
 
 	// Test with empty file
 	size, err := readBPFJITBufferBytes(tmpFile.Name())
@@ -64,12 +68,14 @@ func Test_readBPFJITBufferBytes_InvalidFormat(t *testing.T) {
 	// Create a temporary file with invalid format
 	tmpFile, err := os.CreateTemp("", "invalid_vmallocinfo")
 	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	// Write a line with "bpf_jit_alloc_exec" but with invalid format (missing the size field)
 	_, err = tmpFile.WriteString("0xffffffffc1032000-0xffffffffc1036000 bpf_jit_alloc_exec+0xe/0x20 pages=3 vmalloc N0=3\n")
 	require.NoError(t, err)
-	tmpFile.Close()
+	require.NoError(t, tmpFile.Close())
 
 	// Test with invalid format
 	_, err = readBPFJITBufferBytes(tmpFile.Name())

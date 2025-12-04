@@ -329,7 +329,9 @@ func TestRegisterPluginRoutes(t *testing.T) {
 	// Test the plugins endpoint
 	resp, err := http.Get(server.URL + "/v1/plugins")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// Should get a response (we don't care about the exact content, just that the route is registered)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)

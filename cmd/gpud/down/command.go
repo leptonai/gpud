@@ -74,7 +74,9 @@ func Command(cliContext *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to open state file %q: %w", stateFile, err)
 		}
-		defer dbRW.Close()
+		defer func() {
+			_ = dbRW.Close()
+		}()
 		log.Logger.Debugw("successfully opened state file for writing")
 
 		rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)

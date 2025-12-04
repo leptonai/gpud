@@ -329,9 +329,10 @@ func TestComplexDeviceHierarchy(t *testing.T) {
 	// Find devices by name (order may vary due to sorting)
 	var sda, nvme *BlockDevice
 	for i := range devs {
-		if devs[i].Name == "/dev/sda" {
+		switch devs[i].Name {
+		case "/dev/sda":
 			sda = &devs[i]
-		} else if devs[i].Name == "/dev/nvme0n1" {
+		case "/dev/nvme0n1":
 			nvme = &devs[i]
 		}
 	}

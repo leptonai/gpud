@@ -90,7 +90,9 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRW.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
 	log.Logger.Debugw("successfully opened state file for writing")
 
 	log.Logger.Debugw("opening state file for reading")
@@ -98,7 +100,9 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 	log.Logger.Debugw("successfully opened state file for reading")
 
 	// in case the table has not been created

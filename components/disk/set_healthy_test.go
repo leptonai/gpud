@@ -59,7 +59,9 @@ func TestComponent_SetHealthy(t *testing.T) {
 
 			comp, err := New(gpudInstance)
 			require.NoError(t, err)
-			defer comp.Close()
+			defer func() {
+				_ = comp.Close()
+			}()
 
 			c := comp.(*component)
 
@@ -119,7 +121,9 @@ func TestComponent_SetHealthy_ContextTimeout(t *testing.T) {
 
 	comp, err := New(gpudInstance)
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	c := comp.(*component)
 
@@ -151,7 +155,9 @@ func TestComponent_ImplementsHealthSettable(t *testing.T) {
 
 	comp, err := New(gpudInstance)
 	require.NoError(t, err)
-	defer comp.Close()
+	defer func() {
+		_ = comp.Close()
+	}()
 
 	// This will fail to compile if component doesn't implement HealthSettable
 	var _ components.HealthSettable = comp.(*component)

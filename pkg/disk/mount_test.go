@@ -12,7 +12,9 @@ func Test_findMntTargetDevice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open testdata/mountinfo: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	buf := bufio.NewScanner(f)
 
@@ -33,7 +35,9 @@ func Test_findFsTypeAndDeviceByMinorNumber1(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open testdata/mountinfo: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	buf := bufio.NewScanner(f)
 
@@ -54,7 +58,9 @@ func Test_findFsTypeAndDeviceByMinorNumber2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open testdata/mountinfo: %v", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	buf := bufio.NewScanner(f)
 

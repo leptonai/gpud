@@ -278,7 +278,7 @@ func TestSendRequest_ReadError(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to hijack connection: %v", err)
 		}
-		conn.Close() // This forces the connection to close abruptly
+		_ = conn.Close() // This forces the connection to close abruptly
 	}))
 	defer server.Close()
 

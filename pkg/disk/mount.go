@@ -15,7 +15,9 @@ func FindMntTargetDevice(dir string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	return findMntTargetDevice(bufio.NewScanner(file), dir)
 }
@@ -106,7 +108,9 @@ func FindFsTypeAndDeviceByMinorNumber(minor int) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	return findFsTypeAndDeviceByMinorNumber(bufio.NewScanner(file), minor)
 }

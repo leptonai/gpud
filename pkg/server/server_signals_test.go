@@ -108,7 +108,7 @@ func TestHandleSignalsSIGUSR1(t *testing.T) {
 	require.NoError(t, err, "Stack dump file should exist")
 
 	// Clean up the file
-	os.Remove(stackFile)
+	_ = os.Remove(stackFile)
 
 	assert.False(t, mockSrv.stopCalled, "Server.Stop() should not have been called")
 	assert.False(t, notifyStoppingCalled, "notifyStopping should not have been called")
@@ -173,7 +173,9 @@ func TestDumpStacks(t *testing.T) {
 	// Create a temporary file to dump stacks to
 	tmpDir, err := os.MkdirTemp("", "gpud-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	stackFile := filepath.Join(tmpDir, "stacks.log")
 

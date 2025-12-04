@@ -39,13 +39,17 @@ func CommandStartup(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRW.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
 
 	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
@@ -96,13 +100,17 @@ func CommandShutdown(cliContext *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRW.Close()
+	defer func() {
+		_ = dbRW.Close()
+	}()
 
 	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
-	defer dbRO.Close()
+	defer func() {
+		_ = dbRO.Close()
+	}()
 
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer rootCancel()
@@ -163,7 +171,9 @@ func sendNotification(endpoint string, req apiv1.NotificationRequest, token stri
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	if response.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(response.Body)
 		if err != nil {
@@ -172,7 +182,7 @@ func sendNotification(endpoint string, req apiv1.NotificationRequest, token stri
 		var errorResponse apiv1.NotificationResponse
 		err = json.Unmarshal(body, &errorResponse)
 		if err != nil {
-			return fmt.Errorf("Error parsing error response: %v\nResponse body: %s", err, body)
+			return fmt.Errorf("parsing error response: %v\nresponse body: %s", err, body)
 		}
 		return fmt.Errorf("failed to send notification: %v", errorResponse)
 	}

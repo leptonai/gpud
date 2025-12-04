@@ -10,6 +10,7 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -344,7 +345,7 @@ func TestClose(t *testing.T) {
 
 	// Set the kmsgSyncer field directly for testing
 	// This is a workaround to avoid type issues
-	c.Close()
+	require.NoError(t, c.Close())
 
 	mockEventBucket.AssertCalled(t, "Close")
 }
@@ -386,7 +387,7 @@ func TestStart(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Cleanup
-	c.Close()
+	require.NoError(t, c.Close())
 }
 
 func TestCheck(t *testing.T) {

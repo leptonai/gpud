@@ -12,9 +12,9 @@ import (
 // TestNewDefaultNoEnvVars tests the NewDefault function when no environment variables are set
 func TestNewDefaultNoEnvVars(t *testing.T) {
 	// Make sure environment variables are not set
-	os.Unsetenv(EnvMockAllSuccess)
-	os.Unsetenv(EnvInjectRemapedRowsPending)
-	os.Unsetenv(EnvInjectClockEventsHwSlowdown)
+	require.NoError(t, os.Unsetenv(EnvMockAllSuccess))
+	require.NoError(t, os.Unsetenv(EnvInjectRemapedRowsPending))
+	require.NoError(t, os.Unsetenv(EnvInjectClockEventsHwSlowdown))
 
 	// Create a new library instance
 	lib, err := New(WithInitReturn(nvml.SUCCESS))
@@ -33,7 +33,7 @@ func TestNewDefaultMockAllSuccess(t *testing.T) {
 	defer cleanupEnvVars()
 
 	// Set the environment variable
-	os.Setenv(EnvMockAllSuccess, "true")
+	require.NoError(t, os.Setenv(EnvMockAllSuccess, "true"))
 
 	// Create a new library instance
 	lib, err := New()
@@ -59,9 +59,9 @@ func TestNewDefaultMultipleEnvVars(t *testing.T) {
 	defer cleanupEnvVars()
 
 	// Set multiple environment variables
-	os.Setenv(EnvMockAllSuccess, "true")
-	os.Setenv(EnvInjectRemapedRowsPending, "true")
-	os.Setenv(EnvInjectClockEventsHwSlowdown, "true")
+	require.NoError(t, os.Setenv(EnvMockAllSuccess, "true"))
+	require.NoError(t, os.Setenv(EnvInjectRemapedRowsPending, "true"))
+	require.NoError(t, os.Setenv(EnvInjectClockEventsHwSlowdown, "true"))
 
 	// Create a new library instance
 	lib, err := New()
@@ -96,7 +96,7 @@ func TestNewDefaultMultipleEnvVars(t *testing.T) {
 
 // Utility function to clean up environment variables
 func cleanupEnvVars() {
-	os.Unsetenv(EnvMockAllSuccess)
-	os.Unsetenv(EnvInjectRemapedRowsPending)
-	os.Unsetenv(EnvInjectClockEventsHwSlowdown)
+	_ = os.Unsetenv(EnvMockAllSuccess)
+	_ = os.Unsetenv(EnvInjectRemapedRowsPending)
+	_ = os.Unsetenv(EnvInjectClockEventsHwSlowdown)
 }

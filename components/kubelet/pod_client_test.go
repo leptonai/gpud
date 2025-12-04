@@ -153,7 +153,9 @@ func Test_parsePodsFromKubeletReadOnlyPort(t *testing.T) {
 
 	file, err := os.OpenFile("kubelet-readonly-pods.json", os.O_RDONLY, 0644)
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	pods, err := parsePodsFromKubeletReadOnlyPort(file)
 	require.NoError(t, err)

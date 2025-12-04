@@ -107,7 +107,9 @@ func ReadAllMetadata(ctx context.Context, dbRO *sql.DB) (map[string]string, erro
 		}
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	metadata := make(map[string]string)
 	for rows.Next() {

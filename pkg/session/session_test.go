@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
@@ -546,7 +547,7 @@ func TestWriteBodyToPipe(t *testing.T) {
 			}()
 
 			err := s.writeBodyToPipe(writer, tt.body)
-			writer.Close()
+			require.NoError(t, writer.Close())
 
 			<-done // Wait for reading to complete
 
@@ -682,8 +683,8 @@ func TestHandleReaderPipe(t *testing.T) {
 				}
 			}
 
-			writer.Close()
-			reader.Close()
+			require.NoError(t, writer.Close())
+			require.NoError(t, reader.Close())
 		})
 	}
 }

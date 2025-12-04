@@ -45,7 +45,9 @@ func GetPluginSpecs(ctx context.Context, addr string, opts ...OpOption) (pkgcust
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
@@ -71,7 +73,9 @@ func ReadPluginSpecs(rd io.Reader, opts ...OpOption) (pkgcustomplugins.Specs, er
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gr.Close()
+		defer func() {
+			_ = gr.Close()
+		}()
 
 		switch op.requestContentType {
 		case httputil.RequestHeaderJSON, "":

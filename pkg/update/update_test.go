@@ -36,7 +36,9 @@ func TestPackageUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
 
 	// Test error path for non-existent directory
 	err = packageUpdate("/non-existent/dir", t.TempDir(), "test-pkg", "0.0.1", DefaultUpdateURL)
