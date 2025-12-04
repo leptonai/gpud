@@ -56,4 +56,3 @@ jobs:
           echo "Pushing helm chart ${CHART_NAME}-${CHART_VERSION}.tgz to oci://ghcr.io/${REPOSITORY_OWNER}"
           helm push "${CHART_NAME}-${CHART_VERSION}.tgz" "oci://ghcr.io/chart/${REPOSITORY_OWNER}"
 
-
