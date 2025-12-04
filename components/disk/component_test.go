@@ -3776,7 +3776,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		cr := result.(*checkResult)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
-		assert.Contains(t, cr.reason, "/: free space 15 GiB is below 20 GiB threshold (100 GiB total)")
+		assert.Contains(t, cr.reason, "ext4 partition /: free space 15 GiB is below 20 GiB threshold (100 GiB total)")
 	})
 
 	// Removed unhealthy threshold test cases
@@ -3934,7 +3934,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		cr := result.(*checkResult)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
-		assert.Contains(t, cr.reason, "free space 400 MiB is below 500 MiB threshold")
+		assert.Contains(t, cr.reason, "ext4 partition /: free space 400 MiB is below 500 MiB threshold")
 	})
 
 	t.Run("combined with other failure reasons (rootfs + NFS)", func(t *testing.T) {
@@ -3992,7 +3992,90 @@ func TestDiskUsageThresholds(t *testing.T) {
 		// Should be degraded due to low free space and NFS timeout
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		// Should contain both reasons with free-space threshold messaging
-		assert.Contains(t, cr.reason, "/: free space 4.0 GiB is below 10 GiB threshold")
+		assert.Contains(t, cr.reason, "ext4 partition /: free space 4.0 GiB is below 10 GiB threshold")
 		assert.Contains(t, cr.reason, "stat timed out (possible connection issue)")
+	})
+
+	t.Run("kubernetes_DiskPressure_percentage_threshold_warning", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/"}, []string{})
+		defer c.Close()
+
+		// Set percentage threshold explicitly (matches Kubernetes default nodefs.available<10%)
+		c.freeSpaceThresholdPercent = 10.0
+		// Set bytes threshold high enough that it won't trigger
+		c.freeSpaceThresholdBytesDegraded = 1 * 1024 * 1024 // 1MB
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		// Create partition with 5% free space (below 10% threshold)
+		// This should trigger the Kubernetes DiskPressure warning log
+		mockPartition := disk.Partition{
+			Device:     "/dev/sda1",
+			MountPoint: "/",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 100, // 100GB
+				UsedBytes:  1024 * 1024 * 1024 * 95,  // 95GB (95% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 5,   // 5GB (5% free)
+			},
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		// Should still be healthy because percentage threshold only logs warning,
+		// doesn't affect health state (bytes threshold is not exceeded)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
+	})
+
+	t.Run("kubernetes_DiskPressure_threshold_above_10_percent_no_warning", func(t *testing.T) {
+		c := createTestComponent(ctx, []string{"/"}, []string{})
+		defer c.Close()
+
+		// Set percentage threshold explicitly
+		c.freeSpaceThresholdPercent = 10.0
+		// Set bytes threshold high enough that it won't trigger
+		c.freeSpaceThresholdBytesDegraded = 1 * 1024 * 1024 // 1MB
+
+		mockDevice := disk.BlockDevice{
+			Name: "sda",
+			Type: "disk",
+		}
+
+		// Create partition with 15% free space (above 10% threshold)
+		// This should NOT trigger the Kubernetes DiskPressure warning
+		mockPartition := disk.Partition{
+			Device:     "/dev/sda1",
+			MountPoint: "/",
+			Usage: &disk.Usage{
+				TotalBytes: 1024 * 1024 * 1024 * 100, // 100GB
+				UsedBytes:  1024 * 1024 * 1024 * 85,  // 85GB (85% usage)
+				FreeBytes:  1024 * 1024 * 1024 * 15,  // 15GB (15% free)
+			},
+		}
+
+		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+			return disk.BlockDevices{mockDevice}, nil
+		}
+		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+			return disk.Partitions{mockPartition}, nil
+		}
+
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		// Should be healthy - above all thresholds
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
 	})
 }

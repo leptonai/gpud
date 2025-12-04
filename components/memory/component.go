@@ -27,6 +27,14 @@ import (
 // Name is the ID of the memory component.
 const Name = "memory"
 
+const (
+	// defaultAvailableThresholdBytes mirrors Kubernetes' default memory.available
+	// hard eviction threshold. When available memory falls below this value,
+	// kubelet reports MemoryPressure and may evict pods.
+	// ref. https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/
+	defaultAvailableThresholdBytes = 100 * 1024 * 1024 // 100Mi
+)
+
 var _ components.Component = &component{}
 
 type component struct {
@@ -37,6 +45,13 @@ type component struct {
 
 	getVirtualMemoryFunc            func(context.Context) (*mem.VirtualMemoryStat, error)
 	getCurrentBPFJITBufferBytesFunc func() (uint64, error)
+
+	// availableThresholdBytes is the threshold for available memory in bytes.
+	// When available memory falls below this value, a warning is logged.
+	// This mirrors Kubernetes' memory.available threshold for MemoryPressure detection.
+	// ref. https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/
+	// Default is 100Mi (matches Kubernetes default).
+	availableThresholdBytes uint64
 
 	eventBucket eventstore.Bucket
 	kmsgSyncer  *kmsg.Syncer
@@ -57,6 +72,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		getVirtualMemoryFunc:            mem.VirtualMemoryWithContext,
 		getCurrentBPFJITBufferBytesFunc: getCurrentBPFJITBufferBytes,
+
+		availableThresholdBytes: defaultAvailableThresholdBytes,
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -190,6 +207,18 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 		cr.BPFJITBufferBytes = bpfJITBufferBytes
+	}
+
+	// Check if available memory falls below Kubernetes MemoryPressure threshold
+	// This only logs a warning and does not affect health state
+	// ref. https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/
+	if cr.AvailableBytes < c.availableThresholdBytes {
+		log.Logger.Warnw("available memory below kubernetes MemoryPressure threshold (memory.available)",
+			"available_bytes", humanize.IBytes(cr.AvailableBytes),
+			"threshold_bytes", humanize.IBytes(c.availableThresholdBytes),
+			"total_bytes", humanize.IBytes(cr.TotalBytes),
+			"used_percent", cr.UsedPercent,
+		)
 	}
 
 	cr.health = apiv1.HealthStateTypeHealthy
