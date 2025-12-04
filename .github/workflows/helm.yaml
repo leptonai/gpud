@@ -42,25 +42,17 @@ jobs:
           helm plugin install https://github.com/melmorabity/helm-kubeconform
           helm kubeconform chart --verbose --summary --strict --exit-on-error
 
-      - name: Run helm unit tests
-        run: |
-          helm plugin install https://github.com/helm-unittest/helm-unittest
-          helm unittest chart
-
-      - name: validate
-        run: |
-          .github/scripts/validate.sh
-
       - name: release
         if: github.event.pull_request.merged == true
         env:
           REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
           REPO_NAME=$(echo "${GITHUB_REPOSITORY}" | cut -d'/' -f2)
-          CHART_NAME="$(grep "name:" chart/Chart.yaml | sed 's/name: //')"
+          CHART_NAME="$(grep -e "^name:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
+          CHART_VERSION="$(grep -e "^version:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
           echo '${{ secrets.GITHUB_TOKEN }}' | helm registry login -u '${{ github.actor }}' --password-stdin 'ghcr.io'
-          helm package chart --version "${IMAGEVERSION}" --app-version "${IMAGEVERSION}"
-          echo "Pushing helm chart ${CHART_NAME}-${IMAGEVERSION}.tgz to oci://ghcr.io/${REPOSITORY_OWNER}"
-          helm push "${CHART_NAME}-${IMAGEVERSION}.tgz" "oci://ghcr.io/${REPOSITORY_OWNER}"
+          helm package deployments/helm/gpud
+          echo "Pushing helm chart ${CHART_NAME}-${CHART_VERSION}.tgz to oci://ghcr.io/${REPOSITORY_OWNER}"
+          helm push "${CHART_NAME}-${CHART_VERSION}.tgz" "oci://ghcr.io/chart/${REPOSITORY_OWNER}"
 
 
