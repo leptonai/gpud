@@ -384,6 +384,14 @@ func Test_findMntTargetDevice_EdgeCases(t *testing.T) {
 			expectedFsType: "",
 			expectError:    false,
 		},
+		{
+			name:           "trailing slash in target dir - should match mount point without slash",
+			mountinfoData:  "1 2 3 4 /test 6 7 8 9 10 11 - ext4 /dev/sda1 rw",
+			targetDir:      "/test/",
+			expectedDev:    "/dev/sda1",
+			expectedFsType: "ext4",
+			expectError:    false,
+		},
 	}
 
 	for _, tt := range tests {

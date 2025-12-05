@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -25,6 +26,8 @@ func FindMntTargetDevice(dir string) (string, string, error) {
 // findMntTargetDevice is a helper function to find the mount target device and its file system type
 // for a given target directory.
 func findMntTargetDevice(scanner *bufio.Scanner, dir string) (string, string, error) {
+	dir = filepath.Clean(dir)
+
 	var autofsDev, autofsFsType string
 	var foundAutofs bool
 
