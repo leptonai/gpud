@@ -12,6 +12,7 @@ import (
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
+	gopsutilmem "github.com/shirou/gopsutil/v4/mem"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -32,8 +33,9 @@ type component struct {
 
 	getTimeNowFunc func() time.Time
 
-	nvmlInstance  nvidianvml.Instance
-	getMemoryFunc func(uuid string, dev device.Device) (Memory, error)
+	nvmlInstance         nvidianvml.Instance
+	getMemoryFunc        func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error)
+	getVirtualMemoryFunc func(context.Context) (*gopsutilmem.VirtualMemoryStat, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -47,8 +49,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		nvmlInstance:  gpudInstance.NVMLInstance,
-		getMemoryFunc: GetMemory,
+		nvmlInstance:         gpudInstance.NVMLInstance,
+		getMemoryFunc:        GetMemory,
+		getVirtualMemoryFunc: gopsutilmem.VirtualMemoryWithContext,
 	}
 	return c, nil
 }
@@ -137,8 +140,9 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
+	productName := c.nvmlInstance.ProductName()
 	for uuid, dev := range devs {
-		mem, err := c.getMemoryFunc(uuid, dev)
+		mem, err := c.getMemoryFunc(uuid, dev, productName, c.getVirtualMemoryFunc)
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeUnhealthy
@@ -234,7 +238,7 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"GPU UUID", "Total", "Reserved", "Used", "Free", "Used %"})
+	table.SetHeader([]string{"GPU UUID", "Total", "Reserved", "Used", "Free", "Used %", "Unified"})
 	for _, mem := range cr.Memories {
 		table.Append([]string{
 			mem.UUID,
@@ -243,6 +247,7 @@ func (cr *checkResult) String() string {
 			mem.UsedHumanized,
 			mem.FreeHumanized,
 			mem.UsedPercent,
+			fmt.Sprintf("%v", mem.IsUnifiedMemory),
 		})
 	}
 	table.Render()
