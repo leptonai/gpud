@@ -80,7 +80,11 @@ func createLoginRequest(
 
 	req.Provider = detectedProvider.Provider
 	req.ProviderInstanceID = detectedProvider.InstanceID
+
+	// we always prioritize the provider's public IP and private IP
+	// even if the local network interface has a private IP
 	req.Network.PublicIP = detectedProvider.PublicIP
+	req.Network.PrivateIP = detectedProvider.PrivateIP
 
 	log.Logger.Debugw("login request provider fields set",
 		"provider", req.Provider,
@@ -99,14 +103,14 @@ func createLoginRequest(
 			}
 			if req.Network.PrivateIP == "" && iface.Addr.IsPrivate() && iface.Addr.Is4() {
 				req.Network.PrivateIP = iface.IP
+				log.Logger.Infow("provider private IP not available, using local network interface", "ip", req.Network.PrivateIP, "interface", iface.Interface)
 				break
 			}
 		}
 	}
 
 	if req.Network.PrivateIP == "" {
-		log.Logger.Warnw("no private ip found, falling back to provider private ip", "provider", req.Provider, "privateIP", detectedProvider.PrivateIP)
-		req.Network.PrivateIP = detectedProvider.PrivateIP
+		log.Logger.Warnw("no private ip found", "provider", req.Provider, "providerPrivateIP", detectedProvider.PrivateIP)
 	}
 
 	// represents the CPU, in cores (500m = .5 cores).
