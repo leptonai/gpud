@@ -1,11 +1,15 @@
 package memory
 
 import (
+	"context"
 	"fmt"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/dustin/go-humanize"
+	gopsutilmem "github.com/shirou/gopsutil/v4/mem"
 
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
@@ -36,6 +40,12 @@ type Memory struct {
 
 	// Supported is true if the memory is supported by the device.
 	Supported bool `json:"supported"`
+
+	// IsUnifiedMemory is true when the GPU uses unified memory architecture
+	// (shared CPU/GPU memory) and traditional NVML memory APIs are not supported.
+	// In this case, system memory values are reported instead.
+	// ref. https://docs.nvidia.com/dgx/dgx-spark/known-issues.html
+	IsUnifiedMemory bool `json:"is_unified_memory"`
 }
 
 func (mem Memory) GetUsedPercent() (float64, error) {
@@ -45,7 +55,11 @@ func (mem Memory) GetUsedPercent() (float64, error) {
 	return strconv.ParseFloat(mem.UsedPercent, 64)
 }
 
-func GetMemory(uuid string, dev device.Device) (Memory, error) {
+// GetVirtualMemoryFunc is the function type for getting virtual memory stats.
+// This allows for dependency injection in tests.
+type GetVirtualMemoryFunc func(context.Context) (*gopsutilmem.VirtualMemoryStat, error)
+
+func GetMemory(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
 	mem := Memory{
 		UUID:      uuid,
 		BusID:     dev.PCIBusID(),
@@ -72,10 +86,45 @@ func GetMemory(uuid string, dev device.Device) (Memory, error) {
 			log.Logger.Warnw("failed to get device memory info v1", "error", nvml.ErrorString(retV1))
 
 			if nvmlerrors.IsNotSupportError(retV1) {
-				// NOTE: "NVIDIA-GB10" NVIDIA RTX blackwell with "blackwell" architecture does not support v2/v1 API
-				// with the error "Not Supported" for both v2 and v1 API
-				log.Logger.Warnw("device memory info v1 is not supported", "error", nvml.ErrorString(retV1))
+				// DGX Spark (GB10) uses unified memory architecture where 128GB RAM is shared
+				// between CPU and GPU. Traditional NVML memory APIs return "Not Supported"
+				// because there's no dedicated GPU framebuffer.
+				// ref. https://docs.nvidia.com/dgx/dgx-spark/known-issues.html
+				// ref. https://forums.developer.nvidia.com/t/nvtop-with-dgx-spark-unified-memory-support/351284
+				// Following NVTOP's approach: fall back to system memory via gopsutil when
+				// NVML GetMemoryInfo fails on unified memory devices.
+				if strings.HasSuffix(productName, "GB10") && getVirtualMemoryFunc != nil {
+					log.Logger.Warnw("NVML memory APIs not supported for unified memory device, falling back to system memory",
+						"product_name", productName,
+						"error", nvml.ErrorString(retV1),
+					)
 
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					vm, err := getVirtualMemoryFunc(ctx)
+					cancel()
+					if err != nil {
+						log.Logger.Warnw("failed to get system memory for unified memory device", "error", err)
+						mem.Supported = false
+						return mem, nil
+					}
+
+					mem.TotalBytes = vm.Total
+					mem.FreeBytes = vm.Free
+					mem.UsedBytes = vm.Used
+					mem.TotalHumanized = humanize.IBytes(vm.Total)
+					mem.FreeHumanized = humanize.IBytes(vm.Free)
+					mem.UsedHumanized = humanize.IBytes(vm.Used)
+					if vm.Total > 0 {
+						mem.UsedPercent = fmt.Sprintf("%.2f", vm.UsedPercent)
+					} else {
+						mem.UsedPercent = "0.0"
+					}
+					mem.IsUnifiedMemory = true
+					mem.Supported = true
+					return mem, nil
+				}
+
+				log.Logger.Warnw("device memory info v1 is not supported", "error", nvml.ErrorString(retV1))
 				mem.Supported = false
 				return mem, nil
 			}
