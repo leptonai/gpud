@@ -99,6 +99,7 @@ func createLoginRequest(
 			}
 			if req.Network.PrivateIP == "" && iface.Addr.IsPrivate() && iface.Addr.Is4() {
 				req.Network.PrivateIP = iface.IP
+				log.Logger.Infow("using local private IP from network interface", "ip", req.Network.PrivateIP, "interface", iface.Interface)
 				break
 			}
 		}
