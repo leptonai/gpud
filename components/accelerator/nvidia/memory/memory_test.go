@@ -1,11 +1,13 @@
 package memory
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	gopsutilmem "github.com/shirou/gopsutil/v4/mem"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
@@ -129,7 +131,7 @@ func TestGetMemory(t *testing.T) {
 				tc.memory, tc.memoryRet,
 			)
 
-			mem, err := GetMemory("test-uuid", mockDevice)
+			mem, err := GetMemory("test-uuid", mockDevice, "", nil)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -160,11 +162,102 @@ func TestGetMemoryWithDirectGPULostError(t *testing.T) {
 	dev := testutil.NewMockDevice(mockDevice, "test-arch", "test-brand", "test-cuda", "test-pci")
 
 	// Call the function
-	_, err := GetMemory("GPU-LOST", dev)
+	_, err := GetMemory("GPU-LOST", dev, "", nil)
 
 	// Check that we get a GPU lost error
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, nvmlerrors.ErrGPULost))
+}
+
+// TestGetMemoryGB10UnifiedMemory tests the unified memory fallback for GB10 devices
+func TestGetMemoryGB10UnifiedMemory(t *testing.T) {
+	// Create a mock device that simulates GB10 (both APIs return not supported)
+	mockDevice := &mock.Device{
+		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_NOT_SUPPORTED
+		},
+		GetMemoryInfo_v2Func: func() (nvml.Memory_v2, nvml.Return) {
+			return nvml.Memory_v2{}, nvml.ERROR_NOT_SUPPORTED
+		},
+	}
+
+	// Wrap with testutil.MockDevice
+	dev := testutil.NewMockDevice(mockDevice, "blackwell", "NVIDIA RTX", "13.0", "0000:0f:00.0")
+
+	// Mock virtual memory function
+	mockVirtualMemory := func(ctx context.Context) (*gopsutilmem.VirtualMemoryStat, error) {
+		return &gopsutilmem.VirtualMemoryStat{
+			Total:       128 * 1024 * 1024 * 1024, // 128 GB
+			Free:        64 * 1024 * 1024 * 1024,  // 64 GB
+			Used:        64 * 1024 * 1024 * 1024,  // 64 GB
+			UsedPercent: 50.0,
+		}, nil
+	}
+
+	// Call the function with GB10 product name
+	mem, err := GetMemory("gpu-uuid", dev, "NVIDIA GB10", mockVirtualMemory)
+
+	// Should succeed with unified memory
+	assert.NoError(t, err)
+	assert.True(t, mem.Supported)
+	assert.True(t, mem.IsUnifiedMemory)
+	assert.Equal(t, uint64(128*1024*1024*1024), mem.TotalBytes)
+	assert.Equal(t, uint64(64*1024*1024*1024), mem.FreeBytes)
+	assert.Equal(t, uint64(64*1024*1024*1024), mem.UsedBytes)
+	assert.Equal(t, "50.00", mem.UsedPercent)
+}
+
+// TestGetMemoryGB10UnifiedMemoryError tests error handling when system memory fetch fails for GB10
+func TestGetMemoryGB10UnifiedMemoryError(t *testing.T) {
+	// Create a mock device that simulates GB10 (both APIs return not supported)
+	mockDevice := &mock.Device{
+		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_NOT_SUPPORTED
+		},
+		GetMemoryInfo_v2Func: func() (nvml.Memory_v2, nvml.Return) {
+			return nvml.Memory_v2{}, nvml.ERROR_NOT_SUPPORTED
+		},
+	}
+
+	// Wrap with testutil.MockDevice
+	dev := testutil.NewMockDevice(mockDevice, "blackwell", "NVIDIA RTX", "13.0", "0000:0f:00.0")
+
+	// Mock virtual memory function that returns an error
+	mockVirtualMemory := func(ctx context.Context) (*gopsutilmem.VirtualMemoryStat, error) {
+		return nil, errors.New("failed to get system memory")
+	}
+
+	// Call the function with GB10 product name
+	mem, err := GetMemory("gpu-uuid", dev, "NVIDIA GB10", mockVirtualMemory)
+
+	// Should return with Supported=false when system memory fetch fails
+	assert.NoError(t, err)
+	assert.False(t, mem.Supported)
+	assert.False(t, mem.IsUnifiedMemory)
+}
+
+// TestGetMemoryNonGB10NotSupported tests that non-GB10 devices still return Supported=false
+func TestGetMemoryNonGB10NotSupported(t *testing.T) {
+	// Create a mock device where both APIs return not supported
+	mockDevice := &mock.Device{
+		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_NOT_SUPPORTED
+		},
+		GetMemoryInfo_v2Func: func() (nvml.Memory_v2, nvml.Return) {
+			return nvml.Memory_v2{}, nvml.ERROR_NOT_SUPPORTED
+		},
+	}
+
+	// Wrap with testutil.MockDevice
+	dev := testutil.NewMockDevice(mockDevice, "ampere", "NVIDIA", "11.0", "0000:0f:00.0")
+
+	// Call with non-GB10 product name
+	mem, err := GetMemory("gpu-uuid", dev, "NVIDIA A100", nil)
+
+	// Should return Supported=false for non-GB10 devices
+	assert.NoError(t, err)
+	assert.False(t, mem.Supported)
+	assert.False(t, mem.IsUnifiedMemory)
 }
 
 func TestMemoryGetUsedPercent(t *testing.T) {
