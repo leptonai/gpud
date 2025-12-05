@@ -72,7 +72,7 @@ type component struct {
 
 	getTimeNowFunc      func() time.Time
 	getThresholdsFunc   func() types.ExpectedPortStates
-	getClassDevicesFunc func() (infinibandclass.Devices, error)
+	getClassDevicesFunc func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -80,6 +80,10 @@ type component struct {
 	// Track when thresholds last recovered for sticky window logic
 	thresholdRecoveryTimeMu sync.RWMutex
 	thresholdRecoveryTime   *time.Time
+
+	// ignoreFiles tracks the files that failed to read (e.g. EINVAL)
+	// to avoid reading them again and causing kernel log spam
+	ignoreFiles map[string]struct{}
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -99,9 +103,19 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		getThresholdsFunc: GetDefaultExpectedPortStates,
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
-			return infinibandclass.LoadDevices(gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir)
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			opts := []infinibandclass.OpOption{
+				infinibandclass.WithIgnoreFiles(ignoreFiles),
+			}
+			// Exclude devices that have restricted PFs and cause ACCESS_REG errors.
+			// ref. https://github.com/prometheus/node_exporter/issues/3434
+			// ref. https://github.com/leptonai/gpud/issues/1164
+			if len(gpudInstance.NVIDIAToolOverwrites.ExcludedInfinibandDevices) > 0 {
+				opts = append(opts, infinibandclass.WithExcludedDevices(gpudInstance.NVIDIAToolOverwrites.ExcludedInfinibandDevices))
+			}
+			return infinibandclass.LoadDevices(gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir, opts...)
 		},
+		ignoreFiles: make(map[string]struct{}),
 	}
 
 	if gpudInstance.DBRW != nil && gpudInstance.DBRO != nil {
@@ -188,7 +202,7 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 	allEvents := evs.Events()
 	filteredEvents := make(apiv1.Events, 0, len(allEvents))
 	for _, ev := range allEvents {
-		if ev.Name == eventPCIPowerInsufficient || ev.Name == eventPortModuleHighTemperature {
+		if ev.Name == eventPCIPowerInsufficient || ev.Name == eventPortModuleHighTemperature || ev.Name == eventAccessRegFailed {
 			filteredEvents = append(filteredEvents, ev)
 		}
 	}
@@ -279,7 +293,7 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	var err error
-	cr.ClassDevices, err = c.getClassDevicesFunc()
+	cr.ClassDevices, err = c.getClassDevicesFunc(c.ignoreFiles)
 	if err != nil {
 		log.Logger.Warnw("error loading infiniband class devices", "devices", len(cr.ClassDevices), "error", err)
 		cr.health = apiv1.HealthStateTypeUnhealthy
