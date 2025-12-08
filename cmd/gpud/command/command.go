@@ -237,6 +237,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "comma-separated list of InfiniBand device names to exclude from monitoring (e.g., 'mlx5_0,mlx5_1'). Use this to skip devices with restricted Physical Functions (PFs) that cause kernel errors (mlx5_cmd_out_err ACCESS_REG). Common on NVIDIA DGX, Umbriel, and GB200 systems. See https://github.com/leptonai/gpud/issues/1164",
 					Value: "",
 				},
+
+				cli.StringFlag{
+					Name:   "gpu-product-name",
+					Usage:  "(testing purposes) set the gpu product name to overwrite",
+					Hidden: true, // only for testing
+				},
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-row-remapping-pending",
 					Usage:  "(testing purposes) set the comma-separated gpu uuids with row remapping pending",
@@ -274,7 +280,7 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-fabric-state-health-summary-unhealthy",
-					Usage:  "(testing purposes) set the comma-separated gpu uuids to return GPU fabric health summary unhealthy (nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY)",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return GPU fabric health summary unhealthy (nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY). NOTE: Only works on multi-GPU NVSwitch systems (H100-SXM, H200-SXM, GB200). Ignored on PCIe variants and single-GPU systems.",
 					Hidden: true, // only for testing
 				},
 			},
@@ -560,6 +566,26 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-hw-slowdown-power-brake",
 					Usage:  "set the comma-separated gpu uuids with hw slowdown power brake",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-gpu-lost",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return 'GPU lost' NVML error",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-gpu-requires-reset",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return 'GPU requires reset' NVML error",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-fabric-state-health-summary-unhealthy",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return GPU fabric health summary unhealthy. NOTE: Only works on multi-GPU NVSwitch systems (H100-SXM, H200-SXM, GB200). Use --gpu-product-name to override.",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-product-name",
+					Usage:  "(testing purposes) override the detected GPU product name to simulate different GPU types (e.g., set 'H100-SXM' on H100-PCIe to enable fabric state testing)",
 					Hidden: true, // only for testing
 				},
 			},
