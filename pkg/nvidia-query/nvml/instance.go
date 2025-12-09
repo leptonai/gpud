@@ -20,6 +20,14 @@ type FailureInjectorConfig struct {
 	GPUUUIDsWithGPULost                           []string
 	GPUUUIDsWithGPURequiresReset                  []string
 	GPUUUIDsWithFabricStateHealthSummaryUnhealthy []string
+
+	// GPUProductNameOverride overrides the detected GPU product name.
+	// This is useful for testing fabric state failure injection on systems where
+	// the actual GPU (e.g., H100-PCIe) doesn't support fabric state monitoring.
+	// Set this to a product name like "H100-SXM" to simulate a fabric-capable GPU.
+	// When set, this affects FabricStateSupported(), FabricManagerSupported(),
+	// and memory management capabilities detection.
+	GPUProductNameOverride string
 }
 
 var _ Instance = &instance{}
@@ -173,6 +181,16 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 		}
 		productName = name
 		log.Logger.Debugw("detected product name", "productName", productName)
+
+		// Apply product name override for testing if configured
+		// This allows simulating different GPU types (e.g., H100-SXM on H100-PCIe hardware)
+		// to test fabric state failure injection on systems that don't natively support it.
+		if failureInjector != nil && failureInjector.GPUProductNameOverride != "" {
+			log.Logger.Warnw("overriding GPU product name for testing",
+				"original", productName,
+				"override", failureInjector.GPUProductNameOverride)
+			productName = failureInjector.GPUProductNameOverride
+		}
 
 		for _, dev := range devices {
 			uuid, ret := dev.GetUUID()

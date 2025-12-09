@@ -40,12 +40,14 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	var err error
 	if op.failureInjector != nil && (len(op.failureInjector.GPUUUIDsWithGPULost) > 0 ||
 		len(op.failureInjector.GPUUUIDsWithGPURequiresReset) > 0 ||
-		len(op.failureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy) > 0) {
-		// If failure injector is configured for NVML-level errors, use it
+		len(op.failureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy) > 0 ||
+		op.failureInjector.GPUProductNameOverride != "") {
+		// If failure injector is configured for NVML-level errors or product name override, use it
 		nvmlInstance, err = nvidianvml.NewWithFailureInjector(&nvidianvml.FailureInjectorConfig{
 			GPUUUIDsWithGPULost:                           op.failureInjector.GPUUUIDsWithGPULost,
 			GPUUUIDsWithGPURequiresReset:                  op.failureInjector.GPUUUIDsWithGPURequiresReset,
 			GPUUUIDsWithFabricStateHealthSummaryUnhealthy: op.failureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy,
+			GPUProductNameOverride:                        op.failureInjector.GPUProductNameOverride,
 		})
 	} else {
 		nvmlInstance, err = nvidianvml.New()
