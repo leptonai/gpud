@@ -386,19 +386,26 @@ func TestXIDComponent_States(t *testing.T) {
 		wantState []apiv1.HealthState
 	}{
 		{
-			name: "critical xid happened and reboot recovered",
+			// XID 31 has EventTypeWarning in catalog, XID 94 has EventTypeFatal.
+			// In real usage, Match() returns the correct EventType from the catalog.
+			name: "xid events with correct event types from catalog",
 			events: eventstore.Events{
-				createXidEvent(time.Now().Add(-5*24*time.Hour), 31, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
-				createXidEvent(startTime, 31, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
-				createXidEvent(startTime.Add(5*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
+				// XID 31 is Warning -> stays Healthy
+				createXidEvent(time.Now().Add(-5*24*time.Hour), 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
+				// XID 31 is Warning -> stays Healthy
+				createXidEvent(startTime, 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
+				// XID 94 is Fatal -> Unhealthy
+				createXidEvent(startTime.Add(5*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 				{Name: "reboot", Time: startTime.Add(10 * time.Minute)},
-				createXidEvent(startTime.Add(15*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
+				// XID 94 is Fatal -> Unhealthy
+				createXidEvent(startTime.Add(15*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 				{Name: "reboot", Time: startTime.Add(20 * time.Minute)},
-				createXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeCritical, apiv1.RepairActionTypeRebootSystem),
+				// XID 94 is Fatal -> Unhealthy (3rd occurrence, HardwareInspection)
+				createXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			},
 			wantState: []apiv1.HealthState{
-				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
-				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeCheckUserAppAndGPU}}},
+				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeCheckUserAppAndGPU}}},
 				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
 				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: nil},
 				{Health: apiv1.HealthStateTypeUnhealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}}},
@@ -822,11 +829,13 @@ func TestUpdateCurrentState(t *testing.T) {
 	assert.Len(t, initialStates, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, initialStates[0].Health, "Initial state should be healthy")
 
-	warningTime := time.Now().Add(-5 * time.Minute)
+	// XID 94 has EventTypeFatal in the catalog. In real usage, Match() returns
+	// the correct EventType from the catalog when parsing kmsg.
+	fatalTime := time.Now().Add(-5 * time.Minute)
 	xid94Event := eventstore.Event{
-		Time: warningTime,
+		Time: fatalTime,
 		Name: EventNameErrorXid,
-		Type: string(apiv1.EventTypeWarning),
+		Type: string(apiv1.EventTypeFatal), // XID 94 is Fatal in catalog
 		ExtraInfo: map[string]string{
 			EventKeyErrorXidData: "94",
 			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
@@ -839,21 +848,21 @@ func TestUpdateCurrentState(t *testing.T) {
 	err = c.eventBucket.Insert(ctx, xid94Event)
 	assert.NoError(t, err)
 
-	// Update state based on the warning event
+	// Update state based on the fatal event
 	err = c.updateCurrentState()
 	assert.NoError(t, err)
 
 	// Check that the state was updated to unhealthy (XID 94 is fatal in catalog)
-	warningStates := comp.LastHealthStates()
-	assert.Len(t, warningStates, 1)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, warningStates[0].Health, "State should be unhealthy after XID 94 event")
-	assert.NotNil(t, warningStates[0].SuggestedActions, "Should have suggested actions")
-	assert.Contains(t, warningStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	fatalStates := comp.LastHealthStates()
+	assert.Len(t, fatalStates, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, fatalStates[0].Health, "State should be unhealthy after XID 94 event")
+	assert.NotNil(t, fatalStates[0].SuggestedActions, "Should have suggested actions")
+	assert.Contains(t, fatalStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 
 	// Now test with XID 79 (GPU has fallen off the bus) which should recommend reboot
-	fatalTime := time.Now().Add(-4 * time.Minute)
+	xid79Time := time.Now().Add(-4 * time.Minute)
 	xid79Event := eventstore.Event{
-		Time: fatalTime,
+		Time: xid79Time,
 		Name: EventNameErrorXid,
 		Type: string(apiv1.EventTypeFatal),
 		ExtraInfo: map[string]string{
@@ -873,11 +882,11 @@ func TestUpdateCurrentState(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Check that the state is unhealthy and recommends reboot
-	fatalStates := comp.LastHealthStates()
-	assert.Len(t, fatalStates, 1)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, fatalStates[0].Health, "State should be unhealthy after fatal event")
-	assert.NotNil(t, fatalStates[0].SuggestedActions, "Should have suggested actions")
-	assert.Contains(t, fatalStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	xid79States := comp.LastHealthStates()
+	assert.Len(t, xid79States, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, xid79States[0].Health, "State should be unhealthy after fatal event")
+	assert.NotNil(t, xid79States[0].SuggestedActions, "Should have suggested actions")
+	assert.Contains(t, xid79States[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 
 	// Insert a reboot event (which should reset the state to healthy)
 	rebootTime := time.Now().Add(-2 * time.Minute)

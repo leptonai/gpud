@@ -78,10 +78,10 @@ func GetDetail(id int) (*Detail, bool) {
 	return &e, ok
 }
 
-// GetDetailWithSubCode returns the XID detail for a given base code and subcode.
+// getDetailWithSubCode returns the XID detail for a given base code and subcode.
 // For XIDs 144-150, subcode information is derived from NVIDIA's NVLink catalog.
-func GetDetailWithSubCode(id int, subCode int) (*Detail, bool) {
-	if subMap, ok := detailsWithSubCodes[id]; ok {
+func getDetailWithSubCode(xid int, subCode int) (*Detail, bool) {
+	if subMap, ok := detailsWithSubCodes[xid]; ok {
 		if detail, ok := subMap[subCode]; ok {
 			copy := detail
 			return &copy, true
@@ -91,13 +91,13 @@ func GetDetailWithSubCode(id int, subCode int) (*Detail, bool) {
 			return &copy, true
 		}
 	}
-	return GetDetail(id)
+	return GetDetail(xid)
 }
 
-// GetDetailWithSubCodeAndStatus returns the XID detail for a given base code, subcode, and errorStatus
+// getDetailWithSubCodeAndStatus returns the XID detail for a given base code, subcode, and errorStatus
 // for NVLink XIDs (144-150). Falls back progressively to subcode-only and then to base detail.
-func GetDetailWithSubCodeAndStatus(id int, subCode int, errorStatus uint32) (*Detail, bool) {
-	if statusMap, ok := detailsWithSubCodesByStatus[id]; ok {
+func getDetailWithSubCodeAndStatus(xid int, subCode int, errorStatus uint32) (*Detail, bool) {
+	if statusMap, ok := detailsWithSubCodesByStatus[xid]; ok {
 		if subMap, ok := statusMap[subCode]; ok {
 			if detail, ok := subMap[errorStatus]; ok {
 				copy := detail
@@ -105,7 +105,7 @@ func GetDetailWithSubCodeAndStatus(id int, subCode int, errorStatus uint32) (*De
 			}
 		}
 	}
-	return GetDetailWithSubCode(id, subCode)
+	return getDetailWithSubCode(xid, subCode)
 }
 
 // make sure we do not have unknown event type
@@ -2922,7 +2922,7 @@ func detailFromNVLinkInfo(info *XidExtractedInfo) (*Detail, bool) {
 		return nil, false
 	}
 
-	detailLookup, ok := GetDetailWithSubCodeAndStatus(info.Xid, info.SubCode, info.ErrorStatus)
+	detailLookup, ok := getDetailWithSubCodeAndStatus(info.Xid, info.SubCode, info.ErrorStatus)
 	var detail Detail
 	if ok && detailLookup != nil {
 		detail = *detailLookup
