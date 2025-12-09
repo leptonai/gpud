@@ -96,6 +96,13 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 				lastSuggestedAction = currXidErr.SuggestedActionsByGPUd
 			}
 		} else if event.Name == "reboot" {
+			// Clear the error state on reboot ONLY if:
+			// 1. lastSuggestedAction is not nil (XID must have SuggestedActionsByGPUd defined)
+			// 2. The first repair action is RebootSystem or CheckUserAppAndGPU
+			//
+			// IMPORTANT: XIDs with SuggestedActionsByGPUd=nil will NOT be cleared on reboot.
+			// This is why NVLink XIDs (144-150) must have SuggestedActionsByGPUd set in their
+			// base catalog entries - even when the extended log format isn't matched.
 			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && (lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeRebootSystem || lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeCheckUserAppAndGPU) {
 				lastHealth = healthStateHealthy
 				lastSuggestedAction = nil

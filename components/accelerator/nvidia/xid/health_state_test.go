@@ -38,6 +38,27 @@ func createXidEvent(eventTime time.Time, xid uint64, eventType apiv1.EventType, 
 	return ret
 }
 
+// createXidEventWithNilSuggestedActions creates an XID event with SuggestedActionsByGPUd=nil.
+// This simulates XIDs that don't have suggested actions defined in the catalog.
+func createXidEventWithNilSuggestedActions(eventTime time.Time, xid uint64, eventType apiv1.EventType) eventstore.Event {
+	xidErr := xidErrorEventDetail{
+		Xid:                    xid,
+		DataSource:             "test",
+		DeviceUUID:             "PCI:0000:9b:00",
+		SuggestedActionsByGPUd: nil, // No suggested actions
+	}
+	xidData, _ := json.Marshal(xidErr)
+	ret := eventstore.Event{
+		Name:      EventNameErrorXid,
+		Type:      string(eventType),
+		ExtraInfo: map[string]string{EventKeyErrorXidData: string(xidData)},
+	}
+	if !eventTime.IsZero() {
+		ret.Time = eventTime
+	}
+	return ret
+}
+
 func TestStateUpdateBasedOnEvents(t *testing.T) {
 	t.Run("no event found", func(t *testing.T) {
 		state := evolveHealthyState(eventstore.Events{}, nil, DefaultRebootThreshold)
@@ -97,6 +118,64 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
+	})
+
+	// Tests for reboot recovery behavior based on SuggestedActionsByGPUd.
+	// These tests verify the inline comments in evolveHealthyState() that explain:
+	// - XIDs with SuggestedActionsByGPUd=nil will NOT be cleared on reboot
+	// - Only RebootSystem and CheckUserAppAndGPU actions are cleared on reboot
+
+	t.Run("reboot does NOT clear XID with nil SuggestedActionsByGPUd", func(t *testing.T) {
+		// This is the critical case: XIDs without SuggestedActionsByGPUd cannot be cleared.
+		// This was the root cause of the XID 149 "Placeholder message" bug.
+		events := eventstore.Events{
+			{Name: "reboot", Time: time.Now()},
+			createXidEventWithNilSuggestedActions(time.Now().Add(-1*time.Hour), 999, apiv1.EventTypeFatal),
+		}
+		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
+		// Should remain unhealthy because SuggestedActionsByGPUd is nil
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health,
+			"XID with nil SuggestedActionsByGPUd should NOT be cleared on reboot")
+	})
+
+	t.Run("reboot does NOT clear XID with HardwareInspection action", func(t *testing.T) {
+		// Only RebootSystem and CheckUserAppAndGPU are cleared on reboot.
+		// HardwareInspection requires manual intervention and should persist.
+		events := eventstore.Events{
+			{Name: "reboot", Time: time.Now()},
+			createXidEvent(time.Now().Add(-1*time.Hour), 999, apiv1.EventTypeFatal, apiv1.RepairActionTypeHardwareInspection),
+		}
+		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
+		// Should remain unhealthy because HardwareInspection is not cleared by reboot
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health,
+			"XID with HardwareInspection action should NOT be cleared on reboot")
+		require.NotNil(t, state.SuggestedActions)
+		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
+	})
+
+	t.Run("reboot DOES clear XID with CheckUserAppAndGPU action", func(t *testing.T) {
+		// CheckUserAppAndGPU is one of the two actions that ARE cleared on reboot.
+		events := eventstore.Events{
+			{Name: "reboot", Time: time.Now()},
+			createXidEvent(time.Now().Add(-1*time.Hour), 999, apiv1.EventTypeCritical, apiv1.RepairActionTypeCheckUserAppAndGPU),
+		}
+		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
+		// Should be healthy because CheckUserAppAndGPU is cleared by reboot
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health,
+			"XID with CheckUserAppAndGPU action should be cleared on reboot")
+	})
+
+	t.Run("reboot DOES clear XID with RebootSystem action", func(t *testing.T) {
+		// RebootSystem is one of the two actions that ARE cleared on reboot.
+		// This is already tested in "reboot recover" but adding explicit test for clarity.
+		events := eventstore.Events{
+			{Name: "reboot", Time: time.Now()},
+			createXidEvent(time.Now().Add(-1*time.Hour), 999, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+		}
+		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
+		// Should be healthy because RebootSystem is cleared by reboot
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health,
+			"XID with RebootSystem action should be cleared on reboot")
 	})
 
 	t.Run("EmptyEvents_ReturnsHealthy", func(t *testing.T) {
@@ -1038,6 +1117,66 @@ func Test_EventType_EndToEnd_MatchThenAddEventDetails(t *testing.T) {
 			assert.Equal(t, string(tc.expectedEvent), result.Type,
 				"EventType should be preserved as %s through the flow, but got %s",
 				tc.expectedEvent, result.Type)
+		})
+	}
+}
+
+// Test_NVLink_NonExtendedFormat_RebootRecovery verifies that NVLink XIDs (144-150)
+// with non-extended format messages (like "Placeholder message") are correctly
+// cleared on reboot because the base catalog entries have SuggestedActionsByGPUd.
+//
+// This test addresses the bug where XID 149 with message format like:
+//
+//	NVRM: Xid (PCI:0008:06:00): 149, Placeholder message
+//
+// was NOT being cleared after reboot because:
+// 1. The message doesn't match RegexNVRMXidExtended (no intrinfo/errorstatus)
+// 2. Match() falls back to GetDetail(149) which returned nil SuggestedActionsByGPUd
+// 3. evolveHealthyState() requires SuggestedActionsByGPUd to clear on reboot
+func Test_NVLink_NonExtendedFormat_RebootRecovery(t *testing.T) {
+	// Test all NVLink XIDs (144-150) with non-extended format
+	nvlinkXIDs := []int{144, 145, 146, 147, 148, 149, 150}
+
+	for _, xid := range nvlinkXIDs {
+		t.Run(fmt.Sprintf("XID_%d_clears_on_reboot", xid), func(t *testing.T) {
+			// Simulate a non-extended format message (like "Placeholder message")
+			// This doesn't match RegexNVRMXidExtended, so Match() uses GetDetail()
+			nonExtendedLine := fmt.Sprintf("NVRM: Xid (PCI:0008:06:00): %d, Placeholder message", xid)
+
+			// Verify Match() returns a result with base entry
+			xidErr := Match(nonExtendedLine)
+			require.NotNil(t, xidErr, "Match should return non-nil for XID %d", xid)
+			require.NotNil(t, xidErr.Detail, "Detail should be populated")
+
+			// Verify SuggestedActionsByGPUd is set (this is the fix)
+			require.NotNil(t, xidErr.Detail.SuggestedActionsByGPUd,
+				"XID %d base entry should have SuggestedActionsByGPUd for reboot recovery", xid)
+			require.NotEmpty(t, xidErr.Detail.SuggestedActionsByGPUd.RepairActions)
+			assert.Equal(t, apiv1.RepairActionTypeRebootSystem,
+				xidErr.Detail.SuggestedActionsByGPUd.RepairActions[0])
+
+			// Create event and verify reboot clears it
+			xidPayload := xidErrorEventDetail{
+				DeviceUUID:             xidErr.DeviceUUID,
+				Xid:                    uint64(xidErr.Xid),
+				SuggestedActionsByGPUd: xidErr.Detail.SuggestedActionsByGPUd,
+			}
+			xidData, _ := json.Marshal(xidPayload)
+
+			events := eventstore.Events{
+				{Name: "reboot", Time: time.Now()},
+				{
+					Name:      EventNameErrorXid,
+					Type:      string(xidErr.Detail.EventType),
+					Time:      time.Now().Add(-1 * time.Hour),
+					ExtraInfo: map[string]string{EventKeyErrorXidData: string(xidData)},
+				},
+			}
+
+			state := evolveHealthyState(events, nil, DefaultRebootThreshold)
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health,
+				"XID %d should be cleared after reboot, but got health=%s", xid, state.Health)
+			assert.Equal(t, "XIDComponent is healthy", state.Reason)
 		})
 	}
 }
