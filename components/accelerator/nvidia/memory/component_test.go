@@ -9,6 +9,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	gopsutilmem "github.com/shirou/gopsutil/v4/mem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -87,7 +88,7 @@ func (m *mockNvmlInstance) Shutdown() error {
 func MockMemoryComponent(
 	ctx context.Context,
 	nvmlInstance nvidianvml.Instance,
-	getMemoryFunc func(uuid string, dev device.Device) (Memory, error),
+	getMemoryFunc func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error),
 ) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 	return &component{
@@ -96,8 +97,9 @@ func MockMemoryComponent(
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		nvmlInstance:  nvmlInstance,
-		getMemoryFunc: getMemoryFunc,
+		nvmlInstance:         nvmlInstance,
+		getMemoryFunc:        getMemoryFunc,
+		getVirtualMemoryFunc: gopsutilmem.VirtualMemoryWithContext,
 	}
 }
 
@@ -124,6 +126,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, tc.cancel, "Cancel function should be set")
 	assert.NotNil(t, tc.nvmlInstance, "nvmlInstance should be set")
 	assert.NotNil(t, tc.getMemoryFunc, "getMemoryFunc should be set")
+	assert.NotNil(t, tc.getVirtualMemoryFunc, "getVirtualMemoryFunc should be set")
 }
 
 func TestName(t *testing.T) {
@@ -189,7 +192,7 @@ func TestCheckOnce_Success(t *testing.T) {
 		Supported: true,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
 		return memory, nil
 	}
 
@@ -230,7 +233,7 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 	}
 
 	errExpected := errors.New("memory error")
-	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
 		return Memory{}, errExpected
 	}
 
@@ -305,7 +308,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		Supported:      true,      // Mark as supported so it doesn't get skipped
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
 		return invalidMemory, nil
 	}
 
@@ -531,12 +534,14 @@ func TestData_String(t *testing.T) {
 				"USED",
 				"FREE",
 				"USED %",
+				"UNIFIED",
 				"gpu-uuid-123",
 				"16 GB",
 				"1 GB",
 				"8 GB",
 				"7 GB",
 				"50.00",
+				"false",
 			},
 		},
 		{
@@ -576,6 +581,7 @@ func TestData_String(t *testing.T) {
 				"32 GB",
 				"20 GB",
 				"62.50",
+				"false",
 			},
 		},
 	}
@@ -720,7 +726,7 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
 		return Memory{}, nvmlerrors.ErrGPULost
 	}
 
@@ -777,7 +783,7 @@ func TestCheck_UnsupportedMemory(t *testing.T) {
 		Supported: false,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
 		return unsupportedMemory, nil
 	}
 
@@ -826,7 +832,7 @@ func TestCheck_MixedSupportedUnsupportedDevices(t *testing.T) {
 		nvmlExists: true,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
 		if uuid == uuid1 {
 			// Return supported memory
 			return Memory{
@@ -885,7 +891,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 		nvmlExists: true,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device) (Memory, error) {
+	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
 		return Memory{}, nvmlerrors.ErrGPURequiresReset
 	}
 

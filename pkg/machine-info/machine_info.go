@@ -325,9 +325,10 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 		Architecture: nvmlInstance.Architecture(),
 	}
 
+	productName := nvmlInstance.ProductName()
 	for uuid, dev := range nvmlInstance.Devices() {
 		if info.Memory == "" {
-			gpuMemory, err := nvidiamemory.GetMemory(uuid, dev)
+			gpuMemory, err := nvidiamemory.GetMemory(uuid, dev, productName, mem.VirtualMemoryWithContext)
 			if err != nil {
 				return nil, err
 			}
