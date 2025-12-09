@@ -699,7 +699,7 @@ func TestCreateLoginRequest_ProviderPrivateIPFallback(t *testing.T) {
 			description:       "Should use provider private IP when network interfaces only have public IPs",
 		},
 		{
-			name: "network interface private IP takes precedence over provider private IP",
+			name: "provider private IP takes precedence over network interface private IP",
 			interfaces: []apiv1.MachineNetworkInterface{
 				{
 					Interface: "eth0",
@@ -709,8 +709,8 @@ func TestCreateLoginRequest_ProviderPrivateIPFallback(t *testing.T) {
 				},
 			},
 			providerPrivateIP: "172.16.0.30",
-			expectedPrivateIP: "10.0.0.5",
-			description:       "Should use network interface private IP when available, ignoring provider private IP",
+			expectedPrivateIP: "172.16.0.30",
+			description:       "Should use provider private IP (from IMDS) when available, as it is the authoritative source",
 		},
 		{
 			name: "fallback to provider private IP when network interface IPs are empty",
@@ -741,7 +741,7 @@ func TestCreateLoginRequest_ProviderPrivateIPFallback(t *testing.T) {
 			description:       "Should have no private IP when both sources are empty",
 		},
 		{
-			name: "first valid private IP from network interfaces used, provider ignored",
+			name: "provider private IP used even when multiple network interfaces available",
 			interfaces: []apiv1.MachineNetworkInterface{
 				{
 					Interface: "eth0",
@@ -763,8 +763,8 @@ func TestCreateLoginRequest_ProviderPrivateIPFallback(t *testing.T) {
 				},
 			},
 			providerPrivateIP: "172.16.0.50",
-			expectedPrivateIP: "192.168.1.100", // First private IP found
-			description:       "Should use first private IP from network interfaces, ignoring provider private IP",
+			expectedPrivateIP: "172.16.0.50", // Provider IP takes precedence
+			description:       "Should use provider private IP (from IMDS) even when network interfaces have private IPs",
 		},
 		{
 			name:              "nil network interfaces, fallback to provider private IP",
@@ -873,7 +873,7 @@ func TestCreateLoginRequest_ProviderInfoUsage(t *testing.T) {
 			},
 		},
 		{
-			name: "network interface private IP precedence over provider private IP",
+			name: "provider private IP precedence over network interface private IP",
 			providerInfo: &providers.Info{
 				Provider:      "gcp",
 				PublicIP:      "35.123.45.67",
@@ -886,7 +886,7 @@ func TestCreateLoginRequest_ProviderInfoUsage(t *testing.T) {
 			},
 			validate: func(t *testing.T, req *apiv1.LoginRequest) {
 				assert.Equal(t, "35.123.45.67", req.Network.PublicIP, "Provider public IP should be used")
-				assert.Equal(t, "192.168.1.50", req.Network.PrivateIP, "Network interface private IP should take precedence")
+				assert.Equal(t, "172.16.0.10", req.Network.PrivateIP, "Provider private IP (from IMDS) should take precedence over network interface")
 				assert.Equal(t, "gcp", req.Provider, "Provider name should be set")
 				assert.Equal(t, "gcp-instance-123", req.ProviderInstanceID, "Provider instance ID should be set")
 			},
@@ -899,7 +899,7 @@ func TestCreateLoginRequest_ProviderInfoUsage(t *testing.T) {
 				interfaces := []apiv1.MachineNetworkInterface{}
 
 				// For the third test case, add a network interface with private IP
-				if tt.name == "network interface private IP precedence over provider private IP" {
+				if tt.name == "provider private IP precedence over network interface private IP" {
 					interfaces = append(interfaces, apiv1.MachineNetworkInterface{
 						Interface: "eth0",
 						MAC:       "00:11:22:33:44:55",
@@ -942,6 +942,101 @@ func TestCreateLoginRequest_ProviderInfoUsage(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, req)
 			tt.validate(t, req)
+		})
+	}
+}
+
+// TestCreateLoginRequest_IMDSPrivateIPPrecedence tests that IMDS private IP takes precedence
+// over lexicographically-sorted network interfaces. This is critical for multi-NIC environments
+// like AWS instances with multiple ENIs where the interface order may not reflect routing priority.
+func TestCreateLoginRequest_IMDSPrivateIPPrecedence(t *testing.T) {
+	tests := []struct {
+		name              string
+		interfaces        []apiv1.MachineNetworkInterface // Simulates lexicographically sorted interfaces
+		providerPrivateIP string                          // IMDS private IP
+		expectedPrivateIP string
+		description       string
+	}{
+		{
+			name: "AWS multi-ENI scenario - IMDS IP takes precedence over lexicographic sort",
+			interfaces: []apiv1.MachineNetworkInterface{
+				// These are in lexicographic order (as sorted by GetMachineNICInfo)
+				// 10.68.16.* comes before 10.68.17.* lexicographically
+				{Interface: "enp174s0", MAC: "00:11:22:33:44:01", IP: "10.68.16.176", Addr: netip.MustParseAddr("10.68.16.176")}, // metric 700
+				{Interface: "enp191s0", MAC: "00:11:22:33:44:02", IP: "10.68.16.179", Addr: netip.MustParseAddr("10.68.16.179")}, // metric 800
+				{Interface: "enp157s0", MAC: "00:11:22:33:44:03", IP: "10.68.16.54", Addr: netip.MustParseAddr("10.68.16.54")},   // metric 600
+				{Interface: "enp71s0", MAC: "00:11:22:33:44:04", IP: "10.68.17.235", Addr: netip.MustParseAddr("10.68.17.235")},  // metric 100 - should be primary!
+				{Interface: "enp89s0", MAC: "00:11:22:33:44:05", IP: "10.68.17.50", Addr: netip.MustParseAddr("10.68.17.50")},    // metric 200
+			},
+			providerPrivateIP: "10.68.17.235", // AWS IMDS returns the correct primary IP
+			expectedPrivateIP: "10.68.17.235", // Should use IMDS, not lexicographic first (10.68.16.176)
+			description:       "IMDS private IP should be used regardless of NICInfo lexicographic order",
+		},
+		{
+			name: "fallback to NICInfo when IMDS private IP is empty",
+			interfaces: []apiv1.MachineNetworkInterface{
+				{Interface: "eth0", MAC: "00:11:22:33:44:01", IP: "10.0.0.100", Addr: netip.MustParseAddr("10.0.0.100")},
+				{Interface: "eth1", MAC: "00:11:22:33:44:02", IP: "192.168.1.50", Addr: netip.MustParseAddr("192.168.1.50")},
+			},
+			providerPrivateIP: "",           // IMDS unavailable or returned empty
+			expectedPrivateIP: "10.0.0.100", // Falls back to first NICInfo interface (lexicographic)
+			description:       "Should fall back to NICInfo when IMDS private IP is unavailable",
+		},
+		{
+			name: "GCP scenario - IMDS IP different from any interface",
+			interfaces: []apiv1.MachineNetworkInterface{
+				{Interface: "ens4", MAC: "00:11:22:33:44:01", IP: "10.128.0.50", Addr: netip.MustParseAddr("10.128.0.50")},
+				{Interface: "ens5", MAC: "00:11:22:33:44:02", IP: "10.128.0.51", Addr: netip.MustParseAddr("10.128.0.51")},
+			},
+			providerPrivateIP: "10.128.0.2", // GCP IMDS returns the primary internal IP
+			expectedPrivateIP: "10.128.0.2", // Should use IMDS even if it's not in NICInfo
+			description:       "IMDS IP should be used even if not present in scanned interfaces",
+		},
+		{
+			name:              "no interfaces and no IMDS - empty private IP",
+			interfaces:        []apiv1.MachineNetworkInterface{},
+			providerPrivateIP: "",
+			expectedPrivateIP: "",
+			description:       "Should have empty private IP when both sources are unavailable",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getMachineInfoFunc := func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+				return &apiv1.MachineInfo{
+					CPUInfo:    &apiv1.MachineCPUInfo{LogicalCores: 8},
+					MemoryInfo: &apiv1.MachineMemoryInfo{TotalBytes: 32 * 1024 * 1024 * 1024},
+					NICInfo:    &apiv1.MachineNICInfo{PrivateIPInterfaces: tt.interfaces},
+				}, nil
+			}
+
+			getProviderFunc := func(ip string) *providers.Info {
+				return &providers.Info{
+					Provider:   "aws",
+					PublicIP:   "54.123.45.67",
+					PrivateIP:  tt.providerPrivateIP,
+					InstanceID: "i-1234567890abcdef0",
+				}
+			}
+
+			req, err := createLoginRequest(
+				"token",
+				"machine-id",
+				"",
+				"1",
+				&mockNvmlInstance{},
+				func() (string, error) { return "54.123.45.67", nil },
+				func() *apiv1.MachineLocation { return &apiv1.MachineLocation{} },
+				getMachineInfoFunc,
+				getProviderFunc,
+				func() (string, error) { return "500Gi", nil },
+				func(nvidianvml.Instance) (string, error) { return "8", nil },
+			)
+
+			assert.NoError(t, err, tt.description)
+			assert.NotNil(t, req, tt.description)
+			assert.Equal(t, tt.expectedPrivateIP, req.Network.PrivateIP, tt.description)
 		})
 	}
 }

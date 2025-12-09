@@ -37,7 +37,7 @@ func Detect(ctx context.Context) (*pkgproviders.Info, error) {
 
 		if provider != "" {
 			detector = d
-			log.Logger.Debugw("detected provider", "provider", provider)
+			log.Logger.Infow("detected provider", "provider", provider)
 			break
 		}
 	}
@@ -54,27 +54,29 @@ func Detect(ctx context.Context) (*pkgproviders.Info, error) {
 
 	publicIP, err := detector.PublicIPv4(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get public IP: %w", err)
+		return nil, fmt.Errorf("failed to get public IP: %w (provider: %s)", err, detector.Name())
 	}
 	info.PublicIP = publicIP
 
 	privateIP, err := detector.PrivateIPv4(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get private IP: %w", err)
+		return nil, fmt.Errorf("failed to get private IP: %w (provider: %s)", err, detector.Name())
 	}
 	info.PrivateIP = privateIP
+	log.Logger.Infow("successfully detected private IP", "provider", detector.Name(), "privateIP", privateIP)
 
 	vmEnvironment, err := detector.VMEnvironment(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get VM environment: %w", err)
+		return nil, fmt.Errorf("failed to get VM environment: %w (provider: %s)", err, detector.Name())
 	}
 	info.VMEnvironment = vmEnvironment
 
 	instanceID, err := detector.InstanceID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get instance ID: %w", err)
+		return nil, fmt.Errorf("failed to get instance ID: %w (provider: %s)", err, detector.Name())
 	}
 	info.InstanceID = instanceID
+	log.Logger.Infow("successfully detected instance ID", "provider", detector.Name(), "instanceID", instanceID)
 
 	return info, nil
 }
