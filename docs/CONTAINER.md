@@ -17,13 +17,26 @@ All third-party open source component sources are stored in
 
 ## Quick Start
 
-### Build and Load Locally (for testing)
+### Build and Load Locally on Mac ARM
 
 ```bash
 ./scripts/build-docker.sh \
   --tag gpud:test \
-  --platform linux/amd64 \
+  --platform linux/arm64 \
   --load
+```
+
+### Build linux/amd64 for Production Testing
+
+Most production servers use `linux/amd64`. On Mac ARM, use `--skip-verify` since
+amd64 containers cannot run natively:
+
+```bash
+./scripts/build-docker.sh \
+  --tag gpud:test-amd64 \
+  --platform linux/amd64 \
+  --load \
+  --skip-verify
 ```
 
 ### Build and Push to NVIDIA Registry
@@ -34,7 +47,7 @@ docker login nvcr.io -u '$oauthtoken' -p <NGC_API_KEY>
 
 # Build and push multi-arch image
 ./scripts/build-docker.sh \
-  --tag nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.26 \
+  --tag nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.27 \
   --platform linux/amd64,linux/arm64 \
   --push
 ```
@@ -59,58 +72,17 @@ Options:
   --help              Show help message
 ```
 
----
-
-## Build Examples
-
-### 1. Build and Push to NVIDIA Registry (multi-arch)
+### Additional Build Options
 
 ```bash
-docker login nvcr.io -u '$oauthtoken' -p <NGC_API_KEY>
+# Build with custom CUDA version
+./scripts/build-docker.sh --tag gpud:cuda12.6 --cuda-version 12.6.0 --platform linux/arm64 --load
 
-./scripts/build-docker.sh \
-  --tag nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.26 \
-  --platform linux/amd64,linux/arm64 \
-  --push
-```
+# Build without cache (clean build)
+./scripts/build-docker.sh --tag gpud:fresh --platform linux/arm64 --load --no-cache
 
-### 2. Build and Load Locally for Testing
-
-```bash
-./scripts/build-docker.sh \
-  --tag gpud:test \
-  --platform linux/amd64 \
-  --load
-```
-
-### 3. Build with Custom CUDA Version
-
-```bash
-./scripts/build-docker.sh \
-  --tag gpud:cuda12.6 \
-  --cuda-version 12.6.0 \
-  --platform linux/amd64 \
-  --load
-```
-
-### 4. Build without Cache (clean build)
-
-```bash
-./scripts/build-docker.sh \
-  --tag gpud:fresh \
-  --platform linux/amd64 \
-  --load \
-  --no-cache
-```
-
-### 5. Build for Different Ubuntu Version
-
-```bash
-./scripts/build-docker.sh \
-  --tag gpud:ubuntu24 \
-  --os-version 24.04 \
-  --platform linux/amd64 \
-  --load
+# Build for different Ubuntu version
+./scripts/build-docker.sh --tag gpud:ubuntu24 --os-version 24.04 --platform linux/arm64 --load
 ```
 
 ---
@@ -120,10 +92,13 @@ docker login nvcr.io -u '$oauthtoken' -p <NGC_API_KEY>
 After building with `--load`, run these commands to verify all third-party
 source code is included.
 
+**Note:** You must use `--entrypoint ""` to override the gpud entrypoint and run
+shell commands directly.
+
 ### Quick Verification (All-in-One)
 
 ```bash
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 echo "=== Third-Party Source Code Verification ==="
 echo ""
 echo "=== 1. Directory Structure ==="
@@ -145,13 +120,13 @@ echo "=== Verification Complete ==="
 #### 1. List Third-Party Directory Structure
 
 ```bash
-docker run --rm gpud:test ls -la /usr/share/third_party/
+docker run --rm --entrypoint "" gpud:test ls -la /usr/share/third_party/
 ```
 
 #### 2. Show Main Manifest
 
 ```bash
-docker run --rm gpud:test cat /usr/share/third_party/MANIFEST.txt
+docker run --rm --entrypoint "" gpud:test cat /usr/share/third_party/MANIFEST.txt
 ```
 
 ---
@@ -161,52 +136,52 @@ docker run --rm gpud:test cat /usr/share/third_party/MANIFEST.txt
 #### Count Go Vendor Packages
 
 ```bash
-docker run --rm gpud:test ls /usr/share/third_party/go/vendor/ | wc -l
+docker run --rm --entrypoint "" gpud:test ls /usr/share/third_party/go/vendor/ | wc -l
 ```
 
 #### List All Go Vendor Packages
 
 ```bash
-docker run --rm gpud:test ls /usr/share/third_party/go/vendor/
+docker run --rm --entrypoint "" gpud:test ls /usr/share/third_party/go/vendor/
 ```
 
 #### Show Go Modules Manifest (with versions)
 
 ```bash
-docker run --rm gpud:test cat /usr/share/third_party/go/GO_MODULES.txt
+docker run --rm --entrypoint "" gpud:test cat /usr/share/third_party/go/GO_MODULES.txt
 ```
 
 #### Verify Specific Go Package Source Exists
 
 ```bash
 # Check NVIDIA go-nvml source exists
-docker run --rm gpud:test \
+docker run --rm --entrypoint "" gpud:test \
   ls -la /usr/share/third_party/go/vendor/github.com/NVIDIA/go-nvml/
 
 # Check gin-gonic/gin source exists
-docker run --rm gpud:test \
+docker run --rm --entrypoint "" gpud:test \
   ls -la /usr/share/third_party/go/vendor/github.com/gin-gonic/gin/
 
 # Check prometheus client source exists
-docker run --rm gpud:test \
+docker run --rm --entrypoint "" gpud:test \
   ls -la /usr/share/third_party/go/vendor/github.com/prometheus/client_golang/
 
 # Check kubernetes API source exists
-docker run --rm gpud:test \
+docker run --rm --entrypoint "" gpud:test \
   ls -la /usr/share/third_party/go/vendor/k8s.io/api/
 ```
 
 #### List All Go Packages with Full Paths
 
 ```bash
-docker run --rm gpud:test \
+docker run --rm --entrypoint "" gpud:test \
   find /usr/share/third_party/go/vendor -maxdepth 3 -type d | head -50
 ```
 
 #### Verify Go Source Files Exist (not just directories)
 
 ```bash
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 echo "=== Verifying Go source files exist ==="
 echo ""
 echo "NVIDIA go-nvml:"
@@ -229,19 +204,19 @@ client_golang/prometheus/*.go | head -5
 #### List APT Source Files
 
 ```bash
-docker run --rm gpud:test ls -la /usr/share/third_party/apt/
+docker run --rm --entrypoint "" gpud:test ls -la /usr/share/third_party/apt/
 ```
 
 #### Show APT Sources Manifest
 
 ```bash
-docker run --rm gpud:test cat /usr/share/third_party/apt/APT_SOURCES.txt
+docker run --rm --entrypoint "" gpud:test cat /usr/share/third_party/apt/APT_SOURCES.txt
 ```
 
 #### Count APT Source Archives
 
 ```bash
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 echo "=== APT Source Package Count ==="
 echo "Total source files: $(ls /usr/share/third_party/apt/ | wc -l)"
 echo ""
@@ -257,16 +232,16 @@ ls /usr/share/third_party/apt/*.dsc 2>/dev/null | wc -l
 
 ```bash
 # Check curl source exists
-docker run --rm gpud:test ls /usr/share/third_party/apt/ | grep -i curl
+docker run --rm --entrypoint "" gpud:test ls /usr/share/third_party/apt/ | grep -i curl
 
 # Check docker-cli source exists
-docker run --rm gpud:test ls /usr/share/third_party/apt/ | grep -i docker
+docker run --rm --entrypoint "" gpud:test ls /usr/share/third_party/apt/ | grep -i docker
 
 # Check containerd source exists
-docker run --rm gpud:test ls /usr/share/third_party/apt/ | grep -i containerd
+docker run --rm --entrypoint "" gpud:test ls /usr/share/third_party/apt/ | grep -i containerd
 
 # Check all expected packages
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 echo "=== Checking APT Source Packages ==="
 pkgs="ca-certificates curl gnupg pciutils dmidecode"
 pkgs="$pkgs util-linux kmod sudo docker containerd"
@@ -288,10 +263,10 @@ actual source code:
 
 ```bash
 # List all APT source archives
-docker run --rm gpud:test ls -la /usr/share/third_party/apt/
+docker run --rm --entrypoint "" gpud:test ls -la /usr/share/third_party/apt/
 
 # Extract and view curl source code
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 cd /tmp
 cp /usr/share/third_party/apt/curl*.orig.tar.* . 2>/dev/null \
   || cp /usr/share/third_party/apt/curl*.tar.* .
@@ -304,7 +279,7 @@ find curl*/ -name "*.c" -o -name "*.h" | head -10
 '
 
 # Extract and view sudo source code
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 cd /tmp
 cp /usr/share/third_party/apt/sudo*.orig.tar.* . 2>/dev/null \
   || cp /usr/share/third_party/apt/sudo*.tar.* .
@@ -317,7 +292,7 @@ find sudo*/ -name "*.c" -o -name "*.h" | head -10
 '
 
 # Extract and view docker-cli source code (from GitHub tarball)
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 cd /tmp
 cp /usr/share/third_party/apt/docker*.tar.gz . 2>/dev/null
 tar -xzf docker*.tar.gz 2>/dev/null
@@ -329,7 +304,7 @@ find . -name "*.go" 2>/dev/null | head -10
 '
 
 # Extract and view containerd source code (from GitHub tarball)
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 cd /tmp
 cp /usr/share/third_party/apt/containerd*.tar.gz . 2>/dev/null
 tar -xzf containerd*.tar.gz 2>/dev/null
@@ -345,19 +320,19 @@ find containerd*/ -name "*.go" | head -10
 
 ```bash
 # List contents of curl source tarball
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 echo "=== Contents of curl source tarball ==="
 tar -tvf /usr/share/third_party/apt/curl*.orig.tar.* 2>/dev/null | head -30
 '
 
 # List contents of util-linux source tarball
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 echo "=== Contents of util-linux source tarball ==="
 tar -tvf /usr/share/third_party/apt/util-linux*.orig.tar.* 2>/dev/null | head -30
 '
 
 # List contents of all source tarballs
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 echo "=== All APT Source Tarballs ==="
 for f in /usr/share/third_party/apt/*.tar.*; do
   echo ""
@@ -374,7 +349,7 @@ done
 Run this comprehensive verification to ensure all sources are present:
 
 ```bash
-docker run --rm gpud:test sh -c '
+docker run --rm --entrypoint "" gpud:test sh -c '
 echo "=============================================="
 echo "  Third-Party Source Code Compliance Check"
 echo "=============================================="
@@ -514,67 +489,47 @@ Source packages for all installed APT packages:
 
 ---
 
-## Push to NVIDIA Container Registry
-
-### Prerequisites
-
-1. Get NGC API Key from <https://ngc.nvidia.com/>
-2. Login to nvcr.io:
-
-```bash
-docker login nvcr.io -u '$oauthtoken' -p <NGC_API_KEY>
-```
-
-### Push Commands
-
-```bash
-# Build and push in one command
-./scripts/build-docker.sh \
-  --tag nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.26 \
-  --platform linux/amd64,linux/arm64 \
-  --push
-```
-
-Or manually:
-
-```bash
-# Build locally first
-./scripts/build-docker.sh \
-  --tag nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.26 \
-  --platform linux/amd64 \
-  --load
-
-# Then push
-docker push nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.26
-```
-
----
-
 ## Manual Docker Build (without script)
 
 If you prefer to build manually without the script:
 
 ```bash
+# Multi-arch build for production
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   --build-arg OS_NAME=ubuntu \
   --build-arg OS_VERSION=22.04 \
   --build-arg CUDA_VERSION=12.4.1 \
-  -t nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.26 \
+  -t nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.27 \
   -f Dockerfile \
   . \
   --push
 ```
 
-For local testing (single platform):
+For local testing on Mac ARM (M1/M2/M3):
 
 ```bash
+docker buildx build \
+  --platform linux/arm64 \
+  --build-arg OS_NAME=ubuntu \
+  --build-arg OS_VERSION=22.04 \
+  --build-arg CUDA_VERSION=12.4.1 \
+  -t gpud:test \
+  -f Dockerfile \
+  . \
+  --load
+```
+
+For linux/amd64 production testing (most common server architecture):
+
+```bash
+# Note: On Mac ARM, the resulting image cannot be run locally for verification
 docker buildx build \
   --platform linux/amd64 \
   --build-arg OS_NAME=ubuntu \
   --build-arg OS_VERSION=22.04 \
   --build-arg CUDA_VERSION=12.4.1 \
-  -t gpud:test \
+  -t gpud:test-amd64 \
   -f Dockerfile \
   . \
   --load

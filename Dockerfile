@@ -24,10 +24,10 @@ WORKDIR /workspace
 COPY go.mod go.mod
 COPY go.sum go.sum
 
-# Download dependencies and create vendor directory with all source code
-RUN go mod download && \
-    go mod vendor
+# Download dependencies to module cache (for caching)
+RUN go mod download
 
+# Copy source code BEFORE vendoring so Go can analyze imports
 COPY api/ api/
 COPY client/ client/
 COPY cmd/ cmd/
@@ -36,6 +36,10 @@ COPY docs/ docs/
 COPY pkg/ pkg/
 COPY version/ version/
 COPY Makefile Makefile
+
+# Create vendor directory with all source code (for compliance)
+# Must be after source code copy so Go can analyze imports
+RUN go mod vendor
 
 # Build the binary
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} make

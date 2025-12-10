@@ -32,44 +32,53 @@
 # EXAMPLES
 # ==============================================================================
 #
-# 1. Build and push to NVIDIA registry (multi-arch):
+# 1. Build and push to NVIDIA registry (multi-arch, for production):
 #
 #    docker login nvcr.io -u '$oauthtoken' -p <NGC_API_KEY>
 #
 #    ./scripts/build-docker.sh \
-#      --tag nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.26 \
+#      --tag nvcr.io/nvstaging/dgx-cloud-lepton/gpud:v0.9.0-alpha.27 \
 #      --platform linux/amd64,linux/arm64 \
 #      --push
 #
-# 2. Build and load locally for testing (single platform, with verification):
+# 2. Build and load locally for testing on Mac ARM (M1/M2/M3):
 #
 #    ./scripts/build-docker.sh \
 #      --tag gpud:test \
-#      --platform linux/amd64 \
+#      --platform linux/arm64 \
 #      --load
 #
-# 3. Build with custom CUDA version:
+# 3. Build linux/amd64 for production testing (most common server architecture):
+#
+#    # Note: On Mac ARM, use --skip-verify since amd64 containers can't run natively
+#    ./scripts/build-docker.sh \
+#      --tag gpud:test-amd64 \
+#      --platform linux/amd64 \
+#      --load \
+#      --skip-verify
+#
+# 4. Build with custom CUDA version:
 #
 #    ./scripts/build-docker.sh \
 #      --tag gpud:cuda12.6 \
 #      --cuda-version 12.6.0 \
-#      --platform linux/amd64 \
+#      --platform linux/arm64 \
 #      --load
 #
-# 4. Build without cache (clean build):
+# 5. Build without cache (clean build):
 #
 #    ./scripts/build-docker.sh \
 #      --tag gpud:fresh \
-#      --platform linux/amd64 \
+#      --platform linux/arm64 \
 #      --load \
 #      --no-cache
 #
-# 5. Build for different Ubuntu version:
+# 6. Build for different Ubuntu version:
 #
 #    ./scripts/build-docker.sh \
 #      --tag gpud:ubuntu24 \
 #      --os-version 24.04 \
-#      --platform linux/amd64 \
+#      --platform linux/arm64 \
 #      --load
 #
 # ==============================================================================
@@ -311,6 +320,7 @@ log_info "========================================"
 echo ""
 
 # Verify third-party sources if requested and image is loaded locally
+# Note: Must use --entrypoint "" to override the gpud entrypoint for shell commands
 if [[ "$VERIFY" == "true" && "$LOAD" == "true" ]]; then
     echo ""
     log_step "Verifying third-party sources in container..."
@@ -318,34 +328,34 @@ if [[ "$VERIFY" == "true" && "$LOAD" == "true" ]]; then
 
     log_info "Checking /usr/share/third_party/ directory structure:"
     echo ""
-    docker run --rm "$TAG" ls -la /usr/share/third_party/
+    docker run --rm --entrypoint "" "$TAG" ls -la /usr/share/third_party/
     echo ""
 
     log_info "Checking Go vendor directory (first 20 entries):"
     echo ""
-    docker run --rm "$TAG" ls /usr/share/third_party/go/vendor/ | head -20
-    GO_VENDOR_COUNT=$(docker run --rm "$TAG" ls /usr/share/third_party/go/vendor/ | wc -l)
+    docker run --rm --entrypoint "" "$TAG" ls /usr/share/third_party/go/vendor/ | head -20
+    GO_VENDOR_COUNT=$(docker run --rm --entrypoint "" "$TAG" ls /usr/share/third_party/go/vendor/ | wc -l)
     echo "... ($GO_VENDOR_COUNT total Go packages)"
     echo ""
 
     log_info "Checking APT source packages:"
     echo ""
-    docker run --rm "$TAG" ls -la /usr/share/third_party/apt/
+    docker run --rm --entrypoint "" "$TAG" ls -la /usr/share/third_party/apt/
     echo ""
 
     log_info "Manifest file content:"
     echo ""
-    docker run --rm "$TAG" cat /usr/share/third_party/MANIFEST.txt
+    docker run --rm --entrypoint "" "$TAG" cat /usr/share/third_party/MANIFEST.txt
     echo ""
 
     log_info "Go modules manifest (first 30 lines):"
     echo ""
-    docker run --rm "$TAG" head -30 /usr/share/third_party/go/GO_MODULES.txt
+    docker run --rm --entrypoint "" "$TAG" head -30 /usr/share/third_party/go/GO_MODULES.txt
     echo ""
 
     log_info "APT sources manifest:"
     echo ""
-    docker run --rm "$TAG" cat /usr/share/third_party/apt/APT_SOURCES.txt
+    docker run --rm --entrypoint "" "$TAG" cat /usr/share/third_party/apt/APT_SOURCES.txt
     echo ""
 
     log_info "========================================"
@@ -355,8 +365,8 @@ elif [[ "$VERIFY" == "true" && "$PUSH" == "true" && "$LOAD" != "true" ]]; then
     log_warn "Skipping verification: image was pushed but not loaded locally."
     log_info "To verify, pull the image and run:"
     echo ""
-    echo "  docker run --rm $TAG ls -la /usr/share/third_party/"
-    echo "  docker run --rm $TAG cat /usr/share/third_party/MANIFEST.txt"
+    echo "  docker run --rm --entrypoint \"\" $TAG ls -la /usr/share/third_party/"
+    echo "  docker run --rm --entrypoint \"\" $TAG cat /usr/share/third_party/MANIFEST.txt"
     echo ""
 fi
 
@@ -378,11 +388,11 @@ fi
 
 if [[ "$LOAD" == "true" ]]; then
     echo ""
-    log_info "Manual verification commands:"
+    log_info "Manual verification commands (use --entrypoint \"\" to run shell commands):"
     echo ""
-    echo "  docker run --rm $TAG ls -la /usr/share/third_party/"
-    echo "  docker run --rm $TAG cat /usr/share/third_party/MANIFEST.txt"
-    echo "  docker run --rm $TAG ls /usr/share/third_party/go/vendor/ | wc -l"
-    echo "  docker run --rm $TAG ls -la /usr/share/third_party/apt/"
+    echo "  docker run --rm --entrypoint \"\" $TAG ls -la /usr/share/third_party/"
+    echo "  docker run --rm --entrypoint \"\" $TAG cat /usr/share/third_party/MANIFEST.txt"
+    echo "  docker run --rm --entrypoint \"\" $TAG ls /usr/share/third_party/go/vendor/ | wc -l"
+    echo "  docker run --rm --entrypoint \"\" $TAG ls -la /usr/share/third_party/apt/"
     echo ""
 fi
