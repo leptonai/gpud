@@ -501,6 +501,26 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 					EventKeyDeviceUUID: xidErr.DeviceUUID,
 				},
 			}
+			// IMPORTANT: Set event.Type from Match() result to preserve precise unit-based severity.
+			//
+			// Background: Match() calls lookupNVLinkRule() which correctly matches rules by
+			// (Xid, Unit, ErrorStatus, IntrinfoPattern) for precise severity determination.
+			//
+			// Problem: getDetailWithSubCodeAndStatus() (used by addEventDetails) returns pre-built
+			// details from buildNVLinkSubCodeDetails() which merges rules with the same
+			// (Xid, SubCode, ErrorStatus) using maxEventType(). This causes different units
+			// to merge incorrectly. For example:
+			//   - XID 145 RLW_REMAP, ErrorStatus 0x00000001 → "Non-fatal"
+			//   - XID 145 RLW_SRC_TRACK, ErrorStatus 0x00000001 → "Fatal"
+			//   Both have SubCode=0, so they merge to "Fatal" (maxEventType escalates).
+			//
+			// Fix: By setting event.Type here, addEventDetails() will preserve it (see
+			// health_state.go:228-229) instead of overwriting with the incorrectly merged value.
+			//
+			// See also: health_state.go addEventDetails() comment at lines 224-229.
+			if xidErr.Detail != nil && xidErr.Detail.EventType != "" {
+				event.Type = string(xidErr.Detail.EventType)
+			}
 			if len(rawPayload) > 0 {
 				event.ExtraInfo[EventKeyErrorXidData] = string(rawPayload)
 			} else {

@@ -1121,6 +1121,92 @@ func Test_EventType_EndToEnd_MatchThenAddEventDetails(t *testing.T) {
 	}
 }
 
+// Test_ComponentEventCreation_SetsEventType verifies that when an XID event is created
+// following the component.go pattern (Match() -> create event with Type), the EventType
+// is correctly set and preserved through the full flow.
+//
+// This test specifically catches the bug where event.Type was NOT being set in component.go,
+// causing addEventDetails to use the merged severity from getDetailWithSubCodeAndStatus,
+// which could incorrectly report Non-fatal errors as Fatal due to merging different units
+// with the same SubCode/ErrorStatus.
+func Test_ComponentEventCreation_SetsEventType(t *testing.T) {
+	testCases := []struct {
+		name               string
+		kmsgLine           string
+		expectedEventType  apiv1.EventType
+		expectedHealthType apiv1.HealthStateType
+	}{
+		{
+			name: "RLW_REMAP_with_ErrorStatus_0x00000001_is_Nonfatal",
+			// This is the exact kmsg from the QA bug report
+			kmsgLine:           "NVRM: Xid (PCI:0008:06:00): 145, RLW_REMAP Nonfatal XC0 i0 Link 0 (0x00000004 0x00000001 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectedEventType:  apiv1.EventTypeWarning,
+			expectedHealthType: apiv1.HealthStateTypeHealthy, // Warning events don't make system Unhealthy
+		},
+		{
+			name: "RLW_SRC_TRACK_with_ErrorStatus_0x00000001_is_Fatal",
+			// RLW_SRC_TRACK with ErrorStatus 0x00000001 IS Fatal per catalog
+			kmsgLine:           "NVRM: Xid (PCI:0008:06:00): 145, RLW_SRC_TRACK Fatal XC0 i0 Link 0 (0x00000007 0x00000001 0x00000000 0x00000000 0x00000000 0x00000000)",
+			expectedEventType:  apiv1.EventTypeFatal,
+			expectedHealthType: apiv1.HealthStateTypeUnhealthy,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Step 1: Parse kmsg with Match() - exactly like component.go:448
+			xidErr := Match(tc.kmsgLine)
+			require.NotNil(t, xidErr, "Match should return non-nil")
+			require.NotNil(t, xidErr.Detail, "Detail should be populated")
+
+			// Step 2: Create xidPayload - exactly like component.go:477-490
+			xidPayload := xidErrorEventDetail{
+				Time:       metav1.NewTime(time.Now()),
+				DataSource: "kmsg",
+				DeviceUUID: xidErr.DeviceUUID,
+				Xid:        uint64(xidErr.Xid),
+			}
+			if xidErr.Detail != nil {
+				xidPayload.SubCode = xidErr.Detail.SubCode
+				xidPayload.SubCodeDescription = xidErr.Detail.SubCodeDescription
+				xidPayload.InvestigatoryHint = xidErr.Detail.InvestigatoryHint
+				xidPayload.Description = xidErr.Detail.Description
+				xidPayload.ErrorStatus = xidErr.Detail.ErrorStatus
+				xidPayload.SuggestedActionsByGPUd = xidErr.Detail.SuggestedActionsByGPUd
+			}
+
+			rawPayload, err := json.Marshal(xidPayload)
+			require.NoError(t, err)
+
+			// Step 3: Create event - exactly like component.go:497-509 (WITH THE FIX)
+			event := eventstore.Event{
+				Time: time.Now(),
+				Name: EventNameErrorXid,
+				ExtraInfo: map[string]string{
+					EventKeyDeviceUUID:   xidErr.DeviceUUID,
+					EventKeyErrorXidData: string(rawPayload),
+				},
+			}
+			// THIS IS THE FIX: Set event.Type from Match() result
+			if xidErr.Detail != nil && xidErr.Detail.EventType != "" {
+				event.Type = string(xidErr.Detail.EventType)
+			}
+
+			// Step 4: Verify event.Type is correctly set
+			assert.Equal(t, string(tc.expectedEventType), event.Type,
+				"Event type should be %s but got %s", tc.expectedEventType, event.Type)
+
+			// Step 5: Test evolveHealthyState with this event
+			events := eventstore.Events{event}
+			state := evolveHealthyState(events, nil, DefaultRebootThreshold)
+
+			// Verify the health state matches expected
+			assert.Equal(t, tc.expectedHealthType, state.Health,
+				"Health state should be %s but got %s", tc.expectedHealthType, state.Health)
+		})
+	}
+}
+
 // Test_NVLink_NonExtendedFormat_RebootRecovery verifies that NVLink XIDs (144-150)
 // with non-extended format messages (like "Placeholder message") are correctly
 // cleared on reboot because the base catalog entries have SuggestedActionsByGPUd.
