@@ -8,39 +8,89 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  repository: gpud
+  repository: nvcr.io/dgx-cloud-lepton/gpud
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "v0.9.0-alpha.27"
 
-# Application-specific arguments for the GPUd container.
+# Application-specific settings for the GPUd container.
 gpud:
-  command:
-  - "gpud"
-  args:
-    - "run"
-    - "--listen-address=0.0.0.0:15132"
-    - "--log-level=info"
-    - "--endpoint=gpud-manager-prod01.dgxc-lepton.nvidia.com"
-    - "--enable-auto-update=false"
-    - "--auto-update-exit-code=0"
-    # - "--gpu-count=8"
   # Telemetry and usage data collection settings.
   telemetry:
     # Set to false to disable collection of anonymous usage data.
     enabled: false
 
+  # The address and port gpud listens on.
+  listenAddress: "0.0.0.0:15132"
+
+  # The log level for gpud.
+  logLevel: "info"
+
+  # The endpoint for the control plane.
+  endpoint: "gpud-manager-prod01.dgxc-lepton.nvidia.com"
+
+  # Enable auto update of gpud.
+  enableAutoUpdate: false
+
+  # The exit code to use when auto-updating.
+  # set -1 to disable exit code
+  autoUpdateExitCode: -1
+
+  # Mount /dev/mem for deep hardware inspection and memory diagnostics (e.g., PCIe config space).
+  # Defaults to false for maximum compatibility across platforms (addresses issue #1144).
+  # Set to true if you need deep memory inspection and your environment supports /dev/mem.
+  # On GKE and some other platforms, /dev/mem is not available as a CharDevice,
+  # causing pod creation failures if this is enabled.
+  #
+  # Set to "false" to resolve https://github.com/leptonai/gpud/issues/1144.
+  # On platforms like GKE, /dev/mem is not available as a CharDevice, causing pod failures.
+  #
+  # Set to "true" only if your environment supports /dev/mem and you need deep diagnostics.
+  mountHostDevMem: false
+
+  # Mount /sys for hardware and device information access.
+  # Required for: InfiniBand monitoring, DMI/hardware info, FUSE filesystem stats.
+  # Defaults to true as it's essential for most gpud functionality.
+  # Set to false in security-sensitive environments where these features aren't needed.
+  mountHostSys: true
+
+  # Mount /proc for kernel and process information access.
+  # Required for: file descriptor limits, boot_id, mount point information.
+  # Defaults to true as it's essential for most gpud functionality.
+  # Set to false in security-sensitive environments where these features aren't needed.
+  mountHostProc: true
+
 # Reference to one or more secrets to be used for pulling images from private registries.
+# Example for NVIDIA NGC registry (nvcr.io):
+#
+# First, create a Kubernetes secret with your NGC API key:
+#   kubectl create secret docker-registry ngc-secret \
+#     --docker-server=nvcr.io \
+#     --docker-username='$oauthtoken' \
+#     --docker-password='nvapi-YOUR-API-KEY' \
+#     --namespace=<your-namespace>
+#
+# Then reference the secret here:
+# imagePullSecrets:
+#   - name: ngc-secret
 imagePullSecrets: []
 
 # Additional annotations to add to the pod.
 podAnnotations: {}
 
-# A Service can be created for the DaemonSet, e.g., for Prometheus scraping.
+# Creates a headless Service for the DaemonSet.
+# When enabled, this creates:
+# - A headless Service (clusterIP: None) for ServiceMonitor/Prometheus discovery
+# - containerPort definition in the pod spec
+#
+# Use cases:
+# - Prometheus ServiceMonitor: Set enabled=true, then create a ServiceMonitor targeting this Service
+# - Prometheus PodMonitor: Set enabled=true (for containerPort), then create a PodMonitor
+# - Direct access: GPUd uses hostNetwork, so access via https://<node-ip>:15132 always works
 service:
   enabled: false
-  type: ClusterIP
-  port: 80
+  # Port must match the port in gpud.listenAddress (default 15132).
+  port: 15132
 
 # Liveness and Readiness probes.
 livenessProbe:
@@ -94,6 +144,7 @@ runtimeClassName: null
 nodeSelector: {}
 tolerations:
   - operator: "Exists"
+
 # By default, this chart only schedules pods on nodes with NVIDIA GPUs.
 affinity:
   nodeAffinity:
@@ -108,6 +159,42 @@ extraVolumes: []
 
 # Extra volume mounts for the pod.
 extraVolumeMounts: []
+
+# Helper sidecar that syncs Kubernetes node labels into a host-mounted file
+# for consumption by gpud or other host-level processes.
+nodeLabelExporter:
+  # OPTIONAL: Enable to read Kubernetes node labels for gpud configuration.
+  # When enabled, creates an init container and sidecar that fetch node labels
+  # and write them to a file for gpud to read endpoint/token/machine-id values.
+  # Requires RBAC permissions - set nodeLabelExporter.rbac.create=true
+  enabled: false
+  image:
+    # Use a shell-capable kubectl image. Distroless kubectl images (registry.k8s.io/kubectl)
+    # do not include /bin/sh, but our init/sidecar scripts rely on a POSIX shell.
+    # Hosted on public ECR to avoid Docker Hub rate limits.
+    repository: public.ecr.aws/bitnami/kubectl
+    tag: v1.34.0
+    pullPolicy: IfNotPresent
+  # File written on the host (via the shared /var/lib/gpud volume).
+  outputFile: /var/lib/gpud/node-labels.env
+  # Label keys to look for in the node labels.
+  labelKeys:
+    endpoint: gpud.dgxc.lepton.ai/endpoint
+    token: gpud.dgxc.lepton.ai/token
+    machineId: gpud.dgxc.lepton.ai/machine-id
+  # Interval in seconds between syncs.
+  updateIntervalSeconds: 60
+  # Extra environment variables for the exporter container.
+  extraEnv: []
+  rbac:
+    create: true
+  resources:
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 5m
+      memory: 16Mi
 
 # [Init containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/) to add to the pod definition.
 initContainers: []
