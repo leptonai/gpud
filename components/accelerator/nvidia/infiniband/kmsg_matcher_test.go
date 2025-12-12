@@ -47,6 +47,35 @@ func TestHasPortModuleHighTemperature(t *testing.T) {
 	}
 }
 
+// TestHasAccessRegFailed tests detection of ACCESS_REG command failures.
+// These errors occur on systems with restricted InfiniBand Physical Functions (PFs),
+// such as NVIDIA DGX or Umbriel systems with ConnectX-7 adapters.
+// ref. https://github.com/prometheus/node_exporter/issues/3434
+// ref. https://github.com/leptonai/gpud/issues/1164
+func TestHasAccessRegFailed(t *testing.T) {
+	tests := []struct {
+		line string
+		want bool
+	}{
+		// Real examples from production systems
+		{line: "mlx5_cmd_out_err:838:(pid 1441871): ACCESS_REG(0x805) op_mod(0x1) failed, status bad resource(0x5), syndrome (0x305684), err(-22)", want: true},
+		{line: "mlx5_core 0000:d2:00.0: mlx5_cmd_out_err:838:(pid 268269): ACCESS_REG(0x805) op_mod(0x1) failed", want: true},
+		{line: "[Sun Dec 1 14:54:40 2024] mlx5_core 0000:d2:00.0: mlx5_cmd_out_err:838:(pid 268269): ACCESS_REG(0x805) op_mod(0x1) failed", want: true},
+		{line: "hostname kernel: mlx5_core 0000:5c:00.0: mlx5_cmd_out_err:838:(pid 123): ACCESS_REG(0x805) op_mod(0x0) failed", want: true},
+		// Variations
+		{line: "mlx5_cmd_out_err: ACCESS_REG failed", want: true},
+		{line: "something before mlx5_cmd_out_err:123:(pid 456): ACCESS_REG(0x123) failed something after", want: true},
+		// Should not match
+		{line: "mlx5_cmd_out_err:838:(pid 1441871): OTHER_CMD(0x123) failed", want: false},
+		{line: "mlx5_core: ACCESS_REG successful", want: false},
+		{line: "some other log message", want: false},
+		{line: "", want: false},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, HasAccessRegFailed(tt.line), "HasAccessRegFailed(%q)", tt.line)
+	}
+}
+
 func TestMatch(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -67,6 +96,12 @@ func TestMatch(t *testing.T) {
 			wantMessage: messagePortModuleHighTemperature,
 		},
 		{
+			name:        "ACCESS_REG failed",
+			line:        "mlx5_cmd_out_err:838:(pid 1441871): ACCESS_REG(0x805) op_mod(0x1) failed, status bad resource(0x5), syndrome (0x305684), err(-22)",
+			wantEvent:   eventAccessRegFailed,
+			wantMessage: messageAccessRegFailed,
+		},
+		{
 			name:        "With timestamp - PCI power insufficient",
 			line:        "[Sun Dec 1 14:54:40 2024] ny2g1r12hh2 kernel: mlx5_core 0000:5c:00.0: mlx5_pcie_event:299:(pid 268269): Detected insufficient power on the PCIe slot (30W).",
 			wantEvent:   eventPCIPowerInsufficient,
@@ -77,6 +112,12 @@ func TestMatch(t *testing.T) {
 			line:        "[Sun Dec 1 14:54:40 2024] hostname kernel: mlx5_port_module_event:1131:(pid 0): Port module event[error]: module 0, Cable error, High Temperature",
 			wantEvent:   eventPortModuleHighTemperature,
 			wantMessage: messagePortModuleHighTemperature,
+		},
+		{
+			name:        "With timestamp - ACCESS_REG failed",
+			line:        "[Sun Dec 1 14:54:40 2024] mlx5_core 0000:d2:00.0: mlx5_cmd_out_err:838:(pid 268269): ACCESS_REG(0x805) op_mod(0x1) failed",
+			wantEvent:   eventAccessRegFailed,
+			wantMessage: messageAccessRegFailed,
 		},
 		{
 			name:        "No match",
@@ -166,6 +207,16 @@ func TestLogLineProcessor(t *testing.T) {
 			expectMatch:  true,
 			expectedName: "port_module_high_temperature",
 			expectedMsg:  "Overheated MLX5 adapter",
+		},
+		{
+			// ACCESS_REG failures on restricted PFs (DGX, Umbriel, GB200)
+			// ref. https://github.com/prometheus/node_exporter/issues/3434
+			// ref. https://github.com/leptonai/gpud/issues/1164
+			name:         "ACCESS_REG failed on restricted PF",
+			logLine:      "mlx5_cmd_out_err:838:(pid 1441871): ACCESS_REG(0x805) op_mod(0x1) failed, status bad resource(0x5), syndrome (0x305684), err(-22)",
+			expectMatch:  true,
+			expectedName: "access_reg_failed",
+			expectedMsg:  "MLX5 ACCESS_REG command failed - device may have restricted PF access",
 		},
 		{
 			name:         "No match",
