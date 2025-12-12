@@ -51,7 +51,7 @@ func TestRecoveryStickyWindow(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Initially, port mlx5_7 is down
 			if currentTime.Before(portRecoveryTime) {
 				return createMixedDevices(7, 1), nil // 7 healthy, 1 down (mlx5_7)
@@ -144,7 +144,7 @@ func TestMultipleRecoveries(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			if portsHealthy {
 				return createHealthyDevices(8, 400), nil
 			}
@@ -240,7 +240,7 @@ func TestDormantPortsWithRecovery(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			if activePortHealthy {
 				// 8 active healthy ports + 4 dormant ports
 				return createMixedDevices(8, 4), nil

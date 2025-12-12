@@ -126,6 +126,7 @@ func Command(cliContext *cli.Context) error {
 	skipSessionUpdateConfig := cliContext.Bool("skip-session-update-config")
 
 	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
+	ibExcludeDevicesStr := cliContext.String("infiniband-exclude-devices")
 	components := cliContext.String("components")
 
 	infinibandExpectedPortStates := cliContext.String("infiniband-expected-port-states")
@@ -198,9 +199,25 @@ func Command(cliContext *cli.Context) error {
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw := cliContext.String("gpu-uuids-with-fabric-state-health-summary-unhealthy")
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthy := common.ParseGPUUUIDs(gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw)
 
+	// Parse comma-separated InfiniBand device exclusion list.
+	// Device names should be like "mlx5_0", "mlx5_1", etc. (not full paths).
+	var ibExcludedDevices []string
+	if ibExcludeDevicesStr != "" {
+		for _, d := range strings.Split(ibExcludeDevicesStr, ",") {
+			d = strings.TrimSpace(d)
+			if d != "" {
+				ibExcludedDevices = append(ibExcludedDevices, d)
+			}
+		}
+		if len(ibExcludedDevices) > 0 {
+			log.Logger.Infow("excluding infiniband devices from monitoring", "devices", ibExcludedDevices)
+		}
+	}
+
 	configOpts := []config.OpOption{
 		config.WithDataDir(dataDir),
 		config.WithInfinibandClassRootDir(ibClassRootDir),
+		config.WithExcludedInfinibandDevices(ibExcludedDevices),
 		config.WithFailureInjector(&gpudcomponents.FailureInjector{
 			GPUUUIDsWithRowRemappingPending:               gpuUUIDsWithRowRemappingPending,
 			GPUUUIDsWithRowRemappingFailed:                gpuUUIDsWithRowRemappingFailed,
