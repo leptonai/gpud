@@ -85,6 +85,7 @@ func TestCheck_FabricStateSupportedUnhealthy(t *testing.T) {
 			supportsFM:          false,
 			supportsFabricState: true,
 			productName:         "NVIDIA GB200",
+			deviceCount:         2, // Need at least 2 GPUs to avoid single-GPU skip
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
@@ -102,8 +103,8 @@ func TestCheck_FabricStateSupportedUnhealthy(t *testing.T) {
 	assert.True(t, ok)
 	assert.False(t, cr.FabricManagerActive)
 	assert.True(t, cr.FabricStateSupported)
-	// FM unsupported path appends its reason and keeps health healthy
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	// Unhealthy fabric state should preserve the unhealthy health state
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: "+reason+"; NVIDIA GB200 does not support fabric manager", cr.reason)
 	assert.Equal(t, reason, cr.FabricStateReason)
 	assert.Nil(t, cr.err)
@@ -123,6 +124,7 @@ func TestCheck_FabricStateSupportedError(t *testing.T) {
 			supportsFM:          false,
 			supportsFabricState: true,
 			productName:         "NVIDIA GB200",
+			deviceCount:         2, // Need at least 2 GPUs to avoid single-GPU skip
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
@@ -138,7 +140,8 @@ func TestCheck_FabricStateSupportedError(t *testing.T) {
 	cr, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.True(t, cr.FabricStateSupported)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	// Unhealthy fabric state should preserve the unhealthy health state
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ; NVIDIA GB200 does not support fabric manager", cr.reason)
 	assert.Nil(t, cr.err)
 }
@@ -158,6 +161,7 @@ func TestCheck_FabricStateSupportedUnhealthyWithBothReasonAndError(t *testing.T)
 			supportsFM:          false,
 			supportsFabricState: true,
 			productName:         "NVIDIA GB200 NVL72",
+			deviceCount:         2, // Need at least 2 GPUs to avoid single-GPU skip
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
@@ -173,7 +177,8 @@ func TestCheck_FabricStateSupportedUnhealthyWithBothReasonAndError(t *testing.T)
 	cr, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.True(t, cr.FabricStateSupported)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	// Unhealthy fabric state should preserve the unhealthy health state
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, "NVIDIA GB200 NVL72 with unhealthy fabric state: "+reason+"; NVIDIA GB200 NVL72 does not support fabric manager", cr.reason)
 	assert.Equal(t, reason, cr.FabricStateReason)
 	assert.Nil(t, cr.err)
@@ -191,6 +196,7 @@ func TestCheck_FabricStateSupportedHealthyWithMultipleGPUs(t *testing.T) {
 			supportsFM:          false,
 			supportsFabricState: true,
 			productName:         "NVIDIA H100",
+			deviceCount:         3, // Need at least 2 GPUs to avoid single-GPU skip
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
@@ -226,6 +232,7 @@ func TestCheck_FabricStateSupportedUnhealthyWithEmptyReason(t *testing.T) {
 			supportsFM:          false,
 			supportsFabricState: true,
 			productName:         "NVIDIA GB200",
+			deviceCount:         2, // Need at least 2 GPUs to avoid single-GPU skip
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
@@ -240,7 +247,8 @@ func TestCheck_FabricStateSupportedUnhealthyWithEmptyReason(t *testing.T) {
 	cr, ok := result.(*checkResult)
 	assert.True(t, ok)
 	assert.True(t, cr.FabricStateSupported)
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	// Unhealthy fabric state should preserve the unhealthy health state
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, "NVIDIA GB200 with unhealthy fabric state: ; NVIDIA GB200 does not support fabric manager", cr.reason)
 	assert.Equal(t, "", cr.FabricStateReason)
 }
