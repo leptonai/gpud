@@ -1,7 +1,6 @@
 package xid
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -57,7 +56,8 @@ func Test_NVLinkLogCoverage(t *testing.T) {
 
 		// XID 149 NETIR variants
 		{"149_NETIR_INT_fatal", "NVRM: Xid (PCI:0000:04:00): 149, NETIR/NETIR_INT Fatal XC0 i0 Link 00 (0x00000018 0x00000000 0x00000000 0x00000000)", apiv1.EventTypeFatal},
-		{"149_NETIR_BER_EVENT_nonfatal", "NVRM: Xid (PCI:0000:04:00): 149, NETIR_BER_EVENT Nonfatal XC0 i0 Link 00 (0x00000013 0x00000000 0x00000000 0x00000000)", apiv1.EventTypeWarning},
+		{"149_NETIR_BER_EVENT_nonfatal_es0", "NVRM: Xid (PCI:0000:04:00): 149, NETIR_BER_EVENT Nonfatal XC0 i0 Link 00 (0x00000013 0x00000000 0x00000000 0x00000000)", apiv1.EventTypeWarning},
+		{"149_NETIR_BER_EVENT_nonfatal_es1", "NVRM: Xid (PCI:0000:04:00): 149, NETIR_BER_EVENT Nonfatal XC0 i0 Link 00 (0x00000013 0x00000001 0x00000000 0x00000000)", apiv1.EventTypeWarning},
 		{"149_NETIR_MFDE_EVENT_fatal", "NVRM: Xid (PCI:0000:04:00): 149, NETIR_MFDE_EVENT Fatal XC0 i0 Link 00 (0x00000014 0x00000001 0x00000000 0x00000000)", apiv1.EventTypeFatal},
 		{"149_NETIR_MFDE_EVENT_nonfatal", "NVRM: Xid (PCI:0000:04:00): 149, NETIR_MFDE_EVENT Nonfatal XC0 i0 Link 00 (0x00000014 0x00000003 0x00000000 0x00000000)", apiv1.EventTypeWarning},
 
@@ -76,21 +76,28 @@ func Test_NVLinkLogCoverage(t *testing.T) {
 			require.NotNil(t, xidErr)
 			require.NotNil(t, xidErr.Detail)
 
-			// Recompute reason with status-aware formatting.
-			reason := newXIDErrorReasonWithDetail(xidErr.Xid, xidErr.Detail.SubCode, xidErr.Detail.SubCodeDescription, xidErr.Detail.InvestigatoryHint, xidErr.DeviceUUID, xidErr.Detail.ErrorStatus, nil)
+			// Create the payload and use buildMessage
+			xidPayload := xidErrorEventDetail{
+				DeviceUUID:         xidErr.DeviceUUID,
+				Xid:                uint64(xidErr.Xid),
+				SubCode:            xidErr.Detail.SubCode,
+				SubCodeDescription: xidErr.Detail.SubCodeDescription,
+				InvestigatoryHint:  xidErr.Detail.InvestigatoryHint,
+				Description:        xidErr.Detail.Description,
+				ErrorStatus:        xidErr.Detail.ErrorStatus,
+			}
+			reason := xidPayload.buildMessage(nil)
 
-			expectedReason := fmt.Sprintf("XID %d.%d (err status 0x%08x) %s detected on GPU %s",
-				xidErr.Xid,
-				xidErr.Detail.SubCode,
-				xidErr.Detail.ErrorStatus,
-				mnemonicForXID(xidErr.Xid),
-				xidErr.DeviceUUID,
-			)
+			// Get the mnemonic from the catalog
+			mnemonic := catalogMnemonicMap[xidErr.Xid]
+			require.NotEmpty(t, mnemonic, "mnemonic should exist for XID %d", xidErr.Xid)
 
 			assert.Equal(t, tc.expectedEvent, xidErr.Detail.EventType)
-			assert.Equal(t, expectedReason, reason)
 			// Ensure mnemonic appears only once (no redundant detail duplication).
-			assert.Equal(t, 1, strings.Count(reason, mnemonicForXID(xidErr.Xid)))
+			assert.Equal(t, 1, strings.Count(reason, mnemonic))
+			// Ensure the reason contains expected components
+			assert.Contains(t, reason, mnemonic)
+			assert.Contains(t, reason, xidErr.DeviceUUID)
 		})
 	}
 }

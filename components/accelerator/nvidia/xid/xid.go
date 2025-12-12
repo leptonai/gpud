@@ -78,10 +78,10 @@ func GetDetail(id int) (*Detail, bool) {
 	return &e, ok
 }
 
-// GetDetailWithSubCode returns the XID detail for a given base code and subcode.
+// getDetailWithSubCode returns the XID detail for a given base code and subcode.
 // For XIDs 144-150, subcode information is derived from NVIDIA's NVLink catalog.
-func GetDetailWithSubCode(id int, subCode int) (*Detail, bool) {
-	if subMap, ok := detailsWithSubCodes[id]; ok {
+func getDetailWithSubCode(xid int, subCode int) (*Detail, bool) {
+	if subMap, ok := detailsWithSubCodes[xid]; ok {
 		if detail, ok := subMap[subCode]; ok {
 			copy := detail
 			return &copy, true
@@ -91,13 +91,13 @@ func GetDetailWithSubCode(id int, subCode int) (*Detail, bool) {
 			return &copy, true
 		}
 	}
-	return GetDetail(id)
+	return GetDetail(xid)
 }
 
-// GetDetailWithSubCodeAndStatus returns the XID detail for a given base code, subcode, and errorStatus
+// getDetailWithSubCodeAndStatus returns the XID detail for a given base code, subcode, and errorStatus
 // for NVLink XIDs (144-150). Falls back progressively to subcode-only and then to base detail.
-func GetDetailWithSubCodeAndStatus(id int, subCode int, errorStatus uint32) (*Detail, bool) {
-	if statusMap, ok := detailsWithSubCodesByStatus[id]; ok {
+func getDetailWithSubCodeAndStatus(xid int, subCode int, errorStatus uint32) (*Detail, bool) {
+	if statusMap, ok := detailsWithSubCodesByStatus[xid]; ok {
 		if subMap, ok := statusMap[subCode]; ok {
 			if detail, ok := subMap[errorStatus]; ok {
 				copy := detail
@@ -105,7 +105,7 @@ func GetDetailWithSubCodeAndStatus(id int, subCode int, errorStatus uint32) (*De
 			}
 		}
 	}
-	return GetDetailWithSubCode(id, subCode)
+	return getDetailWithSubCode(xid, subCode)
 }
 
 // make sure we do not have unknown event type
@@ -2689,47 +2689,84 @@ var details = map[int]Detail{
 		EventType: apiv1.EventTypeFatal,
 	},
 
+	// NVLink XIDs (144-150) MUST have SuggestedActionsByGPUd set for reboot recovery.
+	//
+	// When a kernel message doesn't match RegexNVRMXidExtended (e.g., "Placeholder message"
+	// instead of "NETIR_BER_EVENT Nonfatal XC0 i0 Link 03 (0x00086226 ...)"), Match() falls
+	// back to these base catalog entries. Without SuggestedActionsByGPUd, evolveHealthyState()
+	// cannot clear the error on reboot because it requires:
+	//   lastSuggestedAction != nil && RepairActions[0] == RebootSystem
+	//
+	// Most nvlinkRules for these XIDs have Resolution: "RESET_GPU" which maps to RebootSystem.
 	144: {
-		Code:                   144,
-		Description:            "NVLINK: SAW Error",
-		SuggestedActionsByGPUd: nil,
-		EventType:              apiv1.EventTypeWarning,
+		Code:        144,
+		Description: "NVLINK: SAW Error",
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		},
+		EventType: apiv1.EventTypeWarning,
 	},
 	145: {
-		Code:                   145,
-		Description:            "NVLINK: RLW Error",
-		SuggestedActionsByGPUd: nil,
-		EventType:              apiv1.EventTypeWarning,
+		Code:        145,
+		Description: "NVLINK: RLW Error",
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		},
+		EventType: apiv1.EventTypeWarning,
 	},
 	146: {
-		Code:                   146,
-		Description:            "NVLINK: TLW Error",
-		SuggestedActionsByGPUd: nil,
-		EventType:              apiv1.EventTypeWarning,
+		Code:        146,
+		Description: "NVLINK: TLW Error",
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		},
+		EventType: apiv1.EventTypeWarning,
 	},
 	147: {
-		Code:                   147,
-		Description:            "NVLINK: TREX Error",
-		SuggestedActionsByGPUd: nil,
-		EventType:              apiv1.EventTypeWarning,
+		Code:        147,
+		Description: "NVLINK: TREX Error",
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		},
+		EventType: apiv1.EventTypeWarning,
 	},
 	148: {
-		Code:                   148,
-		Description:            "NVLINK: NVLPW_CTRL Error",
-		SuggestedActionsByGPUd: nil,
-		EventType:              apiv1.EventTypeWarning,
+		Code:        148,
+		Description: "NVLINK: NVLPW_CTRL Error",
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		},
+		EventType: apiv1.EventTypeWarning,
 	},
 	149: {
-		Code:                   149,
-		Description:            "NVLINK: NETIR Error",
-		SuggestedActionsByGPUd: nil,
-		EventType:              apiv1.EventTypeWarning,
+		Code:        149,
+		Description: "NVLINK: NETIR Error",
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		},
+		EventType: apiv1.EventTypeWarning,
 	},
 	150: {
-		Code:                   150,
-		Description:            "NVLINK: MSE Error",
-		SuggestedActionsByGPUd: nil,
-		EventType:              apiv1.EventTypeWarning,
+		Code:        150,
+		Description: "NVLINK: MSE Error",
+		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		},
+		EventType: apiv1.EventTypeWarning,
 	},
 	151: {
 		Code:        151,
@@ -2922,7 +2959,7 @@ func detailFromNVLinkInfo(info *XidExtractedInfo) (*Detail, bool) {
 		return nil, false
 	}
 
-	detailLookup, ok := GetDetailWithSubCodeAndStatus(info.Xid, info.SubCode, info.ErrorStatus)
+	detailLookup, ok := getDetailWithSubCodeAndStatus(info.Xid, info.SubCode, info.ErrorStatus)
 	var detail Detail
 	if ok && detailLookup != nil {
 		detail = *detailLookup
