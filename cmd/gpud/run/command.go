@@ -195,8 +195,16 @@ func Command(cliContext *cli.Context) error {
 	gpuUUIDsWithGPURequiresResetRaw := cliContext.String("gpu-uuids-with-gpu-requires-reset")
 	gpuUUIDsWithGPURequiresReset := common.ParseGPUUUIDs(gpuUUIDsWithGPURequiresResetRaw)
 
+	// NOTE: This flag only takes effect on multi-GPU NVSwitch systems (H100-SXM, H200-SXM, GB200).
+	// It is IGNORED on: PCIe variants (H100-PCIe, H200-PCIe), single-GPU systems, non-Hopper GPUs.
+	// See: components/accelerator/nvidia/fabric-manager/component.go for detailed conditions.
+	// Use --gpu-product-name to override the product name and enable fabric state checking on PCIe systems.
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw := cliContext.String("gpu-uuids-with-fabric-state-health-summary-unhealthy")
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthy := common.ParseGPUUUIDs(gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw)
+
+	// GPU product name override for testing - allows simulating different GPU types
+	// (e.g., set "H100-SXM" on H100-PCIe to enable fabric state failure injection testing)
+	gpuProductNameOverride := cliContext.String("gpu-product-name")
 
 	configOpts := []config.OpOption{
 		config.WithDataDir(dataDir),
@@ -210,6 +218,7 @@ func Command(cliContext *cli.Context) error {
 			GPUUUIDsWithGPULost:                           gpuUUIDsWithGPULost,
 			GPUUUIDsWithGPURequiresReset:                  gpuUUIDsWithGPURequiresReset,
 			GPUUUIDsWithFabricStateHealthSummaryUnhealthy: gpuUUIDsWithFabricStateHealthSummaryUnhealthy,
+			GPUProductNameOverride:                        gpuProductNameOverride,
 		}),
 	}
 
