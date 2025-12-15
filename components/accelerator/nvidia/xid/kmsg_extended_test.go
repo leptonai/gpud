@@ -449,7 +449,7 @@ func TestGetDetailWithSubCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			detail, found := GetDetailWithSubCode(tt.xid, tt.subCode)
+			detail, found := getDetailWithSubCode(tt.xid, tt.subCode)
 			require.Equalf(t, tt.expectedFound, found, "GetDetailWithSubCode(%d, %d) mismatch", tt.xid, tt.subCode)
 			if !found {
 				return

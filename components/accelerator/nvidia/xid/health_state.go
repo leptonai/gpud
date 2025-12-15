@@ -42,15 +42,13 @@ var (
 	catalogMnemonicMap  map[int]string
 )
 
-func mnemonicForXID(code int) string {
+func init() {
 	catalogMnemonicOnce.Do(func() {
 		catalogMnemonicMap = make(map[int]string, len(catalogEntries))
 		for _, entry := range catalogEntries {
 			catalogMnemonicMap[entry.Code] = entry.Mnemonic
 		}
 	})
-
-	return catalogMnemonicMap[code]
 }
 
 // evolveHealthyState resolves the state of the XID error component.
@@ -98,6 +96,13 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 				lastSuggestedAction = currXidErr.SuggestedActionsByGPUd
 			}
 		} else if event.Name == "reboot" {
+			// Clear the error state on reboot ONLY if:
+			// 1. lastSuggestedAction is not nil (XID must have SuggestedActionsByGPUd defined)
+			// 2. The first repair action is RebootSystem or CheckUserAppAndGPU
+			//
+			// IMPORTANT: XIDs with SuggestedActionsByGPUd=nil will NOT be cleared on reboot.
+			// This is why NVLink XIDs (144-150) must have SuggestedActionsByGPUd set in their
+			// base catalog entries - even when the extended log format isn't matched.
 			if lastSuggestedAction != nil && len(lastSuggestedAction.RepairActions) > 0 && (lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeRebootSystem || lastSuggestedAction.RepairActions[0] == apiv1.RepairActionTypeCheckUserAppAndGPU) {
 				lastHealth = healthStateHealthy
 				lastSuggestedAction = nil
@@ -112,7 +117,7 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 	if lastXidErr == nil {
 		reason = "XIDComponent is healthy"
 	} else {
-		reason = newXIDErrorReasonWithDetail(int(lastXidErr.Xid), lastXidErr.SubCode, lastXidErr.SubCodeDescription, lastXidErr.InvestigatoryHint, lastXidErr.DeviceUUID, lastXidErr.ErrorStatus, devices)
+		reason = lastXidErr.buildMessage(devices)
 	}
 	return apiv1.HealthState{
 		Name:             StateNameErrorXid,
@@ -122,52 +127,40 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 	}
 }
 
-func newXIDErrorReasonWithDetail(xidVal, subCode int, subCodeDesc, investigatoryHint, deviceID string, errorStatus uint32, devices map[string]device.Device) string {
-	_ = subCodeDesc       // retained for backward compatibility with call sites
-	_ = investigatoryHint // retained for backward compatibility with call sites
-	var suffix string
-	uuid := convertBusIDToUUID(deviceID, devices)
-	if uuid != "" {
-		suffix = fmt.Sprintf("GPU %s UUID:%s", deviceID, uuid)
-	} else {
-		suffix = fmt.Sprintf("GPU %s", deviceID)
+func (xidErr *xidErrorEventDetail) buildMessage(devices map[string]device.Device) string {
+	if xidErr == nil {
+		// should never happen
+		log.Logger.Errorw("buildMessage: xidErrorEventDetail is nil; returning unknown")
+		return "unknown"
 	}
 
-	detail, _ := GetDetailWithSubCodeAndStatus(xidVal, subCode, errorStatus)
-
-	// Prefer parsed sub-code and error status when available.
-	if subCode == 0 && detail != nil && detail.SubCode > 0 {
-		subCode = detail.SubCode
-	}
-	if errorStatus == 0 && detail != nil && detail.ErrorStatus > 0 {
-		errorStatus = detail.ErrorStatus
-	}
-
-	mnemonic := mnemonicForXID(xidVal)
-	if mnemonic == "" && detail != nil {
-		mnemonic = detail.Description
-	}
+	header := fmt.Sprintf("XID %d", xidErr.Xid)
 
 	// NVLink (144-150): always show dotted sub-code (even 0) and error status.
-	if xidVal >= 144 && xidVal <= 150 {
-		if mnemonic != "" {
-			return fmt.Sprintf("XID %d.%d (err status 0x%08x) %s detected on %s", xidVal, subCode, errorStatus, mnemonic, suffix)
-		}
-		return fmt.Sprintf("XID %d.%d (err status 0x%08x) detected on %s", xidVal, subCode, errorStatus, suffix)
+	// only 144-150 has subcode information
+	if xidErr.Xid >= 144 && xidErr.Xid <= 150 {
+		header = fmt.Sprintf("XID %d.%d (err status 0x%08x)", xidErr.Xid, xidErr.SubCode, xidErr.ErrorStatus)
 	}
 
-	if subCode > 0 {
-		if mnemonic != "" {
-			return fmt.Sprintf("XID %d/%d %s detected on %s", xidVal, subCode, mnemonic, suffix)
-		}
-		return fmt.Sprintf("XID %d/%d detected on %s", xidVal, subCode, suffix)
+	desc := catalogMnemonicMap[int(xidErr.Xid)]
+	if desc == "" {
+		// mnemonic identifier not found, use the description
+		desc = xidErr.Description
+	} else if xidErr.Description != "" && xidErr.Description != "Unused" && desc != xidErr.Description {
+		// in addition to mnemonic identifier,
+		// we append the description to the mnemonic
+		// to make it more readable
+		desc += " " + xidErr.Description
+	}
+	// else: mnemonic exists and Description is empty/Unused/same - just use mnemonic alone
+
+	gpuID := fmt.Sprintf("GPU %s", xidErr.DeviceUUID)
+	uuid := convertBusIDToUUID(xidErr.DeviceUUID, devices)
+	if uuid != "" {
+		gpuID = fmt.Sprintf("GPU %s UUID:%s", xidErr.DeviceUUID, uuid)
 	}
 
-	if mnemonic != "" {
-		return fmt.Sprintf("XID %d %s detected on %s", xidVal, mnemonic, suffix)
-	}
-
-	return fmt.Sprintf("XID %d detected on %s", xidVal, suffix)
+	return fmt.Sprintf("%s %s detected on %s", header, desc, gpuID)
 }
 
 func convertBusIDToUUID(busID string, devices map[string]device.Device) string {
@@ -221,13 +214,18 @@ func resolveXIDEvent(event eventstore.Event, devices map[string]device.Device) e
 // addEventDetails populates event fields/message from parsed XID detail and
 // rewrites the stored ExtraInfo payload in JSON form for downstream consumers.
 func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices map[string]device.Device) eventstore.Event {
-	detail, ok := GetDetailWithSubCodeAndStatus(int(xidErr.Xid), xidErr.SubCode, xidErr.ErrorStatus)
+	detail, ok := getDetailWithSubCodeAndStatus(int(xidErr.Xid), xidErr.SubCode, xidErr.ErrorStatus)
 	if !ok {
 		detail = nil
 	}
 
 	if detail != nil {
-		if detail.EventType != apiv1.EventTypeUnknown {
+		// Only set ev.Type from detail if not already set.
+		// The event may already have the correct Type from Match() which uses
+		// lookupNVLinkRule for precise unit-based matching. The detail from
+		// getDetailWithSubCodeAndStatus may have incorrect severity due to
+		// merging of different units with the same SubCode/ErrorStatus.
+		if ev.Type == "" && detail.EventType != apiv1.EventTypeUnknown {
 			ev.Type = string(detail.EventType)
 		}
 		if xidErr.Description == "" {
@@ -248,7 +246,7 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 		ev.Type = string(apiv1.EventTypeUnknown)
 	}
 
-	ev.Message = newXIDErrorReasonWithDetail(int(xidErr.Xid), xidErr.SubCode, xidErr.SubCodeDescription, xidErr.InvestigatoryHint, xidErr.DeviceUUID, xidErr.ErrorStatus, devices)
+	ev.Message = xidErr.buildMessage(devices)
 
 	// Ensure time/data source are populated for JSON consumers.
 	if xidErr.Time.IsZero() {
