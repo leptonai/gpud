@@ -27,6 +27,8 @@ spec:
     spec:
       # --- Pod Identity & Security ---
       serviceAccountName: {{ include "gpud.serviceAccountName" . }}
+      # K8s auto-mounts SA tokens unless explicitly disabled; see https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#opt-out-of-automounting-service-account-tokens
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -37,9 +39,11 @@ spec:
       {{- end }}
 
       # --- Node-level Settings & Lifecycle ---
-      # Required for the driver to interact with the host's network stack.
+      # Required for the driver to interact with the host's network stack (e.g. for correct IP reporting).
+      # GPUd is intentionally exposed via host networking, so there is no Service object for this chart.
+      # Consumers should reach GPUd via each node's IP/port (e.g. https://<node-ip>:15132).
       hostNetwork: true
-      # Required for the driver to inspect processes on the host.
+      # Required for the driver to inspect processes on the host (e.g. via /proc).
       hostPID: true
       restartPolicy: Always
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
@@ -62,27 +66,83 @@ spec:
 
       # --- Storage ---
       volumes:
+        # System logs directory for GPUd to write logs and monitor system log files
+        # Required by: pkg/gpud-manager/systemd/systemd.go (writes to /var/log/gpud.log)
         - name: host-log
           hostPath:
             path: /var/log
+            type: Directory
+
+        # Persistent storage for kernel crash dumps and system error logs
+        # Required for: analyzing system crashes and kernel panics
         - name: host-pstore
           hostPath:
             path: /var/lib/systemd/pstore
             type: DirectoryOrCreate
+
+        # Device files for hardware access and kernel message buffer
+        # Required by: pkg/kmsg/watcher.go:46 (reads /dev/kmsg for kernel messages)
+        # Also provides access to GPU devices (/dev/nvidia*), block devices, etc.
         - name: host-dev
           hostPath:
             path: /dev
+            type: Directory
+
+        {{- if .Values.gpud.mountHostSys }}
+        # Sysfs virtual filesystem for hardware and device information
+        # Required by:
+        # - components/accelerator/nvidia/infiniband/class/class.go:34 (/sys/class/infiniband - InfiniBand monitoring)
+        # - pkg/host/machine_id.go:152 (/sys/class/dmi - DMI/hardware info for machine ID)
+        # - pkg/fuse/fuse.go:18 (/sys/fs/fuse/connections - FUSE filesystem monitoring)
+        # Can be disabled for security-sensitive environments via gpud.mountHostSys=false
+        - name: host-sys
+          hostPath:
+            path: /sys
+            type: Directory
+        {{- end }}
+
+        {{- if .Values.gpud.mountHostProc }}
+        # Procfs virtual filesystem for process and kernel information
+        # Required by:
+        # - pkg/file/descriptors_linux.go:27,41 (/proc/sys/fs/file-max, file-nr - file descriptor limits)
+        # - pkg/host/boot_id.go:9 (/proc/sys/kernel/random/boot_id - unique boot identifier)
+        # - pkg/disk/mount.go:14,105 (/proc/self/mountinfo - mount point information)
+        # Can be disabled for security-sensitive environments via gpud.mountHostProc=false
+        - name: host-proc
+          hostPath:
+            path: /proc
+            type: Directory
+        {{- end }}
+
+        # GPUd's persistent data directory for state, cache, and configuration
+        # Used for storing GPUd runtime data, labels from nodeLabelExporter, etc.
         - name: lib-gpud
           hostPath:
             path: /var/lib/gpud
+            type: DirectoryOrCreate
+
+        # Machine ID for unique node identification
+        # Required by: pkg/host/machine_id.go (reads machine-id for node identification)
         - name: host-machine-id
           hostPath:
             path: /etc/machine-id
             type: FileOrCreate
+
+        {{- if .Values.gpud.mountHostDevMem }}
+        # Required for direct memory access to inspect hardware state (e.g. PCIe config space).
+        # Addressed https://github.com/leptonai/gpud/issues/1144:
+        # On some environments (e.g. GKE), /dev/mem may not be exposed or not be a CharDevice.
+        # This conditional allows disabling the mount to prevent pod startup failures.
         - name: host-dev-mem
           hostPath:
             path: /dev/mem
+            # We explicitly specify CharDevice to ensure we are mounting the correct device.
+            # If this fails, set gpud.mountHostDevMem to false.
             type: CharDevice
+        {{- end }}
+
+        # Kubelet directory for container and pod information
+        # Required for: monitoring containerized workloads and Kubernetes integration
         - name: host-kubelet-vol
           hostPath:
             path: /var/lib/kubelet
@@ -96,22 +156,140 @@ spec:
       {{- end }}
 
       # --- Containers ---
-      {{- with .Values.initContainers }}
+      # --- OPTIONAL: Init Containers ---
+      # This section is entirely OPTIONAL and only renders when:
+      # 1. nodeLabelExporter.enabled=true (for Kubernetes node label reading), OR
+      # 2. Custom initContainers are specified in values.yaml
+      # By default, nodeLabelExporter.enabled=false, so no init containers are created.
+      {{- if or .Values.nodeLabelExporter.enabled .Values.initContainers }}
       initContainers:
+        {{- if .Values.nodeLabelExporter.enabled }}
+        # OPTIONAL: Node Label Reader Init Container
+        # This init container fetches Kubernetes node labels ONCE before gpud starts.
+        # It writes labels to a file that gpud reads for endpoint/token/machine-id configuration.
+        # Enable with: nodeLabelExporter.enabled=true
+        # Requires RBAC: nodeLabelExporter.rbac.create=true (creates ClusterRole for node read access)
+        - name: node-label-init
+          # Needs a shell-capable image; distroless kubectl images lack /bin/sh so the script would fail.
+          image: "{{ .Values.nodeLabelExporter.image.repository }}:{{ .Values.nodeLabelExporter.image.tag }}"
+          imagePullPolicy: {{ .Values.nodeLabelExporter.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              set -o errexit
+              set -o nounset
+              set -o pipefail 2>/dev/null || true  # pipefail not supported in dash (Ubuntu's /bin/sh)
+
+              tmp_file="${OUTPUT_FILE}.tmp"
+              mkdir -p "$(dirname "${OUTPUT_FILE}")"
+
+              # Fetch node labels once before main container starts
+              # Safe implementation: uses atomic move to prevent partial reads by consumers.
+              if kubectl get node "${NODE_NAME}" \
+                -o go-template='{{`{{range $k,$v := .metadata.labels}}{{printf "%s=%s\n" $k $v}}{{end}}`}}' \
+                > "${tmp_file}"; then
+                mv "${tmp_file}" "${OUTPUT_FILE}"
+                echo "Successfully wrote node labels to ${OUTPUT_FILE}"
+              else
+                echo "Warning: Failed to fetch node labels, file will be created by sidecar"
+                rm -f "${tmp_file}"
+              fi
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: OUTPUT_FILE
+              value: {{ .Values.nodeLabelExporter.outputFile | quote }}
+          volumeMounts:
+            - name: lib-gpud
+              mountPath: /var/lib/gpud
+          resources:
+            {{- toYaml .Values.nodeLabelExporter.resources | nindent 12 }}
+        {{- end }}
+        {{- with .Values.initContainers }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           # Uses the image tag from values.yaml, but defaults to the chart's appVersion if not set.
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Privileged access is required for hardware inspection and low-level system access.
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
 
           command:
-            {{- toYaml .Values.gpud.command | nindent 12 }}
-          args:
-            {{- toYaml .Values.gpud.args | nindent 12 }}
+            - /bin/sh
+            - -ec
+            - |
+              # Shell safety options:
+              # - errexit: Exit immediately if any command fails
+              # - nounset: Treat unset variables as errors
+              # - pipefail: Pipeline fails if any command fails (not just the last)
+              set -o errexit
+              set -o nounset
+              set -o pipefail 2>/dev/null || true  # pipefail not supported in dash (Ubuntu's /bin/sh)
+
+              # --- OPTIONAL: Read configuration from Kubernetes node labels ---
+              # If nodeLabelExporter sidecar is enabled, it writes node labels to this file.
+              # This allows dynamic configuration of endpoint/token/machine-id from K8s labels.
+              LABEL_FILE="{{ .Values.nodeLabelExporter.outputFile }}"
+
+              # Label keys can be overridden via environment variables (useful for testing)
+              EP_LABEL_KEY="${GPUD_ENDPOINT_LABEL_KEY:-{{ .Values.nodeLabelExporter.labelKeys.endpoint }}}"
+              TOKEN_LABEL_KEY="${GPUD_TOKEN_LABEL_KEY:-{{ .Values.nodeLabelExporter.labelKeys.token }}}"
+              MID_LABEL_KEY="${GPUD_MACHINE_ID_LABEL_KEY:-{{ .Values.nodeLabelExporter.labelKeys.machineId }}}"
+
+              # Initialize empty - will be populated from label file if it exists
+              EP=""
+              TOKEN=""
+              MID=""
+
+              if [ -f "$LABEL_FILE" ]; then
+                # Parse label file using awk with index() for EXACT string matching:
+                # - index($0, key"=") == 1: Line must START with "key=" (prevents partial matches)
+                # - substr($0, length(key)+2): Extract everything AFTER the "=" sign
+                # - This handles dots/slashes in keys and preserves "=" in values (e.g., base64)
+                # Example: "gpud.dgxc.lepton.ai/endpoint=https://api.example.com" -> "https://api.example.com"
+                EP="$(awk -v key="$EP_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
+                TOKEN="$(awk -v key="$TOKEN_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
+                MID="$(awk -v key="$MID_LABEL_KEY" 'index($0, key"=") == 1 {print substr($0, length(key)+2); exit}' "$LABEL_FILE")"
+              fi
+
+              # --- Build gpud command arguments ---
+              # Using "set --" to safely build argument list without eval or quoting issues.
+              # Each "set -- "$@" ..." appends to the positional parameters ($1, $2, etc.)
+              set -- run
+              set -- "$@" --listen-address="{{ .Values.gpud.listenAddress }}"
+              set -- "$@" --log-level="{{ .Values.gpud.logLevel }}"
+
+              # Endpoint priority: Node label > values.yaml > (none)
+              ENDPOINT="{{ .Values.gpud.endpoint }}"
+              if [ -n "$EP" ]; then
+                ENDPOINT="$EP"  # Label value overrides values.yaml
+              fi
+              if [ -n "$ENDPOINT" ]; then
+                set -- "$@" --endpoint="$ENDPOINT"
+              fi
+
+              # Token and machine-id are only added if present (from node labels)
+              if [ -n "$TOKEN" ]; then
+                set -- "$@" --token="$TOKEN"
+              fi
+              if [ -n "$MID" ]; then
+                set -- "$@" --machine-id="$MID"
+              fi
+
+              set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
+              set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
+
+              # Log the command for debugging, then exec to replace shell with gpud.
+              # Using exec ensures gpud receives signals directly (important for graceful shutdown).
+              echo "Starting: /usr/local/bin/gpud $*"
+              exec /usr/local/bin/gpud "$@"
 
           env:
             - name: GPUD_NO_USAGE_STATS
@@ -119,7 +297,10 @@ spec:
 
           {{- if .Values.service.enabled }}
           ports:
-            - name: http
+            - name: https
+              # Must match the port in gpud.listenAddress (default 15132)
+              # Uses service.port for reliability - livenessProbe.httpGet.port may not exist
+              # if user customizes livenessProbe to use exec or tcpSocket instead of httpGet.
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           {{- end }}
@@ -131,23 +312,111 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
 
           volumeMounts:
+            # System logs - GPUd writes logs here and monitors system logs
             - name: host-log
               mountPath: /var/log
+
+            # Kernel crash dumps and persistent storage for error analysis
             - name: host-pstore
               mountPath: /var/lib/systemd/pstore
+
+            # Device files - Critical for:
+            # - /dev/kmsg: kernel message buffer (pkg/kmsg/watcher.go)
+            # - /dev/nvidia*: GPU devices for NVIDIA monitoring
+            # - /dev/dri/*: GPU DRM devices
             - name: host-dev
               mountPath: /dev
+
+            {{- if .Values.gpud.mountHostSys }}
+            # Sysfs - Hardware/device info (read-only for safety)
+            # - /sys/class/infiniband: InfiniBand network monitoring
+            # - /sys/class/dmi: Hardware/DMI information
+            # - /sys/fs/fuse/connections: FUSE filesystem stats
+            - name: host-sys
+              mountPath: /sys
+              readOnly: true
+            {{- end }}
+
+            {{- if .Values.gpud.mountHostProc }}
+            # Procfs - Kernel/process info (read-only for safety)
+            # - /proc/sys/fs/file-*: File descriptor limits and usage
+            # - /proc/sys/kernel/random/boot_id: Unique boot identifier
+            # - /proc/self/mountinfo: Current mount points
+            - name: host-proc
+              mountPath: /proc
+              readOnly: true
+            {{- end }}
+
+            # GPUd data directory for runtime state and configuration
             - name: lib-gpud
               mountPath: /var/lib/gpud
+
+            # Machine ID for unique node identification (read-only)
             - name: host-machine-id
               mountPath: /etc/machine-id
               readOnly: true
+
+            {{- if .Values.gpud.mountHostDevMem }}
+            # Physical memory access for hardware diagnostics (read-only)
+            # Conditional mount - can be disabled for GKE/restricted environments
+            # via gpud.mountHostDevMem=false (addresses issue #1144)
             - name: host-dev-mem
               mountPath: /dev/mem
               readOnly: true
+            {{- end }}
+
+            # Kubelet data for container/pod monitoring (read-only)
             - name: host-kubelet-vol
               mountPath: /var/lib/kubelet
               readOnly: true
           {{- if .Values.extraVolumeMounts }}
           {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
           {{- end }}
+        {{- if .Values.nodeLabelExporter.enabled }}
+        # OPTIONAL: Node Label Exporter Sidecar
+        # This sidecar periodically syncs Kubernetes node labels to a file for gpud consumption.
+        # Runs alongside the main gpud container and updates labels at the configured interval.
+        # Enable with: nodeLabelExporter.enabled=true
+        - name: node-label-exporter
+          # Needs a shell-capable image; distroless kubectl images lack /bin/sh so the looped script would fail.
+          image: "{{ .Values.nodeLabelExporter.image.repository }}:{{ .Values.nodeLabelExporter.image.tag }}"
+          imagePullPolicy: {{ .Values.nodeLabelExporter.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              set -o errexit
+              set -o nounset
+              set -o pipefail 2>/dev/null || true  # pipefail not supported in dash (Ubuntu's /bin/sh)
+
+              tmp_file="${OUTPUT_FILE}.tmp"
+              mkdir -p "$(dirname "${OUTPUT_FILE}")"
+
+              while true; do
+                if kubectl get node "${NODE_NAME}" \
+                  -o go-template='{{`{{range $k,$v := .metadata.labels}}{{printf "%s=%s\n" $k $v}}{{end}}`}}' \
+                  > "${tmp_file}"; then
+                  mv "${tmp_file}" "${OUTPUT_FILE}"
+                else
+                  rm -f "${tmp_file}"
+                fi
+                sleep "${UPDATE_INTERVAL}"
+              done
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: OUTPUT_FILE
+              value: {{ .Values.nodeLabelExporter.outputFile | quote }}
+            - name: UPDATE_INTERVAL
+              value: {{ int .Values.nodeLabelExporter.updateIntervalSeconds | quote }}
+          {{- with .Values.nodeLabelExporter.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: lib-gpud
+              mountPath: /var/lib/gpud
+          resources:
+            {{- toYaml .Values.nodeLabelExporter.resources | nindent 12 }}
+        {{- end }}

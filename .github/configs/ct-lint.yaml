@@ -3,6 +3,7 @@ target-branch: main
 chart-dirs:
 - "deployments/helm"
 helm-extra-args: "--timeout 600s"
+chart-yaml-schema: ".github/configs/chart_schema.yaml"
 validate-chart-schema: true
 validate-chart-values: true
 validate-maintainers: false

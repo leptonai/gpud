@@ -36,6 +36,11 @@ jobs:
           tar -xzf helm.tar.gz
           sudo mv linux-amd64/helm /usr/local/bin/helm
 
+      - name: Install lint dependencies
+        run: |
+          python3 -m pip install --user --upgrade yamale yamllint
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
 
       - name: Run chart-testing
         run: |
@@ -46,7 +51,9 @@ jobs:
       - name: Run kubeconform
         run: |
           helm plugin install https://github.com/melmorabity/helm-kubeconform
-          helm kubeconform chart --verbose --summary --strict --exit-on-error
+          # Validate the Helm chart manifests with kubeconform.
+          # Pass the chart path explicitly; the plugin errors if given the literal string "chart".
+          helm kubeconform deployments/helm/gpud --verbose --summary --strict --exit-on-error
 
       - name: release
         if: github.event.pull_request.merged == true
