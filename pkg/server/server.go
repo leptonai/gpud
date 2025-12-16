@@ -81,7 +81,8 @@ type Server struct {
 	fifoPath string
 	fifo     *stdos.File
 
-	dataDir string
+	dataDir    string
+	dbInMemory bool
 
 	gpudInstance *components.GPUdInstance
 	session      *session.Session
@@ -188,8 +189,9 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		dbRW: dbRW,
 		dbRO: dbRO,
 
-		fifoPath: fifoPath,
-		dataDir:  config.DataDir,
+		fifoPath:   fifoPath,
+		dataDir:    config.DataDir,
+		dbInMemory: config.DBInMemory,
 
 		enableAutoUpdate:        config.EnableAutoUpdate,
 		autoUpdateExitCode:      config.AutoUpdateExitCode,
@@ -546,6 +548,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
 			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithDataDir(s.dataDir),
+			session.WithDBInMemory(s.dbInMemory),
 			session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 			session.WithMetricsStore(metricsStore),
 			session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
@@ -608,6 +611,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
 				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithDataDir(s.dataDir),
+				session.WithDBInMemory(s.dbInMemory),
 				session.WithNvidiaInstance(s.gpudInstance.NVMLInstance),
 				session.WithMetricsStore(metricsStore),
 				session.WithSavePluginSpecsFunc(func(ctx context.Context, specs pkgcustomplugins.Specs) (bool, error) {
