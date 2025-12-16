@@ -54,6 +54,12 @@ type FailureInjector struct {
 	GPUUUIDsWithGPULost                           []string
 	GPUUUIDsWithGPURequiresReset                  []string
 	GPUUUIDsWithFabricStateHealthSummaryUnhealthy []string
+
+	// GPUProductNameOverride overrides the detected GPU product name.
+	// Useful for testing fabric state injection on systems where the actual GPU
+	// (e.g., H100-PCIe) doesn't support fabric state monitoring.
+	// Set to "H100-SXM" or "H200-SXM" to simulate a fabric-capable system.
+	GPUProductNameOverride string
 }
 
 // InitFunc is the function that initializes a component.
