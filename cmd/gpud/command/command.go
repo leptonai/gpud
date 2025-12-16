@@ -50,6 +50,10 @@ func App() *cli.App {
 			Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
 			Value: pkgconfig.DefaultDataDir,
 		},
+		&cli.BoolFlag{
+			Name:  "db-in-memory",
+			Usage: "use in-memory SQLite database (file::memory:?cache=shared) instead of file-based storage; overrides --data-dir for database",
+		},
 	}
 
 	app.Commands = []cli.Command{

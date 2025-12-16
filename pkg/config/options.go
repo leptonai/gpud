@@ -11,7 +11,8 @@ type Op struct {
 
 	FailureInjector *components.FailureInjector
 
-	DataDir string
+	DataDir    string
+	DBInMemory bool
 }
 
 type OpOption func(*Op)
@@ -45,5 +46,14 @@ func WithFailureInjector(injector *components.FailureInjector) OpOption {
 func WithDataDir(dataDir string) OpOption {
 	return func(op *Op) {
 		op.DataDir = dataDir
+	}
+}
+
+// WithDBInMemory enables in-memory SQLite database mode.
+// When true, uses file::memory:?cache=shared instead of file-based storage.
+// ref. https://github.com/mattn/go-sqlite3?tab=readme-ov-file#faq
+func WithDBInMemory(b bool) OpOption {
+	return func(op *Op) {
+		op.DBInMemory = b
 	}
 }

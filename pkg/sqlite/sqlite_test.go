@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOpen(t *testing.T) {
@@ -389,5 +392,124 @@ func TestTableExists(t *testing.T) {
 		if !exists {
 			t.Error("expected existing table to return true")
 		}
+	})
+}
+
+func TestBuildConnectionString(t *testing.T) {
+	t.Run("in-memory with shared cache produces file::memory:?cache=shared", func(t *testing.T) {
+		// This is the exact connection string required for shared in-memory database
+		// ref. https://github.com/mattn/go-sqlite3?tab=readme-ov-file#faq
+		conns, err := BuildConnectionString(":memory:", WithCache("shared"))
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(conns, "file::memory:?cache=shared"), "connection string should start with 'file::memory:?cache=shared', got: %s", conns)
+		assert.Contains(t, conns, "_busy_timeout=5000")
+		assert.Contains(t, conns, "_journal_mode=WAL")
+		assert.Contains(t, conns, "_synchronous=NORMAL")
+		assert.Contains(t, conns, "_txlock=immediate")
+	})
+
+	t.Run("in-memory with shared cache and read-only", func(t *testing.T) {
+		conns, err := BuildConnectionString(":memory:", WithCache("shared"), WithReadOnly(true))
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(conns, "file::memory:?cache=shared"), "connection string should start with 'file::memory:?cache=shared', got: %s", conns)
+		assert.Contains(t, conns, "mode=ro")
+		assert.NotContains(t, conns, "_txlock=immediate")
+	})
+
+	t.Run("in-memory without cache", func(t *testing.T) {
+		conns, err := BuildConnectionString(":memory:")
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(conns, "file::memory:?"), "connection string should start with 'file::memory:?', got: %s", conns)
+		assert.NotContains(t, conns, "cache=")
+	})
+
+	t.Run("file-based database", func(t *testing.T) {
+		conns, err := BuildConnectionString("/path/to/db.sqlite")
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(conns, "file:/path/to/db.sqlite?"), "connection string should start with 'file:/path/to/db.sqlite?', got: %s", conns)
+		assert.Contains(t, conns, "_busy_timeout=5000")
+	})
+
+	t.Run("file-based database ignores cache option", func(t *testing.T) {
+		// Cache option is only meaningful for in-memory databases
+		conns, err := BuildConnectionString("/path/to/db.sqlite", WithCache("shared"))
+		require.NoError(t, err)
+		assert.True(t, strings.HasPrefix(conns, "file:/path/to/db.sqlite?"), "connection string should start with 'file:/path/to/db.sqlite?', got: %s", conns)
+		// Cache option should be ignored for file-based databases
+		assert.NotContains(t, conns, "cache=shared")
+	})
+}
+
+func TestOpenWithCache(t *testing.T) {
+	t.Run("in-memory with shared cache allows multiple connections to share data", func(t *testing.T) {
+		// Open RW connection with shared cache
+		dbRW, err := Open(":memory:", WithCache("shared"))
+		require.NoError(t, err)
+		defer func() {
+			_ = dbRW.Close()
+		}()
+
+		// Create a table in RW connection
+		_, err = dbRW.Exec("CREATE TABLE test_shared (id INTEGER PRIMARY KEY, name TEXT)")
+		require.NoError(t, err)
+
+		// Insert data
+		_, err = dbRW.Exec("INSERT INTO test_shared (id, name) VALUES (1, 'test')")
+		require.NoError(t, err)
+
+		// Open RO connection with same shared cache
+		dbRO, err := Open(":memory:", WithCache("shared"), WithReadOnly(true))
+		require.NoError(t, err)
+		defer func() {
+			_ = dbRO.Close()
+		}()
+
+		// Verify RO connection can see the data (shared cache works)
+		var name string
+		err = dbRO.QueryRow("SELECT name FROM test_shared WHERE id = 1").Scan(&name)
+		require.NoError(t, err, "RO connection should see data from shared cache")
+		assert.Equal(t, "test", name)
+	})
+
+	t.Run("in-memory without shared cache creates separate databases", func(t *testing.T) {
+		dbRW, err := Open(":memory:")
+		require.NoError(t, err)
+		defer func() {
+			_ = dbRW.Close()
+		}()
+
+		_, err = dbRW.Exec("CREATE TABLE test_separate (id INTEGER PRIMARY KEY)")
+		require.NoError(t, err)
+
+		// Another connection without shared cache should have separate database
+		dbRW2, err := Open(":memory:")
+		require.NoError(t, err)
+		defer func() {
+			_ = dbRW2.Close()
+		}()
+
+		// Table should not exist in second connection
+		exists, err := TableExists(context.Background(), dbRW2, "test_separate")
+		require.NoError(t, err)
+		assert.False(t, exists, "without shared cache, separate connections should have separate databases")
+	})
+
+	t.Run("file-based database works with cache option", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "sqlite_cache_test")
+		require.NoError(t, err)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		dbFile := filepath.Join(tmpDir, "test.db")
+		db, err := Open(dbFile, WithCache("shared"))
+		require.NoError(t, err)
+		defer func() {
+			_ = db.Close()
+		}()
+
+		// Should work normally, cache option is ignored for file-based
+		_, err = db.Exec("CREATE TABLE test (id INTEGER PRIMARY KEY)")
+		require.NoError(t, err)
 	})
 }

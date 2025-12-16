@@ -54,6 +54,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 			InfinibandClassRootDir: options.InfinibandClassRootDir,
 		},
 		FailureInjector: options.FailureInjector,
+		DBInMemory:      options.DBInMemory,
 	}
 
 	if cfg.State == "" {

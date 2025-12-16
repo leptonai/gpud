@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	_ "github.com/mattn/go-sqlite3"
@@ -13,25 +14,47 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-// Helper function to open a SQLite3 database.
-func Open(file string, opts ...OpOption) (*sql.DB, error) {
+// BuildConnectionString builds a SQLite connection string based on the file path and options.
+// This is exported for testing purposes.
+// ref. https://www.sqlite.org/c3ref/open.html
+// ref. https://www.sqlite.org/uri.html
+// ref. https://github.com/mattn/go-sqlite3?tab=readme-ov-file#connection-string
+// ref. https://github.com/mattn/go-sqlite3?tab=readme-ov-file#faq
+func BuildConnectionString(file string, opts ...OpOption) (string, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
-		return nil, err
+		return "", err
 	}
 
-	// Build connection string in URI format
-	// ref. https://www.sqlite.org/c3ref/open.html
-	// ref. https://www.sqlite.org/uri.html
-	// ref. https://github.com/mattn/go-sqlite3?tab=readme-ov-file#connection-string
-	conns := "file:" + file
+	var conns string
+
+	// Handle in-memory database with shared cache
+	// ref. https://github.com/mattn/go-sqlite3?tab=readme-ov-file#faq
+	// For shared in-memory database, use "file::memory:?cache=shared"
+	if file == ":memory:" && op.cache != "" {
+		conns = "file::memory:?cache=" + op.cache
+	} else if file == ":memory:" {
+		// Standard in-memory database without shared cache
+		conns = "file::memory:"
+	} else {
+		// File-based database
+		conns = "file:" + file
+	}
+
+	// Determine the separator for additional parameters
+	separator := "?"
+	if strings.Contains(conns, "?") {
+		separator = "&"
+	}
 
 	// Add URI parameters
 	// ref. https://www.sqlite.org/pragma.html#pragma_busy_timeout
 	// ref. https://www.sqlite.org/pragma.html#pragma_journal_mode
 	// ref. https://www.sqlite.org/pragma.html#pragma_synchronous
 	// ref. https://github.com/mattn/go-sqlite3/blob/7658c06970ecf5588d8cd930ed1f2de7223f1010/sqlite3.go#L975
-	conns += "?_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL"
+	// Note: WAL mode is ignored for in-memory databases (SQLite uses default mode), but including it
+	// for consistency and to handle any edge cases where file might not be ":memory:".
+	conns += separator + "_busy_timeout=5000&_journal_mode=WAL&_synchronous=NORMAL"
 
 	if op.readOnly {
 		conns += "&mode=ro"
@@ -40,10 +63,24 @@ func Open(file string, opts ...OpOption) (*sql.DB, error) {
 		conns += "&_txlock=immediate"
 	}
 
+	return conns, nil
+}
+
+// Helper function to open a SQLite3 database.
+func Open(file string, opts ...OpOption) (*sql.DB, error) {
+	conns, err := BuildConnectionString(file, opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	db, err := sql.Open("sqlite3", conns)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite3 database: %w (%q)", err, conns)
 	}
+
+	// Check if this is a read-only connection by checking the options
+	op := &Op{}
+	_ = op.applyOpts(opts)
 
 	if !op.readOnly {
 		// single connection for writing
