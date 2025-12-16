@@ -45,11 +45,11 @@ func DefaultBinExists() bool {
 
 // CreateDefaultEnvFile creates the default environment file for gpud systemd service.
 // Assume systemdctl is already installed, and runs on the linux system.
-func CreateDefaultEnvFile(endpoint string, dataDir string) error {
-	return writeEnvFile(DefaultEnvFile, endpoint, dataDir)
+func CreateDefaultEnvFile(endpoint string, dataDir string, dbInMemory bool) error {
+	return writeEnvFile(DefaultEnvFile, endpoint, dataDir, dbInMemory)
 }
 
-func createDefaultEnvFileContent(endpoint string, dataDir string) string {
+func createDefaultEnvFileContent(endpoint string, dataDir string, dbInMemory bool) string {
 	flags := "--log-level=info --log-file=/var/log/gpud.log"
 	if endpoint != "" {
 		flags += fmt.Sprintf(" --endpoint=%s", endpoint)
@@ -57,13 +57,16 @@ func createDefaultEnvFileContent(endpoint string, dataDir string) string {
 	if dataDir != "" {
 		flags += fmt.Sprintf(" --data-dir=%s", dataDir)
 	}
+	if dbInMemory {
+		flags += " --db-in-memory"
+	}
 	return fmt.Sprintf(`# gpud environment variables are set here
 FLAGS="%s"
 `, flags)
 }
 
-func writeEnvFile(file string, endpoint string, dataDir string) error {
-	return atomicfile.WriteFile(file, []byte(createDefaultEnvFileContent(endpoint, dataDir)), 0644)
+func writeEnvFile(file string, endpoint string, dataDir string, dbInMemory bool) error {
+	return atomicfile.WriteFile(file, []byte(createDefaultEnvFileContent(endpoint, dataDir, dbInMemory)), 0644)
 }
 
 func updateFlagsFromExistingEnvFile(file string, endpoint string) error {

@@ -44,6 +44,7 @@ type Op struct {
 	skipUpdateConfig    bool
 	componentsRegistry  components.Registry
 	dataDir             string
+	dbInMemory          bool
 	nvmlInstance        nvidianvml.Instance
 	metricsStore        pkgmetrics.Store
 	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
@@ -121,6 +122,12 @@ func WithDataDir(dataDir string) OpOption {
 	}
 }
 
+func WithDBInMemory(dbInMemory bool) OpOption {
+	return func(op *Op) {
+		op.dbInMemory = dbInMemory
+	}
+}
+
 func WithMetricsStore(metricsStore pkgmetrics.Store) OpOption {
 	return func(op *Op) {
 		op.metricsStore = metricsStore
@@ -163,8 +170,9 @@ type Session struct {
 	// epControlPlane is the endpoint of the control plane
 	epControlPlane string
 
-	token   string
-	dataDir string
+	token      string
+	dataDir    string
+	dbInMemory bool
 
 	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
 
@@ -264,9 +272,10 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		epLocalGPUdServer: epLocalGPUdServer,
 		epControlPlane:    epControlPlane,
 
-		machineID: op.machineID,
-		token:     token,
-		dataDir:   dataDir,
+		machineID:  op.machineID,
+		token:      token,
+		dataDir:    dataDir,
+		dbInMemory: op.dbInMemory,
 
 		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
 

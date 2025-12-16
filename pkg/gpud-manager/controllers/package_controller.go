@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -311,7 +312,7 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 			return err
 		}
 		defer func() {
-			if cerr := f.Close(); cerr != nil {
+			if cerr := f.Close(); cerr != nil && !errors.Is(cerr, os.ErrClosed) {
 				log.Logger.Warnw("failed to close log file", "error", cerr)
 			}
 		}()

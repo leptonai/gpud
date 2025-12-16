@@ -67,6 +67,10 @@ nohup sudo gpud run &>> <your log file path> &
 					Name:  "data-dir",
 					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
 				},
+				&cli.BoolFlag{
+					Name:  "db-in-memory",
+					Usage: "use in-memory SQLite database (file::memory:?cache=shared) instead of file-based storage; overrides --data-dir for database",
+				},
 				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
