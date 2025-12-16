@@ -67,6 +67,12 @@ type Config struct {
 
 	// SkipSessionUpdateConfig skips processing of updateConfig session commands. Intended for testing.
 	SkipSessionUpdateConfig bool `json:"skip_session_update_config"`
+
+	// DBInMemory enables in-memory SQLite database mode.
+	// When true, the database is opened as a shared in-memory database (file::memory:?cache=shared)
+	// instead of using the State file path. Data will not persist across restarts.
+	// ref. https://github.com/mattn/go-sqlite3?tab=readme-ov-file#faq
+	DBInMemory bool `json:"db_in_memory"`
 }
 
 func (config *Config) Validate() error {

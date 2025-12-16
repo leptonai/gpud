@@ -198,9 +198,12 @@ func Command(cliContext *cli.Context) error {
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw := cliContext.String("gpu-uuids-with-fabric-state-health-summary-unhealthy")
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthy := common.ParseGPUUUIDs(gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw)
 
+	dbInMemory := cliContext.GlobalBool("db-in-memory")
+
 	configOpts := []config.OpOption{
 		config.WithDataDir(dataDir),
 		config.WithInfinibandClassRootDir(ibClassRootDir),
+		config.WithDBInMemory(dbInMemory),
 		config.WithFailureInjector(&gpudcomponents.FailureInjector{
 			GPUUUIDsWithRowRemappingPending:               gpuUUIDsWithRowRemappingPending,
 			GPUUUIDsWithRowRemappingFailed:                gpuUUIDsWithRowRemappingFailed,

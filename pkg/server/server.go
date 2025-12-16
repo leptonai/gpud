@@ -122,18 +122,29 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		config.State = lepconfig.StateFilePath(config.DataDir)
 	}
 
-	stateFile := ":memory:"
-	if config.State != "" {
-		stateFile = config.State
-	}
-
-	dbRW, err := sqlite.Open(stateFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open state file (for read-write): %w", err)
-	}
-	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
-	if err != nil {
-		return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
+	var dbRW, dbRO *sql.DB
+	if config.DBInMemory {
+		// Use shared in-memory database for both read-write and read-only connections
+		// ref. https://github.com/mattn/go-sqlite3?tab=readme-ov-file#faq
+		dbRW, err = sqlite.Open(":memory:", sqlite.WithCache("shared"))
+		if err != nil {
+			return nil, fmt.Errorf("failed to open in-memory database (for read-write): %w", err)
+		}
+		dbRO, err = sqlite.Open(":memory:", sqlite.WithCache("shared"), sqlite.WithReadOnly(true))
+		if err != nil {
+			return nil, fmt.Errorf("failed to open in-memory database (for read-only): %w", err)
+		}
+		log.Logger.Infow("using in-memory SQLite database", "connection", "file::memory:?cache=shared")
+	} else {
+		// File-based database (config.State is guaranteed to be set earlier)
+		dbRW, err = sqlite.Open(config.State)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open state file (for read-write): %w", err)
+		}
+		dbRO, err = sqlite.Open(config.State, sqlite.WithReadOnly(true))
+		if err != nil {
+			return nil, fmt.Errorf("failed to open state file (for read-only): %w", err)
+		}
 	}
 
 	if err := pkgmetadata.CreateTableMetadata(ctx, dbRW); err != nil {
