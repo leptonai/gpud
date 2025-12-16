@@ -44,18 +44,6 @@ func App() *cli.App {
 	app.Usage = usage
 	app.Description = "GPU health checkers"
 
-	app.Flags = []cli.Flag{
-		&cli.StringFlag{
-			Name:  "data-dir",
-			Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
-			Value: pkgconfig.DefaultDataDir,
-		},
-		&cli.BoolFlag{
-			Name:  "db-in-memory",
-			Usage: "use in-memory SQLite database (file::memory:?cache=shared) instead of file-based storage; overrides --data-dir for database",
-		},
-	}
-
 	app.Commands = []cli.Command{
 		{
 			Name:  "up",
@@ -75,6 +63,10 @@ nohup sudo gpud run &>> <your log file path> &
 `,
 			Action: cmdup.Command,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "data-dir",
+					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+				},
 				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
@@ -126,6 +118,10 @@ sudo rm /etc/systemd/system/gpud.service
 			Action: cmddown.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
+					Name:  "data-dir",
+					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+				},
+				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
@@ -140,6 +136,14 @@ sudo rm /etc/systemd/system/gpud.service
 			Usage:  "starts gpud without any login/checkin ('gpud up' is recommended for linux) -- if --token is provided, it will perform login",
 			Action: cmdrun.Command,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "data-dir",
+					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+				},
+				&cli.BoolFlag{
+					Name:  "db-in-memory",
+					Usage: "use in-memory SQLite database (file::memory:?cache=shared) instead of file-based storage; overrides --data-dir for database",
+				},
 				&cli.StringFlag{
 					Name:   "endpoint",
 					Usage:  "(optional) endpoint for control plane",
@@ -237,6 +241,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
+					Name:   "gpu-product-name",
+					Usage:  "(testing purposes) set the gpu product name to overwrite",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
 					Name:   "gpu-uuids-with-row-remapping-pending",
 					Usage:  "(testing purposes) set the comma-separated gpu uuids with row remapping pending",
 					Hidden: true, // only for testing
@@ -273,7 +282,7 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-fabric-state-health-summary-unhealthy",
-					Usage:  "(testing purposes) set the comma-separated gpu uuids to return GPU fabric health summary unhealthy (nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY)",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return GPU fabric health summary unhealthy (nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY). NOTE: Only works on multi-GPU NVSwitch systems (H100-SXM, H200-SXM, GB200). Ignored on PCIe variants and single-GPU systems.",
 					Hidden: true, // only for testing
 				},
 			},
@@ -447,6 +456,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Action: cmdnotify.CommandStartup,
 					Flags: []cli.Flag{
 						&cli.StringFlag{
+							Name:  "data-dir",
+							Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+						},
+						&cli.StringFlag{
 							Name:  "log-level,l",
 							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 						},
@@ -457,6 +470,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "notify machine shutdown",
 					Action: cmdnotify.CommandShutdown,
 					Flags: []cli.Flag{
+						&cli.StringFlag{
+							Name:  "data-dir",
+							Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+						},
 						&cli.StringFlag{
 							Name:  "log-level,l",
 							Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
@@ -472,6 +489,10 @@ sudo rm /etc/systemd/system/gpud.service
 			Action:  cmdstatus.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
+					Name:  "data-dir",
+					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+				},
+				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
@@ -486,6 +507,10 @@ sudo rm /etc/systemd/system/gpud.service
 			Usage:  "compact the GPUd state database to reduce the size in disk (GPUd must be stopped)",
 			Action: cmdcompact.Command,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "data-dir",
+					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+				},
 				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
@@ -556,6 +581,26 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "set the comma-separated gpu uuids with hw slowdown power brake",
 					Hidden: true, // only for testing
 				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-gpu-lost",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return 'GPU lost' NVML error",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-gpu-requires-reset",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return 'GPU requires reset' NVML error",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-fabric-state-health-summary-unhealthy",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to return GPU fabric health summary unhealthy. NOTE: Only works on multi-GPU NVSwitch systems (H100-SXM, H200-SXM, GB200). Use --gpu-product-name to override.",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-product-name",
+					Usage:  "(testing purposes) override the detected GPU product name to simulate different GPU types (e.g., set 'H100-SXM' on H100-PCIe to enable fabric state testing)",
+					Hidden: true, // only for testing
+				},
 			},
 		},
 		{
@@ -623,6 +668,10 @@ sudo rm /etc/systemd/system/gpud.service
 			Action:    cmdmachineinfo.Command,
 			Flags: []cli.Flag{
 				&cli.StringFlag{
+					Name:  "data-dir",
+					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+				},
+				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
@@ -670,6 +719,10 @@ sudo rm /etc/systemd/system/gpud.service
 			Usage:  "inspects/updates metadata table",
 			Action: cmdmetadata.Command,
 			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "data-dir",
+					Usage: "set the data directory for GPUd state and packages (default: /var/lib/gpud or ~/.gpud for non-root)",
+				},
 				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",

@@ -134,6 +134,10 @@ type component struct {
 	eventBucket      eventstore.Bucket
 	logLineProcessor *logLineProcessor
 
+	// testingMode is true when failure injection is configured (e.g., --gpu-product-name override).
+	// In testing mode, we skip certain real-world validations like the GPU count check.
+	testingMode bool
+
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
@@ -179,6 +183,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		checkFMExistsFunc: checkFMExists,
 		checkFMActiveFunc: checkFMActive,
+
+		// Enable testing mode when failure injection is configured (e.g., --gpu-product-name override).
+		// This allows testing fabric state injection on single-GPU systems.
+		testingMode: gpudInstance.FailureInjector != nil && gpudInstance.FailureInjector.GPUProductNameOverride != "",
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -295,9 +303,46 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
+	// Fabric State Health Check via NVML APIs
+	//
+	// This block checks fabric health using nvmlDeviceGetGpuFabricInfo* APIs.
+	// It is the ONLY code path where the "--gpu-uuids-with-fabric-state-health-summary-unhealthy"
+	// failure injection flag takes effect.
+	//
+	// IMPORTANT: The flag is IGNORED (has no effect) in the following cases
+	// UNLESS you also use "--gpu-product-name" to override the product name:
+	//
+	//   1. PCIe GPU variants (H100-PCIe, H200-PCIe):
+	//      - FabricStateSupported() returns false because PCIe cards don't have NVSwitch fabric
+	//      - WORKAROUND: Use --gpu-product-name="NVIDIA H100 80GB HBM3" to simulate SXM variant
+	//
+	//   2. Non-Hopper/GB200 GPUs (A100, V100, etc.):
+	//      - FabricStateSupported() returns false; only H100-SXM, H200-SXM, GB200 are supported
+	//      - WORKAROUND: Use --gpu-product-name="NVIDIA H100 80GB HBM3" to simulate H100-SXM
+	//
+	//   3. Single-GPU systems (count < 2):
+	//      - In production, we skip the check because NVLink fabric requires multiple GPUs
+	//      - WORKAROUND: Using --gpu-product-name enables "testing mode" which bypasses this check
+	//
+	// TESTING: To test fabric state injection on ANY system (including single H100-PCIe):
+	//
+	//   gpud run \
+	//     --gpu-product-name="NVIDIA H100 80GB HBM3" \
+	//     --gpu-uuids-with-fabric-state-health-summary-unhealthy=GPU-xxxxx-...
+	//
+	// When effective, the failure injection works by:
+	//   1. Server creates NVML instance with FailureInjectorConfig (pkg/server/server.go)
+	//   2. Matching GPU devices are wrapped with testDevice (pkg/nvidia-query/nvml/device/device.go)
+	//   3. testDevice.GetFabricState() returns HealthSummary=UNHEALTHY (pkg/nvidia-query/nvml/device/test_device.go)
+	//   4. collectFabricState() detects the unhealthy state via GetIssues() (fabric_state.go)
+	//   5. This Check() method sets health=Unhealthy based on the report
+	//
 	if c.nvmlInstance.FabricStateSupported() {
 		cr.FabricStateSupported = true
-		if c.getCountLspci != nil {
+
+		// Skip the GPU count check in testing mode (when --gpu-product-name is used).
+		// This allows testing fabric state injection on single-GPU systems.
+		if !c.testingMode && c.getCountLspci != nil {
 			count, err := c.getCountLspci(c.ctx)
 			if err != nil {
 				log.Logger.Warnw("failed to count GPUs via lspci for fabric check", "error", err)
@@ -363,7 +408,10 @@ func (c *component) Check() components.CheckResult {
 	if !c.nvmlInstance.FabricManagerSupported() {
 		cr.FabricManagerActive = false
 
-		cr.health = apiv1.HealthStateTypeHealthy
+		// Preserve unhealthy state from fabric state check, only set healthy if not already unhealthy
+		if cr.health != apiv1.HealthStateTypeUnhealthy {
+			cr.health = apiv1.HealthStateTypeHealthy
+		}
 		cr.reason = appendReason(cr.reason, c.nvmlInstance.ProductName()+" does not support fabric manager")
 
 		// no reason to proceed the fabric-manager activeness checks
@@ -373,7 +421,10 @@ func (c *component) Check() components.CheckResult {
 	if c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
 		cr.FabricManagerActive = false
 
-		cr.health = apiv1.HealthStateTypeHealthy
+		// Preserve unhealthy state from fabric state check, only set healthy if not already unhealthy
+		if cr.health != apiv1.HealthStateTypeUnhealthy {
+			cr.health = apiv1.HealthStateTypeHealthy
+		}
 		cr.reason = appendReason(cr.reason, "NVSwitch not detected, skipping fabric manager check")
 
 		// no reason to proceed the fabric-manager activeness checks

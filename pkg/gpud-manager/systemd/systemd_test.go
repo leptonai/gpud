@@ -23,18 +23,35 @@ func TestGPUdServiceUnitFileContents(t *testing.T) {
 }
 
 func TestCreateDefaultEnvFileContent(t *testing.T) {
-	t.Run("without endpoint", func(t *testing.T) {
-		content := createDefaultEnvFileContent("")
-		assert.Equal(t, defaultEnvFileContent, content)
+	t.Run("without endpoint or data-dir", func(t *testing.T) {
+		content := createDefaultEnvFileContent("", "")
 		assert.Contains(t, content, "--log-level=info --log-file=/var/log/gpud.log")
 		assert.NotContains(t, content, "--endpoint=")
+		assert.NotContains(t, content, "--data-dir=")
 	})
 
-	t.Run("with endpoint", func(t *testing.T) {
+	t.Run("with endpoint only", func(t *testing.T) {
 		endpoint := "https://example.com"
-		content := createDefaultEnvFileContent(endpoint)
+		content := createDefaultEnvFileContent(endpoint, "")
 		assert.Contains(t, content, "--log-level=info --log-file=/var/log/gpud.log")
 		assert.Contains(t, content, "--endpoint=https://example.com")
+		assert.NotContains(t, content, "--data-dir=")
+	})
+
+	t.Run("with data-dir only", func(t *testing.T) {
+		content := createDefaultEnvFileContent("", "/custom/data/dir")
+		assert.Contains(t, content, "--log-level=info --log-file=/var/log/gpud.log")
+		assert.NotContains(t, content, "--endpoint=")
+		assert.Contains(t, content, "--data-dir=/custom/data/dir")
+	})
+
+	t.Run("with both endpoint and data-dir", func(t *testing.T) {
+		endpoint := "https://example.com"
+		dataDir := "/custom/data/dir"
+		content := createDefaultEnvFileContent(endpoint, dataDir)
+		assert.Contains(t, content, "--log-level=info --log-file=/var/log/gpud.log")
+		assert.Contains(t, content, "--endpoint=https://example.com")
+		assert.Contains(t, content, "--data-dir=/custom/data/dir")
 	})
 }
 
@@ -164,7 +181,7 @@ func TestWriteEnvFile(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "gpud-env")
 
 		// Call the function to create the file
-		err = writeEnvFile(testFile, "")
+		err = writeEnvFile(testFile, "", "")
 		require.NoError(t, err)
 
 		// Check if the file was created with the correct content
@@ -186,7 +203,7 @@ func TestWriteEnvFile(t *testing.T) {
 		endpoint := "https://example.com"
 
 		// Call the function to create the file
-		err = writeEnvFile(testFile, endpoint)
+		err = writeEnvFile(testFile, endpoint, "")
 		require.NoError(t, err)
 
 		// Check if the file was created with the correct content
@@ -194,6 +211,29 @@ func TestWriteEnvFile(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, string(content), "--log-level=info --log-file=/var/log/gpud.log")
 		assert.Contains(t, string(content), "--endpoint=https://example.com")
+	})
+
+	t.Run("file does not exist with data-dir", func(t *testing.T) {
+		// Create a temporary directory for testing
+		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
+		require.NoError(t, err)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		// Create a file path that doesn't exist yet
+		testFile := filepath.Join(tmpDir, "gpud-env")
+		dataDir := "/custom/data/dir"
+
+		// Call the function to create the file
+		err = writeEnvFile(testFile, "", dataDir)
+		require.NoError(t, err)
+
+		// Check if the file was created with the correct content
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "--log-level=info --log-file=/var/log/gpud.log")
+		assert.Contains(t, string(content), "--data-dir=/custom/data/dir")
 	})
 
 	t.Run("file exists without log file flag", func(t *testing.T) {
@@ -213,13 +253,13 @@ FLAGS="--log-level=debug"
 		require.NoError(t, err)
 
 		// Call the function to overwrite the file
-		err = writeEnvFile(testFile, "")
+		err = writeEnvFile(testFile, "", "")
 		require.NoError(t, err)
 
 		// Check if the file was overwritten with default content
 		content, err := os.ReadFile(testFile)
 		require.NoError(t, err)
-		expectedContent := createDefaultEnvFileContent("")
+		expectedContent := createDefaultEnvFileContent("", "")
 		assert.Equal(t, expectedContent, string(content))
 		assert.NotContains(t, string(content), "--log-level=debug") // Ensure original custom flag is gone
 	})
@@ -239,14 +279,14 @@ FLAGS="--log-level=debug"
 		require.NoError(t, err)
 
 		// Call the function to overwrite the file
-		err = writeEnvFile(testFile, "")
+		err = writeEnvFile(testFile, "", "")
 		require.NoError(t, err)
 
 		// Check if the file was overwritten with default content
 		updatedContent, err := os.ReadFile(testFile)
 		require.NoError(t, err)
 		updatedContentStr := string(updatedContent)
-		expectedContent := createDefaultEnvFileContent("")
+		expectedContent := createDefaultEnvFileContent("", "")
 		assert.Equal(t, expectedContent, updatedContentStr)
 		assert.NotContains(t, updatedContentStr, "--log-level=debug")
 		assert.NotContains(t, updatedContentStr, "--log-file=/custom/path.log")
@@ -265,13 +305,13 @@ FLAGS="--log-level=debug"
 		require.NoError(t, err)
 
 		newEndpoint := "https://new.example.com"
-		err = writeEnvFile(testFile, newEndpoint)
+		err = writeEnvFile(testFile, newEndpoint, "")
 		require.NoError(t, err)
 
 		content, err := os.ReadFile(testFile)
 		require.NoError(t, err)
 		contentStr := string(content)
-		expectedContent := createDefaultEnvFileContent(newEndpoint)
+		expectedContent := createDefaultEnvFileContent(newEndpoint, "")
 
 		assert.Equal(t, expectedContent, contentStr)
 		assert.NotContains(t, contentStr, "--log-level=warn")
@@ -291,13 +331,13 @@ FLAGS="--log-level=debug"
 		require.NoError(t, err)
 
 		newEndpoint := "https://new.example.com"
-		err = writeEnvFile(testFile, newEndpoint)
+		err = writeEnvFile(testFile, newEndpoint, "")
 		require.NoError(t, err)
 
 		content, err := os.ReadFile(testFile)
 		require.NoError(t, err)
 		contentStr := string(content)
-		expectedContent := createDefaultEnvFileContent(newEndpoint)
+		expectedContent := createDefaultEnvFileContent(newEndpoint, "")
 
 		assert.Equal(t, expectedContent, contentStr)
 		assert.NotContains(t, contentStr, "--log-level=debug")
@@ -317,13 +357,13 @@ FLAGS="--log-level=debug"
 		err = os.WriteFile(testFile, []byte(initialContent), 0644)
 		require.NoError(t, err)
 
-		err = writeEnvFile(testFile, "") // Empty endpoint
+		err = writeEnvFile(testFile, "", "") // Empty endpoint
 		require.NoError(t, err)
 
 		content, err := os.ReadFile(testFile)
 		require.NoError(t, err)
 		contentStr := string(content)
-		expectedContent := createDefaultEnvFileContent("")
+		expectedContent := createDefaultEnvFileContent("", "")
 
 		assert.Equal(t, expectedContent, contentStr)
 		assert.NotContains(t, contentStr, "--log-file=/another/path.log")
@@ -343,19 +383,43 @@ FLAGS="--log-level=debug"
 		err = os.WriteFile(testFile, []byte(initialContent), 0644)
 		require.NoError(t, err)
 
-		err = writeEnvFile(testFile, originalEndpoint) // Same endpoint
+		err = writeEnvFile(testFile, originalEndpoint, "") // Same endpoint
 		require.NoError(t, err)
 
 		content, err := os.ReadFile(testFile)
 		require.NoError(t, err)
 		contentStr := string(content)
-		expectedContent := createDefaultEnvFileContent(originalEndpoint)
+		expectedContent := createDefaultEnvFileContent(originalEndpoint, "")
 
 		assert.Equal(t, expectedContent, contentStr)
 		assert.NotContains(t, contentStr, "--log-level=fatal")
 		assert.NotContains(t, contentStr, "--log-file=/log.txt")
 		// Ensure the endpoint is present exactly once (implicitly covered by Equal if format is strict)
 		assert.Equal(t, 1, strings.Count(contentStr, "--endpoint="+originalEndpoint))
+	})
+
+	t.Run("file with both endpoint and data-dir", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp("", "gpud-test-*")
+		require.NoError(t, err)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		testFile := filepath.Join(tmpDir, "gpud-env")
+		endpoint := "https://example.com"
+		dataDir := "/custom/data/dir"
+
+		err = writeEnvFile(testFile, endpoint, dataDir)
+		require.NoError(t, err)
+
+		content, err := os.ReadFile(testFile)
+		require.NoError(t, err)
+		contentStr := string(content)
+		expectedContent := createDefaultEnvFileContent(endpoint, dataDir)
+
+		assert.Equal(t, expectedContent, contentStr)
+		assert.Contains(t, contentStr, "--endpoint=https://example.com")
+		assert.Contains(t, contentStr, "--data-dir=/custom/data/dir")
 	})
 }
 

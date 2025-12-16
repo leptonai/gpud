@@ -1195,6 +1195,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 		productName         string
 		fabricStateReport   fabricStateReport
 		expectedReasonMatch string // substring to match in reason
+		expectedHealth      apiv1.HealthStateType
 	}{
 		{
 			name:        "unhealthy with reason - bandwidth degraded",
@@ -1205,6 +1206,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				Entries: []device.FabricStateEntry{{GPUUUID: "GPU-0"}},
 			},
 			expectedReasonMatch: "NVIDIA GB200 with unhealthy fabric state: GPU GPU-0: bandwidth degraded",
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name:        "unhealthy with error only",
@@ -1215,6 +1217,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				Err:     assert.AnError,
 			},
 			expectedReasonMatch: "NVIDIA GB200 NVL72 with unhealthy fabric state: ",
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name:        "unhealthy with both reason and error",
@@ -1226,6 +1229,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				Entries: []device.FabricStateEntry{{GPUUUID: "GPU-1"}},
 			},
 			expectedReasonMatch: "NVIDIA H100 with unhealthy fabric state: GPU GPU-1: route unhealthy",
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name:        "unhealthy with multiple GPUs",
@@ -1239,6 +1243,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				},
 			},
 			expectedReasonMatch: "NVIDIA GB200 with unhealthy fabric state: GPU GPU-0: bandwidth degraded; GPU GPU-1: route recovery in progress",
+			expectedHealth:      apiv1.HealthStateTypeUnhealthy,
 		},
 		{
 			name:        "healthy state - should be healthy",
@@ -1249,6 +1254,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 				Entries: []device.FabricStateEntry{{GPUUUID: "GPU-0", State: "Completed"}},
 			},
 			expectedReasonMatch: "NVIDIA GB200 checked fabric state",
+			expectedHealth:      apiv1.HealthStateTypeHealthy,
 		},
 	}
 
@@ -1276,13 +1282,11 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 			cr, ok := result.(*checkResult)
 			require.True(t, ok, "Expected result to be of type *checkResult")
 
-			expectedHealth := apiv1.HealthStateTypeHealthy
-
 			expectReason := appendReason(tc.expectedReasonMatch, tc.productName+" does not support fabric manager")
 
-			assert.Equal(t, expectedHealth, cr.health,
+			assert.Equal(t, tc.expectedHealth, cr.health,
 				"Health state should be %s when fabric state Healthy=%v",
-				expectedHealth, tc.fabricStateReport.Healthy)
+				tc.expectedHealth, tc.fabricStateReport.Healthy)
 
 			// Verify reason contains expected substring
 			assert.Equal(t, expectReason, cr.reason,
@@ -1299,7 +1303,7 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 			// Verify via LastHealthStates as well
 			states := comp.LastHealthStates()
 			require.Len(t, states, 1)
-			assert.Equal(t, expectedHealth, states[0].Health,
+			assert.Equal(t, tc.expectedHealth, states[0].Health,
 				"Health state via LastHealthStates should match")
 			assert.Equal(t, expectReason, states[0].Reason,
 				"Reason via LastHealthStates should match")
@@ -1418,6 +1422,75 @@ func TestCheck_FabricStateSupported_SkipsLegacyFMForGB200(t *testing.T) {
 	assert.Equal(t, "NVIDIA GB200 checked fabric state; NVIDIA GB200 does not support fabric manager", cr.reason)
 }
 
+// TestCheck_FabricStateUnhealthy_H100_NVSwitchNotDetected verifies that when:
+// - H100 GPU (supports both fabric state and fabric manager)
+// - Fabric state is unhealthy (via --gpu-uuids-with-fabric-state-health-summary-unhealthy)
+// - NVSwitch is not detected
+// The component health should be Unhealthy (not Healthy)
+// This is the exact scenario for the failure injection test case.
+func TestCheck_FabricStateUnhealthy_H100_NVSwitchNotDetected(t *testing.T) {
+	t.Parallel()
+
+	reason := "GPU GPU-69286978-549f-ba17-1b9f-01a31877dfac: bandwidth degraded, state=Not Supported, status=Unknown Error, summary=Unhealthy"
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+		nvmlInstance: &mockNVMLInstance{
+			exists:              true,
+			supportsFM:          true, // H100 supports fabric manager
+			supportsFabricState: true, // H100 supports fabric state
+			productName:         "NVIDIA H100 80GB HBM3",
+			deviceCount:         2, // Need at least 2 GPUs to avoid single-GPU skip
+		},
+		testingMode: true, // Simulates --gpu-product-name being set
+		collectFabricStateFunc: func() fabricStateReport {
+			return fabricStateReport{
+				Entries: []device.FabricStateEntry{{
+					GPUUUID:     "GPU-69286978-549f-ba17-1b9f-01a31877dfac",
+					CliqueID:    3672582764,
+					ClusterUUID: "657f0000-1900-0000-0000-000090adff9d",
+					State:       "Not Supported",
+					Status:      "Unknown Error",
+					Summary:     "Unhealthy",
+					Health: device.FabricHealthSnapshot{
+						Bandwidth:             "Degraded",
+						RouteRecoveryProgress: "Not Supported",
+						RouteUnhealthy:        "Not Supported",
+						AccessTimeoutRecovery: "Not Supported",
+					},
+				}},
+				Healthy: false,
+				Reason:  reason,
+			}
+		},
+		checkNVSwitchExistsFunc: func() bool { return false }, // NVSwitch not detected
+		checkFMExistsFunc:       func() bool { return true },  // FM exists (shouldn't be called)
+		checkFMActiveFunc:       func() bool { return true },  // FM active (shouldn't be called)
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// CRITICAL: Unhealthy fabric state should NOT be overwritten when NVSwitch is not detected
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
+		"Health should be Unhealthy when fabric state is unhealthy, even if NVSwitch not detected")
+	assert.True(t, cr.FabricStateSupported)
+	assert.False(t, cr.FabricManagerActive)
+	assert.Equal(t, reason, cr.FabricStateReason)
+
+	// Verify reason contains both fabric state info and NVSwitch info
+	assert.Contains(t, cr.reason, "with unhealthy fabric state:")
+	assert.Contains(t, cr.reason, "NVSwitch not detected, skipping fabric manager check")
+
+	// Verify via LastHealthStates as well
+	states := comp.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health,
+		"LastHealthStates should also report Unhealthy")
+}
+
 // TestCheck_FabricStateUnhealthyLogging verifies that when fabric state is unhealthy,
 // appropriate warning is logged
 func TestCheck_FabricStateUnhealthyLogging(t *testing.T) {
@@ -1431,7 +1504,7 @@ func TestCheck_FabricStateUnhealthyLogging(t *testing.T) {
 			supportsFM:          false,
 			supportsFabricState: true,
 			productName:         "NVIDIA GB200",
-			deviceCount:         1,
+			deviceCount:         2, // Need at least 2 GPUs to avoid single-GPU skip
 		},
 		collectFabricStateFunc: func() fabricStateReport {
 			return fabricStateReport{
@@ -1446,8 +1519,8 @@ func TestCheck_FabricStateUnhealthyLogging(t *testing.T) {
 	cr, ok := result.(*checkResult)
 	require.True(t, ok)
 
-	// Verify the component is unhealthy
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	// Verify the component is unhealthy (fabric state unhealthy should propagate)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Contains(t, cr.reason, "with unhealthy fabric state: test unhealthy reason")
 
 	// The logging happens in the Check method - we can't directly verify logs in tests,

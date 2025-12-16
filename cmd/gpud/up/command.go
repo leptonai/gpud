@@ -102,7 +102,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 	log.Logger.Debugw("starting systemd init")
 	endpoint := cliContext.String("endpoint")
-	if err := systemdInit(endpoint); err != nil {
+	if err := systemdInit(endpoint, dataDir); err != nil {
 		return err
 	}
 	log.Logger.Debugw("successfully started systemd init")
@@ -150,8 +150,8 @@ func recordLoginSuccessState(ctx context.Context, dataDir string) error {
 	return nil
 }
 
-func systemdInit(endpoint string) error {
-	if err := systemd.CreateDefaultEnvFile(endpoint); err != nil {
+func systemdInit(endpoint string, dataDir string) error {
+	if err := systemd.CreateDefaultEnvFile(endpoint, dataDir); err != nil {
 		return err
 	}
 	systemdUnitFileData := systemd.GPUdServiceUnitFileContents()
