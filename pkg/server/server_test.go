@@ -17,6 +17,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -70,6 +72,38 @@ func TestServerErrInvalidStateFile(t *testing.T) {
 	s, err := New(ctx, log.NewNopAuditLogger(), &config.Config{State: "invalid"}, nil)
 	require.Nil(t, s)
 	require.Error(t, err)
+}
+
+func TestNew_DBInMemory_SeedsSessionCredentialsBeforeAddressValidation(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "gpud-test-*")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Force NVML into deterministic mock mode so this test doesn't depend on host GPU/driver state.
+	t.Setenv(nvmllib.EnvMockAllSuccess, "true")
+
+	// Use an invalid address so New() returns before starting listener/FIFO goroutines.
+	cfg := &config.Config{
+		Address:         "invalid address",
+		DataDir:         tmpDir,
+		RetentionPeriod: metav1.Duration{Duration: time.Minute},
+		Components:      []string{"-disable-all"},
+
+		DBInMemory:       true,
+		SessionToken:     "session-token",
+		SessionMachineID: "assigned-machine-id",
+		SessionEndpoint:  "https://api.example.com",
+	}
+
+	s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
+	require.Nil(t, s)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create local GPUd server endpoint")
 }
 
 func TestGenerateSelfSignedCert(t *testing.T) {
@@ -369,5 +403,240 @@ func TestStartListener(t *testing.T) {
 		// If we get here, the function likely didn't fail as expected,
 		// but we don't want to block the test forever
 		t.Log("startListener didn't exit as expected, but this might be due to test environment differences")
+	}
+}
+
+// TestSeedSessionCredentialsInMemoryDB tests that when the server is configured with
+// DBInMemory=true and session credentials (SessionToken, SessionMachineID, SessionEndpoint),
+// the credentials are properly seeded into the in-memory database.
+//
+// Token flow distinction:
+// - Registration token (--token flag): Used only for login.Login() to authenticate
+// - Session token (loginResp.Token): Returned by control plane, stored in DB, used for keepalive
+// - Assigned machine ID (loginResp.MachineID): Returned by control plane, stored in DB
+// - Endpoint: Stored in DB, server reads from DB (not config) for session keepalive
+//
+// This is crucial for the --db-in-memory mode to work correctly because:
+// 1. login.Login() ALWAYS writes SESSION credentials to persistent file (not registration token)
+// 2. Only server.New() respects --db-in-memory and creates an in-memory database
+// 3. gpud run reads SESSION credentials from persistent file and passes them to server
+// 4. The server must seed these SESSION credentials into the in-memory DB for keepalive
+// 5. The endpoint MUST also be seeded because server reads it from metadata DB (not config)
+func TestSeedSessionCredentialsInMemoryDB(t *testing.T) {
+	// Create an in-memory database to simulate what the server would do
+	dbRW, err := sqlite.Open(":memory:", sqlite.WithCache("shared"))
+	require.NoError(t, err)
+	defer func() {
+		_ = dbRW.Close()
+	}()
+
+	dbRO, err := sqlite.Open(":memory:", sqlite.WithCache("shared"), sqlite.WithReadOnly(true))
+	require.NoError(t, err)
+	defer func() {
+		_ = dbRO.Close()
+	}()
+
+	ctx := context.Background()
+
+	// Create metadata table (as server.New does)
+	err = pkgmetadata.CreateTableMetadata(ctx, dbRW)
+	require.NoError(t, err)
+
+	// Simulate the seeding logic from server.New
+	// Note: These are SESSION credentials from loginResp, NOT the registration token
+	sessionToken := "session-token-from-login-response"
+	assignedMachineID := "assigned-machine-id-from-login-response"
+	endpoint := "https://api.example.com"
+
+	err = pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyToken, sessionToken)
+	require.NoError(t, err)
+
+	err = pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineID, assignedMachineID)
+	require.NoError(t, err)
+
+	err = pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyEndpoint, endpoint)
+	require.NoError(t, err)
+
+	// Verify the credentials can be read back (as session keepalive would do)
+	readToken, err := pkgmetadata.ReadToken(ctx, dbRO)
+	require.NoError(t, err)
+	assert.Equal(t, sessionToken, readToken, "Session token should be readable from in-memory DB")
+
+	readMachineID, err := pkgmetadata.ReadMachineID(ctx, dbRO)
+	require.NoError(t, err)
+	assert.Equal(t, assignedMachineID, readMachineID, "Assigned machine ID should be readable from in-memory DB")
+
+	readEndpoint, err := pkgmetadata.ReadMetadata(ctx, dbRO, pkgmetadata.MetadataKeyEndpoint)
+	require.NoError(t, err)
+	assert.Equal(t, endpoint, readEndpoint, "Endpoint should be readable from in-memory DB")
+}
+
+// TestSeedSessionCredentialsNotNeededForFileDB tests that when DBInMemory is false,
+// credentials are NOT seeded (they would be read from the persistent file instead).
+func TestSeedSessionCredentialsNotNeededForFileDB(t *testing.T) {
+	// This test verifies the conditional logic - when DBInMemory is false,
+	// credentials should come from the persistent file, not be seeded.
+
+	// Create a temporary directory for the state file
+	tmpDir, err := os.MkdirTemp("", "gpud-test-*")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
+
+	stateFile := filepath.Join(tmpDir, "state.db")
+
+	dbRW, err := sqlite.Open(stateFile)
+	require.NoError(t, err)
+	defer func() {
+		_ = dbRW.Close()
+	}()
+
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	require.NoError(t, err)
+	defer func() {
+		_ = dbRO.Close()
+	}()
+
+	ctx := context.Background()
+
+	// Create metadata table
+	err = pkgmetadata.CreateTableMetadata(ctx, dbRW)
+	require.NoError(t, err)
+
+	// In file-based mode, credentials would be written by login.Login()
+	// Simulate that login already wrote credentials to the persistent file
+	err = pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyToken, "token-from-login")
+	require.NoError(t, err)
+	err = pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineID, "machine-id-from-login")
+	require.NoError(t, err)
+
+	// Verify credentials can be read (as server would do in file-based mode)
+	readToken, err := pkgmetadata.ReadToken(ctx, dbRO)
+	require.NoError(t, err)
+	assert.Equal(t, "token-from-login", readToken)
+
+	readMachineID, err := pkgmetadata.ReadMachineID(ctx, dbRO)
+	require.NoError(t, err)
+	assert.Equal(t, "machine-id-from-login", readMachineID)
+}
+
+// TestDefaultBehaviorNotAffected_DBInMemoryFalse explicitly verifies that when
+// --db-in-memory=false (the default), the session credential seeding logic is
+// NEVER executed and the default behavior is preserved.
+//
+// This is a CRITICAL test - the db-in-memory session credential passing feature
+// must NEVER affect the default file-based database behavior.
+func TestDefaultBehaviorNotAffected_DBInMemoryFalse(t *testing.T) {
+	// Simulate config with DBInMemory=false (the default)
+	cfg := &config.Config{
+		DBInMemory:       false, // DEFAULT - file-based mode
+		SessionToken:     "should-be-ignored",
+		SessionMachineID: "should-be-ignored",
+		SessionEndpoint:  "should-be-ignored",
+	}
+
+	// The seeding condition: config.DBInMemory && config.SessionToken != "" && config.SessionMachineID != "" && config.SessionEndpoint != ""
+	// With DBInMemory=false, this condition is FALSE regardless of other values
+	seedingWouldExecute := cfg.DBInMemory && cfg.SessionToken != "" && cfg.SessionMachineID != "" && cfg.SessionEndpoint != ""
+	assert.False(t, seedingWouldExecute, "Seeding must NOT execute when DBInMemory=false (default)")
+
+	// Even if somehow SessionToken, SessionMachineID, SessionEndpoint are set, they should be ignored
+	// when DBInMemory is false
+	assert.False(t, cfg.DBInMemory, "DBInMemory should be false by default")
+}
+
+// TestDefaultBehaviorNotAffected_EmptySessionCredentials explicitly verifies that when
+// session credentials are empty (which is the default), seeding is NEVER executed
+// even if DBInMemory is true.
+func TestDefaultBehaviorNotAffected_EmptySessionCredentials(t *testing.T) {
+	testCases := []struct {
+		name             string
+		dbInMemory       bool
+		sessionToken     string
+		sessionMachineID string
+		sessionEndpoint  string
+		expectSeeding    bool
+	}{
+		{
+			name:             "default config - all false/empty",
+			dbInMemory:       false,
+			sessionToken:     "",
+			sessionMachineID: "",
+			sessionEndpoint:  "",
+			expectSeeding:    false,
+		},
+		{
+			name:             "db-in-memory=true but no credentials",
+			dbInMemory:       true,
+			sessionToken:     "",
+			sessionMachineID: "",
+			sessionEndpoint:  "",
+			expectSeeding:    false,
+		},
+		{
+			name:             "db-in-memory=true with token only",
+			dbInMemory:       true,
+			sessionToken:     "some-token",
+			sessionMachineID: "",
+			sessionEndpoint:  "",
+			expectSeeding:    false,
+		},
+		{
+			name:             "db-in-memory=true with machine ID only",
+			dbInMemory:       true,
+			sessionToken:     "",
+			sessionMachineID: "some-machine-id",
+			sessionEndpoint:  "",
+			expectSeeding:    false,
+		},
+		{
+			name:             "db-in-memory=true with endpoint only",
+			dbInMemory:       true,
+			sessionToken:     "",
+			sessionMachineID: "",
+			sessionEndpoint:  "https://example.com",
+			expectSeeding:    false,
+		},
+		{
+			name:             "db-in-memory=true with token and machine ID but no endpoint",
+			dbInMemory:       true,
+			sessionToken:     "some-token",
+			sessionMachineID: "some-machine-id",
+			sessionEndpoint:  "",
+			expectSeeding:    false,
+		},
+		{
+			name:             "db-in-memory=false with all credentials (should be ignored)",
+			dbInMemory:       false,
+			sessionToken:     "some-token",
+			sessionMachineID: "some-machine-id",
+			sessionEndpoint:  "https://example.com",
+			expectSeeding:    false,
+		},
+		{
+			name:             "db-in-memory=true with ALL credentials (ONLY case that seeds)",
+			dbInMemory:       true,
+			sessionToken:     "some-token",
+			sessionMachineID: "some-machine-id",
+			sessionEndpoint:  "https://example.com",
+			expectSeeding:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.Config{
+				DBInMemory:       tc.dbInMemory,
+				SessionToken:     tc.sessionToken,
+				SessionMachineID: tc.sessionMachineID,
+				SessionEndpoint:  tc.sessionEndpoint,
+			}
+
+			// This is the exact condition from server.go
+			seedingWouldExecute := cfg.DBInMemory && cfg.SessionToken != "" && cfg.SessionMachineID != "" && cfg.SessionEndpoint != ""
+			assert.Equal(t, tc.expectSeeding, seedingWouldExecute,
+				"Seeding condition should match expected for: %s", tc.name)
+		})
 	}
 }

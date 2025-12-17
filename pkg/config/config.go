@@ -73,6 +73,22 @@ type Config struct {
 	// instead of using the State file path. Data will not persist across restarts.
 	// ref. https://github.com/mattn/go-sqlite3?tab=readme-ov-file#faq
 	DBInMemory bool `json:"db_in_memory"`
+
+	// SessionToken is the session token for control plane authentication.
+	// Used when DBInMemory is true and session credentials are passed via CLI flags.
+	// This allows gpud up to pass the session token from login to gpud run.
+	SessionToken string `json:"-"`
+
+	// SessionMachineID is the machine ID assigned by the control plane.
+	// Used when DBInMemory is true and session credentials are passed via CLI flags.
+	// This allows gpud up to pass the assigned machine ID from login to gpud run.
+	SessionMachineID string `json:"-"`
+
+	// SessionEndpoint is the control plane endpoint.
+	// Used when DBInMemory is true and session credentials are passed via CLI flags.
+	// This allows gpud up to pass the endpoint from login to gpud run.
+	// The server reads the endpoint from metadata DB, so it must be seeded for in-memory mode.
+	SessionEndpoint string `json:"-"`
 }
 
 func (config *Config) Validate() error {
