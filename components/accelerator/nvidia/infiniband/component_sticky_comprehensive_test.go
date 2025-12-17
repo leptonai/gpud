@@ -152,7 +152,7 @@ func TestComprehensiveStickyWindowScenarios(t *testing.T) {
 						AtLeastRate:  400,
 					}
 				},
-				getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+				getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 					if tt.thresholdsFailing {
 						return createHealthyDevices(7, 400), nil // Below threshold
 					}
@@ -209,7 +209,7 @@ func TestStickyWindowTransitions(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			if portsHealthy {
 				return createHealthyDevices(8, 400), nil
 			}
@@ -323,7 +323,7 @@ func TestDormantPortFiltering(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// All ports healthy now
 			return createHealthyDevices(8, 400), nil
 		},
@@ -378,7 +378,7 @@ func TestEdgeCasesAndErrorConditions(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 				return createHealthyDevices(8, 400), nil
 			},
 		}
@@ -423,7 +423,7 @@ func TestEdgeCasesAndErrorConditions(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 				return createHealthyDevices(8, 400), nil
 			},
 		}

@@ -36,6 +36,22 @@ func WithInfinibandClassRootDir(p string) OpOption {
 	}
 }
 
+// WithExcludedInfinibandDevices sets the list of InfiniBand device names to exclude from monitoring.
+// Device names should be like "mlx5_0", "mlx5_1", etc. (not full paths).
+//
+// This is useful for excluding devices that have restricted Physical Functions (PFs)
+// and cause kernel errors (mlx5_cmd_out_err ACCESS_REG) when queried.
+// This is common on NVIDIA DGX, Umbriel, and GB200 systems with ConnectX-7 adapters.
+//
+// ref.
+// https://github.com/prometheus/node_exporter/issues/3434
+// https://github.com/leptonai/gpud/issues/1164
+func WithExcludedInfinibandDevices(devices []string) OpOption {
+	return func(op *Op) {
+		op.ExcludedInfinibandDevices = devices
+	}
+}
+
 func WithFailureInjector(injector *components.FailureInjector) OpOption {
 	return func(op *Op) {
 		op.FailureInjector = injector

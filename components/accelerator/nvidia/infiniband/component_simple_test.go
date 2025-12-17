@@ -44,7 +44,7 @@ func TestSimpleDropProcessing(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 				// All thresholds met
 				return createHealthyDevices(8, 400), nil
 			},
@@ -84,7 +84,7 @@ func TestSimpleDropProcessing(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 				// Only 7 ports - thresholds failing
 				return createHealthyDevices(7, 400), nil
 			},

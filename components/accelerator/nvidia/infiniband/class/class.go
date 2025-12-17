@@ -33,22 +33,83 @@ import (
 // ref. https://docs.nvidia.com/networking/display/ofedv512580/infiniband+interface
 const DefaultRootDir = "/sys/class/infiniband"
 
+// Op contains options for loading InfiniBand devices.
+type Op struct {
+	// excludedDevices is a set of device names to exclude from loading.
+	// Device names should be like "mlx5_0", "mlx5_1", etc. (not full paths).
+	excludedDevices map[string]struct{}
+
+	// ignoreFiles tracks files that failed to read with EINVAL (-22), which indicates
+	// ACCESS_REG command failures on restricted Physical Functions.
+	// Caching these files avoids reading them again and flooding kernel logs.
+	// ref. https://github.com/prometheus/node_exporter/issues/3434
+	ignoreFiles map[string]struct{}
+}
+
+// OpOption is a functional option for configuring LoadDevices.
+type OpOption func(*Op)
+
+// WithExcludedDevices excludes the specified device names from loading.
+// Device names should be like "mlx5_0", "mlx5_1", etc. (not full paths).
+//
+// This option is useful for excluding InfiniBand devices that have restricted
+// Physical Functions (PFs) and cause kernel errors (mlx5_cmd_out_err ACCESS_REG)
+// when queried. This is common on NVIDIA DGX, Umbriel, and GB200 systems with
+// ConnectX-7 adapters where some ports are managed by system firmware.
+//
+// Example: WithExcludedDevices([]string{"mlx5_0", "mlx5_1"})
+//
+// ref.
+// https://github.com/prometheus/node_exporter/issues/3434
+// https://github.com/leptonai/gpud/issues/1164
+func WithExcludedDevices(devices []string) OpOption {
+	return func(op *Op) {
+		if op.excludedDevices == nil {
+			op.excludedDevices = make(map[string]struct{})
+		}
+		for _, d := range devices {
+			op.excludedDevices[d] = struct{}{}
+		}
+	}
+}
+
+// WithIgnoreFiles sets the map for tracking files that should be skipped.
+// This is typically used to share state across multiple LoadDevices calls
+// to avoid re-reading files that previously failed with EINVAL (-22) errors,
+// which correspond to ACCESS_REG command failures on restricted Physical Functions.
+// ref. https://github.com/prometheus/node_exporter/issues/3434
+func WithIgnoreFiles(ignoreFiles map[string]struct{}) OpOption {
+	return func(op *Op) {
+		op.ignoreFiles = ignoreFiles
+	}
+}
+
 // LoadDevices loads all InfiniBand devices from the given root directory.
 // If rootDir is empty, the default root directory is used.
-func LoadDevices(rootDir string) (Devices, error) {
+//
+// Options can be provided to customize the loading behavior:
+//   - WithExcludedDevices: exclude specific device names from loading
+//   - WithIgnoreFiles: provide a shared map for tracking files to skip
+func LoadDevices(rootDir string, opts ...OpOption) (Devices, error) {
 	if rootDir == "" {
 		rootDir = DefaultRootDir
 	}
+
+	op := &Op{}
+	for _, opt := range opts {
+		opt(op)
+	}
+
 	cd, err := newClassDirInterface(rootDir)
 	if err != nil {
 		return nil, err
 	}
-	return loadDevices(cd)
+	return loadDevices(cd, op)
 }
 
 // loadDevices returns info for all InfiniBand devices read from
 // /sys/class/infiniband.
-func loadDevices(cd classDirInterface) (Devices, error) {
+func loadDevices(cd classDirInterface, op *Op) (Devices, error) {
 	dirs, err := cd.listDir("")
 	if err != nil {
 		return nil, err
@@ -63,7 +124,18 @@ func loadDevices(cd classDirInterface) (Devices, error) {
 			continue
 		}
 
-		dev, err := parseInfiniBandDevice(cd, d.Name())
+		// Skip excluded devices.
+		// This is useful for devices with restricted PFs that cause ACCESS_REG errors.
+		// ref. https://github.com/prometheus/node_exporter/issues/3434
+		// ref. https://github.com/leptonai/gpud/issues/1164
+		if op != nil && op.excludedDevices != nil {
+			if _, excluded := op.excludedDevices[deviceName]; excluded {
+				log.Logger.Debugw("skipping excluded infiniband device", "device", deviceName)
+				continue
+			}
+		}
+
+		dev, err := parseInfiniBandDevice(cd, d.Name(), op)
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +150,7 @@ func loadDevices(cd classDirInterface) (Devices, error) {
 
 // parseInfiniBandDevice parses one InfiniBand device.
 // Refer to https://www.kernel.org/doc/Documentation/ABI/stable/sysfs-class-infiniband
-func parseInfiniBandDevice(cd classDirInterface, deviceName string) (Device, error) {
+func parseInfiniBandDevice(cd classDirInterface, deviceName string, op *Op) (Device, error) {
 	device := Device{Name: deviceName}
 
 	// fw_ver is exposed by all InfiniBand drivers since kernel version 4.10.
@@ -120,7 +192,7 @@ func parseInfiniBandDevice(cd classDirInterface, deviceName string) (Device, err
 			continue
 		}
 
-		port, err := parseInfiniBandPort(cd, deviceName, uint(portNumber))
+		port, err := parseInfiniBandPort(cd, deviceName, uint(portNumber), op)
 		if err != nil {
 			return Device{}, err
 		}
@@ -168,7 +240,7 @@ func parseRate(s string) (float64, uint64, error) {
 
 // parseInfiniBandPort scans predefined files in /sys/class/infiniband/<device>/ports/<port>
 // directory and gets their contents.
-func parseInfiniBandPort(cd classDirInterface, portName string, portNumber uint) (*Port, error) {
+func parseInfiniBandPort(cd classDirInterface, portName string, portNumber uint, op *Op) (*Port, error) {
 	ibp := Port{Name: portName, Port: portNumber}
 
 	// e.g., /sys/class/infiniband/mlx5_0/ports/1
@@ -220,7 +292,7 @@ func parseInfiniBandPort(cd classDirInterface, portName string, portNumber uint)
 	countersDir := filepath.Join(portDir, "counters")
 	exists, err := cd.exists(countersDir)
 	if exists {
-		counters, err := parseInfiniBandCounters(cd, portDir)
+		counters, err := parseInfiniBandCounters(cd, portDir, op)
 		if err != nil {
 			return nil, err
 		}
@@ -233,7 +305,7 @@ func parseInfiniBandPort(cd classDirInterface, portName string, portNumber uint)
 	hwCountersDir := filepath.Join(portDir, "hw_counters")
 	exists, err = cd.exists(hwCountersDir)
 	if exists {
-		hwCounters, err := parseInfiniBandHwCounters(cd, portDir)
+		hwCounters, err := parseInfiniBandHwCounters(cd, portDir, op)
 		if err != nil {
 			return nil, err
 		}
@@ -248,7 +320,7 @@ func parseInfiniBandPort(cd classDirInterface, portName string, portNumber uint)
 // parseInfiniBandCounters parses the counters exposed under
 // /sys/class/infiniband/<device>/ports/<port-num>/counters, which first appeared in kernel v2.6.12.
 // Prior to kernel v4.5, 64-bit counters were exposed separately under the "counters_ext" directory.
-func parseInfiniBandCounters(cd classDirInterface, portDir string) (*Counters, error) {
+func parseInfiniBandCounters(cd classDirInterface, portDir string, op *Op) (*Counters, error) {
 	// e.g., /sys/class/infiniband/mlx5_0/ports/1/counters
 	path := filepath.Join(portDir, "counters")
 	files, err := cd.listDir(path)
@@ -263,9 +335,34 @@ func parseInfiniBandCounters(cd classDirInterface, portDir string) (*Counters, e
 		}
 
 		name := filepath.Join(path, f.Name())
+		if op != nil && op.ignoreFiles != nil {
+			if _, ok := op.ignoreFiles[name]; ok {
+				continue
+			}
+		}
+
 		value, err := cd.readFile(name)
 		if err != nil {
 			if os.IsNotExist(err) || os.IsPermission(err) || err.Error() == "operation not supported" || errors.Is(err, os.ErrInvalid) || errors.Is(err, syscall.EINVAL) {
+				// Cache EINVAL failures to avoid re-reading files that cause ACCESS_REG kernel errors.
+				//
+				// On systems with restricted Physical Functions (DGX, Umbriel, GB200 with ConnectX-7),
+				// reading counter files triggers the mlx5 driver to execute an ACCESS_REG command
+				// (opcode 0x805) to the firmware. When the PF is restricted, the firmware returns
+				// "bad operation" and the kernel logs an error like:
+				//
+				//   mlx5_cmd_out_err:835:(pid 18360): ACCESS_REG(0x805) op_mod(0x1) failed,
+				//   status bad operation(0x2), syndrome (0x9a6171), err(-22)
+				//
+				// The err(-22) corresponds to -EINVAL, which is returned to userspace.
+				// By caching files that return EINVAL, we avoid flooding the kernel log
+				// with repeated ACCESS_REG errors on subsequent polls.
+				//
+				// ref. https://github.com/prometheus/node_exporter/issues/3434
+				// ref. https://github.com/leptonai/gpud/issues/1164
+				if errors.Is(err, syscall.EINVAL) && op != nil && op.ignoreFiles != nil {
+					op.ignoreFiles[name] = struct{}{}
+				}
 				continue
 			}
 			return nil, fmt.Errorf("failed to read file %q: %w", name, err)
@@ -350,7 +447,7 @@ func parseInfiniBandCounters(cd classDirInterface, portDir string) (*Counters, e
 
 // parseInfiniBandHwCounters parses the optional counters exposed under
 // /sys/class/infiniband/<device>/ports/<port-num>/hw_counters, which first appeared in kernel v4.6.
-func parseInfiniBandHwCounters(cd classDirInterface, portDir string) (*HWCounters, error) {
+func parseInfiniBandHwCounters(cd classDirInterface, portDir string, op *Op) (*HWCounters, error) {
 	var hwCounters HWCounters
 
 	// e.g., /sys/class/infiniband/mlx5_0/ports/1/hw_counters
@@ -366,9 +463,22 @@ func parseInfiniBandHwCounters(cd classDirInterface, portDir string) (*HWCounter
 		}
 
 		file := filepath.Join(path, f.Name())
+		if op != nil && op.ignoreFiles != nil {
+			if _, ok := op.ignoreFiles[file]; ok {
+				continue
+			}
+		}
+
 		value, err := cd.readFile(file)
 		if err != nil {
-			if os.IsNotExist(err) || os.IsPermission(err) || err.Error() == "operation not supported" || errors.Is(err, os.ErrInvalid) {
+			if os.IsNotExist(err) || os.IsPermission(err) || err.Error() == "operation not supported" || errors.Is(err, os.ErrInvalid) || errors.Is(err, syscall.EINVAL) {
+				// Cache EINVAL failures to avoid re-reading files that cause ACCESS_REG kernel errors.
+				// EINVAL (-22) is returned when the mlx5 driver's ACCESS_REG command fails on restricted PFs.
+				// See parseInfiniBandCounters for detailed explanation.
+				// ref. https://github.com/prometheus/node_exporter/issues/3434
+				if errors.Is(err, syscall.EINVAL) && op != nil && op.ignoreFiles != nil {
+					op.ignoreFiles[file] = struct{}{}
+				}
 				continue
 			}
 			return nil, fmt.Errorf("failed to read file %q: %w", file, err)
