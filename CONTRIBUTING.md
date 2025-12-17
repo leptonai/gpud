@@ -72,7 +72,7 @@ docker login nvcr.io
 # The repository for the image (e.g., nvcr.io/leptonai/gpud)
 export IMAGE_REPO="your-registry/gpud"
 # The git tag version
-export GIT_TAG="v0.8.0"
+export GIT_TAG="v0.9.0"
 # Critical dependencies
 export OS_NAME="ubuntu"
 export OS_VERSION="22.04"
