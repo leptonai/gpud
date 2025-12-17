@@ -43,7 +43,7 @@ func TestComponentCheck(t *testing.T) {
 			return time.Now().UTC()
 		},
 		getThresholdsFunc: mockGetThresholds,
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
 	}
@@ -120,7 +120,17 @@ func TestComponentEvents(t *testing.T) {
 	err = mockBucket.Insert(ctx, tempEvent)
 	require.NoError(t, err)
 
-	// 3. Other event (should be filtered out)
+	// 3. ACCESS_REG failure event (should be included)
+	accessRegEvent := eventstore.Event{
+		Time:    now.Add(-7*time.Second - time.Nanosecond),
+		Name:    eventAccessRegFailed,
+		Type:    string(apiv1.EventTypeWarning),
+		Message: "ACCESS_REG failed",
+	}
+	err = mockBucket.Insert(ctx, accessRegEvent)
+	require.NoError(t, err)
+
+	// 4. Other event (should be filtered out)
 	otherEvent := eventstore.Event{
 		Time:      now.Add(-5 * time.Second),
 		Name:      "test_event",
@@ -131,7 +141,7 @@ func TestComponentEvents(t *testing.T) {
 	err = mockBucket.Insert(ctx, otherEvent)
 	require.NoError(t, err)
 
-	// 4. IB port event (should be filtered out)
+	// 5. IB port event (should be filtered out)
 	ibPortEvent := eventstore.Event{
 		Time:      now.Add(-4 * time.Second),
 		Name:      infinibandstore.EventTypeIbPortFlap,
@@ -142,10 +152,10 @@ func TestComponentEvents(t *testing.T) {
 	err = mockBucket.Insert(ctx, ibPortEvent)
 	require.NoError(t, err)
 
-	// Test Events method - should only return the two kmsg events
+	// Test Events method - should only return the kmsg events
 	events, err := c.Events(ctx, now.Add(-10*time.Second))
 	require.NoError(t, err)
-	require.Len(t, events, 2, "Should only return PCI power and temperature events")
+	require.Len(t, events, 3, "Should only return PCI power, temperature, and ACCESS_REG failure events")
 
 	// Verify the events are the correct ones
 	eventNames := make(map[string]bool)
@@ -154,6 +164,7 @@ func TestComponentEvents(t *testing.T) {
 	}
 	assert.True(t, eventNames[eventPCIPowerInsufficient], "Should include PCI power event")
 	assert.True(t, eventNames[eventPortModuleHighTemperature], "Should include temperature event")
+	assert.True(t, eventNames[eventAccessRegFailed], "Should include ACCESS_REG failure event")
 
 	// Test with more recent time filter
 	events, err = c.Events(ctx, now.Add(-7*time.Second))
@@ -591,7 +602,7 @@ func TestComponentCheckErrorCases(t *testing.T) {
 			}
 		},
 		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
 	}
@@ -832,7 +843,7 @@ func TestCheckWithClassDevicesSuccess(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			return mockDevices, nil
 		},
 		getThresholdsFunc: func() types.ExpectedPortStates {
@@ -903,7 +914,7 @@ func TestComponentCheckWithUnknownEventType(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return mock devices with IB ports - some unhealthy to trigger event processing
 			return infinibandclass.Devices{
 				{
@@ -1001,7 +1012,7 @@ func TestComponentCheckWithNoEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{}, nil
 		},
 	}
@@ -1056,7 +1067,7 @@ func TestComponentCheckWithUnhealthyIBPortsAndEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return devices that will be detected as unhealthy by threshold evaluation
 			return infinibandclass.Devices{
 				{
@@ -1136,7 +1147,7 @@ func TestComponentCheckWithExistingReasonAndEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return devices that will be detected as unhealthy by threshold evaluation
 			// This will trigger unhealthyIBPorts to be populated, which allows event processing
 			return infinibandclass.Devices{
@@ -1235,7 +1246,7 @@ func TestComponentCheckWithEmptyReasonAndEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return devices that fail port count threshold
 			// Some ports have disabled/polling physical state to populate unhealthyIBPorts
 			return infinibandclass.Devices{
@@ -1371,7 +1382,7 @@ func TestComponentCheckWithTrueEmptyReasonAndEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return devices that will trigger unhealthyIBPorts (down/disabled state)
 			// This should cause len(cr.unhealthyIBPorts) > 0, which clears cr.reason
 			return infinibandclass.Devices{
@@ -1486,7 +1497,7 @@ func TestComponentCheckWithLastEventsError(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return devices so we reach the LastEvents section
 			return infinibandclass.Devices{
 				{
@@ -1545,7 +1556,7 @@ func TestComponentCheckWithNilIBPortsStore(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return devices so we reach the LastEvents section
 			return infinibandclass.Devices{
 				{
@@ -1626,7 +1637,7 @@ func TestComponentCheckWithMultipleEventTypes(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{
 				{
 					Name: "mlx5_0",
@@ -1710,7 +1721,7 @@ func TestComponentCheckWithEmptyEvents(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{
 				{
 					Name: "mlx5_0",
@@ -1788,7 +1799,7 @@ func TestComponentCheckWithEventFindError(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{
 				{
 					Name: "mlx5_0",
@@ -1893,7 +1904,7 @@ func TestComponentCheckHealthyPortsWithHistoricalEvents(t *testing.T) {
 				AtLeastRate:  400, // Both ports meet this rate
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return all healthy ports that meet thresholds
 			return infinibandclass.Devices{
 				{
@@ -1988,7 +1999,7 @@ func TestComponentCheckWithUnknownEventTypeDefaultCase(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			return infinibandclass.Devices{
 				{
 					Name: "mlx5_0",
@@ -2074,7 +2085,7 @@ func TestComponentCheckDropEventsIgnoredWhenHealthy(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return all healthy ports
 			return infinibandclass.Devices{
 				{
@@ -2154,7 +2165,7 @@ func TestComponentCheckThresholdMismatchNoHardwareInspection(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return only 4 ports, not meeting the 8 port requirement
 			return infinibandclass.Devices{
 				{
@@ -2265,7 +2276,7 @@ func TestComponentCheckRateMismatchNoHardwareInspection(t *testing.T) {
 				AtLeastRate:  400, // Require 400 Gb/s
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return ports with insufficient rate
 			return infinibandclass.Devices{
 				{
@@ -2358,7 +2369,7 @@ func TestComponentCheckDropEventsProcessedWhenUnhealthy(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return one healthy and one unhealthy port
 			return infinibandclass.Devices{
 				{

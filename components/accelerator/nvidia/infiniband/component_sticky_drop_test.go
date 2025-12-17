@@ -37,7 +37,7 @@ func TestDropStickyWindow(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return 8 healthy ports (meeting threshold)
 			return createHealthyDevices(8, 400), nil
 		},
@@ -90,7 +90,7 @@ func TestDropStickyWindow(t *testing.T) {
 			EventReason: "mlx5_7 port 1 down since " + dropTime.Format(time.RFC3339),
 		},
 	}
-	c.getClassDevicesFunc = func() (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 		// Return 7 healthy ports (mlx5_0 to mlx5_6) and 1 down port (mlx5_7)
 		devices := createHealthyDevices(7, 400) // mlx5_0 to mlx5_6
 		// Add mlx5_7 as a down port
@@ -124,7 +124,7 @@ func TestDropStickyWindow(t *testing.T) {
 			EventReason: "mlx5_1 port 1 flapping",
 		},
 	}
-	c.getClassDevicesFunc = func() (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 		return createHealthyDevices(8, 400), nil // Thresholds met
 	}
 
@@ -154,7 +154,7 @@ func TestDropStickyWindowEdgeCases(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			// Machine has 12 ports total, but only 8 are required
 			// 4 dormant ports should not trigger alerts when healthy
 			return createMixedDevices(8, 4), nil // 8 healthy, 4 dormant
@@ -185,7 +185,7 @@ func TestDropStickyWindowEdgeCases(t *testing.T) {
 	// Dormant ports should not cause issues when outside sticky window
 
 	// Now make one of the required ports fail (threshold violation)
-	c.getClassDevicesFunc = func() (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 		return createMixedDevices(7, 5), nil // Only 7 healthy, 5 dormant
 	}
 
@@ -219,7 +219,7 @@ func TestDropStickyWindowDisabled(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			return createHealthyDevices(8, 400), nil
 		},
 	}
@@ -266,7 +266,7 @@ func TestDropStickyWindowRecoveryLongOutage(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func() (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
 			if portsHealthy {
 				return createHealthyDevices(8, 400), nil
 			}

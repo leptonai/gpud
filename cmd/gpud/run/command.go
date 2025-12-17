@@ -126,6 +126,7 @@ func Command(cliContext *cli.Context) error {
 	skipSessionUpdateConfig := cliContext.Bool("skip-session-update-config")
 
 	ibClassRootDir := cliContext.String("infiniband-class-root-dir")
+	ibExcludeDevicesStr := cliContext.String("infiniband-exclude-devices")
 	components := cliContext.String("components")
 
 	infinibandExpectedPortStates := cliContext.String("infiniband-expected-port-states")
@@ -208,10 +209,16 @@ func Command(cliContext *cli.Context) error {
 	// (e.g., set "H100-SXM" on H100-PCIe to enable fabric state failure injection testing)
 	gpuProductNameOverride := cliContext.String("gpu-product-name")
 
+	ibExcludedDevices := parseInfinibandExcludeDevices(ibExcludeDevicesStr)
+	if len(ibExcludedDevices) > 0 {
+		log.Logger.Infow("excluding infiniband devices from monitoring", "devices", ibExcludedDevices)
+	}
+
 	configOpts := []config.OpOption{
 		config.WithDataDir(dataDir),
 		config.WithInfinibandClassRootDir(ibClassRootDir),
 		config.WithDBInMemory(dbInMemory),
+		config.WithExcludedInfinibandDevices(ibExcludedDevices),
 		config.WithFailureInjector(&gpudcomponents.FailureInjector{
 			GPUUUIDsWithRowRemappingPending:               gpuUUIDsWithRowRemappingPending,
 			GPUUUIDsWithRowRemappingFailed:                gpuUUIDsWithRowRemappingFailed,
@@ -353,6 +360,26 @@ func Command(cliContext *cli.Context) error {
 	<-done
 
 	return nil
+}
+
+func parseInfinibandExcludeDevices(s string) []string {
+	if s == "" {
+		return nil
+	}
+
+	parts := strings.Split(s, ",")
+	devices := make([]string, 0, len(parts))
+	for _, d := range parts {
+		d = strings.TrimSpace(d)
+		if d == "" {
+			continue
+		}
+		devices = append(devices, d)
+	}
+	if len(devices) == 0 {
+		return nil
+	}
+	return devices
 }
 
 func recordLoginSuccessState(ctx context.Context, dataDir string) error {

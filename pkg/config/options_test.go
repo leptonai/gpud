@@ -52,3 +52,12 @@ func TestWithFailureInjector(t *testing.T) {
 		})
 	}
 }
+
+func TestWithExcludedInfinibandDevices(t *testing.T) {
+	t.Parallel()
+
+	op := &Op{}
+	WithExcludedInfinibandDevices([]string{"mlx5_0", "mlx5_1"})(op)
+
+	assert.Equal(t, []string{"mlx5_0", "mlx5_1"}, op.ExcludedInfinibandDevices)
+}

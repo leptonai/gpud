@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,7 @@ func TestInfiniBandClass(t *testing.T) {
 	fs, err := newClassDirInterface("testdata/sys-class-infiniband-h100.0")
 	assert.NoError(t, err)
 
-	ibc, err := loadDevices(fs)
+	ibc, err := loadDevices(fs, nil)
 	assert.NoError(t, err)
 
 	// Verify the total number of devices
@@ -276,7 +277,7 @@ func TestLoadDevicesErrors(t *testing.T) {
 			"": errors.New("list error"),
 		},
 	}
-	_, err := loadDevices(mockFS)
+	_, err := loadDevices(mockFS, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "list error")
 }
@@ -289,7 +290,7 @@ func TestParseInfiniBandDeviceErrors(t *testing.T) {
 			"test_device/fw_ver": errors.New("read error"),
 		},
 	}
-	_, err := parseInfiniBandDevice(mockFS, "test_device")
+	_, err := parseInfiniBandDevice(mockFS, "test_device", nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read HCA firmware version")
 
@@ -302,7 +303,7 @@ func TestParseInfiniBandDeviceErrors(t *testing.T) {
 			"test_device/board_id": errors.New("permission denied"),
 		},
 	}
-	_, err = parseInfiniBandDevice(mockFS, "test_device")
+	_, err = parseInfiniBandDevice(mockFS, "test_device", nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read file")
 
@@ -317,7 +318,7 @@ func TestParseInfiniBandDeviceErrors(t *testing.T) {
 			"test_device/ports": errors.New("ports list error"),
 		},
 	}
-	_, err = parseInfiniBandDevice(mockFS, "test_device")
+	_, err = parseInfiniBandDevice(mockFS, "test_device", nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to list InfiniBand ports")
 
@@ -334,7 +335,7 @@ func TestParseInfiniBandDeviceErrors(t *testing.T) {
 			"test_device/ports": {},
 		},
 	}
-	device, err := parseInfiniBandDevice(mockFS, "test_device")
+	device, err := parseInfiniBandDevice(mockFS, "test_device", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "1.0.0", device.FirmwareVersion)
 	assert.Equal(t, "", device.BoardID)
@@ -353,7 +354,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/link_layer": errors.New("link_layer read error"),
 		},
 	}
-	_, err := parseInfiniBandPort(mockFS, "test_device", 1)
+	_, err := parseInfiniBandPort(mockFS, "test_device", 1, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "link_layer read error")
 
@@ -366,7 +367,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/state": errors.New("state read error"),
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "state read error")
 
@@ -377,7 +378,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/state":      "invalid state format",
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "could not parse state file")
 
@@ -391,7 +392,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/phys_state": errors.New("phys_state read error"),
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "phys_state read error")
 
@@ -404,7 +405,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/rate":       "invalid rate",
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "could not parse rate file")
 
@@ -420,7 +421,7 @@ func TestParseInfiniBandPortErrors(t *testing.T) {
 			"test_device/ports/1/counters": errors.New("exists check error"),
 		},
 	}
-	_, err = parseInfiniBandPort(mockFS, "test_device", 1)
+	_, err = parseInfiniBandPort(mockFS, "test_device", 1, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "exists check error")
 }
@@ -441,7 +442,7 @@ func TestParseInfiniBandCountersEdgeCases(t *testing.T) {
 		},
 	}
 
-	counters, err := parseInfiniBandCounters(mockFS, "test_port")
+	counters, err := parseInfiniBandCounters(mockFS, "test_port", nil)
 	assert.NoError(t, err)
 	assert.Nil(t, counters.LinkDowned) // Should be nil due to N/A
 	assert.NotNil(t, counters.PortRcvData)
@@ -460,7 +461,7 @@ func TestParseInfiniBandCountersEdgeCases(t *testing.T) {
 		},
 	}
 
-	counters, err = parseInfiniBandCounters(mockFS, "test_port")
+	counters, err = parseInfiniBandCounters(mockFS, "test_port", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, counters.LinkDowned)
 	assert.Equal(t, uint64(100), *counters.LinkDowned)
@@ -481,11 +482,101 @@ func TestParseInfiniBandCountersEdgeCases(t *testing.T) {
 		},
 	}
 
-	counters, err = parseInfiniBandCounters(mockFS, "test_port")
+	counters, err = parseInfiniBandCounters(mockFS, "test_port", nil)
 	assert.NoError(t, err)
 	assert.Nil(t, counters.LinkDowned) // Should be nil due to permission error
 	assert.NotNil(t, counters.PortXmitData)
 	assert.Equal(t, uint64(8000), *counters.PortXmitData) // Should be multiplied by 4
+}
+
+func TestParseInfiniBandCountersCachesEINVALInIgnoreFiles(t *testing.T) {
+	t.Parallel()
+
+	portDir := filepath.Join("test_device", "ports", "1")
+	countersDir := filepath.Join(portDir, "counters")
+	counterName := "port_rcv_data"
+	counterPath := filepath.Join(countersDir, counterName)
+
+	ignoreFiles := make(map[string]struct{})
+	op := &Op{}
+	WithIgnoreFiles(ignoreFiles)(op)
+
+	mockFS := &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			countersDir: {
+				mockDirEntry{name: counterName, dir: false},
+			},
+		},
+		readErrors: map[string]error{
+			counterPath: syscall.EINVAL,
+		},
+	}
+
+	_, err := parseInfiniBandCounters(mockFS, portDir, op)
+	require.NoError(t, err)
+
+	_, ok := ignoreFiles[counterPath]
+	assert.True(t, ok)
+
+	// Ensure ignored files are skipped on subsequent reads.
+	mockFS = &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			countersDir: {
+				mockDirEntry{name: counterName, dir: false},
+			},
+		},
+		readErrors: map[string]error{
+			counterPath: errors.New("should not read ignored file"),
+		},
+	}
+
+	_, err = parseInfiniBandCounters(mockFS, portDir, op)
+	require.NoError(t, err)
+}
+
+func TestParseInfiniBandHwCountersCachesEINVALInIgnoreFiles(t *testing.T) {
+	t.Parallel()
+
+	portDir := filepath.Join("test_device", "ports", "1")
+	hwCountersDir := filepath.Join(portDir, "hw_counters")
+	counterName := "lifespan"
+	counterPath := filepath.Join(hwCountersDir, counterName)
+
+	ignoreFiles := make(map[string]struct{})
+	op := &Op{}
+	WithIgnoreFiles(ignoreFiles)(op)
+
+	mockFS := &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			hwCountersDir: {
+				mockDirEntry{name: counterName, dir: false},
+			},
+		},
+		readErrors: map[string]error{
+			counterPath: syscall.EINVAL,
+		},
+	}
+
+	_, err := parseInfiniBandHwCounters(mockFS, portDir, op)
+	require.NoError(t, err)
+
+	_, ok := ignoreFiles[counterPath]
+	assert.True(t, ok)
+
+	// Ensure ignored files are skipped on subsequent reads.
+	mockFS = &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			hwCountersDir: {
+				mockDirEntry{name: counterName, dir: false},
+			},
+		},
+		readErrors: map[string]error{
+			counterPath: errors.New("should not read ignored file"),
+		},
+	}
+
+	_, err = parseInfiniBandHwCounters(mockFS, portDir, op)
+	require.NoError(t, err)
 }
 
 // TestParseInfiniBandHwCountersEdgeCases tests edge cases in HW counter parsing
@@ -504,7 +595,7 @@ func TestParseInfiniBandHwCountersEdgeCases(t *testing.T) {
 		},
 	}
 
-	hwCounters, err := parseInfiniBandHwCounters(mockFS, "test_port")
+	hwCounters, err := parseInfiniBandHwCounters(mockFS, "test_port", nil)
 	assert.NoError(t, err)
 	assert.Nil(t, hwCounters.Lifespan) // Should be nil due to N/A
 	assert.NotNil(t, hwCounters.OutOfBuffer)
@@ -517,7 +608,7 @@ func TestParseInfiniBandHwCountersEdgeCases(t *testing.T) {
 		},
 	}
 
-	_, err = parseInfiniBandHwCounters(mockFS, "test_port")
+	_, err = parseInfiniBandHwCounters(mockFS, "test_port", nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "list error")
 }
@@ -546,7 +637,7 @@ func TestDevicesSorting(t *testing.T) {
 		mockFS.dirs[filepath.Join(device, "ports")] = []os.DirEntry{}
 	}
 
-	devices, err := loadDevices(mockFS)
+	devices, err := loadDevices(mockFS, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(devices))
 
@@ -585,7 +676,7 @@ func TestDeviceNameFiltering(t *testing.T) {
 		mockFS.dirs[filepath.Join(device, "ports")] = []os.DirEntry{}
 	}
 
-	devices, err := loadDevices(mockFS)
+	devices, err := loadDevices(mockFS, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(devices), "Should only include devices with 'mlx' prefix")
 
@@ -628,7 +719,7 @@ func TestLoadDevicesWithMixedDeviceTypes(t *testing.T) {
 		mockFS.dirs[filepath.Join(device, "ports")] = []os.DirEntry{}
 	}
 
-	devices, err := loadDevices(mockFS)
+	devices, err := loadDevices(mockFS, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(devices), "Should only load InfiniBand devices")
 
@@ -647,7 +738,7 @@ func TestLoadDevicesEmptyDirectory(t *testing.T) {
 		},
 	}
 
-	devices, err := loadDevices(mockFS)
+	devices, err := loadDevices(mockFS, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(devices), "Should return empty slice for empty directory")
 }
@@ -665,7 +756,7 @@ func TestLoadDevicesOnlyNonInfiniBandDevices(t *testing.T) {
 		},
 	}
 
-	devices, err := loadDevices(mockFS)
+	devices, err := loadDevices(mockFS, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(devices), "Should return empty slice when no InfiniBand devices found")
 }
@@ -688,7 +779,7 @@ func TestDeviceNameCaseSensitivity(t *testing.T) {
 
 	mockFS.dirs[filepath.Join("mlx5_0", "ports")] = []os.DirEntry{}
 
-	devices, err := loadDevices(mockFS)
+	devices, err := loadDevices(mockFS, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(devices), "Should only include lowercase 'mlx' prefixed devices")
 	assert.Equal(t, "mlx5_0", devices[0].Name)
@@ -712,8 +803,113 @@ func TestLoadDevicesWithFilesInsteadOfDirectories(t *testing.T) {
 
 	// The loadDevices function now returns an error when it encounters a file instead of a directory
 	// because parseInfiniBandDevice will try to read fw_ver from what it thinks is a device directory
-	devices, err := loadDevices(mockFS)
+	devices, err := loadDevices(mockFS, nil)
 	assert.Error(t, err, "Should return error when encountering file instead of directory")
 	assert.Contains(t, err.Error(), "failed to read HCA firmware version")
 	assert.Nil(t, devices)
+}
+
+// TestLoadDevicesWithExcludedDevices tests the WithExcludedDevices option
+// This is useful for excluding devices with restricted PFs that cause ACCESS_REG errors
+// ref. https://github.com/prometheus/node_exporter/issues/3434
+// ref. https://github.com/leptonai/gpud/issues/1164
+func TestLoadDevicesWithExcludedDevices(t *testing.T) {
+	mockFS := &mockClassDirInterface{
+		dirs: map[string][]os.DirEntry{
+			"": {
+				mockDirEntry{name: "mlx5_0", dir: true},
+				mockDirEntry{name: "mlx5_1", dir: true},
+				mockDirEntry{name: "mlx5_2", dir: true},
+			},
+		},
+		files: map[string]string{
+			"mlx5_0/fw_ver": "28.41.1000",
+			"mlx5_1/fw_ver": "28.41.1000",
+			"mlx5_2/fw_ver": "28.41.1000",
+		},
+	}
+
+	// Add empty ports directories for each device
+	for _, device := range []string{"mlx5_0", "mlx5_1", "mlx5_2"} {
+		mockFS.dirs[filepath.Join(device, "ports")] = []os.DirEntry{}
+	}
+
+	// Test without exclusions - should return all 3 devices
+	devices, err := loadDevices(mockFS, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(devices), "Should return all 3 devices when no exclusions")
+
+	// Test with exclusion of mlx5_0 - should return 2 devices
+	op := &Op{
+		excludedDevices: map[string]struct{}{
+			"mlx5_0": {},
+		},
+	}
+	devices, err = loadDevices(mockFS, op)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(devices), "Should return 2 devices when mlx5_0 is excluded")
+	for _, d := range devices {
+		assert.NotEqual(t, "mlx5_0", d.Name, "mlx5_0 should be excluded")
+	}
+
+	// Test with exclusion of multiple devices - should return 1 device
+	op = &Op{
+		excludedDevices: map[string]struct{}{
+			"mlx5_0": {},
+			"mlx5_1": {},
+		},
+	}
+	devices, err = loadDevices(mockFS, op)
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(devices), "Should return 1 device when mlx5_0 and mlx5_1 are excluded")
+	assert.Equal(t, "mlx5_2", devices[0].Name)
+
+	// Test with exclusion of all devices - should return empty slice
+	op = &Op{
+		excludedDevices: map[string]struct{}{
+			"mlx5_0": {},
+			"mlx5_1": {},
+			"mlx5_2": {},
+		},
+	}
+	devices, err = loadDevices(mockFS, op)
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(devices), "Should return 0 devices when all are excluded")
+
+	// Test with non-existent device in exclusion list - should be ignored
+	op = &Op{
+		excludedDevices: map[string]struct{}{
+			"mlx5_99": {},
+		},
+	}
+	devices, err = loadDevices(mockFS, op)
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(devices), "Should return all 3 devices when excluded device doesn't exist")
+}
+
+// TestWithExcludedDevicesOption tests the WithExcludedDevices option function
+func TestWithExcludedDevicesOption(t *testing.T) {
+	// Test that the option correctly builds the exclusion map
+	op := &Op{}
+	opt := WithExcludedDevices([]string{"mlx5_0", "mlx5_1"})
+	opt(op)
+
+	assert.NotNil(t, op.excludedDevices)
+	assert.Equal(t, 2, len(op.excludedDevices))
+	_, ok := op.excludedDevices["mlx5_0"]
+	assert.True(t, ok, "mlx5_0 should be in excluded devices")
+	_, ok = op.excludedDevices["mlx5_1"]
+	assert.True(t, ok, "mlx5_1 should be in excluded devices")
+
+	// Test with empty list
+	op = &Op{}
+	opt = WithExcludedDevices([]string{})
+	opt(op)
+	assert.Equal(t, 0, len(op.excludedDevices))
+
+	// Test with nil list
+	op = &Op{}
+	opt = WithExcludedDevices(nil)
+	opt(op)
+	assert.Equal(t, 0, len(op.excludedDevices))
 }

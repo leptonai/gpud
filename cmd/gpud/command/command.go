@@ -239,6 +239,11 @@ sudo rm /etc/systemd/system/gpud.service
 				},
 
 				cli.StringFlag{
+					Name:  "infiniband-exclude-devices",
+					Usage: "comma-separated list of InfiniBand device names to exclude from monitoring (e.g., 'mlx5_0,mlx5_1'). Use this to skip devices with restricted Physical Functions (PFs) that cause kernel errors (mlx5_cmd_out_err ACCESS_REG). Common on NVIDIA DGX, Umbriel, and GB200 systems. See https://github.com/leptonai/gpud/issues/1164",
+					Value: "",
+				},
+				cli.StringFlag{
 					Name:   "infiniband-class-root-dir",
 					Usage:  "(testing purposes) sets the infiniband class root directory (leave empty for default)",
 					Value:  "",
@@ -561,6 +566,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
+					Name:  "infiniband-exclude-devices",
+					Usage: "comma-separated list of InfiniBand device names to exclude from monitoring (e.g., 'mlx5_0,mlx5_1'). Use this to skip devices with restricted Physical Functions (PFs) that cause kernel errors (mlx5_cmd_out_err ACCESS_REG). Common on NVIDIA DGX, Umbriel, and GB200 systems. See https://github.com/leptonai/gpud/issues/1164",
+					Value: "",
+				},
+				cli.StringFlag{
 					Name:   "gpu-uuids-with-row-remapping-pending",
 					Usage:  "set the comma-separated gpu uuids with row remapping pending",
 					Hidden: true, // only for testing
@@ -646,6 +656,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "sets the infiniband class root directory (leave empty for default)",
 					Value:  "",
 					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:  "infiniband-exclude-devices",
+					Usage: "comma-separated list of InfiniBand device names to exclude from monitoring (e.g., 'mlx5_0,mlx5_1'). Use this to skip devices with restricted Physical Functions (PFs) that cause kernel errors (mlx5_cmd_out_err ACCESS_REG). Common on NVIDIA DGX, Umbriel, and GB200 systems. See https://github.com/leptonai/gpud/issues/1164",
+					Value: "",
 				},
 			},
 		},
