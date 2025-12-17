@@ -85,6 +85,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 // mockNvmlInstanceNVMLNotLoaded is a special mock implementation that always returns false for NVMLExists
 type mockNvmlInstanceNVMLNotLoaded struct {
 	*mockNVMLInstance

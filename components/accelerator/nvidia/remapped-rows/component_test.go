@@ -167,6 +167,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 // Helper function to convert apiv1.Event to eventstore.Event
 func apiToStoreEvent(event apiv1.Event) eventstore.Event {
 	return eventstore.Event{

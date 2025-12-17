@@ -51,7 +51,8 @@ func (m *mockNVMLInstance) FabricStateSupported() bool   { return false }
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
-func (m *mockNVMLInstance) Shutdown() error { return nil }
+func (m *mockNVMLInstance) Shutdown() error  { return nil }
+func (m *mockNVMLInstance) InitError() error { return nil }
 
 func createMockDevice(uuid string, runningProcs []nvml.ProcessInfo) device.Device {
 	mockDevice := &mock.Device{

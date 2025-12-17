@@ -81,6 +81,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 // mockNVMLInstanceNVMLNotExists is a special mock for the case where NVMLExists returns false
 type mockNVMLInstanceNVMLNotExists struct {
 	mockNVMLInstance

@@ -78,6 +78,10 @@ func (m *mockInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockInstance) InitError() error {
+	return nil
+}
+
 // MockUtilizationComponent creates a component with mocked functions for testing
 func MockUtilizationComponent(
 	ctx context.Context,

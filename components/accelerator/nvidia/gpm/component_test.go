@@ -83,6 +83,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 // customMockNVMLInstance implements the nvml.InstanceV2 interface with customizable NVMLExists behavior
 type customMockNVMLInstance struct {
 	devs       map[string]device.Device
@@ -138,6 +142,10 @@ func (m *customMockNVMLInstance) Library() lib.Library {
 }
 
 func (m *customMockNVMLInstance) Shutdown() error {
+	return nil
+}
+
+func (m *customMockNVMLInstance) InitError() error {
 	return nil
 }
 

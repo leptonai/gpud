@@ -82,6 +82,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 // Helper function to create a mock NVML instance with specified devices
 func createMockNVMLInstance(devices map[string]device.Device) *mockNVMLInstance {
 	return &mockNVMLInstance{

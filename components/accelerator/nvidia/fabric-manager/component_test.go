@@ -691,6 +691,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 func TestComponentCheck_NVMLInstance(t *testing.T) {
 	tests := []struct {
 		name                    string

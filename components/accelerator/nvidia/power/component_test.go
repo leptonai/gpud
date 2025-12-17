@@ -97,6 +97,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := &mockNVMLInstance{devices: make(map[string]device.Device)}

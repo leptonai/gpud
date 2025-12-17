@@ -83,6 +83,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 // mockRebootEventStore implements pkghost.RebootEventStore for testing
 type mockRebootEventStore struct {
 	events eventstore.Events

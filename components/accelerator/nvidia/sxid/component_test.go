@@ -930,6 +930,10 @@ func (m *MockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *MockNVMLInstance) InitError() error {
+	return nil
+}
+
 func TestSXIDComponent_Start(t *testing.T) {
 	// Initialize component
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
