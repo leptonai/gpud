@@ -79,7 +79,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 		fmt.Printf("%s [gpud up] successfully recorded login success state\n", cmdcommon.CheckMark)
 	} else {
-		log.Logger.Infow("no --token provided, skipping login")
+		log.Logger.Infow("no gpud up --token provided, skipping login")
 	}
 
 	// step 2.
