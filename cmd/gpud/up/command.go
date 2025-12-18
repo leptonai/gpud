@@ -9,6 +9,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/cmd/gpud/common"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/gpud-manager/systemd"
@@ -41,15 +42,14 @@ func Command(cliContext *cli.Context) (retErr error) {
 		return err
 	}
 
-	gpuCount := cliContext.Int("gpu-count")
-	gpuCountStr := ""
-	if gpuCount > 0 {
-		gpuCountStr = fmt.Sprintf("%d", gpuCount)
-	}
+	gpuCountStr := cliContext.String("gpu-count")
 
 	// step 1.
 	// perform "login" if and only if configured
-	if cliContext.IsSet("token") || cliContext.String("token") != "" {
+	// Note: login.Login() always writes to persistent file (via dataDir), regardless of --db-in-memory flag.
+	// Only the server's runtime database respects --db-in-memory.
+	token := cliContext.String("token")
+	if cliContext.IsSet("token") || token != "" {
 		log.Logger.Debugw("attempting control plane login")
 
 		// Create login configuration from CLI context
@@ -57,7 +57,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 		defer loginCancel()
 
 		loginCfg := login.LoginConfig{
-			Token:     cliContext.String("token"),
+			Token:     token,
 			Endpoint:  cliContext.String("endpoint"),
 			MachineID: cliContext.String("machine-id"),
 			NodeGroup: cliContext.String("node-group"),
@@ -72,13 +72,14 @@ func Command(cliContext *cli.Context) (retErr error) {
 		if lerr := login.Login(loginCtx, loginCfg); lerr != nil {
 			return lerr
 		}
-		log.Logger.Debugw("successfully logged in")
 
 		if err := recordLoginSuccessState(loginCtx, dataDir); err != nil {
 			log.Logger.Warnw("failed to persist login success state", "error", err)
 		}
+
+		fmt.Printf("%s [gpud up] successfully recorded login success state\n", cmdcommon.CheckMark)
 	} else {
-		log.Logger.Infow("no --token provided, skipping login")
+		log.Logger.Infow("no gpud up --token provided, skipping login")
 	}
 
 	// step 2.
@@ -103,6 +104,17 @@ func Command(cliContext *cli.Context) (retErr error) {
 	log.Logger.Debugw("starting systemd init")
 	endpoint := cliContext.String("endpoint")
 	dbInMemory := cliContext.Bool("db-in-memory")
+
+	// Note: login.Login() always writes to persistent file (via dataDir), not to in-memory DB.
+	// When --db-in-memory is enabled, gpud run will read the session credentials from the
+	// persistent file after login and pass them to the server to seed into the in-memory DB.
+	// This works because login and credential storage always use the persistent file system,
+	// only the server's runtime database respects the --db-in-memory flag.
+	//
+	// IMPORTANT: The --token flag is NEVER written to the env file.
+	// The env file only contains: --log-level, --log-file, --endpoint, --data-dir, --db-in-memory
+	// Session credentials are stored in the persistent state file, not the systemd env file.
+
 	if err := systemdInit(endpoint, dataDir, dbInMemory); err != nil {
 		return err
 	}
@@ -152,6 +164,9 @@ func recordLoginSuccessState(ctx context.Context, dataDir string) error {
 }
 
 func systemdInit(endpoint string, dataDir string, dbInMemory bool) error {
+	// Always create/overwrite env file (consistent with v0.8.0 behavior).
+	// IMPORTANT: The --token flag is NEVER written to the env file.
+	// Only runtime configuration flags are written: --log-level, --log-file, --endpoint, --data-dir, --db-in-memory
 	if err := systemd.CreateDefaultEnvFile(endpoint, dataDir, dbInMemory); err != nil {
 		return err
 	}

@@ -45,6 +45,11 @@ func DefaultBinExists() bool {
 
 // CreateDefaultEnvFile creates the default environment file for gpud systemd service.
 // Assume systemdctl is already installed, and runs on the linux system.
+//
+// Note: Session credentials (token, machine ID) are NOT passed via environment file.
+// login.Login() always writes credentials to the persistent state file (via dataDir).
+// When --db-in-memory is enabled, gpud run reads credentials from the persistent file
+// and passes them to the server to seed into the in-memory database.
 func CreateDefaultEnvFile(endpoint string, dataDir string, dbInMemory bool) error {
 	return writeEnvFile(DefaultEnvFile, endpoint, dataDir, dbInMemory)
 }
@@ -60,6 +65,7 @@ func createDefaultEnvFileContent(endpoint string, dataDir string, dbInMemory boo
 	if dbInMemory {
 		flags += " --db-in-memory"
 	}
+
 	return fmt.Sprintf(`# gpud environment variables are set here
 FLAGS="%s"
 `, flags)

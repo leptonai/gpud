@@ -31,7 +31,6 @@ import (
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
-	sessionstates "github.com/leptonai/gpud/pkg/session/states"
 	pkgsqlite "github.com/leptonai/gpud/pkg/sqlite"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
@@ -52,6 +51,9 @@ func Command(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// Parse db-in-memory early as it affects login behavior
+	dbInMemory := cliContext.Bool("db-in-memory")
 
 	gpuCount := cliContext.Int("gpu-count")
 	gpuCountStr := ""
@@ -75,6 +77,9 @@ func Command(cliContext *cli.Context) error {
 
 	machineIDForOverride := cliContext.String("machine-id")
 
+	// Note: login.Login() ALWAYS writes to the persistent state file (via dataDir),
+	// regardless of --db-in-memory flag. The login package doesn't know about in-memory mode.
+	// Only gpud run (via server.New) respects --db-in-memory and creates an in-memory database.
 	if cliContext.IsSet("token") || controlPlaneLoginRegistrationToken != "" {
 		log.Logger.Debugw("attempting control plane login")
 
@@ -95,13 +100,13 @@ func Command(cliContext *cli.Context) error {
 		if lerr := login.Login(loginCtx, loginCfg); lerr != nil {
 			return lerr
 		}
-		log.Logger.Debugw("successfully logged in")
+		log.Logger.Infow("successfully logged in in gpud run")
 
 		if err := recordLoginSuccessState(loginCtx, dataDir); err != nil {
 			log.Logger.Warnw("failed to persist login success state", "error", err)
 		}
 	} else {
-		log.Logger.Infow("no --token provided, skipping login")
+		log.Logger.Infow("no gpud run --token provided, skipping login")
 	}
 
 	if runtime.GOOS != "linux" {
@@ -203,8 +208,6 @@ func Command(cliContext *cli.Context) error {
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw := cliContext.String("gpu-uuids-with-fabric-state-health-summary-unhealthy")
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthy := common.ParseGPUUUIDs(gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw)
 
-	dbInMemory := cliContext.Bool("db-in-memory")
-
 	// GPU product name override for testing - allows simulating different GPU types
 	// (e.g., set "H100-SXM" on H100-PCIe to enable fabric state failure injection testing)
 	gpuProductNameOverride := cliContext.String("gpu-product-name")
@@ -231,6 +234,8 @@ func Command(cliContext *cli.Context) error {
 			GPUProductNameOverride:                        gpuProductNameOverride,
 		}),
 	}
+
+	configOpts = append(configOpts, getSessionCredentialsOptions(dbInMemory, dataDir, controlPlaneEndpoint)...)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	cfg, err := config.DefaultConfig(ctx, configOpts...)
@@ -380,31 +385,4 @@ func parseInfinibandExcludeDevices(s string) []string {
 		return nil
 	}
 	return devices
-}
-
-func recordLoginSuccessState(ctx context.Context, dataDir string) error {
-	resolvedDataDir, err := config.ResolveDataDir(dataDir)
-	if err != nil {
-		return fmt.Errorf("failed to resolve data dir for state: %w", err)
-	}
-
-	stateFile := config.StateFilePath(resolvedDataDir)
-
-	dbRW, err := pkgsqlite.Open(stateFile)
-	if err != nil {
-		return fmt.Errorf("failed to open state file: %w", err)
-	}
-	defer func() {
-		_ = dbRW.Close()
-	}()
-
-	if err := sessionstates.CreateTable(ctx, dbRW); err != nil {
-		return fmt.Errorf("failed to create session states table: %w", err)
-	}
-
-	if err := sessionstates.Insert(ctx, dbRW, time.Now().Unix(), true, "Session connected successfully"); err != nil {
-		return fmt.Errorf("failed to record login success state: %w", err)
-	}
-
-	return nil
 }

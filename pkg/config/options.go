@@ -13,6 +13,22 @@ type Op struct {
 
 	DataDir    string
 	DBInMemory bool
+
+	// SessionToken is the session token for db-in-memory mode.
+	// When DBInMemory is true and this is set, the server will seed
+	// this token into the in-memory database.
+	SessionToken string
+
+	// SessionMachineID is the machine ID for db-in-memory mode.
+	// When DBInMemory is true and this is set, the server will seed
+	// this machine ID into the in-memory database.
+	SessionMachineID string
+
+	// SessionEndpoint is the control plane endpoint for db-in-memory mode.
+	// When DBInMemory is true and this is set, the server will seed
+	// this endpoint into the in-memory database.
+	// The server reads the endpoint from metadata DB, so it must be seeded for in-memory mode.
+	SessionEndpoint string
 }
 
 type OpOption func(*Op)
@@ -71,5 +87,33 @@ func WithDataDir(dataDir string) OpOption {
 func WithDBInMemory(b bool) OpOption {
 	return func(op *Op) {
 		op.DBInMemory = b
+	}
+}
+
+// WithSessionToken sets the session token for db-in-memory mode.
+// When DBInMemory is true and this is set, the server will seed
+// this token into the in-memory database for session authentication.
+func WithSessionToken(token string) OpOption {
+	return func(op *Op) {
+		op.SessionToken = token
+	}
+}
+
+// WithSessionMachineID sets the machine ID for db-in-memory mode.
+// When DBInMemory is true and this is set, the server will seed
+// this machine ID into the in-memory database.
+func WithSessionMachineID(machineID string) OpOption {
+	return func(op *Op) {
+		op.SessionMachineID = machineID
+	}
+}
+
+// WithSessionEndpoint sets the control plane endpoint for db-in-memory mode.
+// When DBInMemory is true and this is set, the server will seed
+// this endpoint into the in-memory database.
+// The server reads the endpoint from metadata DB, so it must be seeded for in-memory mode.
+func WithSessionEndpoint(endpoint string) OpOption {
+	return func(op *Op) {
+		op.SessionEndpoint = endpoint
 	}
 }

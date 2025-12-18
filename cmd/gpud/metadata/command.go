@@ -21,6 +21,8 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
+var requireRoot = osutil.RequireRoot
+
 func Command(cliContext *cli.Context) error {
 	logLevel := cliContext.String("log-level")
 	zapLvl, err := log.ParseLogLevel(logLevel)
@@ -31,7 +33,7 @@ func Command(cliContext *cli.Context) error {
 
 	log.Logger.Debugw("starting metadata command")
 
-	if err := osutil.RequireRoot(); err != nil {
+	if err := requireRoot(); err != nil {
 		return err
 	}
 

@@ -152,6 +152,44 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to create metadata table: %w", err)
 	}
 
+	// When using in-memory database with session credentials from CLI (passed from gpud up),
+	// seed the metadata so the session can authenticate with the control plane.
+	//
+	// This is necessary because:
+	// 1. login.Login() ALWAYS writes credentials to the persistent state file, not in-memory DB.
+	//    The login package doesn't know about --db-in-memory mode.
+	// 2. Only server.New() respects --db-in-memory and creates an in-memory database.
+	// 3. gpud up reads credentials from persistent file after login and passes them via CLI flags.
+	// 4. gpud run receives them and passes them here via config.SessionToken/SessionMachineID/SessionEndpoint.
+	// 5. We seed them into the in-memory DB so the session keepalive can read them.
+	//
+	// IMPORTANT: This block ONLY executes when ALL FOUR conditions are true:
+	//   - config.DBInMemory == true
+	//   - config.SessionToken != ""
+	//   - config.SessionMachineID != ""
+	//   - config.SessionEndpoint != ""
+	// When --db-in-memory=false (the default), this block is SKIPPED entirely.
+	// The default behavior (file-based DB) is NEVER affected by this change.
+	//
+	// NOTE: The endpoint MUST be seeded because the server reads it from the metadata DB
+	// (via pkgmetadata.ReadMetadata) for session keepalive, not from config.
+	if config.DBInMemory && config.SessionToken != "" && config.SessionMachineID != "" && config.SessionEndpoint != "" {
+		log.Logger.Infow("seeding session credentials into in-memory database",
+			"machineID", config.SessionMachineID,
+			"endpoint", config.SessionEndpoint,
+		)
+
+		if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyToken, config.SessionToken); err != nil {
+			return nil, fmt.Errorf("failed to seed session token: %w", err)
+		}
+		if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineID, config.SessionMachineID); err != nil {
+			return nil, fmt.Errorf("failed to seed machine ID: %w", err)
+		}
+		if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyEndpoint, config.SessionEndpoint); err != nil {
+			return nil, fmt.Errorf("failed to seed endpoint: %w", err)
+		}
+	}
+
 	// by default, we only retain past 24 hours of events
 	eventStore, err := eventstore.New(dbRW, dbRO, 14*24*time.Hour)
 	if err != nil {

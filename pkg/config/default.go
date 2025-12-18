@@ -55,6 +55,10 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		},
 		FailureInjector: options.FailureInjector,
 		DBInMemory:      options.DBInMemory,
+
+		SessionToken:     options.SessionToken,
+		SessionMachineID: options.SessionMachineID,
+		SessionEndpoint:  options.SessionEndpoint,
 	}
 
 	if cfg.State == "" {

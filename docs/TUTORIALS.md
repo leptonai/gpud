@@ -7,7 +7,7 @@ What is [GPUd](https://github.com/leptonai/gpud)? GPUd is designed to ensure GPU
 *(see [Install GPUd](./INSTALL.md) for more and [release page](https://github.com/leptonai/gpud/releases) for latest versions)*
 
 ```bash
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.8.0
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.9.0
 
 gpud --version
 ```
@@ -34,7 +34,7 @@ sudo systemctl stop gpud.service
 sudo rm -f /usr/sbin/gpud
 sudo rm -f /usr/local/bin/gpud
 
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.8.0
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.9.0
 which gpud
 
 # (optional) if you already installed an old GPUd
