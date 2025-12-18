@@ -20,10 +20,19 @@ type Device interface {
 
 var _ Device = &nvDevice{}
 
+// MinDriverVersionForV3FabricAPI is the minimum NVIDIA driver major version
+// required for nvmlDeviceGetGpuFabricInfoV (V3 fabric state API).
+// This API was introduced in driver 550 (see NVML changelog:
+// https://docs.nvidia.com/deploy/nvml-api/change-log.html).
+// Calling this function on older drivers (e.g., 535.x) causes a symbol lookup
+// error that crashes the process.
+const MinDriverVersionForV3FabricAPI = 550
+
 type nvDevice struct {
 	device.Device
-	busID string
-	uuid  string
+	busID       string
+	uuid        string
+	driverMajor int // Driver major version, used to gate V3 fabric API calls
 }
 
 func (d *nvDevice) PCIBusID() string {
@@ -45,7 +54,7 @@ func New(dev device.Device, busID string, opts ...OpOption) Device {
 	}
 
 	// Create the base device
-	baseDevice := &nvDevice{Device: dev, busID: busID, uuid: uuid}
+	baseDevice := &nvDevice{Device: dev, busID: busID, uuid: uuid, driverMajor: op.DriverMajor}
 
 	// If ANY test flags are set, wrap with testDevice
 	if op.GPULost || op.GPURequiresReset || op.FabricHealthUnhealthy {
@@ -62,6 +71,9 @@ func New(dev device.Device, busID string, opts ...OpOption) Device {
 
 // Op struct holds options for device creation
 type Op struct {
+	// DriverMajor is the major version of the NVIDIA driver.
+	// Used to gate V3 fabric API calls which require driver >= 550.
+	DriverMajor int
 	// GPULost indicates that all device methods should return nvml.ERROR_GPU_IS_LOST
 	GPULost bool
 	// GPURequiresReset indicates that all device methods should return nvml.ERROR_RESET_REQUIRED
@@ -98,5 +110,13 @@ func WithGPURequiresReset() OpOption {
 func WithFabricHealthUnhealthy() OpOption {
 	return func(op *Op) {
 		op.FabricHealthUnhealthy = true
+	}
+}
+
+// WithDriverMajor returns an OpOption that sets the driver major version.
+// This is used to gate V3 fabric API calls which require driver >= 550.
+func WithDriverMajor(major int) OpOption {
+	return func(op *Op) {
+		op.DriverMajor = major
 	}
 }

@@ -202,8 +202,14 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 				return nil, err
 			}
 
-			// Build device options based on failure injector
+			// Build device options based on driver version and failure injector
 			var opts []device.OpOption
+
+			// Always pass driver major version so devices can gate V3 fabric API calls.
+			// nvmlDeviceGetGpuFabricInfoV requires driver >= 550; calling it on older
+			// drivers (e.g., 535.x) causes a symbol lookup crash.
+			opts = append(opts, device.WithDriverMajor(driverMajor))
+
 			if failureInjector != nil {
 				// Check if this UUID should inject GPU Lost error
 				for _, injectedUUID := range failureInjector.GPUUUIDsWithGPULost {

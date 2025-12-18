@@ -5,11 +5,18 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/olekukonko/tablewriter"
 
+	"github.com/leptonai/gpud/pkg/log"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
+)
+
+var (
+	// logV3SkipOnce ensures we only log the V3 API skip warning once
+	logV3SkipOnce sync.Once
 )
 
 // FabricState represents fabric state information for a GPU device.
@@ -274,21 +281,39 @@ func fabricTriStateStatus(val, notSupported, trueValue, falseValue uint32) strin
 // GetFabricState retrieves fabric state information from the device.
 // It attempts V3 API first for detailed health metrics, falling back to V1 API if needed.
 // This method properly handles GPU lost and reset required errors.
+//
+// IMPORTANT: The V3 API (nvmlDeviceGetGpuFabricInfoV) was introduced in driver 550.
+// Calling it on older drivers (e.g., 535.x) causes a symbol lookup error that crashes
+// the process. We skip V3 API calls for drivers < MinDriverVersionForV3FabricAPI.
+// See: https://docs.nvidia.com/deploy/nvml-api/change-log.html
 func (d *nvDevice) GetFabricState() (FabricState, error) {
-	// Try V3 API first (provides detailed health metrics)
-	handler := d.GetGpuFabricInfoV()
-	info, ret := handler.V3()
-	if ret == nvml.SUCCESS {
-		return FabricState{
-			CliqueID:      info.CliqueId,
-			ClusterUUID:   formatClusterUUID(info.ClusterUuid),
-			State:         info.State,
-			Status:        nvml.Return(info.Status),
-			HealthMask:    info.HealthMask,
-			HealthSummary: info.HealthSummary,
-		}, nil
+	// Only try V3 API if driver supports it (>= 550).
+	// Calling GetGpuFabricInfoV() on older drivers (e.g., 535.x) causes:
+	// "symbol lookup error: undefined symbol: nvmlDeviceGetGpuFabricInfoV"
+	// which crashes the process (exit code 127) at the dynamic linker level.
+	if d.driverMajor >= MinDriverVersionForV3FabricAPI {
+		handler := d.GetGpuFabricInfoV()
+		info, ret := handler.V3()
+		if ret == nvml.SUCCESS {
+			return FabricState{
+				CliqueID:      info.CliqueId,
+				ClusterUUID:   formatClusterUUID(info.ClusterUuid),
+				State:         info.State,
+				Status:        nvml.Return(info.Status),
+				HealthMask:    info.HealthMask,
+				HealthSummary: info.HealthSummary,
+			}, nil
+		}
+		// V3 failed, fall through to V1
+	} else {
+		// Log warning once when skipping V3 API due to old driver
+		logV3SkipOnce.Do(func() {
+			log.Logger.Warnw("skipping fabric state V3 API (nvmlDeviceGetGpuFabricInfoV) due to old driver version; V3 API requires driver >= 550",
+				"driverMajor", d.driverMajor,
+				"minRequired", MinDriverVersionForV3FabricAPI,
+			)
+		})
 	}
-	// V3 failed, fall through to V1
 
 	// Try V1 API (basic fabric information)
 	infoV1, ret := d.GetGpuFabricInfo()
