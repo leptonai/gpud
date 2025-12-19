@@ -11,7 +11,7 @@ image:
   repository: nvcr.io/nvidia/dgx-cloud-lepton/gpud
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v0.9.1"
+  tag: ""
 
 # Application-specific settings for the GPUd container.
 gpud:

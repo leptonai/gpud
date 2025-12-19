@@ -67,13 +67,11 @@ jobs:
 
       - name: release
         if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
-        env:
-          REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
-          REPO_NAME=$(echo "${GITHUB_REPOSITORY}" | cut -d'/' -f2)
           CHART_NAME="$(grep -e "^name:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
           CHART_VERSION="$(grep -e "^version:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
+          CHART_REGISTRY="oci://ghcr.io/chart"
           echo '${{ secrets.GITHUB_TOKEN }}' | helm registry login -u '${{ github.actor }}' --password-stdin 'ghcr.io'
           helm package deployments/helm/gpud
-          echo "Pushing helm chart ${CHART_NAME}-${CHART_VERSION}.tgz to oci://ghcr.io/${REPOSITORY_OWNER}"
-          helm push "${CHART_NAME}-${CHART_VERSION}.tgz" "oci://ghcr.io/chart/${REPOSITORY_OWNER}"
+          echo "Pushing helm chart ${CHART_NAME}-${CHART_VERSION}.tgz to ${CHART_REGISTRY}"
+          helm push "${CHART_NAME}-${CHART_VERSION}.tgz" "${CHART_REGISTRY}"
