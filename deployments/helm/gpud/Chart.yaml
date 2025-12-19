@@ -2,6 +2,6 @@ apiVersion: v2
 name: gpud
 description: GPUd Helm chart for Kubernetes
 type: application
-version: 0.9.0
-appVersion: "v0.9.0"
+version: 0.9.1
+appVersion: "v0.9.1"
 icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
