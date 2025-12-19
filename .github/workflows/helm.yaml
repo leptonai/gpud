@@ -1,6 +1,9 @@
 name: 'helm'
 
 on:
+  push:
+    paths:
+      - 'deployments/helm/gpud/Chart.yaml'
   pull_request:
     branches:
       - main
@@ -44,9 +47,16 @@ jobs:
 
       - name: Run chart-testing
         run: |
+          TARGET_BRANCH="${{ github.event.repository.default_branch }}"
+          if [ -z "$TARGET_BRANCH" ]; then
+            TARGET_BRANCH="main"
+          fi
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
+          fi
           ct lint --debug --all --config ./.github/configs/ct-lint.yaml \
             --lint-conf ./.github/configs/lintconf.yaml \
-            --target-branch ${{ github.event.pull_request.base.ref }}
+            --target-branch "$TARGET_BRANCH"
 
       - name: Run kubeconform
         run: |
@@ -56,7 +66,7 @@ jobs:
           helm kubeconform deployments/helm/gpud --verbose --summary --strict --exit-on-error
 
       - name: release
-        if: github.event.pull_request.merged == true
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
         env:
           REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
