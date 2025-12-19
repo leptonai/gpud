@@ -8,10 +8,10 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  repository: nvcr.io/dgx-cloud-lepton/gpud
+  repository: nvcr.io/nvidia/dgx-cloud-lepton/gpud
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v0.9.0-alpha.27"
+  tag: "v0.9.1"
 
 # Application-specific settings for the GPUd container.
 gpud:
