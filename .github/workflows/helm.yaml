@@ -2,12 +2,14 @@ name: 'helm'
 
 on:
   push:
+    branches:
+      - main
     paths:
-      - 'deployments/helm/gpud/Chart.yaml'
+      - 'deployments/helm/**'
   pull_request:
     branches:
       - main
-    types: [opened, synchronize, closed]
+    types: [opened, synchronize, reopened]
     paths:
       - 'deployments/helm/**'
 
@@ -66,7 +68,7 @@ jobs:
           helm kubeconform deployments/helm/gpud --verbose --summary --strict --exit-on-error
 
       - name: release
-        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        if: github.event_name == 'push'
         run: |
           CHART_NAME="$(grep -e "^name:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
           CHART_VERSION="$(grep -e "^version:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
