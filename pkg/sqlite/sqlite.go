@@ -179,3 +179,12 @@ func TableExists(ctx context.Context, db *sql.DB, name string) (bool, error) {
 	}
 	return true, nil
 }
+
+// IsNoSuchTableError returns true if the error is a SQLite "no such table" error.
+// This is useful for gracefully handling queries against tables that may not exist yet.
+func IsNoSuchTableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "no such table")
+}

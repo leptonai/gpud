@@ -11,6 +11,7 @@ import (
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	sessionstates "github.com/leptonai/gpud/pkg/session/states"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func checkLoginSuccess(loginSuccess, machineID string) error {
@@ -33,6 +34,13 @@ func checkLoginSuccess(loginSuccess, machineID string) error {
 func displayLoginStatus(ctx context.Context, dbRO *sql.DB) error {
 	status, err := sessionstates.ReadLast(ctx, dbRO)
 	if err != nil {
+		// Handle the case where the session_states table doesn't exist yet.
+		// This can happen if gpud status is run before gpud run/up has ever been executed,
+		// or if the database was created with an older version that didn't have this table.
+		if sqlite.IsNoSuchTableError(err) {
+			fmt.Printf("No login activity recorded\n")
+			return nil
+		}
 		return fmt.Errorf("failed to read login status: %w", err)
 	}
 
