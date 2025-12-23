@@ -2,9 +2,11 @@ package status
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func TestCheckLoginSuccess(t *testing.T) {
@@ -96,4 +99,53 @@ func TestCheckLoginSuccess(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDisplayLoginStatus(t *testing.T) {
+	t.Run("handles missing session_states table gracefully", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "status_test")
+		require.NoError(t, err)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		// Create a database without the session_states table
+		dbFile := filepath.Join(tmpDir, "test.db")
+		dbRW, err := sqlite.Open(dbFile)
+		require.NoError(t, err)
+
+		// Create some other table to ensure the database exists
+		_, err = dbRW.Exec("CREATE TABLE other_table (id INTEGER PRIMARY KEY)")
+		require.NoError(t, err)
+		_ = dbRW.Close()
+
+		// Open in read-only mode (like the status command does)
+		dbRO, err := sqlite.Open(dbFile, sqlite.WithReadOnly(true))
+		require.NoError(t, err)
+		defer func() {
+			_ = dbRO.Close()
+		}()
+
+		// Capture stdout
+		old := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		// Call displayLoginStatus - should not return an error
+		ctx := context.Background()
+		err = displayLoginStatus(ctx, dbRO)
+
+		// Restore stdout
+		require.NoError(t, w.Close())
+		os.Stdout = old
+
+		// Read captured output
+		var buf bytes.Buffer
+		_, _ = io.Copy(&buf, r)
+		output := buf.String()
+
+		// Verify no error and appropriate output
+		require.NoError(t, err, "displayLoginStatus should not return an error for missing table")
+		assert.Contains(t, output, "No login activity recorded")
+	})
 }

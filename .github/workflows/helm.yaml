@@ -1,12 +1,9 @@
 name: 'helm'
 
 on:
-  pull_request:
-    branches:
-      - main
-    types: [opened, synchronize, closed]
-    paths:
-      - 'deployments/helm/**'
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   id-token: write
@@ -56,9 +53,13 @@ jobs:
           helm kubeconform deployments/helm/gpud --verbose --summary --strict --exit-on-error
 
       - name: release
+<<<<<<< HEAD
         if: github.event.pull_request.merged == true
         env:
           REPOSITORY_OWNER: ${{ github.repository_owner }}
+=======
+        if: startsWith(github.ref, 'refs/tags/')
+>>>>>>> 47581b49 ([BUG-5763184] fix(gpud/status): handle "no such table" error for login history (#1185))
         run: |
           REPO_NAME=$(echo "${GITHUB_REPOSITORY}" | cut -d'/' -f2)
           CHART_NAME="$(grep -e "^name:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
