@@ -2,18 +2,8 @@ name: 'helm'
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'deployments/helm/**'
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - main
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'deployments/helm/**'
 
 permissions:
   id-token: write
