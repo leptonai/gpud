@@ -395,6 +395,56 @@ func TestTableExists(t *testing.T) {
 	})
 }
 
+func TestIsNoSuchTableError(t *testing.T) {
+	t.Run("nil error returns false", func(t *testing.T) {
+		assert.False(t, IsNoSuchTableError(nil))
+	})
+
+	t.Run("no such table error returns true", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "sqlite_test")
+		require.NoError(t, err)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		dbFile := filepath.Join(tmpDir, "no_such_table_test.db")
+		db, err := Open(dbFile)
+		require.NoError(t, err)
+		defer func() {
+			_ = db.Close()
+		}()
+
+		// Query a non-existent table to trigger the error
+		_, err = db.Query("SELECT * FROM non_existent_table")
+		require.Error(t, err)
+		assert.True(t, IsNoSuchTableError(err), "expected IsNoSuchTableError to return true for: %v", err)
+	})
+
+	t.Run("other errors return false", func(t *testing.T) {
+		tmpDir, err := os.MkdirTemp(os.TempDir(), "sqlite_test")
+		require.NoError(t, err)
+		defer func() {
+			_ = os.RemoveAll(tmpDir)
+		}()
+
+		dbFile := filepath.Join(tmpDir, "other_error_test.db")
+		db, err := Open(dbFile)
+		require.NoError(t, err)
+		defer func() {
+			_ = db.Close()
+		}()
+
+		// Create a table first
+		_, err = db.Exec("CREATE TABLE test_table (id INTEGER PRIMARY KEY)")
+		require.NoError(t, err)
+
+		// Try to create the same table again to trigger a different error
+		_, err = db.Exec("CREATE TABLE test_table (id INTEGER PRIMARY KEY)")
+		require.Error(t, err)
+		assert.False(t, IsNoSuchTableError(err), "expected IsNoSuchTableError to return false for: %v", err)
+	})
+}
+
 func TestBuildConnectionString(t *testing.T) {
 	t.Run("in-memory with shared cache produces file::memory:?cache=shared", func(t *testing.T) {
 		// This is the exact connection string required for shared in-memory database
