@@ -31,6 +31,7 @@ func (m *mockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
 func (m *mockNvmlInstance) Shutdown() error { return nil }
+func (m *mockNvmlInstance) InitError() error { return nil }
 
 // Tests for processGossip
 func TestProcessGossip(t *testing.T) {

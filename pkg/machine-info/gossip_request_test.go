@@ -33,6 +33,7 @@ func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
 func (m *mockNVMLInstance) Shutdown() error { return nil }
+func (m *mockNVMLInstance) InitError() error { return nil }
 
 // TestCreateGossipRequest tests the gossip request creation
 func TestCreateGossipRequest(t *testing.T) {
