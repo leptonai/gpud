@@ -297,3 +297,34 @@ func TestCreateLogger(t *testing.T) {
 		assert.Contains(t, buffer.String(), "error message", "Error message should be logged at error level")
 	})
 }
+
+func TestSetLogger(t *testing.T) {
+	original := Logger
+	t.Cleanup(func() {
+		Logger = original
+	})
+
+	Logger = nil
+	SetLogger(nil)
+	if Logger == nil {
+		t.Fatalf("expected Logger to be initialized")
+	}
+	assert.NotPanics(t, func() {
+		Logger.Info("noop")
+	})
+
+	buffer := &bytes.Buffer{}
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoder := zapcore.NewJSONEncoder(encoderConfig)
+	core := zapcore.NewCore(encoder, zapcore.AddSync(buffer), zapcore.InfoLevel)
+
+	custom := newGpudLogger(zap.New(core).Sugar())
+	SetLogger(custom)
+	Logger.Info("custom message")
+	assert.Contains(t, buffer.String(), "custom message")
+
+	buffer.Reset()
+	SetLogger(nil)
+	Logger.Info("ignored")
+	assert.Empty(t, buffer.String(), "expected nop logger after SetLogger(nil)")
+}

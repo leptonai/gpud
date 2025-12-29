@@ -1,11 +1,15 @@
 package nvml
 
 import (
+	"context"
 	"errors"
 	"testing"
 
-	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvmlmock "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib/mock"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
 func TestInstanceV2(t *testing.T) {
@@ -111,5 +115,28 @@ func TestNewErroredInstance(t *testing.T) {
 	}
 	if !errors.Is(inst.InitError(), initErr) {
 		t.Fatalf("expected InitError %v, got %v", initErr, inst.InitError())
+	}
+}
+
+func TestNewInstanceInitErrorReturnsErroredInstance(t *testing.T) {
+	t.Setenv(nvmllib.EnvMockAllSuccess, "true")
+
+	originalDeviceGetCount := nvmlmock.AllSuccessInterface.DeviceGetCountFunc
+	t.Cleanup(func() {
+		nvmlmock.AllSuccessInterface.DeviceGetCountFunc = originalDeviceGetCount
+	})
+	nvmlmock.AllSuccessInterface.DeviceGetCountFunc = func() (int, nvml.Return) {
+		return 0, nvml.ERROR_UNKNOWN
+	}
+
+	inst, err := newInstance(context.Background(), nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create instance: %v", err)
+	}
+	if inst.InitError() == nil {
+		t.Fatalf("expected init error")
+	}
+	if !inst.NVMLExists() {
+		t.Fatalf("expected NVMLExists to be true")
 	}
 }
