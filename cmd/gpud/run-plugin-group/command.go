@@ -20,7 +20,7 @@ func Command(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
+	log.SetLogger(log.CreateLogger(zapLvl, logFile))
 
 	log.Logger.Debugw("starting run-plugin-group command")
 

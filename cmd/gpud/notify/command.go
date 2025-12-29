@@ -26,7 +26,7 @@ func CommandStartup(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, "")
+	log.SetLogger(log.CreateLogger(zapLvl, ""))
 
 	log.Logger.Debugw("starting notify startup command")
 
@@ -87,7 +87,7 @@ func CommandShutdown(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, "")
+	log.SetLogger(log.CreateLogger(zapLvl, ""))
 
 	log.Logger.Debugw("starting notify shutdown command")
 

@@ -27,7 +27,7 @@ func Command(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, "")
+	log.SetLogger(log.CreateLogger(zapLvl, ""))
 
 	log.Logger.Debugw("starting custom-plugins command")
 

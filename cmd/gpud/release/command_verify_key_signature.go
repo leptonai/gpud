@@ -21,7 +21,7 @@ func CommandVerifyKeySignature(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, "")
+	log.SetLogger(log.CreateLogger(zapLvl, ""))
 
 	log.Logger.Debugw("starting verify-key-signature command")
 
