@@ -593,6 +593,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)
 			}),
 			session.WithFaultInjector(s.faultInjector),
+			session.WithDB(s.dbRW, s.dbRO),
 		)
 		if err != nil {
 			log.Logger.Errorw("error creating session", "error", err)
@@ -656,6 +657,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 					return pkgcustomplugins.SaveSpecs(s.pluginSpecsFile, specs)
 				}),
 				session.WithFaultInjector(s.faultInjector),
+				session.WithDB(s.dbRW, s.dbRO),
 			)
 			if err != nil {
 				log.Logger.Errorw("error creating session", "error", err)

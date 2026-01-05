@@ -125,6 +125,12 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 
 	case "getPluginSpecs":
 		s.processGetPluginSpecs(response)
+
+	case "updateToken":
+		s.processUpdateToken(payload, response)
+
+	case "getToken":
+		s.processGetToken(response)
 	}
 
 	return false // Request is handled synchronously
