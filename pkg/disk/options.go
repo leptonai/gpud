@@ -98,7 +98,8 @@ func DefaultExt4FsTypeFunc(fsType string) bool {
 
 func DefaultNFSFsTypeFunc(fsType string) bool {
 	// ref. https://www.weka.io/
-	return fsType == "wekafs" || fsType == "virtiofs" || strings.HasPrefix(fsType, "nfs") // e.g., "nfs4"
+	// ref. https://wiki.lustre.org/ (Azure Managed Lustre, AWS FSx for Lustre, etc.)
+	return fsType == "wekafs" || fsType == "virtiofs" || fsType == "lustre" || strings.HasPrefix(fsType, "nfs") // e.g., "nfs4"
 }
 
 // DefaultDeviceTypeFunc returns true for common block device types.

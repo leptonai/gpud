@@ -392,6 +392,48 @@ func Test_findMntTargetDevice_EdgeCases(t *testing.T) {
 			expectedFsType: "ext4",
 			expectError:    false,
 		},
+		// Lustre filesystem tests (Azure Managed Lustre, AWS FSx for Lustre, etc.)
+		{
+			name:           "lustre mount - Azure Managed Lustre (AMLFS)",
+			mountinfoData:  "2500 2357 0:100 / /lustre/fs1 rw,relatime shared:518 master:1 - lustre 172.16.0.100@tcp:/lustrefs rw,flock,lazystatfs",
+			targetDir:      "/lustre/fs1",
+			expectedDev:    "172.16.0.100@tcp:/lustrefs",
+			expectedFsType: "lustre",
+			expectError:    false,
+		},
+		{
+			name:           "lustre mount - AWS FSx for Lustre",
+			mountinfoData:  "2501 2357 0:101 / /fsx/data rw,relatime shared:519 master:1 - lustre fs-0123456789abcdef0.fsx.us-east-1.amazonaws.com@tcp:/fsx rw,flock,lazystatfs",
+			targetDir:      "/fsx/data",
+			expectedDev:    "fs-0123456789abcdef0.fsx.us-east-1.amazonaws.com@tcp:/fsx",
+			expectedFsType: "lustre",
+			expectError:    false,
+		},
+		{
+			name:           "lustre mount - nested mount point under search dir",
+			mountinfoData:  "2502 2357 0:102 / /lustre/fs1/shared/project rw,relatime shared:520 master:1 - lustre 172.16.0.100@tcp:/lustrefs rw,flock,lazystatfs",
+			targetDir:      "/lustre/fs1",
+			expectedDev:    "172.16.0.100@tcp:/lustrefs",
+			expectedFsType: "lustre",
+			expectError:    false,
+		},
+		{
+			name: "autofs with lustre mount - should return lustre",
+			mountinfoData: `2503 2357 0:37 / /lustre/fs1 rw,relatime shared:518 master:1 - autofs systemd-1 rw,fd=62,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=18469
+2504 2503 0:103 / /lustre/fs1 rw,relatime shared:519 master:1 - lustre 172.16.0.100@tcp:/lustrefs rw,flock,lazystatfs`,
+			targetDir:      "/lustre/fs1",
+			expectedDev:    "172.16.0.100@tcp:/lustrefs",
+			expectedFsType: "lustre",
+			expectError:    false,
+		},
+		{
+			name:           "lustre mount with multiple tcp connections",
+			mountinfoData:  "2505 2357 0:104 / /lustre/shared rw,relatime shared:521 master:1 - lustre 10.0.0.10@tcp1,10.0.0.11@tcp1:/shared rw,flock,lazystatfs",
+			targetDir:      "/lustre/shared",
+			expectedDev:    "10.0.0.10@tcp1,10.0.0.11@tcp1:/shared",
+			expectedFsType: "lustre",
+			expectError:    false,
+		},
 	}
 
 	for _, tt := range tests {
