@@ -24,7 +24,7 @@ func TestKeepAliveReconnectionDelay(t *testing.T) {
 	}
 
 	// Mock checkServerHealth to always succeed
-	s.checkServerHealthFunc = func(ctx context.Context, jar *cookiejar.Jar) error {
+	s.checkServerHealthFunc = func(ctx context.Context, jar *cookiejar.Jar, token string) error {
 		return nil
 	}
 
@@ -135,7 +135,7 @@ func TestKeepAliveDeadlockPrevention(t *testing.T) {
 			}
 
 			// Mock checkServerHealth to always succeed
-			s.checkServerHealthFunc = func(ctx context.Context, jar *cookiejar.Jar) error {
+			s.checkServerHealthFunc = func(ctx context.Context, jar *cookiejar.Jar, token string) error {
 				return nil
 			}
 
@@ -268,7 +268,7 @@ func TestKeepAliveNoRapidReconnection(t *testing.T) {
 
 	// Mock checkServerHealth to always fail (simulate rapid failures)
 	healthCheckCount := int32(0)
-	s.checkServerHealthFunc = func(ctx context.Context, jar *cookiejar.Jar) error {
+	s.checkServerHealthFunc = func(ctx context.Context, jar *cookiejar.Jar, token string) error {
 		atomic.AddInt32(&healthCheckCount, 1)
 		// Fail health checks to test reconnection behavior
 		return fmt.Errorf("simulated health check failure")

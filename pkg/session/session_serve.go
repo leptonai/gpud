@@ -44,6 +44,9 @@ type Request struct {
 
 	// CustomPluginSpecs is the specs for the custom plugins to register or overwrite.
 	CustomPluginSpecs pkgcustomplugins.Specs `json:"custom_plugin_specs,omitempty"`
+
+	// Token is the new token to update on the agent side.
+	Token string `json:"token,omitempty"`
 }
 
 // Response is the response from GPUd to the control plane.
@@ -68,6 +71,9 @@ type Response struct {
 
 	// CustomPluginSpecs lists the specs for the custom plugins.
 	CustomPluginSpecs pkgcustomplugins.Specs `json:"custom_plugin_specs,omitempty"`
+
+	// Token is the current token value from the agent.
+	Token string `json:"token,omitempty"`
 }
 
 type BootstrapRequest struct {

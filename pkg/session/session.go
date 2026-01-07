@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,6 +50,8 @@ type Op struct {
 	metricsStore        pkgmetrics.Store
 	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
 	faultInjector       pkgfaultinjector.Injector
+	dbRW                *sql.DB
+	dbRO                *sql.DB
 }
 
 type OpOption func(*Op)
@@ -146,6 +149,13 @@ func WithFaultInjector(faultInjector pkgfaultinjector.Injector) OpOption {
 	}
 }
 
+func WithDB(dbRW *sql.DB, dbRO *sql.DB) OpOption {
+	return func(op *Op) {
+		op.dbRW = dbRW
+		op.dbRO = dbRO
+	}
+}
+
 // Triggers an auto update of GPUd itself by exiting the process with the given exit code.
 // Useful when the machine is managed by the Kubernetes daemonset and we want to
 // trigger an auto update when the daemonset restarts the machine.
@@ -170,9 +180,13 @@ type Session struct {
 	// epControlPlane is the endpoint of the control plane
 	epControlPlane string
 
+	tokenMu    sync.RWMutex
 	token      string
 	dataDir    string
 	dbInMemory bool
+
+	dbRW *sql.DB
+	dbRO *sql.DB
 
 	createGossipRequestFunc func(machineID string, nvmlInstance nvidianvml.Instance) (*apiv1.GossipRequest, error)
 
@@ -225,7 +239,7 @@ type Session struct {
 
 	// checkServerHealthFunc checks server health
 	// In production: s.checkServerHealth, in tests: can be mocked
-	checkServerHealthFunc func(ctx context.Context, jar *cookiejar.Jar) error
+	checkServerHealthFunc func(ctx context.Context, jar *cookiejar.Jar, token string) error
 }
 
 type closeOnce struct {
@@ -276,6 +290,10 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		token:      token,
 		dataDir:    dataDir,
 		dbInMemory: op.dbInMemory,
+
+		tokenMu: sync.RWMutex{},
+		dbRW:    op.dbRW,
+		dbRO:    op.dbRO,
 
 		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
 
@@ -503,7 +521,7 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
 }
 
-func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) error {
+func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar, token string) error {
 	u, err := url.Parse(s.epControlPlane)
 	if err != nil {
 		return err
@@ -518,7 +536,10 @@ func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar) err
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.token))
+	if token == "" {
+		token = s.getToken()
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	client := createHTTPClient(jar)
 	resp, err := client.Do(req)
@@ -545,6 +566,18 @@ func (s *Session) getLastPackageTimestamp() time.Time {
 	s.lastPackageTimestampMu.RLock()
 	defer s.lastPackageTimestampMu.RUnlock()
 	return s.lastPackageTimestamp
+}
+
+func (s *Session) setToken(token string) {
+	s.tokenMu.Lock()
+	defer s.tokenMu.Unlock()
+	s.token = token
+}
+
+func (s *Session) getToken() string {
+	s.tokenMu.RLock()
+	defer s.tokenMu.RUnlock()
+	return s.token
 }
 
 func (s *Session) processReaderResponse(resp *http.Response, goroutineCloseCh, pipeFinishCh chan any) {
