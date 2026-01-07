@@ -20,6 +20,7 @@ func TestDefaultFsTypeFuncs(t *testing.T) {
 		assert.True(t, DefaultNFSFsTypeFunc("virtiofs"))
 		assert.True(t, DefaultNFSFsTypeFunc("nfs"))
 		assert.True(t, DefaultNFSFsTypeFunc("nfs4"))
+		assert.True(t, DefaultNFSFsTypeFunc("lustre")) // Azure Managed Lustre, AWS FSx for Lustre, etc.
 		assert.False(t, DefaultNFSFsTypeFunc("ext4"))
 		assert.False(t, DefaultNFSFsTypeFunc(""))
 	})
