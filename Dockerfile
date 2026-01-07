@@ -138,6 +138,8 @@ FROM nvidia/cuda:${CUDA_VERSION}-runtime-${OS_NAME}${OS_VERSION}
 WORKDIR /
 
 # Install required runtime dependencies not included in the NVIDIA CUDA runtime image.
+# NOTE: gnupg is installed temporarily for Docker GPG key verification, then purged
+# to address CVE-2025-68973 (out-of-bounds write in GnuPG armor_filter before 2.4.9)
 RUN apt-get update && \
   apt-get install -y --no-install-recommends \
   ca-certificates \
@@ -156,6 +158,9 @@ RUN apt-get update && \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
   apt-get update && \
   apt-get install -y --no-install-recommends docker-ce-cli containerd.io && \
+  # Remove gnupg and related packages to address CVE-2025-68973
+  # These are only needed for GPG key verification during build, not at runtime
+  apt-get purge -y --auto-remove gnupg gnupg-l10n gnupg-utils gpg gpg-agent gpg-wks-client gpg-wks-server gpgconf gpgsm gpgv dirmngr && \
   rm -rf /var/lib/apt/lists/*
 
 # Copy the gpud binary
