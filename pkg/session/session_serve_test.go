@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -285,37 +284,6 @@ func TestGetStatesFromComponent(t *testing.T) {
 }
 
 // Tests for getEventsFromComponent
-
-// Test createNeedDeleteFiles
-func TestCreateNeedDeleteFiles(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "test-create-need-delete-files")
-	require.NoError(t, err)
-	defer func() {
-		_ = os.RemoveAll(tempDir)
-	}()
-
-	// Create test directories
-	subDir1 := filepath.Join(tempDir, "subdir1")
-	require.NoError(t, os.Mkdir(subDir1, 0755))
-
-	subDir2 := filepath.Join(tempDir, "subdir2")
-	require.NoError(t, os.Mkdir(subDir2, 0755))
-
-	// Test creating needDelete files
-	err = createNeedDeleteFiles(tempDir)
-	require.NoError(t, err)
-
-	// Check that needDelete files were created
-	_, err = os.Stat(filepath.Join(subDir1, "needDelete"))
-	assert.NoError(t, err)
-
-	_, err = os.Stat(filepath.Join(subDir2, "needDelete"))
-	assert.NoError(t, err)
-
-	// No needDelete file should be created in the root directory
-	_, err = os.Stat(filepath.Join(tempDir, "needDelete"))
-	assert.True(t, os.IsNotExist(err))
-}
 
 // Test getHealthStates
 func TestGetHealthStates(t *testing.T) {
@@ -1331,37 +1299,6 @@ func TestHandleUpdateRequest(t *testing.T) {
 	// Check the response
 	assert.Equal(t, "test-update", resp.ReqID)
 	assert.Equal(t, "auto update is disabled", response.Error)
-}
-
-// Test delete function
-func TestSessionDelete(t *testing.T) {
-	// Create a temporary directory structure for testing
-	tempDir, err := os.MkdirTemp("", "test-session-delete")
-	require.NoError(t, err)
-	defer func() {
-		_ = os.RemoveAll(tempDir)
-	}()
-
-	// Create subdirectories
-	subDir1 := filepath.Join(tempDir, "subdir1")
-	subDir2 := filepath.Join(tempDir, "subdir2")
-	require.NoError(t, os.Mkdir(subDir1, 0755))
-	require.NoError(t, os.Mkdir(subDir2, 0755))
-
-	// Test createNeedDeleteFiles function directly
-	err = createNeedDeleteFiles(tempDir)
-	require.NoError(t, err)
-
-	// Check that needDelete files were created
-	_, err = os.Stat(filepath.Join(subDir1, "needDelete"))
-	assert.NoError(t, err)
-
-	_, err = os.Stat(filepath.Join(subDir2, "needDelete"))
-	assert.NoError(t, err)
-
-	// No needDelete file should be created in the root directory
-	_, err = os.Stat(filepath.Join(tempDir, "needDelete"))
-	assert.True(t, os.IsNotExist(err))
 }
 
 // Test error handling in getEventsFromComponent

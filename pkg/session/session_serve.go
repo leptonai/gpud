@@ -3,14 +3,10 @@ package session
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"io/fs"
 	"os"
-	"path/filepath"
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
@@ -139,39 +135,4 @@ func (s *Session) serve() {
 			}()
 		}
 	}
-}
-
-func (s *Session) delete() {
-	// cleanup packages
-	if err := createNeedDeleteFiles(config.PackagesDir(s.dataDir)); err != nil {
-		log.Logger.Errorw("failed to delete packages",
-			"error", err,
-		)
-	}
-}
-
-func createNeedDeleteFiles(rootPath string) error {
-	if _, err := os.Stat(rootPath); os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-
-	return filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() && path != rootPath {
-			needDeleteFilePath := filepath.Join(path, "needDelete")
-			file, err := os.Create(needDeleteFilePath)
-			if err != nil {
-				return fmt.Errorf("failed to create needDelete file in %s: %w", path, err)
-			}
-			defer func() {
-				_ = file.Close()
-			}()
-		}
-		return nil
-	})
 }
