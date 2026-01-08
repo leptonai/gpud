@@ -44,10 +44,9 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 		}
 		response.Events = events
 
-	case "delete":
-		go s.delete()
-
 	case "logout":
+		// Best-effort: requires active session + running GPUd. Sender may not wait for ACK.
+		// Only stops GPUd service; does NOT clean up tailscaled, lepton0, or packages.
 		s.processLogout(ctx, response)
 
 	case "setHealthy":
@@ -88,6 +87,9 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 		s.processUpdateConfig(payload.UpdateConfig, response)
 
 	case "bootstrap":
+		// Best-effort: requires active session + running GPUd. Sender may skip based on policy.
+		// This is the primary on-node cleanup path (runs stop scripts for tailscaled, lepton0, packages).
+		// If skipped or failed, resources remain orphaned.
 		s.processBootstrap(ctx, payload, response)
 
 	case "injectFault":
@@ -217,6 +219,16 @@ func (s *Session) trySendResponse(body Body) (sent bool) {
 			sent = false
 		}
 	}()
+
+	if s.ctx == nil {
+		s.writer <- body
+		return true
+	}
+
+	if s.ctx.Err() != nil {
+		log.Logger.Debugw("session serve: dropping response, session context done", "reqID", body.ReqID)
+		return false
+	}
 
 	select {
 	case <-s.ctx.Done():

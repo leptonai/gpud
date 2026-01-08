@@ -133,6 +133,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "reset-state",
 					Usage: "reset the state file (otherwise, re-login may contain stale health data)",
 				},
+				&cli.BoolFlag{
+					Name:  "cleanup-packages",
+					Usage: "run 'init.sh delete' for packages with needDelete markers in <data-dir>/packages/ (only works if machine is in deleting stage)",
+				},
 			},
 		},
 		{

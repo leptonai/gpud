@@ -2,16 +2,25 @@ package session
 
 import (
 	"context"
+	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	"github.com/leptonai/gpud/pkg/config"
+	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
+	"github.com/leptonai/gpud/pkg/gpud-manager/controllers"
+	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
 	"github.com/leptonai/gpud/pkg/log"
+	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func TestSession_processRequest(t *testing.T) {
@@ -127,7 +136,43 @@ func TestSession_processRequest(t *testing.T) {
 		assert.NotNil(t, response.Events)
 	})
 
-	t.Run("delete method", func(t *testing.T) {
+	t.Run("logout method", func(t *testing.T) {
+		dataDir := t.TempDir()
+		stateFile := config.StateFilePath(dataDir)
+
+		db, err := sqlite.Open(stateFile)
+		require.NoError(t, err)
+		require.NoError(t, pkgmetadata.CreateTableMetadata(context.Background(), db))
+		require.NoError(t, db.Close())
+
+		session := &Session{
+			ctx:     context.Background(),
+			dataDir: dataDir,
+		}
+		response := &Response{}
+		restartExitCode := -1
+
+		payload := Request{
+			Method: "logout",
+		}
+
+		handledAsync := session.processRequest(context.Background(), "test-req", payload, response, &restartExitCode)
+
+		assert.False(t, handledAsync, "logout should be handled synchronously")
+		assert.Equal(t, -1, restartExitCode)
+		if response.Error != "" {
+			assert.True(t, strings.Contains(response.Error, "sudo/root") || strings.Contains(response.Error, "root"), "unexpected error: %s", response.Error)
+		}
+	})
+
+	t.Run("packageStatus method", func(t *testing.T) {
+		prevController := gpudmanager.GlobalController
+		defer func() {
+			gpudmanager.GlobalController = prevController
+		}()
+
+		gpudmanager.GlobalController = controllers.NewPackageController(make(chan packages.PackageInfo))
+
 		session := &Session{
 			ctx: context.Background(),
 		}
@@ -135,15 +180,15 @@ func TestSession_processRequest(t *testing.T) {
 		restartExitCode := -1
 
 		payload := Request{
-			Method: "delete",
+			Method: "packageStatus",
 		}
 
-		// Note: delete method spawns a goroutine that tries to delete packages
-		// This will fail in test environment but should not crash
 		handledAsync := session.processRequest(context.Background(), "test-req", payload, response, &restartExitCode)
 
-		assert.False(t, handledAsync, "delete should be handled synchronously")
+		assert.False(t, handledAsync, "packageStatus should be handled synchronously")
 		assert.Equal(t, -1, restartExitCode)
+		assert.Empty(t, response.Error)
+		assert.Len(t, response.PackageStatus, 0)
 	})
 
 	t.Run("triggerComponent method returns async", func(t *testing.T) {
@@ -440,29 +485,148 @@ func TestSession_sendResponse(t *testing.T) {
 		}
 	})
 
+	t.Run("returns early when send is skipped", func(t *testing.T) {
+		session := createMockSession(nil)
+		writer := make(chan Body, 1)
+		session.writer = writer
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		session.ctx = ctx
+		session.auditLogger = log.NewNopAuditLogger()
+
+		response := &Response{
+			Error: "",
+		}
+
+		session.sendResponse("test-req-skip", "testMethod", response)
+
+		select {
+		case <-writer:
+			t.Fatal("did not expect response to be sent when session context is canceled")
+		default:
+		}
+	})
+
 	t.Run("handles marshal error", func(t *testing.T) {
 		session := createMockSession(nil)
 		writer := make(chan Body, 1)
 		session.writer = writer
 
-		// Create a response that cannot be marshaled
-		// In reality, Response should always be marshalable
-		// This test demonstrates error handling
-
-		// Since we can't easily create an unmarshalable Response,
-		// we just verify the function doesn't panic
 		response := &Response{
-			Error: "test error",
+			Metrics: apiv1.GPUdComponentMetrics{
+				{
+					Component: "test-comp",
+					Metrics: apiv1.Metrics{
+						{
+							Name:  "bad-metric",
+							Value: math.NaN(),
+						},
+					},
+				},
+			},
 		}
 
 		session.sendResponse("test-req-marshal", "testMethod", response)
 
-		// Should still attempt to send something
+		// Should not send anything when marshaling fails.
 		select {
 		case <-writer:
-			// Response sent despite any issues
+			t.Fatal("did not expect response to be sent when marshaling fails")
 		default:
-			// No response might be sent if marshal actually fails
+		}
+	})
+}
+
+func TestSession_trySendResponse(t *testing.T) {
+	t.Run("successfully sends when context is nil", func(t *testing.T) {
+		session := createMockSession(nil)
+		writer := make(chan Body, 1)
+		session.writer = writer
+		session.ctx = nil // Explicitly set ctx to nil
+
+		body := Body{
+			ReqID: "test-nil-ctx",
+			Data:  []byte(`{"test": "data"}`),
+		}
+
+		sent := session.trySendResponse(body)
+
+		assert.True(t, sent, "trySendResponse should return true when ctx is nil and write succeeds")
+		select {
+		case resp := <-writer:
+			assert.Equal(t, "test-nil-ctx", resp.ReqID)
+		default:
+			t.Error("Expected response to be sent to writer channel")
+		}
+	})
+
+	t.Run("recovers from panic when writer is closed", func(t *testing.T) {
+		session := createMockSession(nil)
+		writer := make(chan Body, 1)
+		session.writer = writer
+		session.ctx = nil // nil ctx to trigger the send path that could panic
+
+		// Close the writer channel to trigger a panic when trying to send
+		close(writer)
+
+		body := Body{
+			ReqID: "test-panic",
+			Data:  []byte(`{"test": "data"}`),
+		}
+
+		// This should not panic - the recover should catch it
+		sent := session.trySendResponse(body)
+
+		assert.False(t, sent, "trySendResponse should return false when panic occurs")
+	})
+
+	t.Run("returns false when context is already done before select", func(t *testing.T) {
+		session := createMockSession(nil)
+		writer := make(chan Body, 1)
+		session.writer = writer
+
+		// Create a context that's already canceled
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+		session.ctx = ctx
+
+		body := Body{
+			ReqID: "test-ctx-err",
+			Data:  []byte(`{"test": "data"}`),
+		}
+
+		sent := session.trySendResponse(body)
+
+		assert.False(t, sent, "trySendResponse should return false when context is already done")
+		// Verify nothing was sent to writer
+		select {
+		case <-writer:
+			t.Error("Should not have sent response when context is done")
+		default:
+			// Expected - nothing sent
+		}
+	})
+
+	t.Run("successfully sends with valid context", func(t *testing.T) {
+		session := createMockSession(nil)
+		writer := make(chan Body, 1)
+		session.writer = writer
+		session.ctx = context.Background()
+
+		body := Body{
+			ReqID: "test-valid-ctx",
+			Data:  []byte(`{"test": "data"}`),
+		}
+
+		sent := session.trySendResponse(body)
+
+		assert.True(t, sent, "trySendResponse should return true with valid context")
+		select {
+		case resp := <-writer:
+			assert.Equal(t, "test-valid-ctx", resp.ReqID)
+		default:
+			t.Error("Expected response to be sent to writer channel")
 		}
 	})
 }
