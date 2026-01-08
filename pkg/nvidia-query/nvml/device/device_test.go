@@ -3,9 +3,64 @@ package device
 import (
 	"testing"
 
+	nvlibdevice "github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type stubDevice struct {
+	*mock.Device
+}
+
+func (d *stubDevice) GetArchitectureAsString() (string, error) {
+	return "", nil
+}
+
+func (d *stubDevice) GetBrandAsString() (string, error) {
+	return "", nil
+}
+
+func (d *stubDevice) GetCudaComputeCapabilityAsString() (string, error) {
+	return "", nil
+}
+
+func (d *stubDevice) GetMigDevices() ([]nvlibdevice.MigDevice, error) {
+	return nil, nil
+}
+
+func (d *stubDevice) GetMigProfiles() ([]nvlibdevice.MigProfile, error) {
+	return nil, nil
+}
+
+func (d *stubDevice) GetPCIBusID() (string, error) {
+	return "0000:00:00.0", nil
+}
+
+func (d *stubDevice) IsCoherent() (bool, error) {
+	return false, nil
+}
+
+func (d *stubDevice) IsFabricAttached() (bool, error) {
+	return false, nil
+}
+
+func (d *stubDevice) IsMigCapable() (bool, error) {
+	return false, nil
+}
+
+func (d *stubDevice) IsMigEnabled() (bool, error) {
+	return false, nil
+}
+
+func (d *stubDevice) VisitMigDevices(func(j int, m nvlibdevice.MigDevice) error) error {
+	return nil
+}
+
+func (d *stubDevice) VisitMigProfiles(func(p nvlibdevice.MigProfile) error) error {
+	return nil
+}
 
 func TestMinDriverVersionForV3FabricAPI(t *testing.T) {
 	t.Parallel()
@@ -15,6 +70,14 @@ func TestMinDriverVersionForV3FabricAPI(t *testing.T) {
 	// See: https://docs.nvidia.com/deploy/nvml-api/change-log.html
 	assert.Equal(t, 550, MinDriverVersionForV3FabricAPI,
 		"MinDriverVersionForV3FabricAPI should be 550 per NVIDIA NVML changelog")
+}
+
+func TestMinDriverVersionForMarginTemperatureAPI(t *testing.T) {
+	t.Parallel()
+
+	// nvmlDeviceGetMarginTemperature was introduced in driver 570.
+	assert.Equal(t, 570, MinDriverVersionForMarginTemperatureAPI,
+		"MinDriverVersionForMarginTemperatureAPI should be 570 per NVIDIA NVML changelog")
 }
 
 func TestWithDriverMajor(t *testing.T) {
@@ -176,4 +239,35 @@ func TestDriverVersionBoundaryConditions(t *testing.T) {
 				map[bool]string{true: "enabled", false: "disabled"}[tt.expectV3])
 		})
 	}
+}
+
+func TestGetMarginTemperatureDriverGate(t *testing.T) {
+	mockDevice := &mock.Device{}
+	dev := &nvDevice{
+		Device:      &stubDevice{Device: mockDevice},
+		driverMajor: MinDriverVersionForMarginTemperatureAPI - 1,
+	}
+
+	called := false
+	mockDevice.GetMarginTemperatureFunc = func() (nvml.MarginTemperature, nvml.Return) {
+		called = true
+		return nvml.MarginTemperature{MarginTemperature: 42}, nvml.SUCCESS
+	}
+
+	margin, ret := dev.GetMarginTemperature()
+	assert.False(t, called)
+	assert.Equal(t, nvml.ERROR_NOT_SUPPORTED, ret)
+	assert.Equal(t, int32(0), margin.MarginTemperature)
+
+	called = false
+	dev.driverMajor = MinDriverVersionForMarginTemperatureAPI
+	mockDevice.GetMarginTemperatureFunc = func() (nvml.MarginTemperature, nvml.Return) {
+		called = true
+		return nvml.MarginTemperature{MarginTemperature: 55}, nvml.SUCCESS
+	}
+
+	margin, ret = dev.GetMarginTemperature()
+	assert.True(t, called)
+	assert.Equal(t, nvml.SUCCESS, ret)
+	assert.Equal(t, int32(55), margin.MarginTemperature)
 }

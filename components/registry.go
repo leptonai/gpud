@@ -51,6 +51,7 @@ type FailureInjector struct {
 	GPUUUIDsWithHWSlowdown                        []string
 	GPUUUIDsWithHWSlowdownThermal                 []string
 	GPUUUIDsWithHWSlowdownPowerBrake              []string
+	GPUUUIDsWithTemperatureMarginDegraded         []string
 	GPUUUIDsWithGPULost                           []string
 	GPUUUIDsWithGPURequiresReset                  []string
 	GPUUUIDsWithFabricStateHealthSummaryUnhealthy []string

@@ -21,6 +21,7 @@ import (
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
+	componentsnvidiatemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgconfig "github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
@@ -241,6 +242,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: fmt.Sprintf("set the allowed reboot attempts for XID errors before escalation (defaults to %d)", componentsxid.DefaultRebootThreshold),
 					Value: componentsxid.DefaultRebootThreshold,
 				},
+				&cli.IntFlag{
+					Name:  "temperature-margin-threshold-celsius",
+					Usage: fmt.Sprintf("set the minimum thermal margin (°C) before marking GPUs as degraded (defaults to %d)", componentsnvidiatemperature.DefaultMarginThresholdCelsius),
+					Value: int(componentsnvidiatemperature.DefaultMarginThresholdCelsius),
+				},
 
 				cli.StringFlag{
 					Name:  "infiniband-exclude-devices",
@@ -281,6 +287,11 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-hw-slowdown-power-brake",
 					Usage:  "(testing purposes) set the comma-separated gpu uuids with hw slowdown power brake",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-temperature-margin-degraded",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to force temperature margin degraded state",
 					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
@@ -563,6 +574,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: fmt.Sprintf("set the allowed reboot attempts for XID errors before escalation (defaults to %d)", componentsxid.DefaultRebootThreshold),
 					Value: componentsxid.DefaultRebootThreshold,
 				},
+				&cli.IntFlag{
+					Name:  "temperature-margin-threshold-celsius",
+					Usage: fmt.Sprintf("set the minimum thermal margin (°C) before marking GPUs as degraded (defaults to %d)", componentsnvidiatemperature.DefaultMarginThresholdCelsius),
+					Value: int(componentsnvidiatemperature.DefaultMarginThresholdCelsius),
+				},
 				cli.StringFlag{
 					Name:   "infiniband-class-root-dir",
 					Usage:  "sets the infiniband class root directory (leave empty for default)",
@@ -597,6 +613,11 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:   "gpu-uuids-with-hw-slowdown-power-brake",
 					Usage:  "set the comma-separated gpu uuids with hw slowdown power brake",
+					Hidden: true, // only for testing
+				},
+				cli.StringFlag{
+					Name:   "gpu-uuids-with-temperature-margin-degraded",
+					Usage:  "(testing purposes) set the comma-separated gpu uuids to force temperature margin degraded state",
 					Hidden: true, // only for testing
 				},
 				cli.StringFlag{
