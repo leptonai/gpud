@@ -284,7 +284,7 @@ func TestCreateLogger(t *testing.T) {
 
 		// Build a custom logger
 		customLogger := zap.New(core).Sugar()
-		testLogger := &gpudLogger{customLogger}
+		testLogger := newGpudLogger(customLogger)
 
 		// Debug messages should not be logged at error level
 		buffer.Reset()
