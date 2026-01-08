@@ -14,6 +14,7 @@ import (
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
@@ -35,12 +36,15 @@ func CreateCommand() func(*cli.Context) error {
 			cliContext.String("gpu-uuids-with-hw-slowdown"),
 			cliContext.String("gpu-uuids-with-hw-slowdown-thermal"),
 			cliContext.String("gpu-uuids-with-hw-slowdown-power-brake"),
+			cliContext.String("gpu-uuids-with-temperature-margin-degraded"),
 			cliContext.String("gpu-uuids-with-gpu-lost"),
 			cliContext.String("gpu-uuids-with-gpu-requires-reset"),
 			cliContext.String("gpu-uuids-with-fabric-state-health-summary-unhealthy"),
 			cliContext.String("gpu-product-name"),
 			cliContext.Int("xid-reboot-threshold"),
 			cliContext.IsSet("xid-reboot-threshold"),
+			cliContext.Int("temperature-margin-threshold-celsius"),
+			cliContext.IsSet("temperature-margin-threshold-celsius"),
 		)
 	}
 }
@@ -57,12 +61,15 @@ func cmdScan(
 	gpuUUIDsWithHWSlowdownRaw string,
 	gpuUUIDsWithHWSlowdownThermalRaw string,
 	gpuUUIDsWithHWSlowdownPowerBrakeRaw string,
+	gpuUUIDsWithTemperatureMarginDegradedRaw string,
 	gpuUUIDsWithGPULostRaw string,
 	gpuUUIDsWithGPURequiresResetRaw string,
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw string,
 	gpuProductNameOverride string,
 	xidRebootThreshold int,
 	xidRebootThresholdIsSet bool,
+	temperatureMarginThresholdCelsius int,
+	temperatureMarginThresholdIsSet bool,
 ) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
@@ -121,11 +128,19 @@ func cmdScan(
 		}
 	}
 
+	if temperatureMarginThresholdIsSet {
+		componentstemperature.SetDefaultMarginThreshold(componentstemperature.MarginThreshold{
+			DegradedCelsius: int32(temperatureMarginThresholdCelsius),
+		})
+		log.Logger.Infow("set temperature margin threshold", "degraded_celsius", temperatureMarginThresholdCelsius)
+	}
+
 	gpuUUIDsWithRowRemappingPending := common.ParseGPUUUIDs(gpuUUIDsWithRowRemappingPendingRaw)
 	gpuUUIDsWithRowRemappingFailed := common.ParseGPUUUIDs(gpuUUIDsWithRowRemappingFailedRaw)
 	gpuUUIDsWithHWSlowdown := common.ParseGPUUUIDs(gpuUUIDsWithHWSlowdownRaw)
 	gpuUUIDsWithHWSlowdownThermal := common.ParseGPUUUIDs(gpuUUIDsWithHWSlowdownThermalRaw)
 	gpuUUIDsWithHWSlowdownPowerBrake := common.ParseGPUUUIDs(gpuUUIDsWithHWSlowdownPowerBrakeRaw)
+	gpuUUIDsWithTemperatureMarginDegraded := common.ParseGPUUUIDs(gpuUUIDsWithTemperatureMarginDegradedRaw)
 	gpuUUIDsWithGPULost := common.ParseGPUUUIDs(gpuUUIDsWithGPULostRaw)
 	gpuUUIDsWithGPURequiresReset := common.ParseGPUUUIDs(gpuUUIDsWithGPURequiresResetRaw)
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthy := common.ParseGPUUUIDs(gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw)
@@ -138,6 +153,7 @@ func cmdScan(
 			GPUUUIDsWithHWSlowdown:                        gpuUUIDsWithHWSlowdown,
 			GPUUUIDsWithHWSlowdownThermal:                 gpuUUIDsWithHWSlowdownThermal,
 			GPUUUIDsWithHWSlowdownPowerBrake:              gpuUUIDsWithHWSlowdownPowerBrake,
+			GPUUUIDsWithTemperatureMarginDegraded:         gpuUUIDsWithTemperatureMarginDegraded,
 			GPUUUIDsWithGPULost:                           gpuUUIDsWithGPULost,
 			GPUUUIDsWithGPURequiresReset:                  gpuUUIDsWithGPURequiresReset,
 			GPUUUIDsWithFabricStateHealthSummaryUnhealthy: gpuUUIDsWithFabricStateHealthSummaryUnhealthy,

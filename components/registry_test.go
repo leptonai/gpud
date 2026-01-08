@@ -501,14 +501,18 @@ func TestFailureInjector(t *testing.T) {
 	// Test FailureInjector with values
 	pendingUUIDs := []string{"GPU-pending-1", "GPU-pending-2"}
 	failedUUIDs := []string{"GPU-failed-1", "GPU-failed-2"}
+	tempUUIDs := []string{"GPU-temp-1", "GPU-temp-2"}
 
 	injector := &FailureInjector{
-		GPUUUIDsWithRowRemappingPending: pendingUUIDs,
-		GPUUUIDsWithRowRemappingFailed:  failedUUIDs,
+		GPUUUIDsWithRowRemappingPending:       pendingUUIDs,
+		GPUUUIDsWithRowRemappingFailed:        failedUUIDs,
+		GPUUUIDsWithTemperatureMarginDegraded: tempUUIDs,
 	}
 
 	assert.Equal(t, pendingUUIDs, injector.GPUUUIDsWithRowRemappingPending)
 	assert.Equal(t, failedUUIDs, injector.GPUUUIDsWithRowRemappingFailed)
+	assert.Equal(t, tempUUIDs, injector.GPUUUIDsWithTemperatureMarginDegraded)
 	assert.Len(t, injector.GPUUUIDsWithRowRemappingPending, 2)
 	assert.Len(t, injector.GPUUUIDsWithRowRemappingFailed, 2)
+	assert.Len(t, injector.GPUUUIDsWithTemperatureMarginDegraded, 2)
 }
