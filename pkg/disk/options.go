@@ -83,9 +83,23 @@ func DefaultMatchFuncDeviceType(deviceType string) bool {
 	return deviceType == "disk" // not "part" partitions
 }
 
+// DefaultFsTypeFunc returns true for common filesystem types.
+// This function is used by the disk component to filter which filesystems to monitor.
+//
+// Supported filesystem types:
+//   - "": Empty/unformatted (parent disks)
+//   - "ext4": Most common Linux filesystem
+//   - "xfs": Default for RHEL 7+, CentOS 7+, Rocky Linux, AlmaLinux, Fedora Server
+//   - "vfat": Required for EFI System Partitions (ESP) per UEFI specification
+//   - "LVM2_member": LVM physical volumes
+//   - "linux_raid_member": Software RAID members
+//   - "raid0": RAID-0 devices
+//   - "nfs*": Network File System (e.g., nfs, nfs4)
 func DefaultFsTypeFunc(fsType string) bool {
 	return fsType == "" ||
 		fsType == "ext4" ||
+		fsType == "xfs" ||
+		fsType == "vfat" ||
 		fsType == "LVM2_member" ||
 		fsType == "linux_raid_member" ||
 		fsType == "raid0" ||

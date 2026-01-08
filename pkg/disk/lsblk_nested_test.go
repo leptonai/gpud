@@ -184,9 +184,9 @@ func TestParseLsblkJSONRAIDChain(t *testing.T) {
 	}
 	require.NotNil(t, sda, "expected /dev/sda to be present")
 
-	// Should have 1 child: sda2 (linux_raid_member with RAID child)
-	// Note: sda1 is filtered out because it has vfat filesystem, which is not in DefaultFsTypeFunc
-	require.Len(t, sda.Children, 1, "expected one child (sda2)")
+	// Should have 2 children: sda1 (vfat EFI partition) and sda2 (linux_raid_member with RAID child)
+	// Note: sda1 is now included because vfat was added to DefaultFsTypeFunc to support EFI partitions
+	require.Len(t, sda.Children, 2, "expected two children (sda1 and sda2)")
 
 	// Find sda2 (the raid member)
 	var sda2 *BlockDevice

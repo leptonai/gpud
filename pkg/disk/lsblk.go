@@ -104,7 +104,11 @@ func getBlockDevicesWithLsblk(
 		return nil, err
 	}
 	if len(devs) == 0 {
-		log.Logger.Warnw("no block device found from lsblk command", "lsblk", lsblkBin, "flags", flags, "output", string(b))
+		log.Logger.Warnw("no block device found after filtering (devices may have been excluded by fstype/device-type/mountpoint filters, check if your filesystem types like xfs/vfat are supported in DefaultFsTypeFunc)",
+			"lsblk", lsblkBin,
+			"flags", flags,
+			"rawOutputBytes", len(b),
+		)
 	}
 
 	return devs, nil

@@ -571,10 +571,16 @@ func TestParseLsblkJSONWithParentNullMountpoint(t *testing.T) {
 	}
 	assert.True(t, foundP2, "nvme0n1p2 should be included in children")
 
-	// Verify vfat partitions are excluded due to fstype filter
+	// Verify vfat partitions with valid mountpoints are now included (added to DefaultFsTypeFunc)
+	// This is necessary to support EFI system partitions which use vfat
+	foundVfat := false
 	for _, child := range nvmeDevice.Children {
-		assert.NotEqual(t, "vfat", child.FSType, "vfat partitions should be filtered out by DefaultFsTypeFunc")
+		if child.FSType == "vfat" && child.MountPoint != "" {
+			foundVfat = true
+			break
+		}
 	}
+	assert.True(t, foundVfat, "vfat partitions with valid mountpoints should be included by DefaultFsTypeFunc")
 }
 
 func TestParseLsblkJSONParentChildFiltering(t *testing.T) {
