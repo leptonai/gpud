@@ -29,7 +29,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 	if err != nil {
 		return err
 	}
-	log.Logger = log.CreateLogger(zapLvl, logFile)
+	log.SetLogger(log.CreateLogger(zapLvl, logFile))
 
 	log.Logger.Debugw("starting up command")
 

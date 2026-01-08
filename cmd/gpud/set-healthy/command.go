@@ -22,7 +22,7 @@ func CreateCommand() func(*cli.Context) error {
 		if err != nil {
 			return err
 		}
-		log.Logger = log.CreateLogger(zapLvl, logFile)
+		log.SetLogger(log.CreateLogger(zapLvl, logFile))
 
 		log.Logger.Debugw("starting set-healthy command")
 
