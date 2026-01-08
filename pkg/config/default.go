@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mitchellh/go-homedir"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
@@ -92,7 +91,7 @@ func setupDefaultDir() (string, error) {
 	d := DefaultDataDir
 	_, err := stdos.Stat(filepath.Dir(d))
 	if !asRoot || stdos.IsNotExist(err) {
-		homeDir, err := homedir.Dir()
+		homeDir, err := stdos.UserHomeDir()
 		if err != nil {
 			return "", err
 		}
