@@ -1,0 +1,137 @@
+{
+   "blockdevices": [
+      {
+         "name": "/dev/loop0",
+         "type": "loop",
+         "size": 62652416,
+         "rota": false,
+         "serial": null,
+         "wwn": null,
+         "vendor": null,
+         "model": null,
+         "rev": null,
+         "mountpoint": "/snap/core20/2321",
+         "fstype": "squashfs",
+         "fsused": "62652416",
+         "partuuid": null
+      },{
+         "name": "/dev/loop1",
+         "type": "loop",
+         "size": 62455808,
+         "rota": false,
+         "serial": null,
+         "wwn": null,
+         "vendor": null,
+         "model": null,
+         "rev": null,
+         "mountpoint": "/snap/core20/2690",
+         "fstype": "squashfs",
+         "fsused": "62521344",
+         "partuuid": null
+      },{
+         "name": "/dev/loop2",
+         "type": "loop",
+         "size": 81137664,
+         "rota": false,
+         "serial": null,
+         "wwn": null,
+         "vendor": null,
+         "model": null,
+         "rev": null,
+         "mountpoint": "/snap/lxd/29353",
+         "fstype": "squashfs",
+         "fsused": "81264640",
+         "partuuid": null
+      },{
+         "name": "/dev/sda",
+         "type": "disk",
+         "size": 0,
+         "rota": true,
+         "serial": "Linux_File-Stor_Gadget-0:0",
+         "wwn": null,
+         "vendor": "Linux   ",
+         "model": "File-Stor Gadget",
+         "rev": "0612",
+         "mountpoint": null,
+         "fstype": null,
+         "fsused": null,
+         "partuuid": null
+      },{
+         "name": "/dev/nvme0n1",
+         "type": "disk",
+         "size": 3840755982336,
+         "rota": false,
+         "serial": "S7UTNG0Y512362",
+         "wwn": "eui.37555430595123620025384700000001",
+         "vendor": null,
+         "model": "SAMSUNG MZTL63T8HFLT-00AW7",
+         "rev": null,
+         "mountpoint": null,
+         "fstype": "LVM2_member",
+         "fsused": null,
+         "partuuid": null,
+         "children": [
+            {
+               "name": "/dev/mapper/lepton_vg-lepton_lv",
+               "type": "lvm",
+               "size": 15363014131712,
+               "rota": false,
+               "serial": null,
+               "wwn": null,
+               "vendor": null,
+               "model": null,
+               "rev": null,
+               "mountpoint": "/lepton-data-disk",
+               "fstype": "ext4",
+               "fsused": "1182228480",
+               "partuuid": null
+            }
+         ]
+      },{
+         "name": "/dev/nvme4n1",
+         "type": "disk",
+         "size": 1920383410176,
+         "rota": false,
+         "serial": "S666NT0XC03235",
+         "wwn": "eui.3636363058c032350025385400000001",
+         "vendor": null,
+         "model": "SAMSUNG MZ1L21T9HCLS-00A07",
+         "rev": null,
+         "mountpoint": null,
+         "fstype": null,
+         "fsused": null,
+         "partuuid": null,
+         "children": [
+            {
+               "name": "/dev/nvme4n1p1",
+               "type": "part",
+               "size": 536870912,
+               "rota": false,
+               "serial": null,
+               "wwn": "eui.3636363058c032350025385400000001",
+               "vendor": null,
+               "model": null,
+               "rev": null,
+               "mountpoint": "/boot/efi",
+               "fstype": "vfat",
+               "fsused": "6623232",
+               "partuuid": "4305fe72-a9b6-46e0-8602-d90d78685c7f"
+            },{
+               "name": "/dev/nvme4n1p2",
+               "type": "part",
+               "size": 1919844089856,
+               "rota": false,
+               "serial": null,
+               "wwn": "eui.3636363058c032350025385400000001",
+               "vendor": null,
+               "model": null,
+               "rev": null,
+               "mountpoint": "/",
+               "fstype": "xfs",
+               "fsused": "31333236736",
+               "partuuid": "08957ba6-97b0-4202-9535-8b8653797c5a"
+            }
+         ]
+      }
+   ]
+}
