@@ -519,6 +519,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 func mockGetThresholds() types.ExpectedPortStates {
 	return types.ExpectedPortStates{
 		AtLeastPorts: 1,

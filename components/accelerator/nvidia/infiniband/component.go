@@ -5,6 +5,7 @@ package infiniband
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -284,6 +285,19 @@ func (c *component) Check() components.CheckResult {
 	if !c.nvmlInstance.NVMLExists() {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
+		return cr
+	}
+	// Check for NVML initialization errors first.
+	// This handles cases like "error getting device handle for index 'N': Unknown Error"
+	// which corresponds to nvidia-smi showing "Unable to determine the device handle for GPU".
+	if err := c.nvmlInstance.InitError(); err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("NVML initialization error: %v", err)
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		}
 		return cr
 	}
 	if c.nvmlInstance.ProductName() == "" {

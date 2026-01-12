@@ -152,6 +152,11 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return args.Error(0)
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
 // TestCheck tests the Check method in various scenarios
 func TestCheck(t *testing.T) {
 	t.Parallel()

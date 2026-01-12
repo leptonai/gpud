@@ -161,6 +161,19 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = "NVIDIA NVML library is not loaded"
 		return cr
 	}
+	// Check for NVML initialization errors first.
+	// This handles cases like "error getting device handle for index 'N': Unknown Error"
+	// which corresponds to nvidia-smi showing "Unable to determine the device handle for GPU".
+	if err := c.nvmlInstance.InitError(); err != nil {
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("NVML initialization error: %v", err)
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		}
+		return cr
+	}
 	if c.nvmlInstance.ProductName() == "" {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
@@ -199,6 +212,8 @@ type checkResult struct {
 
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
+	// tracks the suggested actions for the last check
+	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
 }

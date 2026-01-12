@@ -84,6 +84,10 @@ func (m *mockNvmlInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNvmlInstance) InitError() error {
+	return nil
+}
+
 // MockMemoryComponent creates a component with mocked functions for testing
 func MockMemoryComponent(
 	ctx context.Context,
