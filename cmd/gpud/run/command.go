@@ -22,6 +22,7 @@ import (
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/config"
@@ -138,6 +139,7 @@ func Command(cliContext *cli.Context) error {
 	nvlinkExpectedLinkStates := cliContext.String("nvlink-expected-link-states")
 	nfsCheckerConfigs := cliContext.String("nfs-checker-configs")
 	xidRebootThreshold := cliContext.Int("xid-reboot-threshold")
+	temperatureMarginThresholdCelsius := cliContext.Int("threshold-celsius-slowdown-margin")
 
 	if len(infinibandExpectedPortStates) > 0 {
 		var expectedPortStates componentsnvidiainfinibanditypes.ExpectedPortStates
@@ -178,6 +180,13 @@ func Command(cliContext *cli.Context) error {
 		} else {
 			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)
 		}
+	}
+
+	if cliContext.IsSet("threshold-celsius-slowdown-margin") {
+		componentstemperature.SetDefaultMarginThreshold(componentstemperature.Thresholds{
+			CelsiusSlowdownMargin: int32(temperatureMarginThresholdCelsius),
+		})
+		log.Logger.Infow("set temperature margin threshold", "degraded_celsius", temperatureMarginThresholdCelsius)
 	}
 
 	gpuUUIDsWithRowRemappingPendingRaw := cliContext.String("gpu-uuids-with-row-remapping-pending")

@@ -149,6 +149,13 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, tc.getTemperatureFunc, "getTemperatureFunc should be set")
 }
 
+func TestNew_NilGPUdInstance(t *testing.T) {
+	c, err := New(nil)
+
+	assert.Error(t, err)
+	assert.Nil(t, c)
+}
+
 func TestName(t *testing.T) {
 	ctx := context.Background()
 	mockNVML := &mockNVMLInstance{
@@ -182,6 +189,114 @@ func TestTags(t *testing.T) {
 	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }
 
+func TestCheck_HBMTemperatureExceedingThreshold(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	mockNVML := &mockNVMLInstance{
+		devices:  devs,
+		exists:   true,
+		prodName: "Test GPU",
+	}
+
+	temperature := Temperature{
+		UUID:                           uuid,
+		CurrentCelsiusGPUCore:          75,
+		CurrentCelsiusHBM:              110,
+		HBMTemperatureSupported:        true,
+		ThresholdCelsiusSlowdownMargin: 20,
+		MarginTemperatureSupported:     true,
+		ThresholdCelsiusShutdown:       120,
+		ThresholdCelsiusSlowdown:       95,
+		ThresholdCelsiusMemMax:         100,
+		ThresholdCelsiusGPUMax:         100,
+		UsedPercentShutdown:            "62.50",
+		UsedPercentSlowdown:            "78.95",
+		UsedPercentMemMax:              "110.00",
+		UsedPercentGPUMax:              "75.00",
+	}
+
+	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+		return temperature, nil
+	}
+
+	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+	result := component.Check()
+
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, data.health)
+	assert.Contains(t, data.reason, "HBM temperature anomalies detected")
+	assert.Contains(t, data.reason, "HBM temperature is 110 °C exceeding the threshold 100 °C")
+}
+
+func TestCheck_CurrentTemperatureExceedingThreshold(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{
+		uuid: mockDev,
+	}
+
+	mockNVML := &mockNVMLInstance{
+		devices:  devs,
+		exists:   true,
+		prodName: "Test GPU",
+	}
+
+	temperature := Temperature{
+		UUID:                           uuid,
+		CurrentCelsiusGPUCore:          110,
+		CurrentCelsiusHBM:              80,
+		HBMTemperatureSupported:        true,
+		ThresholdCelsiusSlowdownMargin: 20,
+		MarginTemperatureSupported:     true,
+		ThresholdCelsiusShutdown:       120,
+		ThresholdCelsiusSlowdown:       95,
+		ThresholdCelsiusMemMax:         100,
+		ThresholdCelsiusGPUMax:         100,
+		UsedPercentShutdown:            "62.50",
+		UsedPercentSlowdown:            "78.95",
+		UsedPercentMemMax:              "71.43",
+		UsedPercentGPUMax:              "75.00",
+	}
+
+	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+		return temperature, nil
+	}
+
+	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+	result := component.Check()
+
+	data, ok := result.(*checkResult)
+	require.True(t, ok, "result should be of type *checkResult")
+
+	require.NotNil(t, data, "data should not be nil")
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, data.health)
+	assert.Contains(t, data.reason, "GPU temperature anomalies detected")
+	assert.Contains(t, data.reason, "current temperature is 110 °C exceeding the threshold 100 °C")
+}
+
 func TestCheck_Success(t *testing.T) {
 	ctx := context.Background()
 
@@ -204,16 +319,20 @@ func TestCheck_Success(t *testing.T) {
 	}
 
 	temperature := Temperature{
-		UUID:                     uuid,
-		CurrentCelsiusGPUCore:    75,      // 75°C
-		ThresholdCelsiusShutdown: 120,     // 120°C
-		ThresholdCelsiusSlowdown: 95,      // 95°C
-		ThresholdCelsiusMemMax:   105,     // 105°C
-		ThresholdCelsiusGPUMax:   100,     // 100°C
-		UsedPercentShutdown:      "62.50", // 75/120 = 62.5%
-		UsedPercentSlowdown:      "78.95", // 75/95 = 78.95%
-		UsedPercentMemMax:        "71.43", // 75/105 = 71.43%
-		UsedPercentGPUMax:        "75.00", // 75/100 = 75%
+		UUID:                           uuid,
+		CurrentCelsiusGPUCore:          75, // 75°C
+		CurrentCelsiusHBM:              75,
+		HBMTemperatureSupported:        true,
+		ThresholdCelsiusSlowdownMargin: 20,
+		MarginTemperatureSupported:     true,
+		ThresholdCelsiusShutdown:       120,     // 120°C
+		ThresholdCelsiusSlowdown:       95,      // 95°C
+		ThresholdCelsiusMemMax:         105,     // 105°C
+		ThresholdCelsiusGPUMax:         100,     // 100°C
+		UsedPercentShutdown:            "62.50", // 75/120 = 62.5%
+		UsedPercentSlowdown:            "78.95", // 75/95 = 78.95%
+		UsedPercentMemMax:              "71.43", // 75/105 = 71.43%
+		UsedPercentGPUMax:              "75.00", // 75/100 = 75%
 	}
 
 	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
@@ -552,38 +671,128 @@ func TestData_GetError(t *testing.T) {
 	}
 }
 
-func TestCheck_MemoryTemperatureThreshold(t *testing.T) {
+func TestCheck_MarginTemperatureThreshold(t *testing.T) {
+	original := GetDefaultThresholdS()
+	defer SetDefaultMarginThreshold(original)
+
+	SetDefaultMarginThreshold(Thresholds{CelsiusSlowdownMargin: 10})
+
 	tests := []struct {
 		name                 string
-		currentTemp          uint32
+		marginCelsius        int32
+		expectHealthy        apiv1.HealthStateType
+		expectReasonContains string
+	}{
+		{
+			name:                 "Above threshold",
+			marginCelsius:        15,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
+			expectReasonContains: "no temperature issue found",
+		},
+		{
+			name:                 "Equal to threshold",
+			marginCelsius:        10,
+			expectHealthy:        apiv1.HealthStateTypeDegraded,
+			expectReasonContains: "margin threshold exceeded",
+		},
+		{
+			name:                 "Below threshold",
+			marginCelsius:        5,
+			expectHealthy:        apiv1.HealthStateTypeDegraded,
+			expectReasonContains: "margin threshold exceeded",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			uuid := "gpu-uuid-123"
+			mockDeviceObj := &mock.Device{
+				GetUUIDFunc: func() (string, nvml.Return) {
+					return uuid, nvml.SUCCESS
+				},
+			}
+			mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+			devs := map[string]device.Device{
+				uuid: mockDev,
+			}
+
+			mockNVML := &mockNVMLInstance{
+				devices:  devs,
+				exists:   true,
+				prodName: "Test GPU",
+			}
+
+			temperature := Temperature{
+				UUID:                           uuid,
+				CurrentCelsiusGPUCore:          80,
+				CurrentCelsiusHBM:              80,
+				HBMTemperatureSupported:        true,
+				ThresholdCelsiusSlowdownMargin: tt.marginCelsius,
+				MarginTemperatureSupported:     true,
+				ThresholdCelsiusShutdown:       120,
+				ThresholdCelsiusSlowdown:       95,
+				ThresholdCelsiusMemMax:         100,
+				ThresholdCelsiusGPUMax:         100,
+				UsedPercentShutdown:            "66.67", // 80/120 = 66.67%
+				UsedPercentSlowdown:            "84.21", // 80/95 = 84.21%
+				UsedPercentMemMax:              "80.00", // 80/100 = 80.00%
+				UsedPercentGPUMax:              "80.00", // 80/100 = 80.00%
+			}
+
+			getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+				return temperature, nil
+			}
+
+			component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+			result := component.Check()
+
+			// Verify the data was collected
+			data, ok := result.(*checkResult)
+			require.True(t, ok, "result should be of type *checkResult")
+
+			require.NotNil(t, data, "data should not be nil")
+			assert.Equal(t, tt.expectHealthy, data.health, "health state mismatch")
+			assert.Contains(t, data.reason, tt.expectReasonContains)
+			assert.Len(t, data.Temperatures, 1)
+		})
+	}
+}
+
+func TestCheck_MarginTemperatureFallbackToHBM(t *testing.T) {
+	tests := []struct {
+		name                 string
+		hbmTemp              uint32
 		memMaxThreshold      uint32
 		expectHealthy        apiv1.HealthStateType
 		expectReasonContains string
 	}{
 		{
 			name:                 "Below threshold",
-			currentTemp:          80,
+			hbmTemp:              90,
 			memMaxThreshold:      100,
 			expectHealthy:        apiv1.HealthStateTypeHealthy,
 			expectReasonContains: "no temperature issue found",
 		},
 		{
 			name:                 "Equal to threshold",
-			currentTemp:          100,
+			hbmTemp:              100,
 			memMaxThreshold:      100,
 			expectHealthy:        apiv1.HealthStateTypeHealthy,
 			expectReasonContains: "no temperature issue found",
 		},
 		{
 			name:                 "Above threshold",
-			currentTemp:          110,
+			hbmTemp:              110,
 			memMaxThreshold:      100,
-			expectHealthy:        apiv1.HealthStateTypeUnhealthy,
-			expectReasonContains: "exceeding the HBM temperature threshold",
+			expectHealthy:        apiv1.HealthStateTypeDegraded,
+			expectReasonContains: "temperature is",
 		},
 		{
 			name:                 "Threshold is zero (disabled)",
-			currentTemp:          110,
+			hbmTemp:              110,
 			memMaxThreshold:      0,
 			expectHealthy:        apiv1.HealthStateTypeHealthy,
 			expectReasonContains: "no temperature issue found",
@@ -613,16 +822,20 @@ func TestCheck_MemoryTemperatureThreshold(t *testing.T) {
 			}
 
 			temperature := Temperature{
-				UUID:                     uuid,
-				CurrentCelsiusGPUCore:    tt.currentTemp,
-				ThresholdCelsiusShutdown: 120,
-				ThresholdCelsiusSlowdown: 95,
-				ThresholdCelsiusMemMax:   tt.memMaxThreshold,
-				ThresholdCelsiusGPUMax:   100,
-				UsedPercentShutdown:      "66.67", // 80/120 = 66.67%
-				UsedPercentSlowdown:      "84.21", // 80/95 = 84.21%
-				UsedPercentMemMax:        "80.00", // 80/100 = 80.00%
-				UsedPercentGPUMax:        "80.00", // 80/100 = 80.00%
+				UUID:                           uuid,
+				CurrentCelsiusGPUCore:          75,
+				CurrentCelsiusHBM:              tt.hbmTemp,
+				HBMTemperatureSupported:        true,
+				ThresholdCelsiusSlowdownMargin: 0,
+				MarginTemperatureSupported:     false,
+				ThresholdCelsiusShutdown:       120,
+				ThresholdCelsiusSlowdown:       95,
+				ThresholdCelsiusMemMax:         tt.memMaxThreshold,
+				ThresholdCelsiusGPUMax:         100,
+				UsedPercentShutdown:            "58.33",
+				UsedPercentSlowdown:            "73.68",
+				UsedPercentMemMax:              "0.0",
+				UsedPercentGPUMax:              "70.00",
 			}
 
 			getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
@@ -632,7 +845,6 @@ func TestCheck_MemoryTemperatureThreshold(t *testing.T) {
 			component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
 			result := component.Check()
 
-			// Verify the data was collected
 			data, ok := result.(*checkResult)
 			require.True(t, ok, "result should be of type *checkResult")
 

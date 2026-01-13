@@ -20,6 +20,18 @@ type Temperature struct {
 	BusID string `json:"bus_id"`
 
 	CurrentCelsiusGPUCore uint32 `json:"current_celsius_gpu_core"`
+	CurrentCelsiusHBM     uint32 `json:"current_celsius_hbm"`
+
+	// HBMTemperatureSupported indicates whether NVML provided a memory temperature reading.
+	HBMTemperatureSupported bool `json:"hbm_temperature_supported"`
+
+	// ThresholdCelsiusSlowdownMargin is the thermal headroom (in °C) to the nearest
+	// slowdown threshold as defined by NVML. NVML does not specify whether the threshold
+	// is for GPU core or HBM; it is whichever slowdown threshold is nearest (driver-defined).
+	ThresholdCelsiusSlowdownMargin int32 `json:"threshold_celsius_slowdown_margin"`
+
+	// MarginTemperatureSupported indicates whether NVML provided a margin temperature reading.
+	MarginTemperatureSupported bool `json:"margin_temperature_supported"`
 
 	// Threshold at which the GPU starts to shut down to prevent hardware damage.
 	ThresholdCelsiusShutdown uint32 `json:"threshold_celsius_shutdown"`
@@ -52,6 +64,11 @@ func (temp Temperature) GetUsedPercentGPUMax() (float64, error) {
 	return strconv.ParseFloat(temp.UsedPercentGPUMax, 64)
 }
 
+// NVML_TEMPERATURE_MEM is not exposed in go-nvml v0.13.0-1 yet.
+// Use the nvml.h enum value to query memory (HBM/GDDR) temperature when supported.
+// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g92d1c5182a14dd4be7090e3c1480b121
+const temperatureSensorMemory nvml.TemperatureSensors = 1
+
 func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 	temp := Temperature{
 		UUID:  uuid,
@@ -64,6 +81,47 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 		temp.CurrentCelsiusGPUCore = tempCur
 	} else {
 		log.Logger.Warnw("failed to get device temperature", "error", nvml.ErrorString(ret))
+		if nvmlerrors.IsGPULostError(ret) {
+			return temp, nvmlerrors.ErrGPULost
+		}
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return temp, nvmlerrors.ErrGPURequiresReset
+		}
+	}
+
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g92d1c5182a14dd4be7090e3c1480b121
+	tempCurHBM, ret := dev.GetTemperature(temperatureSensorMemory)
+	if ret == nvml.SUCCESS {
+		temp.CurrentCelsiusHBM = tempCurHBM
+		temp.HBMTemperatureSupported = true
+	} else {
+		if ret == nvml.ERROR_NOT_SUPPORTED || ret == nvml.ERROR_INVALID_ARGUMENT {
+			log.Logger.Debugw("device HBM temperature not supported", "error", nvml.ErrorString(ret))
+		} else {
+			log.Logger.Warnw("failed to get device HBM temperature", "error", nvml.ErrorString(ret))
+		}
+		if nvmlerrors.IsGPULostError(ret) {
+			return temp, nvmlerrors.ErrGPULost
+		}
+		if nvmlerrors.IsGPURequiresReset(ret) {
+			return temp, nvmlerrors.ErrGPURequiresReset
+		}
+	}
+
+	// nvmlDeviceGetMarginTemperature returns the thermal margin (°C) to the nearest
+	// slowdown threshold as defined by NVML. NVML does not specify GPU core vs HBM;
+	// it is whichever slowdown threshold is nearest (driver-defined).
+	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g42db93dc04fc99d253eadc2037a5232d
+	margin, ret := dev.GetMarginTemperature()
+	if ret == nvml.SUCCESS {
+		temp.ThresholdCelsiusSlowdownMargin = margin.MarginTemperature
+		temp.MarginTemperatureSupported = true
+	} else {
+		if ret == nvml.ERROR_NOT_SUPPORTED || ret == nvml.ERROR_INVALID_ARGUMENT {
+			log.Logger.Debugw("device margin temperature not supported", "error", nvml.ErrorString(ret))
+		} else {
+			log.Logger.Warnw("failed to get device margin temperature", "error", nvml.ErrorString(ret))
+		}
 		if nvmlerrors.IsGPULostError(ret) {
 			return temp, nvmlerrors.ErrGPULost
 		}
@@ -120,8 +178,8 @@ func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 	tempLimitMemMax, ret := dev.GetTemperatureThreshold(nvml.TEMPERATURE_THRESHOLD_MEM_MAX)
 	if ret == nvml.SUCCESS {
 		temp.ThresholdCelsiusMemMax = tempLimitMemMax
-		if tempLimitMemMax > 0 {
-			temp.UsedPercentMemMax = fmt.Sprintf("%.2f", float64(tempCur)/float64(tempLimitMemMax)*100)
+		if tempLimitMemMax > 0 && temp.HBMTemperatureSupported {
+			temp.UsedPercentMemMax = fmt.Sprintf("%.2f", float64(tempCurHBM)/float64(tempLimitMemMax)*100)
 		} else {
 			temp.UsedPercentMemMax = "0.0"
 		}

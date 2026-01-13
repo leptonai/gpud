@@ -21,6 +21,7 @@ import (
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
+	componentsnvidiatemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgconfig "github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
@@ -236,6 +237,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "xid-reboot-threshold",
 					Usage: fmt.Sprintf("set the allowed reboot attempts for XID errors before escalation (defaults to %d)", componentsxid.DefaultRebootThreshold),
 					Value: componentsxid.DefaultRebootThreshold,
+				},
+				&cli.IntFlag{
+					Name:  "threshold-celsius-slowdown-margin",
+					Usage: fmt.Sprintf("set the minimum thermal margin (°C) before marking GPUs as degraded (defaults to %d)", componentsnvidiatemperature.ThresholdCelsiusSlowdownMargin),
+					Value: int(componentsnvidiatemperature.ThresholdCelsiusSlowdownMargin),
 				},
 
 				cli.StringFlag{
@@ -558,6 +564,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "xid-reboot-threshold",
 					Usage: fmt.Sprintf("set the allowed reboot attempts for XID errors before escalation (defaults to %d)", componentsxid.DefaultRebootThreshold),
 					Value: componentsxid.DefaultRebootThreshold,
+				},
+				&cli.IntFlag{
+					Name:  "threshold-celsius-slowdown-margin",
+					Usage: fmt.Sprintf("set the minimum thermal margin (°C) before marking GPUs as degraded (0 to disable, defaults to %d, e.g., 10 means GPU is degraded at 77°C when slowdown threshold is 87°C)", componentsnvidiatemperature.ThresholdCelsiusSlowdownMargin),
+					Value: int(componentsnvidiatemperature.ThresholdCelsiusSlowdownMargin),
 				},
 				cli.StringFlag{
 					Name:   "infiniband-class-root-dir",
