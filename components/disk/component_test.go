@@ -2858,6 +2858,10 @@ func TestComponent_Ext4PartitionsTimeoutSetsReasonAndError(t *testing.T) {
 		_ = c.Close()
 	}()
 
+	// Set a non-zero retry interval to avoid race condition between
+	// context.Done and time.After in the select statement
+	c.retryInterval = 10 * time.Millisecond
+
 	// Avoid unrelated degradation checks
 	c.freeSpaceThresholdBytesDegraded = 0
 
