@@ -78,6 +78,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 // TestData_GetError tests the getError method of Data
 func TestData_GetError(t *testing.T) {
 	// Test nil data

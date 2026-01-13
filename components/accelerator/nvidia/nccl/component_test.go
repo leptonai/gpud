@@ -152,6 +152,11 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return args.Error(0)
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
 // TestCheck tests the Check method in various scenarios
 func TestCheck(t *testing.T) {
 	t.Parallel()
@@ -169,6 +174,7 @@ func TestCheck(t *testing.T) {
 	t.Run("nvml exists but no product name", func(t *testing.T) {
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("InitError").Return(nil)
 		mockNvml.On("ProductName").Return("")
 
 		comp := &component{
@@ -196,6 +202,7 @@ func TestCheck(t *testing.T) {
 	t.Run("nil readAllKmsg", func(t *testing.T) {
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("InitError").Return(nil)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
@@ -213,6 +220,7 @@ func TestCheck(t *testing.T) {
 	t.Run("readAllKmsg returns error", func(t *testing.T) {
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("InitError").Return(nil)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
@@ -235,6 +243,7 @@ func TestCheck(t *testing.T) {
 	t.Run("no matching messages", func(t *testing.T) {
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("InitError").Return(nil)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
@@ -261,6 +270,7 @@ func TestCheck(t *testing.T) {
 	t.Run("with matching messages", func(t *testing.T) {
 		mockNvml := new(mockNVMLInstance)
 		mockNvml.On("NVMLExists").Return(true)
+		mockNvml.On("InitError").Return(nil)
 		mockNvml.On("ProductName").Return("Test GPU")
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
@@ -572,6 +582,7 @@ func TestCheck_NVML_NoProductName(t *testing.T) {
 
 	mockNvml := new(mockNVMLInstance)
 	mockNvml.On("NVMLExists").Return(true)
+	mockNvml.On("InitError").Return(nil)
 	mockNvml.On("ProductName").Return("")
 
 	comp := &component{

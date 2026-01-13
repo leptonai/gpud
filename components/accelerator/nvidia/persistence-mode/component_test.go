@@ -90,6 +90,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 // mockComponent creates a component with mocked functions for testing
 func mockComponent(
 	ctx context.Context,

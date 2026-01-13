@@ -75,6 +75,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 // mockEventBucket implements eventstore.Bucket
 type mockEventBucket struct {
 	events []eventstore.Event

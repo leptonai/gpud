@@ -1002,6 +1002,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 func TestDataString(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -30,7 +30,8 @@ func (m *mockNvmlInstance) FabricStateSupported() bool        { return false }
 func (m *mockNvmlInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
-func (m *mockNvmlInstance) Shutdown() error { return nil }
+func (m *mockNvmlInstance) Shutdown() error  { return nil }
+func (m *mockNvmlInstance) InitError() error { return nil }
 
 // Tests for processGossip
 func TestProcessGossip(t *testing.T) {

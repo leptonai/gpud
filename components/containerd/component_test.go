@@ -83,6 +83,10 @@ func (m *mockNVMLInstance) Shutdown() error {
 	return nil
 }
 
+func (m *mockNVMLInstance) InitError() error {
+	return nil
+}
+
 func Test_componentStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &component{

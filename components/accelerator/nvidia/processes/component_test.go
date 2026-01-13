@@ -53,6 +53,8 @@ func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.
 }
 func (m *mockNVMLInstance) Shutdown() error { return nil }
 
+func (m *mockNVMLInstance) InitError() error { return nil }
+
 func createMockDevice(uuid string, runningProcs []nvml.ProcessInfo) device.Device {
 	mockDevice := &mock.Device{
 		GetComputeRunningProcessesFunc: func() ([]nvml.ProcessInfo, nvml.Return) {

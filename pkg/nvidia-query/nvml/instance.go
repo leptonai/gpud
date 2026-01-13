@@ -78,6 +78,15 @@ type Instance interface {
 
 	// Shutdown shuts down the NVML library.
 	Shutdown() error
+
+	// InitError returns any error that occurred during NVML initialization.
+	// If initialization succeeded, this returns nil.
+	// Components should check this and report unhealthy if non-nil.
+	// This typically occurs when NVML library loads but device enumeration fails,
+	// for example: "error getting device handle for index '4': Unknown Error"
+	// which corresponds to nvidia-smi showing:
+	// "Unable to determine the device handle for GPU0000:XX:00.0: Unknown Error"
+	InitError() error
 }
 
 // New creates a new instance of the NVML library.
@@ -163,9 +172,17 @@ func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), 
 
 	// "NVIDIA Xid 79: GPU has fallen off the bus" may fail this syscall with:
 	// "error getting device handle for index '6': Unknown Error"
+	// When this happens, nvidia-smi also shows:
+	// "Unable to determine the device handle for GPU0000:XX:00.0: Unknown Error"
+	// Instead of failing gpud entirely, we return an errored instance so gpud continues
+	// running but all nvidia components report unhealthy with this error.
 	devices, err := nvmlLib.Device().GetDevices()
 	if err != nil {
-		return nil, err
+		log.Logger.Warnw("NVML device enumeration failed, returning errored instance",
+			"error", err,
+			"hint", "nvidia-smi may show 'Unable to determine the device handle for GPU: Unknown Error'",
+		)
+		return NewErrored(err), nil
 	}
 	log.Logger.Debugw("got devices from device library", "numDevices", len(devices))
 
@@ -351,6 +368,8 @@ func (inst *instance) Shutdown() error {
 	return nil
 }
 
+func (inst *instance) InitError() error { return nil }
+
 var _ Instance = &noOpInstance{}
 
 func NewNoOp() Instance {
@@ -373,4 +392,41 @@ func (inst *noOpInstance) FabricStateSupported() bool        { return false }
 func (inst *noOpInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
 }
-func (inst *noOpInstance) Shutdown() error { return nil }
+func (inst *noOpInstance) Shutdown() error  { return nil }
+func (inst *noOpInstance) InitError() error { return nil }
+
+var _ Instance = &erroredInstance{}
+
+// NewErrored creates an Instance that represents a failed NVML initialization.
+// gpud run continues even when NVML fails, but all nvidia accelerator components
+// will report unhealthy with this error.
+// This typically happens when:
+// - nvidia-smi shows: "Unable to determine the device handle for GPU0000:XX:00.0: Unknown Error"
+// - NVML returns: "error getting device handle for index 'N': Unknown Error"
+func NewErrored(initErr error) Instance {
+	return &erroredInstance{initErr: initErr}
+}
+
+// erroredInstance represents a failed NVML initialization state.
+// NVMLExists() returns true because the library loaded, but InitError() returns the error.
+// Components should check InitError() and report unhealthy if non-nil.
+type erroredInstance struct {
+	initErr error
+}
+
+func (inst *erroredInstance) NVMLExists() bool                  { return true }
+func (inst *erroredInstance) Library() nvmllib.Library          { return nil }
+func (inst *erroredInstance) Devices() map[string]device.Device { return nil }
+func (inst *erroredInstance) ProductName() string               { return "" }
+func (inst *erroredInstance) Architecture() string              { return "" }
+func (inst *erroredInstance) Brand() string                     { return "" }
+func (inst *erroredInstance) DriverVersion() string             { return "" }
+func (inst *erroredInstance) DriverMajor() int                  { return 0 }
+func (inst *erroredInstance) CUDAVersion() string               { return "" }
+func (inst *erroredInstance) FabricManagerSupported() bool      { return false }
+func (inst *erroredInstance) FabricStateSupported() bool        { return false }
+func (inst *erroredInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
+	return nvidiaproduct.MemoryErrorManagementCapabilities{}
+}
+func (inst *erroredInstance) Shutdown() error  { return nil }
+func (inst *erroredInstance) InitError() error { return inst.initErr }
