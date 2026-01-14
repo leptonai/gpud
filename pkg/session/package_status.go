@@ -21,6 +21,8 @@ func (s *Session) processPackageStatus(ctx context.Context, response *Response) 
 			packagePhase = apiv1.InstalledPhase
 		} else if currPackage.Installing {
 			packagePhase = apiv1.InstallingPhase
+		} else if currPackage.Skipped {
+			packagePhase = apiv1.SkippedPhase
 		}
 		status := "Unhealthy"
 		if currPackage.Status {

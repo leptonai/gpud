@@ -20,6 +20,7 @@ type PackageInfo struct {
 
 type PackageStatus struct {
 	Name           string        `json:"name"`
+	Skipped        bool          `json:"skipped"`
 	IsInstalled    bool          `json:"is_installed"`
 	Installing     bool          `json:"installing"`
 	Progress       int           `json:"progress"`
@@ -51,7 +52,9 @@ func (ps PackageStatuses) RenderTable(wr io.Writer) {
 	for _, status := range ps {
 		// Determine status text
 		statusText := "Not Installed"
-		if status.IsInstalled {
+		if status.Skipped {
+			statusText = "⏭️ Skipped"
+		} else if status.IsInstalled {
 			statusText = "✅"
 		} else if status.Installing {
 			statusText = "Installing"
