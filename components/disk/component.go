@@ -58,6 +58,8 @@ type component struct {
 
 	mountPointsToTrackUsage map[string]struct{}
 
+	getIOPressureFullSeconds func() (float64, error)
+
 	// freeSpaceThresholdBytesDegraded is the threshold for the free space in bytes
 	// when the system is considered degraded.
 	// Default is 500MB.
@@ -132,6 +134,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		// Initialize file operation function field with real implementation
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
+
+		getIOPressureFullSeconds: readIOPressureFullSeconds,
 
 		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 		freeSpaceThresholdPercent:       defaultFreeSpaceThresholdPercent,
@@ -252,6 +256,10 @@ func (c *component) Check() components.CheckResult {
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "ok",
 	}
+
+	// Experimental IO pressure metric; failure should not affect disk health.
+	c.collectIOPressureMetric()
+
 	defer func() {
 		c.lastMu.Lock()
 		c.lastCheckResult = cr
@@ -756,6 +764,27 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 	// "unexpected end of JSON input"
 	prevFailed := false
 	for i := 0; i < 5; i++ {
+		// Check if context is canceled before attempting retries
+		if i > 0 {
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+
+				if cr.reason == "ok" {
+					cr.reason = ""
+				}
+				if cr.reason != "" {
+					cr.reason += "; "
+				}
+				cr.reason += "failed to get ext4 partitions -- took too long"
+
+				log.Logger.Warnw("failed to get ext4 partitions -- took too long", "error", c.ctx.Err())
+				return false
+			default:
+			}
+		}
+
 		parts, err := c.getExt4PartitionsFunc(c.ctx) // "getExt4PartitionsFunc" itself already sets its own timeout
 		if err != nil {
 			select {
@@ -794,6 +823,27 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 	prevFailed := false
 	for i := 0; i < 5; i++ {
+		// Check if context is canceled before attempting retries
+		if i > 0 {
+			select {
+			case <-c.ctx.Done():
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.err = c.ctx.Err()
+
+				if cr.reason == "ok" {
+					cr.reason = ""
+				}
+				if cr.reason != "" {
+					cr.reason += "; "
+				}
+				cr.reason += "failed to get nfs partitions -- took too long"
+
+				log.Logger.Warnw("failed to get nfs partitions -- took too long", "error", c.ctx.Err())
+				return false
+			default:
+			}
+		}
+
 		parts, err := c.getNFSPartitionsFunc(c.ctx) // "getNFSPartitionsFunc" itself already sets its own timeout
 		if err != nil {
 			select {
@@ -827,6 +877,21 @@ func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 		break
 	}
 	return true
+}
+
+func (c *component) collectIOPressureMetric() {
+	if c.getIOPressureFullSeconds == nil {
+		return
+	}
+
+	value, err := c.getIOPressureFullSeconds()
+	if err != nil {
+		// Experimental metric: warn and continue without affecting component health.
+		log.Logger.Warnw("failed to collect io pressure metric (experimental; health unaffected)", "error", err)
+		return
+	}
+
+	recordIOPressureFullSeconds(value)
 }
 
 var _ components.CheckResult = &checkResult{}
