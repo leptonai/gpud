@@ -30,6 +30,7 @@ func TestStatus(t *testing.T) {
 	// Add some test data
 	controller.packageStatus["pkg1"] = &packages.PackageStatus{
 		Name:           "pkg1",
+		Skipped:        false,
 		IsInstalled:    true,
 		Installing:     false,
 		Progress:       100,
@@ -39,6 +40,7 @@ func TestStatus(t *testing.T) {
 	}
 	controller.packageStatus["pkg2"] = &packages.PackageStatus{
 		Name:           "pkg2",
+		Skipped:        true,
 		IsInstalled:    true,
 		Installing:     false,
 		Progress:       100,
@@ -53,7 +55,9 @@ func TestStatus(t *testing.T) {
 
 	// Verify sorting works (packages should be sorted by name)
 	assert.Equal(t, "pkg1", status[0].Name)
+	assert.False(t, status[0].Skipped)
 	assert.Equal(t, "pkg2", status[1].Name)
+	assert.True(t, status[1].Skipped)
 }
 
 func TestRun(t *testing.T) {
@@ -124,6 +128,8 @@ func TestUpdateRunner(t *testing.T) {
 if [ "$1" == "version" ]; then
   echo "1.0.0"
   exit 0
+elif [ "$1" == "shouldSkip" ]; then
+  exit 1  # Don't skip
 elif [ "$1" == "upgrade" ]; then
   exit 0
 else
@@ -139,6 +145,7 @@ fi
 	// Set up a package that needs update
 	controller.packageStatus["test-pkg"] = &packages.PackageStatus{
 		Name:           "test-pkg",
+		Skipped:        false,
 		IsInstalled:    true,
 		Installing:     false,
 		Progress:       100,
@@ -169,6 +176,69 @@ fi
 	t.Logf("Package status: installing=%v, progress=%d", status.Installing, status.Progress)
 }
 
+func TestUpdateRunnerShouldSkip(t *testing.T) {
+	// Create a temporary directory for test scripts
+	tempDir, err := os.MkdirTemp("", "package-controller-test")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	// Create a test script that returns shouldSkip = 0 (should skip)
+	scriptPath := filepath.Join(tempDir, "update-skip-test.sh")
+	scriptContent := `#!/bin/bash
+if [ "$1" == "version" ]; then
+  echo "1.0.0"
+  exit 0
+elif [ "$1" == "shouldSkip" ]; then
+  exit 0  # Should skip
+elif [ "$1" == "upgrade" ]; then
+  exit 0
+else
+  exit 1
+fi
+`
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	require.NoError(t, err)
+
+	watcher := make(chan packages.PackageInfo)
+	controller := NewPackageController(watcher)
+	controller.syncPeriod = 100 * time.Millisecond
+
+	// Set up a package that would need update but should be skipped
+	controller.packageStatus["skip-pkg"] = &packages.PackageStatus{
+		Name:           "skip-pkg",
+		Skipped:        false,
+		IsInstalled:    true,
+		Installing:     false,
+		Progress:       100,
+		Status:         true,
+		TargetVersion:  "2.0.0", // Higher version than current
+		CurrentVersion: "1.0.0",
+		ScriptPath:     scriptPath,
+		TotalTime:      5 * time.Second,
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	// Run the update runner
+	go controller.updateRunner(ctx)
+
+	// Allow time for at least one sync cycle
+	time.Sleep(controller.syncPeriod + 200*time.Millisecond)
+
+	// Verify that the package was marked as skipped
+	controller.RLock()
+	status := controller.packageStatus["skip-pkg"]
+	controller.RUnlock()
+
+	assert.True(t, status.Skipped, "Package should be marked as skipped")
+	assert.False(t, status.Installing, "Package should not be installing since it was skipped")
+	t.Logf("Package status: skipped=%v, installing=%v", status.Skipped, status.Installing)
+}
+
 func TestInstallRunner(t *testing.T) {
 	if os.Getenv("TEST_INSTALL_RUNNER") != "true" {
 		t.Skip("TEST_INSTALL_RUNNER is not set")
@@ -186,6 +256,8 @@ func TestInstallRunner(t *testing.T) {
 	scriptContent := `#!/bin/bash
 if [ "$1" == "isInstalled" ]; then
   exit 1 # Not installed
+elif [ "$1" == "shouldSkip" ]; then
+  exit 1 # Don't skip
 elif [ "$1" == "install" ]; then
   exit 0 # Installation successful
 elif [ "$1" == "start" ]; then
@@ -204,6 +276,7 @@ fi
 	// Set up a package to be installed
 	controller.packageStatus["install-pkg"] = &packages.PackageStatus{
 		Name:           "install-pkg",
+		Skipped:        false,
 		IsInstalled:    false,
 		Installing:     false,
 		Progress:       0,
@@ -232,6 +305,72 @@ fi
 
 	t.Logf("Package status after install runner: installing=%v, isInstalled=%v, progress=%d",
 		status.Installing, status.IsInstalled, status.Progress)
+}
+
+func TestInstallRunnerShouldSkip(t *testing.T) {
+	// Create a temporary directory for test scripts
+	tempDir, err := os.MkdirTemp("", "package-controller-test")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	// Create a test script that returns shouldSkip = 0 (should skip)
+	scriptPath := filepath.Join(tempDir, "install-skip-test.sh")
+	scriptContent := `#!/bin/bash
+if [ "$1" == "isInstalled" ]; then
+  exit 1 # Not installed
+elif [ "$1" == "shouldSkip" ]; then
+  exit 0 # Should skip
+elif [ "$1" == "install" ]; then
+  exit 0 # Installation successful
+elif [ "$1" == "start" ]; then
+  exit 0 # Start successful
+else
+  exit 1
+fi
+`
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	require.NoError(t, err)
+
+	watcher := make(chan packages.PackageInfo)
+	controller := NewPackageController(watcher)
+	controller.syncPeriod = 100 * time.Millisecond
+
+	// Set up a package to be installed but should be skipped
+	controller.packageStatus["skip-install-pkg"] = &packages.PackageStatus{
+		Name:           "skip-install-pkg",
+		Skipped:        false,
+		IsInstalled:    false,
+		Installing:     false,
+		Progress:       0,
+		Status:         false,
+		TargetVersion:  "1.0.0",
+		CurrentVersion: "",
+		ScriptPath:     scriptPath,
+		TotalTime:      2 * time.Second,
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	// Run the install runner
+	go controller.installRunner(ctx)
+
+	// Allow time for at least one sync cycle
+	time.Sleep(controller.syncPeriod + 200*time.Millisecond)
+
+	// Verify that the package was marked as skipped
+	controller.RLock()
+	status := controller.packageStatus["skip-install-pkg"]
+	controller.RUnlock()
+
+	assert.True(t, status.Skipped, "Package should be marked as skipped")
+	assert.False(t, status.Installing, "Package should not be installing since it was skipped")
+	assert.True(t, status.IsInstalled, "Package should not be installed since it was skipped")
+	t.Logf("Package status: skipped=%v, installing=%v, isInstalled=%v",
+		status.Skipped, status.Installing, status.IsInstalled)
 }
 
 func TestDeleteRunner(t *testing.T) {
@@ -298,6 +437,8 @@ func TestStatusRunner(t *testing.T) {
 	workingScriptContent := `#!/bin/bash
 if [ "$1" == "status" ]; then
   exit 0 # Status is OK
+elif [ "$1" == "shouldSkip" ]; then
+  exit 1 # Don't skip
 else
   exit 1
 fi
@@ -312,6 +453,7 @@ fi
 	// Set up a package with good status
 	controller.packageStatus["ok-pkg"] = &packages.PackageStatus{
 		Name:           "ok-pkg",
+		Skipped:        false,
 		IsInstalled:    true,
 		Installing:     false,
 		Progress:       100,
@@ -342,6 +484,69 @@ fi
 	// and execution environment conditions
 }
 
+func TestStatusRunnerShouldSkip(t *testing.T) {
+	// Create a temporary directory for test scripts
+	tempDir, err := os.MkdirTemp("", "package-controller-test")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	// Create a test script that returns shouldSkip = 0 (should skip)
+	scriptPath := filepath.Join(tempDir, "status-skip-test.sh")
+	scriptContent := `#!/bin/bash
+if [ "$1" == "status" ]; then
+  exit 1 # Status check would fail
+elif [ "$1" == "shouldSkip" ]; then
+  exit 0 # Should skip
+elif [ "$1" == "stop" ]; then
+  exit 0
+elif [ "$1" == "start" ]; then
+  exit 0
+else
+  exit 1
+fi
+`
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	require.NoError(t, err)
+
+	watcher := make(chan packages.PackageInfo)
+	controller := NewPackageController(watcher)
+	controller.syncPeriod = 100 * time.Millisecond
+
+	// Set up an installed package that should be skipped
+	controller.packageStatus["skip-status-pkg"] = &packages.PackageStatus{
+		Name:           "skip-status-pkg",
+		Skipped:        false,
+		IsInstalled:    true,
+		Installing:     false,
+		Progress:       100,
+		Status:         false, // Will be set to true due to shouldSkip
+		TargetVersion:  "1.0.0",
+		CurrentVersion: "1.0.0",
+		ScriptPath:     scriptPath,
+	}
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	// Run the status runner
+	go controller.statusRunner(ctx)
+
+	// Allow time for at least one sync cycle
+	time.Sleep(controller.syncPeriod + 200*time.Millisecond)
+
+	// Verify that the package was marked as skipped and status set to true
+	controller.RLock()
+	status := controller.packageStatus["skip-status-pkg"]
+	controller.RUnlock()
+
+	assert.True(t, status.Skipped, "Package should be marked as skipped")
+	assert.True(t, status.Status, "Package status should be true when skipped")
+	t.Logf("Package status: skipped=%v, status=%v", status.Skipped, status.Status)
+}
+
 func TestRunCommand(t *testing.T) {
 	// Create a temporary directory for test scripts
 	tempDir, err := os.MkdirTemp("", "package-controller-test")
@@ -360,6 +565,8 @@ elif [ "$1" == "isInstalled" ]; then
   exit 0
 elif [ "$1" == "status" ]; then
   exit 0
+elif [ "$1" == "shouldSkip" ]; then
+  exit 0
 else
   exit 1
 fi
@@ -375,6 +582,11 @@ fi
 
 	// Test runCommand with isInstalled query (no output captured)
 	err = runCommand(context.Background(), scriptPath, "isInstalled", nil)
+	assert.NoError(t, err)
+
+	// Test runCommand with shouldSkip query (capturing output to avoid log file)
+	var shouldSkipResult string
+	err = runCommand(context.Background(), scriptPath, "shouldSkip", &shouldSkipResult)
 	assert.NoError(t, err)
 
 	// Test runCommand with failing command

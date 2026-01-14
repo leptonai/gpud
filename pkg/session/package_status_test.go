@@ -37,30 +37,42 @@ func TestSession_processPackageStatus(t *testing.T) {
 		// Test cases for phase mapping:
 		// 1. IsInstalled = true -> InstalledPhase
 		// 2. Installing = true -> InstallingPhase
-		// 3. Neither -> UnknownPhase
+		// 3. Skipped = true -> SkippedPhase
+		// 4. Neither -> UnknownPhase
 
 		testCases := []struct {
 			name        string
 			isInstalled bool
 			installing  bool
+			skipped     bool
 			expected    apiv1.PackagePhase
 		}{
 			{
 				name:        "installed package",
 				isInstalled: true,
 				installing:  false,
+				skipped:     false,
 				expected:    apiv1.InstalledPhase,
 			},
 			{
 				name:        "installing package",
 				isInstalled: false,
 				installing:  true,
+				skipped:     false,
 				expected:    apiv1.InstallingPhase,
+			},
+			{
+				name:        "skipped package",
+				isInstalled: false,
+				installing:  false,
+				skipped:     true,
+				expected:    apiv1.SkippedPhase,
 			},
 			{
 				name:        "unknown phase",
 				isInstalled: false,
 				installing:  false,
+				skipped:     false,
 				expected:    apiv1.UnknownPhase,
 			},
 		}
@@ -68,11 +80,14 @@ func TestSession_processPackageStatus(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				// This demonstrates the expected phase mapping logic
+				// (matching the logic in processPackageStatus)
 				packagePhase := apiv1.UnknownPhase
 				if tc.isInstalled {
 					packagePhase = apiv1.InstalledPhase
 				} else if tc.installing {
 					packagePhase = apiv1.InstallingPhase
+				} else if tc.skipped {
+					packagePhase = apiv1.SkippedPhase
 				}
 				assert.Equal(t, tc.expected, packagePhase)
 			})

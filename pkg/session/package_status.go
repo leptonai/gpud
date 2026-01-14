@@ -17,12 +17,12 @@ func (s *Session) processPackageStatus(ctx context.Context, response *Response) 
 	var result []apiv1.PackageStatus
 	for _, currPackage := range packageStatus {
 		packagePhase := apiv1.UnknownPhase
-		if currPackage.IsInstalled {
+		if currPackage.Skipped {
+			packagePhase = apiv1.SkippedPhase
+		} else if currPackage.IsInstalled {
 			packagePhase = apiv1.InstalledPhase
 		} else if currPackage.Installing {
 			packagePhase = apiv1.InstallingPhase
-		} else if currPackage.Skipped {
-			packagePhase = apiv1.SkippedPhase
 		}
 		status := "Unhealthy"
 		if currPackage.Status {

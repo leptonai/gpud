@@ -202,6 +202,8 @@ func (c *PackageController) installRunner(ctx context.Context) {
 			if err := runCommand(ctx, pkg.ScriptPath, "shouldSkip", &shouldSkipResult); err == nil {
 				c.Lock()
 				c.packageStatus[pkg.Name].Skipped = true
+				c.packageStatus[pkg.Name].Progress = 100
+				c.packageStatus[pkg.Name].IsInstalled = true
 				c.Unlock()
 				log.Logger.Debugf("[package controller]: %v shouldSkip returned 0, skipping install", pkg.Name)
 				continue

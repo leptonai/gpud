@@ -53,7 +53,7 @@ func (ps PackageStatuses) RenderTable(wr io.Writer) {
 		// Determine status text
 		statusText := "Not Installed"
 		if status.Skipped {
-			statusText = "⏭️ Skipped"
+			statusText = "Skipped"
 		} else if status.IsInstalled {
 			statusText = "✅"
 		} else if status.Installing {
