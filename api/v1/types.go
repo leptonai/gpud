@@ -177,6 +177,7 @@ const (
 	InstalledPhase  PackagePhase = "Installed"
 	InstallingPhase PackagePhase = "Installing"
 	UnknownPhase    PackagePhase = "Unknown"
+	SkippedPhase    PackagePhase = "Skipped"
 )
 
 type RepairActionType string

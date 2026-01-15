@@ -61,6 +61,7 @@ func (c *PackageController) reconcileLoop(ctx context.Context) {
 			if _, ok := c.packageStatus[packageInfo.Name]; !ok {
 				c.packageStatus[packageInfo.Name] = &packages.PackageStatus{
 					Name:           packageInfo.Name,
+					Skipped:        false,
 					IsInstalled:    false,
 					Installing:     false,
 					Progress:       0,
@@ -109,6 +110,16 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 			c.Lock()
 			c.packageStatus[pkg.Name].CurrentVersion = version
 			c.Unlock()
+
+			var shouldSkipResult string
+			if err = runCommand(ctx, pkg.ScriptPath, "shouldSkip", &shouldSkipResult); err == nil {
+				c.Lock()
+				c.packageStatus[pkg.Name].Skipped = true
+				c.Unlock()
+				log.Logger.Debugf("[package controller]: %v shouldSkip returned 0, skipping update", pkg.Name)
+				continue
+			}
+
 			if version == pkg.TargetVersion {
 				log.Logger.Debugf("[package controller]: %v version is %v (same as target, no-op)", pkg.Name, version)
 				continue
@@ -186,6 +197,18 @@ func (c *PackageController) installRunner(ctx context.Context) {
 			if skipCheck {
 				continue
 			}
+
+			var shouldSkipResult string
+			if err := runCommand(ctx, pkg.ScriptPath, "shouldSkip", &shouldSkipResult); err == nil {
+				c.Lock()
+				c.packageStatus[pkg.Name].Skipped = true
+				c.packageStatus[pkg.Name].Progress = 100
+				c.packageStatus[pkg.Name].IsInstalled = true
+				c.Unlock()
+				log.Logger.Debugf("[package controller]: %v shouldSkip returned 0, skipping install", pkg.Name)
+				continue
+			}
+
 			if pkg.Installing {
 				log.Logger.Infof("[package controller]: %v installing...", pkg.Name)
 				continue
@@ -284,6 +307,17 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 			if !pkg.IsInstalled {
 				continue
 			}
+
+			var shouldSkipResult string
+			if err := runCommand(ctx, pkg.ScriptPath, "shouldSkip", &shouldSkipResult); err == nil {
+				c.Lock()
+				c.packageStatus[pkg.Name].Skipped = true
+				c.packageStatus[pkg.Name].Status = true
+				c.Unlock()
+				log.Logger.Debugf("[package controller]: %v shouldSkip returned 0, setting status to true", pkg.Name)
+				continue
+			}
+
 			err := runCommand(ctx, pkg.ScriptPath, "status", nil)
 			if err == nil {
 				c.Lock()

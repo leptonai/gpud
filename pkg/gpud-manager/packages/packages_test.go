@@ -30,6 +30,7 @@ func TestPackageInfo(t *testing.T) {
 func TestPackageStatus(t *testing.T) {
 	status := PackageStatus{
 		Name:           "test-package",
+		Skipped:        false,
 		IsInstalled:    true,
 		Installing:     false,
 		Progress:       100,
@@ -43,6 +44,7 @@ func TestPackageStatus(t *testing.T) {
 
 	// Test field values
 	assert.Equal(t, "test-package", status.Name)
+	assert.False(t, status.Skipped)
 	assert.True(t, status.IsInstalled)
 	assert.False(t, status.Installing)
 	assert.Equal(t, 100, status.Progress)
@@ -129,6 +131,7 @@ func TestPackageStatusesJSON(t *testing.T) {
 	// Create a test status with all fields populated
 	status := PackageStatus{
 		Name:           "test-package",
+		Skipped:        false,
 		IsInstalled:    true,
 		Installing:     false,
 		Progress:       100,
@@ -142,6 +145,7 @@ func TestPackageStatusesJSON(t *testing.T) {
 
 	// Verify JSON field tags
 	assert.Equal(t, "name", getJSONTag(status, "Name"))
+	assert.Equal(t, "skipped", getJSONTag(status, "Skipped"))
 	assert.Equal(t, "is_installed", getJSONTag(status, "IsInstalled"))
 	assert.Equal(t, "installing", getJSONTag(status, "Installing"))
 	assert.Equal(t, "progress", getJSONTag(status, "Progress"))
@@ -268,6 +272,45 @@ func TestPackageStatuses_RenderTable(t *testing.T) {
 				"Not Installed",
 				"[                    ] 0%", // Should show 0% not 50%
 				"1.32.8",
+			},
+		},
+		{
+			name: "skipped package should show skipped status",
+			statuses: PackageStatuses{
+				{
+					Name:           "skipped-package",
+					Skipped:        true,
+					IsInstalled:    true,
+					Installing:     false,
+					Progress:       100,
+					TotalTime:      5 * time.Minute,
+					CurrentVersion: "1.0.0",
+					TargetVersion:  "1.0.0",
+				},
+			},
+			contains: []string{
+				"skipped-package",
+				"Skipped",
+				"1.0.0",
+			},
+		},
+		{
+			name: "skipped takes precedence over installed",
+			statuses: PackageStatuses{
+				{
+					Name:           "priority-test",
+					Skipped:        true,
+					IsInstalled:    true, // Even if installed, should show Skipped
+					Installing:     false,
+					Progress:       100,
+					TotalTime:      5 * time.Minute,
+					CurrentVersion: "2.0.0",
+					TargetVersion:  "2.0.0",
+				},
+			},
+			contains: []string{
+				"priority-test",
+				"Skipped",
 			},
 		},
 	}
