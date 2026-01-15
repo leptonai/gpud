@@ -9,6 +9,7 @@ import (
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
@@ -73,6 +74,18 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 				s.setDefaultXIDRebootThresholdFunc(updateCfg)
 			}
 
+		case componentstemperature.Name:
+			setComponents[componentName] = struct{}{}
+			var updateCfg componentstemperature.Thresholds
+			if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
+				log.Logger.Warnw("failed to unmarshal temperature config", "error", err)
+				resp.Error = err.Error()
+				return
+			}
+			if s.setDefaultTemperatureThresholdsFunc != nil {
+				s.setDefaultTemperatureThresholdsFunc(updateCfg)
+			}
+
 		case componentsnfs.Name:
 			setComponents[componentName] = struct{}{}
 			var updateCfgs pkgnfschecker.Configs
@@ -122,5 +135,9 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 	if _, ok := setComponents[componentsxid.Name]; !ok && s.setDefaultXIDRebootThresholdFunc != nil {
 		log.Logger.Infow("falling back to default xid config")
 		s.setDefaultXIDRebootThresholdFunc(componentsxid.RebootThreshold{Threshold: componentsxid.DefaultRebootThreshold})
+	}
+	if _, ok := setComponents[componentstemperature.Name]; !ok && s.setDefaultTemperatureThresholdsFunc != nil {
+		log.Logger.Infow("falling back to default temperature config")
+		s.setDefaultTemperatureThresholdsFunc(componentstemperature.Thresholds{CelsiusSlowdownMargin: componentstemperature.ThresholdCelsiusSlowdownMargin})
 	}
 }

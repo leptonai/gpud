@@ -14,6 +14,7 @@ import (
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/log"
@@ -41,6 +42,8 @@ func CreateCommand() func(*cli.Context) error {
 			cliContext.String("gpu-product-name"),
 			cliContext.Int("xid-reboot-threshold"),
 			cliContext.IsSet("xid-reboot-threshold"),
+			cliContext.Int("threshold-celsius-slowdown-margin"),
+			cliContext.IsSet("threshold-celsius-slowdown-margin"),
 		)
 	}
 }
@@ -63,6 +66,8 @@ func cmdScan(
 	gpuProductNameOverride string,
 	xidRebootThreshold int,
 	xidRebootThresholdIsSet bool,
+	temperatureMarginThresholdCelsius int,
+	temperatureMarginThresholdIsSet bool,
 ) error {
 	zapLvl, err := log.ParseLogLevel(logLevel)
 	if err != nil {
@@ -119,6 +124,13 @@ func cmdScan(
 		} else {
 			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)
 		}
+	}
+
+	if temperatureMarginThresholdIsSet {
+		componentstemperature.SetDefaultMarginThreshold(componentstemperature.Thresholds{
+			CelsiusSlowdownMargin: int32(temperatureMarginThresholdCelsius),
+		})
+		log.Logger.Infow("set temperature margin threshold", "degraded_celsius", temperatureMarginThresholdCelsius)
 	}
 
 	gpuUUIDsWithRowRemappingPending := common.ParseGPUUUIDs(gpuUUIDsWithRowRemappingPendingRaw)

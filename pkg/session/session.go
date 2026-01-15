@@ -21,6 +21,7 @@ import (
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	"github.com/leptonai/gpud/pkg/config"
@@ -195,6 +196,7 @@ type Session struct {
 	setDefaultGPUCountsFunc                func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
 	setDefaultNFSGroupConfigsFunc          func(cfgs pkgnfschecker.Configs)
 	setDefaultXIDRebootThresholdFunc       func(threshold componentsxid.RebootThreshold)
+	setDefaultTemperatureThresholdsFunc    func(threshold componentstemperature.Thresholds)
 
 	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store
@@ -302,6 +304,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		setDefaultGPUCountsFunc:                componentsnvidiagpucounts.SetDefaultExpectedGPUCounts,
 		setDefaultNFSGroupConfigsFunc:          componentsnfs.SetDefaultConfigs,
 		setDefaultXIDRebootThresholdFunc:       componentsxid.SetDefaultRebootThreshold,
+		setDefaultTemperatureThresholdsFunc:    componentstemperature.SetDefaultMarginThreshold,
 
 		nvmlInstance:       op.nvmlInstance,
 		metricsStore:       op.metricsStore,

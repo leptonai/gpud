@@ -41,6 +41,9 @@ type component struct {
 }
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	if gpudInstance == nil {
+		return nil, errors.New("gpud instance is nil")
+	}
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
 		ctx:    cctx,
@@ -51,6 +54,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		nvmlInstance:       gpudInstance.NVMLInstance,
 		getTemperatureFunc: GetTemperature,
 	}
+
 	return c, nil
 }
 
@@ -150,7 +154,12 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	tempThresholdExceeded := make([]string, 0)
+	marginThreshold := GetDefaultThresholds()
+
+	gpuTempThresholdExceeded := make([]string, 0)
+	hbmTempThresholdExceeded := make([]string, 0)
+	marginThresholdExceeded := make([]string, 0)
+
 	devs := c.nvmlInstance.Devices()
 	for uuid, dev := range devs {
 		temp, err := c.getTemperatureFunc(uuid, dev)
@@ -182,22 +191,60 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", cr.err)
 			return cr
 		}
-		cr.Temperatures = append(cr.Temperatures, temp)
 
-		// same logic as DCGM "VerifyHBMTemperature" that alerts  "DCGM_FR_TEMP_VIOLATION",
-		// use "DCGM_FI_DEV_MEM_MAX_OP_TEMP" to get the max HBM temperature threshold "NVML_TEMPERATURE_THRESHOLD_MEM_MAX"
-		if temp.ThresholdCelsiusMemMax > 0 && temp.CurrentCelsiusGPUCore > temp.ThresholdCelsiusMemMax {
-			tempThresholdExceeded = append(tempThresholdExceeded,
-				fmt.Sprintf("%s current temperature is %d °C exceeding the HBM temperature threshold %d °C",
+		// nvmlDeviceGetMarginTemperature reports the thermal margin to the nearest slowdown
+		// threshold as defined by NVML. NVML does not specify GPU core vs HBM; it is
+		// whichever slowdown threshold is nearest (driver-defined).
+		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g42db93dc04fc99d253eadc2037a5232d
+		if temp.ThresholdCelsiusSlowdown > 0 && temp.MarginTemperatureSupported {
+			// margin left less than the threshold, indicating the GPU is approaching the slowdown threshold
+			// e.g.,
+			// 5°C margin left means the GPU is approaching the slowdown threshold at 82°C
+			// when the slowdown threshold is 87°C
+			if temp.ThresholdCelsiusSlowdownMargin <= marginThreshold.CelsiusSlowdownMargin {
+				// e.g.,
+				// 5°C margin left, when we set the threshold to 10°C
+				// so that we can alert in advance before it's too late,
+				// before the slowdown already happened
+				marginThresholdExceeded = append(marginThresholdExceeded,
+					fmt.Sprintf("%s has only %d °C margin left to slowdown (threshold %d °C)",
+						uuid,
+						temp.ThresholdCelsiusSlowdownMargin,
+						marginThreshold.CelsiusSlowdownMargin,
+					),
+				)
+			}
+		}
+
+		if temp.ThresholdCelsiusGPUMax > 0 && temp.CurrentCelsiusGPUCore > temp.ThresholdCelsiusGPUMax {
+			gpuTempThresholdExceeded = append(gpuTempThresholdExceeded,
+				fmt.Sprintf("%s current temperature is %d °C exceeding the threshold %d °C",
 					uuid,
 					temp.CurrentCelsiusGPUCore,
+					temp.ThresholdCelsiusGPUMax,
+				),
+			)
+		}
+
+		// same logic as DCGM "VerifyHBMTemperature" that alerts "DCGM_FR_TEMP_VIOLATION",
+		// use "DCGM_FI_DEV_MEM_MAX_OP_TEMP" to get the max HBM temperature threshold "NVML_TEMPERATURE_THRESHOLD_MEM_MAX"
+		if temp.ThresholdCelsiusMemMax > 0 && temp.HBMTemperatureSupported && temp.CurrentCelsiusHBM > temp.ThresholdCelsiusMemMax {
+			hbmTempThresholdExceeded = append(hbmTempThresholdExceeded,
+				fmt.Sprintf("%s HBM temperature is %d °C exceeding the threshold %d °C",
+					uuid,
+					temp.CurrentCelsiusHBM,
 					temp.ThresholdCelsiusMemMax,
 				),
 			)
 		}
 
+		cr.Temperatures = append(cr.Temperatures, temp)
+
 		metricCurrentCelsius.With(prometheus.Labels{"uuid": uuid}).Set(float64(temp.CurrentCelsiusGPUCore))
+		metricCurrentHBMCelsius.With(prometheus.Labels{"uuid": uuid}).Set(float64(temp.CurrentCelsiusHBM))
 		metricThresholdSlowdownCelsius.With(prometheus.Labels{"uuid": uuid}).Set(float64(temp.ThresholdCelsiusSlowdown))
+		metricThresholdMemMaxCelsius.With(prometheus.Labels{"uuid": uuid}).Set(float64(temp.ThresholdCelsiusMemMax))
+		metricMarginCelsius.With(prometheus.Labels{"uuid": uuid}).Set(float64(temp.ThresholdCelsiusSlowdownMargin))
 
 		slowdownPct, err := temp.GetUsedPercentSlowdown()
 		if err != nil {
@@ -208,14 +255,26 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 		metricSlowdownUsedPercent.With(prometheus.Labels{"uuid": uuid}).Set(slowdownPct)
+
+		memMaxPct := 0.0
+		if temp.ThresholdCelsiusMemMax > 0 && temp.HBMTemperatureSupported {
+			memMaxPct = float64(temp.CurrentCelsiusHBM) / float64(temp.ThresholdCelsiusMemMax) * 100
+		}
+		metricMemMaxUsedPercent.With(prometheus.Labels{"uuid": uuid}).Set(memMaxPct)
 	}
 
-	if len(tempThresholdExceeded) == 0 {
+	if len(marginThresholdExceeded) > 0 {
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = fmt.Sprintf("margin threshold exceeded: %s", strings.Join(marginThresholdExceeded, ", "))
+	} else if len(gpuTempThresholdExceeded) > 0 {
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = fmt.Sprintf("GPU temperature anomalies detected: %s", strings.Join(gpuTempThresholdExceeded, ", "))
+	} else if len(hbmTempThresholdExceeded) > 0 {
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = fmt.Sprintf("HBM temperature anomalies detected: %s", strings.Join(hbmTempThresholdExceeded, ", "))
+	} else {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no temperature issue found", len(devs))
-	} else {
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = fmt.Sprintf("exceeded HBM temperature thresholds: %s", strings.Join(tempThresholdExceeded, ", "))
 	}
 
 	return cr
@@ -253,14 +312,24 @@ func (cr *checkResult) String() string {
 
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
-	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "Current temp", "HBM temp threshold", "Used %"})
+	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "GPU temp", "HBM temp", "HBM temp threshold", "HBM used %", "Margin to slowdown"})
 	for _, temp := range cr.Temperatures {
+		hbmTemp := "n/a"
+		if temp.HBMTemperatureSupported {
+			hbmTemp = fmt.Sprintf("%d °C", temp.CurrentCelsiusHBM)
+		}
+		marginTemp := "n/a"
+		if temp.MarginTemperatureSupported {
+			marginTemp = fmt.Sprintf("%d °C", temp.ThresholdCelsiusSlowdownMargin)
+		}
 		table.Append([]string{
 			temp.UUID,
 			temp.BusID,
 			fmt.Sprintf("%d °C", temp.CurrentCelsiusGPUCore),
+			hbmTemp,
 			fmt.Sprintf("%d °C", temp.ThresholdCelsiusMemMax),
 			fmt.Sprintf("%s %%", temp.UsedPercentMemMax),
+			marginTemp,
 		})
 	}
 	table.Render()

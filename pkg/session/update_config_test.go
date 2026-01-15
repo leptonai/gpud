@@ -11,6 +11,7 @@ import (
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
@@ -26,17 +27,20 @@ func TestProcessUpdateConfig(t *testing.T) {
 		setDefaultNFSGroupConfigsFunc             func(cfgs pkgnfschecker.Configs)
 		setDefaultGPUCountsFunc                   func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
 		setDefaultXIDRebootThresholdFunc          func(threshold componentsxid.RebootThreshold)
+		setDefaultTemperatureThresholdsFunc       func(thresholds componentstemperature.Thresholds)
 		expectedError                             string
 		expectedIbExpectedPortStatesCalled        bool
 		expectedNVLinkExpectedLinkStatesCalled    bool
 		expectedNFSGroupConfigsCalled             bool
 		expectedGPUCountsCalled                   bool
 		expectedXIDRebootThresholdCalled          bool
+		expectedTemperatureThresholdsCalled       bool
 		expectedIbExpectedPortStatesCallCount     int
 		expectedNVLinkExpectedLinkStatesCallCount int
 		expectedNFSGroupConfigsCallCount          int
 		expectedGPUCountsCallCount                int
 		expectedXIDRebootThresholdCallCount       int
+		expectedTemperatureThresholdsCallCount    int
 	}{
 		{
 			name:      "empty config map",
@@ -56,15 +60,20 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
 				t.Error("setDefaultXIDRebootThresholdFunc should not be called for empty config map")
 			},
-			expectedError:                         "",
-			expectedIbExpectedPortStatesCalled:    false,
-			expectedNFSGroupConfigsCalled:         false,
-			expectedGPUCountsCalled:               false,
-			expectedXIDRebootThresholdCalled:      false,
-			expectedIbExpectedPortStatesCallCount: 0,
-			expectedNFSGroupConfigsCallCount:      0,
-			expectedGPUCountsCallCount:            0,
-			expectedXIDRebootThresholdCallCount:   0,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				t.Error("setDefaultTemperatureThresholdsFunc should not be called for empty config map")
+			},
+			expectedError:                          "",
+			expectedIbExpectedPortStatesCalled:     false,
+			expectedNFSGroupConfigsCalled:          false,
+			expectedGPUCountsCalled:                false,
+			expectedXIDRebootThresholdCalled:       false,
+			expectedTemperatureThresholdsCalled:    false,
+			expectedIbExpectedPortStatesCallCount:  0,
+			expectedNFSGroupConfigsCallCount:       0,
+			expectedGPUCountsCallCount:             0,
+			expectedXIDRebootThresholdCallCount:    0,
+			expectedTemperatureThresholdsCallCount: 0,
 		},
 		{
 			name: "valid infiniband config",
@@ -87,15 +96,21 @@ func TestProcessUpdateConfig(t *testing.T) {
 				// This gets called with default config due to fallback behavior
 				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
 			},
-			expectedError:                         "",
-			expectedIbExpectedPortStatesCalled:    true,
-			expectedNFSGroupConfigsCalled:         true,
-			expectedGPUCountsCalled:               true,
-			expectedXIDRebootThresholdCalled:      true,
-			expectedIbExpectedPortStatesCallCount: 1,
-			expectedNFSGroupConfigsCallCount:      1,
-			expectedGPUCountsCallCount:            1,
-			expectedXIDRebootThresholdCallCount:   1,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				// This gets called with default config due to fallback behavior
+				assert.Equal(t, componentstemperature.ThresholdCelsiusSlowdownMargin, thresholds.CelsiusSlowdownMargin)
+			},
+			expectedError:                          "",
+			expectedIbExpectedPortStatesCalled:     true,
+			expectedNFSGroupConfigsCalled:          true,
+			expectedGPUCountsCalled:                true,
+			expectedXIDRebootThresholdCalled:       true,
+			expectedTemperatureThresholdsCalled:    true,
+			expectedIbExpectedPortStatesCallCount:  1,
+			expectedNFSGroupConfigsCallCount:       1,
+			expectedGPUCountsCallCount:             1,
+			expectedXIDRebootThresholdCallCount:    1,
+			expectedTemperatureThresholdsCallCount: 1,
 		},
 		{
 			name: "valid gpu counts config",
@@ -118,15 +133,21 @@ func TestProcessUpdateConfig(t *testing.T) {
 				// This gets called with default config due to fallback behavior
 				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
 			},
-			expectedError:                         "",
-			expectedIbExpectedPortStatesCalled:    true,
-			expectedNFSGroupConfigsCalled:         true,
-			expectedGPUCountsCalled:               true,
-			expectedXIDRebootThresholdCalled:      true,
-			expectedIbExpectedPortStatesCallCount: 1,
-			expectedNFSGroupConfigsCallCount:      1,
-			expectedGPUCountsCallCount:            1,
-			expectedXIDRebootThresholdCallCount:   1,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				// This gets called with default config due to fallback behavior
+				assert.Equal(t, componentstemperature.ThresholdCelsiusSlowdownMargin, thresholds.CelsiusSlowdownMargin)
+			},
+			expectedError:                          "",
+			expectedIbExpectedPortStatesCalled:     true,
+			expectedNFSGroupConfigsCalled:          true,
+			expectedGPUCountsCalled:                true,
+			expectedXIDRebootThresholdCalled:       true,
+			expectedTemperatureThresholdsCalled:    true,
+			expectedIbExpectedPortStatesCallCount:  1,
+			expectedNFSGroupConfigsCallCount:       1,
+			expectedGPUCountsCallCount:             1,
+			expectedXIDRebootThresholdCallCount:    1,
+			expectedTemperatureThresholdsCallCount: 1,
 		},
 		{
 			name: "valid xid config",
@@ -149,15 +170,58 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
 				assert.Equal(t, 10, threshold.Threshold)
 			},
-			expectedError:                         "",
-			expectedIbExpectedPortStatesCalled:    true,
-			expectedNFSGroupConfigsCalled:         true,
-			expectedGPUCountsCalled:               true,
-			expectedXIDRebootThresholdCalled:      true,
-			expectedIbExpectedPortStatesCallCount: 1,
-			expectedNFSGroupConfigsCallCount:      1,
-			expectedGPUCountsCallCount:            1,
-			expectedXIDRebootThresholdCallCount:   1,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				// This gets called with default config due to fallback behavior
+				assert.Equal(t, componentstemperature.ThresholdCelsiusSlowdownMargin, thresholds.CelsiusSlowdownMargin)
+			},
+			expectedError:                          "",
+			expectedIbExpectedPortStatesCalled:     true,
+			expectedNFSGroupConfigsCalled:          true,
+			expectedGPUCountsCalled:                true,
+			expectedXIDRebootThresholdCalled:       true,
+			expectedTemperatureThresholdsCalled:    true,
+			expectedIbExpectedPortStatesCallCount:  1,
+			expectedNFSGroupConfigsCallCount:       1,
+			expectedGPUCountsCallCount:             1,
+			expectedXIDRebootThresholdCallCount:    1,
+			expectedTemperatureThresholdsCallCount: 1,
+		},
+		{
+			name: "valid temperature config",
+			configMap: map[string]string{
+				"accelerator-nvidia-temperature": `{"celsius_slowdown_margin": 10}`,
+			},
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
+				// This gets called with empty config due to fallback behavior
+				assert.Equal(t, 0, states.AtLeastPorts)
+				assert.Equal(t, 0, states.AtLeastRate)
+			},
+			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
+				// This gets called with empty config due to fallback behavior
+				assert.Len(t, cfgs, 0)
+			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				// This gets called with empty config due to fallback behavior
+				assert.Equal(t, 0, counts.Count)
+			},
+			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
+				// This gets called with default config due to fallback behavior
+				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+			},
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				assert.Equal(t, int32(10), thresholds.CelsiusSlowdownMargin)
+			},
+			expectedError:                          "",
+			expectedIbExpectedPortStatesCalled:     true,
+			expectedNFSGroupConfigsCalled:          true,
+			expectedGPUCountsCalled:                true,
+			expectedXIDRebootThresholdCalled:       true,
+			expectedTemperatureThresholdsCalled:    true,
+			expectedIbExpectedPortStatesCallCount:  1,
+			expectedNFSGroupConfigsCallCount:       1,
+			expectedGPUCountsCallCount:             1,
+			expectedXIDRebootThresholdCallCount:    1,
+			expectedTemperatureThresholdsCallCount: 1,
 		},
 		{
 			name: "invalid infiniband config - malformed JSON",
@@ -176,15 +240,20 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
 				t.Error("setDefaultXIDRebootThresholdFunc should not be called for infiniband config")
 			},
-			expectedError:                         "invalid character '}' looking for beginning of value",
-			expectedIbExpectedPortStatesCalled:    false,
-			expectedNFSGroupConfigsCalled:         false,
-			expectedGPUCountsCalled:               false,
-			expectedXIDRebootThresholdCalled:      false,
-			expectedIbExpectedPortStatesCallCount: 0,
-			expectedNFSGroupConfigsCallCount:      0,
-			expectedGPUCountsCallCount:            0,
-			expectedXIDRebootThresholdCallCount:   0,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				t.Error("setDefaultTemperatureThresholdsFunc should not be called for infiniband config")
+			},
+			expectedError:                          "invalid character '}' looking for beginning of value",
+			expectedIbExpectedPortStatesCalled:     false,
+			expectedNFSGroupConfigsCalled:          false,
+			expectedGPUCountsCalled:                false,
+			expectedXIDRebootThresholdCalled:       false,
+			expectedTemperatureThresholdsCalled:    false,
+			expectedIbExpectedPortStatesCallCount:  0,
+			expectedNFSGroupConfigsCallCount:       0,
+			expectedGPUCountsCallCount:             0,
+			expectedXIDRebootThresholdCallCount:    0,
+			expectedTemperatureThresholdsCallCount: 0,
 		},
 		{
 			name: "invalid gpu counts config - malformed JSON",
@@ -203,15 +272,20 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
 				t.Error("setDefaultXIDRebootThresholdFunc should not be called for gpu counts config")
 			},
-			expectedError:                         "invalid character '}' looking for beginning of value",
-			expectedIbExpectedPortStatesCalled:    false,
-			expectedNFSGroupConfigsCalled:         false,
-			expectedGPUCountsCalled:               false,
-			expectedXIDRebootThresholdCalled:      false,
-			expectedIbExpectedPortStatesCallCount: 0,
-			expectedNFSGroupConfigsCallCount:      0,
-			expectedGPUCountsCallCount:            0,
-			expectedXIDRebootThresholdCallCount:   0,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				t.Error("setDefaultTemperatureThresholdsFunc should not be called for gpu counts config")
+			},
+			expectedError:                          "invalid character '}' looking for beginning of value",
+			expectedIbExpectedPortStatesCalled:     false,
+			expectedNFSGroupConfigsCalled:          false,
+			expectedGPUCountsCalled:                false,
+			expectedXIDRebootThresholdCalled:       false,
+			expectedTemperatureThresholdsCalled:    false,
+			expectedIbExpectedPortStatesCallCount:  0,
+			expectedNFSGroupConfigsCallCount:       0,
+			expectedGPUCountsCallCount:             0,
+			expectedXIDRebootThresholdCallCount:    0,
+			expectedTemperatureThresholdsCallCount: 0,
 		},
 		{
 			name: "invalid xid config - malformed JSON",
@@ -230,15 +304,52 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
 				t.Error("setDefaultGPUCountsFunc should not be called for invalid JSON")
 			},
-			expectedError:                         "invalid character '}' looking for beginning of value",
-			expectedIbExpectedPortStatesCalled:    false,
-			expectedNFSGroupConfigsCalled:         false,
-			expectedGPUCountsCalled:               false,
-			expectedXIDRebootThresholdCalled:      false,
-			expectedIbExpectedPortStatesCallCount: 0,
-			expectedNFSGroupConfigsCallCount:      0,
-			expectedGPUCountsCallCount:            0,
-			expectedXIDRebootThresholdCallCount:   0,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				t.Error("setDefaultTemperatureThresholdsFunc should not be called for xid config")
+			},
+			expectedError:                          "invalid character '}' looking for beginning of value",
+			expectedIbExpectedPortStatesCalled:     false,
+			expectedNFSGroupConfigsCalled:          false,
+			expectedGPUCountsCalled:                false,
+			expectedXIDRebootThresholdCalled:       false,
+			expectedTemperatureThresholdsCalled:    false,
+			expectedIbExpectedPortStatesCallCount:  0,
+			expectedNFSGroupConfigsCallCount:       0,
+			expectedGPUCountsCallCount:             0,
+			expectedXIDRebootThresholdCallCount:    0,
+			expectedTemperatureThresholdsCallCount: 0,
+		},
+		{
+			name: "invalid temperature config - malformed JSON",
+			configMap: map[string]string{
+				"accelerator-nvidia-temperature": `{"celsius_slowdown_margin":}`,
+			},
+			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
+				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for temperature config")
+			},
+			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
+				t.Error("setDefaultNFSGroupConfigsFunc should not be called for temperature config")
+			},
+			setDefaultGPUCountsFunc: func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {
+				t.Error("setDefaultGPUCountsFunc should not be called for temperature config")
+			},
+			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
+				t.Error("setDefaultXIDRebootThresholdFunc should not be called for temperature config")
+			},
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				t.Error("setDefaultTemperatureThresholdsFunc should not be called for invalid JSON")
+			},
+			expectedError:                          "invalid character '}' looking for beginning of value",
+			expectedIbExpectedPortStatesCalled:     false,
+			expectedNFSGroupConfigsCalled:          false,
+			expectedGPUCountsCalled:                false,
+			expectedXIDRebootThresholdCalled:       false,
+			expectedTemperatureThresholdsCalled:    false,
+			expectedIbExpectedPortStatesCallCount:  0,
+			expectedNFSGroupConfigsCallCount:       0,
+			expectedGPUCountsCallCount:             0,
+			expectedXIDRebootThresholdCallCount:    0,
+			expectedTemperatureThresholdsCallCount: 0,
 		},
 		{
 			name: "invalid nfs config - malformed JSON",
@@ -257,15 +368,20 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
 				t.Error("setDefaultXIDRebootThresholdFunc should not be called for nfs config")
 			},
-			expectedError:                         "invalid character '}' looking for beginning of value",
-			expectedIbExpectedPortStatesCalled:    false,
-			expectedNFSGroupConfigsCalled:         false,
-			expectedGPUCountsCalled:               false,
-			expectedXIDRebootThresholdCalled:      false,
-			expectedIbExpectedPortStatesCallCount: 0,
-			expectedNFSGroupConfigsCallCount:      0,
-			expectedGPUCountsCallCount:            0,
-			expectedXIDRebootThresholdCallCount:   0,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				t.Error("setDefaultTemperatureThresholdsFunc should not be called for nfs config")
+			},
+			expectedError:                          "invalid character '}' looking for beginning of value",
+			expectedIbExpectedPortStatesCalled:     false,
+			expectedNFSGroupConfigsCalled:          false,
+			expectedGPUCountsCalled:                false,
+			expectedXIDRebootThresholdCalled:       false,
+			expectedTemperatureThresholdsCalled:    false,
+			expectedIbExpectedPortStatesCallCount:  0,
+			expectedNFSGroupConfigsCallCount:       0,
+			expectedGPUCountsCallCount:             0,
+			expectedXIDRebootThresholdCallCount:    0,
+			expectedTemperatureThresholdsCallCount: 0,
 		},
 		{
 			name: "invalid nfs config - validation error",
@@ -290,15 +406,21 @@ func TestProcessUpdateConfig(t *testing.T) {
 				// This gets called with default config due to fallback behavior
 				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
 			},
-			expectedError:                         "", // validation errors are logged but not returned as errors
-			expectedIbExpectedPortStatesCalled:    true,
-			expectedNFSGroupConfigsCalled:         true,
-			expectedGPUCountsCalled:               true,
-			expectedXIDRebootThresholdCalled:      true,
-			expectedIbExpectedPortStatesCallCount: 1,
-			expectedNFSGroupConfigsCallCount:      1, // function should be called even for invalid configs
-			expectedGPUCountsCallCount:            1,
-			expectedXIDRebootThresholdCallCount:   1,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				// This gets called with default config due to fallback behavior
+				assert.Equal(t, componentstemperature.ThresholdCelsiusSlowdownMargin, thresholds.CelsiusSlowdownMargin)
+			},
+			expectedError:                          "", // validation errors are logged but not returned as errors
+			expectedIbExpectedPortStatesCalled:     true,
+			expectedNFSGroupConfigsCalled:          true,
+			expectedGPUCountsCalled:                true,
+			expectedXIDRebootThresholdCalled:       true,
+			expectedTemperatureThresholdsCalled:    true,
+			expectedIbExpectedPortStatesCallCount:  1,
+			expectedNFSGroupConfigsCallCount:       1, // function should be called even for invalid configs
+			expectedGPUCountsCallCount:             1,
+			expectedXIDRebootThresholdCallCount:    1,
+			expectedTemperatureThresholdsCallCount: 1,
 		},
 		{
 			name: "unsupported component",
@@ -322,34 +444,43 @@ func TestProcessUpdateConfig(t *testing.T) {
 				// This gets called with default config due to fallback behavior for unsupported components
 				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
 			},
-			expectedError:                         "",
-			expectedIbExpectedPortStatesCalled:    true,
-			expectedNFSGroupConfigsCalled:         true,
-			expectedGPUCountsCalled:               true,
-			expectedXIDRebootThresholdCalled:      true,
-			expectedIbExpectedPortStatesCallCount: 1,
-			expectedNFSGroupConfigsCallCount:      1,
-			expectedGPUCountsCallCount:            1,
-			expectedXIDRebootThresholdCallCount:   1,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				// This gets called with default config due to fallback behavior for unsupported components
+				assert.Equal(t, componentstemperature.ThresholdCelsiusSlowdownMargin, thresholds.CelsiusSlowdownMargin)
+			},
+			expectedError:                          "",
+			expectedIbExpectedPortStatesCalled:     true,
+			expectedNFSGroupConfigsCalled:          true,
+			expectedGPUCountsCalled:                true,
+			expectedXIDRebootThresholdCalled:       true,
+			expectedTemperatureThresholdsCalled:    true,
+			expectedIbExpectedPortStatesCallCount:  1,
+			expectedNFSGroupConfigsCallCount:       1,
+			expectedGPUCountsCallCount:             1,
+			expectedXIDRebootThresholdCallCount:    1,
+			expectedTemperatureThresholdsCallCount: 1,
 		},
 		{
 			name: "nil function handlers",
 			configMap: map[string]string{
 				"accelerator-nvidia-infiniband": `{"at_least_ports": 2, "at_least_rate": 100}`,
 			},
-			setDefaultIbExpectedPortStatesFunc:    nil,
-			setDefaultNFSGroupConfigsFunc:         nil,
-			setDefaultGPUCountsFunc:               nil,
-			setDefaultXIDRebootThresholdFunc:      nil,
-			expectedError:                         "",
-			expectedIbExpectedPortStatesCalled:    false,
-			expectedNFSGroupConfigsCalled:         false,
-			expectedGPUCountsCalled:               false,
-			expectedXIDRebootThresholdCalled:      false,
-			expectedIbExpectedPortStatesCallCount: 0,
-			expectedNFSGroupConfigsCallCount:      0,
-			expectedGPUCountsCallCount:            0,
-			expectedXIDRebootThresholdCallCount:   0,
+			setDefaultIbExpectedPortStatesFunc:     nil,
+			setDefaultNFSGroupConfigsFunc:          nil,
+			setDefaultGPUCountsFunc:                nil,
+			setDefaultXIDRebootThresholdFunc:       nil,
+			setDefaultTemperatureThresholdsFunc:    nil,
+			expectedError:                          "",
+			expectedIbExpectedPortStatesCalled:     false,
+			expectedNFSGroupConfigsCalled:          false,
+			expectedGPUCountsCalled:                false,
+			expectedXIDRebootThresholdCalled:       false,
+			expectedTemperatureThresholdsCalled:    false,
+			expectedIbExpectedPortStatesCallCount:  0,
+			expectedNFSGroupConfigsCallCount:       0,
+			expectedGPUCountsCallCount:             0,
+			expectedXIDRebootThresholdCallCount:    0,
+			expectedTemperatureThresholdsCallCount: 0,
 		},
 		{
 			name: "nil gpu counts function handler with gpu counts config",
@@ -369,16 +500,22 @@ func TestProcessUpdateConfig(t *testing.T) {
 				// This gets called with default config due to fallback behavior
 				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
 			},
-			setDefaultGPUCountsFunc:               nil,
-			expectedError:                         "",
-			expectedIbExpectedPortStatesCalled:    true,
-			expectedNFSGroupConfigsCalled:         true,
-			expectedGPUCountsCalled:               false,
-			expectedXIDRebootThresholdCalled:      true,
-			expectedIbExpectedPortStatesCallCount: 1,
-			expectedNFSGroupConfigsCallCount:      1,
-			expectedGPUCountsCallCount:            0,
-			expectedXIDRebootThresholdCallCount:   1,
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				// This gets called with default config due to fallback behavior
+				assert.Equal(t, componentstemperature.ThresholdCelsiusSlowdownMargin, thresholds.CelsiusSlowdownMargin)
+			},
+			setDefaultGPUCountsFunc:                nil,
+			expectedError:                          "",
+			expectedIbExpectedPortStatesCalled:     true,
+			expectedNFSGroupConfigsCalled:          true,
+			expectedGPUCountsCalled:                false,
+			expectedXIDRebootThresholdCalled:       true,
+			expectedTemperatureThresholdsCalled:    true,
+			expectedIbExpectedPortStatesCallCount:  1,
+			expectedNFSGroupConfigsCallCount:       1,
+			expectedGPUCountsCallCount:             0,
+			expectedXIDRebootThresholdCallCount:    1,
+			expectedTemperatureThresholdsCallCount: 1,
 		},
 		{
 			name: "nvlink config",
@@ -405,17 +542,23 @@ func TestProcessUpdateConfig(t *testing.T) {
 				// This gets called with default config due to fallback behavior
 				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
 			},
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				// This gets called with default config due to fallback behavior
+				assert.Equal(t, componentstemperature.ThresholdCelsiusSlowdownMargin, thresholds.CelsiusSlowdownMargin)
+			},
 			expectedError:                             "",
 			expectedIbExpectedPortStatesCalled:        true,
 			expectedNVLinkExpectedLinkStatesCalled:    true,
 			expectedNFSGroupConfigsCalled:             true,
 			expectedGPUCountsCalled:                   true,
 			expectedXIDRebootThresholdCalled:          true,
+			expectedTemperatureThresholdsCalled:       true,
 			expectedIbExpectedPortStatesCallCount:     1,
 			expectedNVLinkExpectedLinkStatesCallCount: 1,
 			expectedNFSGroupConfigsCallCount:          1,
 			expectedGPUCountsCallCount:                1,
 			expectedXIDRebootThresholdCallCount:       1,
+			expectedTemperatureThresholdsCallCount:    1,
 		},
 		{
 			name: "invalid nvlink config - malformed JSON",
@@ -437,17 +580,22 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
 				t.Error("setDefaultXIDRebootThresholdFunc should not be called for nvlink config")
 			},
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				t.Error("setDefaultTemperatureThresholdsFunc should not be called for nvlink config")
+			},
 			expectedError:                             "invalid character '}' looking for beginning of value",
 			expectedIbExpectedPortStatesCalled:        false,
 			expectedNVLinkExpectedLinkStatesCalled:    false,
 			expectedNFSGroupConfigsCalled:             false,
 			expectedGPUCountsCalled:                   false,
 			expectedXIDRebootThresholdCalled:          false,
+			expectedTemperatureThresholdsCalled:       false,
 			expectedIbExpectedPortStatesCallCount:     0,
 			expectedNVLinkExpectedLinkStatesCallCount: 0,
 			expectedNFSGroupConfigsCallCount:          0,
 			expectedGPUCountsCallCount:                0,
 			expectedXIDRebootThresholdCallCount:       0,
+			expectedTemperatureThresholdsCallCount:    0,
 		},
 	}
 
@@ -458,6 +606,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			nfsCallCount := 0
 			gpuCallCount := 0
 			xidCallCount := 0
+			tempCallCount := 0
 
 			// Add wait group for async NFS processing
 			var wg sync.WaitGroup
@@ -505,6 +654,12 @@ func TestProcessUpdateConfig(t *testing.T) {
 						tt.setDefaultXIDRebootThresholdFunc(threshold)
 					}
 				},
+				setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+					tempCallCount++
+					if tt.setDefaultTemperatureThresholdsFunc != nil {
+						tt.setDefaultTemperatureThresholdsFunc(thresholds)
+					}
+				},
 			}
 
 			// Handle nil function cases
@@ -522,6 +677,9 @@ func TestProcessUpdateConfig(t *testing.T) {
 			}
 			if tt.setDefaultXIDRebootThresholdFunc == nil {
 				s.setDefaultXIDRebootThresholdFunc = nil
+			}
+			if tt.setDefaultTemperatureThresholdsFunc == nil {
+				s.setDefaultTemperatureThresholdsFunc = nil
 			}
 
 			resp := &Response{}
@@ -557,6 +715,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			assert.Equal(t, tt.expectedNFSGroupConfigsCallCount, nfsCallCount, "Unexpected NFS function call count")
 			assert.Equal(t, tt.expectedGPUCountsCallCount, gpuCallCount, "Unexpected GPU counts function call count")
 			assert.Equal(t, tt.expectedXIDRebootThresholdCallCount, xidCallCount, "Unexpected XID reboot threshold function call count")
+			assert.Equal(t, tt.expectedTemperatureThresholdsCallCount, tempCallCount, "Unexpected temperature threshold function call count")
 		})
 	}
 
@@ -1020,5 +1179,33 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 
 		assert.Empty(t, resp.Error)
 		assert.Equal(t, expectedThreshold.Threshold, actualThreshold.Threshold)
+	})
+
+	t.Run("temperature with real structure", func(t *testing.T) {
+		// Create a real componentstemperature.Thresholds structure
+		expectedThresholds := componentstemperature.Thresholds{
+			CelsiusSlowdownMargin: 15,
+		}
+
+		// Marshal it to JSON
+		configBytes, err := json.Marshal(expectedThresholds)
+		assert.NoError(t, err)
+
+		var actualThresholds componentstemperature.Thresholds
+		s := &Session{
+			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
+				actualThresholds = thresholds
+			},
+		}
+
+		configMap := map[string]string{
+			"accelerator-nvidia-temperature": string(configBytes),
+		}
+
+		resp := &Response{}
+		s.processUpdateConfig(configMap, resp)
+
+		assert.Empty(t, resp.Error)
+		assert.Equal(t, expectedThresholds.CelsiusSlowdownMargin, actualThresholds.CelsiusSlowdownMargin)
 	})
 }
