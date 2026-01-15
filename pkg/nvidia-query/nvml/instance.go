@@ -28,6 +28,13 @@ type FailureInjectorConfig struct {
 	// When set, this affects FabricStateSupported(), FabricManagerSupported(),
 	// and memory management capabilities detection.
 	GPUProductNameOverride string
+
+	// NVMLDeviceGetDevicesError when true simulates Device().GetDevices() failure.
+	// This is useful for testing the "Unable to determine the device handle for GPU: Unknown Error"
+	// scenario that occurs when NVML library loads but device enumeration fails (e.g., Xid 79).
+	// When enabled, gpud continues running but all nvidia components report unhealthy.
+	// ref. https://github.com/leptonai/gpud/pull/1180
+	NVMLDeviceGetDevicesError bool
 }
 
 var _ Instance = &instance{}
@@ -133,11 +140,22 @@ func refreshNVMLAndExit(ctx context.Context) {
 	}
 }
 
+// ErrDeviceGetDevicesInjected is the error returned when NVMLDeviceGetDevicesError is enabled.
+// This simulates the "Unable to determine the device handle for GPU: Unknown Error" scenario.
+var ErrDeviceGetDevicesInjected = errors.New("error getting device handle for index '0': Unknown Error (injected for testing)")
+
 // newInstance creates a new instance of the NVML library.
 // If NVML is not installed, it returns no-op nvml instance.
 // The "refreshNVML" function is only called when the NVML library is not found.
 func newInstance(refreshCtx context.Context, refreshNVML func(context.Context), failureInjector *FailureInjectorConfig) (Instance, error) {
-	nvmlLib, err := nvmllib.New()
+	// Build library options for failure injection
+	var libOpts []nvmllib.OpOption
+	if failureInjector != nil && failureInjector.NVMLDeviceGetDevicesError {
+		log.Logger.Warnw("NVML Device().GetDevices() error injection enabled for testing")
+		libOpts = append(libOpts, nvmllib.WithDeviceGetDevicesError(ErrDeviceGetDevicesInjected))
+	}
+
+	nvmlLib, err := nvmllib.New(libOpts...)
 	if err != nil {
 		if errors.Is(err, nvmllib.ErrNVMLNotFound) {
 			if refreshNVML != nil {

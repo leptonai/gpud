@@ -18,6 +18,10 @@ type Op struct {
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7e505374454a0d4fc7339b6c885656d6
 	devGetCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
+
+	// devGetDevicesError is the error to return from Device().GetDevices().
+	// Used for testing NVML device enumeration failure scenarios.
+	devGetDevicesError error
 }
 
 type OpOption func(*Op)
@@ -75,5 +79,14 @@ func WithDeviceGetRemappedRowsForAllDevs(f func() (corrRows int, uncRows int, is
 func WithDeviceGetCurrentClocksEventReasonsForAllDevs(f func() (uint64, nvml.Return)) OpOption {
 	return func(op *Op) {
 		op.devGetCurrentClocksEventReasonsForAllDevs = f
+	}
+}
+
+// WithDeviceGetDevicesError specifies the error to return from Device().GetDevices().
+// This is used for testing NVML device enumeration failure scenarios, such as when
+// nvidia-smi shows "Unable to determine the device handle for GPU: Unknown Error".
+func WithDeviceGetDevicesError(err error) OpOption {
+	return func(op *Op) {
+		op.devGetDevicesError = err
 	}
 }

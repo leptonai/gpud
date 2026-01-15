@@ -62,6 +62,7 @@ func createLibrary(opts ...OpOption) Library {
 		devices:                                options.devicesToReturn,
 		getRemappedRowsForAllDevs:              options.devGetRemappedRowsForAllDevs,
 		getCurrentClocksEventReasonsForAllDevs: options.devGetCurrentClocksEventReasonsForAllDevs,
+		getDevicesError:                        options.devGetDevicesError,
 	}
 
 	infoOpts := []nvinfo.Option{
@@ -90,9 +91,15 @@ type devInterface struct {
 	devices                                []nvlibdevice.Device
 	getRemappedRowsForAllDevs              func() (int, int, bool, bool, nvml.Return)
 	getCurrentClocksEventReasonsForAllDevs func() (uint64, nvml.Return)
+	getDevicesError                        error
 }
 
 func (d *devInterface) GetDevices() ([]nvlibdevice.Device, error) {
+	// Check for injected error first (for testing device enumeration failures)
+	if d.getDevicesError != nil {
+		return nil, d.getDevicesError
+	}
+
 	devs := d.devices
 
 	var err error
