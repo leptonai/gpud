@@ -190,8 +190,22 @@ const (
 	defaultCachePurgeInterval = 10 * time.Minute
 )
 
+// defaultWatchCommands monitors both the fabric manager log file and systemd journal.
+// We monitor both sources because:
+//   - /var/log/fabricmanager.log: Contains runtime errors (SXid events, NVLink failures) when FM is running
+//   - journalctl: Captures startup failures (topology mismatch, initialization errors) that occur
+//     before FM can write to its log file
+//
+// The journalctl command uses:
+//   - -u nvidia-fabricmanager.service: Filter to only FM service logs
+//   - -f: Follow mode (like tail -f)
+//   - --no-pager: Disable paging for streaming output
+//   - -o cat: Output only the message without timestamps (we parse timestamps from log format)
+//   - --since "5 minutes ago": Only get recent logs to avoid processing historical entries
 var defaultWatchCommands = [][]string{
-	{fmt.Sprintf("tail -f %s || true", defaultLogFileName)},
+	{
+		fmt.Sprintf("tail -f %s 2>/dev/null & journalctl -u nvidia-fabricmanager.service -f --no-pager -o cat --since '5 minutes ago' 2>/dev/null & wait", defaultLogFileName),
+	},
 }
 
 func newWatcher(cmds [][]string) (watcher, error) {
