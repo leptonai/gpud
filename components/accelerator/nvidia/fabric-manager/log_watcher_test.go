@@ -390,3 +390,63 @@ func TestMultipleWatchers(t *testing.T) {
 		}
 	})
 }
+
+func TestParallelLogWatching(t *testing.T) {
+	t.Run("watch two sources in parallel", func(t *testing.T) {
+		// Construct a command similar to the default one but with echos and sleeps to verify parallelism
+		// Source 1: prints immediately, then sleeps
+		// Source 2: sleeps then prints
+		// Both backgrounded and waited
+		// Uses single string command style as in defaultWatchCommands
+		cmd := "echo '[Feb 25 2025 10:00:00] [INFO] Source1' && sleep 2 & " +
+			"sleep 1 && echo '[Feb 25 2025 10:00:01] [INFO] Source2' & " +
+			"wait"
+
+		w, err := newWatcher([][]string{
+			{cmd},
+		})
+		require.NoError(t, err)
+		defer w.close()
+
+		ch := w.watch()
+
+		var lines []logLine
+		timeout := time.After(5 * time.Second)
+
+		// Collect lines
+	loop:
+		for {
+			select {
+			case line, ok := <-ch:
+				if !ok {
+					break loop
+				}
+				lines = append(lines, line)
+				if len(lines) >= 2 {
+					break loop
+				}
+			case <-timeout:
+				t.Fatal("timeout waiting for log lines")
+			}
+		}
+
+		assert.Equal(t, 2, len(lines), "should get output from both sources")
+
+		// Verify we got both messages
+		contents := make(map[string]bool)
+		for _, l := range lines {
+			contents[l.content] = true
+		}
+		assert.True(t, contents["[INFO] Source1"], "should have source 1 output")
+		assert.True(t, contents["[INFO] Source2"], "should have source 2 output")
+	})
+}
+
+func TestDefaultWatchCommandsSyntax(t *testing.T) {
+	// regression test to ensure we don't accidentally re-introduce incorrect bash -c usage
+	assert.Equal(t, 1, len(defaultWatchCommands), "should have 1 command group")
+	assert.Equal(t, 1, len(defaultWatchCommands[0]), "should have 1 command string")
+	assert.False(t, strings.HasPrefix(defaultWatchCommands[0][0], "bash"), "should not start with bash (process library handles wrapping)")
+	assert.Contains(t, defaultWatchCommands[0][0], "&", "should contain background operator")
+	assert.Contains(t, defaultWatchCommands[0][0], "wait", "should contain wait")
+}

@@ -150,6 +150,59 @@ func TestHasNVSwitchNVLinkFailure(t *testing.T) {
 	}
 }
 
+func TestHasNVSwitchTopologyMismatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "match topology mismatch from log file",
+			input:    "[Sep 08 2025 23:21:50] [ERROR] detected number of NVSwitches don't match with any supported system topology, aborting fabric manager",
+			expected: true,
+		},
+		{
+			name:     "match topology mismatch from journalctl (no timestamp prefix)",
+			input:    "detected number of NVSwitches don't match with any supported system topology, aborting fabric manager",
+			expected: true,
+		},
+		{
+			name:     "match topology mismatch with leading text",
+			input:    "nv-fabricmanager[1929729]: detected number of NVSwitches don't match with any supported system topology, aborting fabric manager",
+			expected: true,
+		},
+		{
+			name:     "no match - fatal error",
+			input:    "[Jul 23 2024 07:53:55] [ERROR] [tid 841] detected NVSwitch fatal error 20034 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 33",
+			expected: false,
+		},
+		{
+			name:     "no match - non-fatal error",
+			input:    "[Jul 09 2024 18:14:07] [ERROR] [tid 12727] detected NVSwitch non-fatal error 12028 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 61",
+			expected: false,
+		},
+		{
+			name:     "no match - info message",
+			input:    "[Feb 27 2025 14:10:02] [INFO] [tid 1808] multicast group 1 is allocated.",
+			expected: false,
+		},
+		{
+			name:     "no match - empty string",
+			input:    "",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := HasNVSwitchTopologyMismatch(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestMatch(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +232,13 @@ func TestMatch(t *testing.T) {
 			input:         "[Sep 17 2024 06:01:46] [ERROR] [tid 1230079] failed to find the GPU handle 5410063385821516767 in the multicast team request setup 6130285411925746235.",
 			expectedEvent: eventNVSwitchNVLinkFailure,
 			expectedMsg:   messageNVSwitchNVLinkFailure,
+			shouldMatch:   true,
+		},
+		{
+			name:          "match topology mismatch",
+			input:         "detected number of NVSwitches don't match with any supported system topology, aborting fabric manager",
+			expectedEvent: eventNVSwitchTopologyMismatch,
+			expectedMsg:   messageNVSwitchTopologyMismatch,
 			shouldMatch:   true,
 		},
 		{
@@ -224,13 +284,14 @@ func TestGetMatches(t *testing.T) {
 	matches := getMatches()
 
 	// Check if we have the expected number of matchers
-	assert.Equal(t, 3, len(matches), "should have 3 matchers")
+	assert.Equal(t, 4, len(matches), "should have 4 matchers")
 
 	// Verify all expected matchers are present
 	matcherTypes := map[string]bool{
-		eventNVSwitchFatalSXid:     false,
-		eventNVSwitchNonFatalSXid:  false,
-		eventNVSwitchNVLinkFailure: false,
+		eventNVSwitchFatalSXid:        false,
+		eventNVSwitchNonFatalSXid:     false,
+		eventNVSwitchNVLinkFailure:    false,
+		eventNVSwitchTopologyMismatch: false,
 	}
 
 	for _, m := range matches {
