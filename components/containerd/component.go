@@ -31,6 +31,8 @@ const (
 
 	defaultActivenssCheckUptimeThreshold = 5 * time.Minute
 
+	socketMissingConsecutiveThreshold = 5
+
 	// Containerd config strings to check for NVIDIA runtime configuration
 	containerdConfigNvidiaDefaultRuntime = `default_runtime_name = "nvidia"`
 	containerdConfigNvidiaRuntimePlugin  = `plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia`
@@ -58,6 +60,9 @@ type component struct {
 	listAllSandboxesFunc func(ctx context.Context, endpoint string) ([]PodSandbox, error)
 
 	endpoint string
+
+	socketMissingMu    sync.Mutex
+	socketMissingCount int
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -152,10 +157,24 @@ func (c *component) Close() error {
 // If false is returned, the checkResult cr will be populated with the appropriate health state and reason.
 func (c *component) checkContainerdActiveness(cr *checkResult) bool {
 	if c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() {
-		cr.health = apiv1.HealthStateTypeUnhealthy
-		cr.reason = "containerd installed but socket file does not exist"
+		consecutive := c.recordSocketMissing(true)
+		if consecutive < socketMissingConsecutiveThreshold {
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = fmt.Sprintf(
+				"containerd installed but socket file does not exist (detected %d/%d consecutive checks)",
+				consecutive,
+				socketMissingConsecutiveThreshold,
+			)
+		} else {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf(
+				"containerd installed but socket file does not exist (failed continuously for %d checks)",
+				socketMissingConsecutiveThreshold,
+			)
+		}
 		return false
 	}
+	c.recordSocketMissing(false)
 
 	if c.checkContainerdRunningFunc != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
@@ -182,6 +201,19 @@ func (c *component) checkContainerdActiveness(cr *checkResult) bool {
 	return true
 }
 
+func (c *component) recordSocketMissing(missing bool) int {
+	c.socketMissingMu.Lock()
+	defer c.socketMissingMu.Unlock()
+
+	if !missing {
+		c.socketMissingCount = 0
+		return 0
+	}
+
+	c.socketMissingCount++
+	return c.socketMissingCount
+}
+
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking containerd pods", "endpoint", c.endpoint)
 	cr := &checkResult{
@@ -195,6 +227,7 @@ func (c *component) Check() components.CheckResult {
 
 	// assume "containerd" is not installed, thus not needed to check its activeness
 	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
+		c.recordSocketMissing(false)
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "containerd not installed"
 		return cr
