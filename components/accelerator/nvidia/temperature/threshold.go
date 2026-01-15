@@ -27,7 +27,7 @@ var (
 	}
 )
 
-func GetDefaultThresholdS() Thresholds {
+func GetDefaultThresholds() Thresholds {
 	defaultThresholdsMU.RLock()
 	defer defaultThresholdsMU.RUnlock()
 	return defaultThresholds

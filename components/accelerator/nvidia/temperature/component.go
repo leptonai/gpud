@@ -154,7 +154,7 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
-	marginThreshold := GetDefaultThresholdS()
+	marginThreshold := GetDefaultThresholds()
 
 	gpuTempThresholdExceeded := make([]string, 0)
 	hbmTempThresholdExceeded := make([]string, 0)

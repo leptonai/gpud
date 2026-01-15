@@ -672,7 +672,7 @@ func TestData_GetError(t *testing.T) {
 }
 
 func TestCheck_MarginTemperatureThreshold(t *testing.T) {
-	original := GetDefaultThresholdS()
+	original := GetDefaultThresholds()
 	defer SetDefaultMarginThreshold(original)
 
 	SetDefaultMarginThreshold(Thresholds{CelsiusSlowdownMargin: 10})

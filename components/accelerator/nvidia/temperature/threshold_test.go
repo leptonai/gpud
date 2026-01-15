@@ -7,12 +7,12 @@ import (
 )
 
 func TestSetDefaultMarginThreshold(t *testing.T) {
-	original := GetDefaultThresholdS()
+	original := GetDefaultThresholds()
 	defer SetDefaultMarginThreshold(original)
 
 	SetDefaultMarginThreshold(Thresholds{CelsiusSlowdownMargin: 7})
-	assert.Equal(t, int32(7), GetDefaultThresholdS().CelsiusSlowdownMargin)
+	assert.Equal(t, int32(7), GetDefaultThresholds().CelsiusSlowdownMargin)
 
 	SetDefaultMarginThreshold(Thresholds{CelsiusSlowdownMargin: -3})
-	assert.Equal(t, int32(0), GetDefaultThresholdS().CelsiusSlowdownMargin)
+	assert.Equal(t, int32(0), GetDefaultThresholds().CelsiusSlowdownMargin)
 }
