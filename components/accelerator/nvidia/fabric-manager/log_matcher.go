@@ -20,12 +20,20 @@ const (
 	eventNVSwitchNVLinkFailure   = "fabricmanager_nvswitch_nvlink_failure"
 	regexNVSwitchNVLinkFailure   = `.+failed to find the GPU handle \d+ in the multicast team .*`
 	messageNVSwitchNVLinkFailure = "NVSwitch NVLink failure detected"
+
+	// e.g.,
+	// detected number of NVSwitches don't match with any supported system topology, aborting fabric manager
+	// This occurs when fabric manager fails to start due to topology mismatch (missing/failed NVSwitch devices).
+	eventNVSwitchTopologyMismatch   = "fabricmanager_nvswitch_topology_mismatch"
+	regexNVSwitchTopologyMismatch   = `.*detected number of NVSwitches don't match with any supported system topology.*`
+	messageNVSwitchTopologyMismatch = "NVSwitch topology mismatch detected - fabric manager failed to start"
 )
 
 var (
-	compiledNVSwitchFatalSXid     = regexp.MustCompile(regexNVSwitchFatalSXid)
-	compiledNVSwitchNonFatalSXid  = regexp.MustCompile(regexNVSwitchNonFatalSXid)
-	compiledNVSwitchNVLinkFailure = regexp.MustCompile(regexNVSwitchNVLinkFailure)
+	compiledNVSwitchFatalSXid        = regexp.MustCompile(regexNVSwitchFatalSXid)
+	compiledNVSwitchNonFatalSXid     = regexp.MustCompile(regexNVSwitchNonFatalSXid)
+	compiledNVSwitchNVLinkFailure    = regexp.MustCompile(regexNVSwitchNVLinkFailure)
+	compiledNVSwitchTopologyMismatch = regexp.MustCompile(regexNVSwitchTopologyMismatch)
 )
 
 func HasNVSwitchFatalSXid(line string) bool {
@@ -44,6 +52,13 @@ func HasNVSwitchNonFatalSXid(line string) bool {
 
 func HasNVSwitchNVLinkFailure(line string) bool {
 	if match := compiledNVSwitchNVLinkFailure.FindStringSubmatch(line); match != nil {
+		return true
+	}
+	return false
+}
+
+func HasNVSwitchTopologyMismatch(line string) bool {
+	if match := compiledNVSwitchTopologyMismatch.FindStringSubmatch(line); match != nil {
 		return true
 	}
 	return false
@@ -70,5 +85,6 @@ func getMatches() []match {
 		{check: HasNVSwitchFatalSXid, eventName: eventNVSwitchFatalSXid, regex: regexNVSwitchFatalSXid, message: messageNVSwitchFatalSXid},
 		{check: HasNVSwitchNonFatalSXid, eventName: eventNVSwitchNonFatalSXid, regex: regexNVSwitchNonFatalSXid, message: messageNVSwitchNonFatalSXid},
 		{check: HasNVSwitchNVLinkFailure, eventName: eventNVSwitchNVLinkFailure, regex: regexNVSwitchNVLinkFailure, message: messageNVSwitchNVLinkFailure},
+		{check: HasNVSwitchTopologyMismatch, eventName: eventNVSwitchTopologyMismatch, regex: regexNVSwitchTopologyMismatch, message: messageNVSwitchTopologyMismatch},
 	}
 }
