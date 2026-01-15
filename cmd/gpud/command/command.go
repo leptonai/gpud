@@ -300,6 +300,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "(testing purposes) set the comma-separated gpu uuids to return GPU fabric health summary unhealthy (nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY). NOTE: Only works on multi-GPU NVSwitch systems (H100-SXM, H200-SXM, GB200). Ignored on PCIe variants and single-GPU systems.",
 					Hidden: true, // only for testing
 				},
+				cli.BoolFlag{
+					Name:   "nvml-device-get-devices-error",
+					Usage:  "(testing purposes) simulate NVML Device().GetDevices() failure returning 'Unable to determine the device handle for GPU: Unknown Error'. Use to test gpud behavior when NVML loads but device enumeration fails (e.g., Xid 79).",
+					Hidden: true, // only for testing
+				},
 			},
 		},
 		{
