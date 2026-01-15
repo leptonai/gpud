@@ -60,6 +60,12 @@ type FailureInjector struct {
 	// (e.g., H100-PCIe) doesn't support fabric state monitoring.
 	// Set to "H100-SXM" or "H200-SXM" to simulate a fabric-capable system.
 	GPUProductNameOverride string
+
+	// NVMLDeviceGetDevicesError when true simulates Device().GetDevices() failure.
+	// This is useful for testing the "Unable to determine the device handle for GPU: Unknown Error"
+	// scenario that occurs when NVML library loads but device enumeration fails (e.g., Xid 79).
+	// ref. https://github.com/leptonai/gpud/pull/1180
+	NVMLDeviceGetDevicesError bool
 }
 
 // InitFunc is the function that initializes a component.

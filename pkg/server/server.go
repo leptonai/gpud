@@ -255,13 +255,15 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	if config.FailureInjector != nil && (len(config.FailureInjector.GPUUUIDsWithGPULost) > 0 ||
 		len(config.FailureInjector.GPUUUIDsWithGPURequiresReset) > 0 ||
 		len(config.FailureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy) > 0 ||
-		config.FailureInjector.GPUProductNameOverride != "") {
+		config.FailureInjector.GPUProductNameOverride != "" ||
+		config.FailureInjector.NVMLDeviceGetDevicesError) {
 		// If failure injector is configured for NVML-level errors or product name override, use it
 		nvmlInstance, err = nvidianvml.NewWithFailureInjector(&nvidianvml.FailureInjectorConfig{
 			GPUUUIDsWithGPULost:                           config.FailureInjector.GPUUUIDsWithGPULost,
 			GPUUUIDsWithGPURequiresReset:                  config.FailureInjector.GPUUUIDsWithGPURequiresReset,
 			GPUUUIDsWithFabricStateHealthSummaryUnhealthy: config.FailureInjector.GPUUUIDsWithFabricStateHealthSummaryUnhealthy,
 			GPUProductNameOverride:                        config.FailureInjector.GPUProductNameOverride,
+			NVMLDeviceGetDevicesError:                     config.FailureInjector.NVMLDeviceGetDevicesError,
 		})
 	} else {
 		nvmlInstance, err = nvidianvml.NewWithExitOnSuccessfulLoad(ctx)
