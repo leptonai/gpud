@@ -63,6 +63,8 @@ type watcher struct {
 	// set to true when the watcher is started
 	// used to prevent redundant reads on kmsg file
 	watchStarted atomic.Bool
+
+	deduperOpts []OpOption
 }
 
 // Message represents a given kmsg logline, including its timestamp (as
@@ -185,7 +187,7 @@ func readAll(kmsgFile *os.File, bootTime time.Time, deduper *deduper) ([]Message
 }
 
 // NewWatcher creates a new watcher that will read from /dev/kmsg.
-func NewWatcher() (Watcher, error) {
+func NewWatcher(opts ...OpOption) (Watcher, error) {
 	kmsgFile, err := os.Open(kmsgFilePath)
 	if err != nil {
 		return nil, err
@@ -204,8 +206,9 @@ func NewWatcher() (Watcher, error) {
 	bootTime := time.Now().Add(-1 * (time.Duration(ut) * time.Second))
 
 	return &watcher{
-		kmsgFile: kmsgFile,
-		bootTime: bootTime,
+		kmsgFile:    kmsgFile,
+		bootTime:    bootTime,
+		deduperOpts: append([]OpOption(nil), opts...),
 	}, nil
 }
 
@@ -223,7 +226,7 @@ func (w *watcher) Watch() (<-chan Message, error) {
 	}
 	kmsgCh := make(chan Message, 2048)
 	go func() {
-		deduper := newDeduper(defaultCacheExpiration, defaultCachePurgeInterval)
+		deduper := newDeduper(defaultCacheExpiration, defaultCachePurgeInterval, w.deduperOpts...)
 		err := readFollow(w.kmsgFile, w.bootTime, kmsgCh, deduper)
 		if err != nil {
 			log.Logger.Errorw("kmsg watcher error", "err", err)

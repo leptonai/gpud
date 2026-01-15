@@ -19,14 +19,14 @@ type Syncer struct {
 
 type MatchFunc func(line string) (eventName string, message string)
 
-func NewSyncer(ctx context.Context, matchFunc MatchFunc, eventBucket eventstore.Bucket) (*Syncer, error) {
-	return newSyncer(ctx, nil, matchFunc, eventBucket)
+func NewSyncer(ctx context.Context, matchFunc MatchFunc, eventBucket eventstore.Bucket, opts ...OpOption) (*Syncer, error) {
+	return newSyncer(ctx, nil, matchFunc, eventBucket, opts...)
 }
 
-func newSyncer(ctx context.Context, watcher Watcher, matchFunc MatchFunc, eventBucket eventstore.Bucket) (*Syncer, error) {
+func newSyncer(ctx context.Context, watcher Watcher, matchFunc MatchFunc, eventBucket eventstore.Bucket, opts ...OpOption) (*Syncer, error) {
 	if watcher == nil {
 		var err error
-		watcher, err = NewWatcher()
+		watcher, err = NewWatcher(opts...)
 		if err != nil {
 			return nil, err
 		}
