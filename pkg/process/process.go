@@ -293,6 +293,26 @@ func (p *process) startCommand() error {
 	// NOTE: This is Unix/Linux specific. On Windows, process groups work differently.
 	p.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
+	// Set a custom Cancel function to kill the entire process group when context is cancelled.
+	// Without this, Go's default context cancellation (exec.CommandContext) only calls
+	// os.Process.Kill() on the parent process, leaving any backgrounded child processes
+	// as orphans (reparented to PID 1) that continue running indefinitely.
+	//
+	// By killing the negative PGID (-pgid), we send SIGKILL to ALL processes in the group,
+	// ensuring consistent cleanup behavior with the Close() method.
+	p.cmd.Cancel = func() error {
+		if p.cmd.Process == nil {
+			return nil
+		}
+		pgid := p.cmd.Process.Pid
+		// Use SIGKILL for context cancellation since we want immediate termination.
+		// ESRCH ("no such process") is expected if the group already exited.
+		if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+			return err
+		}
+		return nil
+	}
+
 	switch {
 	case p.outputFile != nil:
 		p.cmd.Stdout = p.outputFile
@@ -348,6 +368,26 @@ func (p *process) StartAndWaitForCombinedOutput(ctx context.Context) ([]byte, er
 	// Use process groups for consistent behavior with Start().
 	// See detailed comments in startCommand() for why this is necessary.
 	p.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Set a custom Cancel function to kill the entire process group when context is cancelled.
+	// Without this, Go's default context cancellation (exec.CommandContext) only calls
+	// os.Process.Kill() on the parent process, leaving any backgrounded child processes
+	// as orphans (reparented to PID 1) that continue running indefinitely.
+	//
+	// By killing the negative PGID (-pgid), we send SIGKILL to ALL processes in the group,
+	// ensuring consistent cleanup behavior with the Close() method.
+	p.cmd.Cancel = func() error {
+		if p.cmd.Process == nil {
+			return nil
+		}
+		pgid := p.cmd.Process.Pid
+		// Use SIGKILL for context cancellation since we want immediate termination.
+		// ESRCH ("no such process") is expected if the group already exited.
+		if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+			return err
+		}
+		return nil
+	}
 
 	// ref. "os/exec" "CombinedOutput"
 	b := bytes.NewBuffer(nil)
