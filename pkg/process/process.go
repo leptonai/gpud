@@ -271,6 +271,48 @@ func (p *process) startCommand() error {
 	}
 	p.cmd.Env = p.envs
 
+	// Create a new process group for this command and all its children.
+	//
+	// When running shell commands that spawn background processes (e.g., "cmd1 & cmd2 & wait"),
+	// the shell creates child processes that are NOT automatically terminated when we kill the
+	// parent shell. Without process groups:
+	//   1. Go's Process.Signal() only sends signals to the direct child (the shell)
+	//   2. Backgrounded processes (cmd1, cmd2) become orphaned and reparented to PID 1
+	//   3. These orphaned processes continue running indefinitely (process leak)
+	//
+	// With Setpgid=true:
+	//   1. The shell and ALL its children share the same Process Group ID (PGID)
+	//   2. The PGID equals the shell's PID
+	//   3. We can kill the entire group at once using syscall.Kill(-pgid, signal)
+	//
+	// EXAMPLE SCENARIO (fabric-manager log watcher):
+	//   Command: "tail -f /var/log/fabricmanager.log & journalctl -u nvidia-fabricmanager -f & wait"
+	//   Without Setpgid: Killing bash leaves tail and journalctl running forever
+	//   With Setpgid: Killing -PGID terminates bash, tail, AND journalctl together
+	//
+	// NOTE: This is Unix/Linux specific. On Windows, process groups work differently.
+	p.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Set a custom Cancel function to kill the entire process group when context is cancelled.
+	// Without this, Go's default context cancellation (exec.CommandContext) only calls
+	// os.Process.Kill() on the parent process, leaving any backgrounded child processes
+	// as orphans (reparented to PID 1) that continue running indefinitely.
+	//
+	// By killing the negative PGID (-pgid), we send SIGKILL to ALL processes in the group,
+	// ensuring consistent cleanup behavior with the Close() method.
+	p.cmd.Cancel = func() error {
+		if p.cmd.Process == nil {
+			return nil
+		}
+		pgid := p.cmd.Process.Pid
+		// Use SIGKILL for context cancellation since we want immediate termination.
+		// ESRCH ("no such process") is expected if the group already exited.
+		if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+			return err
+		}
+		return nil
+	}
+
 	switch {
 	case p.outputFile != nil:
 		p.cmd.Stdout = p.outputFile
@@ -322,6 +364,30 @@ func (p *process) StartAndWaitForCombinedOutput(ctx context.Context) ([]byte, er
 		p.cmd.Stdin = p.getStdinBytesReader()
 	}
 	p.cmd.Env = p.envs
+
+	// Use process groups for consistent behavior with Start().
+	// See detailed comments in startCommand() for why this is necessary.
+	p.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Set a custom Cancel function to kill the entire process group when context is cancelled.
+	// Without this, Go's default context cancellation (exec.CommandContext) only calls
+	// os.Process.Kill() on the parent process, leaving any backgrounded child processes
+	// as orphans (reparented to PID 1) that continue running indefinitely.
+	//
+	// By killing the negative PGID (-pgid), we send SIGKILL to ALL processes in the group,
+	// ensuring consistent cleanup behavior with the Close() method.
+	p.cmd.Cancel = func() error {
+		if p.cmd.Process == nil {
+			return nil
+		}
+		pgid := p.cmd.Process.Pid
+		// Use SIGKILL for context cancellation since we want immediate termination.
+		// ESRCH ("no such process") is expected if the group already exited.
+		if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+			return err
+		}
+		return nil
+	}
 
 	// ref. "os/exec" "CombinedOutput"
 	b := bytes.NewBuffer(nil)
@@ -461,20 +527,52 @@ func (p *process) Close(ctx context.Context) error {
 	p.cancel()
 
 	if p.cmd.Process != nil {
+		// Kill the entire process group, not just the parent process.
+		//
+		// WHY WE USE NEGATIVE PID:
+		// When we set Setpgid=true in startCommand(), the process and all its children
+		// share the same Process Group ID (PGID), which equals the parent's PID.
+		// Using syscall.Kill with a NEGATIVE pid sends the signal to every process
+		// in that group:
+		//   - syscall.Kill(pid, signal)  -> kills only the process with that PID
+		//   - syscall.Kill(-pid, signal) -> kills ALL processes in the group with PGID=pid
+		//
+		// WHY THIS MATTERS:
+		// Consider a command like: "tail -f file & journalctl -f & wait"
+		//   - Parent bash shell (PID=1000, PGID=1000)
+		//   - Child tail process (PID=1001, PGID=1000)  <- same group!
+		//   - Child journalctl process (PID=1002, PGID=1000)  <- same group!
+		//
+		// Without negative PID: Only bash (1000) receives SIGTERM
+		//   -> tail and journalctl become orphans, reparented to init (PID 1)
+		//   -> They keep running forever (PROCESS LEAK!)
+		//
+		// With negative PID: syscall.Kill(-1000, SIGTERM) sends to ALL three processes
+		//   -> bash, tail, AND journalctl all receive SIGTERM
+		//   -> Clean shutdown with no orphaned processes
+		//
+		// NOTE: If the process group no longer exists (already exited), Kill returns
+		// ESRCH ("no such process") which we handle gracefully.
+		pgid := p.cmd.Process.Pid
 		finished := false
-		if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			if err.Error() == "os: process already finished" {
+		if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
+			if err == syscall.ESRCH {
+				// ESRCH means "no such process" - the process group already exited
 				finished = true
 			} else {
-				log.Logger.Warnw("failed to send SIGTERM to process", "error", err)
+				log.Logger.Warnw("failed to send SIGTERM to process group", "pgid", pgid, "error", err)
 			}
 		}
 		if !finished {
 			select {
 			case <-p.ctx.Done():
 			case <-time.After(3 * time.Second):
-				if err := p.cmd.Process.Kill(); err != nil {
-					log.Logger.Warnw("failed to send SIGKILL to process", "error", err)
+				// Process group didn't exit gracefully within 3 seconds, force kill
+				if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil {
+					// Don't warn on ESRCH - process may have exited between SIGTERM and SIGKILL
+					if err != syscall.ESRCH {
+						log.Logger.Warnw("failed to send SIGKILL to process group", "pgid", pgid, "error", err)
+					}
 				}
 			}
 		}

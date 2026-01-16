@@ -3,7 +3,9 @@ package process
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -589,5 +591,201 @@ func TestProcessWatchCmdWithContextCancellation(t *testing.T) {
 	// Check that the process was terminated
 	if p.Closed() != true {
 		t.Errorf("Expected process to be closed")
+	}
+}
+
+// TestProcessGroupCleanupOnContextCancel verifies that when the context is cancelled,
+// all child processes (spawned via backgrounding with &) are also terminated.
+//
+// This tests the bug where StartAndWaitForCombinedOutput sets Setpgid=true but
+// doesn't configure custom context cancellation handling. When the context is
+// cancelled, Go's exec.CommandContext default behavior kills only the parent
+// process via os.Process.Kill(), not the entire process group. Any child
+// processes become orphans and continue running indefinitely.
+//
+// The fix requires setting a custom Cmd.Cancel function that kills the process
+// group using syscall.Kill(-pgid, ...).
+func TestProcessGroupCleanupOnContextCancel(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping process group test in CI environment due to permission restrictions")
+	}
+
+	// Create a context that we'll cancel
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start a process that spawns multiple backgrounded children
+	// The children will run for a long time (100s) so we can verify they get killed
+	p, err := New(
+		WithCommand("bash", "-c",
+			// Spawn two background sleeps
+			// Then wait for them (which blocks until they exit or we get killed)
+			"sleep 100 & sleep 100 & wait",
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Start the command in a goroutine since StartAndWaitForCombinedOutput blocks
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := p.StartAndWaitForCombinedOutput(ctx)
+		errCh <- err
+	}()
+
+	// Give the background processes time to start
+	time.Sleep(500 * time.Millisecond)
+
+	// Get the PID of the parent process (which is also the PGID)
+	pid := p.PID()
+	if pid == 0 {
+		t.Fatal("process PID is 0, process may not have started")
+	}
+
+	// Verify child processes are running using pgrep -g (by PGID)
+	// This is more reliable than pgrep -f (by command line pattern)
+	checkCmd, err := New(WithCommand("pgrep", "-g", fmt.Sprintf("%d", pid)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := checkCmd.StartAndWaitForCombinedOutput(context.Background())
+	if err != nil {
+		t.Logf("pgrep -g %d output: %s, error: %v", pid, string(output), err)
+	} else {
+		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+		t.Logf("Found %d processes in PGID %d before context cancel", len(lines), pid)
+	}
+
+	// Cancel the context - this should kill all children too
+	cancel()
+
+	// Wait for the command to finish
+	select {
+	case <-errCh:
+		// Expected - command was cancelled
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for command to finish after context cancel")
+	}
+
+	// Wait a bit for signals to propagate and processes to terminate
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify child processes are gone using pgrep -g (by PGID)
+	checkCmd2, err := New(WithCommand("pgrep", "-g", fmt.Sprintf("%d", pid)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	output2, err := checkCmd2.StartAndWaitForCombinedOutput(context.Background())
+	if err == nil && len(strings.TrimSpace(string(output2))) > 0 {
+		// Found processes still running - this indicates the bug is present
+		t.Errorf("PROCESS LEAK DETECTED: Processes in PGID %d still running after context cancellation.\n"+
+			"PIDs still alive: %s\n"+
+			"This means backgrounded processes were not killed when context was cancelled.",
+			pid, strings.TrimSpace(string(output2)))
+
+		// Clean up the leaked processes
+		for _, pidStr := range strings.Split(strings.TrimSpace(string(output2)), "\n") {
+			_ = exec.Command("kill", "-9", pidStr).Run()
+		}
+	} else {
+		t.Log("SUCCESS: All child processes were properly terminated on context cancel")
+	}
+}
+
+// TestProcessGroupCleanup verifies that when we close a process, all its child
+// processes (spawned via backgrounding with &) are also terminated.
+//
+// This test validates the fix for the "process leak" bug where backgrounded
+// processes would become orphaned (reparented to PID 1) when only the parent
+// shell was killed.
+//
+// BACKGROUND ON THE BUG:
+// When running commands like "sleep 100 & sleep 100 & wait", bash spawns
+// child processes for each backgrounded command. Without process groups:
+//   - Killing the parent bash only sends SIGTERM to bash itself
+//   - The sleep processes are NOT killed and become orphans
+//   - They continue running until they naturally exit (or forever for things like tail -f)
+//
+// THE FIX:
+// By setting Setpgid=true when starting the command, all processes (parent + children)
+// share the same Process Group ID (PGID). Then using syscall.Kill(-pgid, signal)
+// sends the signal to ALL processes in the group at once.
+func TestProcessGroupCleanup(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping process group test in CI environment due to permission restrictions")
+	}
+
+	ctx := context.Background()
+
+	// Create a unique marker that we can use to identify our test processes
+	// This avoids conflicts with other tests running in parallel
+	marker := "GPUD_TEST_MARKER_12345"
+
+	// Start a process that spawns multiple backgrounded children
+	// The children will run for a long time (100s) so we can verify they get killed
+	// We use 'exec' to replace the shell with the actual command (cleaner process tree)
+	p, err := New(
+		WithCommand("bash", "-c",
+			// Spawn two background sleeps with our marker in their command line
+			// Then wait for them (which blocks until they exit or we get killed)
+			"sleep 100 "+marker+" & sleep 100 "+marker+" & wait",
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := p.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	// Give the background processes time to start
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify child processes are running by checking for our marker
+	// We use pgrep to find processes with our marker in their command line
+	checkCmd, err := New(WithCommand("pgrep", "-f", marker))
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := checkCmd.StartAndWaitForCombinedOutput(ctx)
+	if err != nil {
+		t.Logf("pgrep output: %s, error: %v", string(output), err)
+		// pgrep might fail on some systems, skip the pre-check
+	} else {
+		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+		if len(lines) < 2 {
+			t.Logf("Expected at least 2 child processes, found %d (output: %s)", len(lines), string(output))
+			// Don't fail, as process detection can be flaky
+		} else {
+			t.Logf("Found %d child processes before cleanup", len(lines))
+		}
+	}
+
+	// Now close the parent process - this should kill all children too
+	closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer closeCancel()
+
+	if err := p.Close(closeCtx); err != nil {
+		t.Logf("Error closing process: %v", err)
+	}
+
+	// Wait a bit for signals to propagate and processes to terminate
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify child processes are gone
+	checkCmd2, err := New(WithCommand("pgrep", "-f", marker))
+	if err != nil {
+		t.Fatal(err)
+	}
+	output2, err := checkCmd2.StartAndWaitForCombinedOutput(ctx)
+	if err == nil && len(strings.TrimSpace(string(output2))) > 0 {
+		// Found processes still running - this would indicate the bug is present
+		t.Errorf("PROCESS LEAK DETECTED: Child processes still running after Close().\n"+
+			"PIDs still alive: %s\n"+
+			"This means backgrounded processes were not killed with the parent.",
+			strings.TrimSpace(string(output2)))
+	} else {
+		t.Log("SUCCESS: All child processes were properly terminated with parent")
 	}
 }
