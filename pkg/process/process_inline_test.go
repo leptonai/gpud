@@ -3,9 +3,10 @@ package process
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Verifies that inline bash mode runs without creating a temp file.
@@ -16,29 +17,25 @@ func TestProcessWithRunBashInline(t *testing.T) {
 		WithRunAsBashScript(),
 		WithRunBashInline(),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+
+	require.NoError(t, p.Start(ctx))
+
 	select {
 	case err := <-p.Wait():
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		require.NoError(t, err, "unexpected error")
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for process exit")
+		require.FailNow(t, "timeout waiting for process exit")
 	}
 
 	// Ensure no on-disk bash file was created
 	if proc, ok := p.(*process); ok {
 		if proc.runBashFile != nil {
-			if _, err := os.Stat(proc.runBashFile.Name()); err == nil {
-				t.Fatalf("expected no temp bash file to exist, but found: %s", proc.runBashFile.Name())
-			}
+			_, err := os.Stat(proc.runBashFile.Name())
+			require.Error(t, err, "expected no temp bash file to exist, but found: %s", proc.runBashFile.Name())
 		}
 	}
 }
@@ -46,9 +43,7 @@ func TestProcessWithRunBashInline(t *testing.T) {
 func TestProcessWithRunBashInline_QuotesAndMeta(t *testing.T) {
 	// Ensure tricky quoting works fine via stdin (-s), not -c.
 	tmp, err := os.CreateTemp("", "process-inline-*.log")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer func() {
 		_ = os.Remove(tmp.Name())
 	}()
@@ -62,46 +57,34 @@ func TestProcessWithRunBashInline_QuotesAndMeta(t *testing.T) {
 		WithRunBashInline(),
 		WithOutputFile(tmp),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+
+	require.NoError(t, p.Start(ctx))
+
 	select {
 	case err := <-p.Wait():
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		require.NoError(t, err, "unexpected error")
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for process exit")
-	}
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
+		require.FailNow(t, "timeout waiting for process exit")
 	}
 
+	require.NoError(t, p.Close(ctx))
+
 	b, err := os.ReadFile(tmp.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	out := string(b)
-	if !strings.Contains(out, "hello \"world\"") {
-		t.Fatalf("expected quoted output, got: %q", out)
-	}
-	if !strings.Contains(out, "A") { // pipeline/tr substitution succeeded
-		t.Fatalf("expected pipeline output with capital A, got: %q", out)
-	}
+	require.Contains(t, out, "hello \"world\"", "expected quoted output")
+	require.Contains(t, out, "A", "expected pipeline output with capital A")
 }
 
 func TestProcessWithRunBashInline_MultiCommand(t *testing.T) {
 	// Use command list; runtime assembles bash program + headers and feeds stdin.
 	tmp, err := os.CreateTemp("", "process-inline-*.log")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer func() {
 		_ = os.Remove(tmp.Name())
 	}()
@@ -116,36 +99,26 @@ func TestProcessWithRunBashInline_MultiCommand(t *testing.T) {
 		WithRunBashInline(),
 		WithOutputFile(tmp),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+
+	require.NoError(t, p.Start(ctx))
+
 	select {
 	case err := <-p.Wait():
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		require.NoError(t, err, "unexpected error")
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for process exit")
-	}
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
+		require.FailNow(t, "timeout waiting for process exit")
 	}
 
+	require.NoError(t, p.Close(ctx))
+
 	b, err := os.ReadFile(tmp.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	out := string(b)
-	if !strings.Contains(out, "hello world") {
-		t.Fatalf("missing 'hello world' in output: %q", out)
-	}
-	if !strings.Contains(out, "111") {
-		t.Fatalf("missing '111' in output: %q", out)
-	}
+	require.Contains(t, out, "hello world", "missing 'hello world' in output")
+	require.Contains(t, out, "111", "missing '111' in output")
 }
