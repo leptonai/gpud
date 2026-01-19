@@ -104,6 +104,28 @@ func TestDeduper(t *testing.T) {
 		time.Sleep(2 * shortExpiration)
 		assert.Equal(t, 1, d.addCache(msg), "should be first occurrence again after expiration")
 	})
+
+	t.Run("should honor custom cache key truncation", func(t *testing.T) {
+		d := newDeduper(5*time.Minute, 10*time.Minute, WithCacheKeyTruncateSeconds(300))
+		content := "test content"
+		baseTime := time.Date(2024, 1, 1, 12, 30, 0, 0, time.UTC)
+		msg1 := Message{
+			Timestamp: metav1.Time{Time: baseTime},
+			Message:   content,
+		}
+		msg2 := Message{
+			Timestamp: metav1.Time{Time: baseTime.Add(4 * time.Minute)},
+			Message:   content,
+		}
+		msg3 := Message{
+			Timestamp: metav1.Time{Time: baseTime.Add(5 * time.Minute)},
+			Message:   content,
+		}
+
+		assert.Equal(t, 1, d.addCache(msg1), "first occurrence should return 1")
+		assert.Equal(t, 2, d.addCache(msg2), "same 5-minute window should be duplicate")
+		assert.Equal(t, 1, d.addCache(msg3), "next 5-minute window should reset count")
+	})
 }
 
 func TestCacheKey(t *testing.T) {

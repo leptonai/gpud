@@ -18,7 +18,6 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
@@ -77,6 +76,19 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	return nvidiaproduct.MemoryErrorManagementCapabilities{}
+}
+
+func runContainerdChecks(c *component, times int) *checkResult {
+	var cr *checkResult
+	for i := 0; i < times; i++ {
+		result := c.Check()
+		var ok bool
+		cr, ok = result.(*checkResult)
+		if !ok {
+			return nil
+		}
+	}
+	return cr
 }
 
 func (m *mockNVMLInstance) Shutdown() error {
@@ -275,7 +287,7 @@ func TestCheckOnceComprehensive(t *testing.T) {
 			socketExists:             false,
 			containerdRunning:        false,
 			serviceActive:            false,
-			expectedHealthy:          false,
+			expectedHealthy:          true,
 			expectedReasonContains:   "socket file does not exist",
 			expectedPodsLength:       0,
 		},
@@ -329,8 +341,8 @@ func TestCheckOnceComprehensive(t *testing.T) {
 			containerdRunning:        true,
 			serviceActive:            true,
 			listSandboxError:         status.Error(codes.Unimplemented, "unknown service"),
-			expectedHealthy:          false,
-			expectedReasonContains:   "containerd didn't enable CRI",
+			expectedHealthy:          true,
+			expectedReasonContains:   "CRI is not enabled",
 			expectedPodsLength:       0,
 			expectedServiceActive:    true,
 		},
@@ -350,7 +362,6 @@ func TestCheckOnceComprehensive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a component with custom mock functions
 			ctx := context.Background()
 			comp := &component{
 				ctx:    ctx,
@@ -359,91 +370,27 @@ func TestCheckOnceComprehensive(t *testing.T) {
 					return tt.checkDependencyInstalled
 				},
 				checkSocketExistsFunc: func() bool {
-					return true
+					return tt.socketExists
+				},
+				checkContainerdRunningFunc: func(ctx context.Context) bool {
+					return tt.containerdRunning
 				},
 				checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
 					return tt.serviceActive, tt.serviceActiveError
 				},
+				listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+					if tt.listSandboxError != nil {
+						return nil, tt.listSandboxError
+					}
+					return []PodSandbox{}, nil
+				},
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
 				endpoint: "unix:///mock/endpoint",
 			}
 
-			// Create a test-specific version of checkOnce that uses our mocked functions
-			testCheckOnce := func(c *component) {
-				cr := checkResult{
-					ts: time.Now().UTC(),
-				}
-
-				// Copy the CheckOnce logic but with our mocks
-				if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
-					cr.health = apiv1.HealthStateTypeHealthy
-					cr.reason = "containerd not installed"
-					c.lastMu.Lock()
-					c.lastCheckResult = &cr
-					c.lastMu.Unlock()
-					return
-				}
-
-				// Mock socket check
-				if !tt.socketExists {
-					cr.health = apiv1.HealthStateTypeUnhealthy
-					cr.reason = "containerd installed but socket file does not exist"
-					c.lastMu.Lock()
-					c.lastCheckResult = &cr
-					c.lastMu.Unlock()
-					return
-				}
-
-				// Mock containerd running check
-				if !tt.containerdRunning {
-					cr.health = apiv1.HealthStateTypeUnhealthy
-					cr.reason = "containerd installed but not running"
-					c.lastMu.Lock()
-					c.lastCheckResult = &cr
-					c.lastMu.Unlock()
-					return
-				}
-
-				// Mock service active check
-				if c.checkServiceActiveFunc != nil {
-					var err error
-					cr.ContainerdServiceActive, err = c.checkServiceActiveFunc(ctx)
-					if !cr.ContainerdServiceActive || err != nil {
-						cr.err = fmt.Errorf("containerd is installed but containerd service is not active or failed to check (error %v)", err)
-						cr.health = apiv1.HealthStateTypeUnhealthy
-						cr.reason = "containerd installed but service is not active"
-						c.lastMu.Lock()
-						c.lastCheckResult = &cr
-						c.lastMu.Unlock()
-						return
-					}
-				}
-
-				// Mock list sandbox status
-				if tt.listSandboxError != nil {
-					cr.err = tt.listSandboxError
-					cr.health = apiv1.HealthStateTypeUnhealthy
-
-					st, ok := status.FromError(cr.err)
-					if ok && st.Code() == codes.Unimplemented {
-						cr.reason = "containerd didn't enable CRI"
-					} else {
-						cr.reason = "error listing pod sandbox status"
-					}
-					log.Logger.Warnw(cr.reason, "error", cr.err)
-				} else {
-					cr.Pods = []PodSandbox{}
-					cr.health = apiv1.HealthStateTypeHealthy
-					cr.reason = "ok"
-					log.Logger.Debugw(cr.reason, "count", len(cr.Pods))
-				}
-
-				c.lastMu.Lock()
-				c.lastCheckResult = &cr
-				c.lastMu.Unlock()
-			}
-
-			// Run our test-specific version
-			testCheckOnce(comp)
+			comp.Check()
 
 			// Assert results
 			assert.NotNil(t, comp.lastCheckResult)
@@ -1436,7 +1383,7 @@ func TestCheckContainerdInstalled(t *testing.T) {
 			name:              "containerd installed",
 			mockInstallResult: true,
 			expectHealth:      apiv1.HealthStateTypeUnhealthy,
-			expectReason:      "containerd installed but socket file does not exist",
+			expectReason:      "failed continuously",
 		},
 		{
 			name:              "containerd not installed",
@@ -1450,32 +1397,32 @@ func TestCheckContainerdInstalled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create component with mocked dependency check
 			ctx := context.Background()
+			socketExists := false
 			comp := &component{
 				ctx:    ctx,
 				cancel: func() {},
 				checkDependencyInstalledFunc: func() bool {
 					return tt.mockInstallResult
 				},
+				checkSocketExistsFunc: func() bool {
+					return socketExists
+				},
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
 			}
 
-			// Create a test Data object
-			cr := checkResult{
-				ts: time.Now().UTC(),
-			}
-
-			// Simulate the first part of CheckOnce logic
-			if comp.checkDependencyInstalledFunc == nil || !comp.checkDependencyInstalledFunc() {
-				cr.health = apiv1.HealthStateTypeHealthy
-				cr.reason = "containerd not installed"
+			var cr *checkResult
+			if tt.mockInstallResult {
+				cr = runContainerdChecks(comp, socketMissingConsecutiveThreshold)
 			} else {
-				// Mock the socket check failure
-				cr.health = apiv1.HealthStateTypeUnhealthy
-				cr.reason = "containerd installed but socket file does not exist"
+				result := comp.Check()
+				cr = result.(*checkResult)
 			}
 
 			// Verify results
 			assert.Equal(t, tt.expectHealth, cr.health)
-			assert.Equal(t, tt.expectReason, cr.reason)
+			assert.Contains(t, cr.reason, tt.expectReason)
 		})
 	}
 }
@@ -1934,6 +1881,7 @@ func TestCheckOnceListSandboxGrpcError(t *testing.T) {
 // TestCheckOnceSocketNotExists tests the socket existence check in CheckOnce
 func TestCheckOnceSocketNotExists(t *testing.T) {
 	ctx := context.Background()
+	socketExists := false
 	comp := &component{
 		ctx:    ctx,
 		cancel: func() {},
@@ -1941,7 +1889,7 @@ func TestCheckOnceSocketNotExists(t *testing.T) {
 			return true // Containerd is installed
 		},
 		checkSocketExistsFunc: func() bool {
-			return false // Socket does not exist
+			return socketExists
 		},
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -1949,13 +1897,34 @@ func TestCheckOnceSocketNotExists(t *testing.T) {
 		endpoint: "unix:///mock/endpoint",
 	}
 
-	_ = comp.Check()
+	for i := 0; i < socketMissingConsecutiveThreshold-1; i++ {
+		_ = comp.Check()
+		assert.NotNil(t, comp.lastCheckResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastCheckResult.health)
+		assert.Contains(t, comp.lastCheckResult.reason, "socket file does not exist")
+		assert.Nil(t, comp.lastCheckResult.err)
+	}
 
-	// Verify results
-	assert.NotNil(t, comp.lastCheckResult)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, comp.lastCheckResult.health)
-	assert.Equal(t, "containerd installed but socket file does not exist", comp.lastCheckResult.reason)
-	assert.Nil(t, comp.lastCheckResult.err)
+	cr := runContainerdChecks(comp, 1)
+	require.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "socket file does not exist")
+	assert.Contains(t, cr.reason, "failed continuously")
+	assert.Nil(t, cr.err)
+
+	// Reset after recovery
+	socketExists = true
+	cr = runContainerdChecks(comp, 1)
+	require.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "ok", cr.reason)
+
+	// Ensure counter resets after a successful check
+	socketExists = false
+	cr = runContainerdChecks(comp, 1)
+	require.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Contains(t, cr.reason, "socket file does not exist")
 }
 
 // TestCheckOnceSocketNotExistsComprehensive provides a more complete test for the socket existence check
@@ -1991,8 +1960,8 @@ func TestCheckOnceSocketNotExistsComprehensive(t *testing.T) {
 
 	// Verify the results
 	assert.NotNil(t, comp.lastCheckResult)
-	assert.False(t, comp.lastCheckResult.health == apiv1.HealthStateTypeHealthy)
-	assert.Equal(t, "containerd installed but socket file does not exist", comp.lastCheckResult.reason)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastCheckResult.health)
+	assert.Contains(t, comp.lastCheckResult.reason, "containerd installed but socket file does not exist")
 	assert.Nil(t, comp.lastCheckResult.err)
 	assert.Empty(t, comp.lastCheckResult.Pods)
 	assert.False(t, comp.lastCheckResult.ContainerdServiceActive)
@@ -3137,8 +3106,8 @@ func TestCheckContainerdActiveness(t *testing.T) {
 				return true, nil
 			},
 			expectedResult: false,
-			expectedHealth: apiv1.HealthStateTypeUnhealthy,
-			expectedReason: "containerd installed but socket file does not exist",
+			expectedHealth: apiv1.HealthStateTypeHealthy,
+			expectedReason: "containerd installed but socket file does not exist (detected 1/5 consecutive checks)",
 		},
 		{
 			name: "containerd not running",
@@ -3264,6 +3233,49 @@ func TestCheckContainerdActiveness(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheckContainerdActiveness_SocketMissingConsecutiveFailures(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	socketExists := false
+	comp := &component{
+		ctx:    ctx,
+		cancel: cancel,
+		checkSocketExistsFunc: func() bool {
+			return socketExists
+		},
+	}
+
+	for i := 0; i < socketMissingConsecutiveThreshold-1; i++ {
+		cr := &checkResult{}
+		result := comp.checkContainerdActiveness(cr)
+		assert.False(t, result)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Contains(t, cr.reason, "socket file does not exist")
+	}
+
+	cr := &checkResult{}
+	result := comp.checkContainerdActiveness(cr)
+	assert.False(t, result)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "socket file does not exist")
+	assert.Contains(t, cr.reason, "failed continuously")
+
+	// Reset when the socket check passes.
+	socketExists = true
+	cr = &checkResult{}
+	result = comp.checkContainerdActiveness(cr)
+	assert.True(t, result)
+
+	// After reset, the next failure should not be unhealthy.
+	socketExists = false
+	cr = &checkResult{}
+	result = comp.checkContainerdActiveness(cr)
+	assert.False(t, result)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Contains(t, cr.reason, "socket file does not exist")
 }
 
 func TestContainerToolkitValidation(t *testing.T) {

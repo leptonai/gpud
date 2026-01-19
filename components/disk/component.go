@@ -74,6 +74,9 @@ type component struct {
 	eventBucket      eventstore.Bucket
 	kmsgSyncer       *kmsg.Syncer
 
+	nfsStatTimeoutMu     sync.Mutex
+	nfsStatTimeoutCounts map[string]int
+
 	// lookbackPeriod defines how far back to query historical reboot and disk failure events
 	// when evaluating suggested repair actions. Default is 14 days.
 	lookbackPeriod time.Duration
@@ -96,6 +99,8 @@ const (
 
 	getBlockDevicesTimeout = 10 * time.Second
 	getPartitionsTimeout   = 10 * time.Second
+
+	nfsStatTimeoutConsecutiveThreshold = 5
 )
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
@@ -135,6 +140,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
 		freeSpaceThresholdPercent:       defaultFreeSpaceThresholdPercent,
+
+		nfsStatTimeoutCounts: make(map[string]int),
 	}
 
 	if runtime.GOOS == "linux" {
@@ -169,7 +176,13 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			c.kmsgSyncer, err = kmsg.NewSyncer(
+				cctx,
+				Match,
+				c.eventBucket,
+				// Disk kmsg errors can burst during transient I/O issues; coalesce within 5 minutes to reduce event noise.
+				kmsg.WithCacheKeyTruncateSeconds(300),
+			)
 			if err != nil {
 				ccancel()
 				return nil, err
@@ -670,19 +683,31 @@ func (c *component) Check() components.CheckResult {
 		cr.reason += strings.Join(degradedPartitionsDueToThresholdExceeded, "; ")
 	}
 
+	var statTimeoutMounts []string
 	for _, p := range cr.NFSPartitions {
-		if p.StatTimedOut {
-			if cr.reason == "ok" {
-				cr.reason = ""
-			}
-			if cr.reason != "" {
-				cr.reason += "; "
-			}
-			cr.reason += fmt.Sprintf("%s stat timed out (possible connection issue)", p.MountPoint)
-			if cr.health == apiv1.HealthStateTypeHealthy {
-				cr.health = apiv1.HealthStateTypeDegraded
-			}
-			break
+		consecutive := c.recordNFSStatTimeout(p.MountPoint, p.StatTimedOut)
+		if p.StatTimedOut && consecutive >= nfsStatTimeoutConsecutiveThreshold {
+			statTimeoutMounts = append(statTimeoutMounts, p.MountPoint)
+		}
+	}
+	if len(statTimeoutMounts) > 0 {
+		if cr.reason == "ok" {
+			cr.reason = ""
+		}
+		if cr.reason != "" {
+			cr.reason += "; "
+		}
+
+		var timeoutReasons []string
+		for _, mountPoint := range statTimeoutMounts {
+			timeoutReasons = append(timeoutReasons,
+				fmt.Sprintf("%s stat timed out (possible connection issue) has failed continuously for %d checks", mountPoint, nfsStatTimeoutConsecutiveThreshold),
+			)
+		}
+		cr.reason += strings.Join(timeoutReasons, "; ")
+
+		if cr.health == apiv1.HealthStateTypeHealthy {
+			cr.health = apiv1.HealthStateTypeDegraded
 		}
 	}
 
@@ -827,6 +852,27 @@ func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 		break
 	}
 	return true
+}
+
+func (c *component) recordNFSStatTimeout(mountPoint string, timedOut bool) int {
+	if mountPoint == "" {
+		return 0
+	}
+
+	c.nfsStatTimeoutMu.Lock()
+	defer c.nfsStatTimeoutMu.Unlock()
+
+	if c.nfsStatTimeoutCounts == nil {
+		c.nfsStatTimeoutCounts = make(map[string]int)
+	}
+
+	if !timedOut {
+		delete(c.nfsStatTimeoutCounts, mountPoint)
+		return 0
+	}
+
+	c.nfsStatTimeoutCounts[mountPoint]++
+	return c.nfsStatTimeoutCounts[mountPoint]
 }
 
 var _ components.CheckResult = &checkResult{}

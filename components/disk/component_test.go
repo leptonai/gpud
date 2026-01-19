@@ -132,6 +132,19 @@ func createTestComponentWithTime(ctx context.Context, mountPoints, mountTargets 
 	return c
 }
 
+func runChecks(c *component, times int) *checkResult {
+	var cr *checkResult
+	for i := 0; i < times; i++ {
+		result := c.Check()
+		var ok bool
+		cr, ok = result.(*checkResult)
+		if !ok {
+			return nil
+		}
+	}
+	return cr
+}
+
 func TestComponentName(t *testing.T) {
 	ctx := context.Background()
 	c := createTestComponent(ctx, []string{}, []string{})
@@ -2022,15 +2035,12 @@ func TestComponent_StatTimedOut_SetsHealthDegraded(t *testing.T) {
 		return disk.Partitions{mockNFSPartition}, nil
 	}
 
-	c.Check()
-
-	c.lastMu.RLock()
-	lastCheckResult := c.lastCheckResult
-	c.lastMu.RUnlock()
+	lastCheckResult := runChecks(c, nfsStatTimeoutConsecutiveThreshold)
 
 	assert.NotNil(t, lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
 	assert.Contains(t, lastCheckResult.reason, "stat timed out (possible connection issue)")
+	assert.Contains(t, lastCheckResult.reason, "failed continuously")
 	assert.Contains(t, lastCheckResult.reason, "/mnt/nfs")
 	assert.Len(t, lastCheckResult.NFSPartitions, 1)
 	assert.True(t, lastCheckResult.NFSPartitions[0].StatTimedOut)
@@ -2097,15 +2107,12 @@ func TestComponent_StatTimedOut_MultiplePartitions(t *testing.T) {
 		return disk.Partitions{mockNFSPartition1, mockNFSPartition2}, nil
 	}
 
-	c.Check()
-
-	c.lastMu.RLock()
-	lastCheckResult := c.lastCheckResult
-	c.lastMu.RUnlock()
+	lastCheckResult := runChecks(c, nfsStatTimeoutConsecutiveThreshold)
 
 	assert.NotNil(t, lastCheckResult)
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
 	assert.Contains(t, lastCheckResult.reason, "stat timed out (possible connection issue)")
+	assert.Contains(t, lastCheckResult.reason, "failed continuously")
 	assert.Contains(t, lastCheckResult.reason, "/mnt/nfs2")
 	assert.Len(t, lastCheckResult.NFSPartitions, 2)
 
@@ -2124,6 +2131,81 @@ func TestComponent_StatTimedOut_MultiplePartitions(t *testing.T) {
 	assert.NotNil(t, partition2)
 	assert.False(t, partition1.StatTimedOut)
 	assert.True(t, partition2.StatTimedOut)
+}
+
+func TestComponent_StatTimedOut_ConsecutiveFailures(t *testing.T) {
+	ctx := context.Background()
+	mockDevice := disk.BlockDevice{
+		Name: "nfs",
+		Type: "disk",
+	}
+
+	timedOut := true
+	mockNFSPartition := func() disk.Partition {
+		return disk.Partition{
+			Device:       "192.168.1.100:/shared",
+			MountPoint:   "/mnt/nfs",
+			Fstype:       "nfs4",
+			Mounted:      !timedOut,
+			StatTimedOut: timedOut,
+			Usage:        nil,
+		}
+	}
+
+	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
+	defer func() {
+		_ = c.Close()
+	}()
+
+	// Avoid unrelated degradation checks
+	c.freeSpaceThresholdBytesDegraded = 0
+
+	// Provide non-empty NFS configs to ensure NFS partitions are checked
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   "/mnt/nfs",
+				DirName:      ".gpud-nfs-checker",
+				FileContents: "test",
+			},
+		}
+	}
+	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		return disk.BlockDevices{mockDevice}, nil
+	}
+	c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{}, nil
+	}
+	c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		return disk.Partitions{mockNFSPartition()}, nil
+	}
+
+	for i := 0; i < nfsStatTimeoutConsecutiveThreshold-1; i++ {
+		cr := runChecks(c, 1)
+		require.NotNil(t, cr)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+		assert.Equal(t, "ok", cr.reason)
+	}
+
+	cr := runChecks(c, 1)
+	require.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
+	assert.Contains(t, cr.reason, "stat timed out (possible connection issue)")
+	assert.Contains(t, cr.reason, "failed continuously")
+
+	// Reset after a successful check.
+	timedOut = false
+	cr = runChecks(c, 1)
+	require.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "ok", cr.reason)
+
+	// After reset, the next timeout should not be degraded.
+	timedOut = true
+	cr = runChecks(c, 1)
+	require.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "ok", cr.reason)
 }
 
 // TestComponent_StatTimedOut_False_HealthyState tests that the component health state remains healthy when StatTimedOut=false
@@ -2278,24 +2360,20 @@ func TestComponent_StatTimedOut_ReasonMessage(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		mountPoint  string
-		expectedMsg string
+		name       string
+		mountPoint string
 	}{
 		{
-			name:        "short mount point",
-			mountPoint:  "/mnt/nfs",
-			expectedMsg: "/mnt/nfs stat timed out (possible connection issue)",
+			name:       "short mount point",
+			mountPoint: "/mnt/nfs",
 		},
 		{
-			name:        "long mount point",
-			mountPoint:  "/mnt/very/long/path/to/nfs/mount",
-			expectedMsg: "/mnt/very/long/path/to/nfs/mount stat timed out (possible connection issue)",
+			name:       "long mount point",
+			mountPoint: "/mnt/very/long/path/to/nfs/mount",
 		},
 		{
-			name:        "root mount point",
-			mountPoint:  "/",
-			expectedMsg: "/ stat timed out (possible connection issue)",
+			name:       "root mount point",
+			mountPoint: "/",
 		},
 	}
 
@@ -2335,15 +2413,12 @@ func TestComponent_StatTimedOut_ReasonMessage(t *testing.T) {
 				return disk.Partitions{mockNFSPartition}, nil
 			}
 
-			c.Check()
-
-			c.lastMu.RLock()
-			lastCheckResult := c.lastCheckResult
-			c.lastMu.RUnlock()
+			lastCheckResult := runChecks(c, nfsStatTimeoutConsecutiveThreshold)
 
 			assert.NotNil(t, lastCheckResult)
 			assert.Equal(t, apiv1.HealthStateTypeDegraded, lastCheckResult.health)
-			assert.Equal(t, tt.expectedMsg, lastCheckResult.reason)
+			expectedMsg := fmt.Sprintf("%s stat timed out (possible connection issue) has failed continuously for %d checks", tt.mountPoint, nfsStatTimeoutConsecutiveThreshold)
+			assert.Equal(t, expectedMsg, lastCheckResult.reason)
 		})
 	}
 }
@@ -2502,20 +2577,19 @@ func TestComponent_TimeoutScenarios_CompleteFlow(t *testing.T) {
 				return disk.Partitions{partition}, nil
 			}
 
-			// Run the Check method
-			result := c.Check()
-			cr, ok := result.(*checkResult)
-			require.True(t, ok, "result should be checkResult")
+			cr := runChecks(c, nfsStatTimeoutConsecutiveThreshold)
+			require.NotNil(t, cr, "result should be checkResult")
 			require.Len(t, cr.NFSPartitions, 1, "should have one NFS partition")
 
 			nfsPartition := cr.NFSPartitions[0]
 
 			if scenario.expectError {
-				// Verify StatTimedOut is set and health is degraded
+				// Verify StatTimedOut is set and health is degraded after consecutive failures
 				assert.True(t, nfsPartition.StatTimedOut, "StatTimedOut should be true for scenario: %s", scenario.description)
 				assert.False(t, nfsPartition.Mounted, "Mounted should be false when StatTimedOut is true")
 				assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded when StatTimedOut is true")
 				assert.Contains(t, cr.reason, "stat timed out (possible connection issue)", "Reason should mention timeout")
+				assert.Contains(t, cr.reason, "failed continuously", "Reason should mention consecutive failures")
 				assert.Contains(t, cr.reason, "/mnt/nfs-test", "Reason should mention the mount point")
 			} else {
 				// Verify normal operation
@@ -2612,8 +2686,8 @@ func TestComponent_GetPartitionsTimeoutIntegration(t *testing.T) {
 	}
 
 	if hasStatTimedOut {
-		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded when any NFS partition has StatTimedOut")
-		assert.Contains(t, cr.reason, "stat timed out", "Reason should mention timeout")
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should remain healthy until consecutive threshold is reached")
+		assert.Equal(t, "ok", cr.reason, "Reason should remain ok until consecutive threshold is reached")
 	} else {
 		t.Log("No partitions with StatTimedOut found in this test run")
 		// This is expected as the system may not have NFS partitions or timeouts may not occur
@@ -2781,17 +2855,17 @@ func TestComponent_ContextErrorTypes(t *testing.T) {
 				return disk.Partitions{partition}, nil
 			}
 
-			result := c.Check()
-			cr, ok := result.(*checkResult)
-			require.True(t, ok)
+			cr := runChecks(c, nfsStatTimeoutConsecutiveThreshold)
+			require.NotNil(t, cr)
 			require.Len(t, cr.NFSPartitions, 1)
 
 			partition := cr.NFSPartitions[0]
 
 			if tt.expectSet {
 				assert.True(t, partition.StatTimedOut, "StatTimedOut should be true for %s", tt.name)
-				assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded")
+				assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health, "Health should be degraded after consecutive failures")
 				assert.Contains(t, cr.reason, "stat timed out", "Reason should mention timeout")
+				assert.Contains(t, cr.reason, "failed continuously", "Reason should mention consecutive failures")
 			} else {
 				assert.False(t, partition.StatTimedOut, "StatTimedOut should be false for %s", tt.name)
 				assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health, "Health should be healthy")
@@ -4107,14 +4181,15 @@ func TestDiskUsageThresholds(t *testing.T) {
 			return disk.Partitions{mockNFSPartition}, nil
 		}
 
-		result := c.Check()
-		cr := result.(*checkResult)
+		cr := runChecks(c, nfsStatTimeoutConsecutiveThreshold)
+		require.NotNil(t, cr)
 
 		// Should be degraded due to low free space and NFS timeout
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		// Should contain both reasons with free-space threshold messaging
 		assert.Contains(t, cr.reason, "ext4 partition /: free space 4.0 GiB is below 10 GiB threshold")
 		assert.Contains(t, cr.reason, "stat timed out (possible connection issue)")
+		assert.Contains(t, cr.reason, "failed continuously")
 	})
 
 	t.Run("kubernetes_DiskPressure_percentage_threshold_warning", func(t *testing.T) {
