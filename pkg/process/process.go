@@ -271,6 +271,57 @@ func (p *process) startCommand() error {
 	}
 	p.cmd.Env = p.envs
 
+	// Create a new process group for this command and all its children.
+	//
+	// When running shell commands that spawn background processes (e.g., "cmd1 & cmd2 & wait"),
+	// the shell creates child processes that are NOT automatically terminated when we kill the
+	// parent shell. Without process groups:
+	//   1. Go's Process.Signal() only sends signals to the direct child (the shell)
+	//   2. Backgrounded processes (cmd1, cmd2) become orphaned and reparented to PID 1
+	//   3. These orphaned processes continue running indefinitely (process leak)
+	//
+	// With Setpgid=true:
+	//   1. The shell and ALL its children share the same Process Group ID (PGID)
+	//   2. The PGID equals the shell's PID
+	//   3. We can kill the entire group at once using syscall.Kill(-pgid, signal)
+	//
+	// EXAMPLE SCENARIO (fabric-manager log watcher):
+	//   Command: "tail -f /var/log/fabricmanager.log & journalctl -u nvidia-fabricmanager -f & wait"
+	//   Without Setpgid: Killing bash leaves tail and journalctl running forever
+	//   With Setpgid: Killing -PGID terminates bash, tail, AND journalctl together
+	//
+	// NOTE: This is Unix/Linux specific. On Windows, process groups work differently.
+	p.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Set a custom Cancel function to kill the entire process group when context is canceled.
+	// Without this, Go's default context cancellation (exec.CommandContext) only calls
+	// os.Process.Kill() on the parent process, leaving any backgrounded child processes
+	// as orphans (reparented to PID 1) that continue running indefinitely.
+	//
+	// By killing the negative PGID (-pgid), we send SIGKILL to ALL processes in the group,
+	// ensuring consistent cleanup behavior with the Close() method.
+	//
+	// DESIGN NOTE: We intentionally use SIGKILL (immediate termination) rather than
+	// SIGTERM (graceful shutdown) here. This is appropriate for gpud's use cases like
+	// the fabric-manager log watcher (tail -f, journalctl -f) which don't need cleanup time.
+	//
+	// If graceful shutdown is needed in the future, consider:
+	//   1. Send SIGTERM first, wait briefly (e.g., 500ms), then SIGKILL
+	//   2. Or add a configurable grace period option (WithGracefulShutdownTimeout)
+	//   3. Or move signal sending to Close() only (before calling p.cancel())
+	p.cmd.Cancel = func() error {
+		if p.cmd.Process == nil {
+			return nil
+		}
+		pgid := p.cmd.Process.Pid
+		// Use SIGKILL for context cancellation since we want immediate termination.
+		// ESRCH ("no such process") is expected if the group already exited.
+		if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+			return err
+		}
+		return nil
+	}
+
 	switch {
 	case p.outputFile != nil:
 		p.cmd.Stdout = p.outputFile
@@ -322,6 +373,24 @@ func (p *process) StartAndWaitForCombinedOutput(ctx context.Context) ([]byte, er
 		p.cmd.Stdin = p.getStdinBytesReader()
 	}
 	p.cmd.Env = p.envs
+
+	// Use process groups for consistent behavior with Start().
+	// See detailed comments in startCommand() for why this is necessary.
+	p.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Kill the entire process group when context is canceled.
+	// See startCommand() for detailed comments on why we use SIGKILL (immediate termination)
+	// rather than SIGTERM (graceful shutdown) - this is intentional for gpud's use cases.
+	p.cmd.Cancel = func() error {
+		if p.cmd.Process == nil {
+			return nil
+		}
+		pgid := p.cmd.Process.Pid
+		if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+			return err
+		}
+		return nil
+	}
 
 	// ref. "os/exec" "CombinedOutput"
 	b := bytes.NewBuffer(nil)
@@ -458,23 +527,69 @@ func (p *process) Close(ctx context.Context) error {
 		return errors.New("process not started")
 	}
 
+	// Cancel the context first. This triggers cmd.Cancel() which sends SIGKILL to the
+	// process group. We also send SIGTERM below for completeness, but note that due to
+	// the race between these two signals, graceful shutdown is not guaranteed.
+	//
+	// DESIGN NOTE: For gpud's use cases (tail -f, journalctl -f log watchers), immediate
+	// termination is acceptable. If graceful shutdown becomes needed, the fix is to:
+	//   1. Send SIGTERM first (before p.cancel())
+	//   2. Wait for process exit or timeout
+	//   3. Then call p.cancel() as a fallback
 	p.cancel()
 
 	if p.cmd.Process != nil {
+		// Kill the entire process group, not just the parent process.
+		//
+		// WHY WE USE NEGATIVE PID:
+		// When we set Setpgid=true in startCommand(), the process and all its children
+		// share the same Process Group ID (PGID), which equals the parent's PID.
+		// Using syscall.Kill with a NEGATIVE pid sends the signal to every process
+		// in that group:
+		//   - syscall.Kill(pid, signal)  -> kills only the process with that PID
+		//   - syscall.Kill(-pid, signal) -> kills ALL processes in the group with PGID=pid
+		//
+		// WHY THIS MATTERS:
+		// Consider a command like: "tail -f file & journalctl -f & wait"
+		//   - Parent bash shell (PID=1000, PGID=1000)
+		//   - Child tail process (PID=1001, PGID=1000)  <- same group!
+		//   - Child journalctl process (PID=1002, PGID=1000)  <- same group!
+		//
+		// Without negative PID: Only bash (1000) receives SIGTERM
+		//   -> tail and journalctl become orphans, reparented to init (PID 1)
+		//   -> They keep running forever (PROCESS LEAK!)
+		//
+		// With negative PID: syscall.Kill(-1000, SIGTERM) sends to ALL three processes
+		//   -> bash, tail, AND journalctl all receive SIGTERM
+		//   -> Clean shutdown with no orphaned processes
+		//
+		// NOTE: If the process group no longer exists (already exited), Kill returns
+		// ESRCH ("no such process") which we handle gracefully.
+		pgid := p.cmd.Process.Pid
 		finished := false
-		if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			if err.Error() == "os: process already finished" {
+		if err := syscall.Kill(-pgid, syscall.SIGTERM); err != nil {
+			if err == syscall.ESRCH {
+				// ESRCH means "no such process" - the process group already exited
 				finished = true
 			} else {
-				log.Logger.Warnw("failed to send SIGTERM to process", "error", err)
+				log.Logger.Warnw("failed to send SIGTERM to process group", "pgid", pgid, "error", err)
 			}
 		}
 		if !finished {
+			// NOTE: Since we called p.cancel() above, p.ctx.Done() will fire immediately.
+			// This means the 3-second timeout is effectively bypassed - SIGKILL was already
+			// sent via cmd.Cancel(). This select exists for the edge case where cmd.Cancel
+			// fails or isn't set, providing a fallback SIGKILL after 3 seconds.
 			select {
 			case <-p.ctx.Done():
+				// Context already canceled - cmd.Cancel() should have sent SIGKILL
 			case <-time.After(3 * time.Second):
-				if err := p.cmd.Process.Kill(); err != nil {
-					log.Logger.Warnw("failed to send SIGKILL to process", "error", err)
+				// Fallback: force kill if still running after 3 seconds
+				if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil {
+					// Don't warn on ESRCH - process may have exited between SIGTERM and SIGKILL
+					if err != syscall.ESRCH {
+						log.Logger.Warnw("failed to send SIGKILL to process group", "pgid", pgid, "error", err)
+					}
 				}
 			}
 		}

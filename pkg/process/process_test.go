@@ -3,7 +3,6 @@ package process
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,43 +18,29 @@ func TestProcess(t *testing.T) {
 	p, err := New(
 		WithCommand("echo", "hello"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 	t.Logf("pid: %d", p.PID())
 
 	// redunant start is ok
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 
-	if err := Read(
+	require.NoError(t, Read(
 		ctx,
 		p,
 		WithReadStdout(),
 		WithProcessLine(func(line string) {
 			t.Logf("stdout: %q", line)
 		}),
-	); err != nil {
-		t.Fatal(err)
-	}
+	))
 
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if !p.Closed() {
-		t.Fatal("process is not aborted")
-	}
+	require.NoError(t, p.Close(ctx))
+	require.NoError(t, p.Close(ctx))
+	require.True(t, p.Closed(), "process is not aborted")
 }
 
 func TestProcessRunBashScriptContents(t *testing.T) {
@@ -68,22 +53,18 @@ set -o pipefail
 echo "hello"
 `),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 	t.Logf("pid: %d", p.PID())
 
 	b, err := io.ReadAll(p.StderrReader())
 	if err != nil {
 		if !strings.Contains(err.Error(), "file already closed") {
-			t.Fatal(err)
+			require.NoError(t, err)
 		}
 	}
 	t.Logf("stderr: %q", string(b))
@@ -91,47 +72,33 @@ echo "hello"
 	b, err = io.ReadAll(p.StdoutReader())
 	if err != nil {
 		if !strings.Contains(err.Error(), "file already closed") {
-			t.Fatal(err)
+			require.NoError(t, err)
 		}
 	}
 	t.Logf("stdout: %q", string(b))
 
 	select {
 	case err := <-p.Wait():
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout")
+		require.FailNow(t, "timeout")
 	}
 
 	proc, _ := p.(*process)
-	if proc.Closed() {
-		t.Fatal("process is closed")
-	}
+	require.False(t, proc.Closed(), "process is closed")
 	bashFile := proc.runBashFile.Name()
-	if bashFile == "" {
-		t.Fatal("bash file is not created")
-	}
+	require.NotEmpty(t, bashFile, "bash file is not created")
 
-	if _, err := os.Stat(bashFile); err != nil {
-		t.Fatal(err)
-	}
+	_, err = os.Stat(bashFile)
+	require.NoError(t, err)
 
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Close(ctx))
 	// redunant abort is ok
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Close(ctx))
 
-	if !proc.Closed() {
-		t.Fatal("process is not closed")
-	}
-	if _, err := os.Stat(bashFile); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal(err)
-	}
+	require.True(t, proc.Closed(), "process is not closed")
+	_, err = os.Stat(bashFile)
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestProcessWithBash(t *testing.T) {
@@ -140,38 +107,28 @@ func TestProcessWithBash(t *testing.T) {
 		WithCommand("echo hello && echo 111 | grep 1"),
 		WithRunAsBashScript(),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 	t.Logf("pid: %d", p.PID())
 
 	select {
 	case err := <-p.Wait():
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout")
+		require.FailNow(t, "timeout")
 	}
 
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Close(ctx))
 }
 
 func TestProcessWithTempFile(t *testing.T) {
 	// create a temporary file
 	tmpFile, err := os.CreateTemp("", "process-test-*.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer func() {
 		_ = os.Remove(tmpFile.Name())
 	}()
@@ -183,41 +140,29 @@ func TestProcessWithTempFile(t *testing.T) {
 		WithCommand("echo", "hello"),
 		WithOutputFile(tmpFile),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 	t.Logf("pid: %d", p.PID())
 
 	select {
 	case err := <-p.Wait():
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout")
+		require.FailNow(t, "timeout")
 	}
 
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Close(ctx))
 
 	// Verify the content of the temporary file
 	content, err := os.ReadFile(tmpFile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	expectedContent := "hello\n"
-	if string(content) != expectedContent {
-		t.Fatalf("Expected content %q, but got %q", expectedContent, string(content))
-	}
+	require.Equal(t, expectedContent, string(content))
 }
 
 func TestProcessWithStdoutReader(t *testing.T) {
@@ -225,42 +170,30 @@ func TestProcessWithStdoutReader(t *testing.T) {
 		WithCommand("echo hello && sleep 1000"),
 		WithRunAsBashScript(),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 	t.Logf("pid: %d", p.PID())
 
 	select {
 	case err := <-p.Wait():
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	case <-time.After(time.Second):
 	}
 
 	rd := p.StdoutReader()
 	buf := make([]byte, 1024)
 	n, err := rd.Read(buf)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	output := string(buf[:n])
 	expectedOutput := "hello\n"
-	if output != expectedOutput {
-		t.Fatalf("expected output %q, but got %q", expectedOutput, output)
-	}
+	require.Equal(t, expectedOutput, output)
 	t.Logf("stdout: %q", output)
 
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Close(ctx))
 }
 
 func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
@@ -270,16 +203,12 @@ func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
 		WithCommand("echo hello 3 && sleep 1"),
 		WithRunAsBashScript(),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 	t.Logf("pid: %d", p.PID())
 
 	rd := p.StdoutReader()
@@ -289,24 +218,18 @@ func TestProcessWithStdoutReaderUntilEOF(t *testing.T) {
 		output += scanner.Text() + "\n"
 	}
 	expectedOutput := "hello 1\nhello 2\nhello 3\n"
-	if output != expectedOutput {
-		t.Fatalf("expected output %q, but got %q", expectedOutput, output)
-	}
+	require.Equal(t, expectedOutput, output)
 	t.Logf("stdout: %q", output)
 
 	select {
 	case err := <-p.Wait():
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	case <-time.After(time.Second):
 	}
 
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Close(ctx))
 	if scanner.Err() != nil && !strings.Contains(scanner.Err().Error(), "file already closed") {
-		t.Fatal(scanner.Err())
+		require.NoError(t, scanner.Err())
 	}
 }
 
@@ -321,68 +244,52 @@ func TestProcessWithRestarts(t *testing.T) {
 			Interval: 100 * time.Millisecond,
 		}),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 	t.Logf("pid: %d", p.PID())
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case err := <-p.Wait():
-			if err == nil {
-				t.Fatal("expected error")
-			}
+			require.Error(t, err, "expected error")
 			if strings.Contains(err.Error(), "exit status 1") {
 				t.Log(err)
 				continue
 			}
-			t.Fatal(err)
+			require.NoError(t, err)
 
 		case <-time.After(2 * time.Second):
-			t.Fatal("timeout")
+			require.FailNow(t, "timeout")
 		}
 	}
 
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Close(ctx))
 }
 
 func TestProcessSleep(t *testing.T) {
 	p, err := New(
 		WithCommand("sleep", "99999"),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 	t.Logf("pid: %d", p.PID())
 
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Close(ctx))
 
 	select {
 	case err := <-p.Wait():
-		if err == nil {
-			t.Fatal("expected error")
-		}
+		require.Error(t, err, "expected error")
 		t.Log(err)
 	case <-time.After(3 * time.Second):
-		t.Fatal("timeout")
+		require.FailNow(t, "timeout")
 	}
 }
 
@@ -390,42 +297,32 @@ func TestProcessStream(t *testing.T) {
 	opts := []OpOption{
 		WithRunAsBashScript(),
 	}
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		opts = append(opts, WithCommand(fmt.Sprintf("echo hello %d && sleep 1", i)))
 	}
 
 	p, err := New(opts...)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := p.Start(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Start(ctx))
 	t.Logf("pid: %d", p.PID())
 
 	rd := p.StdoutReader()
 	buf := make([]byte, 1024)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		n, err := rd.Read(buf)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		output := string(buf[:n])
 		expectedOutput := fmt.Sprintf("hello %d\n", i)
-		if output != expectedOutput {
-			t.Fatalf("expected output %q, but got %q", expectedOutput, output)
-		}
+		require.Equal(t, expectedOutput, output)
 		t.Logf("stdout: %q", output)
 	}
 
-	if err := p.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Close(ctx))
 }
 
 func TestStartAndWaitForCombinedOutput(t *testing.T) {
@@ -472,28 +369,19 @@ func TestStartAndWaitForCombinedOutput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			args := append([]string{tt.command[0]}, tt.command[1:]...)
 			p, err := New(WithCommand(args...))
-			if err != nil {
-				t.Fatalf("failed to create process: %v", err)
-			}
+			require.NoError(t, err, "failed to create process")
 
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			out, err := p.StartAndWaitForCombinedOutput(ctx)
 			cancel()
 			if tt.expectError {
-				if err == nil {
-					t.Error("expected error but got nil")
-				} else if !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("expected error containing %q but got %q", tt.errorContains, err.Error())
-				}
+				require.Error(t, err, "expected error but got nil")
+				require.Contains(t, err.Error(), tt.errorContains)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoError(t, err, "unexpected error")
 
-			if string(out) != tt.expectedOut {
-				t.Errorf("expected output %q but got %q", tt.expectedOut, string(out))
-			}
+			require.Equal(t, tt.expectedOut, string(out))
 		})
 	}
 }
@@ -507,41 +395,29 @@ func TestStartAndWaitForCombinedOutputLongRunning(t *testing.T) {
 		done
 	`
 	p, err := New(WithBashScriptContentsToRun(script))
-	if err != nil {
-		t.Fatalf("failed to create process: %v", err)
-	}
+	require.NoError(t, err, "failed to create process")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	out, err := p.StartAndWaitForCombinedOutput(ctx)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err, "unexpected error")
 
 	expected := "Line 1\nLine 2\nLine 3\n"
-	if string(out) != expected {
-		t.Errorf("expected output %q but got %q", expected, string(out))
-	}
+	require.Equal(t, expected, string(out))
 }
 
 func TestStartAndWaitForCombinedOutputAlreadyStarted(t *testing.T) {
 	p, err := New(WithCommand("echo", "hello"))
-	if err != nil {
-		t.Fatalf("failed to create process: %v", err)
-	}
+	require.NoError(t, err, "failed to create process")
 
 	// Start the process first
 	ctx := context.Background()
-	if err := p.Start(ctx); err != nil {
-		t.Fatalf("failed to start process: %v", err)
-	}
+	require.NoError(t, p.Start(ctx), "failed to start process")
 
 	// Try to call StartAndWaitForCombinedOutput after process is already started
 	_, err = p.StartAndWaitForCombinedOutput(ctx)
-	if err != ErrProcessAlreadyStarted {
-		t.Errorf("expected ErrProcessAlreadyStarted but got %v", err)
-	}
+	require.Equal(t, ErrProcessAlreadyStarted, err)
 }
 
 func TestStartAndWaitForCombinedOutputWithStartNonZeroExitCode(t *testing.T) {
@@ -583,39 +459,27 @@ func TestStartAndWaitForCombinedOutputWithLongOutput(t *testing.T) {
 	p, err := New(
 		WithBashScriptContentsToRun(command),
 	)
-	if err != nil {
-		t.Fatalf("failed to create process: %v", err)
-	}
+	require.NoError(t, err, "failed to create process")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	out, err := p.StartAndWaitForCombinedOutput(ctx)
 	cancel()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err, "unexpected error")
 
 	// Verify output contains expected number of lines
 	lines := strings.Split(string(out), "\n")
 	// -1 because Split includes an empty string after the last newline
-	if len(lines)-1 != 1000 {
-		t.Errorf("expected 1000 lines but got %d", len(lines)-1)
-	}
+	require.Equal(t, 1000, len(lines)-1, "expected 1000 lines")
 
 	// Verify some random lines
-	if !strings.Contains(string(out), "Line 1") {
-		t.Error("output missing Line 1")
-	}
-	if !strings.Contains(string(out), "Line 1000") {
-		t.Error("output missing Line 1000")
-	}
+	require.Contains(t, string(out), "Line 1", "output missing Line 1")
+	require.Contains(t, string(out), "Line 1000", "output missing Line 1000")
 }
 
 func TestProcessWithBashScriptTmpDirAndPattern(t *testing.T) {
 	// Create a temporary directory for the test
 	tmpDir, err := os.MkdirTemp("", "process-test-bash-*")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// Only remove if the directory still exists
 	defer func() {
 		if _, err := os.Stat(tmpDir); err == nil {
@@ -651,58 +515,40 @@ func TestProcessWithBashScriptTmpDirAndPattern(t *testing.T) {
 				WithBashScriptTmpDirectory(tmpDir),
 				WithBashScriptFilePattern(tt.pattern),
 			)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			if err := p.Start(ctx); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, p.Start(ctx))
 
 			// Get the process instance to access the bash file
 			proc, ok := p.(*process)
-			if !ok {
-				t.Fatal("failed to cast to *process")
-			}
+			require.True(t, ok, "failed to cast to *process")
 
 			// Verify the bash file exists and matches the pattern
 			bashFile := proc.runBashFile.Name()
-			if bashFile == "" {
-				t.Fatal("bash file is not created")
-			}
+			require.NotEmpty(t, bashFile, "bash file is not created")
 
 			// Check if the file is in the specified directory
-			if !strings.HasPrefix(bashFile, tmpDir) {
-				t.Errorf("expected bash file to be in directory %q, got %q", tmpDir, bashFile)
-			}
+			require.True(t, strings.HasPrefix(bashFile, tmpDir), "expected bash file to be in directory %q, got %q", tmpDir, bashFile)
 
 			// Check if the file matches the pattern
 			base := filepath.Base(bashFile)
 			matched, err := filepath.Match(strings.ReplaceAll(tt.expectedMatch, "*", "*"), base)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !matched {
-				t.Errorf("expected bash file to match pattern %q, got %q", tt.expectedMatch, base)
-			}
+			require.NoError(t, err)
+			require.True(t, matched, "expected bash file to match pattern %q, got %q", tt.expectedMatch, base)
 
 			// Verify the file exists on disk
-			if _, err := os.Stat(bashFile); err != nil {
-				t.Fatal(err)
-			}
+			_, err = os.Stat(bashFile)
+			require.NoError(t, err)
 
 			// Clean up
-			if err := p.Close(ctx); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, p.Close(ctx))
 
 			// Verify the file is removed after Close
-			if _, err := os.Stat(bashFile); !errors.Is(err, os.ErrNotExist) {
-				t.Fatal("bash file was not removed after Close")
-			}
+			_, err = os.Stat(bashFile)
+			require.ErrorIs(t, err, os.ErrNotExist, "bash file was not removed after Close")
 		})
 	}
 }
