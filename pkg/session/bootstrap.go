@@ -4,22 +4,24 @@ import (
 	"context"
 	"encoding/base64"
 	"time"
+
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 // processBootstrap handles bootstrap script execution.
 //
-// IMPORTANT: Bootstrap scripts commonly end with backgrounded commands like:
+// Uses WithAllowDetachedProcess(true) to allow backgrounded commands (using "&")
+// to continue running after the script exits. This is critical for bootstrap
+// scripts that use patterns like:
 //
 //	sleep 10 && systemctl restart gpud &
 //
-// This pattern allows the script to exit immediately while scheduling a delayed
-// restart of gpud. The processRunner.RunUntilCompletion() method is configured
-// with a grace period (WithWaitForDetach) to ensure these backgrounded commands
-// are not killed when the script exits and Close() is called.
-//
-// Without the grace period, the backgrounded "sleep 10 && systemctl restart gpud"
-// would be killed immediately when the parent bash script exits, preventing the
-// scheduled restart from occurring.
+// Without WithAllowDetachedProcess(true):
+// - The "&" does not take effect - backgrounded processes are killed on Close()
+// - gpud_init.sh waits 10s and restarts instead of returning instantly
+// - Control plane thinks bootstrap failed (script didn't return quickly)
+// - Control plane sends gpud_init.sh again
+// - This causes gpud to restart repeatedly in a loop
 func (s *Session) processBootstrap(ctx context.Context, payload Request, response *Response) {
 	if payload.Bootstrap == nil {
 		return
@@ -36,11 +38,11 @@ func (s *Session) processBootstrap(ctx context.Context, payload Request, respons
 		timeout = 10 * time.Second
 	}
 
-	// RunUntilCompletion uses WithWaitForDetach(2*time.Minute) internally to handle
-	// backgrounded commands like "sleep 10 && systemctl restart gpud &".
-	// See runner_exclusive.go for the implementation.
 	cctx, cancel := context.WithTimeout(ctx, timeout)
-	output, exitCode, err := s.processRunner.RunUntilCompletion(cctx, string(script))
+	// WithAllowDetachedProcess(true) allows "sleep 10 && systemctl restart gpud &" to detach.
+	// Without this, the backgrounded command is killed, causing the script to block for 10s
+	// instead of returning immediately, making control plane think bootstrap failed.
+	output, exitCode, err := s.processRunner.RunUntilCompletion(cctx, string(script), process.WithAllowDetachedProcess(true))
 	cancel()
 	response.Bootstrap = &BootstrapResponse{
 		Output:   string(output),

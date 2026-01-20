@@ -601,19 +601,21 @@ fi
 	assert.Error(t, err)
 }
 
-// TestRunCommandWithBackgroundProcessKilledWithoutGracePeriod demonstrates what
-// happens when a process package is used WITHOUT the grace period option.
+// TestRunCommandWithBackgroundProcessKilledByDefault demonstrates the default
+// process behavior (Setpgid=true) where backgrounded processes get killed when
+// the parent exits and Close() is called.
 //
 // This test simulates the real-world scenario where package scripts end with:
 //
 //	sleep 10 && systemctl restart gpud &
 //
-// Without grace period handling, the backgrounded command would be killed when the
-// parent script exits and Close() is called.
+// Without WithAllowDetachedProcess(true), the backgrounded command would be killed
+// when the parent script exits and Close() is called (because Setpgid creates a
+// process group that gets killed together).
 //
-// NOTE: This test uses the process package directly (without WithWaitForDetach)
-// to demonstrate the bug that runCommand's default grace period prevents.
-func TestRunCommandWithBackgroundProcessKilledWithoutGracePeriod(t *testing.T) {
+// NOTE: This test uses the process package directly (without WithAllowDetachedProcess)
+// to demonstrate the default safe behavior that runCommand overrides.
+func TestRunCommandWithBackgroundProcessKilledByDefault(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping process group test in CI environment")
 	}
@@ -659,12 +661,12 @@ fi
 	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
 	require.NoError(t, err)
 
-	// Run the command WITHOUT grace period using process package directly
-	// (NOT using runCommand which now has default grace period)
-	// This demonstrates what would happen without the fix.
+	// Run the command WITHOUT WithAllowDetachedProcess (default behavior)
+	// This demonstrates the default safe behavior (Setpgid=true, kills process group).
+	// runCommand uses WithAllowDetachedProcess(true) to override this.
 	p, err := process.New(
 		process.WithCommand("bash", scriptPath, "install"),
-		// NOTE: No WithWaitForDetach - this demonstrates the bug
+		// NOTE: No WithAllowDetachedProcess - uses default (Setpgid=true)
 	)
 	require.NoError(t, err)
 
@@ -680,7 +682,7 @@ fi
 		t.Fatal("Timeout waiting for script to exit")
 	}
 
-	// Close without grace period - kills the process group immediately
+	// Close with default behavior - kills the process group immediately
 	err = p.Close(ctx)
 	require.NoError(t, err)
 
@@ -688,26 +690,26 @@ fi
 	time.Sleep(2 * time.Second)
 
 	// Check if marker file was created
-	// WITHOUT grace period, the marker file should NOT exist
-	// because the backgrounded process was killed
+	// WITHOUT WithAllowDetachedProcess, the marker file should NOT exist
+	// because the backgrounded process was killed (Setpgid kills entire group)
 	_, statErr := os.Stat(markerFile)
 	require.True(t, os.IsNotExist(statErr),
-		"BUG DEMONSTRATED: Without grace period, background process is killed. "+
-			"This is why runCommand now uses defaultWaitForDetach.")
-	t.Log("BUG DEMONSTRATED: Without grace period, background process was killed")
-	t.Log("This is why runCommand now uses defaultWaitForDetach (2 minutes)")
+		"DEFAULT BEHAVIOR: Without WithAllowDetachedProcess, background process is killed. "+
+			"This is why runCommand uses WithAllowDetachedProcess(true).")
+	t.Log("DEFAULT BEHAVIOR: Background process was killed (Setpgid=true)")
+	t.Log("This is why runCommand uses WithAllowDetachedProcess(true)")
 }
 
-// TestRunCommandWithDefaultGracePeriod demonstrates that runCommand now works
-// correctly with backgrounded processes because it uses defaultWaitForDetach.
+// TestRunCommandWithAllowDetachedProcess demonstrates that runCommand now works
+// correctly with backgrounded processes because it uses WithAllowDetachedProcess(true).
 //
 // This test simulates the real-world scenario where package scripts end with:
 //
 //	sleep 10 && systemctl restart gpud &
 //
-// With the default grace period in runCommand, the backgrounded command is
-// allowed to complete.
-func TestRunCommandWithDefaultGracePeriod(t *testing.T) {
+// With WithAllowDetachedProcess(true) in runCommand, the backgrounded command is
+// allowed to continue as an orphan process.
+func TestRunCommandWithAllowDetachedProcess(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping process group test in CI environment")
 	}
@@ -742,33 +744,34 @@ fi
 	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
 	require.NoError(t, err)
 
-	// Run using runCommand which now has defaultWaitForDetach (2 minutes)
-	// The backgrounded process should be allowed to complete
-	t.Log("Running script with runCommand (uses defaultWaitForDetach)...")
+	// Run using runCommand which now uses WithAllowDetachedProcess(true)
+	// The backgrounded process should be allowed to continue as an orphan
+	t.Log("Running script with runCommand (uses WithAllowDetachedProcess(true))...")
 	err = runCommand(context.Background(), scriptPath, "install", nil)
 	require.NoError(t, err)
 
-	// Note: runCommand's Close() will wait up to 2 minutes for background processes
-	// In this test, the background process only takes ~1 second, so it should
-	// complete quickly within the grace period.
+	// Note: runCommand uses WithAllowDetachedProcess(true), so backgrounded processes
+	// become orphans and continue running after the parent exits.
+	// Wait for the backgrounded process to complete
+	time.Sleep(2 * time.Second)
 
 	// Check if marker file was created
-	// WITH default grace period, the marker file SHOULD exist
+	// WITH WithAllowDetachedProcess(true), the marker file SHOULD exist
 	_, statErr := os.Stat(markerFile)
 	require.NoError(t, statErr,
-		"FIX CONFIRMED: With defaultWaitForDetach, background process completed. "+
+		"FIX CONFIRMED: With WithAllowDetachedProcess(true), background process completed. "+
 			"runCommand now correctly handles 'sleep N && systemctl restart gpud &' patterns.")
-	t.Log("FIX CONFIRMED: Background process completed with defaultWaitForDetach")
+	t.Log("FIX CONFIRMED: Background process completed with WithAllowDetachedProcess(true)")
 	t.Log("runCommand now correctly handles 'sleep N && systemctl restart gpud &' patterns")
 }
 
-// TestRunCommandWithBackgroundProcessCompletesWithGracePeriod demonstrates the fix.
-// When using WithWaitForDetach, the backgrounded process is allowed to complete.
+// TestRunCommandWithBackgroundProcessCompletesDirectly demonstrates the fix.
+// When using WithAllowDetachedProcess(true), the backgrounded process is allowed
+// to continue as an orphan and complete.
 //
-// This test uses the process package directly with WithWaitForDetach to show
-// how the fix works. To properly fix runCommand, it would need to accept
-// a grace period parameter.
-func TestRunCommandWithBackgroundProcessCompletesWithGracePeriod(t *testing.T) {
+// This test uses the process package directly with WithAllowDetachedProcess(true)
+// to show how the fix works.
+func TestRunCommandWithBackgroundProcessCompletesDirectly(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping process group test in CI environment")
 	}
@@ -800,11 +803,11 @@ fi
 	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
 	require.NoError(t, err)
 
-	// Run the command WITH grace period using the process package directly
+	// Run the command WITH WithAllowDetachedProcess(true) using the process package directly
 	// This demonstrates how the fix works
 	p, err := process.New(
 		process.WithCommand("bash", scriptPath, "install"),
-		process.WithWaitForDetach(3*time.Second), // Grace period to allow background process to complete
+		process.WithAllowDetachedProcess(true), // Allow background process to become orphan
 	)
 	require.NoError(t, err)
 
@@ -820,19 +823,20 @@ fi
 		t.Fatal("Timeout waiting for script to exit")
 	}
 
-	// Close with grace period - this will wait for the background process
-	t.Log("Calling Close() - will wait for grace period...")
-	start := time.Now()
+	// Close - with WithAllowDetachedProcess(true), only kills direct child
+	// Background process continues as orphan
+	t.Log("Calling Close() - only kills direct child, background continues...")
 	err = p.Close(ctx)
 	require.NoError(t, err)
-	elapsed := time.Since(start)
-	t.Logf("Close() returned after %v", elapsed)
+
+	// Wait for the backgrounded process to complete (sleep 1 + buffer)
+	time.Sleep(2 * time.Second)
 
 	// Check if marker file was created
-	// WITH grace period, the marker file SHOULD exist
+	// WITH WithAllowDetachedProcess(true), the marker file SHOULD exist
 	_, statErr := os.Stat(markerFile)
 	require.NoError(t, statErr,
-		"FIX CONFIRMED: With grace period, marker file SHOULD exist. "+
-			"The backgrounded process was allowed to complete.")
+		"FIX CONFIRMED: With WithAllowDetachedProcess(true), marker file SHOULD exist. "+
+			"The backgrounded process was allowed to complete as orphan.")
 	t.Log("FIX CONFIRMED: Background process completed (marker file created)")
 }

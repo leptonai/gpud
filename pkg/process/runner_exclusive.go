@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -29,7 +28,9 @@ var defaultScriptsDir = filepath.Join(os.TempDir(), "gpud-scripts-runner")
 // RunUntilCompletion starts a bash script, blocks until it finishes,
 // and returns the output and the exit code.
 // If there is already a process running, it returns an error.
-func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string) ([]byte, int32, error) {
+// Optional OpOption arguments can be passed to customize process behavior
+// (e.g., WithAllowDetachedProcess(true) for scripts with backgrounded commands).
+func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string, opts ...OpOption) ([]byte, int32, error) {
 	if er.alreadyRunning() {
 		return nil, 0, ErrProcessAlreadyRunning
 	}
@@ -49,16 +50,14 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 		_ = tmpFile.Close()
 	}()
 
-	// Use a grace period to handle backgrounded commands in bootstrap scripts.
-	// Bootstrap scripts commonly end with patterns like:
-	//   sleep 10 && systemctl restart gpud &
-	// This allows the script to exit immediately while scheduling a delayed restart.
-	// Without the grace period, Close() would kill the backgrounded command.
-	p, err := New(
+	// Build options: base options + caller-provided options
+	baseOpts := []OpOption{
 		WithBashScriptContentsToRun(script),
 		WithOutputFile(tmpFile),
-		WithWaitForDetach(2*time.Minute),
-	)
+	}
+	allOpts := append(baseOpts, opts...)
+
+	p, err := New(allOpts...)
 	if err != nil {
 		return nil, 0, err
 	}
