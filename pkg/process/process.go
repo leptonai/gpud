@@ -30,6 +30,23 @@ type Process interface {
 
 	// Closes the process (aborts if still running) and waits for it to exit.
 	// Cleans up the process resources.
+	//
+	// CLOSE/CANCEL SEMANTICS WITH GRACE PERIOD:
+	// If the process was created with WithWaitForDetach, Close() will wait for the
+	// specified grace period before sending kill signals to the process group. This
+	// allows backgrounded processes (e.g., "sleep 10 && systemctl restart gpud &")
+	// to complete naturally before cleanup.
+	//
+	// During the grace period:
+	//   - Periodically checks if the process group has exited (every 100ms)
+	//   - Returns early if all processes exit before the grace period expires
+	//   - Respects context cancellation (ctx.Done()) to abort the wait early
+	//   - Only sends kill signals if processes are still running after the grace period
+	//
+	// Without WithWaitForDetach (default):
+	//   - Immediately cancels the process context (triggers cmd.Cancel() -> SIGKILL)
+	//   - Sends SIGTERM to the process group
+	//   - Falls back to SIGKILL after 3 seconds if needed
 	Close(ctx context.Context) error
 	// Returns true if the process is closed.
 	Closed() bool
@@ -112,6 +129,11 @@ type process struct {
 
 	// input bytes to feed to the command's stdin
 	getStdinBytesReader func() *bytes.Reader
+
+	// waitForDetach is a grace period to wait in Close() before killing the process group.
+	// This allows backgrounded commands like "sleep 10 && systemctl restart gpud &" to complete.
+	// See WithWaitForDetach for detailed documentation.
+	waitForDetach time.Duration
 }
 
 func New(opts ...OpOption) (Process, error) {
@@ -192,6 +214,8 @@ func New(opts ...OpOption) (Process, error) {
 		outputFile:  op.outputFile,
 
 		restartConfig: op.restartConfig,
+
+		waitForDetach: op.waitForDetach,
 	}
 
 	if op.runAsBashScript && op.runBashInline {
@@ -527,7 +551,66 @@ func (p *process) Close(ctx context.Context) error {
 		return errors.New("process not started")
 	}
 
-	// Cancel the context first. This triggers cmd.Cancel() which sends SIGKILL to the
+	// GRACE PERIOD FOR BACKGROUNDED PROCESSES:
+	// If waitForDetach is set, wait for the specified duration before sending any
+	// kill signals. This is essential for commands that spawn background processes
+	// intended to outlive the parent shell.
+	//
+	// USE CASE: Deployment scripts often end with:
+	//
+	//   sleep 10 && systemctl restart gpud &
+	//
+	// Here, bash backgrounds the command and exits immediately. Without a grace period,
+	// Close() would immediately send SIGKILL to the entire process group (including
+	// the backgrounded "sleep 10 && systemctl restart gpud"), preventing the delayed
+	// restart from occurring.
+	//
+	// With waitForDetach, we:
+	//   1. Wait for the grace period for all processes in the group to complete naturally
+	//   2. Periodically check if the process group still exists (using kill -0)
+	//   3. If the group exits within the grace period, skip sending kill signals
+	//   4. If still running after the grace period, proceed with normal kill sequence
+	//
+	// This allows backgrounded processes like delayed restarts to complete, while
+	// still providing cleanup for processes that don't exit on their own.
+	processGroupGone := false
+	if p.waitForDetach > 0 && p.cmd.Process != nil {
+		pgid := p.cmd.Process.Pid
+		log.Logger.Debugw("waiting for detached processes to complete",
+			"pgid", pgid,
+			"gracePeriod", p.waitForDetach,
+		)
+
+		// Check periodically if the process group has exited.
+		// Using kill(pgid, 0) to check existence without sending a signal.
+		checkInterval := 100 * time.Millisecond
+		deadline := time.Now().Add(p.waitForDetach)
+
+	gracePeriodLoop:
+		for time.Now().Before(deadline) {
+			if err := syscall.Kill(-pgid, 0); err == syscall.ESRCH {
+				// ESRCH means "no such process" - the process group has exited
+				log.Logger.Debugw("process group exited within grace period", "pgid", pgid)
+				processGroupGone = true
+				break gracePeriodLoop
+			}
+			// Process group still exists, wait before checking again
+			select {
+			case <-ctx.Done():
+				// Context canceled during grace period, proceed to kill
+				log.Logger.Infow("context canceled during grace period, proceeding to kill", "pgid", pgid)
+				break gracePeriodLoop
+			case <-time.After(checkInterval):
+				// Continue checking
+			}
+		}
+
+		if !processGroupGone {
+			log.Logger.Debugw("grace period expired, proceeding to kill process group", "pgid", pgid)
+		}
+	}
+
+	// Cancel the context. This triggers cmd.Cancel() which sends SIGKILL to the
 	// process group. We also send SIGTERM below for completeness, but note that due to
 	// the race between these two signals, graceful shutdown is not guaranteed.
 	//
@@ -538,7 +621,7 @@ func (p *process) Close(ctx context.Context) error {
 	//   3. Then call p.cancel() as a fallback
 	p.cancel()
 
-	if p.cmd.Process != nil {
+	if p.cmd.Process != nil && !processGroupGone {
 		// Kill the entire process group, not just the parent process.
 		//
 		// WHY WE USE NEGATIVE PID:

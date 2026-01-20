@@ -338,8 +338,40 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 	}
 }
 
+// defaultWaitForDetach is the grace period to wait before killing the process group
+// when Close() is called. This is essential for package scripts that spawn background
+// processes intended to outlive the parent shell.
+//
+// USE CASE: Package installation scripts commonly end with patterns like:
+//
+//	sleep 10 && systemctl restart gpud &
+//
+// This pattern schedules a delayed restart of gpud after the installation completes.
+// The "&" causes bash to background the command and exit immediately, but the
+// backgrounded "sleep 10 && systemctl restart gpud" should continue running.
+//
+// Without a grace period, when Close() is called (after bash exits), it would
+// immediately kill the entire process group (including the backgrounded command),
+// preventing the scheduled restart from occurring.
+//
+// WHY 2 MINUTES:
+//   - We assume 2 minutes is sufficient for any reasonable detached command to complete.
+//     Typical use cases like "sleep N && systemctl restart gpud" or similar delayed
+//     operations should finish well within this window.
+//   - This is intentionally conservative to prevent process leaks from unconventional
+//     long-running commands in bash scripts. If a script spawns a long-running process,
+//     it should use systemd to manage it properly, not rely on backgrounding.
+//   - This strikes a balance between allowing legitimate delayed operations and
+//     preventing indefinite waits or process leaks.
+const defaultWaitForDetach = 2 * time.Minute
+
 func runCommand(ctx context.Context, script, arg string, result *string) error {
 	var ops []process.OpOption
+
+	// Always set a grace period to handle backgrounded commands in package scripts.
+	// See defaultWaitForDetach documentation for details on why this is necessary.
+	ops = append(ops, process.WithWaitForDetach(defaultWaitForDetach))
+
 	if result == nil {
 		f, err := os.OpenFile(filepath.Join(filepath.Dir(script), arg+".log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -48,9 +49,15 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 		_ = tmpFile.Close()
 	}()
 
+	// Use a grace period to handle backgrounded commands in bootstrap scripts.
+	// Bootstrap scripts commonly end with patterns like:
+	//   sleep 10 && systemctl restart gpud &
+	// This allows the script to exit immediately while scheduling a delayed restart.
+	// Without the grace period, Close() would kill the backgrounded command.
 	p, err := New(
 		WithBashScriptContentsToRun(script),
 		WithOutputFile(tmpFile),
+		WithWaitForDetach(2*time.Minute),
 	)
 	if err != nil {
 		return nil, 0, err

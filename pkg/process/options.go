@@ -32,6 +32,21 @@ type Op struct {
 	bashScriptFilePattern string
 
 	restartConfig *RestartConfig
+
+	// waitForDetach specifies a grace period to wait in Close() before killing
+	// the process group. This is useful for commands that spawn background processes
+	// that should outlive the parent, such as:
+	//
+	//   sleep 10 && systemctl restart gpud &
+	//
+	// In this pattern, the bash script exits immediately (after backgrounding the command),
+	// but the backgrounded "sleep 10 && systemctl restart gpud" should continue running.
+	// Without a grace period, Close() would immediately kill the entire process group,
+	// preventing the delayed restart from occurring.
+	//
+	// With WithWaitForDetach(15*time.Second), Close() will wait up to 15 seconds
+	// for the backgrounded process to complete before sending kill signals.
+	waitForDetach time.Duration
 }
 
 const DefaultBashScriptFilePattern = "gpud-*.bash"
@@ -191,6 +206,42 @@ func WithBashScriptFilePattern(pattern string) OpOption {
 func WithRestartConfig(config RestartConfig) OpOption {
 	return func(op *Op) {
 		op.restartConfig = &config
+	}
+}
+
+// WithWaitForDetach sets a grace period to wait in Close() before killing
+// the process group. This is essential for commands that spawn background
+// processes intended to outlive the parent shell.
+//
+// USE CASE - Delayed Service Restart:
+//
+//	sleep 10 && systemctl restart gpud &
+//
+// This pattern is common in deployment scripts where gpud needs to be restarted
+// after a delay (e.g., to allow installation scripts to complete). The "&" causes
+// bash to background the command and exit immediately.
+//
+// THE PROBLEM:
+// When using process groups (Setpgid=true), the backgrounded command shares the
+// same Process Group ID (PGID) as the parent bash. When Close() is called, it
+// sends SIGKILL to -PGID, killing ALL processes in the group - including the
+// backgrounded "sleep 10 && systemctl restart gpud" that should continue running.
+//
+// THE SOLUTION:
+// With WithWaitForDetach(15*time.Second), Close() will wait up to 15 seconds
+// for all processes in the group to complete before sending kill signals.
+// If the backgrounded process completes within the grace period (e.g., after
+// the 10-second sleep and restart), no kill signals are sent.
+//
+// Example:
+//
+//	p, err := New(
+//	    WithBashScriptContentsToRun(deployScript),
+//	    WithWaitForDetach(15*time.Second),
+//	)
+func WithWaitForDetach(d time.Duration) OpOption {
+	return func(op *Op) {
+		op.waitForDetach = d
 	}
 }
 
