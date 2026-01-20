@@ -167,7 +167,7 @@ type MockRunner struct {
 	mock.Mock
 }
 
-func (m *MockRunner) RunUntilCompletion(ctx context.Context, script string) ([]byte, int32, error) {
+func (m *MockRunner) RunUntilCompletion(ctx context.Context, script string, opts ...process.OpOption) ([]byte, int32, error) {
 	args := m.Called(ctx, script)
 	return args.Get(0).([]byte), int32(args.Int(1)), args.Error(2)
 }

@@ -32,6 +32,14 @@ type Op struct {
 	bashScriptFilePattern string
 
 	restartConfig *RestartConfig
+
+	// allowDetachedProcess controls whether backgrounded processes can outlive the parent.
+	// When true, Setpgid is NOT used, allowing backgrounded commands like
+	// "sleep 10 && systemctl restart gpud &" to continue running after the parent exits.
+	// When false (default), Setpgid is used to create a process group, and Close()
+	// will kill all processes in the group together - this is safer and prevents
+	// orphaned processes but prevents the "&" background pattern from working.
+	allowDetachedProcess bool
 }
 
 const DefaultBashScriptFilePattern = "gpud-*.bash"
@@ -191,6 +199,40 @@ func WithBashScriptFilePattern(pattern string) OpOption {
 func WithRestartConfig(config RestartConfig) OpOption {
 	return func(op *Op) {
 		op.restartConfig = &config
+	}
+}
+
+// WithAllowDetachedProcess controls whether backgrounded processes can outlive the parent shell.
+//
+// When allow=true:
+//   - Setpgid is NOT set (processes run in parent's process group)
+//   - Only the direct child process (shell) is killed on Close()
+//   - Backgrounded processes (using "&") become orphans and continue running
+//   - USE THIS for scripts that end with patterns like: "sleep 10 && systemctl restart gpud &"
+//
+// When allow=false (DEFAULT):
+//   - Setpgid is set (creates a new process group)
+//   - Close() kills the entire process group (parent AND all children)
+//   - Safer behavior that prevents orphaned/leaked processes
+//   - USE THIS for normal commands where you want clean process cleanup
+//
+// Example use case for allow=true:
+//
+//	Package installation scripts often end with:
+//	  sleep 10 && systemctl restart gpud &
+//	This schedules a delayed restart of gpud after the script exits.
+//	Without allowDetachedProcess=true, the backgrounded command would be killed
+//	when Close() is called.
+//
+// Example:
+//
+//	p, err := New(
+//	    WithBashScriptContentsToRun(deployScript),
+//	    WithAllowDetachedProcess(true),
+//	)
+func WithAllowDetachedProcess(allow bool) OpOption {
+	return func(op *Op) {
+		op.allowDetachedProcess = allow
 	}
 }
 

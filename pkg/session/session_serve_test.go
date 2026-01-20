@@ -21,6 +21,7 @@ import (
 	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/metrics"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 // Mock implementations
@@ -166,7 +167,7 @@ type mockProcessRunner struct {
 	mock.Mock
 }
 
-func (m *mockProcessRunner) RunUntilCompletion(ctx context.Context, command string) ([]byte, int32, error) {
+func (m *mockProcessRunner) RunUntilCompletion(ctx context.Context, command string, opts ...process.OpOption) ([]byte, int32, error) {
 	args := m.Called(ctx, command)
 	return args.Get(0).([]byte), int32(args.Int(1)), args.Error(2)
 }

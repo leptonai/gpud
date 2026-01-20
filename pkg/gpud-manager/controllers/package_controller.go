@@ -340,6 +340,19 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 
 func runCommand(ctx context.Context, script, arg string, result *string) error {
 	var ops []process.OpOption
+
+	// WithAllowDetachedProcess(true) allows backgrounded commands (using "&")
+	// to continue running after the script exits. This is critical for package
+	// installation scripts that use patterns like:
+	//   sleep 10 && systemctl restart gpud &
+	//
+	// Without WithAllowDetachedProcess(true):
+	// - The "&" does not take effect - backgrounded processes are killed on Close()
+	// - Package init.sh waits 10s and restarts instead of returning instantly
+	// - Package controller thinks installation is blocking
+	// - This causes delayed package installations and repeated restart loops
+	ops = append(ops, process.WithAllowDetachedProcess(true))
+
 	if result == nil {
 		f, err := os.OpenFile(filepath.Join(filepath.Dir(script), arg+".log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {

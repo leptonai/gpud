@@ -28,7 +28,9 @@ var defaultScriptsDir = filepath.Join(os.TempDir(), "gpud-scripts-runner")
 // RunUntilCompletion starts a bash script, blocks until it finishes,
 // and returns the output and the exit code.
 // If there is already a process running, it returns an error.
-func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string) ([]byte, int32, error) {
+// Optional OpOption arguments can be passed to customize process behavior
+// (e.g., WithAllowDetachedProcess(true) for scripts with backgrounded commands).
+func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string, opts ...OpOption) ([]byte, int32, error) {
 	if er.alreadyRunning() {
 		return nil, 0, ErrProcessAlreadyRunning
 	}
@@ -48,10 +50,14 @@ func (er *exclusiveRunner) RunUntilCompletion(ctx context.Context, script string
 		_ = tmpFile.Close()
 	}()
 
-	p, err := New(
+	// Build options: base options + caller-provided options
+	baseOpts := []OpOption{
 		WithBashScriptContentsToRun(script),
 		WithOutputFile(tmpFile),
-	)
+	}
+	allOpts := append(baseOpts, opts...)
+
+	p, err := New(allOpts...)
 	if err != nil {
 		return nil, 0, err
 	}

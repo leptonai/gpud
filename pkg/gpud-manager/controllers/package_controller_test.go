@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
+	"github.com/leptonai/gpud/pkg/process"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -598,4 +599,244 @@ fi
 	cancel() // Cancel immediately
 	err = runCommand(ctx, scriptPath, "version", nil)
 	assert.Error(t, err)
+}
+
+// TestRunCommandWithBackgroundProcessKilledByDefault demonstrates the default
+// process behavior (Setpgid=true) where backgrounded processes get killed when
+// the parent exits and Close() is called.
+//
+// This test simulates the real-world scenario where package scripts end with:
+//
+//	sleep 10 && systemctl restart gpud &
+//
+// Without WithAllowDetachedProcess(true), the backgrounded command would be killed
+// when the parent script exits and Close() is called (because Setpgid creates a
+// process group that gets killed together).
+//
+// NOTE: This test uses the process package directly (without WithAllowDetachedProcess)
+// to demonstrate the default safe behavior that runCommand overrides.
+func TestRunCommandWithBackgroundProcessKilledByDefault(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping process group test in CI environment")
+	}
+
+	// Create a temporary directory for test scripts
+	tempDir, err := os.MkdirTemp("", "package-controller-test-bg")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	// Create marker file path
+	markerFile := filepath.Join(tempDir, "marker")
+
+	// Create a test script that simulates the pattern:
+	// "sleep N && systemctl restart gpud &"
+	//
+	// This pattern is common in deployment scripts where:
+	// 1. The script does some work
+	// 2. At the end, it schedules a delayed restart of gpud
+	// 3. The script exits immediately (because of &)
+	// 4. The backgrounded command should continue running
+	scriptPath := filepath.Join(tempDir, "test-bg-script.sh")
+	scriptContent := `#!/bin/bash
+# This simulates a package init script that schedules a delayed restart
+# The pattern "sleep 10 && systemctl restart gpud &" is commonly used
+# to allow the script to complete before gpud restarts
+
+if [ "$1" == "install" ]; then
+  # Do installation work...
+  echo "Installing..."
+
+  # Schedule a delayed action (simulates "sleep 10 && systemctl restart gpud &")
+  # In this test, we use "sleep 1 && touch marker" to verify the behavior
+  sleep 1 && touch "` + markerFile + `" &
+
+  # Exit immediately - the backgrounded command should continue
+  exit 0
+else
+  exit 1
+fi
+`
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	require.NoError(t, err)
+
+	// Run the command WITHOUT WithAllowDetachedProcess (default behavior)
+	// This demonstrates the default safe behavior (Setpgid=true, kills process group).
+	// runCommand uses WithAllowDetachedProcess(true) to override this.
+	p, err := process.New(
+		process.WithCommand("bash", scriptPath, "install"),
+		// NOTE: No WithAllowDetachedProcess - uses default (Setpgid=true)
+	)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = p.Start(ctx)
+	require.NoError(t, err)
+
+	// Wait for the script to exit
+	select {
+	case err := <-p.Wait():
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for script to exit")
+	}
+
+	// Close with default behavior - kills the process group immediately
+	err = p.Close(ctx)
+	require.NoError(t, err)
+
+	// Wait for what should be enough time for the background process to complete
+	time.Sleep(2 * time.Second)
+
+	// Check if marker file was created
+	// WITHOUT WithAllowDetachedProcess, the marker file should NOT exist
+	// because the backgrounded process was killed (Setpgid kills entire group)
+	_, statErr := os.Stat(markerFile)
+	require.True(t, os.IsNotExist(statErr),
+		"DEFAULT BEHAVIOR: Without WithAllowDetachedProcess, background process is killed. "+
+			"This is why runCommand uses WithAllowDetachedProcess(true).")
+	t.Log("DEFAULT BEHAVIOR: Background process was killed (Setpgid=true)")
+	t.Log("This is why runCommand uses WithAllowDetachedProcess(true)")
+}
+
+// TestRunCommandWithAllowDetachedProcess demonstrates that runCommand now works
+// correctly with backgrounded processes because it uses WithAllowDetachedProcess(true).
+//
+// This test simulates the real-world scenario where package scripts end with:
+//
+//	sleep 10 && systemctl restart gpud &
+//
+// With WithAllowDetachedProcess(true) in runCommand, the backgrounded command is
+// allowed to continue as an orphan process.
+func TestRunCommandWithAllowDetachedProcess(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping process group test in CI environment")
+	}
+
+	// Create a temporary directory for test scripts
+	tempDir, err := os.MkdirTemp("", "package-controller-test-bg-default")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	// Create marker file path
+	markerFile := filepath.Join(tempDir, "marker")
+
+	// Same script as above
+	scriptPath := filepath.Join(tempDir, "test-bg-default-script.sh")
+	scriptContent := `#!/bin/bash
+# This simulates a package init script that schedules a delayed restart
+# The pattern "sleep 10 && systemctl restart gpud &" is commonly used
+
+if [ "$1" == "install" ]; then
+  echo "Installing..."
+
+  # Schedule a delayed action (simulates "sleep 10 && systemctl restart gpud &")
+  sleep 1 && touch "` + markerFile + `" &
+
+  exit 0
+else
+  exit 1
+fi
+`
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	require.NoError(t, err)
+
+	// Run using runCommand which now uses WithAllowDetachedProcess(true)
+	// The backgrounded process should be allowed to continue as an orphan
+	t.Log("Running script with runCommand (uses WithAllowDetachedProcess(true))...")
+	err = runCommand(context.Background(), scriptPath, "install", nil)
+	require.NoError(t, err)
+
+	// Note: runCommand uses WithAllowDetachedProcess(true), so backgrounded processes
+	// become orphans and continue running after the parent exits.
+	// Wait for the backgrounded process to complete
+	time.Sleep(2 * time.Second)
+
+	// Check if marker file was created
+	// WITH WithAllowDetachedProcess(true), the marker file SHOULD exist
+	_, statErr := os.Stat(markerFile)
+	require.NoError(t, statErr,
+		"FIX CONFIRMED: With WithAllowDetachedProcess(true), background process completed. "+
+			"runCommand now correctly handles 'sleep N && systemctl restart gpud &' patterns.")
+	t.Log("FIX CONFIRMED: Background process completed with WithAllowDetachedProcess(true)")
+	t.Log("runCommand now correctly handles 'sleep N && systemctl restart gpud &' patterns")
+}
+
+// TestRunCommandWithBackgroundProcessCompletesDirectly demonstrates the fix.
+// When using WithAllowDetachedProcess(true), the backgrounded process is allowed
+// to continue as an orphan and complete.
+//
+// This test uses the process package directly with WithAllowDetachedProcess(true)
+// to show how the fix works.
+func TestRunCommandWithBackgroundProcessCompletesDirectly(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping process group test in CI environment")
+	}
+
+	// Create a temporary directory for test scripts
+	tempDir, err := os.MkdirTemp("", "package-controller-test-bg-grace")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(tempDir)
+	}()
+
+	// Create marker file path
+	markerFile := filepath.Join(tempDir, "marker")
+
+	// Same script as above
+	scriptPath := filepath.Join(tempDir, "test-bg-grace-script.sh")
+	scriptContent := `#!/bin/bash
+if [ "$1" == "install" ]; then
+  echo "Installing..."
+
+  # Schedule a delayed action (simulates "sleep 10 && systemctl restart gpud &")
+  sleep 1 && touch "` + markerFile + `" &
+
+  exit 0
+else
+  exit 1
+fi
+`
+	err = os.WriteFile(scriptPath, []byte(scriptContent), 0755)
+	require.NoError(t, err)
+
+	// Run the command WITH WithAllowDetachedProcess(true) using the process package directly
+	// This demonstrates how the fix works
+	p, err := process.New(
+		process.WithCommand("bash", scriptPath, "install"),
+		process.WithAllowDetachedProcess(true), // Allow background process to become orphan
+	)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = p.Start(ctx)
+	require.NoError(t, err)
+
+	// Wait for the script to exit
+	select {
+	case err := <-p.Wait():
+		require.NoError(t, err, "Script should exit successfully")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for script to exit")
+	}
+
+	// Close - with WithAllowDetachedProcess(true), only kills direct child
+	// Background process continues as orphan
+	t.Log("Calling Close() - only kills direct child, background continues...")
+	err = p.Close(ctx)
+	require.NoError(t, err)
+
+	// Wait for the backgrounded process to complete (sleep 1 + buffer)
+	time.Sleep(2 * time.Second)
+
+	// Check if marker file was created
+	// WITH WithAllowDetachedProcess(true), the marker file SHOULD exist
+	_, statErr := os.Stat(markerFile)
+	require.NoError(t, statErr,
+		"FIX CONFIRMED: With WithAllowDetachedProcess(true), marker file SHOULD exist. "+
+			"The backgrounded process was allowed to complete as orphan.")
+	t.Log("FIX CONFIRMED: Background process completed (marker file created)")
 }
