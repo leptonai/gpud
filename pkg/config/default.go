@@ -5,6 +5,7 @@ import (
 	"fmt"
 	stdos "os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,8 +15,8 @@ import (
 
 const (
 	DefaultAPIVersion = "v1"
-	DefaultGPUdPort   = 15132
 	DefaultDataDir    = "/var/lib/gpud"
+	defaultGPUdPort   = 15132
 )
 
 var (
@@ -43,7 +44,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 	cfg := &Config{
 		APIVersion:       DefaultAPIVersion,
-		Address:          fmt.Sprintf(":%d", DefaultGPUdPort),
+		Address:          fmt.Sprintf(":%d", GPUdPortNumber()),
 		DataDir:          dataDir,
 		RetentionPeriod:  DefaultRetentionPeriod,
 		CompactPeriod:    DefaultCompactPeriod,
@@ -140,4 +141,18 @@ func PackagesDir(dataDir string) string {
 // VersionFilePath returns the version file path under the dataDir.
 func VersionFilePath(dataDir string) string {
 	return filepath.Join(dataDir, "target_version")
+}
+
+func GPUdPortNumber() int {
+	portStr, found := stdos.LookupEnv("GPUD_PORT")
+	if !found {
+		return defaultGPUdPort
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return defaultGPUdPort
+	}
+
+	return port
 }
