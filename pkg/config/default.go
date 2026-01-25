@@ -16,7 +16,7 @@ import (
 const (
 	DefaultAPIVersion = "v1"
 	DefaultDataDir    = "/var/lib/gpud"
-	defaultGPUdPort   = 15132
+	DefaultGPUdPort   = 15132
 )
 
 var (
@@ -146,12 +146,12 @@ func VersionFilePath(dataDir string) string {
 func GPUdPortNumber() int {
 	portStr, found := stdos.LookupEnv("GPUD_PORT")
 	if !found {
-		return defaultGPUdPort
+		return DefaultGPUdPort
 	}
 
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		return defaultGPUdPort
+		return DefaultGPUdPort
 	}
 
 	return port
