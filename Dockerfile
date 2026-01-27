@@ -160,7 +160,7 @@ RUN apt-get update && \
   apt-get install -y --no-install-recommends docker-ce-cli containerd.io && \
   # Remove gnupg and related packages to address CVE-2025-68973
   # These are only needed for GPG key verification during build, not at runtime
-  apt-get purge -y --auto-remove gnupg gnupg-l10n gnupg-utils gpg gpg-agent gpg-wks-client gpg-wks-server gpgconf gpgsm gpgv dirmngr && \
+  apt-get purge -y --auto-remove gnupg gnupg-l10n gnupg-utils gpg gpg-agent gpg-wks-client gpg-wks-server gpgconf gpgsm dirmngr && \
   rm -rf /var/lib/apt/lists/*
 
 # Copy the gpud binary
