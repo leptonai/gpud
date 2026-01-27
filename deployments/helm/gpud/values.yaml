@@ -60,6 +60,9 @@ gpud:
   # Set to false in security-sensitive environments where these features aren't needed.
   mountHostProc: true
 
+  # Override the default command for the gpud container.
+  commandOverride: []
+
 # Reference to one or more secrets to be used for pulling images from private registries.
 # Example for NVIDIA NGC registry (nvcr.io):
 #
