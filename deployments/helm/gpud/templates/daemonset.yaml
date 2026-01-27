@@ -220,8 +220,10 @@ spec:
           # Privileged access is required for hardware inspection and low-level system access.
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-
           command:
+{{- if .Values.gpud.commandOverride }}
+            {{- toYaml .Values.gpud.commandOverride | nindent 12 }}
+{{- else }}
             - /bin/sh
             - -ec
             - |
@@ -290,6 +292,7 @@ spec:
               # Using exec ensures gpud receives signals directly (important for graceful shutdown).
               echo "Starting: /usr/local/bin/gpud $*"
               exec /usr/local/bin/gpud "$@"
+{{- end }}
 
           env:
             - name: GPUD_NO_USAGE_STATS
