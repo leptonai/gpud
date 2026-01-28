@@ -4,8 +4,9 @@ import (
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
 type ECCMode struct {

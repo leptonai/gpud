@@ -12,7 +12,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
 const (

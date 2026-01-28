@@ -111,6 +111,27 @@ func TestReadHealthStates_Comprehensive(t *testing.T) {
 			contentType:   "application/xml",
 			expectedError: "unsupported content type",
 		},
+		{
+			name:           "gzip + JSON decode error",
+			input:          bytes.NewReader(gzipContent(t, []byte(`invalid json`))),
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
+			expectedError:  "failed to decode json",
+		},
+		{
+			name:           "gzip + YAML unmarshal error",
+			input:          bytes.NewReader(gzipContent(t, []byte("invalid: YAML:"))),
+			contentType:    httputil.RequestHeaderYAML,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
+			expectedError:  "failed to unmarshal yaml",
+		},
+		{
+			name:           "gzip + unsupported content type",
+			input:          bytes.NewReader(gzipContent(t, []byte("data"))),
+			contentType:    "application/xml",
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
+			expectedError:  "unsupported content type",
+		},
 	}
 
 	for _, tt := range tests {
@@ -246,6 +267,27 @@ func TestReadInfo_Comprehensive(t *testing.T) {
 			input:         bytes.NewReader(jsonData),
 			contentType:   "application/xml",
 			expectedError: "unsupported content type",
+		},
+		{
+			name:           "gzip + JSON decode error",
+			input:          bytes.NewReader(gzipContent(t, []byte(`invalid json`))),
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
+			expectedError:  "failed to decode json",
+		},
+		{
+			name:           "gzip + YAML unmarshal error",
+			input:          bytes.NewReader(gzipContent(t, []byte("invalid: YAML:"))),
+			contentType:    httputil.RequestHeaderYAML,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
+			expectedError:  "failed to unmarshal yaml",
+		},
+		{
+			name:           "gzip + unsupported content type",
+			input:          bytes.NewReader(gzipContent(t, []byte("data"))),
+			contentType:    "application/xml",
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
+			expectedError:  "unsupported content type",
 		},
 	}
 

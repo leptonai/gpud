@@ -11,7 +11,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/server"
 	sessionstates "github.com/leptonai/gpud/pkg/session/states"
 	"github.com/leptonai/gpud/pkg/sqlite"

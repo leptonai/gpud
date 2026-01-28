@@ -137,12 +137,12 @@ func Command(cliContext *cli.Context) (retErr error) {
 }
 
 func recordLoginSuccessState(ctx context.Context, dataDir string) error {
-	resolvedDataDir, err := config.ResolveDataDir(dataDir)
+	resolvedDir, err := config.ResolveDataDir(dataDir)
 	if err != nil {
 		return fmt.Errorf("failed to resolve data dir: %w", err)
 	}
 
-	stateFile := config.StateFilePath(resolvedDataDir)
+	stateFile := config.StateFilePath(resolvedDir)
 
 	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {

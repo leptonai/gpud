@@ -7,8 +7,8 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
 
 func TestGetPersistenceMode(t *testing.T) {

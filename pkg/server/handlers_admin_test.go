@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	gpudconfig "github.com/leptonai/gpud/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
+
+	gpudconfig "github.com/leptonai/gpud/pkg/config"
 )
 
 func TestCreateConfigHandler(t *testing.T) {

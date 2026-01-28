@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 

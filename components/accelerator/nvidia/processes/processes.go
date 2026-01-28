@@ -8,9 +8,10 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/dustin/go-humanize"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	"github.com/shirou/gopsutil/v4/process"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 
 	"github.com/leptonai/gpud/pkg/log"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
@@ -59,11 +60,22 @@ type Process struct {
 	GPUUsedMemoryBytesHumanized string      `json:"gpu_used_memory_bytes_humanized,omitempty"`
 }
 
-func GetProcesses(uuid string, dev device.Device) (Processes, error) {
-	return getProcesses(uuid, dev, process.NewProcess)
+// processInspector abstracts process querying methods used by getProcesses.
+// *process.Process satisfies this interface.
+type processInspector interface {
+	CmdlineSlice() ([]string, error)
+	CreateTime() (int64, error)
+	Status() ([]string, error)
+	Environ() ([]string, error)
 }
 
-func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32) (*process.Process, error)) (Processes, error) {
+func GetProcesses(uuid string, dev device.Device) (Processes, error) {
+	return getProcesses(uuid, dev, func(pid int32) (processInspector, error) {
+		return process.NewProcess(pid)
+	})
+}
+
+func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32) (processInspector, error)) (Processes, error) {
 	procs := Processes{
 		UUID:  uuid,
 		BusID: dev.PCIBusID(),

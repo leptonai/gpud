@@ -8,6 +8,7 @@ import (
 
 	procs "github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCountProcessesByStatus(t *testing.T) {
@@ -16,22 +17,16 @@ func TestCountProcessesByStatus(t *testing.T) {
 
 	// Test normal operation
 	processes, err := CountProcessesByStatus(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Logf("processes: %+v", processes)
 
 	// Verify that we have at least one process status
-	if len(processes) == 0 {
-		t.Fatal("Expected at least one process status, got none")
-	}
+	require.NotEmpty(t, processes, "Expected at least one process status")
 
 	// Verify that each status has at least one process
 	validProcessCount := 0
 	for status, procs := range processes {
-		if len(procs) == 0 {
-			t.Fatalf("Expected at least one process for status %s, got none", status)
-		}
+		require.NotEmpty(t, procs, "Expected at least one process for status %s", status)
 
 		// Verify that each process has a valid PID
 		// Note: Some processes may disappear during testing, so we don't fail on individual errors
@@ -51,9 +46,7 @@ func TestCountProcessesByStatus(t *testing.T) {
 	}
 
 	// Verify we successfully checked at least some processes
-	if validProcessCount == 0 {
-		t.Fatal("Could not verify any processes - all processes terminated during test")
-	}
+	require.NotZero(t, validProcessCount, "Could not verify any processes - all processes terminated during test")
 	t.Logf("Successfully verified %d processes", validProcessCount)
 
 	// Test with canceled context
@@ -111,9 +104,7 @@ func TestCheckRunningByPid(t *testing.T) {
 
 	// Test with a process that should not be running
 	running = CheckRunningByPid(ctx, "nonexistentprocess123456789")
-	if running {
-		t.Fatalf("Expected 'nonexistentprocess123456789' to not be running")
-	}
+	require.False(t, running, "Expected 'nonexistentprocess123456789' to not be running")
 
 	// Test with a canceled context
 	canceledCtx, cancel := context.WithCancel(context.Background())
@@ -130,14 +121,10 @@ func TestCheckRunningByPid(t *testing.T) {
 func TestCountRunningPids(t *testing.T) {
 	// Get the count of running processes
 	count, err := CountRunningPids()
-	if err != nil {
-		t.Fatalf("Failed to count running PIDs: %v", err)
-	}
+	require.NoError(t, err, "Failed to count running PIDs")
 
 	// Verify that the count is reasonable (at least 1 process should be running)
-	if count < 1 {
-		t.Fatalf("Expected at least 1 running process, got %d", count)
-	}
+	require.GreaterOrEqual(t, count, uint64(1), "Expected at least 1 running process")
 
 	t.Logf("Number of running processes: %d", count)
 
@@ -146,9 +133,7 @@ func TestCountRunningPids(t *testing.T) {
 	defer cancel()
 
 	processes, err := CountProcessesByStatus(ctx)
-	if err != nil {
-		t.Fatalf("Failed to get processes by status: %v", err)
-	}
+	require.NoError(t, err, "Failed to get processes by status")
 
 	// Calculate total number of processes from all statuses
 	var totalProcesses uint64
@@ -198,32 +183,22 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 	result, err := countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
 		return []ProcessStatus{}, nil
 	})
-	if err != nil {
-		t.Fatalf("Expected no error with empty process list, got: %v", err)
-	}
-	if result != nil {
-		t.Fatalf("Expected nil result with empty process list, got: %v", result)
-	}
+	require.NoError(t, err, "Expected no error with empty process list")
+	require.Nil(t, result, "Expected nil result with empty process list")
 
 	// Test with a process list that returns an error
 	testErr := errors.New("test error")
 	_, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
 		return nil, testErr
 	})
-	if err != testErr {
-		t.Fatalf("Expected error %v, got: %v", testErr, err)
-	}
+	require.ErrorIs(t, err, testErr)
 
 	// Test with a nil process in the list
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
 		return []ProcessStatus{nil, &mockProcessStatus{status: []string{"running"}}}, nil
 	})
-	if err != nil {
-		t.Fatalf("Expected no error with nil process, got: %v", err)
-	}
-	if len(result["running"]) != 1 {
-		t.Fatalf("Expected 1 running process, got: %d", len(result["running"]))
-	}
+	require.NoError(t, err, "Expected no error with nil process")
+	require.Len(t, result["running"], 1, "Expected 1 running process")
 
 	// Test with a process that returns an error for Status()
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
@@ -235,12 +210,8 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 			},
 		}, nil
 	})
-	if err != nil {
-		t.Fatalf("Expected no error with process status error, got: %v", err)
-	}
-	if len(result) != 0 {
-		t.Fatalf("Expected 0 processes with status error, got: %d", len(result))
-	}
+	require.NoError(t, err, "Expected no error with process status error")
+	require.Empty(t, result, "Expected 0 processes with status error")
 
 	// Test with a process that returns an error containing "no such file"
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
@@ -252,12 +223,8 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 			},
 		}, nil
 	})
-	if err != nil {
-		t.Fatalf("Expected no error with 'no such file' error, got: %v", err)
-	}
-	if len(result) != 0 {
-		t.Fatalf("Expected 0 processes with 'no such file' error, got: %d", len(result))
-	}
+	require.NoError(t, err, "Expected no error with 'no such file' error")
+	require.Empty(t, result, "Expected 0 processes with 'no such file' error")
 
 	// Test with a process that returns an empty status list
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
@@ -268,12 +235,8 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 			},
 		}, nil
 	})
-	if err != nil {
-		t.Fatalf("Expected no error with empty status list, got: %v", err)
-	}
-	if len(result) != 0 {
-		t.Fatalf("Expected 0 processes with empty status list, got: %d", len(result))
-	}
+	require.NoError(t, err, "Expected no error with empty status list")
+	require.Empty(t, result, "Expected 0 processes with empty status list")
 
 	// Test with multiple processes with different statuses
 	result, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
@@ -285,30 +248,18 @@ func TestCountProcessesByStatusWithMock(t *testing.T) {
 			&mockProcessStatus{status: []string{"zombie"}},
 		}, nil
 	})
-	if err != nil {
-		t.Fatalf("Expected no error with multiple processes, got: %v", err)
-	}
-	if len(result) != 4 {
-		t.Fatalf("Expected 4 different process statuses, got: %d", len(result))
-	}
-	if len(result["running"]) != 2 {
-		t.Fatalf("Expected 2 running processes, got: %d", len(result["running"]))
-	}
-	if len(result["sleeping"]) != 1 {
-		t.Fatalf("Expected 1 sleeping process, got: %d", len(result["sleeping"]))
-	}
+	require.NoError(t, err, "Expected no error with multiple processes")
+	require.Len(t, result, 4, "Expected 4 different process statuses")
+	require.Len(t, result["running"], 2, "Expected 2 running processes")
+	require.Len(t, result["sleeping"], 1, "Expected 1 sleeping process")
 
 	// Test error case from CountProcessesByStatus
 	// We can do this by mocking the process list function to return an error
 	_, err = countProcessesByStatus(ctx, func(ctx context.Context) ([]ProcessStatus, error) {
 		return nil, errors.New("test error from ProcessesWithContext")
 	})
-	if err == nil {
-		t.Fatal("Expected error from ProcessesWithContext, got nil")
-	}
-	if err.Error() != "test error from ProcessesWithContext" {
-		t.Fatalf("Expected 'test error from ProcessesWithContext', got: %v", err)
-	}
+	require.Error(t, err, "Expected error from ProcessesWithContext")
+	require.EqualError(t, err, "test error from ProcessesWithContext")
 }
 
 // TestCountRunningPidsError tests error handling in CountRunningPids
@@ -320,23 +271,15 @@ func TestCountRunningPidsError(t *testing.T) {
 	_, err := countRunningPidsImpl(func() ([]int32, error) {
 		return nil, mockError
 	})
-	if err == nil {
-		t.Fatal("Expected error from countRunningPidsImpl, got nil")
-	}
-	if err.Error() != mockError.Error() {
-		t.Fatalf("Expected error %v, got: %v", mockError, err)
-	}
+	require.Error(t, err, "Expected error from countRunningPidsImpl")
+	require.EqualError(t, err, mockError.Error())
 
 	// Test success case
 	count, err := countRunningPidsImpl(func() ([]int32, error) {
 		return []int32{1, 2, 3}, nil
 	})
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	if count != 3 {
-		t.Fatalf("Expected count of 3, got %d", count)
-	}
+	require.NoError(t, err, "Unexpected error")
+	require.Equal(t, uint64(3), count, "Expected count of 3")
 }
 
 // TestFindProcessByName tests the findProcessByName function

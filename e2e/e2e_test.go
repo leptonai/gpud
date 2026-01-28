@@ -29,7 +29,7 @@ import (
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/errdefs"
 	"github.com/leptonai/gpud/pkg/httputil"
-	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 )
 
 func TestE2E(t *testing.T) {

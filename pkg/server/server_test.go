@@ -18,7 +18,7 @@ import (
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
-	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 

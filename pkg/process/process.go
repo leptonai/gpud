@@ -461,13 +461,16 @@ func (p *process) watchCmd() {
 			// command aborted (e.g., Stop called)
 			// cmd.Wait will return error
 			err := <-errc
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				atomic.StoreInt32(&p.exitCode, int32(exitErr.ExitCode()))
+			}
 			p.errc <- err
 			return
 
 		case err := <-errc:
-			p.errc <- err
-
 			if err == nil {
+				atomic.StoreInt32(&p.exitCode, 0)
+				p.errc <- err
 				log.Logger.Debugw("process exited successfully")
 				return
 			}
@@ -488,6 +491,8 @@ func (p *process) watchCmd() {
 			} else {
 				log.Logger.Warnw("error waiting for command to finish", "error", err, "cmd", p.cmd.String())
 			}
+
+			p.errc <- err
 
 			if p.restartConfig == nil || !p.restartConfig.OnError {
 				log.Logger.Debugw("process exited with error", "error", err)

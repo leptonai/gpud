@@ -11,8 +11,8 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
 // Returns true if clock events is supported by this device.
