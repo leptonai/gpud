@@ -176,7 +176,7 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "listen-address",
 					Usage: "set the listen address",
-					Value: fmt.Sprintf("0.0.0.0:%d", pkgconfig.DefaultGPUdPort),
+					Value: fmt.Sprintf("0.0.0.0:%d", pkgconfig.GPUdPortNumber()),
 				},
 				&cli.BoolFlag{
 					Name:  "pprof",
