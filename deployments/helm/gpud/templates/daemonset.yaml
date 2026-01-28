@@ -179,7 +179,10 @@ spec:
             - |
               set -o errexit
               set -o nounset
-              set -o pipefail 2>/dev/null || true  # pipefail not supported in dash (Ubuntu's /bin/sh)
+              # pipefail not supported in dash (Ubuntu's /bin/sh).
+              # POSIX special builtins (like `set`) cause the shell to exit on failure
+              # even in `|| true` constructs. A subshell safely isolates the test.
+              if ( set -o pipefail ) 2>/dev/null; then set -o pipefail; fi
 
               tmp_file="${OUTPUT_FILE}.tmp"
               mkdir -p "$(dirname "${OUTPUT_FILE}")"
@@ -233,7 +236,10 @@ spec:
               # - pipefail: Pipeline fails if any command fails (not just the last)
               set -o errexit
               set -o nounset
-              set -o pipefail 2>/dev/null || true  # pipefail not supported in dash (Ubuntu's /bin/sh)
+              # pipefail not supported in dash (Ubuntu's /bin/sh).
+              # POSIX special builtins (like `set`) cause the shell to exit on failure
+              # even in `|| true` constructs. A subshell safely isolates the test.
+              if ( set -o pipefail ) 2>/dev/null; then set -o pipefail; fi
 
               # --- OPTIONAL: Read configuration from Kubernetes node labels ---
               # If nodeLabelExporter sidecar is enabled, it writes node labels to this file.
@@ -390,7 +396,10 @@ spec:
             - |
               set -o errexit
               set -o nounset
-              set -o pipefail 2>/dev/null || true  # pipefail not supported in dash (Ubuntu's /bin/sh)
+              # pipefail not supported in dash (Ubuntu's /bin/sh).
+              # POSIX special builtins (like `set`) cause the shell to exit on failure
+              # even in `|| true` constructs. A subshell safely isolates the test.
+              if ( set -o pipefail ) 2>/dev/null; then set -o pipefail; fi
 
               tmp_file="${OUTPUT_FILE}.tmp"
               mkdir -p "$(dirname "${OUTPUT_FILE}")"
