@@ -20,9 +20,9 @@ import (
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 

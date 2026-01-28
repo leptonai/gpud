@@ -14,7 +14,7 @@ import (
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
 
 func printSummary(result components.CheckResult) {

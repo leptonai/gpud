@@ -11,7 +11,7 @@ import (
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
 
 var (

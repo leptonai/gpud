@@ -9,7 +9,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
 // Mock device implementation

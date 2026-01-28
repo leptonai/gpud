@@ -7,6 +7,10 @@ import (
 
 // StatWithTimeout performs os.Stat with timeout from context to prevent blocking on unresponsive filesystems like NFS
 func StatWithTimeout(ctx context.Context, path string) (os.FileInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	type result struct {
 		info os.FileInfo
 		err  error
@@ -31,6 +35,10 @@ func StatWithTimeout(ctx context.Context, path string) (os.FileInfo, error) {
 
 // MkdirAllWithTimeout performs os.MkdirAll with timeout from context to prevent blocking on unresponsive filesystems like NFS
 func MkdirAllWithTimeout(ctx context.Context, path string, perm os.FileMode) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -51,6 +59,10 @@ func MkdirAllWithTimeout(ctx context.Context, path string, perm os.FileMode) err
 
 // WriteFileWithTimeout performs os.WriteFile with timeout from context to prevent blocking on unresponsive filesystems like NFS
 func WriteFileWithTimeout(ctx context.Context, name string, data []byte, perm os.FileMode) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -71,6 +83,10 @@ func WriteFileWithTimeout(ctx context.Context, name string, data []byte, perm os
 
 // ReadFileWithTimeout performs os.ReadFile with timeout from context to prevent blocking on unresponsive filesystems like NFS
 func ReadFileWithTimeout(ctx context.Context, name string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	type result struct {
 		data []byte
 		err  error

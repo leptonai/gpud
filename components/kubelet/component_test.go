@@ -227,8 +227,8 @@ func Test_componentLastHealthStates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &component{
 				lastCheckResult: &tc.data,
-				failedCount:     tc.failedCount,
 			}
+			c.failedCount.Store(int32(tc.failedCount))
 
 			states := c.LastHealthStates()
 			require.Len(t, states, 1)
@@ -387,8 +387,8 @@ func Test_componentLastHealthStates_ConnectionErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &component{
 				lastCheckResult: &tc.data,
-				failedCount:     tc.failedCount,
 			}
+			c.failedCount.Store(int32(tc.failedCount))
 
 			states := c.LastHealthStates()
 			require.Len(t, states, 1)
@@ -404,7 +404,6 @@ func Test_componentLastHealthStates_ContextCancellation(t *testing.T) {
 			Pods:   []PodStatus{{Name: "test-pod"}},
 			health: apiv1.HealthStateTypeHealthy,
 		},
-		failedCount: 0,
 	}
 
 	// Create a canceled context - we don't need to use it, just testing component behavior

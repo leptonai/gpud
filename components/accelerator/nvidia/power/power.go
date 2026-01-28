@@ -5,8 +5,9 @@ import (
 	"strconv"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
 type Power struct {
@@ -50,6 +51,8 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 			return power, nvmlerrors.ErrGPURequiresReset
 		}
 		return power, fmt.Errorf("failed to get device power usage: %v", nvml.ErrorString(ret))
+	} else {
+		power.GetPowerUsageSupported = true
 	}
 	power.UsageMilliWatts = powerUsage
 
@@ -65,6 +68,8 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 			return power, nvmlerrors.ErrGPURequiresReset
 		}
 		return power, fmt.Errorf("failed to get device power limit: %v", nvml.ErrorString(ret))
+	} else {
+		power.GetPowerLimitSupported = true
 	}
 	power.EnforcedLimitMilliWatts = enforcedPowerLimit
 
@@ -80,6 +85,8 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 			return power, nvmlerrors.ErrGPURequiresReset
 		}
 		return power, fmt.Errorf("failed to get device power management limit: %v", nvml.ErrorString(ret))
+	} else {
+		power.GetPowerManagementLimitSupported = true
 	}
 	power.ManagementLimitMilliWatts = managementPowerLimit
 

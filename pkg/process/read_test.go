@@ -8,6 +8,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockReader is a mock io.Reader that returns a predefined error
@@ -111,9 +114,8 @@ func TestReadWithErrorReader(t *testing.T) {
 	)
 
 	// Check if the error is returned
-	if err == nil || !strings.Contains(err.Error(), expectedErr.Error()) {
-		t.Fatalf("Expected error containing %q, got %v", expectedErr, err)
-	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, expectedErr.Error())
 }
 
 // TestReadWithContextCancellation tests the Read function with context cancellation
@@ -146,9 +148,8 @@ func TestReadWithContextCancellation(t *testing.T) {
 	)
 
 	// Check if the context cancellation error is returned
-	if err == nil || !strings.Contains(err.Error(), "context") {
-		t.Fatalf("Expected context cancellation error, got %v", err)
-	}
+	require.Error(t, err)
+	require.ErrorContains(t, err, "context")
 }
 
 // TestReadWithWaitForCmd tests the Read function with WaitForCmd option
@@ -184,9 +185,7 @@ func TestReadWithWaitForCmd(t *testing.T) {
 	)
 
 	// Check if the error from Wait() is returned
-	if err == nil || err.Error() != expectedErr.Error() {
-		t.Fatalf("Expected error %q, got %v", expectedErr, err)
-	}
+	require.EqualError(t, err, expectedErr.Error())
 }
 
 // TestReadWithBothStdoutAndStderr tests the Read function with both stdout and stderr
@@ -225,28 +224,15 @@ func TestReadWithBothStdoutAndStderr(t *testing.T) {
 	)
 
 	// Check if there's no error
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	require.NoError(t, err)
 
 	// Check if all lines are read
-	if len(lines) != 4 {
-		t.Fatalf("Expected 4 lines, got %d: %v", len(lines), lines)
-	}
+	require.Len(t, lines, 4)
 
 	// Check if all expected lines are present
 	expectedLines := []string{"stdout1", "stdout2", "stderr1", "stderr2"}
 	for _, expected := range expectedLines {
-		found := false
-		for _, line := range lines {
-			if line == expected {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("Expected line %q not found in %v", expected, lines)
-		}
+		assert.Contains(t, lines, expected)
 	}
 }
 
@@ -276,14 +262,10 @@ func TestReadWithEmptyReader(t *testing.T) {
 	)
 
 	// Check if there's no error
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	require.NoError(t, err)
 
 	// Check if no lines are read
-	if lineCount != 0 {
-		t.Fatalf("Expected 0 lines, got %d", lineCount)
-	}
+	require.Zero(t, lineCount)
 }
 
 // TestReadWithPartialLine tests the Read function with a partial line (no newline at the end)
@@ -312,22 +294,14 @@ func TestReadWithPartialLine(t *testing.T) {
 	)
 
 	// Check if there's no error
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	require.NoError(t, err)
 
 	// Check if both lines are read (including the partial line)
-	if len(lines) != 2 {
-		t.Fatalf("Expected 2 lines, got %d: %v", len(lines), lines)
-	}
+	require.Len(t, lines, 2)
 
 	// Check the content of the lines
-	if lines[0] != "line1" {
-		t.Errorf("Expected first line to be 'line1', got %q", lines[0])
-	}
-	if lines[1] != "partial" {
-		t.Errorf("Expected second line to be 'partial', got %q", lines[1])
-	}
+	require.Equal(t, "line1", lines[0])
+	require.Equal(t, "partial", lines[1])
 }
 
 // TestReadWithLongLine tests the Read function with a very long line
@@ -357,19 +331,13 @@ func TestReadWithLongLine(t *testing.T) {
 	)
 
 	// Check if there's no error
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	require.NoError(t, err)
 
 	// Check if the line is read
-	if len(lines) != 1 {
-		t.Fatalf("Expected 1 line, got %d", len(lines))
-	}
+	require.Len(t, lines, 1)
 
 	// Check the content of the line
-	if lines[0] != longLine {
-		t.Errorf("Expected line to be %d characters, got %d characters", len(longLine), len(lines[0]))
-	}
+	require.Equal(t, longLine, lines[0])
 }
 
 // TestReadWithMultipleNewlines tests the Read function with multiple consecutive newlines
@@ -398,22 +366,14 @@ func TestReadWithMultipleNewlines(t *testing.T) {
 	)
 
 	// Check if there's no error
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	require.NoError(t, err)
 
 	// Check if all lines are read (including empty lines)
-	if len(lines) != 4 {
-		t.Fatalf("Expected 4 lines, got %d: %v", len(lines), lines)
-	}
+	require.Len(t, lines, 4)
 
 	// Check the content of the lines
 	expectedLines := []string{"line1", "", "", "line2"}
-	for i, expected := range expectedLines {
-		if lines[i] != expected {
-			t.Errorf("Expected line %d to be %q, got %q", i, expected, lines[i])
-		}
-	}
+	require.Equal(t, expectedLines, lines)
 }
 
 // TestReadWithNilProcessLineFunc tests the Read function with a nil ProcessLine function
@@ -439,9 +399,7 @@ func TestReadWithNilProcessLineFunc(t *testing.T) {
 	)
 
 	// Check if there's no error
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	require.NoError(t, err)
 }
 
 // TestReadWithNoOptions tests the Read function with no options
@@ -467,9 +425,7 @@ func TestReadWithNoOptions(t *testing.T) {
 	)
 
 	// Check if there's no error
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	require.NoError(t, err)
 }
 
 // TestReadWithInitialBufferSize tests the Read function with InitialBufferSize option
@@ -499,12 +455,8 @@ func TestReadWithInitialBufferSize(t *testing.T) {
 	)
 
 	// Check if there's no error
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
+	require.NoError(t, err)
 
 	// Check if the line was captured correctly
-	if len(capturedLine) != 8192 {
-		t.Fatalf("Expected line length 8192, got %d", len(capturedLine))
-	}
+	require.Len(t, capturedLine, 8192)
 }

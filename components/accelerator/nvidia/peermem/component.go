@@ -17,7 +17,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
 
 const Name = "accelerator-nvidia-peermem"
@@ -274,12 +274,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.suggestedActions,
 	}
 
 	if cr.PeerMemModuleOutput != nil {

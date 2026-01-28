@@ -9,7 +9,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/providers"
 )
 

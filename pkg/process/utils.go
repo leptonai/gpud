@@ -119,7 +119,11 @@ func Read(ctx context.Context, p Process, opts ...ReadOpOption) error {
 		// used for setting larger buffer than default (4096 bytes) to prevent output truncation
 		// in case the command times out in the middle of reading
 		// e.g., ibstat output is larger than 4KB
-		scanner.Buffer(make([]byte, op.initialBufferSize), bufio.MaxScanTokenSize)
+		maxTokenSize := bufio.MaxScanTokenSize
+		if op.initialBufferSize > maxTokenSize {
+			maxTokenSize = op.initialBufferSize
+		}
+		scanner.Buffer(make([]byte, op.initialBufferSize), maxTokenSize)
 	}
 
 	for scanner.Scan() {

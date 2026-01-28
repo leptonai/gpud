@@ -15,11 +15,15 @@ import (
 const peerMemModule = "nvidia_peermem"
 
 func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, error) {
-	if os.Geteuid() != 0 {
+	return checkLsmodPeermemModule(ctx, os.Geteuid, process.New)
+}
+
+func checkLsmodPeermemModule(ctx context.Context, getEuid func() int, newProcess func(opts ...process.OpOption) (process.Process, error)) (*LsmodPeermemModuleOutput, error) {
+	if getEuid() != 0 {
 		return nil, errors.New("requires sudo/root access to check if ib_core is using nvidia_peermem")
 	}
 
-	proc, err := process.New(
+	proc, err := newProcess(
 		process.WithCommand("sudo lsmod"),
 		process.WithRunAsBashScript(),
 		process.WithRunBashInline(),

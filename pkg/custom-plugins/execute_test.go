@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/components"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 )
 
 // TestSpecs is a testable implementation of Specs that allows customization
