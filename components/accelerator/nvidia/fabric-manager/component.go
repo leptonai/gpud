@@ -370,6 +370,21 @@ func (c *component) Check() components.CheckResult {
 			}
 		}
 
+		// Skip fabric state check if NVSwitch hardware is not detected.
+		// Some GPU configurations (e.g., GH200 standalone, PCIe cards) support the fabric state
+		// API at the product level but don't have NVSwitch hardware. In these cases, the NVML
+		// fabric state API returns "Not Supported" which should not be treated as unhealthy.
+		// This check must happen BEFORE collectFabricState() to avoid false unhealthy reports.
+		// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
+		// Ref: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
+		if !c.testingMode && c.checkNVSwitchExistsFunc != nil && !c.checkNVSwitchExistsFunc() {
+			log.Logger.Infow("skipping fabric state check because NVSwitch not detected")
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = c.nvmlInstance.ProductName() + ": NVSwitch not detected, skipping fabric state check"
+			cr.FabricStateReason = cr.reason
+			return cr
+		}
+
 		report := c.collectFabricStateFunc()
 		cr.FabricStates = report.Entries
 		if report.Reason != "" {
