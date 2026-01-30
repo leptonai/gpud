@@ -225,6 +225,10 @@ func Command(cliContext *cli.Context) error {
 	// When enabled, Device().GetDevices() returns an error simulating Xid 79 or similar failures
 	nvmlDeviceGetDevicesError := cliContext.Bool("nvml-device-get-devices-error")
 
+	// Containerd socket missing error injection for testing
+	// When enabled, the containerd component will report the socket file as missing
+	containerdSocketMissing := cliContext.Bool("containerd-socket-missing")
+
 	ibExcludedDevices := parseInfinibandExcludeDevices(ibExcludeDevicesStr)
 	if len(ibExcludedDevices) > 0 {
 		log.Logger.Infow("excluding infiniband devices from monitoring", "devices", ibExcludedDevices)
@@ -246,6 +250,7 @@ func Command(cliContext *cli.Context) error {
 			GPUUUIDsWithFabricStateHealthSummaryUnhealthy: gpuUUIDsWithFabricStateHealthSummaryUnhealthy,
 			GPUProductNameOverride:                        gpuProductNameOverride,
 			NVMLDeviceGetDevicesError:                     nvmlDeviceGetDevicesError,
+			ContainerdSocketMissing:                       containerdSocketMissing,
 		}),
 	}
 
