@@ -29,7 +29,7 @@ func CreateCommand() func(*cli.Context) error {
 		// Get the server address from the flag, default to https://localhost:<Default GPUd port>
 		serverAddr := cliContext.String("server")
 		if serverAddr == "" {
-			serverAddr = fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
+			serverAddr = fmt.Sprintf("https://localhost:%d", config.GPUdPortNumber())
 		}
 
 		// Get the components from the positional argument

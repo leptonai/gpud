@@ -106,7 +106,7 @@ func Command(cliContext *cli.Context) error {
 
 	if err := clientv1.BlockUntilServerReady(
 		rootCtx,
-		fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort),
+		fmt.Sprintf("https://localhost:%d", config.GPUdPortNumber()),
 	); err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func Command(cliContext *cli.Context) error {
 	for {
 		var err error
 		cctx, ccancel := context.WithTimeout(rootCtx, 15*time.Second)
-		lastPackageStatus, err = clientv1.GetPackageStatus(cctx, fmt.Sprintf("https://localhost:%d%s", config.DefaultGPUdPort, server.URLPathAdminPackages))
+		lastPackageStatus, err = clientv1.GetPackageStatus(cctx, fmt.Sprintf("https://localhost:%d%s", config.GPUdPortNumber(), server.URLPathAdminPackages))
 		ccancel()
 		if err != nil {
 			fmt.Printf("%s failed to get package status: %v\n", cmdcommon.WarningSign, err)

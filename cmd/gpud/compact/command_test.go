@@ -81,7 +81,7 @@ func TestCommand_ReturnsErrorWhenPortOpen(t *testing.T) {
 
 	err := Command(cliContext)
 	require.Error(t, err)
-	assert.Equal(t, fmt.Sprintf("gpud is running on port %d (must be stopped before running compact)", config.DefaultGPUdPort), err.Error())
+	assert.Equal(t, fmt.Sprintf("gpud is running on port %d (must be stopped before running compact)", config.GPUdPortNumber()), err.Error())
 }
 
 func TestCommand_Success(t *testing.T) {

@@ -20,7 +20,7 @@ func TestDefaultConfig(t *testing.T) {
 
 		// Check basic properties that don't depend on the environment
 		assert.Equal(t, DefaultAPIVersion, cfg.APIVersion)
-		assert.Equal(t, fmt.Sprintf(":%d", DefaultGPUdPort), cfg.Address)
+		assert.Equal(t, fmt.Sprintf(":%d", GPUdPortNumber()), cfg.Address)
 		assert.Equal(t, DefaultRetentionPeriod, cfg.RetentionPeriod)
 		assert.Equal(t, DefaultCompactPeriod, cfg.CompactPeriod)
 		assert.False(t, cfg.Pprof)

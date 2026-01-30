@@ -30,7 +30,7 @@ func Command(cliContext *cli.Context) error {
 	// Get the server address from the flag, default to http://localhost:<Default GPUd port>
 	serverAddr := cliContext.String("server")
 	if serverAddr == "" {
-		serverAddr = fmt.Sprintf("https://localhost:%d", config.DefaultGPUdPort)
+		serverAddr = fmt.Sprintf("https://localhost:%d", config.GPUdPortNumber())
 	}
 
 	// Get custom plugins

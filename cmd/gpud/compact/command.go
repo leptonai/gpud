@@ -47,9 +47,9 @@ func Command(cliContext *cli.Context) error {
 		}
 	}
 
-	portOpen := isPortOpen(config.DefaultGPUdPort)
+	portOpen := isPortOpen(config.GPUdPortNumber())
 	if portOpen {
-		return fmt.Errorf("gpud is running on port %d (must be stopped before running compact)", config.DefaultGPUdPort)
+		return fmt.Errorf("gpud is running on port %d (must be stopped before running compact)", config.GPUdPortNumber())
 	}
 
 	log.Logger.Infow("successfully checked gpud is not running")
