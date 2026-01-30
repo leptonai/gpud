@@ -27,6 +27,17 @@ const (
 	eventNVSwitchTopologyMismatch   = "fabricmanager_nvswitch_topology_mismatch"
 	regexNVSwitchTopologyMismatch   = `.*detected number of NVSwitches don't match with any supported system topology.*`
 	messageNVSwitchTopologyMismatch = "NVSwitch topology mismatch detected - fabric manager failed to start"
+
+	// e.g.,
+	// request to query NVSwitch device information from NVSwitch driver failed with error:WARNING Nothing to do [NV_WARN_NOTHING_TO_DO]
+	// This occurs when fabric manager starts but finds no NVSwitch devices to manage.
+	// This is NOT an error condition - it indicates the system does not need fabric manager.
+	// Common scenarios: GH200 standalone (no NVSwitch), simple NVLink bridges, PCIe GPUs.
+	// Ref: https://forums.developer.nvidia.com/t/nvidia-fabricmanager-running-error-with-nv-warn-nothing-to-do/272899
+	// Ref: https://github.com/NVIDIA/gpu-operator/issues/610
+	EventNVSwitchNothingToDo   = "fabricmanager_nvswitch_nothing_to_do"
+	regexNVSwitchNothingToDo   = `.*NV_WARN_NOTHING_TO_DO.*`
+	messageNVSwitchNothingToDo = "Fabric manager has nothing to do - no NVSwitch devices to manage"
 )
 
 var (
@@ -34,6 +45,7 @@ var (
 	compiledNVSwitchNonFatalSXid     = regexp.MustCompile(regexNVSwitchNonFatalSXid)
 	compiledNVSwitchNVLinkFailure    = regexp.MustCompile(regexNVSwitchNVLinkFailure)
 	compiledNVSwitchTopologyMismatch = regexp.MustCompile(regexNVSwitchTopologyMismatch)
+	compiledNVSwitchNothingToDo      = regexp.MustCompile(regexNVSwitchNothingToDo)
 )
 
 func HasNVSwitchFatalSXid(line string) bool {
@@ -64,6 +76,13 @@ func HasNVSwitchTopologyMismatch(line string) bool {
 	return false
 }
 
+func HasNVSwitchNothingToDo(line string) bool {
+	if match := compiledNVSwitchNothingToDo.FindStringSubmatch(line); match != nil {
+		return true
+	}
+	return false
+}
+
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {
@@ -86,5 +105,6 @@ func getMatches() []match {
 		{check: HasNVSwitchNonFatalSXid, eventName: eventNVSwitchNonFatalSXid, regex: regexNVSwitchNonFatalSXid, message: messageNVSwitchNonFatalSXid},
 		{check: HasNVSwitchNVLinkFailure, eventName: eventNVSwitchNVLinkFailure, regex: regexNVSwitchNVLinkFailure, message: messageNVSwitchNVLinkFailure},
 		{check: HasNVSwitchTopologyMismatch, eventName: eventNVSwitchTopologyMismatch, regex: regexNVSwitchTopologyMismatch, message: messageNVSwitchTopologyMismatch},
+		{check: HasNVSwitchNothingToDo, eventName: EventNVSwitchNothingToDo, regex: regexNVSwitchNothingToDo, message: messageNVSwitchNothingToDo},
 	}
 }
