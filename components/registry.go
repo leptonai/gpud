@@ -66,6 +66,12 @@ type FailureInjector struct {
 	// scenario that occurs when NVML library loads but device enumeration fails (e.g., Xid 79).
 	// ref. https://github.com/leptonai/gpud/pull/1180
 	NVMLDeviceGetDevicesError bool
+
+	// ContainerdSocketMissing when true simulates containerd socket file not existing.
+	// This is useful for testing the consecutive socket missing threshold logic
+	// that reports healthy for the first few checks before reporting unhealthy.
+	// ref. https://github.com/leptonai/gpud/pull/1195
+	ContainerdSocketMissing bool
 }
 
 // InitFunc is the function that initializes a component.

@@ -305,6 +305,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "(testing purposes) simulate NVML Device().GetDevices() failure returning 'Unable to determine the device handle for GPU: Unknown Error'. Use to test gpud behavior when NVML loads but device enumeration fails (e.g., Xid 79).",
 					Hidden: true, // only for testing
 				},
+				cli.BoolFlag{
+					Name:   "containerd-socket-missing",
+					Usage:  "(testing purposes) simulate containerd socket file not existing. Use to test the consecutive socket missing threshold logic that reports healthy for first few checks before reporting unhealthy.",
+					Hidden: true, // only for testing
+				},
 			},
 		},
 		{
@@ -629,6 +634,11 @@ sudo rm /etc/systemd/system/gpud.service
 				cli.StringFlag{
 					Name:   "gpu-product-name",
 					Usage:  "(testing purposes) override the detected GPU product name to simulate different GPU types (e.g., set 'H100-SXM' on H100-PCIe to enable fabric state testing)",
+					Hidden: true, // only for testing
+				},
+				cli.BoolFlag{
+					Name:   "containerd-socket-missing",
+					Usage:  "(testing purposes) simulate containerd socket file not existing. Use to test the consecutive socket missing threshold logic.",
 					Hidden: true, // only for testing
 				},
 			},

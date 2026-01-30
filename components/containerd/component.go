@@ -70,6 +70,16 @@ type component struct {
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+
+	// Determine the checkSocketExistsFunc based on failure injector configuration
+	checkSocketExistsFunc := CheckSocketExists
+	if gpudInstance.FailureInjector != nil && gpudInstance.FailureInjector.ContainerdSocketMissing {
+		// Override to always return false, simulating socket missing
+		checkSocketExistsFunc = func() bool {
+			return false
+		}
+	}
+
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
@@ -85,7 +95,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		},
 
 		checkDependencyInstalledFunc: checkContainerdInstalled,
-		checkSocketExistsFunc:        CheckSocketExists,
+		checkSocketExistsFunc:        checkSocketExistsFunc,
 		checkContainerdRunningFunc:   CheckContainerdRunning,
 		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
 			return systemd.IsActive("containerd")
