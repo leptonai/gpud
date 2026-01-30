@@ -475,6 +475,23 @@ func (c *component) Check() components.CheckResult {
 	if !active {
 		cr.FabricManagerActive = false
 
+		// Check if FM reported "nothing to do" - this is not an error condition.
+		// It means FM started but found no NVSwitch devices to manage.
+		// This commonly happens on:
+		// - GH200 standalone systems (NVLink-C2C only, no NVSwitch)
+		// - Simple NVLink bridge configurations (2 GPUs with NVLink, no switch)
+		// - PCIe GPU configurations
+		// Ref: https://forums.developer.nvidia.com/t/nvidia-fabricmanager-running-error-with-nv-warn-nothing-to-do/272899
+		// Ref: https://github.com/NVIDIA/gpu-operator/issues/610
+		if c.hasNothingToDoEvent() {
+			log.Logger.Infow("fabric manager reported nothing to do, treating as healthy")
+			if cr.health != apiv1.HealthStateTypeUnhealthy {
+				cr.health = apiv1.HealthStateTypeHealthy
+			}
+			cr.reason = appendReason(cr.reason, "fabric manager has nothing to do (no NVSwitch devices)")
+			return cr
+		}
+
 		if cr.health == "" || cr.health == apiv1.HealthStateTypeHealthy {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 		}
@@ -500,6 +517,33 @@ func appendReason(existing, addition string) string {
 		return existing
 	}
 	return existing + "; " + addition
+}
+
+// hasNothingToDoEvent checks if the fabric manager has recently reported NV_WARN_NOTHING_TO_DO.
+// This indicates that FM started but found no NVSwitch devices to manage, which is a healthy state.
+func (c *component) hasNothingToDoEvent() bool {
+	if c.eventBucket == nil {
+		return false
+	}
+
+	// Check for events in the last 10 minutes
+	ctx, cancel := context.WithTimeout(c.ctx, 10*time.Second)
+	defer cancel()
+
+	since := time.Now().Add(-10 * time.Minute)
+	events, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		log.Logger.Warnw("failed to query events for nothing_to_do check", "error", err)
+		return false
+	}
+
+	for _, ev := range events {
+		if ev.Name == EventNVSwitchNothingToDo {
+			log.Logger.Debugw("found nothing_to_do event", "event_time", ev.Time)
+			return true
+		}
+	}
+	return false
 }
 
 // checkFMExists returns true if the fabric manager executable is found in the system.
