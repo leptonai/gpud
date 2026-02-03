@@ -34,7 +34,7 @@ sudo systemctl stop gpud.service
 sudo rm -f /usr/sbin/gpud
 sudo rm -f /usr/local/bin/gpud
 
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.9.1
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.10.0
 which gpud
 
 # (optional) if you already installed an old GPUd

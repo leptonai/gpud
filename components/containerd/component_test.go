@@ -3851,6 +3851,9 @@ func TestContainerdSocketMissingFailureInjectorIntegration(t *testing.T) {
 		return true
 	}
 
+	// Disable uptime check so it doesn't override the health state when containerd uptime < threshold
+	c.getContainerdUptimeFunc = nil
+
 	// The checkSocketExistsFunc is already overridden to return false by the failure injector
 
 	// Run checks and verify the consecutive threshold behavior
