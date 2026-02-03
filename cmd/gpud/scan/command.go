@@ -40,6 +40,7 @@ func CreateCommand() func(*cli.Context) error {
 			cliContext.String("gpu-uuids-with-gpu-requires-reset"),
 			cliContext.String("gpu-uuids-with-fabric-state-health-summary-unhealthy"),
 			cliContext.String("gpu-product-name"),
+			cliContext.Bool("containerd-socket-missing"),
 			cliContext.Int("xid-reboot-threshold"),
 			cliContext.IsSet("xid-reboot-threshold"),
 			cliContext.Int("threshold-celsius-slowdown-margin"),
@@ -64,6 +65,7 @@ func cmdScan(
 	gpuUUIDsWithGPURequiresResetRaw string,
 	gpuUUIDsWithFabricStateHealthSummaryUnhealthyRaw string,
 	gpuProductNameOverride string,
+	containerdSocketMissing bool,
 	xidRebootThreshold int,
 	xidRebootThresholdIsSet bool,
 	temperatureMarginThresholdCelsius int,
@@ -154,6 +156,7 @@ func cmdScan(
 			GPUUUIDsWithGPURequiresReset:                  gpuUUIDsWithGPURequiresReset,
 			GPUUUIDsWithFabricStateHealthSummaryUnhealthy: gpuUUIDsWithFabricStateHealthSummaryUnhealthy,
 			GPUProductNameOverride:                        gpuProductNameOverride,
+			ContainerdSocketMissing:                       containerdSocketMissing,
 		}),
 	}
 	if zapLvl.Level() <= zap.DebugLevel { // e.g., info, warn, error

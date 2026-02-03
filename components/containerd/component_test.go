@@ -3765,3 +3765,184 @@ func TestCheckContainerdUptimeGracePeriod(t *testing.T) {
 func durationPtr(d time.Duration) *time.Duration {
 	return &d
 }
+
+// TestNewWithFailureInjectorContainerdSocketMissing tests that the New function
+// correctly overrides the checkSocketExistsFunc when ContainerdSocketMissing is true.
+func TestNewWithFailureInjectorContainerdSocketMissing(t *testing.T) {
+	tests := []struct {
+		name                         string
+		failureInjector              *components.FailureInjector
+		expectedSocketExistsOverride bool
+	}{
+		{
+			name:                         "nil failure injector",
+			failureInjector:              nil,
+			expectedSocketExistsOverride: false,
+		},
+		{
+			name: "failure injector with ContainerdSocketMissing false",
+			failureInjector: &components.FailureInjector{
+				ContainerdSocketMissing: false,
+			},
+			expectedSocketExistsOverride: false,
+		},
+		{
+			name: "failure injector with ContainerdSocketMissing true",
+			failureInjector: &components.FailureInjector{
+				ContainerdSocketMissing: true,
+			},
+			expectedSocketExistsOverride: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			gpudInstance := &components.GPUdInstance{
+				RootCtx:         ctx,
+				FailureInjector: tt.failureInjector,
+			}
+
+			comp, err := New(gpudInstance)
+			require.NoError(t, err)
+			require.NotNil(t, comp)
+
+			// Cast to the internal component type to access the function
+			c := comp.(*component)
+			require.NotNil(t, c.checkSocketExistsFunc)
+
+			// Test the behavior of checkSocketExistsFunc
+			// When overridden due to failure injection, it should always return false
+			if tt.expectedSocketExistsOverride {
+				assert.False(t, c.checkSocketExistsFunc(),
+					"checkSocketExistsFunc should return false when ContainerdSocketMissing is true")
+			}
+			// Note: We can't easily test the non-overridden case as it depends on the actual socket
+		})
+	}
+}
+
+// TestContainerdSocketMissingFailureInjectorIntegration tests the full integration
+// of the socket missing failure injection with the consecutive threshold logic.
+// This verifies that:
+// 1. First 4 checks (below threshold) result in Healthy state
+// 2. 5th check (at threshold) results in Unhealthy state
+// 3. Recovery when socket exists again resets the counter
+func TestContainerdSocketMissingFailureInjectorIntegration(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create component with failure injector enabled
+	gpudInstance := &components.GPUdInstance{
+		RootCtx: ctx,
+		FailureInjector: &components.FailureInjector{
+			ContainerdSocketMissing: true,
+		},
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+	c := comp.(*component)
+
+	// Override checkDependencyInstalledFunc to return true (containerd is installed)
+	c.checkDependencyInstalledFunc = func() bool {
+		return true
+	}
+
+	// The checkSocketExistsFunc is already overridden to return false by the failure injector
+
+	// Run checks and verify the consecutive threshold behavior
+	// socketMissingConsecutiveThreshold = 5
+
+	// First 4 checks should be Healthy (below threshold)
+	for i := 1; i < socketMissingConsecutiveThreshold; i++ {
+		result := c.Check()
+		cr := result.(*checkResult)
+
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
+			"Check %d should be Healthy (below threshold)", i)
+		assert.Contains(t, cr.reason, "socket file does not exist",
+			"Check %d reason should mention socket missing", i)
+		assert.Contains(t, cr.reason, fmt.Sprintf("detected %d/%d consecutive checks", i, socketMissingConsecutiveThreshold),
+			"Check %d reason should show consecutive count", i)
+	}
+
+	// 5th check should be Unhealthy (at threshold)
+	result := c.Check()
+	cr := result.(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
+		"Check at threshold should be Unhealthy")
+	assert.Contains(t, cr.reason, fmt.Sprintf("failed continuously for %d checks", socketMissingConsecutiveThreshold),
+		"Reason should indicate continuous failure")
+
+	// Subsequent checks should remain Unhealthy
+	result = c.Check()
+	cr = result.(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
+		"Subsequent checks should remain Unhealthy")
+}
+
+// TestContainerdSocketMissingRecovery tests that the consecutive counter resets
+// when the socket becomes available again.
+func TestContainerdSocketMissingRecovery(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	socketExists := false
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true // Containerd is installed
+		},
+		checkSocketExistsFunc: func() bool {
+			return socketExists
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			return true
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return true, nil
+		},
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+			return []PodSandbox{}, nil
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		endpoint: "unix:///mock/containerd.sock",
+	}
+
+	// Run 3 checks with socket missing (below threshold)
+	for i := 0; i < 3; i++ {
+		result := comp.Check()
+		cr := result.(*checkResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
+			"Check %d should be Healthy", i+1)
+	}
+
+	// Simulate recovery - socket now exists
+	socketExists = true
+
+	// Run a check - should be healthy and counter should reset
+	result := comp.Check()
+	cr := result.(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
+		"Check after recovery should be Healthy")
+	assert.Equal(t, "ok", cr.reason,
+		"Reason should be 'ok' after recovery")
+
+	// Verify counter was reset by making socket disappear again
+	socketExists = false
+
+	// First check after recovery should show count as 1 (reset occurred)
+	result = comp.Check()
+	cr = result.(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
+		"First check after re-failure should be Healthy")
+	assert.Contains(t, cr.reason, "detected 1/5 consecutive checks",
+		"Counter should have reset to 1")
+}
