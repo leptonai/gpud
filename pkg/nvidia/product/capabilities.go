@@ -35,6 +35,14 @@ var (
 		// SupportedFMByGPUProduct tracks support for the on-node nv-fabricmanager
 		// service only, we explicitly report GB200 as unsupported here.
 		"gb200": false,
+		// GH200 (Grace Hopper Superchip) uses NVLink-C2C for internal CPU-GPU connection.
+		// NVSwitch is only used in large-scale DGX GH200 configurations (up to 256 nodes).
+		// Standalone GH200 systems do not have NVSwitch and do not need fabric manager.
+		// Since we cannot determine NVSwitch presence from product name alone, we return
+		// false here and let component-level NVSwitch detection (via lspci) handle it.
+		// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
+		// Ref: https://www.nvidia.com/en-in/data-center/dgx-gh200/
+		"gh200": false,
 		"h100":  true,
 		"h200":  true,
 		"a10":   false,
@@ -89,6 +97,17 @@ func SupportFabricStateByGPUProduct(gpuProductName string) bool {
 	// Calling this API on PCIe cards returns "Not Supported".
 	// Ref: https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html
 	if strings.Contains(p, "pcie") {
+		return false
+	}
+	// GH200 (Grace Hopper Superchip) fabric state support depends on NVSwitch presence.
+	// - Standalone GH200: Uses NVLink-C2C for CPU-GPU, NO NVSwitch, fabric state returns "Not Supported"
+	// - DGX GH200: Uses NVLink Switch System for multi-node GPU-GPU, HAS NVSwitch
+	// Since we cannot determine NVSwitch presence from product name alone, we return false
+	// here and let component-level NVSwitch detection (via lspci) handle it.
+	// IMPORTANT: This check must come BEFORE the "h200" check because "gh200" contains "h200".
+	// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
+	// Ref: https://www.nvidia.com/en-in/data-center/dgx-gh200/
+	if strings.Contains(p, "gh200") {
 		return false
 	}
 	return strings.Contains(p, "gb200") ||

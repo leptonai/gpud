@@ -196,6 +196,26 @@ func TestSupportedFMByGPUProduct(t *testing.T) {
 			gpuProductName: "NVIDIA H200 PCIe",
 			expected:       false,
 		},
+		// GH200 (Grace Hopper) tests - NVSwitch presence varies by deployment
+		// Standalone GH200 has no NVSwitch, DGX GH200 has NVSwitch
+		// Since we can't determine from product name alone, we return false
+		// and let component-level NVSwitch detection handle it.
+		// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
+		{
+			name:           "GH200 does not support (standalone config)",
+			gpuProductName: "NVIDIA-GH200-144G-HBM3e",
+			expected:       false,
+		},
+		{
+			name:           "GH200 lowercase",
+			gpuProductName: "nvidia gh200",
+			expected:       false,
+		},
+		{
+			name:           "GH200 Grace Hopper Superchip",
+			gpuProductName: "NVIDIA GH200 Grace Hopper Superchip",
+			expected:       false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -286,6 +306,31 @@ func TestSupportFabricStateByGPUProduct(t *testing.T) {
 		{
 			name:           "Empty string",
 			gpuProductName: "",
+			expected:       false,
+		},
+		// GH200 (Grace Hopper) tests - important because "gh200" contains "h200" substring
+		// Without explicit handling, GH200 would incorrectly match the "h200" pattern.
+		// GH200 fabric state depends on NVSwitch presence (standalone vs DGX GH200).
+		// Ref: https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/
+		// Ref: https://www.nvidia.com/en-in/data-center/dgx-gh200/
+		{
+			name:           "GH200 does not support fabric state (standalone config)",
+			gpuProductName: "NVIDIA-GH200-144G-HBM3e",
+			expected:       false,
+		},
+		{
+			name:           "GH200 lowercase",
+			gpuProductName: "nvidia gh200",
+			expected:       false,
+		},
+		{
+			name:           "GH200 Grace Hopper Superchip full name",
+			gpuProductName: "NVIDIA GH200 Grace Hopper Superchip",
+			expected:       false,
+		},
+		{
+			name:           "GH200 with memory size",
+			gpuProductName: "NVIDIA GH200 480GB",
 			expected:       false,
 		},
 	}
