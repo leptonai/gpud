@@ -2,9 +2,12 @@ package run
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"os"
 	"testing"
 
+	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -291,4 +294,150 @@ func TestGetSessionCredentialsOptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRecordLoginSuccessState_Success tests successful recording of login state.
+func TestRecordLoginSuccessState_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	mockey.PatchConvey("recordLoginSuccessState success", t, func() {
+		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+			return tmpDir, nil
+		}).Build()
+
+		ctx := context.Background()
+		err := recordLoginSuccessState(ctx, tmpDir)
+		require.NoError(t, err)
+	})
+}
+
+// TestRecordLoginSuccessState_ResolveDataDirError tests error handling when ResolveDataDir fails.
+func TestRecordLoginSuccessState_ResolveDataDirError(t *testing.T) {
+	mockey.PatchConvey("recordLoginSuccessState resolve error", t, func() {
+		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+			return "", errors.New("failed to resolve data dir")
+		}).Build()
+
+		ctx := context.Background()
+		err := recordLoginSuccessState(ctx, "/tmp/test")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to resolve data dir")
+	})
+}
+
+// TestRecordLoginSuccessState_SqliteOpenError tests error handling when sqlite open fails.
+func TestRecordLoginSuccessState_SqliteOpenError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	mockey.PatchConvey("recordLoginSuccessState sqlite open error", t, func() {
+		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+			return tmpDir, nil
+		}).Build()
+		mockey.Mock(pkgsqlite.Open).To(func(dbPath string, opts ...pkgsqlite.OpOption) (*sql.DB, error) {
+			return nil, errors.New("failed to open database")
+		}).Build()
+
+		ctx := context.Background()
+		err := recordLoginSuccessState(ctx, tmpDir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to open state file")
+	})
+}
+
+// TestReadSessionCredentialsFromPersistentFile_ResolveDataDirError tests error when ResolveDataDir fails.
+func TestReadSessionCredentialsFromPersistentFile_ResolveDataDirError(t *testing.T) {
+	mockey.PatchConvey("readSessionCredentials resolve error", t, func() {
+		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+			return "", errors.New("failed to resolve")
+		}).Build()
+
+		ctx := context.Background()
+		_, _, _, err := readSessionCredentialsFromPersistentFile(ctx, "/tmp/test")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to resolve data dir")
+	})
+}
+
+// TestReadSessionCredentialsFromPersistentFile_ReadTokenError tests error when ReadToken fails.
+func TestReadSessionCredentialsFromPersistentFile_ReadTokenError(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateFile := config.StateFilePath(tmpDir)
+	realDB, err := pkgsqlite.Open(stateFile)
+	require.NoError(t, err)
+	// Ping to ensure the database file is created (sql.Open is lazy)
+	require.NoError(t, realDB.Ping())
+	t.Cleanup(func() { _ = realDB.Close() })
+
+	mockey.PatchConvey("readSessionCredentials read token error", t, func() {
+		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+			return tmpDir, nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadToken).To(func(ctx context.Context, db *sql.DB) (string, error) {
+			return "", errors.New("failed to read token")
+		}).Build()
+
+		ctx := context.Background()
+		_, _, _, err := readSessionCredentialsFromPersistentFile(ctx, tmpDir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read session token")
+	})
+}
+
+// TestReadSessionCredentialsFromPersistentFile_ReadMachineIDError tests error when ReadMachineID fails.
+func TestReadSessionCredentialsFromPersistentFile_ReadMachineIDError(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateFile := config.StateFilePath(tmpDir)
+	realDB, err := pkgsqlite.Open(stateFile)
+	require.NoError(t, err)
+	// Ping to ensure the database file is created (sql.Open is lazy)
+	require.NoError(t, realDB.Ping())
+	t.Cleanup(func() { _ = realDB.Close() })
+
+	mockey.PatchConvey("readSessionCredentials read machine ID error", t, func() {
+		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+			return tmpDir, nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadToken).To(func(ctx context.Context, db *sql.DB) (string, error) {
+			return "token", nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(ctx context.Context, db *sql.DB) (string, error) {
+			return "", errors.New("failed to read machine ID")
+		}).Build()
+
+		ctx := context.Background()
+		_, _, _, err := readSessionCredentialsFromPersistentFile(ctx, tmpDir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read machine ID")
+	})
+}
+
+// TestReadSessionCredentialsFromPersistentFile_ReadEndpointError tests error when ReadMetadata fails.
+func TestReadSessionCredentialsFromPersistentFile_ReadEndpointError(t *testing.T) {
+	tmpDir := t.TempDir()
+	stateFile := config.StateFilePath(tmpDir)
+	realDB, err := pkgsqlite.Open(stateFile)
+	require.NoError(t, err)
+	// Ping to ensure the database file is created (sql.Open is lazy)
+	require.NoError(t, realDB.Ping())
+	t.Cleanup(func() { _ = realDB.Close() })
+
+	mockey.PatchConvey("readSessionCredentials read endpoint error", t, func() {
+		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+			return tmpDir, nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadToken).To(func(ctx context.Context, db *sql.DB) (string, error) {
+			return "token", nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(ctx context.Context, db *sql.DB) (string, error) {
+			return "machine-id", nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadMetadata).To(func(ctx context.Context, db *sql.DB, key string) (string, error) {
+			return "", errors.New("failed to read endpoint")
+		}).Build()
+
+		ctx := context.Background()
+		_, _, _, err := readSessionCredentialsFromPersistentFile(ctx, tmpDir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to read endpoint")
+	})
 }

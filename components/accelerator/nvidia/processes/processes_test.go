@@ -7,13 +7,12 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
 
 func TestGetProcessesWithNilDevice(t *testing.T) {
@@ -130,12 +129,12 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_NewProcess(t *testing.T) {
 	}
 
 	// Mock newProcessFunc that returns a "no such file or directory" error
-	mockNewProcessFunc := func(int32) (*process.Process, error) {
+	mockNewProcessFunc := func(int32) (processInspector, error) {
 		return nil, noSuchFileErr
 	}
 
 	// Call the function
-	result, err := getProcesses(testUUID, mockDevice, func(pid int32) (*process.Process, error) {
+	result, err := getProcesses(testUUID, mockDevice, func(pid int32) (processInspector, error) {
 		return mockNewProcessFunc(pid)
 	})
 
@@ -387,7 +386,7 @@ func TestGetProcesses_Integration_NoSuchFileOrDirectoryError(t *testing.T) {
 	}
 
 	// Mock newProcessFunc that fails for PID 1001 but succeeds for PID 1002
-	mockNewProcessFunc := func(pid int32) (*process.Process, error) {
+	mockNewProcessFunc := func(pid int32) (processInspector, error) {
 		if pid == 1001 {
 			// Return "no such file or directory" error - this process should be skipped
 			return nil, errors.New("no such file or directory")
@@ -428,7 +427,7 @@ func TestGetProcesses_Integration_AllProcessesSkipped(t *testing.T) {
 	}
 
 	// Mock newProcessFunc that always returns "no such file or directory" error
-	mockNewProcessFunc := func(int32) (*process.Process, error) {
+	mockNewProcessFunc := func(int32) (processInspector, error) {
 		return nil, errors.New("not found") // Matches nvmlerrors.IsNoSuchFileOrDirectoryError
 	}
 

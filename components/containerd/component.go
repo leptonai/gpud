@@ -18,7 +18,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	componentkubelet "github.com/leptonai/gpud/components/kubelet"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 

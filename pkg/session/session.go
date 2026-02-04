@@ -31,7 +31,7 @@ import (
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/process"
 	sessionstates "github.com/leptonai/gpud/pkg/session/states"
 	"github.com/leptonai/gpud/pkg/sqlite"

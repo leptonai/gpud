@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
@@ -22,7 +23,7 @@ import (
 const Name = "kubelet"
 
 const (
-	defaultFailedCountThreshold = 5
+	defaultFailedCountThreshold int32 = 5
 )
 
 var _ components.Component = &component{}
@@ -35,8 +36,8 @@ type component struct {
 	checkKubeletRunning   func() bool
 	kubeletReadOnlyPort   int
 
-	failedCount          int
-	failedCountThreshold int
+	failedCount          atomic.Int32
+	failedCountThreshold int32
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -53,7 +54,6 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return netutil.IsPortOpen(DefaultKubeletReadOnlyPort)
 		},
 		kubeletReadOnlyPort:  DefaultKubeletReadOnlyPort,
-		failedCount:          0,
 		failedCountThreshold: defaultFailedCountThreshold,
 	}
 
@@ -142,9 +142,9 @@ func (c *component) Check() components.CheckResult {
 	ccancel()
 
 	if cr.err != nil {
-		c.failedCount++
+		c.failedCount.Add(1)
 	} else {
-		c.failedCount = 0
+		c.failedCount.Store(0)
 	}
 
 	if cr.err == nil {
@@ -153,10 +153,10 @@ func (c *component) Check() components.CheckResult {
 		log.Logger.Debugw(cr.reason, "node", cr.NodeName, "count", len(cr.Pods))
 	}
 
-	if c.failedCount >= c.failedCountThreshold {
+	if c.failedCount.Load() >= c.failedCountThreshold {
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = "list pods from kubelet read-only port failed"
-		log.Logger.Warnw(cr.reason, "failedCount", c.failedCount, "error", cr.err)
+		log.Logger.Warnw(cr.reason, "failedCount", c.failedCount.Load(), "error", cr.err)
 	}
 
 	return cr

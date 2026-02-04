@@ -46,4 +46,4 @@ formatters:
     goimports:
       # put imports beginning with prefix after 3rd-party packages;
       # it's a comma-separated list of prefixes
-      local-prefixes: lepton.ai/lepton
+      local-prefixes: github.com/leptonai/gpud

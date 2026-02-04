@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	devwrap "github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmltestutil "github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+	devwrap "github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	nvmltestutil "github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
 
 func TestCheck_FabricStateSupportedHealthy(t *testing.T) {

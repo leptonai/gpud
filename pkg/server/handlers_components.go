@@ -221,7 +221,7 @@ func (g *globalHandler) triggerComponentsByTag(c *gin.Context) {
 		for _, tag := range tags {
 			if tag == tagName {
 				triggeredComponents = append(triggeredComponents, comp.Name())
-				if err := comp.Check(); err != nil {
+				if result := comp.Check(); result != nil && result.HealthStateType() != apiv1.HealthStateTypeHealthy {
 					success = false
 					exitStatus = 1
 				}

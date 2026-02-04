@@ -17,16 +17,6 @@ import (
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 
-var (
-	systemctlExists       = systemd.SystemctlExists
-	systemdIsActive       = systemd.IsActive
-	isPortOpen            = netutil.IsPortOpen
-	stateFileFromContext  = gpudcommon.StateFileFromContext
-	sqliteOpen            = sqlite.Open
-	sqliteReadDBSize      = sqlite.ReadDBSize
-	sqliteCompactDatabase = sqlite.Compact
-)
-
 func Command(cliContext *cli.Context) error {
 	logLevel := cliContext.String("log-level")
 	zapLvl, err := log.ParseLogLevel(logLevel)
@@ -37,8 +27,8 @@ func Command(cliContext *cli.Context) error {
 
 	log.Logger.Debugw("starting compact command")
 
-	if systemctlExists() {
-		active, err := systemdIsActive("gpud.service")
+	if systemd.SystemctlExists() {
+		active, err := systemd.IsActive("gpud.service")
 		if err != nil {
 			return err
 		}
@@ -47,7 +37,7 @@ func Command(cliContext *cli.Context) error {
 		}
 	}
 
-	portOpen := isPortOpen(config.DefaultGPUdPort)
+	portOpen := netutil.IsPortOpen(config.DefaultGPUdPort)
 	if portOpen {
 		return fmt.Errorf("gpud is running on port %d (must be stopped before running compact)", config.DefaultGPUdPort)
 	}
@@ -57,12 +47,12 @@ func Command(cliContext *cli.Context) error {
 	rootCtx, rootCancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer rootCancel()
 
-	stateFile, err := stateFileFromContext(cliContext)
+	stateFile, err := gpudcommon.StateFileFromContext(cliContext)
 	if err != nil {
 		return fmt.Errorf("failed to get state file: %w", err)
 	}
 
-	dbRW, err := sqliteOpen(stateFile)
+	dbRW, err := sqlite.Open(stateFile)
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
@@ -70,7 +60,7 @@ func Command(cliContext *cli.Context) error {
 		_ = dbRW.Close()
 	}()
 
-	dbRO, err := sqliteOpen(stateFile, sqlite.WithReadOnly(true))
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
 	if err != nil {
 		return fmt.Errorf("failed to open state file: %w", err)
 	}
@@ -78,17 +68,17 @@ func Command(cliContext *cli.Context) error {
 		_ = dbRO.Close()
 	}()
 
-	dbSize, err := sqliteReadDBSize(rootCtx, dbRO)
+	dbSize, err := sqlite.ReadDBSize(rootCtx, dbRO)
 	if err != nil {
 		return fmt.Errorf("failed to read state file size: %w", err)
 	}
 	log.Logger.Infow("state file size before compact", "size", humanize.IBytes(dbSize))
 
-	if err := sqliteCompactDatabase(rootCtx, dbRW); err != nil {
+	if err := sqlite.Compact(rootCtx, dbRW); err != nil {
 		return fmt.Errorf("failed to compact state file: %w", err)
 	}
 
-	dbSize, err = sqliteReadDBSize(rootCtx, dbRO)
+	dbSize, err = sqlite.ReadDBSize(rootCtx, dbRO)
 	if err != nil {
 		return fmt.Errorf("failed to read state file size: %w", err)
 	}

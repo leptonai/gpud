@@ -4,6 +4,7 @@ import (
 	"context"
 
 	sd "github.com/coreos/go-systemd/v22/daemon"
+
 	"github.com/leptonai/gpud/pkg/log"
 )
 

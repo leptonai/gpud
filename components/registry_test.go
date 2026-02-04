@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
 // mockComponent implements the Component interface for testing
