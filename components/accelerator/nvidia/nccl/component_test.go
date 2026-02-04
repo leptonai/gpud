@@ -16,8 +16,8 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/kmsg"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvmllib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 

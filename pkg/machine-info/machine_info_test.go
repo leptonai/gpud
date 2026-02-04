@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/leptonai/gpud/pkg/log"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
 	nvidiadev "github.com/leptonai/gpud/pkg/nvidia/dev"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
 
 func TestGetMachineNetwork(t *testing.T) {

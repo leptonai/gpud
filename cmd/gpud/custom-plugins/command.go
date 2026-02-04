@@ -18,7 +18,7 @@ import (
 	customplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	custompluginstestdata "github.com/leptonai/gpud/pkg/custom-plugins/testdata"
 	"github.com/leptonai/gpud/pkg/log"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
 
 func Command(cliContext *cli.Context) error {
@@ -52,9 +52,9 @@ func Command(cliContext *cli.Context) error {
 		return specs[i].PluginType == "init"
 	})
 
-	println()
+	fmt.Println()
 	specs.PrintValidateResults(os.Stdout, cmdcommon.CheckMark, cmdcommon.WarningSign)
-	println()
+	fmt.Println()
 
 	if verr := specs.Validate(); verr != nil {
 		return verr
@@ -88,7 +88,7 @@ func Command(cliContext *cli.Context) error {
 		return err
 	}
 
-	println()
+	fmt.Println()
 	for _, rs := range results {
 		debugger, ok := rs.(components.CheckResultDebugger)
 		if ok {
@@ -96,7 +96,7 @@ func Command(cliContext *cli.Context) error {
 		}
 	}
 
-	println()
+	fmt.Println()
 	fmt.Printf("### Results\n\n")
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
@@ -109,23 +109,23 @@ func Command(cliContext *cli.Context) error {
 			healthState = cmdcommon.WarningSign + " " + string(rs.HealthStateType())
 		}
 
-		err := ""
+		errMsg := ""
 		runMode := ""
 		extraInfo := ""
 
 		states := rs.HealthStates()
 		if len(states) > 0 {
-			err = states[0].Error
+			errMsg = states[0].Error
 			runMode = string(states[0].RunMode)
 
 			b, _ := json.Marshal(states[0].ExtraInfo)
 			extraInfo = string(b)
 		}
 
-		table.Append([]string{rs.ComponentName(), healthState, rs.Summary(), err, runMode, extraInfo})
+		table.Append([]string{rs.ComponentName(), healthState, rs.Summary(), errMsg, runMode, extraInfo})
 	}
 	table.Render()
-	println()
+	fmt.Println()
 
 	return nil
 }

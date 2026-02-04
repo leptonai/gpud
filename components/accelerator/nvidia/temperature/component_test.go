@@ -15,11 +15,11 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 
@@ -943,6 +943,349 @@ func TestCheck_GPULostError(t *testing.T) {
 	require.Len(t, states, 1)
 	assert.NotNil(t, states[0].SuggestedActions)
 	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+}
+
+// mockNVMLInstanceWithInitError supports returning a custom init error
+type mockNVMLInstanceWithInitError struct {
+	devices   map[string]device.Device
+	exists    bool
+	prodName  string
+	initError error
+}
+
+func (m *mockNVMLInstanceWithInitError) NVMLExists() bool {
+	return m.exists
+}
+
+func (m *mockNVMLInstanceWithInitError) Library() nvml_lib.Library {
+	return nil
+}
+
+func (m *mockNVMLInstanceWithInitError) Devices() map[string]device.Device {
+	return m.devices
+}
+
+func (m *mockNVMLInstanceWithInitError) ProductName() string {
+	return m.prodName
+}
+
+func (m *mockNVMLInstanceWithInitError) Architecture() string {
+	return ""
+}
+
+func (m *mockNVMLInstanceWithInitError) Brand() string {
+	return ""
+}
+
+func (m *mockNVMLInstanceWithInitError) DriverVersion() string {
+	return ""
+}
+
+func (m *mockNVMLInstanceWithInitError) DriverMajor() int {
+	return 0
+}
+
+func (m *mockNVMLInstanceWithInitError) CUDAVersion() string {
+	return ""
+}
+
+func (m *mockNVMLInstanceWithInitError) FabricManagerSupported() bool {
+	return true
+}
+
+func (m *mockNVMLInstanceWithInitError) FabricStateSupported() bool {
+	return false
+}
+
+func (m *mockNVMLInstanceWithInitError) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
+	return nvidiaproduct.MemoryErrorManagementCapabilities{}
+}
+
+func (m *mockNVMLInstanceWithInitError) Shutdown() error {
+	return nil
+}
+
+func (m *mockNVMLInstanceWithInitError) InitError() error {
+	return m.initError
+}
+
+func TestCheckResult_ComponentName(t *testing.T) {
+	t.Run("non-nil checkResult", func(t *testing.T) {
+		cr := &checkResult{
+			health: apiv1.HealthStateTypeHealthy,
+			reason: "all good",
+		}
+		assert.Equal(t, Name, cr.ComponentName())
+	})
+
+	t.Run("empty checkResult", func(t *testing.T) {
+		cr := &checkResult{}
+		assert.Equal(t, Name, cr.ComponentName())
+	})
+}
+
+func TestCheckResult_String(t *testing.T) {
+	t.Run("nil checkResult", func(t *testing.T) {
+		var cr *checkResult
+		assert.Equal(t, "", cr.String())
+	})
+
+	t.Run("empty temperatures", func(t *testing.T) {
+		cr := &checkResult{}
+		assert.Equal(t, "no data", cr.String())
+	})
+
+	t.Run("with temperatures HBM and margin supported", func(t *testing.T) {
+		cr := &checkResult{
+			Temperatures: []Temperature{
+				{
+					UUID:                           "gpu-uuid-1",
+					BusID:                          "0000:0f:00.0",
+					CurrentCelsiusGPUCore:          75,
+					CurrentCelsiusHBM:              80,
+					HBMTemperatureSupported:        true,
+					ThresholdCelsiusSlowdownMargin: 15,
+					MarginTemperatureSupported:     true,
+					ThresholdCelsiusMemMax:         100,
+					UsedPercentMemMax:              "80.00",
+				},
+			},
+		}
+		result := cr.String()
+		assert.Contains(t, result, "gpu-uuid-1")
+		assert.Contains(t, result, "0000:0f:00.0")
+		assert.Contains(t, result, "75")
+		assert.Contains(t, result, "80")
+		assert.Contains(t, result, "15")
+	})
+
+	t.Run("with temperatures HBM not supported", func(t *testing.T) {
+		cr := &checkResult{
+			Temperatures: []Temperature{
+				{
+					UUID:                       "gpu-uuid-2",
+					BusID:                      "0000:10:00.0",
+					CurrentCelsiusGPUCore:      65,
+					HBMTemperatureSupported:    false,
+					MarginTemperatureSupported: false,
+					ThresholdCelsiusMemMax:     100,
+					UsedPercentMemMax:          "0.0",
+				},
+			},
+		}
+		result := cr.String()
+		assert.Contains(t, result, "gpu-uuid-2")
+		assert.Contains(t, result, "n/a")
+	})
+
+	t.Run("with multiple temperatures", func(t *testing.T) {
+		cr := &checkResult{
+			Temperatures: []Temperature{
+				{
+					UUID:                           "gpu-uuid-a",
+					BusID:                          "0000:0a:00.0",
+					CurrentCelsiusGPUCore:          70,
+					HBMTemperatureSupported:        true,
+					CurrentCelsiusHBM:              85,
+					MarginTemperatureSupported:     true,
+					ThresholdCelsiusSlowdownMargin: 10,
+					ThresholdCelsiusMemMax:         100,
+					UsedPercentMemMax:              "85.00",
+				},
+				{
+					UUID:                       "gpu-uuid-b",
+					BusID:                      "0000:0b:00.0",
+					CurrentCelsiusGPUCore:      72,
+					HBMTemperatureSupported:    false,
+					MarginTemperatureSupported: false,
+					ThresholdCelsiusMemMax:     100,
+					UsedPercentMemMax:          "0.0",
+				},
+			},
+		}
+		result := cr.String()
+		assert.Contains(t, result, "gpu-uuid-a")
+		assert.Contains(t, result, "gpu-uuid-b")
+	})
+}
+
+func TestCheckResult_Summary(t *testing.T) {
+	t.Run("with reason", func(t *testing.T) {
+		cr := &checkResult{reason: "test reason"}
+		assert.Equal(t, "test reason", cr.Summary())
+	})
+
+	t.Run("empty reason", func(t *testing.T) {
+		cr := &checkResult{}
+		assert.Equal(t, "", cr.Summary())
+	})
+}
+
+func TestCheckResult_HealthStateType(t *testing.T) {
+	t.Run("nil checkResult", func(t *testing.T) {
+		var cr *checkResult
+		assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
+	})
+
+	t.Run("healthy", func(t *testing.T) {
+		cr := &checkResult{health: apiv1.HealthStateTypeHealthy}
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
+	})
+
+	t.Run("unhealthy", func(t *testing.T) {
+		cr := &checkResult{health: apiv1.HealthStateTypeUnhealthy}
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+	})
+
+	t.Run("degraded", func(t *testing.T) {
+		cr := &checkResult{health: apiv1.HealthStateTypeDegraded}
+		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.HealthStateType())
+	})
+}
+
+func TestCheck_NilNVMLInstance(t *testing.T) {
+	ctx := context.Background()
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	comp := &component{
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		nvmlInstance: nil,
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA NVML instance is nil", cr.reason)
+}
+
+func TestCheck_NVMLNotExists(t *testing.T) {
+	ctx := context.Background()
+
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   false,
+		prodName: "Test GPU",
+	}
+
+	comp := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
+	result := comp.Check()
+
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "NVIDIA NVML library is not loaded", cr.reason)
+}
+
+func TestCheck_InitError(t *testing.T) {
+	ctx := context.Background()
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	initErr := errors.New("error getting device handle for index '0': Unknown Error")
+	mockInst := &mockNVMLInstanceWithInitError{
+		devices:   map[string]device.Device{},
+		exists:    true,
+		prodName:  "Test GPU",
+		initError: initErr,
+	}
+
+	comp := &component{
+		ctx:    cctx,
+		cancel: cancel,
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		nvmlInstance: mockInst,
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "NVML initialization error")
+	assert.NotNil(t, cr.suggestedActions)
+	assert.Contains(t, cr.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+}
+
+func TestCheck_EmptyProductName(t *testing.T) {
+	ctx := context.Background()
+
+	mockNVML := &mockNVMLInstance{
+		devices:  map[string]device.Device{},
+		exists:   true,
+		prodName: "",
+	}
+
+	comp := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
+	result := comp.Check()
+
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Contains(t, cr.reason, "missing product name")
+}
+
+func TestCheckResult_HealthStates_WithSuggestedActions(t *testing.T) {
+	cr := &checkResult{
+		ts:     time.Now(),
+		health: apiv1.HealthStateTypeUnhealthy,
+		reason: "GPU lost",
+		err:    nvmlerrors.ErrGPULost,
+		suggestedActions: &apiv1.SuggestedActions{
+			Description: "GPU lost",
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		},
+	}
+
+	states := cr.HealthStates()
+	require.Len(t, states, 1)
+	assert.NotNil(t, states[0].SuggestedActions)
+	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	assert.Equal(t, "GPU lost", states[0].Error)
+}
+
+func TestCheckResult_HealthStates_WithExtraInfo(t *testing.T) {
+	cr := &checkResult{
+		ts:     time.Now(),
+		health: apiv1.HealthStateTypeHealthy,
+		reason: "all good",
+		Temperatures: []Temperature{
+			{
+				UUID:                     "gpu-uuid-123",
+				CurrentCelsiusGPUCore:    75,
+				ThresholdCelsiusShutdown: 120,
+			},
+		},
+	}
+
+	states := cr.HealthStates()
+	require.Len(t, states, 1)
+	assert.NotEmpty(t, states[0].ExtraInfo)
+	assert.Contains(t, states[0].ExtraInfo["data"], "gpu-uuid-123")
+}
+
+func TestCheckResult_HealthStates_NoExtraInfo(t *testing.T) {
+	cr := &checkResult{
+		ts:     time.Now(),
+		health: apiv1.HealthStateTypeHealthy,
+		reason: "all good",
+	}
+
+	states := cr.HealthStates()
+	require.Len(t, states, 1)
+	assert.Empty(t, states[0].ExtraInfo)
 }
 
 func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {

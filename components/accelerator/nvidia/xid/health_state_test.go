@@ -13,8 +13,8 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
 
 func createXidEvent(eventTime time.Time, xid uint64, eventType apiv1.EventType, suggestedAction apiv1.RepairActionType) eventstore.Event {

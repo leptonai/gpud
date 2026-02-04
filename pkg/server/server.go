@@ -18,6 +18,7 @@ import (
 	"net/http/pprof"
 	"net/url"
 	stdos "os"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -47,7 +48,7 @@ import (
 	pkgmetricsscraper "github.com/leptonai/gpud/pkg/metrics/scraper"
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
 	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
@@ -102,9 +103,11 @@ type UserToken struct {
 
 func createURL(endpoint string) string {
 	host := endpoint
-	url, err := url.Parse(endpoint)
-	if err == nil && url != nil && url.Host != "" {
-		host = url.Host
+	if strings.Contains(endpoint, "://") {
+		u, err := url.Parse(endpoint)
+		if err == nil && u != nil {
+			host = u.Host
+		}
 	}
 	return fmt.Sprintf("https://%s", host)
 }

@@ -311,6 +311,36 @@ func TestGetStates(t *testing.T) {
 			statusCode:     http.StatusNotFound,
 			expectedError:  errdefs.ErrNotFound.Error(),
 		},
+		{
+			name:           "successful YAML response",
+			serverResponse: mustMarshalYAML(t, testStates),
+			contentType:    httputil.RequestHeaderYAML,
+			statusCode:     http.StatusOK,
+			expectedResult: testStates,
+		},
+		{
+			name:           "successful gzipped JSON response",
+			serverResponse: mustMarshalJSON(t, testStates),
+			contentType:    httputil.RequestHeaderJSON,
+			acceptEncoding: httputil.RequestHeaderEncodingGzip,
+			statusCode:     http.StatusOK,
+			expectedResult: testStates,
+			useGzip:        true,
+		},
+		{
+			name:           "with components filter",
+			components:     []string{"comp1", "comp2"},
+			serverResponse: mustMarshalJSON(t, testStates),
+			contentType:    httputil.RequestHeaderJSON,
+			statusCode:     http.StatusOK,
+			expectedResult: testStates,
+		},
+		{
+			name:           "server error",
+			serverResponse: []byte(`internal error`),
+			statusCode:     http.StatusInternalServerError,
+			expectedError:  "server not ready, response not 200",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1105,4 +1135,63 @@ func TestTriggerComponentCheckByTag(t *testing.T) {
 			}
 		})
 	}
+
+	// Test health check failure response (success=false)
+	t.Run("health check failure response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(struct {
+				Components []string `json:"components"`
+				Exit       int      `json:"exit"`
+				Success    bool     `json:"success"`
+			}{
+				Components: []string{"comp1"},
+				Exit:       1,
+				Success:    false,
+			})
+		}))
+		defer server.Close()
+
+		err := TriggerComponentCheckByTag(context.Background(), server.URL, "test-tag")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "health check failed for tag")
+	})
+
+	// Test invalid JSON response
+	t.Run("invalid JSON response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`invalid json`))
+		}))
+		defer server.Close()
+
+		err := TriggerComponentCheckByTag(context.Background(), server.URL, "test-tag")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decode json")
+	})
+
+	// Test with content type and accept encoding headers
+	t.Run("with content type and accept encoding headers", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, httputil.RequestHeaderJSON, r.Header.Get(httputil.RequestHeaderContentType))
+			assert.Equal(t, httputil.RequestHeaderEncodingGzip, r.Header.Get(httputil.RequestHeaderAcceptEncoding))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(struct {
+				Components []string `json:"components"`
+				Exit       int      `json:"exit"`
+				Success    bool     `json:"success"`
+			}{
+				Components: []string{"comp1"},
+				Exit:       0,
+				Success:    true,
+			})
+		}))
+		defer server.Close()
+
+		err := TriggerComponentCheckByTag(context.Background(), server.URL, "test-tag",
+			WithRequestContentTypeJSON(), WithAcceptEncodingGzip())
+		assert.NoError(t, err)
+	})
 }

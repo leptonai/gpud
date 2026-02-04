@@ -1,9 +1,13 @@
 package pci
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/leptonai/gpud/pkg/file"
 )
 
 func Test_isNVIDIAGPUPCI(t *testing.T) {
@@ -55,4 +59,51 @@ func Test_isNVIDIAGPUPCI(t *testing.T) {
 			require.Equal(t, tt.expected, result, "isNVIDIAGPUPCI(%q) = %v, expected %v", tt.line, result, tt.expected)
 		})
 	}
+}
+
+// TestListPCIGPUs_Integration is an integration test that runs when lspci is available.
+// This tests the full execution path including process creation and output parsing.
+func TestListPCIGPUs_Integration(t *testing.T) {
+	// Check if lspci is available
+	lspciPath, err := file.LocateExecutable("lspci")
+	if lspciPath == "" || err != nil {
+		t.Skipf("lspci not found, skipping integration test: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// This will call the actual lspci command
+	gpus, err := ListPCIGPUs(ctx)
+
+	// Should not error even if no GPUs found
+	require.NoError(t, err, "ListPCIGPUs should not error")
+
+	// Log results for manual verification
+	t.Logf("Found %d NVIDIA GPU(s)", len(gpus))
+	for i, gpu := range gpus {
+		t.Logf("  GPU %d: %s", i+1, gpu)
+		// Verify output format matches expectations
+		require.Contains(t, gpu, "NVIDIA", "GPU line should contain 'NVIDIA'")
+		require.Contains(t, gpu, "3D controller", "GPU line should contain '3D controller'")
+	}
+}
+
+// TestListPCIGPUs_ErrorHandling tests error scenarios without requiring actual lspci.
+func TestListPCIGPUs_ErrorHandling(t *testing.T) {
+	t.Run("context cancellation", func(t *testing.T) {
+		// Check if lspci is available first
+		lspciPath, err := file.LocateExecutable("lspci")
+		if lspciPath == "" || err != nil {
+			t.Skip("lspci not found, skipping test")
+		}
+
+		// Create an already-canceled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		_, err = ListPCIGPUs(ctx)
+		// May or may not error depending on timing, but shouldn't panic
+		t.Logf("Canceled context result: %v", err)
+	})
 }

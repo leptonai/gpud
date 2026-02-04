@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/pkg/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 func TestRunBashScriptValidation(t *testing.T) {

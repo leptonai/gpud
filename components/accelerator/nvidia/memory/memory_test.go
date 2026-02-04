@@ -10,8 +10,8 @@ import (
 	gopsutilmem "github.com/shirou/gopsutil/v4/mem"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
 
 func TestGetMemory(t *testing.T) {

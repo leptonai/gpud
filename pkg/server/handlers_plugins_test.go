@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leptonai/gpud/components"
-	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
-	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
+
+	"github.com/leptonai/gpud/components"
+	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
+	"github.com/leptonai/gpud/pkg/httputil"
 )
 
 func TestGetPluginSpecs(t *testing.T) {

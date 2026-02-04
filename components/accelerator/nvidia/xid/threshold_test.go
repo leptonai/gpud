@@ -7,6 +7,12 @@ import (
 )
 
 func TestDefaultExpectedPortStates(t *testing.T) {
+	// Save original value and restore it after the test to avoid polluting other tests
+	original := GetDefaultRebootThreshold()
+	t.Cleanup(func() {
+		SetDefaultRebootThreshold(original)
+	})
+
 	// Test default values
 	defaultRebootThreshold := GetDefaultRebootThreshold()
 	assert.Equal(t, DefaultRebootThreshold, defaultRebootThreshold.Threshold)

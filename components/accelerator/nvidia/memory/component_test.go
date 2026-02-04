@@ -15,11 +15,11 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
-	nvml_lib "github.com/leptonai/gpud/pkg/nvidia-query/nvml/lib"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/testutil"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	nvml_lib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
 

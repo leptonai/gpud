@@ -99,8 +99,8 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
-	nvidianvml "github.com/leptonai/gpud/pkg/nvidia-query/nvml"
-	"github.com/leptonai/gpud/pkg/nvidia-query/nvml/device"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
 )
 
@@ -345,8 +345,8 @@ func (c *component) Check() components.CheckResult {
 	//
 	// When effective, the failure injection works by:
 	//   1. Server creates NVML instance with FailureInjectorConfig (pkg/server/server.go)
-	//   2. Matching GPU devices are wrapped with testDevice (pkg/nvidia-query/nvml/device/device.go)
-	//   3. testDevice.GetFabricState() returns HealthSummary=UNHEALTHY (pkg/nvidia-query/nvml/device/test_device.go)
+	//   2. Matching GPU devices are wrapped with testDevice (pkg/nvidia/nvml/device/device.go)
+	//   3. testDevice.GetFabricState() returns HealthSummary=UNHEALTHY (pkg/nvidia/nvml/device/test_device.go)
 	//   4. collectFabricState() detects the unhealthy state via GetIssues() (fabric_state.go)
 	//   5. This Check() method sets health=Unhealthy based on the report
 	//
