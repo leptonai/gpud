@@ -1288,6 +1288,144 @@ func TestCheckResult_HealthStates_NoExtraInfo(t *testing.T) {
 	assert.Empty(t, states[0].ExtraInfo)
 }
 
+// TestCheck_MarginTemperatureThresholdEdgeCases tests edge cases for margin temperature threshold:
+// - When threshold is 0 (disabled), no alert should be triggered
+// - When GPU reports margin of 0 or negative (unreliable data from old GPUs or H100), no alert should be triggered
+func TestCheck_MarginTemperatureThresholdEdgeCases(t *testing.T) {
+	tests := []struct {
+		name                 string
+		thresholdMargin      int32 // marginThreshold.CelsiusSlowdownMargin
+		gpuMargin            int32 // temp.ThresholdCelsiusSlowdownMargin
+		expectHealthy        apiv1.HealthStateType
+		expectReasonContains string
+	}{
+		{
+			name:                 "Threshold is 0 (disabled) - no alert even with low margin",
+			thresholdMargin:      0,
+			gpuMargin:            5,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
+			expectReasonContains: "no temperature issue found",
+		},
+		{
+			name:                 "Threshold is 0 (disabled) - no alert with 0 margin",
+			thresholdMargin:      0,
+			gpuMargin:            0,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
+			expectReasonContains: "no temperature issue found",
+		},
+		{
+			name:                 "Threshold is 0 (disabled) - no alert with negative margin",
+			thresholdMargin:      0,
+			gpuMargin:            -5,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
+			expectReasonContains: "no temperature issue found",
+		},
+		{
+			name:                 "GPU reports margin 0 (old GPU/H100 unreliable) - no alert even with positive threshold",
+			thresholdMargin:      10,
+			gpuMargin:            0,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
+			expectReasonContains: "no temperature issue found",
+		},
+		{
+			name:                 "GPU reports negative margin (unreliable data) - no alert even with positive threshold",
+			thresholdMargin:      10,
+			gpuMargin:            -1,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
+			expectReasonContains: "no temperature issue found",
+		},
+		{
+			name:                 "GPU reports negative margin -5 (unreliable data) - no alert even with positive threshold",
+			thresholdMargin:      10,
+			gpuMargin:            -5,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
+			expectReasonContains: "no temperature issue found",
+		},
+		{
+			name:                 "Valid margin above threshold - healthy",
+			thresholdMargin:      10,
+			gpuMargin:            15,
+			expectHealthy:        apiv1.HealthStateTypeHealthy,
+			expectReasonContains: "no temperature issue found",
+		},
+		{
+			name:                 "Valid margin equal to threshold - degraded",
+			thresholdMargin:      10,
+			gpuMargin:            10,
+			expectHealthy:        apiv1.HealthStateTypeDegraded,
+			expectReasonContains: "margin threshold exceeded",
+		},
+		{
+			name:                 "Valid margin below threshold - degraded",
+			thresholdMargin:      10,
+			gpuMargin:            5,
+			expectHealthy:        apiv1.HealthStateTypeDegraded,
+			expectReasonContains: "margin threshold exceeded",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Save and restore default thresholds
+			original := GetDefaultThresholds()
+			defer SetDefaultMarginThreshold(original)
+
+			SetDefaultMarginThreshold(Thresholds{CelsiusSlowdownMargin: tt.thresholdMargin})
+
+			ctx := context.Background()
+
+			uuid := "gpu-uuid-123"
+			mockDeviceObj := &mock.Device{
+				GetUUIDFunc: func() (string, nvml.Return) {
+					return uuid, nvml.SUCCESS
+				},
+			}
+			mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+			devs := map[string]device.Device{
+				uuid: mockDev,
+			}
+
+			mockNVML := &mockNVMLInstance{
+				devices:  devs,
+				exists:   true,
+				prodName: "Test GPU",
+			}
+
+			temperature := Temperature{
+				UUID:                           uuid,
+				CurrentCelsiusGPUCore:          80,
+				CurrentCelsiusHBM:              80,
+				HBMTemperatureSupported:        true,
+				ThresholdCelsiusSlowdownMargin: tt.gpuMargin,
+				MarginTemperatureSupported:     true,
+				ThresholdCelsiusShutdown:       120,
+				ThresholdCelsiusSlowdown:       95,
+				ThresholdCelsiusMemMax:         100,
+				ThresholdCelsiusGPUMax:         100,
+				UsedPercentShutdown:            "66.67",
+				UsedPercentSlowdown:            "84.21",
+				UsedPercentMemMax:              "80.00",
+				UsedPercentGPUMax:              "80.00",
+			}
+
+			getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+				return temperature, nil
+			}
+
+			component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+			result := component.Check()
+
+			data, ok := result.(*checkResult)
+			require.True(t, ok, "result should be of type *checkResult")
+
+			require.NotNil(t, data, "data should not be nil")
+			assert.Equal(t, tt.expectHealthy, data.health, "health state mismatch for case: %s", tt.name)
+			assert.Contains(t, data.reason, tt.expectReasonContains, "reason should contain expected text for case: %s", tt.name)
+		})
+	}
+}
+
 func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	ctx := context.Background()
 
