@@ -196,7 +196,7 @@ func (c *component) Check() components.CheckResult {
 		// threshold as defined by NVML. NVML does not specify GPU core vs HBM; it is
 		// whichever slowdown threshold is nearest (driver-defined).
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g42db93dc04fc99d253eadc2037a5232d
-		if temp.ThresholdCelsiusSlowdown > 0 && temp.MarginTemperatureSupported {
+		if marginThreshold.CelsiusSlowdownMargin > 0 && temp.ThresholdCelsiusSlowdown > 0 && temp.MarginTemperatureSupported {
 			// margin left less than the threshold, indicating the GPU is approaching the slowdown threshold
 			// e.g.,
 			// 5°C margin left means the GPU is approaching the slowdown threshold at 82°C
