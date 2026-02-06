@@ -196,7 +196,14 @@ func (c *component) Check() components.CheckResult {
 		// threshold as defined by NVML. NVML does not specify GPU core vs HBM; it is
 		// whichever slowdown threshold is nearest (driver-defined).
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g42db93dc04fc99d253eadc2037a5232d
-		if temp.ThresholdCelsiusSlowdown > 0 && temp.MarginTemperatureSupported {
+		//
+		// NOTE: Some older GPUs or H100 may return ThresholdCelsiusSlowdownMargin of 0 or negative values,
+		// indicating the margin temperature feature is not reliably supported.
+		// We skip the margin check in such cases to avoid false positive alerts.
+		if temp.ThresholdCelsiusSlowdown > 0 && temp.MarginTemperatureSupported &&
+			marginThreshold.CelsiusSlowdownMargin > 0 && // threshold of 0 means the margin check is disabled
+			temp.ThresholdCelsiusSlowdownMargin > 0 { // margin <= 0 indicates unreliable/unsupported data
+
 			// margin left less than the threshold, indicating the GPU is approaching the slowdown threshold
 			// e.g.,
 			// 5°C margin left means the GPU is approaching the slowdown threshold at 82°C
