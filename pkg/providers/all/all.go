@@ -3,7 +3,6 @@ package all
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -11,9 +10,11 @@ import (
 	pkgprovidersaws "github.com/leptonai/gpud/pkg/providers/aws"
 	pkgprovidersazure "github.com/leptonai/gpud/pkg/providers/azure"
 	pkgprovidersgcp "github.com/leptonai/gpud/pkg/providers/gcp"
+	pkgprovidersnscale "github.com/leptonai/gpud/pkg/providers/nscale"
 )
 
 var All = []pkgproviders.Detector{
+	pkgprovidersnscale.New(),
 	pkgprovidersaws.New(),
 	pkgprovidersazure.New(),
 	pkgprovidersgcp.New(),
@@ -52,31 +53,37 @@ func Detect(ctx context.Context) (*pkgproviders.Info, error) {
 		Provider: detector.Name(),
 	}
 
+	// Metadata fields are best-effort: provider detection has already succeeded,
+	// so one failed optional fetch should not discard provider identity.
 	publicIP, err := detector.PublicIPv4(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get public IP: %w (provider: %s)", err, detector.Name())
+		log.Logger.Warnw("failed to get public IP", "provider", detector.Name(), "error", err)
+	} else {
+		info.PublicIP = publicIP
 	}
-	info.PublicIP = publicIP
 
 	privateIP, err := detector.PrivateIPv4(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get private IP: %w (provider: %s)", err, detector.Name())
+		log.Logger.Warnw("failed to get private IP", "provider", detector.Name(), "error", err)
+	} else {
+		info.PrivateIP = privateIP
+		log.Logger.Infow("successfully detected private IP", "provider", detector.Name(), "privateIP", privateIP)
 	}
-	info.PrivateIP = privateIP
-	log.Logger.Infow("successfully detected private IP", "provider", detector.Name(), "privateIP", privateIP)
 
 	vmEnvironment, err := detector.VMEnvironment(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get VM environment: %w (provider: %s)", err, detector.Name())
+		log.Logger.Warnw("failed to get VM environment", "provider", detector.Name(), "error", err)
+	} else {
+		info.VMEnvironment = vmEnvironment
 	}
-	info.VMEnvironment = vmEnvironment
 
 	instanceID, err := detector.InstanceID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get instance ID: %w (provider: %s)", err, detector.Name())
+		log.Logger.Warnw("failed to get instance ID", "provider", detector.Name(), "error", err)
+	} else {
+		info.InstanceID = instanceID
+		log.Logger.Infow("successfully detected instance ID", "provider", detector.Name(), "instanceID", instanceID)
 	}
-	info.InstanceID = instanceID
-	log.Logger.Infow("successfully detected instance ID", "provider", detector.Name(), "instanceID", instanceID)
 
 	return info, nil
 }
