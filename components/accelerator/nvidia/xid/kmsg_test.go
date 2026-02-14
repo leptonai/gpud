@@ -119,6 +119,34 @@ func TestMatch(t *testing.T) {
 			expectedDevice: "PCI:0000:05:00",
 		},
 		{
+			name: "multiline fallen-off-bus fallback without explicit Xid",
+			input: "NVRM: The NVIDIA GPU 0000:18:00.0\n" +
+				"NVRM: (PCI ID: 10de:2901) installed in this system has\n" +
+				"NVRM: fallen off the bus and is not responding to commands.",
+			expectNil:      false,
+			expectedXid:    79,
+			expectedDevice: "PCI:0000:18:00",
+		},
+		{
+			name:           "single-line fallen-off-bus fallback without explicit Xid",
+			input:          "NVRM: GPU 0000:29:00.0: GPU has fallen off the bus.",
+			expectNil:      false,
+			expectedXid:    79,
+			expectedDevice: "PCI:0000:29:00",
+		},
+		{
+			name:           "single-line fallen-off-bus fallback normalizes missing PCI domain",
+			input:          "NVRM: GPU 18:00.0: GPU has fallen off the bus.",
+			expectNil:      false,
+			expectedXid:    79,
+			expectedDevice: "PCI:0000:18:00",
+		},
+		{
+			name:      "fallen-off-bus text without valid BDF is ignored",
+			input:     "NVRM: The NVIDIA GPU invalid-bdf.0\nNVRM: fallen off the bus and is not responding to commands.",
+			expectNil: true,
+		},
+		{
 			name:           "valid XID error without PCI prefix",
 			input:          "[...] NVRM: Xid (0000:03:00): 14, Channel 00000001",
 			expectNil:      false,

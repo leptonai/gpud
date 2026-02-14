@@ -26,11 +26,25 @@ const (
 	// Example: NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 08 (0x004505c6 0x00000000 ...)
 	// Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
 	RegexNVRMXidExtended = `NVRM: Xid \(PCI:([0-9a-fA-F:]+)\): (\d+)(?:, pid=(\d+), name=([^,]+))?, ([A-Z_]+(?:/[A-Z_]+)?)\s+(Nonfatal|Fatal)\s+(XC[01])\s+(i\d+)\s+Link\s+(-?\d+)\s+\((0x[0-9a-fA-F]+)\s+(0x[0-9a-fA-F]+)(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?`
+
+	// Fallback signatures for "GPU has fallen off the bus" logs that do not include
+	// explicit "NVRM: Xid (...)" text.
+	//
+	// Multiline example:
+	// NVRM: The NVIDIA GPU 0000:18:00.0
+	// NVRM: ... fallen off the bus and is not responding to commands.
+	RegexNVRMFallenOffBusMultiline = `(?s)NVRM:\s+The NVIDIA GPU ((?:[0-9a-fA-F]{4}:)?[0-9a-fA-F]{2}:[0-9a-fA-F]{2})\.0.*?fallen off the bus and is not responding to commands\.`
+
+	// Single-line example:
+	// NVRM: GPU 0000:18:00.0: GPU has fallen off the bus.
+	RegexNVRMFallenOffBusSingleLine = `NVRM:\s+GPU ((?:[0-9a-fA-F]{4}:)?[0-9a-fA-F]{2}:[0-9a-fA-F]{2})\.0:\s+GPU has fallen off the bus\.?`
 )
 
 var (
-	compiledRegexNVRMXidCombined = regexp.MustCompile(RegexNVRMXidCombined)
-	compiledRegexNVRMXidExtended = regexp.MustCompile(RegexNVRMXidExtended)
+	compiledRegexNVRMXidCombined            = regexp.MustCompile(RegexNVRMXidCombined)
+	compiledRegexNVRMXidExtended            = regexp.MustCompile(RegexNVRMXidExtended)
+	compiledRegexNVRMFallenOffBusMultiline  = regexp.MustCompile(RegexNVRMFallenOffBusMultiline)
+	compiledRegexNVRMFallenOffBusSingleLine = regexp.MustCompile(RegexNVRMFallenOffBusSingleLine)
 )
 
 const (
@@ -197,18 +211,56 @@ func Match(line string) *XidError {
 	}
 
 	extractedID, deviceUUID := ExtractNVRMXidInfo(line)
-	if extractedID == 0 {
-		return nil
+	if extractedID != 0 {
+		detail, ok := GetDetail(extractedID)
+		if !ok {
+			return nil
+		}
+		return &XidError{
+			Xid:        extractedID,
+			DeviceUUID: deviceUUID,
+			Detail:     detail,
+		}
 	}
-	detail, ok := GetDetail(extractedID)
-	if !ok {
-		return nil
+
+	if xid, fallbackDeviceUUID := extractFallenOffBusXidInfo(line); xid != 0 {
+		// NVIDIA docs map "GPU has fallen off the bus" to XID 79 even when newer
+		// driver logs omit the explicit "Xid (...): 79" prefix.
+		detail, ok := GetDetail(xid)
+		if !ok {
+			return nil
+		}
+		return &XidError{
+			Xid:        xid,
+			DeviceUUID: fallbackDeviceUUID,
+			Detail:     detail,
+		}
 	}
-	return &XidError{
-		Xid:        extractedID,
-		DeviceUUID: deviceUUID,
-		Detail:     detail,
+
+	return nil
+}
+
+func extractFallenOffBusXidInfo(line string) (int, string) {
+	if match := compiledRegexNVRMFallenOffBusSingleLine.FindStringSubmatch(line); len(match) == 2 {
+		return 79, normalizePCIBDF(match[1])
 	}
+
+	if match := compiledRegexNVRMFallenOffBusMultiline.FindStringSubmatch(line); len(match) == 2 {
+		return 79, normalizePCIBDF(match[1])
+	}
+
+	return 0, ""
+}
+
+func normalizePCIBDF(deviceUUID string) string {
+	normalized := strings.TrimSpace(strings.TrimPrefix(deviceUUID, "PCI:"))
+	if strings.Count(normalized, ":") == 1 {
+		normalized = "0000:" + normalized
+	}
+	if normalized == "" {
+		return ""
+	}
+	return "PCI:" + normalized
 }
 
 // MessageToInject represents a synthetic kernel message snippet and its log priority.
