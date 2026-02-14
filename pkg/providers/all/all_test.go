@@ -69,70 +69,15 @@ func withTemporaryDetectors(tempDetectors []providers.Detector, fn func()) {
 	fn()
 }
 
-// detectForTest is a copy of the real Detect function but without the reliance on global variables
-// and without the nil pointer issue in the error path
-func detectForTest(ctx context.Context, detectors []providers.Detector) (*providers.Info, error) {
-	var detector providers.Detector
-	for _, d := range detectors {
-		localCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		provider, err := d.Provider(localCtx)
-		cancel()
-		if err != nil {
-			// Skip logging error, which is what causes the nil pointer in the real function
-			continue
-		}
-
-		if provider != "" {
-			detector = d
-			break
-		}
-	}
-
-	if detector == nil {
-		return &providers.Info{
-			Provider: "unknown",
-		}, nil
-	}
-
-	info := &providers.Info{
-		Provider: detector.Name(),
-	}
-
-	publicIP, err := detector.PublicIPv4(ctx)
-	if err != nil {
-		return nil, errors.New("failed to get public IP: " + err.Error())
-	}
-	info.PublicIP = publicIP
-
-	privateIP, err := detector.PrivateIPv4(ctx)
-	if err != nil {
-		return nil, errors.New("failed to get private IP: " + err.Error())
-	}
-	info.PrivateIP = privateIP
-
-	vmEnvironment, err := detector.VMEnvironment(ctx)
-	if err != nil {
-		return nil, errors.New("failed to get VM environment: " + err.Error())
-	}
-	info.VMEnvironment = vmEnvironment
-
-	instanceID, err := detector.InstanceID(ctx)
-	if err != nil {
-		return nil, errors.New("failed to get instance ID: " + err.Error())
-	}
-	info.InstanceID = instanceID
-
-	return info, nil
-}
-
 func TestDetect_Success(t *testing.T) {
 	testDetectors := []providers.Detector{
 		&mockDetector{
-			name:      "aws",
-			provider:  "aws",
-			publicIP:  "1.2.3.4",
-			privateIP: "10.0.1.100",
-			vmEnv:     "AWS",
+			name:       "aws",
+			provider:   "aws",
+			publicIP:   "1.2.3.4",
+			privateIP:  "10.0.1.100",
+			vmEnv:      "AWS",
+			instanceID: "i-abc",
 		},
 	}
 
@@ -143,6 +88,7 @@ func TestDetect_Success(t *testing.T) {
 		assert.Equal(t, "1.2.3.4", info.PublicIP)
 		assert.Equal(t, "10.0.1.100", info.PrivateIP)
 		assert.Equal(t, "AWS", info.VMEnvironment)
+		assert.Equal(t, "i-abc", info.InstanceID)
 	})
 }
 
@@ -151,6 +97,36 @@ func TestDetect_SkipOnEmptyProvider(t *testing.T) {
 		&mockDetector{
 			name:      "aws",
 			provider:  "", // Empty provider name
+			publicIP:  "1.2.3.4",
+			privateIP: "10.0.1.100",
+			vmEnv:     "AWS",
+		},
+		&mockDetector{
+			name:       "azure",
+			provider:   "azure",
+			publicIP:   "5.6.7.8",
+			privateIP:  "10.0.2.200",
+			vmEnv:      "AZURE",
+			instanceID: "az-vm-1",
+		},
+	}
+
+	withTemporaryDetectors(testDetectors, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, "azure", info.Provider)
+		assert.Equal(t, "5.6.7.8", info.PublicIP)
+		assert.Equal(t, "10.0.2.200", info.PrivateIP)
+		assert.Equal(t, "AZURE", info.VMEnvironment)
+		assert.Equal(t, "az-vm-1", info.InstanceID)
+	})
+}
+
+func TestDetect_ProviderError(t *testing.T) {
+	testDetectors := []providers.Detector{
+		&mockDetector{
+			name:      "aws",
+			provErr:   errors.New("provider error"),
 			publicIP:  "1.2.3.4",
 			privateIP: "10.0.1.100",
 			vmEnv:     "AWS",
@@ -172,37 +148,6 @@ func TestDetect_SkipOnEmptyProvider(t *testing.T) {
 		assert.Equal(t, "10.0.2.200", info.PrivateIP)
 		assert.Equal(t, "AZURE", info.VMEnvironment)
 	})
-}
-
-// The following tests can't use the real Detect function directly
-// because of the nil pointer issue in the error handling path.
-// For these cases, we use a simplified version that doesn't depend on logging.
-
-func TestDetect_ProviderError(t *testing.T) {
-	testDetectors := []providers.Detector{
-		&mockDetector{
-			name:      "aws",
-			provErr:   errors.New("provider error"),
-			publicIP:  "1.2.3.4",
-			privateIP: "10.0.1.100",
-			vmEnv:     "AWS",
-		},
-		&mockDetector{
-			name:      "azure",
-			provider:  "azure",
-			publicIP:  "5.6.7.8",
-			privateIP: "10.0.2.200",
-			vmEnv:     "AZURE",
-		},
-	}
-
-	// Use detectForTest to avoid nil pointer issue in the real Detect function
-	info, err := detectForTest(context.Background(), testDetectors)
-	assert.NoError(t, err)
-	assert.Equal(t, "azure", info.Provider)
-	assert.Equal(t, "5.6.7.8", info.PublicIP)
-	assert.Equal(t, "10.0.2.200", info.PrivateIP)
-	assert.Equal(t, "AZURE", info.VMEnvironment)
 }
 
 func TestDetect_NoProviderDetected(t *testing.T) {
@@ -227,36 +172,46 @@ func TestDetect_NoProviderDetected(t *testing.T) {
 func TestDetect_PublicIPError(t *testing.T) {
 	testDetectors := []providers.Detector{
 		&mockDetector{
-			name:      "aws",
-			provider:  "aws",
-			publicErr: errors.New("public IP error"),
-			privateIP: "10.0.1.100",
-			vmEnv:     "AWS",
+			name:       "aws",
+			provider:   "aws",
+			publicErr:  errors.New("public IP error"),
+			privateIP:  "10.0.1.100",
+			vmEnv:      "AWS",
+			instanceID: "i-abc",
 		},
 	}
 
 	withTemporaryDetectors(testDetectors, func() {
-		_, err := Detect(context.Background())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get public IP")
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, "aws", info.Provider)
+		assert.Empty(t, info.PublicIP)
+		assert.Equal(t, "10.0.1.100", info.PrivateIP)
+		assert.Equal(t, "AWS", info.VMEnvironment)
+		assert.Equal(t, "i-abc", info.InstanceID)
 	})
 }
 
 func TestDetect_VMEnvironmentError(t *testing.T) {
 	testDetectors := []providers.Detector{
 		&mockDetector{
-			name:      "aws",
-			provider:  "aws",
-			publicIP:  "1.2.3.4",
-			privateIP: "10.0.1.100",
-			vmEnvErr:  errors.New("VM environment error"),
+			name:       "aws",
+			provider:   "aws",
+			publicIP:   "1.2.3.4",
+			privateIP:  "10.0.1.100",
+			vmEnvErr:   errors.New("VM environment error"),
+			instanceID: "i-abc",
 		},
 	}
 
 	withTemporaryDetectors(testDetectors, func() {
-		_, err := Detect(context.Background())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get VM environment")
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, "aws", info.Provider)
+		assert.Equal(t, "1.2.3.4", info.PublicIP)
+		assert.Equal(t, "10.0.1.100", info.PrivateIP)
+		assert.Empty(t, info.VMEnvironment)
+		assert.Equal(t, "i-abc", info.InstanceID)
 	})
 }
 
@@ -268,12 +223,40 @@ func TestDetect_PrivateIPError(t *testing.T) {
 			publicIP:   "1.2.3.4",
 			privateErr: errors.New("private IP error"),
 			vmEnv:      "AWS",
+			instanceID: "i-abc",
 		},
 	}
 
 	withTemporaryDetectors(testDetectors, func() {
-		_, err := Detect(context.Background())
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get private IP")
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, "aws", info.Provider)
+		assert.Equal(t, "1.2.3.4", info.PublicIP)
+		assert.Empty(t, info.PrivateIP)
+		assert.Equal(t, "AWS", info.VMEnvironment)
+		assert.Equal(t, "i-abc", info.InstanceID)
+	})
+}
+
+func TestDetect_InstanceIDError(t *testing.T) {
+	testDetectors := []providers.Detector{
+		&mockDetector{
+			name:          "aws",
+			provider:      "aws",
+			publicIP:      "1.2.3.4",
+			privateIP:     "10.0.1.100",
+			vmEnv:         "AWS",
+			instanceIDErr: errors.New("instance ID error"),
+		},
+	}
+
+	withTemporaryDetectors(testDetectors, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, "aws", info.Provider)
+		assert.Equal(t, "1.2.3.4", info.PublicIP)
+		assert.Equal(t, "10.0.1.100", info.PrivateIP)
+		assert.Equal(t, "AWS", info.VMEnvironment)
+		assert.Empty(t, info.InstanceID)
 	})
 }

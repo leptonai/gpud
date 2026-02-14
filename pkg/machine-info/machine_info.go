@@ -162,11 +162,18 @@ func GetMachineNICInfo() *apiv1.MachineNICInfo {
 	privateIPs, err := netutil.GetPrivateIPs(
 		netutil.WithPrefixesToSkip(
 			"lo",
-			"eni",
+			// Do NOT skip "eni"/"lepton": on some nodes these are host-facing NICs
+			// carrying the only RFC1918 address. login_request.go relies on this list
+			// as a fallback when provider metadata does not return a usable private IP.
 			"cali",
+			"cni",
 			"docker",
-			"lepton",
+			"flannel",
+			"nodelocaldns",
 			"tailscale",
+			"tunl",
+			"veth",
+			"vxlan",
 			"ib", // e.g., "ibp24s0" infiniband links
 		),
 		netutil.WithSuffixesToSkip(".calico"),
