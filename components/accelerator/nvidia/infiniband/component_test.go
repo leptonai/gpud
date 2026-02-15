@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"sync"
 	"testing"
@@ -304,6 +305,39 @@ func TestNew(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 	assert.Equal(t, Name, comp.Name())
+}
+
+func getKmsgCacheKeyTruncateSecondsFromOption(t *testing.T, opt kmsg.OpOption) int {
+	t.Helper()
+	op := &kmsg.Op{}
+	opt(op)
+
+	v := reflect.ValueOf(op).Elem().FieldByName("cacheKeyTruncateSeconds")
+	require.True(t, v.IsValid(), "cacheKeyTruncateSeconds field must exist")
+	require.Equal(t, reflect.Int, v.Kind(), "cacheKeyTruncateSeconds must be int")
+	return int(v.Int())
+}
+
+func TestNew_KmsgSyncerOpts_DefaultFiveMinuteDedup(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:              ctx,
+		NVIDIAToolOverwrites: pkgconfigcommon.ToolOverwrites{},
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+	require.NotNil(t, comp)
+
+	casted, ok := comp.(*component)
+	require.True(t, ok)
+	require.Len(t, casted.kmsgSyncerOpts, 1)
+
+	truncateSeconds := getKmsgCacheKeyTruncateSecondsFromOption(t, casted.kmsgSyncerOpts[0])
+	assert.Equal(t, defaultKmsgCacheKeyTruncateSeconds, truncateSeconds)
+	assert.Equal(t, 300, truncateSeconds)
 }
 
 // mockEventStore for testing New errors

@@ -5,6 +5,7 @@ package infiniband
 import (
 	"context"
 	"errors"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	pkgconfigcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
@@ -865,5 +867,108 @@ func TestComponent_Events_NilBucket_WithMockey(t *testing.T) {
 		events, err := comp.Events(context.Background(), time.Now())
 		assert.NoError(t, err)
 		assert.Nil(t, events)
+	})
+}
+
+// TestNew_WithEventStoreAsRoot_KmsgSyncer tests that New() creates a kmsg syncer
+// with the correct dedup options when running as root with an event store.
+// This covers the os.Geteuid() == 0 branch and the kmsgSyncerOpts pass-through.
+func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
+	mockey.PatchConvey("New creates kmsg syncer with dedup opts when running as root", t, func() {
+		// Mock os.Geteuid to simulate running as root
+		mockey.Mock(os.Geteuid).Return(0).Build()
+
+		// Track the options passed to kmsg.NewSyncer
+		var capturedOpts []kmsg.OpOption
+		mockey.Mock(kmsg.NewSyncer).To(func(
+			ctx context.Context,
+			matchFunc kmsg.MatchFunc,
+			eventBucket eventstore.Bucket,
+			opts ...kmsg.OpOption,
+		) (*kmsg.Syncer, error) {
+			capturedOpts = opts
+			return &kmsg.Syncer{}, nil
+		}).Build()
+
+		// Mock Syncer.Close to avoid nil watcher panic from the zero-value Syncer
+		mockey.Mock((*kmsg.Syncer).Close).Return().Build()
+
+		ctx := context.Background()
+		mockInstance := &customMockNVMLInstanceIB{
+			devs:        map[string]device.Device{},
+			nvmlExists:  true,
+			productName: "NVIDIA H100",
+		}
+
+		mockBucket := &mockEventBucketIB{}
+		mockStore := &mockEventStoreIB{bucket: mockBucket}
+
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:              ctx,
+			NVMLInstance:         mockInstance,
+			NVIDIAToolOverwrites: pkgconfigcommon.ToolOverwrites{},
+			EventStore:           mockStore,
+		}
+
+		c, err := New(gpudInstance)
+
+		require.NoError(t, err)
+		require.NotNil(t, c)
+
+		tc, ok := c.(*component)
+		require.True(t, ok)
+		assert.NotNil(t, tc.kmsgSyncer, "kmsgSyncer should be set when running as root")
+		assert.NotNil(t, tc.eventBucket, "eventBucket should be set")
+
+		// Verify the 5-minute dedup option was passed through to NewSyncer
+		require.Len(t, capturedOpts, 1, "should pass exactly one OpOption to NewSyncer")
+		truncateSeconds := getKmsgCacheKeyTruncateSecondsFromOption(t, capturedOpts[0])
+		assert.Equal(t, 300, truncateSeconds, "should pass 300s (5min) dedup window to NewSyncer")
+
+		// Clean up
+		err = c.Close()
+		assert.NoError(t, err)
+	})
+}
+
+// TestNew_WithEventStoreAsRoot_KmsgSyncerError tests that New() returns an error
+// when kmsg.NewSyncer fails while running as root.
+func TestNew_WithEventStoreAsRoot_KmsgSyncerError_WithMockey(t *testing.T) {
+	mockey.PatchConvey("New returns error when kmsg syncer creation fails as root", t, func() {
+		// Mock os.Geteuid to simulate running as root
+		mockey.Mock(os.Geteuid).Return(0).Build()
+
+		// Mock kmsg.NewSyncer to return an error
+		mockey.Mock(kmsg.NewSyncer).To(func(
+			ctx context.Context,
+			matchFunc kmsg.MatchFunc,
+			eventBucket eventstore.Bucket,
+			opts ...kmsg.OpOption,
+		) (*kmsg.Syncer, error) {
+			return nil, errors.New("failed to open /dev/kmsg")
+		}).Build()
+
+		ctx := context.Background()
+		mockInstance := &customMockNVMLInstanceIB{
+			devs:        map[string]device.Device{},
+			nvmlExists:  true,
+			productName: "NVIDIA H100",
+		}
+
+		mockBucket := &mockEventBucketIB{}
+		mockStore := &mockEventStoreIB{bucket: mockBucket}
+
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:              ctx,
+			NVMLInstance:         mockInstance,
+			NVIDIAToolOverwrites: pkgconfigcommon.ToolOverwrites{},
+			EventStore:           mockStore,
+		}
+
+		c, err := New(gpudInstance)
+
+		assert.Error(t, err)
+		assert.Nil(t, c)
+		assert.Contains(t, err.Error(), "failed to open /dev/kmsg")
 	})
 }
