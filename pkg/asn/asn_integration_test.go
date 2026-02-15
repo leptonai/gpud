@@ -344,7 +344,7 @@ func TestIPv6Support(t *testing.T) {
 
 // Helper function to check if a normalized ASN name is a known provider
 func isKnownProvider(name string) bool {
-	knownProviders := []string{"aws", "azure", "gcp", "oci", "yotta", "nebius", "hetzner"}
+	knownProviders := []string{"aws", "azure", "gcp", "oci", "yotta", "nebius", "hetzner", "nscale"}
 	for _, provider := range knownProviders {
 		if name == provider {
 			return true

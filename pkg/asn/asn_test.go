@@ -162,6 +162,11 @@ func TestNormalizeASNName(t *testing.T) {
 			input:    "yotta",
 			expected: "yotta",
 		},
+		{
+			name:     "exact nscale match",
+			input:    "nscale",
+			expected: "nscale",
+		},
 
 		// Test case insensitive matching
 		{
@@ -205,6 +210,11 @@ func TestNormalizeASNName(t *testing.T) {
 			name:     "yotta in company name",
 			input:    "yotta infrastructure",
 			expected: "yotta",
+		},
+		{
+			name:     "nscale in company name",
+			input:    "nscale cloud services",
+			expected: "nscale",
 		},
 
 		// Test whitespace handling
@@ -371,4 +381,3 @@ func TestNormalizeASNNameSpecialCharacters(t *testing.T) {
 		})
 	}
 }
-

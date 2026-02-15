@@ -255,6 +255,7 @@ var providerKeywords = map[string]string{
 	"azure":   "azure",
 	"gcp":     "gcp",
 	"google":  "gcp",
+	"nscale":  "nscale",
 	"yotta":   "yotta",
 	"nebius":  "nebius",  // e.g., "nebiuscloud" should be "nebius"
 	"hetzner": "hetzner", // e.g., "hetzner-cloud3-as" should be "hetzner"
