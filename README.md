@@ -35,10 +35,10 @@ To install from the official release on Linux amd64 (x86_64) machine:
 curl -fsSL https://pkg.gpud.dev/install.sh | sh
 ```
 
-To specify a version:
+To install the latest published version explicitly:
 
 ```bash
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.10.0
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s $(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)
 ```
 
 The install script also currently support other architectures (e.g., arm64) and OSes (e.g., macOS).
