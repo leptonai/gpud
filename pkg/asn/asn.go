@@ -30,6 +30,14 @@ var (
 	lookupFallback = fetchASLookupTeamCymru
 )
 
+// httpGetFunc and dnsLookupTXTFunc allow tests to swap out the network calls
+// within the individual fetch functions. Mocking stdlib functions like http.Get
+// directly via mockey is unreliable due to compiler inlining.
+var (
+	httpGetFunc      = http.Get
+	dnsLookupTXTFunc = net.LookupTXT
+)
+
 func GetASLookup(ip string) (*ASLookupResponse, error) {
 	var lastErr error
 
@@ -83,7 +91,7 @@ func GetASLookup(ip string) (*ASLookupResponse, error) {
 // fetchASLookupHackerTarget queries the HackerTarget API for ASN information
 func fetchASLookupHackerTarget(ip string) (*ASLookupResponse, error) {
 	url := fmt.Sprintf("https://api.hackertarget.com/aslookup/?q=%s&output=json", ip)
-	resp, err := http.Get(url)
+	resp, err := httpGetFunc(url)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +123,7 @@ func fetchASLookupTeamCymru(ip string) (*ASLookupResponse, error) {
 		return nil, err
 	}
 
-	originRecords, err := net.LookupTXT(originDomain)
+	originRecords, err := dnsLookupTXTFunc(originDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +144,7 @@ func fetchASLookupTeamCymru(ip string) (*ASLookupResponse, error) {
 	}
 
 	asnDetailsDomain := fmt.Sprintf("AS%s.asn.cymru.com", lookup.Asn)
-	detailsRecords, err := net.LookupTXT(asnDetailsDomain)
+	detailsRecords, err := dnsLookupTXTFunc(asnDetailsDomain)
 	if err != nil {
 		return nil, err
 	}

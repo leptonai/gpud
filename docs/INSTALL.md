@@ -7,10 +7,10 @@ curl -fsSL https://pkg.gpud.dev/install.sh | sh
 gpud up
 ```
 
-To specify a version
+To install the latest published version explicitly:
 
 ```bash
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s v0.10.0
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s $(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)
 ```
 
 Then open [localhost:15132](https://localhost:15132) for the local web UI.

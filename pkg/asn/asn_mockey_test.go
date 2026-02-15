@@ -14,6 +14,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// withHTTPGetMock replaces httpGetFunc for the duration of the test and restores it on cleanup.
+// Not safe for use with t.Parallel().
+func withHTTPGetMock(t *testing.T, fn func(url string) (*http.Response, error)) {
+	t.Helper()
+	orig := httpGetFunc
+	httpGetFunc = fn
+	t.Cleanup(func() { httpGetFunc = orig })
+}
+
+// withDNSLookupTXTMock replaces dnsLookupTXTFunc for the duration of the test and restores it on cleanup.
+// Not safe for use with t.Parallel().
+func withDNSLookupTXTMock(t *testing.T, fn func(name string) ([]string, error)) {
+	t.Helper()
+	orig := dnsLookupTXTFunc
+	dnsLookupTXTFunc = fn
+	t.Cleanup(func() { dnsLookupTXTFunc = orig })
+}
+
 func TestGetASLookup_RetriesWithMockey(t *testing.T) {
 	mockey.PatchConvey("GetASLookup retries with sleep", t, func() {
 		origPrimary := lookupPrimary
@@ -45,46 +63,81 @@ func TestGetASLookup_RetriesWithMockey(t *testing.T) {
 	})
 }
 
-func TestFetchASLookupHackerTarget_WithMockey(t *testing.T) {
-	mockey.PatchConvey("fetchASLookupHackerTarget parses response", t, func() {
-		mockey.Mock(http.Get).To(func(url string) (*http.Response, error) {
-			body := `{"asn":"15169","asn_name":"GOOGLE, US","asn_range":"15169-15169","country":"US","ip":"8.8.8.8"}`
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(body)),
-			}, nil
-		}).Build()
-
-		resp, err := fetchASLookupHackerTarget("8.8.8.8")
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		assert.Equal(t, "google", resp.AsnName)
-		assert.Equal(t, "us", resp.Country)
-		assert.Equal(t, "15169", resp.Asn)
+func TestFetchASLookupHackerTarget_Success(t *testing.T) {
+	withHTTPGetMock(t, func(url string) (*http.Response, error) {
+		body := `{"asn":"15169","asn_name":"GOOGLE, US","asn_range":"15169-15169","country":"US","ip":"8.8.8.8"}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+		}, nil
 	})
+
+	resp, err := fetchASLookupHackerTarget("8.8.8.8")
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "google", resp.AsnName)
+	assert.Equal(t, "us", resp.Country)
+	assert.Equal(t, "15169", resp.Asn)
 }
 
-func TestFetchASLookupTeamCymru_WithMockey(t *testing.T) {
-	mockey.PatchConvey("fetchASLookupTeamCymru parses DNS records", t, func() {
-		mockey.Mock(net.LookupTXT).To(func(name string) ([]string, error) {
-			if strings.HasSuffix(name, ".origin.asn.cymru.com") {
-				return []string{"15169 | 8.8.8.0/24 | US | arin | 2000-03-30"}, nil
-			}
-			if strings.HasPrefix(name, "AS15169.") {
-				return []string{"15169 | US | arin | 2000-03-30 | GOOGLE, US"}, nil
-			}
-			return nil, errors.New("unexpected query")
-		}).Build()
-
-		resp, err := fetchASLookupTeamCymru("8.8.8.8")
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		assert.Equal(t, "15169", resp.Asn)
-		assert.Equal(t, "8.8.8.0/24", resp.AsnRange)
-		assert.Equal(t, "google", resp.AsnName)
-		assert.Equal(t, "us", resp.Country)
-		assert.Equal(t, "8.8.8.8", resp.IP)
+func TestFetchASLookupHackerTarget_HTTPError(t *testing.T) {
+	withHTTPGetMock(t, func(url string) (*http.Response, error) {
+		return nil, errors.New("connection timeout")
 	})
+
+	result, err := fetchASLookupHackerTarget("8.8.8.8")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "connection timeout")
+	assert.Nil(t, result)
+}
+
+func TestFetchASLookupHackerTarget_Non200Status(t *testing.T) {
+	withHTTPGetMock(t, func(url string) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 500,
+			Body:       io.NopCloser(strings.NewReader("Internal Server Error")),
+		}, nil
+	})
+
+	result, err := fetchASLookupHackerTarget("8.8.8.8")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid character")
+	assert.Nil(t, result)
+}
+
+func TestFetchASLookupHackerTarget_InvalidJSON(t *testing.T) {
+	withHTTPGetMock(t, func(url string) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader("invalid format")),
+		}, nil
+	})
+
+	result, err := fetchASLookupHackerTarget("8.8.8.8")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid character")
+	assert.Nil(t, result)
+}
+
+func TestFetchASLookupTeamCymru_Success(t *testing.T) {
+	withDNSLookupTXTMock(t, func(name string) ([]string, error) {
+		if strings.HasSuffix(name, ".origin.asn.cymru.com") {
+			return []string{"15169 | 8.8.8.0/24 | US | arin | 2000-03-30"}, nil
+		}
+		if strings.HasPrefix(name, "AS15169.") {
+			return []string{"15169 | US | arin | 2000-03-30 | GOOGLE, US"}, nil
+		}
+		return nil, errors.New("unexpected query")
+	})
+
+	resp, err := fetchASLookupTeamCymru("8.8.8.8")
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "15169", resp.Asn)
+	assert.Equal(t, "8.8.8.0/24", resp.AsnRange)
+	assert.Equal(t, "google", resp.AsnName)
+	assert.Equal(t, "us", resp.Country)
+	assert.Equal(t, "8.8.8.8", resp.IP)
 }
 
 func TestTeamCymruOriginDomainVariants(t *testing.T) {
@@ -158,53 +211,71 @@ func TestGetASLookup_PrimaryErrorFallbackEmptyWithMockey(t *testing.T) {
 	})
 }
 
-func TestFetchASLookupTeamCymru_ErrorBranchesWithMockey(t *testing.T) {
-	mockey.PatchConvey("fetchASLookupTeamCymru no origin records", t, func() {
-		mockey.Mock(net.LookupTXT).To(func(name string) ([]string, error) {
+func TestFetchASLookupTeamCymru_ErrorBranches(t *testing.T) {
+	t.Run("no origin records", func(t *testing.T) {
+		withDNSLookupTXTMock(t, func(name string) ([]string, error) {
 			return []string{}, nil
-		}).Build()
+		})
 
 		_, err := fetchASLookupTeamCymru("8.8.8.8")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no TXT records")
 	})
 
-	mockey.PatchConvey("fetchASLookupTeamCymru invalid origin format", t, func() {
-		mockey.Mock(net.LookupTXT).To(func(name string) ([]string, error) {
+	t.Run("invalid origin format", func(t *testing.T) {
+		withDNSLookupTXTMock(t, func(name string) ([]string, error) {
 			if strings.HasSuffix(name, ".origin.asn.cymru.com") {
 				return []string{"invalid"}, nil
 			}
 			return nil, errors.New("unexpected")
-		}).Build()
+		})
 
 		_, err := fetchASLookupTeamCymru("8.8.8.8")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unexpected response format")
 	})
 
-	mockey.PatchConvey("fetchASLookupTeamCymru no details records", t, func() {
-		mockey.Mock(net.LookupTXT).To(func(name string) ([]string, error) {
+	t.Run("no details records", func(t *testing.T) {
+		withDNSLookupTXTMock(t, func(name string) ([]string, error) {
 			if strings.HasSuffix(name, ".origin.asn.cymru.com") {
 				return []string{"15169 | 8.8.8.0/24 | US | arin | 2000-03-30"}, nil
 			}
 			return []string{}, nil
-		}).Build()
+		})
 
 		_, err := fetchASLookupTeamCymru("8.8.8.8")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no TXT records")
 	})
 
-	mockey.PatchConvey("fetchASLookupTeamCymru invalid details format", t, func() {
-		mockey.Mock(net.LookupTXT).To(func(name string) ([]string, error) {
+	t.Run("invalid details format", func(t *testing.T) {
+		withDNSLookupTXTMock(t, func(name string) ([]string, error) {
 			if strings.HasSuffix(name, ".origin.asn.cymru.com") {
 				return []string{"15169 | 8.8.8.0/24 | US | arin | 2000-03-30"}, nil
 			}
 			return []string{"bad"}, nil
-		}).Build()
+		})
 
 		_, err := fetchASLookupTeamCymru("8.8.8.8")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unexpected response format")
+	})
+
+	t.Run("DNS lookup error", func(t *testing.T) {
+		withDNSLookupTXTMock(t, func(name string) ([]string, error) {
+			return nil, errors.New("no such host")
+		})
+
+		result, err := fetchASLookupTeamCymru("8.8.8.8")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no such host")
+		assert.Nil(t, result)
+	})
+
+	t.Run("invalid IP address", func(t *testing.T) {
+		result, err := fetchASLookupTeamCymru("not-an-ip")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid IP address")
+		assert.Nil(t, result)
 	})
 }
