@@ -1,9 +1,14 @@
 package fabricmanager
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -828,4 +833,24 @@ func TestCheckResult_HealthStates_ExtraInfo(t *testing.T) {
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 	assert.NotEmpty(t, states[0].ExtraInfo)
 	assert.Contains(t, states[0].ExtraInfo["data"], "fabric_manager_active")
+}
+
+func buildPrintScript(t *testing.T, data []byte) string {
+	t.Helper()
+	var buf bytes.Buffer
+	buf.WriteString("#!/bin/sh\n")
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		buf.WriteString("printf '%s\\n' '")
+		buf.WriteString(escapeSingleQuotes(scanner.Text()))
+		buf.WriteString("'\n")
+	}
+	require.NoError(t, scanner.Err())
+	scriptPath := filepath.Join(t.TempDir(), "emit.sh")
+	require.NoError(t, os.WriteFile(scriptPath, buf.Bytes(), 0o755))
+	return scriptPath
+}
+
+func escapeSingleQuotes(s string) string {
+	return strings.ReplaceAll(s, "'", "'\"'\"'")
 }

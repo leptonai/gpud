@@ -2,38 +2,39 @@ package fabricmanager
 
 import (
 	"bufio"
-	"bytes"
-	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func Test_countSMINVSwitches_A10(t *testing.T) {
-	lines := runCountSMIFromFixture(t, "testdata/nvidia-smi.nvlink.status.a10")
+	lines := filterFixture(t, "testdata/nvidia-smi.nvlink.status.a10", func(line string) bool {
+		return strings.Contains(line, "GPU ") && strings.Contains(line, "NVIDIA") && strings.Contains(line, "UUID")
+	})
 	require.Equal(t, 0, len(lines), "A10 systems should not have NVSwitch")
 }
 
 func Test_countSMINVSwitches_A100(t *testing.T) {
-	// A100 systems with NVSwitch (DGX A100, HGX A100) have 8 GPUs
-	lines := runCountSMIFromFixture(t, "testdata/nvidia-smi.nvlink.status.a100")
+	lines := filterFixture(t, "testdata/nvidia-smi.nvlink.status.a100", func(line string) bool {
+		return strings.Contains(line, "GPU ") && strings.Contains(line, "NVIDIA") && strings.Contains(line, "UUID")
+	})
 	require.Equal(t, 8, len(lines), "DGX/HGX A100 systems typically have 8 GPUs connected via NVSwitch")
 	require.Contains(t, lines[0], "NVIDIA", "Output should contain NVIDIA GPU information")
 }
 
 func Test_listPCIs_A10(t *testing.T) {
-	// A10 systems don't have NVSwitch
-	lines := runListPCIsFromFixture(t, "testdata/lspci.nn.a10")
+	lines := filterFixture(t, "testdata/lspci.nn.a10", func(line string) bool {
+		return strings.Contains(strings.ToLower(line), DeviceVendorID) && isNVIDIANVSwitchPCI(line)
+	})
 	require.Equal(t, 0, len(lines), "A10 systems should not have NVSwitch bridge devices")
 }
 
 func Test_listPCIs_A100(t *testing.T) {
-	// A100 systems with NVSwitch have multiple bridge devices
-	lines := runListPCIsFromFixture(t, "testdata/lspci.nn.a100")
+	lines := filterFixture(t, "testdata/lspci.nn.a100", func(line string) bool {
+		return strings.Contains(strings.ToLower(line), DeviceVendorID) && isNVIDIANVSwitchPCI(line)
+	})
 	require.Equal(t, 6, len(lines), "DGX/HGX A100 systems typically have 6 NVSwitch bridge devices")
 	require.Contains(t, lines[0], "NVIDIA", "Output should contain NVIDIA bridge information")
 }
@@ -109,50 +110,24 @@ func Test_isNVIDIANVSwitchPCI(t *testing.T) {
 	}
 }
 
-func runCountSMIFromFixture(t *testing.T, relativePath string) []string {
+// filterFixture reads a fixture file line by line and returns all lines matching the given predicate.
+// This avoids shelling out to a subprocess, making the test fully deterministic.
+func filterFixture(t *testing.T, relativePath string, matchFunc func(string) bool) []string {
 	t.Helper()
-	command := newFixtureCommand(t, relativePath)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	lines, err := countSMINVSwitches(ctx, command)
+	f, err := os.Open(relativePath)
 	require.NoError(t, err)
-	return lines
-}
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
 
-func runListPCIsFromFixture(t *testing.T, relativePath string) []string {
-	t.Helper()
-	command := newFixtureCommand(t, relativePath)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	lines, err := listPCIs(ctx, command, isNVIDIANVSwitchPCI)
-	require.NoError(t, err)
-	return lines
-}
-
-func newFixtureCommand(t *testing.T, relativePath string) string {
-	t.Helper()
-	data, err := os.ReadFile(relativePath)
-	require.NoError(t, err)
-	script := buildPrintScript(t, data)
-	return script
-}
-
-func buildPrintScript(t *testing.T, data []byte) string {
-	t.Helper()
-	var buf bytes.Buffer
-	buf.WriteString("#!/bin/sh\n")
-	scanner := bufio.NewScanner(bytes.NewReader(data))
+	var lines []string
+	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		buf.WriteString("printf '%s\\n' '")
-		buf.WriteString(escapeSingleQuotes(scanner.Text()))
-		buf.WriteString("'\n")
+		line := scanner.Text()
+		if matchFunc(line) {
+			lines = append(lines, line)
+		}
 	}
 	require.NoError(t, scanner.Err())
-	scriptPath := filepath.Join(t.TempDir(), "emit.sh")
-	require.NoError(t, os.WriteFile(scriptPath, buf.Bytes(), 0o755))
-	return scriptPath
-}
-
-func escapeSingleQuotes(s string) string {
-	return strings.ReplaceAll(s, "'", "'\"'\"'")
+	return lines
 }

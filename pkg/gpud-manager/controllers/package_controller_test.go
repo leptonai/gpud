@@ -92,15 +92,18 @@ func TestReconcileLoop(t *testing.T) {
 	// Send package info to the watcher
 	watcher <- pkg
 
-	// Allow some time for processing
-	time.Sleep(100 * time.Millisecond)
+	// Poll until the package status is updated
+	require.Eventually(t, func() bool {
+		controller.RLock()
+		defer controller.RUnlock()
+		_, exists := controller.packageStatus["test-pkg"]
+		return exists
+	}, 5*time.Second, 10*time.Millisecond)
 
-	// Verify the package status was updated
 	controller.RLock()
-	status, exists := controller.packageStatus["test-pkg"]
+	status := controller.packageStatus["test-pkg"]
 	controller.RUnlock()
 
-	assert.True(t, exists)
 	assert.Equal(t, pkg.Name, status.Name)
 	assert.Equal(t, pkg.ScriptPath, status.ScriptPath)
 	assert.Equal(t, pkg.TargetVersion, status.TargetVersion)
@@ -111,8 +114,6 @@ func TestReconcileLoop(t *testing.T) {
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 	go controller.reconcileLoop(cancelCtx)
 	cancelFunc()
-	// Give some time for the goroutine to exit
-	time.Sleep(100 * time.Millisecond)
 }
 
 func TestUpdateRunner(t *testing.T) {
@@ -220,24 +221,23 @@ fi
 		TotalTime:      5 * time.Second,
 	}
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Run the update runner
 	go controller.updateRunner(ctx)
 
-	// Allow time for at least one sync cycle
-	time.Sleep(controller.syncPeriod + 200*time.Millisecond)
+	// Poll until the package is marked as skipped
+	require.Eventually(t, func() bool {
+		controller.RLock()
+		defer controller.RUnlock()
+		return controller.packageStatus["skip-pkg"].Skipped
+	}, 10*time.Second, 50*time.Millisecond, "Package should be marked as skipped")
 
-	// Verify that the package was marked as skipped
 	controller.RLock()
 	status := controller.packageStatus["skip-pkg"]
 	controller.RUnlock()
 
-	assert.True(t, status.Skipped, "Package should be marked as skipped")
 	assert.False(t, status.Installing, "Package should not be installing since it was skipped")
-	t.Logf("Package status: skipped=%v, installing=%v", status.Skipped, status.Installing)
 }
 
 func TestInstallRunner(t *testing.T) {
@@ -352,26 +352,24 @@ fi
 		TotalTime:      2 * time.Second,
 	}
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Run the install runner
 	go controller.installRunner(ctx)
 
-	// Allow time for at least one sync cycle
-	time.Sleep(controller.syncPeriod + 200*time.Millisecond)
+	// Poll until the package is marked as skipped
+	require.Eventually(t, func() bool {
+		controller.RLock()
+		defer controller.RUnlock()
+		return controller.packageStatus["skip-install-pkg"].Skipped
+	}, 10*time.Second, 50*time.Millisecond, "Package should be marked as skipped")
 
-	// Verify that the package was marked as skipped
 	controller.RLock()
 	status := controller.packageStatus["skip-install-pkg"]
 	controller.RUnlock()
 
-	assert.True(t, status.Skipped, "Package should be marked as skipped")
 	assert.False(t, status.Installing, "Package should not be installing since it was skipped")
-	assert.True(t, status.IsInstalled, "Package should not be installed since it was skipped")
-	t.Logf("Package status: skipped=%v, installing=%v, isInstalled=%v",
-		status.Skipped, status.Installing, status.IsInstalled)
+	assert.True(t, status.IsInstalled, "Package should be marked as installed when skipped")
 }
 
 func TestDeleteRunner(t *testing.T) {
@@ -528,24 +526,23 @@ fi
 		ScriptPath:     scriptPath,
 	}
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Run the status runner
 	go controller.statusRunner(ctx)
 
-	// Allow time for at least one sync cycle
-	time.Sleep(controller.syncPeriod + 200*time.Millisecond)
+	// Poll until the package is marked as skipped
+	require.Eventually(t, func() bool {
+		controller.RLock()
+		defer controller.RUnlock()
+		return controller.packageStatus["skip-status-pkg"].Skipped
+	}, 10*time.Second, 50*time.Millisecond, "Package should be marked as skipped")
 
-	// Verify that the package was marked as skipped and status set to true
 	controller.RLock()
 	status := controller.packageStatus["skip-status-pkg"]
 	controller.RUnlock()
 
-	assert.True(t, status.Skipped, "Package should be marked as skipped")
 	assert.True(t, status.Status, "Package status should be true when skipped")
-	t.Logf("Package status: skipped=%v, status=%v", status.Skipped, status.Status)
 }
 
 func TestRunCommand(t *testing.T) {

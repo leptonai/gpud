@@ -36,6 +36,10 @@ const Name = "disk"
 
 var _ components.Component = &component{}
 
+type kmsgSyncerCloser interface {
+	Close()
+}
+
 type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -72,7 +76,7 @@ type component struct {
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
-	kmsgSyncer       *kmsg.Syncer
+	kmsgSyncer       kmsgSyncerCloser
 
 	nfsStatTimeoutMu     sync.Mutex
 	nfsStatTimeoutCounts map[string]int
@@ -104,6 +108,19 @@ const (
 )
 
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	return newComponent(gpudInstance, runtime.GOOS, os.Geteuid(), kmsg.NewSyncer)
+}
+
+func newComponent(
+	gpudInstance *components.GPUdInstance,
+	goos string,
+	euid int,
+	newKmsgSyncerFunc func(ctx context.Context, matchFunc kmsg.MatchFunc, eventBucket eventstore.Bucket, opts ...kmsg.OpOption) (*kmsg.Syncer, error),
+) (components.Component, error) {
+	if newKmsgSyncerFunc == nil {
+		newKmsgSyncerFunc = kmsg.NewSyncer
+	}
+
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
 		ctx:    cctx,
@@ -144,7 +161,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		nfsStatTimeoutCounts: make(map[string]int),
 	}
 
-	if runtime.GOOS == "linux" {
+	if goos == "linux" {
 		// relies on "lsblk" command
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			timeoutCtx, cancel := context.WithTimeout(ctx, getBlockDevicesTimeout)
@@ -175,8 +192,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return nil, err
 		}
 
-		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(
+		if euid == 0 {
+			c.kmsgSyncer, err = newKmsgSyncerFunc(
 				cctx,
 				Match,
 				c.eventBucket,

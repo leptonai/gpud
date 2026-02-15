@@ -3,6 +3,7 @@ package machineinfo
 import (
 	"context"
 	"errors"
+	"net"
 	"runtime"
 	"testing"
 	"time"
@@ -528,6 +529,47 @@ func TestGetMachineNICInfo_WithMockedNetutil(t *testing.T) {
 		require.NotNil(t, nicInfo)
 		// Even with error, should return empty slice not nil
 		assert.NotNil(t, nicInfo.PrivateIPInterfaces)
+	})
+}
+
+func TestGetMachineNICInfo_LeptonAndENIIncluded_WithMockey(t *testing.T) {
+	mockey.PatchConvey("GetMachineNICInfo keeps host interfaces and skips virtual CNI prefixes", t, func() {
+		mockey.Mock(net.Interfaces).To(func() ([]net.Interface, error) {
+			return []net.Interface{
+				{Name: "lepton0", Flags: net.FlagUp, HardwareAddr: net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}},
+				{Name: "eni0", Flags: net.FlagUp, HardwareAddr: net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x66}},
+				{Name: "veth123", Flags: net.FlagUp},
+				{Name: "cni0", Flags: net.FlagUp},
+				{Name: "flannel.1", Flags: net.FlagUp},
+				{Name: "tunl0", Flags: net.FlagUp},
+				{Name: "vxlan.calico", Flags: net.FlagUp},
+			}, nil
+		}).Build()
+
+		mockey.Mock((*net.Interface).Addrs).To(func(ifi *net.Interface) ([]net.Addr, error) {
+			switch ifi.Name {
+			case "lepton0":
+				return []net.Addr{&net.IPNet{IP: net.ParseIP("10.50.85.108"), Mask: net.CIDRMask(24, 32)}}, nil
+			case "eni0":
+				return []net.Addr{&net.IPNet{IP: net.ParseIP("10.60.1.2"), Mask: net.CIDRMask(24, 32)}}, nil
+			default:
+				return []net.Addr{&net.IPNet{IP: net.ParseIP("10.244.0.1"), Mask: net.CIDRMask(24, 32)}}, nil
+			}
+		}).Build()
+
+		nicInfo := GetMachineNICInfo()
+		require.NotNil(t, nicInfo)
+		require.Len(t, nicInfo.PrivateIPInterfaces, 2)
+
+		got := map[string]string{}
+		for _, iface := range nicInfo.PrivateIPInterfaces {
+			got[iface.Interface] = iface.IP
+		}
+
+		require.Equal(t, "10.50.85.108", got["lepton0"])
+		require.Equal(t, "10.60.1.2", got["eni0"])
+		_, hasVeth := got["veth123"]
+		require.False(t, hasVeth)
 	})
 }
 
