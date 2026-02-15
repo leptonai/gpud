@@ -575,6 +575,37 @@ func TestCheck(t *testing.T) {
 		assert.Equal(t, 31, data.FoundErrors[0].Xid)
 	})
 
+	t.Run("with fallen-off-bus fallback format without explicit Xid", func(t *testing.T) {
+		mockedNVML := createMockNVMLInstance()
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockedNVML,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := comp.(*component)
+		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+			return []kmsg.Message{
+				{
+					Timestamp: metav1.NewTime(time.Now()),
+					Message: "NVRM: The NVIDIA GPU 0000:18:00.0\n" +
+						"NVRM: (PCI ID: 10de:2901) installed in this system has\n" +
+						"NVRM: fallen off the bus and is not responding to commands.",
+				},
+			}, nil
+		}
+
+		result := comp.Check()
+		data := result.(*checkResult)
+		assert.Len(t, data.FoundErrors, 1)
+		assert.Equal(t, 79, data.FoundErrors[0].Xid)
+		assert.Equal(t, "PCI:0000:18:00", data.FoundErrors[0].DeviceUUID)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+		assert.Contains(t, result.Summary(), "matched 1 xid errors from 1 kmsg(s)")
+	})
+
 	t.Run("with XID 63 and 64 errors that should be skipped when row remapping is supported", func(t *testing.T) {
 		// Using a properly implemented mock with row remapping support
 		mockedNVML := createMockNVMLInstanceWithRowRemapping()
@@ -1291,6 +1322,80 @@ func TestHandleEventChannel(t *testing.T) {
 
 	// Wait for the goroutine to finish
 	wg.Wait()
+}
+
+func TestStartWithFallenOffBusFallback(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	assert.NoError(t, err)
+
+	rebootEventStore := pkghost.NewRebootEventStore(store)
+	mockedNVML := createMockNVMLInstance()
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:          ctx,
+		EventStore:       store,
+		RebootEventStore: rebootEventStore,
+		NVMLInstance:     mockedNVML,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+	assert.NotNil(t, comp)
+
+	c := comp.(*component)
+	if c.eventBucket == nil {
+		c.eventBucket, err = store.Bucket(Name)
+		assert.NoError(t, err)
+	}
+
+	kmsgCh := make(chan kmsg.Message, 10)
+	go c.start(kmsgCh, 100*time.Millisecond)
+	defer func() {
+		assert.NoError(t, comp.Close())
+	}()
+
+	kmsgCh <- kmsg.Message{
+		Timestamp: metav1.NewTime(time.Now()),
+		Message: "NVRM: The NVIDIA GPU 0000:18:00.0\n" +
+			"NVRM: (PCI ID: 10de:2901) installed in this system has\n" +
+			"NVRM: fallen off the bus and is not responding to commands.",
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	foundXid79 := false
+	xidRegex := regexp.MustCompile(`XID (\d+)`)
+	for time.Now().Before(deadline) {
+		events, err := comp.Events(ctx, time.Now().Add(-1*time.Hour))
+		assert.NoError(t, err)
+
+		for _, event := range events {
+			if matches := xidRegex.FindStringSubmatch(event.Message); len(matches) > 1 {
+				xidCode, err := strconv.Atoi(matches[1])
+				assert.NoError(t, err)
+				if xidCode == 79 {
+					foundXid79 = true
+					break
+				}
+			}
+		}
+		if foundXid79 {
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	assert.True(t, foundXid79, "expected synthetic XID 79 event to be stored from fallen-off-bus fallback format")
+
+	states := comp.LastHealthStates()
+	assert.NotEmpty(t, states)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
 }
 
 func TestCheckResult_getError(t *testing.T) {
