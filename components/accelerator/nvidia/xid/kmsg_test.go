@@ -119,6 +119,34 @@ func TestMatch(t *testing.T) {
 			expectedDevice: "PCI:0000:05:00",
 		},
 		{
+			name: "multiline fallen-off-bus fallback without explicit Xid",
+			input: "NVRM: The NVIDIA GPU 0000:18:00.0\n" +
+				"NVRM: (PCI ID: 10de:2901) installed in this system has\n" +
+				"NVRM: fallen off the bus and is not responding to commands.",
+			expectNil:      false,
+			expectedXid:    79,
+			expectedDevice: "PCI:0000:18:00",
+		},
+		{
+			name:           "single-line fallen-off-bus fallback without explicit Xid",
+			input:          "NVRM: GPU 0000:29:00.0: GPU has fallen off the bus.",
+			expectNil:      false,
+			expectedXid:    79,
+			expectedDevice: "PCI:0000:29:00",
+		},
+		{
+			name:           "single-line fallen-off-bus fallback normalizes missing PCI domain",
+			input:          "NVRM: GPU 18:00.0: GPU has fallen off the bus.",
+			expectNil:      false,
+			expectedXid:    79,
+			expectedDevice: "PCI:0000:18:00",
+		},
+		{
+			name:      "fallen-off-bus text without valid BDF is ignored",
+			input:     "NVRM: The NVIDIA GPU invalid-bdf.0\nNVRM: fallen off the bus and is not responding to commands.",
+			expectNil: true,
+		},
+		{
 			name:           "valid XID error without PCI prefix",
 			input:          "[...] NVRM: Xid (0000:03:00): 14, Channel 00000001",
 			expectNil:      false,
@@ -254,6 +282,74 @@ func TestMatchDmesgWithXid119(t *testing.T) {
 		assert.Equalf(t, expected.xid, actual.Xid, "XID error %d: Xid mismatch", i)
 		assert.Equalf(t, expected.deviceUUID, actual.DeviceUUID, "XID error %d: device mismatch", i)
 		require.NotNilf(t, actual.Detail, "XID error %d: expected non-nil detail", i)
+	}
+}
+
+func TestMatchReturnsNilWhenXidDetailMissing(t *testing.T) {
+	t.Parallel()
+
+	result := Match("NVRM: Xid (PCI:0000:05:00): 99999, unknown error")
+	require.Nil(t, result)
+}
+
+func TestMatchReturnsNilWhenFallbackDetailMissing(t *testing.T) {
+	originalDetails := details
+
+	clonedDetails := make(map[int]Detail, len(details))
+	for xid, detail := range details {
+		clonedDetails[xid] = detail
+	}
+	delete(clonedDetails, 79)
+	details = clonedDetails
+
+	t.Cleanup(func() {
+		details = originalDetails
+	})
+
+	result := Match("NVRM: GPU 0000:29:00.0: GPU has fallen off the bus.")
+	require.Nil(t, result)
+}
+
+func TestNormalizePCIBDF(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "already normalized",
+			input:    "PCI:0000:29:00",
+			expected: "PCI:0000:29:00",
+		},
+		{
+			name:     "adds domain when missing",
+			input:    "18:00",
+			expected: "PCI:0000:18:00",
+		},
+		{
+			name:     "trims whitespace and prefix",
+			input:    "PCI:0000:18:00  ",
+			expected: "PCI:0000:18:00",
+		},
+		{
+			name:     "empty input",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "empty after PCI prefix removal",
+			input:    "PCI:",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, normalizePCIBDF(tt.input))
+		})
 	}
 }
 
