@@ -32,6 +32,8 @@ const (
 
 	defaultCheckInterval  = 30 * time.Second
 	defaultRequestTimeout = 15 * time.Second
+	// Keep kmsg dedup window aligned with other noisy components (disk, peermem).
+	defaultKmsgCacheKeyTruncateSeconds = 300
 
 	// defaultDropStickyWindow defines the stabilization period after an IB port drop
 	// during which the component remains unhealthy even if thresholds recover.
@@ -67,9 +69,10 @@ type component struct {
 	nvmlInstance   nvidianvml.Instance
 	toolOverwrites pkgconfigcommon.ToolOverwrites
 
-	ibPortsStore infinibandstore.Store
-	eventBucket  eventstore.Bucket
-	kmsgSyncer   *kmsg.Syncer
+	ibPortsStore   infinibandstore.Store
+	eventBucket    eventstore.Bucket
+	kmsgSyncer     *kmsg.Syncer
+	kmsgSyncerOpts []kmsg.OpOption
 
 	getTimeNowFunc      func() time.Time
 	getThresholdsFunc   func() types.ExpectedPortStates
@@ -99,6 +102,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		nvmlInstance:   gpudInstance.NVMLInstance,
 		toolOverwrites: gpudInstance.NVIDIAToolOverwrites,
+		kmsgSyncerOpts: []kmsg.OpOption{
+			kmsg.WithCacheKeyTruncateSeconds(defaultKmsgCacheKeyTruncateSeconds),
+		},
 
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -136,7 +142,13 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgSyncer, err = kmsg.NewSyncer(cctx, Match, c.eventBucket)
+			c.kmsgSyncer, err = kmsg.NewSyncer(
+				cctx,
+				Match,
+				c.eventBucket,
+				// ACCESS_REG and other mlx5 kmsg events can burst; coalesce within 5 minutes to reduce event noise.
+				c.kmsgSyncerOpts...,
+			)
 			if err != nil {
 				ccancel()
 				return nil, err
