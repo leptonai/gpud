@@ -33,12 +33,16 @@ func TestNewWatcher_Success_WithMockey(t *testing.T) {
 		tmp, err := os.CreateTemp("", "kmsg")
 		require.NoError(t, err)
 		defer func() {
+			_ = tmp.Close()
 			_ = os.Remove(tmp.Name())
 		}()
 
-		mockey.Mock(os.Open).To(func(name string) (*os.File, error) {
-			return tmp, nil
-		}).Build()
+		orig := kmsgFilePath
+		kmsgFilePath = tmp.Name()
+		defer func() {
+			kmsgFilePath = orig
+		}()
+
 		mockey.Mock(host.UptimeWithContext).To(func(ctx context.Context) (uint64, error) {
 			return 10, nil
 		}).Build()

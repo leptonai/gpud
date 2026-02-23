@@ -15,6 +15,7 @@ type Syncer struct {
 	watcher     Watcher
 	matchFunc   MatchFunc
 	eventBucket eventstore.Bucket
+	deduper     *deduper
 }
 
 type MatchFunc func(line string) (eventName string, message string)
@@ -37,6 +38,7 @@ func newSyncer(ctx context.Context, watcher Watcher, matchFunc MatchFunc, eventB
 		watcher:     watcher,
 		matchFunc:   matchFunc,
 		eventBucket: eventBucket,
+		deduper:     newDeduper(defaultCacheExpiration, defaultCachePurgeInterval, opts...),
 	}
 	ch, err := w.watcher.Watch()
 	if err != nil {
@@ -60,6 +62,20 @@ func (w *Syncer) sync(ch <-chan Message) {
 			if name == "" {
 				continue
 			}
+
+			// deduplicate by parsed event name and message
+			// because raw kernel messages might contain varying strings (e.g., PIDs)
+			if w.deduper != nil {
+				parsedMsg := Message{
+					Timestamp: kmsg.Timestamp,
+					Message:   name + "_" + message,
+				}
+				if occurrences := w.deduper.addCache(parsedMsg); occurrences > 1 {
+					log.Logger.Debugw("skipping duplicate parsed kmsg message", "occurrences", occurrences, "eventName", name, "message", message)
+					continue
+				}
+			}
+
 			event := eventstore.Event{
 				Time:    kmsg.Timestamp.UTC(),
 				Name:    name,

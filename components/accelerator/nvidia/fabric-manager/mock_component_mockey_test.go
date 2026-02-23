@@ -61,8 +61,9 @@ func TestListPCINVSwitches_Mockey(t *testing.T) {
 	data := []byte("0005:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)")
 	script := buildPrintScript(t, data)
 	mockey.PatchRun(func() {
-		// Mock LocateExecutable to return the script path (simulating lspci being found)
+		// Mock LocateExecutable to return the script path
 		mockey.Mock(file.LocateExecutable).Return(script, nil).Build()
+		// Do not mock process.New or process.Read, let them run the script which will output the right data
 		ctx := context.Background()
 		lines, err := listPCIs(ctx, script, isNVIDIANVSwitchPCI)
 		assert.NoError(t, err)
@@ -76,8 +77,9 @@ func TestCountSMINVSwitches_Mockey(t *testing.T) {
 	data := []byte("GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-123)\nGPU 1: NVIDIA A100-SXM4-80GB (UUID: GPU-456)")
 	script := buildPrintScript(t, data)
 	mockey.PatchRun(func() {
-		// Mock LocateExecutable to return the script path (simulating nvidia-smi being found)
+		// Mock LocateExecutable to return the script path
 		mockey.Mock(file.LocateExecutable).Return(script, nil).Build()
+		// Do not mock process.New or process.Read, let them run the script which will output the right data
 		ctx := context.Background()
 		lines, err := countSMINVSwitches(ctx, script)
 		assert.NoError(t, err)
