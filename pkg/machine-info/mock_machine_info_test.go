@@ -28,7 +28,6 @@ import (
 	"github.com/leptonai/gpud/pkg/providers"
 	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 	"github.com/leptonai/gpud/pkg/providers/nebius"
-	pkgprovidersnscaleimds "github.com/leptonai/gpud/pkg/providers/nscale/imds"
 )
 
 // mockNvmlInstanceForMockey implements the nvidianvml.Instance interface for mockey tests
@@ -241,19 +240,6 @@ func TestGetProvider_WithMockedProviderDetection(t *testing.T) {
 	})
 
 	mockey.PatchConvey("GetProvider canonicalizes detected provider alias", t, func() {
-		original := fetchNscaleOpenStackMetadataForProviderFunc
-		fetchNscaleOpenStackMetadataForProviderFunc = func(ctx context.Context) (*pkgprovidersnscaleimds.OpenStackMetadataResponse, error) {
-			return &pkgprovidersnscaleimds.OpenStackMetadataResponse{
-				Meta: pkgprovidersnscaleimds.OpenStackMetadataMeta{
-					RegionName: "eu-west-1",
-					RegionID:   "3f11d719-3358-420e-8a29-e6e12d6ba4d2",
-				},
-			}, nil
-		}
-		defer func() {
-			fetchNscaleOpenStackMetadataForProviderFunc = original
-		}()
-
 		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
 			return &providers.Info{
 				Provider:      "nscale-stav-public",
@@ -269,7 +255,7 @@ func TestGetProvider_WithMockedProviderDetection(t *testing.T) {
 		assert.Equal(t, "nscale", provider.Provider)
 		assert.Equal(t, "46.148.127.98", provider.PublicIP)
 		assert.Equal(t, "7.247.195.146", provider.PrivateIP)
-		assert.Equal(t, "eu-west-1", provider.Region)
+		assert.Empty(t, provider.Region)
 	})
 
 	mockey.PatchConvey("GetProvider with detection failure, fallback to ASN", t, func() {
@@ -691,112 +677,6 @@ func TestGetProvider_NebiusSpecialCase(t *testing.T) {
 		require.NotNil(t, provider)
 		assert.Equal(t, "nebius", provider.Provider)
 		assert.Empty(t, provider.InstanceID)
-	})
-}
-
-func TestPopulateProviderRegion(t *testing.T) {
-	original := fetchNscaleOpenStackMetadataForProviderFunc
-	t.Cleanup(func() {
-		fetchNscaleOpenStackMetadataForProviderFunc = original
-	})
-
-	t.Run("skip when provider info is nil", func(t *testing.T) {
-		called := false
-		fetchNscaleOpenStackMetadataForProviderFunc = func(ctx context.Context) (*pkgprovidersnscaleimds.OpenStackMetadataResponse, error) {
-			called = true
-			return nil, nil
-		}
-
-		populateProviderRegion(nil)
-		assert.False(t, called)
-	})
-
-	t.Run("skip when provider is not nscale", func(t *testing.T) {
-		called := false
-		fetchNscaleOpenStackMetadataForProviderFunc = func(ctx context.Context) (*pkgprovidersnscaleimds.OpenStackMetadataResponse, error) {
-			called = true
-			return nil, nil
-		}
-
-		provider := &providers.Info{Provider: "aws"}
-		populateProviderRegion(provider)
-		assert.False(t, called)
-		assert.Equal(t, "", provider.Region)
-	})
-
-	t.Run("skip when provider region already exists", func(t *testing.T) {
-		called := false
-		fetchNscaleOpenStackMetadataForProviderFunc = func(ctx context.Context) (*pkgprovidersnscaleimds.OpenStackMetadataResponse, error) {
-			called = true
-			return nil, nil
-		}
-
-		provider := &providers.Info{Provider: "nscale", Region: "existing-region"}
-		populateProviderRegion(provider)
-		assert.False(t, called)
-		assert.Equal(t, "existing-region", provider.Region)
-	})
-
-	t.Run("skip when metadata fetch fails", func(t *testing.T) {
-		fetchNscaleOpenStackMetadataForProviderFunc = func(ctx context.Context) (*pkgprovidersnscaleimds.OpenStackMetadataResponse, error) {
-			return nil, errors.New("metadata unavailable")
-		}
-
-		provider := &providers.Info{Provider: "nscale"}
-		populateProviderRegion(provider)
-		assert.Empty(t, provider.Region)
-	})
-
-	t.Run("skip when metadata is nil", func(t *testing.T) {
-		fetchNscaleOpenStackMetadataForProviderFunc = func(ctx context.Context) (*pkgprovidersnscaleimds.OpenStackMetadataResponse, error) {
-			return nil, nil
-		}
-
-		provider := &providers.Info{Provider: "nscale"}
-		populateProviderRegion(provider)
-		assert.Empty(t, provider.Region)
-	})
-
-	t.Run("skip when metadata region is empty", func(t *testing.T) {
-		fetchNscaleOpenStackMetadataForProviderFunc = func(ctx context.Context) (*pkgprovidersnscaleimds.OpenStackMetadataResponse, error) {
-			return &pkgprovidersnscaleimds.OpenStackMetadataResponse{
-				Meta: pkgprovidersnscaleimds.OpenStackMetadataMeta{
-					RegionName: "",
-				},
-			}, nil
-		}
-
-		provider := &providers.Info{Provider: "nscale"}
-		populateProviderRegion(provider)
-		assert.Empty(t, provider.Region)
-	})
-
-	t.Run("skip when metadata has only regionID", func(t *testing.T) {
-		fetchNscaleOpenStackMetadataForProviderFunc = func(ctx context.Context) (*pkgprovidersnscaleimds.OpenStackMetadataResponse, error) {
-			return &pkgprovidersnscaleimds.OpenStackMetadataResponse{
-				Meta: pkgprovidersnscaleimds.OpenStackMetadataMeta{
-					RegionID: "3f11d719-3358-420e-8a29-e6e12d6ba4d2",
-				},
-			}, nil
-		}
-
-		provider := &providers.Info{Provider: "nscale"}
-		populateProviderRegion(provider)
-		assert.Empty(t, provider.Region)
-	})
-
-	t.Run("set region from metadata when available", func(t *testing.T) {
-		fetchNscaleOpenStackMetadataForProviderFunc = func(ctx context.Context) (*pkgprovidersnscaleimds.OpenStackMetadataResponse, error) {
-			return &pkgprovidersnscaleimds.OpenStackMetadataResponse{
-				Meta: pkgprovidersnscaleimds.OpenStackMetadataMeta{
-					RegionName: "eu-west-1",
-				},
-			}, nil
-		}
-
-		provider := &providers.Info{Provider: "nscale"}
-		populateProviderRegion(provider)
-		assert.Equal(t, "eu-west-1", provider.Region)
 	})
 }
 

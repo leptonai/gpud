@@ -25,26 +25,6 @@ type OpenStackMetadataResponse struct {
 type OpenStackMetadataMeta struct {
 	OrganizationID string `json:"organizationID"`
 	ProjectID      string `json:"projectID"`
-	RegionName     string `json:"regionName"`
-	Region         string `json:"region"`
-	RegionID       string `json:"regionID"`
-	RegionId       string `json:"regionId"`
-}
-
-// BestRegion returns the most human-readable region value available.
-// Only name-like fields are considered.
-// regionID/regionId are intentionally excluded because they are opaque IDs.
-// On current nscale nodes, metadata commonly exposes regionID without regionName.
-// In that case we return empty so callers can keep their own region fallback
-// (e.g., DERP/latency-based region selection).
-func (m OpenStackMetadataMeta) BestRegion() string {
-	if s := strings.TrimSpace(m.RegionName); s != "" {
-		return s
-	}
-	if s := strings.TrimSpace(m.Region); s != "" {
-		return s
-	}
-	return ""
 }
 
 // FetchMetadata fetches metadata from the nscale metadata service at the specified path.
