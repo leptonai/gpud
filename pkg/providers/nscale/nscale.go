@@ -41,9 +41,8 @@ func fetchPrivateIPv4(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", nil
 	}
-	// On nscale, local-ipv4 may be public/routable; only accept RFC1918 so that
-	// "PrivateIP" stays semantically correct and local NIC fallback can take over.
-	if !ip.Is4() || !ip.IsPrivate() {
+	// On nscale, local-ipv4 is the authoritative host-local source IP and may be routable.
+	if !ip.Is4() {
 		return "", nil
 	}
 

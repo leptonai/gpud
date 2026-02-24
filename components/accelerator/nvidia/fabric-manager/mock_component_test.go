@@ -25,6 +25,8 @@ import (
 )
 
 func TestCheckFMExists_Mockey(t *testing.T) {
+	lockMockeyPatch(t)
+
 	t.Run("nv-fabricmanager found", func(t *testing.T) {
 		mockey.PatchRun(func() {
 			mockey.Mock(exec.LookPath).Return("/usr/bin/nv-fabricmanager", nil).Build()
@@ -41,6 +43,8 @@ func TestCheckFMExists_Mockey(t *testing.T) {
 }
 
 func TestCheckFMActive_Mockey(t *testing.T) {
+	lockMockeyPatch(t)
+
 	t.Run("port open", func(t *testing.T) {
 		mockey.PatchRun(func() {
 			mockey.Mock(netutil.IsPortOpen).Return(true).Build()
@@ -57,6 +61,8 @@ func TestCheckFMActive_Mockey(t *testing.T) {
 }
 
 func TestListPCINVSwitches_Mockey(t *testing.T) {
+	lockMockeyPatch(t)
+
 	// Test listPCIs directly with inline NVSwitch bridge data
 	data := []byte("0005:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)")
 	script := buildPrintScript(t, data)
@@ -73,6 +79,8 @@ func TestListPCINVSwitches_Mockey(t *testing.T) {
 }
 
 func TestCountSMINVSwitches_Mockey(t *testing.T) {
+	lockMockeyPatch(t)
+
 	// Test countSMINVSwitches directly with inline GPU data
 	data := []byte("GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-123)\nGPU 1: NVIDIA A100-SXM4-80GB (UUID: GPU-456)")
 	script := buildPrintScript(t, data)
