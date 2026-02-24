@@ -156,7 +156,7 @@ func TestFetchOpenStackMetadata(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, err := w.Write([]byte(`{"uuid":"u-1","availability_zone":"nova","meta":{"organizationID":"org","projectID":"project"}}`))
+			_, err := w.Write([]byte(`{"uuid":"u-1","availability_zone":"nova","meta":{"organizationID":"org","projectID":"project","regionID":"region-1"}}`))
 			require.NoError(t, err)
 		}))
 		defer srv.Close()
@@ -170,6 +170,7 @@ func TestFetchOpenStackMetadata(t *testing.T) {
 		require.Equal(t, "nova", resp.AvailabilityZone)
 		require.Equal(t, "org", resp.Meta.OrganizationID)
 		require.Equal(t, "project", resp.Meta.ProjectID)
+		require.Equal(t, "region-1", resp.Meta.RegionID)
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
@@ -187,4 +188,55 @@ func TestFetchOpenStackMetadata(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to parse OpenStack metadata")
 	})
+}
+
+func TestOpenStackMetadataMeta_BestRegion(t *testing.T) {
+	tests := []struct {
+		name     string
+		meta     OpenStackMetadataMeta
+		expected string
+	}{
+		{
+			name: "prefer regionName",
+			meta: OpenStackMetadataMeta{
+				RegionName: "eu-west-1",
+				Region:     "eu-west",
+				RegionID:   "region-id",
+			},
+			expected: "eu-west-1",
+		},
+		{
+			name: "fallback to region",
+			meta: OpenStackMetadataMeta{
+				Region:   "eu-west",
+				RegionID: "region-id",
+			},
+			expected: "eu-west",
+		},
+		{
+			name: "regionID-only is ignored",
+			meta: OpenStackMetadataMeta{
+				RegionID: "region-id",
+			},
+			expected: "",
+		},
+		{
+			name: "regionId-only is ignored",
+			meta: OpenStackMetadataMeta{
+				RegionId: "region-id-alias",
+			},
+			expected: "",
+		},
+		{
+			name:     "empty",
+			meta:     OpenStackMetadataMeta{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, tt.meta.BestRegion())
+		})
+	}
 }

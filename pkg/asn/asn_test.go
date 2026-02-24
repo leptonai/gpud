@@ -167,6 +167,11 @@ func TestNormalizeASNName(t *testing.T) {
 			input:    "nscale",
 			expected: "nscale",
 		},
+		{
+			name:     "exact nscale-stav-public match",
+			input:    "nscale-stav-public",
+			expected: "nscale",
+		},
 
 		// Test case insensitive matching
 		{
@@ -183,6 +188,11 @@ func TestNormalizeASNName(t *testing.T) {
 			name:     "uppercase GOOGLE",
 			input:    "GOOGLE",
 			expected: "gcp",
+		},
+		{
+			name:     "uppercase NSCALE-STAV-PUBLIC",
+			input:    "NSCALE-STAV-PUBLIC",
+			expected: "nscale",
 		},
 
 		// Test keywords contained in larger strings
@@ -322,22 +332,12 @@ func TestNormalizeASNNameDeterministic(t *testing.T) {
 	}
 }
 
-// TestNormalizeASNNameMultipleKeywords tests behavior when multiple keywords are present
-// Note: Due to Go's map iteration order being non-deterministic, this test verifies
-// that the result is one of the valid expected values
+// TestNormalizeASNNameMultipleKeywords tests deterministic behavior
+// when multiple provider keywords are present.
 func TestNormalizeASNNameMultipleKeywords(t *testing.T) {
 	testInput := "aws google azure yotta"
-
-	// The result should be one of the expected normalized names
-	validResults := map[string]bool{
-		"aws":   true,
-		"gcp":   true,
-		"azure": true,
-		"yotta": true,
-	}
-
 	result := NormalizeASNName(testInput)
-	assert.Contains(t, validResults, result, "NormalizeASNName(%q) should return one of: aws, gcp, azure, yotta", testInput)
+	assert.Equal(t, "aws", result, "NormalizeASNName(%q) should deterministically return aws", testInput)
 }
 
 // TestNormalizeASNNameSpecialCharacters tests the function with special characters

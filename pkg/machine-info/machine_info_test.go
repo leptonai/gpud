@@ -62,6 +62,40 @@ func TestGetMachineLocation(t *testing.T) {
 	}
 }
 
+func TestCanonicalizeProviderName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "nscale alias normalized",
+			input:    "nscale-stav-public",
+			expected: "nscale",
+		},
+		{
+			name:     "nscale alias uppercase normalized",
+			input:    "NSCALE-STAV-PUBLIC",
+			expected: "nscale",
+		},
+		{
+			name:     "unknown remains unchanged",
+			input:    "unknown",
+			expected: "unknown",
+		},
+		{
+			name:     "empty remains empty",
+			input:    "   ",
+			expected: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, canonicalizeProviderName(tt.input))
+		})
+	}
+}
+
 func TestGetSystemResourceGPUCount(t *testing.T) {
 	// Skip if NVML is not available
 	nvmlInstance, err := nvidianvml.New()

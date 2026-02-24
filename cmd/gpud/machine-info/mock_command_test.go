@@ -174,6 +174,9 @@ func TestCommand_SuccessWithProvider(t *testing.T) {
 				PrivateIP: "10.0.0.1",
 			}
 		}).Build()
+		mockey.Mock(pkgmachineinfo.GetMachineLocation).To(func() *apiv1.MachineLocation {
+			return &apiv1.MachineLocation{Region: "us-east-1"}
+		}).Build()
 
 		cliContext := newCLIContext(t, []string{})
 		err := Command(cliContext)
@@ -211,10 +214,55 @@ func TestCommand_SuccessWithProviderNoPrivateIP(t *testing.T) {
 				PrivateIP: "", // No private IP
 			}
 		}).Build()
+		mockey.Mock(pkgmachineinfo.GetMachineLocation).To(func() *apiv1.MachineLocation {
+			return &apiv1.MachineLocation{Region: "us-west-2"}
+		}).Build()
 
 		cliContext := newCLIContext(t, []string{})
 		err := Command(cliContext)
 		require.NoError(t, err)
+	})
+}
+
+// TestCommand_ProviderRegionFallbackToMachineLocation tests provider region display fallback.
+func TestCommand_ProviderRegionFallbackToMachineLocation(t *testing.T) {
+	mockey.PatchConvey("command fills empty provider region from machine location", t, func() {
+		mockey.Mock(gpudcommon.StateFileFromContext).To(func(cliContext *cli.Context) (string, error) {
+			return "/nonexistent/state.db", nil
+		}).Build()
+
+		mockNVML := nvidianvml.NewNoOp()
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return mockNVML, nil
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			return &apiv1.MachineInfo{
+				MachineID: "test-machine-id",
+			}, nil
+		}).Build()
+
+		mockey.Mock(netutil.PublicIP).To(func() (string, error) {
+			return "46.148.127.98", nil
+		}).Build()
+
+		providerInfo := &providers.Info{
+			Provider:  "nscale",
+			PublicIP:  "46.148.127.98",
+			PrivateIP: "7.247.195.146",
+			Region:    "",
+		}
+		mockey.Mock(pkgmachineinfo.GetProvider).To(func(publicIP string) *providers.Info {
+			return providerInfo
+		}).Build()
+		mockey.Mock(pkgmachineinfo.GetMachineLocation).To(func() *apiv1.MachineLocation {
+			return &apiv1.MachineLocation{Region: "eu-west-1"}
+		}).Build()
+
+		cliContext := newCLIContext(t, []string{})
+		err := Command(cliContext)
+		require.NoError(t, err)
+		assert.Equal(t, "eu-west-1", providerInfo.Region)
 	})
 }
 

@@ -39,6 +39,22 @@ func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 }
 
 func TestDetectProvider_WithMockey(t *testing.T) {
+	mockey.PatchConvey("detectProvider returns empty when OpenStack metadata misses UUID", t, func() {
+		mockey.Mock(imds.FetchOpenStackMetadata).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, error) {
+			return &imds.OpenStackMetadataResponse{
+				UUID: "",
+				Meta: imds.OpenStackMetadataMeta{
+					OrganizationID: "org-nscale",
+					ProjectID:      "proj-nscale",
+				},
+			}, nil
+		}).Build()
+
+		provider, err := detectProvider(context.Background())
+		require.NoError(t, err)
+		require.Empty(t, provider)
+	})
+
 	mockey.PatchConvey("detectProvider returns empty when OpenStack metadata misses nscale fields", t, func() {
 		mockey.Mock(imds.FetchOpenStackMetadata).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, error) {
 			return &imds.OpenStackMetadataResponse{
@@ -76,9 +92,19 @@ func TestFetchPrivateIPv4_WithMockey(t *testing.T) {
 		require.Equal(t, "10.50.85.108", privateIP)
 	})
 
-	mockey.PatchConvey("fetchPrivateIPv4 drops non-RFC1918 address", t, func() {
+	mockey.PatchConvey("fetchPrivateIPv4 accepts routable IPv4 from metadata", t, func() {
 		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
 			return "7.247.195.201", nil
+		}).Build()
+
+		privateIP, err := fetchPrivateIPv4(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "7.247.195.201", privateIP)
+	})
+
+	mockey.PatchConvey("fetchPrivateIPv4 drops invalid IP", t, func() {
+		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
+			return "not-an-ip", nil
 		}).Build()
 
 		privateIP, err := fetchPrivateIPv4(context.Background())
@@ -86,9 +112,9 @@ func TestFetchPrivateIPv4_WithMockey(t *testing.T) {
 		require.Empty(t, privateIP)
 	})
 
-	mockey.PatchConvey("fetchPrivateIPv4 drops invalid IP", t, func() {
+	mockey.PatchConvey("fetchPrivateIPv4 drops IPv6 addresses", t, func() {
 		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
-			return "not-an-ip", nil
+			return "2600:1f18:b1::1", nil
 		}).Build()
 
 		privateIP, err := fetchPrivateIPv4(context.Background())

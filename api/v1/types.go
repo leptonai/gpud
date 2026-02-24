@@ -461,8 +461,9 @@ func (di *MachineDiskInfo) RenderTable(wr io.Writer) {
 type MachineNetwork struct {
 	// PublicIP is the public IP address of the machine.
 	PublicIP string `json:"publicIP,omitempty"`
-	// PrivateIP is the first private IP in IPv4 family,
-	// detected from the local host.
+	// PrivateIP is the local IPv4 used by the host networking stack.
+	// This is usually an RFC1918 private address, but some providers
+	// may report a routable host-local IPv4 via metadata.
 	// May be overridden by the user with the private IP address.
 	PrivateIP string `json:"privateIP,omitempty"`
 }
@@ -490,6 +491,9 @@ type MachineNetworkInterface struct {
 
 // MachineLocation is the location info of the machine.
 type MachineLocation struct {
+	// Region is a provider-specific region identifier.
+	// This may be an AWS-style region code (e.g., "us-east-1")
+	// or a provider metadata region ID.
 	Region string `json:"region,omitempty"`
 	Zone   string `json:"zone,omitempty"`
 }

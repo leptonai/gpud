@@ -32,10 +32,13 @@ import (
 	"github.com/leptonai/gpud/pkg/providers"
 	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 	"github.com/leptonai/gpud/pkg/providers/nebius"
+	pkgprovidersnscaleimds "github.com/leptonai/gpud/pkg/providers/nscale/imds"
 	"github.com/leptonai/gpud/version"
 )
 
 const diskPartitionsTimeout = 10 * time.Second
+
+var fetchNscaleOpenStackMetadataForProviderFunc = pkgprovidersnscaleimds.FetchOpenStackMetadata
 
 func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 	hostname, _ := os.Hostname()
@@ -229,10 +232,15 @@ func GetProvider(publicIP string) *providers.Info {
 		log.Logger.Debugw("providerInfo.Provider is empty, setting to unknown")
 		providerInfo.Provider = "unknown"
 	}
+	providerInfo.Provider = canonicalizeProviderName(providerInfo.Provider)
+	if providerInfo.Provider == "" {
+		providerInfo.Provider = "unknown"
+	}
 
 	log.Logger.Debugw("provider after initial detection", "provider", providerInfo.Provider, "publicIP", providerInfo.PublicIP)
 
 	if providerInfo.Provider != "unknown" {
+		populateProviderRegion(providerInfo)
 		log.Logger.Debugw("returning detected provider", "provider", providerInfo.Provider)
 		return providerInfo
 	}
@@ -261,6 +269,12 @@ func GetProvider(publicIP string) *providers.Info {
 		log.Logger.Warnw("no public IP provided for ASN lookup")
 	}
 
+	providerInfo.Provider = canonicalizeProviderName(providerInfo.Provider)
+	if providerInfo.Provider == "" {
+		providerInfo.Provider = "unknown"
+	}
+	populateProviderRegion(providerInfo)
+
 	if providerInfo.Provider == "nebius" && providerInfo.InstanceID == "" {
 		instanceID, err := nebius.GetInstanceID()
 		if err != nil {
@@ -278,6 +292,41 @@ func GetProvider(publicIP string) *providers.Info {
 	)
 
 	return providerInfo
+}
+
+func canonicalizeProviderName(provider string) string {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return ""
+	}
+	normalized := asn.NormalizeASNName(provider)
+	if normalized == "" {
+		return provider
+	}
+	return normalized
+}
+
+func populateProviderRegion(providerInfo *providers.Info) {
+	if providerInfo == nil || providerInfo.Provider != "nscale" || providerInfo.Region != "" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	meta, err := fetchNscaleOpenStackMetadataForProviderFunc(ctx)
+	if err != nil {
+		log.Logger.Warnw("failed to fetch nscale metadata for provider region", "error", err)
+		return
+	}
+	if meta == nil {
+		return
+	}
+	// Only set provider region when metadata gives a human-readable region.
+	// If nscale exposes only opaque regionID values, leave Region empty.
+	if region := meta.Meta.BestRegion(); region != "" {
+		providerInfo.Region = region
+	}
 }
 
 func GetMachineLocation() *apiv1.MachineLocation {
