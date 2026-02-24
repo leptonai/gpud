@@ -15,6 +15,7 @@ StandardError=append:/var/log/gpud.log
 
 # https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
 Type=notify
+NotifyAccess=all
 
 # https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
 Restart=always
