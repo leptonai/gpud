@@ -34,6 +34,7 @@ type Info struct {
 	Provider      string `json:"provider"`
 	PublicIP      string `json:"public_ip"`
 	PrivateIP     string `json:"private_ip"`
+	Region        string `json:"region"`
 	VMEnvironment string `json:"vm_environment"`
 	InstanceID    string `json:"instance_id"`
 }
@@ -48,6 +49,7 @@ func (i *Info) RenderTable(wr io.Writer) {
 	table.Append([]string{"Provider", i.Provider})
 	table.Append([]string{"Public IP", i.PublicIP})
 	table.Append([]string{"Private IP", i.PrivateIP})
+	table.Append([]string{"Region", i.Region})
 	table.Append([]string{"VM Environment", i.VMEnvironment})
 	table.Append([]string{"Instance ID", i.InstanceID})
 	table.Render()

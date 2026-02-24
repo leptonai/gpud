@@ -156,7 +156,7 @@ func TestFetchOpenStackMetadata(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, err := w.Write([]byte(`{"uuid":"u-1","availability_zone":"nova","meta":{"organizationID":"org","projectID":"project"}}`))
+			_, err := w.Write([]byte(`{"uuid":"u-1","availability_zone":"nova","meta":{"organizationID":"org","projectID":"project","regionID":"region-1"}}`))
 			require.NoError(t, err)
 		}))
 		defer srv.Close()

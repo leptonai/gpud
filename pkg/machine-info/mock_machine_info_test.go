@@ -27,6 +27,7 @@ import (
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 	"github.com/leptonai/gpud/pkg/providers"
 	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
+	"github.com/leptonai/gpud/pkg/providers/nebius"
 )
 
 // mockNvmlInstanceForMockey implements the nvidianvml.Instance interface for mockey tests
@@ -236,6 +237,25 @@ func TestGetProvider_WithMockedProviderDetection(t *testing.T) {
 		assert.Equal(t, "54.123.45.67", provider.PublicIP)
 		assert.Equal(t, "172.16.0.10", provider.PrivateIP)
 		assert.Equal(t, "i-1234567890abcdef0", provider.InstanceID)
+	})
+
+	mockey.PatchConvey("GetProvider canonicalizes detected provider alias", t, func() {
+		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
+			return &providers.Info{
+				Provider:      "nscale-stav-public",
+				PublicIP:      "46.148.127.98",
+				PrivateIP:     "7.247.195.146",
+				VMEnvironment: "nova",
+				InstanceID:    "i-00001923",
+			}, nil
+		}).Build()
+
+		provider := GetProvider("46.148.127.98")
+		require.NotNil(t, provider)
+		assert.Equal(t, "nscale", provider.Provider)
+		assert.Equal(t, "46.148.127.98", provider.PublicIP)
+		assert.Equal(t, "7.247.195.146", provider.PrivateIP)
+		assert.Empty(t, provider.Region)
 	})
 
 	mockey.PatchConvey("GetProvider with detection failure, fallback to ASN", t, func() {
@@ -593,7 +613,7 @@ func TestGetMachineGPUInfo_WithNoDevices(t *testing.T) {
 
 // TestGetProvider_NebiusSpecialCase tests the Nebius provider special case
 func TestGetProvider_NebiusSpecialCase(t *testing.T) {
-	mockey.PatchConvey("GetProvider with Nebius from ASN", t, func() {
+	mockey.PatchConvey("GetProvider with Nebius from ASN populates instance ID", t, func() {
 		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
 			return &providers.Info{
 				Provider: "",
@@ -610,14 +630,53 @@ func TestGetProvider_NebiusSpecialCase(t *testing.T) {
 		}).Build()
 
 		mockey.Mock(asn.NormalizeASNName).To(func(asnName string) string {
-			return "nebius"
+			if asnName == "nebiuscloud" {
+				return "nebius"
+			}
+			return asnName
 		}).Build()
 
-		// We need to also mock the Nebius instance ID lookup
-		// Since we can't easily mock the nebius package, we verify the provider is correctly set
+		mockey.Mock(nebius.GetInstanceID).To(func() (string, error) {
+			return "nebius-instance-id", nil
+		}).Build()
+
 		provider := GetProvider("1.2.3.4")
 		require.NotNil(t, provider)
 		assert.Equal(t, "nebius", provider.Provider)
+		assert.Equal(t, "nebius-instance-id", provider.InstanceID)
+	})
+
+	mockey.PatchConvey("GetProvider with Nebius from ASN keeps empty instance ID on lookup error", t, func() {
+		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
+			return &providers.Info{
+				Provider: "",
+			}, nil
+		}).Build()
+
+		mockey.Mock(asn.GetASLookup).To(func(ip string) (*asn.ASLookupResponse, error) {
+			return &asn.ASLookupResponse{
+				Asn:     "12345",
+				AsnName: "nebiuscloud",
+				Country: "ru",
+				IP:      ip,
+			}, nil
+		}).Build()
+
+		mockey.Mock(asn.NormalizeASNName).To(func(asnName string) string {
+			if asnName == "nebiuscloud" {
+				return "nebius"
+			}
+			return asnName
+		}).Build()
+
+		mockey.Mock(nebius.GetInstanceID).To(func() (string, error) {
+			return "", errors.New("metadata unavailable")
+		}).Build()
+
+		provider := GetProvider("1.2.3.4")
+		require.NotNil(t, provider)
+		assert.Equal(t, "nebius", provider.Provider)
+		assert.Empty(t, provider.InstanceID)
 	})
 }
 

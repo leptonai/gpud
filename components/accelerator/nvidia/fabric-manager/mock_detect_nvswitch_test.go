@@ -38,6 +38,8 @@ func (m *mockProcess) StdoutReader() io.Reader { return nil }
 func (m *mockProcess) StderrReader() io.Reader { return nil }
 
 func TestListPCINVSwitchesAndCountSMINVSwitches_Wrappers(t *testing.T) {
+	lockMockeyPatch(t)
+
 	mockey.PatchConvey("ListPCINVSwitches wrapper calls listPCIs path", t, func() {
 		mockey.Mock(file.LocateExecutable).Return("/usr/bin/lspci", nil).Build()
 		mockey.Mock(process.New).Return(&mockProcess{}, nil).Build()
@@ -60,6 +62,8 @@ func TestListPCINVSwitchesAndCountSMINVSwitches_Wrappers(t *testing.T) {
 }
 
 func TestListPCIs_ErrorsWithMockey(t *testing.T) {
+	lockMockeyPatch(t)
+
 	mockey.PatchConvey("lspci executable not found", t, func() {
 		mockey.Mock(file.LocateExecutable).Return("", errors.New("not found")).Build()
 
@@ -112,6 +116,8 @@ func TestListPCIs_ErrorsWithMockey(t *testing.T) {
 }
 
 func TestCountSMINVSwitches_ErrorsWithMockey(t *testing.T) {
+	lockMockeyPatch(t)
+
 	mockey.PatchConvey("nvidia-smi executable not found", t, func() {
 		mockey.Mock(file.LocateExecutable).Return("", errors.New("not found")).Build()
 
@@ -164,6 +170,8 @@ func TestCountSMINVSwitches_ErrorsWithMockey(t *testing.T) {
 }
 
 func TestListPCIs_FiltersNonNVIDIAVendors_WithMockey(t *testing.T) {
+	lockMockeyPatch(t)
+
 	data := []byte("0000:00:1f.0 ISA bridge [0601]: Intel Corporation Device [8086:1234]\n0005:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)")
 	script := buildPrintScript(t, data)
 	mockey.PatchConvey("listPCIs filters non-NVIDIA vendors", t, func() {
@@ -177,6 +185,8 @@ func TestListPCIs_FiltersNonNVIDIAVendors_WithMockey(t *testing.T) {
 }
 
 func TestCountSMINVSwitches_FiltersNonGPULines_WithMockey(t *testing.T) {
+	lockMockeyPatch(t)
+
 	data := []byte("GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-1)\nGPU 0 Link 0: 25.781 GB/s\nGPU 1: NVIDIA A100-SXM4-80GB (UUID: GPU-2)")
 	script := buildPrintScript(t, data)
 	mockey.PatchConvey("countSMINVSwitches keeps only GPU descriptor lines", t, func() {

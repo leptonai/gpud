@@ -7,12 +7,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	"github.com/leptonai/gpud/pkg/providers"
@@ -507,6 +509,67 @@ func TestCreateLoginRequest_NetworkBasics(t *testing.T) {
 	assert.Equal(t, "1.2.3.4", req.Network.PublicIP)
 	assert.Equal(t, "provider-1.2.3.4", req.Provider)
 	assert.Equal(t, "1", req.Resources["nvidia.com/gpu"])
+}
+
+func TestCreateLoginRequest_UsesDefaultDependenciesWithMockey(t *testing.T) {
+	mockey.PatchConvey("CreateLoginRequest wires package-level dependencies", t, func() {
+		mockey.Mock(netutil.PublicIP).To(func() (string, error) {
+			return "54.1.2.3", nil
+		}).Build()
+		mockey.Mock(GetMachineLocation).To(func() *apiv1.MachineLocation {
+			return &apiv1.MachineLocation{
+				Region: "us-west-2",
+				Zone:   "us-west-2a",
+			}
+		}).Build()
+		mockey.Mock(GetMachineInfo).To(func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			return &apiv1.MachineInfo{
+				CPUInfo: &apiv1.MachineCPUInfo{
+					LogicalCores: 8,
+				},
+				MemoryInfo: &apiv1.MachineMemoryInfo{
+					TotalBytes: 64 * 1024 * 1024 * 1024,
+				},
+				NICInfo: &apiv1.MachineNICInfo{},
+			}, nil
+		}).Build()
+		mockey.Mock(GetProvider).To(func(ip string) *providers.Info {
+			return &providers.Info{
+				Provider:   "aws",
+				PublicIP:   ip,
+				PrivateIP:  "172.31.0.10",
+				InstanceID: "i-mocked-instance",
+			}
+		}).Build()
+		mockey.Mock(GetSystemResourceRootVolumeTotal).To(func() (string, error) {
+			return "200Gi", nil
+		}).Build()
+		mockey.Mock(GetSystemResourceGPUCount).To(func(nvidianvml.Instance) (string, error) {
+			return "4", nil
+		}).Build()
+
+		req, err := CreateLoginRequest("token", "machine-id", "node-group", "", &mockNvmlInstance{})
+		assert.NoError(t, err)
+		if !assert.NotNil(t, req) {
+			return
+		}
+		assert.Equal(t, "token", req.Token)
+		assert.Equal(t, "machine-id", req.MachineID)
+		assert.Equal(t, "node-group", req.NodeGroup)
+		assert.Equal(t, "aws", req.Provider)
+		assert.Equal(t, "i-mocked-instance", req.ProviderInstanceID)
+		assert.Equal(t, "54.1.2.3", req.Network.PublicIP)
+		assert.Equal(t, "172.31.0.10", req.Network.PrivateIP)
+		assert.Equal(t, "8", req.Resources[string(corev1.ResourceCPU)])
+		assert.Equal(t, "200Gi", req.Resources[string(corev1.ResourceEphemeralStorage)])
+		assert.Equal(t, "4", req.Resources["nvidia.com/gpu"])
+		memQty, parseErr := resource.ParseQuantity(req.Resources[string(corev1.ResourceMemory)])
+		assert.NoError(t, parseErr)
+		assert.Equal(t, resource.NewQuantity(64*1024*1024*1024, resource.DecimalSI).String(), memQty.String())
+		assert.NotNil(t, req.Location)
+		assert.Equal(t, "us-west-2", req.Location.Region)
+		assert.Equal(t, "us-west-2a", req.Location.Zone)
+	})
 }
 
 // TestCreateLoginRequest_PrivateIPDetection tests private IP detection logic
@@ -1039,4 +1102,42 @@ func TestCreateLoginRequest_IMDSPrivateIPPrecedence(t *testing.T) {
 			assert.Equal(t, tt.expectedPrivateIP, req.Network.PrivateIP, tt.description)
 		})
 	}
+}
+
+func TestCreateLoginRequest_NscaleUsesLatencyLocationWithoutMetadataOverride(t *testing.T) {
+	getMachineInfoFunc := func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+		return &apiv1.MachineInfo{
+			CPUInfo:    &apiv1.MachineCPUInfo{LogicalCores: 4},
+			MemoryInfo: &apiv1.MachineMemoryInfo{TotalBytes: 16 * 1024 * 1024 * 1024},
+			NICInfo:    &apiv1.MachineNICInfo{},
+		}, nil
+	}
+	getProviderFunc := func(ip string) *providers.Info {
+		return &providers.Info{
+			Provider:   "nscale",
+			PublicIP:   "46.148.127.98",
+			PrivateIP:  "7.247.195.146",
+			InstanceID: "i-00001923",
+		}
+	}
+
+	req, err := createLoginRequest(
+		"token",
+		"machine-id",
+		"",
+		"1",
+		&mockNvmlInstance{},
+		func() (string, error) { return "46.148.127.98", nil },
+		func() *apiv1.MachineLocation { return &apiv1.MachineLocation{Region: "eu-west-1", Zone: "eu-west-1a"} },
+		getMachineInfoFunc,
+		getProviderFunc,
+		func() (string, error) { return "100Gi", nil },
+		func(nvidianvml.Instance) (string, error) { return "1", nil },
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, req)
+	assert.NotNil(t, req.Location)
+	assert.Equal(t, "eu-west-1", req.Location.Region)
+	assert.Equal(t, "eu-west-1a", req.Location.Zone)
 }

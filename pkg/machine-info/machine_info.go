@@ -229,6 +229,10 @@ func GetProvider(publicIP string) *providers.Info {
 		log.Logger.Debugw("providerInfo.Provider is empty, setting to unknown")
 		providerInfo.Provider = "unknown"
 	}
+	providerInfo.Provider = canonicalizeProviderName(providerInfo.Provider)
+	if providerInfo.Provider == "" {
+		providerInfo.Provider = "unknown"
+	}
 
 	log.Logger.Debugw("provider after initial detection", "provider", providerInfo.Provider, "publicIP", providerInfo.PublicIP)
 
@@ -261,6 +265,11 @@ func GetProvider(publicIP string) *providers.Info {
 		log.Logger.Warnw("no public IP provided for ASN lookup")
 	}
 
+	providerInfo.Provider = canonicalizeProviderName(providerInfo.Provider)
+	if providerInfo.Provider == "" {
+		providerInfo.Provider = "unknown"
+	}
+
 	if providerInfo.Provider == "nebius" && providerInfo.InstanceID == "" {
 		instanceID, err := nebius.GetInstanceID()
 		if err != nil {
@@ -278,6 +287,18 @@ func GetProvider(publicIP string) *providers.Info {
 	)
 
 	return providerInfo
+}
+
+func canonicalizeProviderName(provider string) string {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return ""
+	}
+	normalized := asn.NormalizeASNName(provider)
+	if normalized == "" {
+		return provider
+	}
+	return normalized
 }
 
 func GetMachineLocation() *apiv1.MachineLocation {

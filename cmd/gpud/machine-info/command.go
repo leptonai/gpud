@@ -90,6 +90,13 @@ func Command(cliContext *cli.Context) error {
 				}
 			}
 		}
+		// Match LoginRequest behavior: when provider metadata cannot provide
+		// a usable region, use DERP/latency-derived machine location.
+		if providerInfo.Region == "" {
+			if loc := pkgmachineinfo.GetMachineLocation(); loc != nil && loc.Region != "" {
+				providerInfo.Region = loc.Region
+			}
+		}
 		fmt.Printf("%s successfully found provider %s\n", cmdcommon.CheckMark, providerInfo.Provider)
 		providerInfo.RenderTable(os.Stdout)
 	}

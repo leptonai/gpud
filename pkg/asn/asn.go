@@ -240,24 +240,30 @@ func originFieldsValue(fields []string, idx int) string {
 func NormalizeASNName(asnName string) string {
 	asnName = strings.TrimSpace(asnName)
 	asnName = strings.ToLower(asnName)
-	for keyword, normalizedName := range providerKeywords {
-		if strings.Contains(asnName, keyword) {
-			return normalizedName
+	for _, rule := range providerNormalizationRules {
+		if strings.Contains(asnName, rule.keyword) {
+			return rule.normalizedName
 		}
 	}
 	return asnName
 }
 
-// providerKeywords is a map of provider keywords to their normalized names.
-// It is used to map provider names to their normalized names.
-var providerKeywords = map[string]string{
-	"aws":     "aws",
-	"azure":   "azure",
-	"gcp":     "gcp",
-	"google":  "gcp",
-	"nscale":  "nscale",
-	"yotta":   "yotta",
-	"nebius":  "nebius",  // e.g., "nebiuscloud" should be "nebius"
-	"hetzner": "hetzner", // e.g., "hetzner-cloud3-as" should be "hetzner"
-	"oracle":  "oci",     // e.g., "oracle-bmc-31898" should be "oci"
+type providerNormalizationRule struct {
+	keyword        string
+	normalizedName string
+}
+
+// providerNormalizationRules maps provider aliases to canonical names.
+// Ordered from more specific aliases to more generic ones for deterministic results.
+var providerNormalizationRules = []providerNormalizationRule{
+	{keyword: "nscale-stav-public", normalizedName: "nscale"},
+	{keyword: "aws", normalizedName: "aws"},
+	{keyword: "azure", normalizedName: "azure"},
+	{keyword: "google", normalizedName: "gcp"},
+	{keyword: "gcp", normalizedName: "gcp"},
+	{keyword: "nscale", normalizedName: "nscale"},
+	{keyword: "yotta", normalizedName: "yotta"},
+	{keyword: "nebius", normalizedName: "nebius"},   // e.g., "nebiuscloud" should be "nebius"
+	{keyword: "hetzner", normalizedName: "hetzner"}, // e.g., "hetzner-cloud3-as" should be "hetzner"
+	{keyword: "oracle", normalizedName: "oci"},      // e.g., "oracle-bmc-31898" should be "oci"
 }
