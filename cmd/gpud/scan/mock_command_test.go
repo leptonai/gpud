@@ -3,12 +3,17 @@ package scan
 import (
 	"context"
 	"errors"
+	"flag"
 	"testing"
+	"time"
 
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli"
 
+	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
+	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgscan "github.com/leptonai/gpud/pkg/scan"
 )
 
@@ -374,4 +379,74 @@ func TestCmdScan_WithAllConfigOptions(t *testing.T) {
 func TestCreateCommand_ReturnsFunction(t *testing.T) {
 	fn := CreateCommand()
 	assert.NotNil(t, fn)
+}
+
+func newTestCLIContext(t *testing.T, xidLookbackPeriod, sxidLookbackPeriod, eventsRetentionPeriod time.Duration) *cli.Context {
+	t.Helper()
+
+	set := flag.NewFlagSet("gpud-scan-test", flag.ContinueOnError)
+	set.String("log-level", "info", "")
+	set.Duration("xid-lookback-period", 0, "")
+	set.Duration("sxid-lookback-period", 0, "")
+	set.Duration("events-retention-period", 0, "")
+
+	if xidLookbackPeriod > 0 {
+		require.NoError(t, set.Set("xid-lookback-period", xidLookbackPeriod.String()))
+	}
+	if sxidLookbackPeriod > 0 {
+		require.NoError(t, set.Set("sxid-lookback-period", sxidLookbackPeriod.String()))
+	}
+	if eventsRetentionPeriod > 0 {
+		require.NoError(t, set.Set("events-retention-period", eventsRetentionPeriod.String()))
+	}
+
+	app := cli.NewApp()
+	return cli.NewContext(app, set, nil)
+}
+
+func TestCreateCommand_SetLookbackPeriods(t *testing.T) {
+	originalXidLookback := componentsxid.GetLookbackPeriod()
+	originalSxidLookback := componentssxid.GetLookbackPeriod()
+	t.Cleanup(func() {
+		componentsxid.SetLookbackPeriod(originalXidLookback)
+		componentssxid.SetLookbackPeriod(originalSxidLookback)
+	})
+
+	newXidLookback := 4 * time.Hour
+	newSxidLookback := 9 * time.Hour
+	ctx := newTestCLIContext(t, newXidLookback, newSxidLookback, 0)
+
+	mockey.PatchConvey("create command sets xid/sxid lookback periods", t, func() {
+		mockey.Mock(pkgscan.Scan).To(func(ctx context.Context, opts ...pkgscan.OpOption) error {
+			return nil
+		}).Build()
+
+		err := CreateCommand()(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, newXidLookback, componentsxid.GetLookbackPeriod())
+		assert.Equal(t, newSxidLookback, componentssxid.GetLookbackPeriod())
+	})
+}
+
+func TestCreateCommand_UsesEventsRetentionForLookback(t *testing.T) {
+	originalXidLookback := componentsxid.GetLookbackPeriod()
+	originalSxidLookback := componentssxid.GetLookbackPeriod()
+	t.Cleanup(func() {
+		componentsxid.SetLookbackPeriod(originalXidLookback)
+		componentssxid.SetLookbackPeriod(originalSxidLookback)
+	})
+
+	eventsRetentionPeriod := 36 * time.Hour
+	ctx := newTestCLIContext(t, 0, 0, eventsRetentionPeriod)
+
+	mockey.PatchConvey("create command uses events retention period for xid/sxid lookback", t, func() {
+		mockey.Mock(pkgscan.Scan).To(func(ctx context.Context, opts ...pkgscan.OpOption) error {
+			return nil
+		}).Build()
+
+		err := CreateCommand()(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, eventsRetentionPeriod, componentsxid.GetLookbackPeriod())
+		assert.Equal(t, eventsRetentionPeriod, componentssxid.GetLookbackPeriod())
+	})
 }

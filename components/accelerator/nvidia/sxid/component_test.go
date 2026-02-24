@@ -49,7 +49,7 @@ func createGPUdInstance(ctx context.Context, rebootEventStore pkghost.RebootEven
 func initComponentForTest(ctx context.Context, t *testing.T) (*component, func()) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)

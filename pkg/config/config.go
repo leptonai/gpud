@@ -31,6 +31,10 @@ type Config struct {
 	// Once elapsed, old states/metrics are purged/compacted.
 	RetentionPeriod metav1.Duration `json:"retention_period"`
 
+	// Amount of time to retain component events for.
+	// Once elapsed, old events are purged from the event store.
+	EventsRetentionPeriod metav1.Duration `json:"events_retention_period"`
+
 	// Interval at which to compact the state database.
 	CompactPeriod metav1.Duration `json:"compact_period"`
 
@@ -97,6 +101,9 @@ func (config *Config) Validate() error {
 	}
 	if config.RetentionPeriod.Duration < time.Minute {
 		return fmt.Errorf("retention_period must be at least 1 minute, got %d", config.RetentionPeriod.Duration)
+	}
+	if config.EventsRetentionPeriod.Duration > 0 && config.EventsRetentionPeriod.Duration < time.Minute {
+		return fmt.Errorf("events_retention_period must be at least 1 minute, got %d", config.EventsRetentionPeriod.Duration)
 	}
 
 	return nil

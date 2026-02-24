@@ -193,8 +193,12 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		}
 	}
 
-	// by default, we only retain past 24 hours of events
-	eventStore, err := eventstore.New(dbRW, dbRO, 14*24*time.Hour)
+	eventsRetentionPeriod := config.EventsRetentionPeriod.Duration
+	if eventsRetentionPeriod <= 0 {
+		// Backward-compatible fallback for callers that still only populate retention_period.
+		eventsRetentionPeriod = config.RetentionPeriod.Duration
+	}
+	eventStore, err := eventstore.New(dbRW, dbRO, eventsRetentionPeriod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open events database: %w", err)
 	}
@@ -217,7 +221,14 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics store: %w", err)
 	}
-	syncer := pkgmetricssyncer.NewSyncer(ctx, promScraper, metricsSQLiteStore, time.Minute, time.Minute, 24*time.Hour)
+	syncer := pkgmetricssyncer.NewSyncer(
+		ctx,
+		promScraper,
+		metricsSQLiteStore,
+		time.Minute,
+		time.Minute,
+		config.RetentionPeriod.Duration,
+	)
 	syncer.Start()
 
 	promRecorder := pkgmetricsrecorder.NewPrometheusRecorder(ctx, 15*time.Minute, dbRO)
