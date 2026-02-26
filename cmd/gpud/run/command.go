@@ -22,6 +22,7 @@ import (
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
@@ -55,6 +56,23 @@ func Command(cliContext *cli.Context) error {
 
 	// Parse db-in-memory early as it affects login behavior
 	dbInMemory := cliContext.Bool("db-in-memory")
+
+	metricsRetentionPeriod := cliContext.Duration("metrics-retention-period")
+	if metricsRetentionPeriod <= 0 {
+		// Backward-compatible fallback for contexts that expose the deprecated flag separately.
+		deprecatedRetentionPeriod := cliContext.Duration("retention-period")
+		if deprecatedRetentionPeriod > 0 {
+			metricsRetentionPeriod = deprecatedRetentionPeriod
+		}
+	}
+	if metricsRetentionPeriod <= 0 {
+		metricsRetentionPeriod = 3 * time.Hour
+	}
+	eventsRetentionPeriod := cliContext.Duration("events-retention-period")
+	if eventsRetentionPeriod <= 0 {
+		// Backward-compatible fallback for contexts that only expose the deprecated flag.
+		eventsRetentionPeriod = 14 * 24 * time.Hour
+	}
 
 	gpuCount := cliContext.Int("gpu-count")
 	gpuCountStr := ""
@@ -123,7 +141,7 @@ func Command(cliContext *cli.Context) error {
 
 	listenAddress := cliContext.String("listen-address")
 	pprof := cliContext.Bool("pprof")
-	retentionPeriod := cliContext.Duration("retention-period")
+
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
 	versionFile := cliContext.String("version-file")
@@ -180,6 +198,26 @@ func Command(cliContext *cli.Context) error {
 		} else {
 			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)
 		}
+	}
+
+	if eventsRetentionPeriod > 0 && !cliContext.IsSet("xid-lookback-period") {
+		componentsxid.SetLookbackPeriod(eventsRetentionPeriod)
+		log.Logger.Infow("set xid lookback period from events retention period", "xidLookbackPeriod", eventsRetentionPeriod)
+	}
+
+	if cliContext.IsSet("xid-lookback-period") {
+		componentsxid.SetLookbackPeriod(cliContext.Duration("xid-lookback-period"))
+		log.Logger.Infow("set xid lookback period", "xidLookbackPeriod", cliContext.Duration("xid-lookback-period"))
+	}
+
+	if eventsRetentionPeriod > 0 && !cliContext.IsSet("sxid-lookback-period") {
+		componentssxid.SetLookbackPeriod(eventsRetentionPeriod)
+		log.Logger.Infow("set sxid lookback period from events retention period", "sxidLookbackPeriod", eventsRetentionPeriod)
+	}
+
+	if cliContext.IsSet("sxid-lookback-period") {
+		componentssxid.SetLookbackPeriod(cliContext.Duration("sxid-lookback-period"))
+		log.Logger.Infow("set sxid lookback period", "sxidLookbackPeriod", cliContext.Duration("sxid-lookback-period"))
 	}
 
 	if cliContext.IsSet("threshold-celsius-slowdown-margin") {
@@ -269,8 +307,11 @@ func Command(cliContext *cli.Context) error {
 	if pprof {
 		cfg.Pprof = true
 	}
-	if retentionPeriod > 0 {
-		cfg.RetentionPeriod = metav1.Duration{Duration: retentionPeriod}
+	if metricsRetentionPeriod > 0 {
+		cfg.RetentionPeriod = metav1.Duration{Duration: metricsRetentionPeriod}
+	}
+	if eventsRetentionPeriod > 0 {
+		cfg.EventsRetentionPeriod = metav1.Duration{Duration: eventsRetentionPeriod}
 	}
 
 	cfg.CompactPeriod = config.DefaultCompactPeriod

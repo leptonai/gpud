@@ -22,6 +22,7 @@ func TestDefaultConfig(t *testing.T) {
 		assert.Equal(t, DefaultAPIVersion, cfg.APIVersion)
 		assert.Equal(t, fmt.Sprintf(":%d", DefaultGPUdPort), cfg.Address)
 		assert.Equal(t, DefaultRetentionPeriod, cfg.RetentionPeriod)
+		assert.Equal(t, DefaultEventsRetentionPeriod, cfg.EventsRetentionPeriod)
 		assert.Equal(t, DefaultCompactPeriod, cfg.CompactPeriod)
 		assert.False(t, cfg.Pprof)
 		assert.True(t, cfg.EnableAutoUpdate)

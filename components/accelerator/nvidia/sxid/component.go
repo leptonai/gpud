@@ -38,7 +38,6 @@ const (
 	EventKeyErrorSXidData = "data"
 	EventKeyDeviceUUID    = "device_uuid"
 
-	DefaultRetentionPeriod   = eventstore.DefaultRetention
 	DefaultStateUpdatePeriod = 30 * time.Second
 )
 
@@ -478,13 +477,13 @@ func (c *component) updateCurrentState() error {
 	now := c.getTimeNowFunc()
 
 	var rebootErr string
-	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, now.Add(-DefaultRetentionPeriod))
+	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, now.Add(-GetLookbackPeriod()))
 	if err != nil {
 		rebootErr = fmt.Sprintf("failed to get reboot events: %v", err)
 		log.Logger.Errorw("failed to get reboot events", "error", err)
 	}
 
-	localEvents, err := c.eventBucket.Get(c.ctx, now.Add(-DefaultRetentionPeriod))
+	localEvents, err := c.eventBucket.Get(c.ctx, now.Add(-GetLookbackPeriod()))
 	if err != nil {
 		return fmt.Errorf("failed to get all events: %w", err)
 	}

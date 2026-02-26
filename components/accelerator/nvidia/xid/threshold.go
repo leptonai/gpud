@@ -2,7 +2,9 @@ package xid
 
 import (
 	"sync"
+	"time"
 
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -18,6 +20,9 @@ var (
 	defaultRebootThreshold   = RebootThreshold{
 		Threshold: DefaultRebootThreshold,
 	}
+
+	defaultLookbackPeriodMu sync.RWMutex
+	defaultLookbackPeriod   = eventstore.DefaultRetention
 )
 
 const (
@@ -37,4 +42,18 @@ func SetDefaultRebootThreshold(threshold RebootThreshold) {
 	defaultRebootThresholdMu.Lock()
 	defer defaultRebootThresholdMu.Unlock()
 	defaultRebootThreshold = threshold
+}
+
+func GetLookbackPeriod() time.Duration {
+	defaultLookbackPeriodMu.RLock()
+	defer defaultLookbackPeriodMu.RUnlock()
+	return defaultLookbackPeriod
+}
+
+func SetLookbackPeriod(period time.Duration) {
+	log.Logger.Infow("setting lookback period", "period", period)
+
+	defaultLookbackPeriodMu.Lock()
+	defer defaultLookbackPeriodMu.Unlock()
+	defaultLookbackPeriod = period
 }
