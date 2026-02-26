@@ -21,6 +21,7 @@ import (
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
+	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	componentsnvidiatemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgconfig "github.com/leptonai/gpud/pkg/config"
@@ -182,11 +183,6 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "pprof",
 					Usage: "enable pprof (default: false)",
 				},
-				&cli.DurationFlag{
-					Name:  "retention-period",
-					Usage: "set the time period to retain metrics for (once elapsed, old records are compacted/purged)",
-					Value: pkgconfig.DefaultRetentionPeriod.Duration,
-				},
 				&cli.BoolTFlag{
 					Name:  "enable-auto-update",
 					Usage: "enable auto update of gpud (default: true)",
@@ -216,6 +212,17 @@ sudo rm /etc/systemd/system/gpud.service
 					Hidden: true,
 				},
 
+				&cli.DurationFlag{
+					Name:  "metrics-retention-period, retention-period",
+					Usage: "set the time period to retain metrics for (once elapsed, old metric records are compacted/purged); --retention-period is deprecated",
+					Value: pkgconfig.DefaultMetricsRetentionPeriod.Duration,
+				},
+				&cli.DurationFlag{
+					Name:  "events-retention-period",
+					Usage: "set the time period to retain component events for (once elapsed, old events are purged from the event store)",
+					Value: pkgconfig.DefaultEventsRetentionPeriod.Duration,
+				},
+
 				&cli.IntFlag{
 					Name:  "gpu-count",
 					Usage: "specifies the expected GPU count",
@@ -237,6 +244,16 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "xid-reboot-threshold",
 					Usage: fmt.Sprintf("set the allowed reboot attempts for XID errors before escalation (defaults to %d)", componentsxid.DefaultRebootThreshold),
 					Value: componentsxid.DefaultRebootThreshold,
+				},
+				&cli.DurationFlag{
+					Name:  "xid-lookback-period",
+					Usage: "set the lookback period for XID errors",
+					Value: componentsxid.DefaultLookbackPeriod,
+				},
+				&cli.DurationFlag{
+					Name:  "sxid-lookback-period",
+					Usage: "set the lookback period for SXID errors",
+					Value: componentssxid.DefaultLookbackPeriod,
 				},
 				&cli.IntFlag{
 					Name:  "threshold-celsius-slowdown-margin",
@@ -553,6 +570,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
 
+				&cli.DurationFlag{
+					Name:  "events-retention-period",
+					Usage: "set the time period to retain component events for (once elapsed, old events are purged from the event store)",
+					Value: pkgconfig.DefaultEventsRetentionPeriod.Duration,
+				},
+
 				&cli.IntFlag{
 					Name:  "gpu-count",
 					Usage: "specifies the expected GPU count",
@@ -574,6 +597,16 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "xid-reboot-threshold",
 					Usage: fmt.Sprintf("set the allowed reboot attempts for XID errors before escalation (defaults to %d)", componentsxid.DefaultRebootThreshold),
 					Value: componentsxid.DefaultRebootThreshold,
+				},
+				&cli.DurationFlag{
+					Name:  "xid-lookback-period",
+					Usage: "set the lookback period for XID errors",
+					Value: componentsxid.DefaultLookbackPeriod,
+				},
+				&cli.DurationFlag{
+					Name:  "sxid-lookback-period",
+					Usage: "set the lookback period for SXID errors",
+					Value: componentssxid.DefaultLookbackPeriod,
 				},
 				&cli.IntFlag{
 					Name:  "threshold-celsius-slowdown-margin",

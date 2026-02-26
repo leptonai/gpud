@@ -22,6 +22,7 @@ import (
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
@@ -55,6 +56,8 @@ func Command(cliContext *cli.Context) error {
 
 	// Parse db-in-memory early as it affects login behavior
 	dbInMemory := cliContext.Bool("db-in-memory")
+
+	metricsRetentionPeriod, eventsRetentionPeriod := parseRetentionPeriods(cliContext)
 
 	gpuCount := cliContext.Int("gpu-count")
 	gpuCountStr := ""
@@ -123,7 +126,7 @@ func Command(cliContext *cli.Context) error {
 
 	listenAddress := cliContext.String("listen-address")
 	pprof := cliContext.Bool("pprof")
-	retentionPeriod := cliContext.Duration("retention-period")
+
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
 	versionFile := cliContext.String("version-file")
@@ -180,6 +183,26 @@ func Command(cliContext *cli.Context) error {
 		} else {
 			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)
 		}
+	}
+
+	if eventsRetentionPeriod > 0 && !cliContext.IsSet("xid-lookback-period") {
+		componentsxid.SetLookbackPeriod(eventsRetentionPeriod)
+		log.Logger.Infow("set xid lookback period from events retention period", "xidLookbackPeriod", eventsRetentionPeriod)
+	}
+
+	if cliContext.IsSet("xid-lookback-period") {
+		componentsxid.SetLookbackPeriod(cliContext.Duration("xid-lookback-period"))
+		log.Logger.Infow("set xid lookback period", "xidLookbackPeriod", cliContext.Duration("xid-lookback-period"))
+	}
+
+	if eventsRetentionPeriod > 0 && !cliContext.IsSet("sxid-lookback-period") {
+		componentssxid.SetLookbackPeriod(eventsRetentionPeriod)
+		log.Logger.Infow("set sxid lookback period from events retention period", "sxidLookbackPeriod", eventsRetentionPeriod)
+	}
+
+	if cliContext.IsSet("sxid-lookback-period") {
+		componentssxid.SetLookbackPeriod(cliContext.Duration("sxid-lookback-period"))
+		log.Logger.Infow("set sxid lookback period", "sxidLookbackPeriod", cliContext.Duration("sxid-lookback-period"))
 	}
 
 	if cliContext.IsSet("threshold-celsius-slowdown-margin") {
@@ -269,8 +292,11 @@ func Command(cliContext *cli.Context) error {
 	if pprof {
 		cfg.Pprof = true
 	}
-	if retentionPeriod > 0 {
-		cfg.RetentionPeriod = metav1.Duration{Duration: retentionPeriod}
+	if metricsRetentionPeriod > 0 {
+		cfg.MetricsRetentionPeriod = metav1.Duration{Duration: metricsRetentionPeriod}
+	}
+	if eventsRetentionPeriod > 0 {
+		cfg.EventsRetentionPeriod = metav1.Duration{Duration: eventsRetentionPeriod}
 	}
 
 	cfg.CompactPeriod = config.DefaultCompactPeriod
@@ -384,6 +410,32 @@ func Command(cliContext *cli.Context) error {
 	<-done
 
 	return nil
+}
+
+func parseRetentionPeriods(cliContext *cli.Context) (metricsRetentionPeriod, eventsRetentionPeriod time.Duration) {
+	metricsRetentionPeriod = cliContext.Duration("metrics-retention-period")
+	deprecatedRetentionPeriod := cliContext.Duration("retention-period")
+
+	// Treat non-positive values as unset for backward compatibility.
+	//
+	// Precedence:
+	// 1) --metrics-retention-period
+	// 2) deprecated --retention-period
+	// 3) config default
+	if metricsRetentionPeriod <= 0 {
+		if deprecatedRetentionPeriod > 0 {
+			metricsRetentionPeriod = deprecatedRetentionPeriod
+		} else {
+			metricsRetentionPeriod = config.DefaultMetricsRetentionPeriod.Duration
+		}
+	}
+
+	eventsRetentionPeriod = cliContext.Duration("events-retention-period")
+	if eventsRetentionPeriod <= 0 {
+		eventsRetentionPeriod = config.DefaultEventsRetentionPeriod.Duration
+	}
+
+	return metricsRetentionPeriod, eventsRetentionPeriod
 }
 
 func parseInfinibandExcludeDevices(s string) []string {

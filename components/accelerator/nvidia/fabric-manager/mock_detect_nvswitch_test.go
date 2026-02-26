@@ -1,6 +1,7 @@
 package fabricmanager
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -15,8 +16,9 @@ import (
 )
 
 type mockProcess struct {
-	startErr error
-	closeErr error
+	startErr     error
+	closeErr     error
+	stdoutReader io.Reader
 }
 
 func (m *mockProcess) Start(_ context.Context) error { return m.startErr }
@@ -32,10 +34,15 @@ func (m *mockProcess) Wait() <-chan error {
 	close(ch)
 	return ch
 }
-func (m *mockProcess) PID() int32              { return 1 }
-func (m *mockProcess) ExitCode() int32         { return 0 }
-func (m *mockProcess) StdoutReader() io.Reader { return nil }
-func (m *mockProcess) StderrReader() io.Reader { return nil }
+func (m *mockProcess) PID() int32      { return 1 }
+func (m *mockProcess) ExitCode() int32 { return 0 }
+func (m *mockProcess) StdoutReader() io.Reader {
+	if m.stdoutReader == nil {
+		return bytes.NewReader(nil)
+	}
+	return m.stdoutReader
+}
+func (m *mockProcess) StderrReader() io.Reader { return bytes.NewReader(nil) }
 
 func TestListPCINVSwitchesAndCountSMINVSwitches_Wrappers(t *testing.T) {
 	lockMockeyPatch(t)
@@ -173,10 +180,12 @@ func TestListPCIs_FiltersNonNVIDIAVendors_WithMockey(t *testing.T) {
 	lockMockeyPatch(t)
 
 	data := []byte("0000:00:1f.0 ISA bridge [0601]: Intel Corporation Device [8086:1234]\n0005:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)")
-	script := buildPrintScript(t, data)
 	mockey.PatchConvey("listPCIs filters non-NVIDIA vendors", t, func() {
-		mockey.Mock(file.LocateExecutable).Return(script, nil).Build()
-		lines, err := listPCIs(context.Background(), script, isNVIDIANVSwitchPCI)
+		mockey.Mock(file.LocateExecutable).Return("/usr/bin/lspci", nil).Build()
+		mockey.Mock(process.New).Return(&mockProcess{
+			stdoutReader: bytes.NewReader(data),
+		}, nil).Build()
+		lines, err := listPCIs(context.Background(), "lspci -nn", isNVIDIANVSwitchPCI)
 		require.NoError(t, err)
 		require.Len(t, lines, 1)
 		assert.Contains(t, lines[0], "10de")
@@ -188,10 +197,12 @@ func TestCountSMINVSwitches_FiltersNonGPULines_WithMockey(t *testing.T) {
 	lockMockeyPatch(t)
 
 	data := []byte("GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-1)\nGPU 0 Link 0: 25.781 GB/s\nGPU 1: NVIDIA A100-SXM4-80GB (UUID: GPU-2)")
-	script := buildPrintScript(t, data)
 	mockey.PatchConvey("countSMINVSwitches keeps only GPU descriptor lines", t, func() {
-		mockey.Mock(file.LocateExecutable).Return(script, nil).Build()
-		lines, err := countSMINVSwitches(context.Background(), script)
+		mockey.Mock(file.LocateExecutable).Return("/usr/bin/nvidia-smi", nil).Build()
+		mockey.Mock(process.New).Return(&mockProcess{
+			stdoutReader: bytes.NewReader(data),
+		}, nil).Build()
+		lines, err := countSMINVSwitches(context.Background(), "nvidia-smi nvlink --status")
 		require.NoError(t, err)
 		require.Len(t, lines, 2)
 		assert.Contains(t, lines[0], "GPU 0")

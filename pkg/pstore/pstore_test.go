@@ -3,10 +3,15 @@ package pstore
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +19,156 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type stubDBConfig struct {
+	beginErr        error
+	commitErr       error
+	execErrAt       map[int]error
+	rowsAffectedErr error
+	queryErr        error
+	columns         []string
+	rows            [][]driver.Value
+	nextErr         error
+}
+
+type stubDriver struct {
+	cfg *stubDBConfig
+}
+
+func (d *stubDriver) Open(name string) (driver.Conn, error) {
+	return &stubConn{cfg: d.cfg}, nil
+}
+
+type stubConn struct {
+	cfg       *stubDBConfig
+	execCount int
+}
+
+func (c *stubConn) Prepare(query string) (driver.Stmt, error) {
+	return nil, fmt.Errorf("prepare not supported")
+}
+
+func (c *stubConn) Close() error { return nil }
+
+func (c *stubConn) Begin() (driver.Tx, error) {
+	return c.BeginTx(context.Background(), driver.TxOptions{})
+}
+
+func (c *stubConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	if c.cfg != nil && c.cfg.beginErr != nil {
+		return nil, c.cfg.beginErr
+	}
+	return &stubTx{cfg: c.cfg}, nil
+}
+
+func (c *stubConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	c.execCount++
+	if c.cfg != nil && c.cfg.execErrAt != nil {
+		if err, ok := c.cfg.execErrAt[c.execCount]; ok {
+			return nil, err
+		}
+	}
+	return stubResult{rows: 1, rowsErr: c.cfg.rowsAffectedErr}, nil
+}
+
+func (c *stubConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if c.cfg != nil && c.cfg.queryErr != nil {
+		return nil, c.cfg.queryErr
+	}
+	cols := []string{"c1"}
+	if c.cfg != nil && len(c.cfg.columns) > 0 {
+		cols = c.cfg.columns
+	}
+	var rows [][]driver.Value
+	var nextErr error
+	if c.cfg != nil {
+		rows = c.cfg.rows
+		nextErr = c.cfg.nextErr
+	}
+	return &stubRows{
+		columns: cols,
+		rows:    rows,
+		nextErr: nextErr,
+	}, nil
+}
+
+type stubTx struct {
+	cfg *stubDBConfig
+}
+
+func (tx *stubTx) Commit() error {
+	if tx.cfg != nil {
+		return tx.cfg.commitErr
+	}
+	return nil
+}
+
+func (tx *stubTx) Rollback() error { return nil }
+
+type stubResult struct {
+	rows    int64
+	rowsErr error
+}
+
+func (r stubResult) LastInsertId() (int64, error) {
+	return 0, nil
+}
+
+func (r stubResult) RowsAffected() (int64, error) {
+	if r.rowsErr != nil {
+		return 0, r.rowsErr
+	}
+	return r.rows, nil
+}
+
+type stubRows struct {
+	columns []string
+	rows    [][]driver.Value
+	idx     int
+	nextErr error
+}
+
+func (r *stubRows) Columns() []string { return r.columns }
+
+func (r *stubRows) Close() error { return nil }
+
+func (r *stubRows) Next(dest []driver.Value) error {
+	if r.idx >= len(r.rows) {
+		if r.nextErr != nil {
+			err := r.nextErr
+			r.nextErr = nil
+			return err
+		}
+		return io.EOF
+	}
+
+	row := r.rows[r.idx]
+	r.idx++
+	for i := range dest {
+		if i < len(row) {
+			dest[i] = row[i]
+		} else {
+			dest[i] = nil
+		}
+	}
+	return nil
+}
+
+var stubDriverN uint64
+
+func setupStubDB(t *testing.T, cfg *stubDBConfig) *sql.DB {
+	t.Helper()
+
+	name := fmt.Sprintf("pstore_stub_driver_%d", atomic.AddUint64(&stubDriverN, 1))
+	sql.Register(name, &stubDriver{cfg: cfg})
+
+	db, err := sql.Open(name, "")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+	return db
+}
 
 func TestSysrqCrashPattern(t *testing.T) {
 	// Test the pattern matching for sysrq crash triggers
@@ -1045,4 +1200,242 @@ func TestPstoreMaxDepthLimit(t *testing.T) {
 	assert.True(t, foundLevels["level_2"], "Expected to find level 2 event")
 	assert.True(t, foundLevels["level_3"], "Expected to find level 3 event")
 	assert.False(t, foundLevels["level_4"], "Should NOT find level 4 event (beyond max depth)")
+}
+
+func TestCreateHistoryTable_StubbedErrorBranches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("first index creation error", func(t *testing.T) {
+		db := setupStubDB(t, &stubDBConfig{
+			execErrAt: map[int]error{2: errors.New("index1 failed")},
+		})
+		err := createHistoryTable(ctx, db, "test_table")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "index1 failed")
+	})
+
+	t.Run("second index creation error", func(t *testing.T) {
+		db := setupStubDB(t, &stubDBConfig{
+			execErrAt: map[int]error{3: errors.New("index2 failed")},
+		})
+		err := createHistoryTable(ctx, db, "test_table")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "index2 failed")
+	})
+
+	t.Run("commit error", func(t *testing.T) {
+		db := setupStubDB(t, &stubDBConfig{
+			commitErr: errors.New("commit failed"),
+		})
+		err := createHistoryTable(ctx, db, "test_table")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "commit failed")
+	})
+}
+
+func TestPurgeHistory_StubbedErrorBranches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("rows affected error", func(t *testing.T) {
+		db := setupStubDB(t, &stubDBConfig{
+			rowsAffectedErr: errors.New("rows affected failed"),
+		})
+		err := purgeHistory(ctx, db, "test_table", time.Now().Add(-time.Hour))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rows affected failed")
+	})
+
+	t.Run("commit error", func(t *testing.T) {
+		db := setupStubDB(t, &stubDBConfig{
+			commitErr: errors.New("commit failed"),
+		})
+		err := purgeHistory(ctx, db, "test_table", time.Now().Add(-time.Hour))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "commit failed")
+	})
+}
+
+func TestFindHistoryByRawMessage_StubbedRowsBranches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("no rows", func(t *testing.T) {
+		db := setupStubDB(t, &stubDBConfig{
+			columns: []string{"count"},
+			rows:    nil,
+		})
+		cnt, err := findHistoryByRawMessage(ctx, db, "test_table", "raw", time.Now().Add(-time.Hour))
+		require.NoError(t, err)
+		assert.Equal(t, 0, cnt)
+	})
+
+	t.Run("scan error", func(t *testing.T) {
+		db := setupStubDB(t, &stubDBConfig{
+			columns: []string{"count"},
+			rows: [][]driver.Value{
+				{"not-an-int"},
+			},
+		})
+		_, err := findHistoryByRawMessage(ctx, db, "test_table", "raw", time.Now().Add(-time.Hour))
+		require.Error(t, err)
+	})
+}
+
+func TestGet_StubbedRowsScanAndErrBranches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("scan error", func(t *testing.T) {
+		db := setupStubDB(t, &stubDBConfig{
+			columns: []string{
+				pstoreHistoryTableColumnTimestamp,
+				pstoreHistoryTableColumnEventName,
+				pstoreHistoryTableColumnMessage,
+				pstoreHistoryTableColumnRawMessage,
+			},
+			rows: [][]driver.Value{
+				{"bad-ts", "ev", "msg", "raw"},
+			},
+		})
+		pr := &pstoreReader{dbRO: db, historyTable: "test_table"}
+		_, err := pr.Get(ctx, time.Now().Add(-time.Hour))
+		require.Error(t, err)
+	})
+
+	t.Run("rows err", func(t *testing.T) {
+		db := setupStubDB(t, &stubDBConfig{
+			columns: []string{
+				pstoreHistoryTableColumnTimestamp,
+				pstoreHistoryTableColumnEventName,
+				pstoreHistoryTableColumnMessage,
+				pstoreHistoryTableColumnRawMessage,
+			},
+			nextErr: errors.New("next failed"),
+		})
+		pr := &pstoreReader{dbRO: db, historyTable: "test_table"}
+		_, err := pr.Get(ctx, time.Now().Add(-time.Hour))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "next failed")
+	})
+}
+
+func TestPstoreNew_PurgeFailureWithStubbedDB(t *testing.T) {
+	dbRW := setupStubDB(t, &stubDBConfig{
+		// New() calls createHistoryTable first (3 exec calls), then purgeHistory (4th).
+		execErrAt: map[int]error{4: errors.New("purge exec failed")},
+	})
+	dbRO := setupStubDB(t, &stubDBConfig{})
+
+	_, err := New(t.TempDir(), dbRW, dbRO, "test_table", 24*time.Hour)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "purge exec failed")
+}
+
+func TestCreateHistoryTableErrors(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("closed db begin tx fails", func(t *testing.T) {
+		dbRW, dbRO := setupTestDB(t)
+		_ = dbRO.Close()
+		_ = dbRW.Close()
+
+		err := createHistoryTable(ctx, dbRW, "test_table")
+		require.Error(t, err)
+	})
+
+	t.Run("invalid table name returns exec error", func(t *testing.T) {
+		dbRW, dbRO := setupTestDB(t)
+		defer func() {
+			_ = dbRW.Close()
+			_ = dbRO.Close()
+		}()
+
+		err := createHistoryTable(ctx, dbRW, "invalid-table-name")
+		require.Error(t, err)
+	})
+}
+
+func TestInsertHistoryErrors(t *testing.T) {
+	ctx := context.Background()
+	h := &History{
+		Timestamp:  time.Now().Unix(),
+		EventName:  "test",
+		Message:    "test",
+		RawMessage: "test",
+	}
+
+	t.Run("closed db begin tx fails", func(t *testing.T) {
+		dbRW, dbRO := setupTestDB(t)
+		_ = dbRO.Close()
+		_ = dbRW.Close()
+
+		err := insertHistory(ctx, dbRW, "test_table", h)
+		require.Error(t, err)
+	})
+
+	t.Run("insert into non-existent table fails", func(t *testing.T) {
+		dbRW, dbRO := setupTestDB(t)
+		defer func() {
+			_ = dbRW.Close()
+			_ = dbRO.Close()
+		}()
+
+		err := insertHistory(ctx, dbRW, "missing_table_v0_7_0", h)
+		require.Error(t, err)
+	})
+}
+
+func TestFindHistoryByRawMessageErrors(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("closed db query fails", func(t *testing.T) {
+		dbRW, dbRO := setupTestDB(t)
+		_ = dbRW.Close()
+		_ = dbRO.Close()
+
+		_, err := findHistoryByRawMessage(ctx, dbRO, "test_table", "raw", time.Now().Add(-time.Hour))
+		require.Error(t, err)
+	})
+
+	t.Run("missing table query fails", func(t *testing.T) {
+		dbRW, dbRO := setupTestDB(t)
+		defer func() {
+			_ = dbRW.Close()
+			_ = dbRO.Close()
+		}()
+
+		_, err := findHistoryByRawMessage(ctx, dbRO, "missing_table_v0_7_0", "raw", time.Now().Add(-time.Hour))
+		require.Error(t, err)
+	})
+}
+
+func TestPurgeHistoryErrors(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("closed db begin tx fails", func(t *testing.T) {
+		dbRW, dbRO := setupTestDB(t)
+		_ = dbRO.Close()
+		_ = dbRW.Close()
+
+		err := purgeHistory(ctx, dbRW, "test_table", time.Now().Add(-time.Hour))
+		require.Error(t, err)
+	})
+
+	t.Run("missing table delete fails", func(t *testing.T) {
+		dbRW, dbRO := setupTestDB(t)
+		defer func() {
+			_ = dbRW.Close()
+			_ = dbRO.Close()
+		}()
+
+		err := purgeHistory(ctx, dbRW, "missing_table_v0_7_0", time.Now().Add(-time.Hour))
+		require.Error(t, err)
+	})
+}
+
+func TestPstoreNewInitFailureWithClosedDB(t *testing.T) {
+	dbRW, dbRO := setupTestDB(t)
+	_ = dbRW.Close()
+	_ = dbRO.Close()
+
+	_, err := New(t.TempDir(), dbRW, dbRO, "test_pstore", 24*time.Hour)
+	require.Error(t, err)
 }

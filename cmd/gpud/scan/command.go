@@ -14,9 +14,11 @@ import (
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
+	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 	"github.com/leptonai/gpud/pkg/scan"
@@ -24,6 +26,27 @@ import (
 
 func CreateCommand() func(*cli.Context) error {
 	return func(cliContext *cli.Context) error {
+		eventsRetentionPeriod := cliContext.Duration("events-retention-period")
+		if eventsRetentionPeriod <= 0 {
+			eventsRetentionPeriod = config.DefaultEventsRetentionPeriod.Duration
+		}
+
+		if eventsRetentionPeriod > 0 && !cliContext.IsSet("xid-lookback-period") {
+			componentsxid.SetLookbackPeriod(eventsRetentionPeriod)
+		}
+
+		if cliContext.IsSet("xid-lookback-period") {
+			componentsxid.SetLookbackPeriod(cliContext.Duration("xid-lookback-period"))
+		}
+
+		if eventsRetentionPeriod > 0 && !cliContext.IsSet("sxid-lookback-period") {
+			componentssxid.SetLookbackPeriod(eventsRetentionPeriod)
+		}
+
+		if cliContext.IsSet("sxid-lookback-period") {
+			componentssxid.SetLookbackPeriod(cliContext.Duration("sxid-lookback-period"))
+		}
+
 		return cmdScan(
 			cliContext.String("log-level"),
 			cliContext.Int("gpu-count"),

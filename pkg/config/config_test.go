@@ -31,15 +31,54 @@ func TestConfigValidate_AutoUpdateExitCode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				RetentionPeriod:    metav1.Duration{Duration: time.Hour},
-				CompactPeriod:      metav1.Duration{Duration: time.Hour},
-				Address:            "localhost:8080", // Add a valid address to pass other validations
-				EnableAutoUpdate:   tt.enableAutoUpdate,
-				AutoUpdateExitCode: tt.autoUpdateExitCode,
+				MetricsRetentionPeriod: metav1.Duration{Duration: time.Hour},
+				CompactPeriod:          metav1.Duration{Duration: time.Hour},
+				Address:                "localhost:8080", // Add a valid address to pass other validations
+				EnableAutoUpdate:       tt.enableAutoUpdate,
+				AutoUpdateExitCode:     tt.autoUpdateExitCode,
 			}
 
 			err := cfg.Validate()
 
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Config.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestConfigValidate_EventsRetentionPeriod(t *testing.T) {
+	tests := []struct {
+		name                  string
+		eventsRetentionPeriod time.Duration
+		wantErr               bool
+	}{
+		{
+			name:                  "valid zero value keeps backward compatibility",
+			eventsRetentionPeriod: 0,
+			wantErr:               false,
+		},
+		{
+			name:                  "valid events retention period",
+			eventsRetentionPeriod: 24 * time.Hour,
+			wantErr:               false,
+		},
+		{
+			name:                  "invalid events retention period too short",
+			eventsRetentionPeriod: 30 * time.Second,
+			wantErr:               true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Address:                "localhost:8080",
+				MetricsRetentionPeriod: metav1.Duration{Duration: time.Hour},
+				EventsRetentionPeriod:  metav1.Duration{Duration: tt.eventsRetentionPeriod},
+			}
+
+			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Config.Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}

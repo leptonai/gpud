@@ -32,3 +32,13 @@ func TestCheckContainerdInstalled_NotFoundWithMockey(t *testing.T) {
 		assert.False(t, checkContainerdInstalled())
 	})
 }
+
+func TestCheckContainerdInstalled_PublicWrapperWithMockey(t *testing.T) {
+	mockey.PatchConvey("CheckContainerdInstalled public wrapper", t, func() {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+			return "/usr/bin/containerd", nil
+		}).Build()
+
+		assert.True(t, CheckContainerdInstalled())
+	})
+}

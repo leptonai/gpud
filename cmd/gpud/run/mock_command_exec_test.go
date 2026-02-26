@@ -12,9 +12,12 @@ import (
 	"time"
 
 	"github.com/bytedance/mockey"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli"
 
+	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
+	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	"github.com/leptonai/gpud/pkg/config"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
@@ -45,7 +48,9 @@ func newTestCLIContext(t *testing.T, values cliFlagValues) *cli.Context {
 	set.String("machine-id", "", "")
 	set.String("listen-address", "", "")
 	set.Bool("pprof", false, "")
+	set.Duration("metrics-retention-period", 0, "")
 	set.Duration("retention-period", 0, "")
+	set.Duration("events-retention-period", 0, "")
 	set.Bool("enable-auto-update", false, "")
 	set.Int("auto-update-exit-code", 0, "")
 	set.String("version-file", "", "")
@@ -58,6 +63,8 @@ func newTestCLIContext(t *testing.T, values cliFlagValues) *cli.Context {
 	set.String("nvlink-expected-link-states", "", "")
 	set.String("nfs-checker-configs", "", "")
 	set.Int("xid-reboot-threshold", 0, "")
+	set.Duration("xid-lookback-period", 0, "")
+	set.Duration("sxid-lookback-period", 0, "")
 	set.Int("threshold-celsius-slowdown-margin", 0, "")
 	set.String("gpu-uuids-with-row-remapping-pending", "", "")
 	set.String("gpu-uuids-with-row-remapping-failed", "", "")
@@ -130,11 +137,14 @@ func TestCommand_SuccessPath(t *testing.T) {
 			"threshold-celsius-slowdown-margin": 10,
 		},
 		durationFlags: map[string]time.Duration{
-			"retention-period": 5 * time.Minute,
+			"metrics-retention-period": 5 * time.Minute,
+			"events-retention-period":  14 * 24 * time.Hour,
 		},
 	})
 
 	mockey.PatchConvey("Command success path", t, func() {
+		var receivedCfg *config.Config
+
 		mockey.Mock(login.Login).To(func(ctx context.Context, cfg login.LoginConfig) error {
 			return nil
 		}).Build()
@@ -148,6 +158,7 @@ func TestCommand_SuccessPath(t *testing.T) {
 			return nil
 		}).Build()
 		mockey.Mock(gpudserver.New).To(func(_ context.Context, _ log.AuditLogger, cfg *config.Config, _ *gpudmanager.Manager) (*gpudserver.Server, error) {
+			receivedCfg = cfg
 			return &gpudserver.Server{}, nil
 		}).Build()
 		mockey.Mock(gpudserver.HandleSignals).To(func(_ context.Context, _ context.CancelFunc, _ chan os.Signal, _ chan gpudserver.ServerStopper, _ func(context.Context) error) chan struct{} {
@@ -164,6 +175,9 @@ func TestCommand_SuccessPath(t *testing.T) {
 
 		err := Command(ctx)
 		require.NoError(t, err)
+		require.NotNil(t, receivedCfg)
+		assert.Equal(t, 5*time.Minute, receivedCfg.MetricsRetentionPeriod.Duration)
+		assert.Equal(t, 14*24*time.Hour, receivedCfg.EventsRetentionPeriod.Duration)
 	})
 }
 
@@ -208,6 +222,146 @@ func TestCommand_NoToken_SystemctlMissing(t *testing.T) {
 
 		err := Command(ctx)
 		require.NoError(t, err)
+	})
+}
+
+func TestCommand_SetLookbackPeriods(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalXidLookback := componentsxid.GetLookbackPeriod()
+	originalSxidLookback := componentssxid.GetLookbackPeriod()
+	t.Cleanup(func() {
+		componentsxid.SetLookbackPeriod(originalXidLookback)
+		componentssxid.SetLookbackPeriod(originalSxidLookback)
+	})
+
+	newXidLookback := 6 * time.Hour
+	newSxidLookback := 8 * time.Hour
+
+	ctx := newTestCLIContext(t, cliFlagValues{
+		stringFlags: map[string]string{
+			"log-level": "info",
+			"data-dir":  tmpDir,
+		},
+		durationFlags: map[string]time.Duration{
+			"xid-lookback-period":  newXidLookback,
+			"sxid-lookback-period": newSxidLookback,
+		},
+	})
+
+	mockey.PatchConvey("Command sets xid and sxid lookback periods", t, func() {
+		mockey.Mock(gpudmanager.New).To(func(dataDir string) (*gpudmanager.Manager, error) {
+			return &gpudmanager.Manager{}, nil
+		}).Build()
+		mockey.Mock((*gpudmanager.Manager).Start).To(func(_ *gpudmanager.Manager, _ context.Context) error {
+			return nil
+		}).Build()
+		mockey.Mock(gpudserver.New).To(func(_ context.Context, _ log.AuditLogger, _ *config.Config, _ *gpudmanager.Manager) (*gpudserver.Server, error) {
+			return &gpudserver.Server{}, nil
+		}).Build()
+		mockey.Mock(gpudserver.HandleSignals).To(func(_ context.Context, _ context.CancelFunc, _ chan os.Signal, _ chan gpudserver.ServerStopper, _ func(context.Context) error) chan struct{} {
+			done := make(chan struct{})
+			close(done)
+			return done
+		}).Build()
+		mockey.Mock(pkgsystemd.SystemctlExists).To(func() bool {
+			return false
+		}).Build()
+
+		err := Command(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, newXidLookback, componentsxid.GetLookbackPeriod())
+		assert.Equal(t, newSxidLookback, componentssxid.GetLookbackPeriod())
+	})
+}
+
+func TestCommand_UsesEventsRetentionForXidAndSxidLookback(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalXidLookback := componentsxid.GetLookbackPeriod()
+	originalSxidLookback := componentssxid.GetLookbackPeriod()
+	t.Cleanup(func() {
+		componentsxid.SetLookbackPeriod(originalXidLookback)
+		componentssxid.SetLookbackPeriod(originalSxidLookback)
+	})
+
+	eventsRetention := 12 * time.Hour
+
+	ctx := newTestCLIContext(t, cliFlagValues{
+		stringFlags: map[string]string{
+			"log-level": "info",
+			"data-dir":  tmpDir,
+		},
+		durationFlags: map[string]time.Duration{
+			"events-retention-period": eventsRetention,
+		},
+	})
+
+	mockey.PatchConvey("Command uses events retention period as default xid/sxid lookback", t, func() {
+		mockey.Mock(gpudmanager.New).To(func(dataDir string) (*gpudmanager.Manager, error) {
+			return &gpudmanager.Manager{}, nil
+		}).Build()
+		mockey.Mock((*gpudmanager.Manager).Start).To(func(_ *gpudmanager.Manager, _ context.Context) error {
+			return nil
+		}).Build()
+		mockey.Mock(gpudserver.New).To(func(_ context.Context, _ log.AuditLogger, _ *config.Config, _ *gpudmanager.Manager) (*gpudserver.Server, error) {
+			return &gpudserver.Server{}, nil
+		}).Build()
+		mockey.Mock(gpudserver.HandleSignals).To(func(_ context.Context, _ context.CancelFunc, _ chan os.Signal, _ chan gpudserver.ServerStopper, _ func(context.Context) error) chan struct{} {
+			done := make(chan struct{})
+			close(done)
+			return done
+		}).Build()
+		mockey.Mock(pkgsystemd.SystemctlExists).To(func() bool {
+			return false
+		}).Build()
+
+		err := Command(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, eventsRetention, componentsxid.GetLookbackPeriod())
+		assert.Equal(t, eventsRetention, componentssxid.GetLookbackPeriod())
+	})
+}
+
+func TestCommand_DeprecatedRetentionPeriodFlagStillWorks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	ctx := newTestCLIContext(t, cliFlagValues{
+		stringFlags: map[string]string{
+			"log-level": "info",
+			"data-dir":  tmpDir,
+		},
+		durationFlags: map[string]time.Duration{
+			"retention-period": 7 * time.Minute,
+		},
+	})
+
+	mockey.PatchConvey("Command accepts deprecated retention-period flag", t, func() {
+		var receivedCfg *config.Config
+
+		mockey.Mock(gpudmanager.New).To(func(dataDir string) (*gpudmanager.Manager, error) {
+			return &gpudmanager.Manager{}, nil
+		}).Build()
+		mockey.Mock((*gpudmanager.Manager).Start).To(func(_ *gpudmanager.Manager, _ context.Context) error {
+			return nil
+		}).Build()
+		mockey.Mock(gpudserver.New).To(func(_ context.Context, _ log.AuditLogger, cfg *config.Config, _ *gpudmanager.Manager) (*gpudserver.Server, error) {
+			receivedCfg = cfg
+			return &gpudserver.Server{}, nil
+		}).Build()
+		mockey.Mock(gpudserver.HandleSignals).To(func(_ context.Context, _ context.CancelFunc, _ chan os.Signal, _ chan gpudserver.ServerStopper, _ func(context.Context) error) chan struct{} {
+			done := make(chan struct{})
+			close(done)
+			return done
+		}).Build()
+		mockey.Mock(pkgsystemd.SystemctlExists).To(func() bool {
+			return false
+		}).Build()
+
+		err := Command(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, receivedCfg)
+		assert.Equal(t, 7*time.Minute, receivedCfg.MetricsRetentionPeriod.Duration)
 	})
 }
 

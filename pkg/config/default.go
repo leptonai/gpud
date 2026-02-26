@@ -22,7 +22,9 @@ var (
 	DefaultRefreshPeriod = metav1.Duration{Duration: time.Minute}
 
 	// keep the metrics only for the last 3 hours
-	DefaultRetentionPeriod = metav1.Duration{Duration: 3 * time.Hour}
+	DefaultMetricsRetentionPeriod = metav1.Duration{Duration: 3 * time.Hour}
+	// keep component events only for the last 14 days
+	DefaultEventsRetentionPeriod = metav1.Duration{Duration: 14 * 24 * time.Hour}
 
 	// compact/vacuum is disruptive to existing queries (including reads)
 	// but necessary to keep the state database from growing indefinitely
@@ -42,13 +44,14 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 	}
 
 	cfg := &Config{
-		APIVersion:       DefaultAPIVersion,
-		Address:          fmt.Sprintf(":%d", DefaultGPUdPort),
-		DataDir:          dataDir,
-		RetentionPeriod:  DefaultRetentionPeriod,
-		CompactPeriod:    DefaultCompactPeriod,
-		Pprof:            false,
-		EnableAutoUpdate: true,
+		APIVersion:             DefaultAPIVersion,
+		Address:                fmt.Sprintf(":%d", DefaultGPUdPort),
+		DataDir:                dataDir,
+		MetricsRetentionPeriod: DefaultMetricsRetentionPeriod,
+		EventsRetentionPeriod:  DefaultEventsRetentionPeriod,
+		CompactPeriod:          DefaultCompactPeriod,
+		Pprof:                  false,
+		EnableAutoUpdate:       true,
 		NvidiaToolOverwrites: nvidiacommon.ToolOverwrites{
 			InfinibandClassRootDir: options.InfinibandClassRootDir,
 		},

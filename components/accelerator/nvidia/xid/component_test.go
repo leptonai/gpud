@@ -203,7 +203,7 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
@@ -279,7 +279,7 @@ func TestXIDComponent_Events(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
@@ -345,7 +345,7 @@ func TestXIDComponent_States(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
@@ -473,7 +473,7 @@ func TestNewWithDifferentConfigurations(t *testing.T) {
 		dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 		defer cleanup()
 
-		store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+		store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 		assert.NoError(t, err)
 
 		gpudInstance := &components.GPUdInstance{
@@ -798,7 +798,7 @@ func TestClose(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	gpudInstance := &components.GPUdInstance{
@@ -830,7 +830,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
@@ -1165,7 +1165,7 @@ func TestStart(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	gpudInstance := &components.GPUdInstance{
@@ -1245,7 +1245,7 @@ func TestHandleEventChannel(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
@@ -1331,7 +1331,7 @@ func TestStartWithFallenOffBusFallback(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
@@ -1437,7 +1437,7 @@ func TestStartWithXID63And64Skipping(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
@@ -1547,7 +1547,7 @@ func TestStartWithXID63And64NotSkippedWhenNoRowRemapping(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	store, err := eventstore.New(dbRW, dbRO, DefaultRetentionPeriod)
+	store, err := eventstore.New(dbRW, dbRO, GetLookbackPeriod())
 	assert.NoError(t, err)
 
 	rebootEventStore := pkghost.NewRebootEventStore(store)
