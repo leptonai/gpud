@@ -30,3 +30,20 @@ func TestDefaultDERPMap(t *testing.T) {
 		t.Logf("region name %q has %d nodes", region.RegionName, len(region.Nodes))
 	}
 }
+
+func TestGetRegionCode_Aliases(t *testing.T) {
+	tests := map[string]string{
+		"Bangalore": "ap-south-1",
+		"Bengaluru": "ap-south-1",
+	}
+
+	for name, want := range tests {
+		got, ok := GetRegionCode(name)
+		if !ok {
+			t.Fatalf("expected region mapping for %q", name)
+		}
+		if got != want {
+			t.Fatalf("region mapping for %q = %q, want %q", name, got, want)
+		}
+	}
+}
