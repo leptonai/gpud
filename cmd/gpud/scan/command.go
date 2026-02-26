@@ -18,6 +18,7 @@ import (
 	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
+	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 	"github.com/leptonai/gpud/pkg/scan"
@@ -27,8 +28,7 @@ func CreateCommand() func(*cli.Context) error {
 	return func(cliContext *cli.Context) error {
 		eventsRetentionPeriod := cliContext.Duration("events-retention-period")
 		if eventsRetentionPeriod <= 0 {
-			// Backward-compatible fallback for contexts that only expose the deprecated flag.
-			eventsRetentionPeriod = 14 * 24 * time.Hour
+			eventsRetentionPeriod = config.DefaultEventsRetentionPeriod.Duration
 		}
 
 		if eventsRetentionPeriod > 0 && !cliContext.IsSet("xid-lookback-period") {

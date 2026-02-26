@@ -134,6 +134,21 @@ func TestGetTailscaleVersion_CommandErrorWithMockey(t *testing.T) {
 	})
 }
 
+func TestGetTailscaleVersion_PublicWrapperWithMockey(t *testing.T) {
+	mockey.PatchConvey("GetTailscaleVersion public wrapper", t, func() {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+			return "/usr/bin/tailscale", nil
+		}).Build()
+		mockey.Mock((*exec.Cmd).CombinedOutput).To(func(cmd *exec.Cmd) ([]byte, error) {
+			return []byte("1.80.0\n"), nil
+		}).Build()
+
+		version, err := GetTailscaleVersion()
+		assert.NoError(t, err)
+		assert.Equal(t, "1.80.0", version)
+	})
+}
+
 func TestComponentCheck_ServiceInactiveWithMockey(t *testing.T) {
 	mockey.PatchConvey("component Check marks unhealthy when service inactive", t, func() {
 		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {

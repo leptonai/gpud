@@ -344,3 +344,39 @@ func TestDataGetStates(t *testing.T) {
 		})
 	}
 }
+
+func TestIsSupported(t *testing.T) {
+	c := mockComponent(context.Background(), true, true, nil)
+	assert.True(t, c.IsSupported())
+}
+
+func TestCheckResultMethods(t *testing.T) {
+	now := time.Now().UTC()
+	cr := &checkResult{
+		ts:                      now,
+		TailscaledServiceActive: true,
+		health:                  apiv1.HealthStateTypeHealthy,
+		reason:                  "tailscaled service is active/running",
+	}
+
+	assert.Equal(t, Name, cr.ComponentName())
+	assert.Equal(t, "tailscaled service is active/running", cr.String())
+	assert.Equal(t, "tailscaled service is active/running", cr.Summary())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
+
+	states := cr.HealthStates()
+	require.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+	assert.Contains(t, states[0].ExtraInfo["data"], `"tailscaled_service_active":true`)
+}
+
+func TestCheckResultMethodsNilReceiver(t *testing.T) {
+	var cr *checkResult
+	assert.Equal(t, "", cr.String())
+	assert.Equal(t, "", cr.Summary())
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
+
+	states := cr.HealthStates()
+	require.Len(t, states, 1)
+	assert.Equal(t, "no data yet", states[0].Reason)
+}

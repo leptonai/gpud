@@ -22,12 +22,14 @@ var (
 	}
 
 	defaultLookbackPeriodMu sync.RWMutex
-	defaultLookbackPeriod   = eventstore.DefaultRetention
+	defaultLookbackPeriod   = DefaultLookbackPeriod
 )
 
 const (
 	// DefaultRebootThreshold is the default reboot threshold.
 	DefaultRebootThreshold = 2
+	// DefaultLookbackPeriod is the default lookback window for XID events.
+	DefaultLookbackPeriod = eventstore.DefaultRetention
 )
 
 func GetDefaultRebootThreshold() RebootThreshold {

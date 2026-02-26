@@ -30,9 +30,14 @@ func TestComponentCheck_VirtualMemoryErrorWithMockey(t *testing.T) {
 	})
 }
 
-func TestComponentCheck_BPFJITErrorWithMockey(t *testing.T) {
-	mockey.PatchConvey("Check returns error when BPF JIT buffer lookup fails", t, func() {
-		mockey.Mock(mem.VirtualMemoryWithContext).To(func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+func TestComponentCheck_BPFJITError(t *testing.T) {
+	c := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		getVirtualMemoryFunc: func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
 			return &mem.VirtualMemoryStat{
 				Total:        1024,
 				Available:    512,
@@ -42,17 +47,14 @@ func TestComponentCheck_BPFJITErrorWithMockey(t *testing.T) {
 				VmallocTotal: 0,
 				VmallocUsed:  0,
 			}, nil
-		}).Build()
-		mockey.Mock(getCurrentBPFJITBufferBytes).To(func() (uint64, error) {
+		},
+		getCurrentBPFJITBufferBytesFunc: func() (uint64, error) {
 			return 0, errors.New("bpf failed")
-		}).Build()
+		},
+	}
 
-		comp, err := New(&components.GPUdInstance{RootCtx: context.Background()})
-		require.NoError(t, err)
-
-		result := comp.Check()
-		assert.Equal(t, "error getting bpf jit buffer bytes", result.Summary())
-	})
+	result := c.Check()
+	assert.Equal(t, "error getting bpf jit buffer bytes", result.Summary())
 }
 
 func TestComponentCheck_LowAvailableThresholdWithMockey(t *testing.T) {
@@ -84,6 +86,7 @@ func TestComponentCheck_LowAvailableThresholdWithMockey(t *testing.T) {
 type stubEventBucket struct {
 	lastPurgeBefore int64
 	purgeCount      int
+	getErr          error
 }
 
 func (s *stubEventBucket) Name() string { return "memory" }
@@ -94,7 +97,7 @@ func (s *stubEventBucket) Find(ctx context.Context, ev eventstore.Event) (*event
 	return nil, nil
 }
 func (s *stubEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
-	return nil, nil
+	return nil, s.getErr
 }
 func (s *stubEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) { return nil, nil }
 func (s *stubEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -103,6 +106,18 @@ func (s *stubEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int
 	return 1, nil
 }
 func (s *stubEventBucket) Close() {}
+
+type staticBucketStore struct {
+	bucket eventstore.Bucket
+	err    error
+}
+
+func (s *staticBucketStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.bucket, nil
+}
 
 func TestComponentMethodsAndSetHealthy(t *testing.T) {
 	now := time.Unix(123, 0).UTC()
@@ -124,4 +139,37 @@ func TestComponentMethodsAndSetHealthy(t *testing.T) {
 	assert.Equal(t, Name, cr.ComponentName())
 	assert.Equal(t, "ok", cr.Summary())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
+}
+
+func TestNew_EventBucketErrorWithMockey(t *testing.T) {
+	comp, err := New(&components.GPUdInstance{
+		RootCtx: context.Background(),
+		EventStore: &staticBucketStore{
+			err: errors.New("bucket failed"),
+		},
+	})
+	require.Error(t, err)
+	assert.Nil(t, comp)
+}
+
+func TestComponentEventsErrorAndCheckResultNilMethods(t *testing.T) {
+	c := &component{
+		ctx:         context.Background(),
+		cancel:      func() {},
+		eventBucket: &stubEventBucket{getErr: errors.New("get failed")},
+	}
+	events, err := c.Events(context.Background(), time.Now())
+	require.Error(t, err)
+	assert.Nil(t, events)
+
+	var cr *checkResult
+	assert.Equal(t, "", cr.String())
+	assert.Equal(t, "", cr.Summary())
+	assert.Equal(t, apiv1.HealthStateType(""), cr.HealthStateType())
+}
+
+func TestGetCurrentBPFJITBufferBytes(t *testing.T) {
+	size, err := getCurrentBPFJITBufferBytes()
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, size, uint64(0))
 }

@@ -196,7 +196,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	eventsRetentionPeriod := config.EventsRetentionPeriod.Duration
 	if eventsRetentionPeriod <= 0 {
 		// Backward-compatible fallback for callers that still only populate retention_period.
-		eventsRetentionPeriod = config.RetentionPeriod.Duration
+		eventsRetentionPeriod = config.MetricsRetentionPeriod.Duration
 	}
 	eventStore, err := eventstore.New(dbRW, dbRO, eventsRetentionPeriod)
 	if err != nil {
@@ -227,7 +227,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		metricsSQLiteStore,
 		time.Minute,
 		time.Minute,
-		config.RetentionPeriod.Duration,
+		config.MetricsRetentionPeriod.Duration,
 	)
 	syncer.Start()
 

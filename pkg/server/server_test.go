@@ -43,12 +43,12 @@ func TestServerConfigValidation(t *testing.T) {
 			expectedErr: "address is required",
 		},
 		{
-			name: "retention period too short",
+			name: "metrics retention period too short",
 			config: &config.Config{
-				Address:         "localhost:8080",
-				RetentionPeriod: metav1.Duration{Duration: 30 * time.Second},
+				Address:                "localhost:8080",
+				MetricsRetentionPeriod: metav1.Duration{Duration: 30 * time.Second},
 			},
-			expectedErr: "retention_period must be at least 1 minute",
+			expectedErr: "metrics_retention_period must be at least 1 minute",
 		},
 	}
 
@@ -89,10 +89,10 @@ func TestNew_DBInMemory_SeedsSessionCredentialsBeforeAddressValidation(t *testin
 
 	// Use an invalid address so New() returns before starting listener/FIFO goroutines.
 	cfg := &config.Config{
-		Address:         "invalid address",
-		DataDir:         tmpDir,
-		RetentionPeriod: metav1.Duration{Duration: time.Minute},
-		Components:      []string{"-disable-all"},
+		Address:                "invalid address",
+		DataDir:                tmpDir,
+		MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
+		Components:             []string{"-disable-all"},
 
 		DBInMemory:       true,
 		SessionToken:     "session-token",

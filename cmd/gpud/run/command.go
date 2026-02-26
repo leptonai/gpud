@@ -57,22 +57,7 @@ func Command(cliContext *cli.Context) error {
 	// Parse db-in-memory early as it affects login behavior
 	dbInMemory := cliContext.Bool("db-in-memory")
 
-	metricsRetentionPeriod := cliContext.Duration("metrics-retention-period")
-	if metricsRetentionPeriod <= 0 {
-		// Backward-compatible fallback for contexts that expose the deprecated flag separately.
-		deprecatedRetentionPeriod := cliContext.Duration("retention-period")
-		if deprecatedRetentionPeriod > 0 {
-			metricsRetentionPeriod = deprecatedRetentionPeriod
-		}
-	}
-	if metricsRetentionPeriod <= 0 {
-		metricsRetentionPeriod = 3 * time.Hour
-	}
-	eventsRetentionPeriod := cliContext.Duration("events-retention-period")
-	if eventsRetentionPeriod <= 0 {
-		// Backward-compatible fallback for contexts that only expose the deprecated flag.
-		eventsRetentionPeriod = 14 * 24 * time.Hour
-	}
+	metricsRetentionPeriod, eventsRetentionPeriod := parseRetentionPeriods(cliContext)
 
 	gpuCount := cliContext.Int("gpu-count")
 	gpuCountStr := ""
@@ -308,7 +293,7 @@ func Command(cliContext *cli.Context) error {
 		cfg.Pprof = true
 	}
 	if metricsRetentionPeriod > 0 {
-		cfg.RetentionPeriod = metav1.Duration{Duration: metricsRetentionPeriod}
+		cfg.MetricsRetentionPeriod = metav1.Duration{Duration: metricsRetentionPeriod}
 	}
 	if eventsRetentionPeriod > 0 {
 		cfg.EventsRetentionPeriod = metav1.Duration{Duration: eventsRetentionPeriod}
@@ -425,6 +410,32 @@ func Command(cliContext *cli.Context) error {
 	<-done
 
 	return nil
+}
+
+func parseRetentionPeriods(cliContext *cli.Context) (metricsRetentionPeriod, eventsRetentionPeriod time.Duration) {
+	metricsRetentionPeriod = cliContext.Duration("metrics-retention-period")
+	deprecatedRetentionPeriod := cliContext.Duration("retention-period")
+
+	// Treat non-positive values as unset for backward compatibility.
+	//
+	// Precedence:
+	// 1) --metrics-retention-period
+	// 2) deprecated --retention-period
+	// 3) config default
+	if metricsRetentionPeriod <= 0 {
+		if deprecatedRetentionPeriod > 0 {
+			metricsRetentionPeriod = deprecatedRetentionPeriod
+		} else {
+			metricsRetentionPeriod = config.DefaultMetricsRetentionPeriod.Duration
+		}
+	}
+
+	eventsRetentionPeriod = cliContext.Duration("events-retention-period")
+	if eventsRetentionPeriod <= 0 {
+		eventsRetentionPeriod = config.DefaultEventsRetentionPeriod.Duration
+	}
+
+	return metricsRetentionPeriod, eventsRetentionPeriod
 }
 
 func parseInfinibandExcludeDevices(s string) []string {

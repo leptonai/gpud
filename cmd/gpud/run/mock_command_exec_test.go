@@ -176,7 +176,7 @@ func TestCommand_SuccessPath(t *testing.T) {
 		err := Command(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, receivedCfg)
-		assert.Equal(t, 5*time.Minute, receivedCfg.RetentionPeriod.Duration)
+		assert.Equal(t, 5*time.Minute, receivedCfg.MetricsRetentionPeriod.Duration)
 		assert.Equal(t, 14*24*time.Hour, receivedCfg.EventsRetentionPeriod.Duration)
 	})
 }
@@ -361,7 +361,7 @@ func TestCommand_DeprecatedRetentionPeriodFlagStillWorks(t *testing.T) {
 		err := Command(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, receivedCfg)
-		assert.Equal(t, 7*time.Minute, receivedCfg.RetentionPeriod.Duration)
+		assert.Equal(t, 7*time.Minute, receivedCfg.MetricsRetentionPeriod.Duration)
 	})
 }
 

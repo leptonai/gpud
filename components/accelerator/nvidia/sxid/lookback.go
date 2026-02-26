@@ -10,7 +10,12 @@ import (
 
 var (
 	defaultLookbackPeriodMu sync.RWMutex
-	defaultLookbackPeriod   = eventstore.DefaultRetention
+	defaultLookbackPeriod   = DefaultLookbackPeriod
+)
+
+const (
+	// DefaultLookbackPeriod is the default lookback window for SXID events.
+	DefaultLookbackPeriod = eventstore.DefaultRetention
 )
 
 func GetLookbackPeriod() time.Duration {

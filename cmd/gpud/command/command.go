@@ -2,7 +2,6 @@ package command
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/urfave/cli"
 
@@ -22,6 +21,7 @@ import (
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
+	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	componentsnvidiatemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	pkgconfig "github.com/leptonai/gpud/pkg/config"
@@ -215,12 +215,12 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.DurationFlag{
 					Name:  "metrics-retention-period, retention-period",
 					Usage: "set the time period to retain metrics for (once elapsed, old metric records are compacted/purged); --retention-period is deprecated",
-					Value: pkgconfig.DefaultRetentionPeriod.Duration,
+					Value: pkgconfig.DefaultMetricsRetentionPeriod.Duration,
 				},
 				&cli.DurationFlag{
 					Name:  "events-retention-period",
 					Usage: "set the time period to retain component events for (once elapsed, old events are purged from the event store)",
-					Value: 14 * 24 * time.Hour,
+					Value: pkgconfig.DefaultEventsRetentionPeriod.Duration,
 				},
 
 				&cli.IntFlag{
@@ -248,12 +248,12 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.DurationFlag{
 					Name:  "xid-lookback-period",
 					Usage: "set the lookback period for XID errors",
-					Value: 3 * 24 * time.Hour,
+					Value: componentsxid.DefaultLookbackPeriod,
 				},
 				&cli.DurationFlag{
 					Name:  "sxid-lookback-period",
 					Usage: "set the lookback period for SXID errors",
-					Value: 3 * 24 * time.Hour,
+					Value: componentssxid.DefaultLookbackPeriod,
 				},
 				&cli.IntFlag{
 					Name:  "threshold-celsius-slowdown-margin",
@@ -573,7 +573,7 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.DurationFlag{
 					Name:  "events-retention-period",
 					Usage: "set the time period to retain component events for (once elapsed, old events are purged from the event store)",
-					Value: 14 * 24 * time.Hour,
+					Value: pkgconfig.DefaultEventsRetentionPeriod.Duration,
 				},
 
 				&cli.IntFlag{
@@ -601,12 +601,12 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.DurationFlag{
 					Name:  "xid-lookback-period",
 					Usage: "set the lookback period for XID errors",
-					Value: 3 * 24 * time.Hour,
+					Value: componentsxid.DefaultLookbackPeriod,
 				},
 				&cli.DurationFlag{
 					Name:  "sxid-lookback-period",
 					Usage: "set the lookback period for SXID errors",
-					Value: 3 * 24 * time.Hour,
+					Value: componentssxid.DefaultLookbackPeriod,
 				},
 				&cli.IntFlag{
 					Name:  "threshold-celsius-slowdown-margin",

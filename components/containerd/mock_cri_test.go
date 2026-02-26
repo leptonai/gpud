@@ -2,6 +2,8 @@ package containerd
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -13,7 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	componentkubelet "github.com/leptonai/gpud/components/kubelet"
@@ -23,16 +27,26 @@ import (
 type fakeRuntimeServer struct {
 	runtimeapi.UnimplementedRuntimeServiceServer
 	version            string
+	versionErr         error
 	statusResp         *runtimeapi.StatusResponse
+	statusErr          error
 	listPodSandboxResp *runtimeapi.ListPodSandboxResponse
+	listPodSandboxErr  error
 	listContainersResp *runtimeapi.ListContainersResponse
+	listContainersErr  error
 }
 
 func (f *fakeRuntimeServer) Version(ctx context.Context, _ *runtimeapi.VersionRequest) (*runtimeapi.VersionResponse, error) {
+	if f.versionErr != nil {
+		return nil, f.versionErr
+	}
 	return &runtimeapi.VersionResponse{RuntimeVersion: f.version}, nil
 }
 
 func (f *fakeRuntimeServer) Status(ctx context.Context, _ *runtimeapi.StatusRequest) (*runtimeapi.StatusResponse, error) {
+	if f.statusErr != nil {
+		return nil, f.statusErr
+	}
 	if f.statusResp != nil {
 		return f.statusResp, nil
 	}
@@ -40,18 +54,25 @@ func (f *fakeRuntimeServer) Status(ctx context.Context, _ *runtimeapi.StatusRequ
 }
 
 func (f *fakeRuntimeServer) ListPodSandbox(ctx context.Context, _ *runtimeapi.ListPodSandboxRequest) (*runtimeapi.ListPodSandboxResponse, error) {
+	if f.listPodSandboxErr != nil {
+		return nil, f.listPodSandboxErr
+	}
 	return f.listPodSandboxResp, nil
 }
 
 func (f *fakeRuntimeServer) ListContainers(ctx context.Context, _ *runtimeapi.ListContainersRequest) (*runtimeapi.ListContainersResponse, error) {
+	if f.listContainersErr != nil {
+		return nil, f.listContainersErr
+	}
 	return f.listContainersResp, nil
 }
 
 func startFakeRuntimeServer(t *testing.T, srv runtimeapi.RuntimeServiceServer) (string, func()) {
 	t.Helper()
 
-	dir := t.TempDir()
-	socketPath := filepath.Join(dir, "containerd.sock")
+	dir, err := os.MkdirTemp("/tmp", "ctrd-")
+	require.NoError(t, err)
+	socketPath := filepath.Join(dir, "s.sock")
 	lis, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
 
@@ -64,6 +85,7 @@ func startFakeRuntimeServer(t *testing.T, srv runtimeapi.RuntimeServiceServer) (
 	cleanup := func() {
 		grpcServer.Stop()
 		_ = lis.Close()
+		_ = os.RemoveAll(dir)
 	}
 	return "unix://" + socketPath, cleanup
 }
@@ -139,6 +161,15 @@ func TestCheckContainerdRunning_WithMockey(t *testing.T) {
 	})
 }
 
+func TestCheckContainerdRunning_ConnectErrorWithMockey(t *testing.T) {
+	mockey.PatchConvey("CheckContainerdRunning returns false on connect error", t, func() {
+		mockey.Mock(connect).To(func(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
+			return nil, errors.New("connect failed")
+		}).Build()
+		assert.False(t, CheckContainerdRunning(context.Background()))
+	})
+}
+
 func TestCheckSocketExists_WithMockey(t *testing.T) {
 	mockey.PatchConvey("CheckSocketExists respects Stat results", t, func() {
 		tempFile, err := os.CreateTemp("", "containerd-sock")
@@ -152,6 +183,22 @@ func TestCheckSocketExists_WithMockey(t *testing.T) {
 		}).Build()
 
 		assert.True(t, CheckSocketExists())
+	})
+
+	mockey.PatchConvey("CheckSocketExists returns false for missing socket", t, func() {
+		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
+			return nil, os.ErrNotExist
+		}).Build()
+
+		assert.False(t, CheckSocketExists())
+	})
+
+	mockey.PatchConvey("CheckSocketExists returns false for stat error", t, func() {
+		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
+			return nil, fmt.Errorf("stat failed")
+		}).Build()
+
+		assert.False(t, CheckSocketExists())
 	})
 }
 
@@ -185,4 +232,130 @@ func TestComponentMethodsAndDanglingPods(t *testing.T) {
 		{Name: "dangling", Namespace: "default", State: "SANDBOX_READY"},
 	}
 	assert.Equal(t, 1, danglingPodCount(containerdPods, kubeletPods))
+}
+
+func TestConnectAndCreateClientWithFakeRuntimeServer(t *testing.T) {
+	srv := &fakeRuntimeServer{
+		version: "1.7.25",
+	}
+	endpoint, cleanup := startFakeRuntimeServer(t, srv)
+	t.Cleanup(cleanup)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := connect(ctx, endpoint)
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	runtimeClient, imageClient, err := createClient(ctx, conn)
+	require.NoError(t, err)
+	require.NotNil(t, runtimeClient)
+	require.NotNil(t, imageClient)
+}
+
+func TestCreateClientVersionAndStatusErrors(t *testing.T) {
+	testCases := []struct {
+		name    string
+		server  *fakeRuntimeServer
+		wantErr string
+	}{
+		{
+			name: "version error",
+			server: &fakeRuntimeServer{
+				versionErr: errors.New("version failed"),
+			},
+			wantErr: "version failed",
+		},
+		{
+			name: "status error",
+			server: &fakeRuntimeServer{
+				version:   "1.7.25",
+				statusErr: errors.New("status failed"),
+			},
+			wantErr: "status failed",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			endpoint, cleanup := startFakeRuntimeServer(t, tc.server)
+			t.Cleanup(cleanup)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			conn, err := connect(ctx, endpoint)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = conn.Close()
+			})
+
+			_, _, err = createClient(ctx, conn)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestGetVersion_UnimplementedFallbackWithMockey(t *testing.T) {
+	srv := &fakeRuntimeServer{
+		versionErr: status.Error(codes.Unimplemented, "unimplemented"),
+	}
+	endpoint, cleanup := startFakeRuntimeServer(t, srv)
+	t.Cleanup(cleanup)
+
+	mockey.PatchConvey("GetVersion falls back to cli on unimplemented", t, func() {
+		mockey.Mock(GetVersionFromCli).To(func(ctx context.Context) (string, error) {
+			return "1.7.99", nil
+		}).Build()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		version, err := GetVersion(ctx, endpoint)
+		require.NoError(t, err)
+		assert.Equal(t, "1.7.99", version)
+	})
+}
+
+func TestListAllSandboxes_ServerErrors(t *testing.T) {
+	testCases := []struct {
+		name   string
+		server *fakeRuntimeServer
+	}{
+		{
+			name: "list pod sandbox error",
+			server: &fakeRuntimeServer{
+				version:           "1.7.25",
+				listPodSandboxErr: errors.New("list pods failed"),
+			},
+		},
+		{
+			name: "list containers error",
+			server: &fakeRuntimeServer{
+				version: "1.7.25",
+				listPodSandboxResp: &runtimeapi.ListPodSandboxResponse{
+					Items: []*runtimeapi.PodSandbox{},
+				},
+				listContainersErr: errors.New("list containers failed"),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			endpoint, cleanup := startFakeRuntimeServer(t, tc.server)
+			t.Cleanup(cleanup)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			_, err := ListAllSandboxes(ctx, endpoint)
+			require.Error(t, err)
+		})
+	}
 }

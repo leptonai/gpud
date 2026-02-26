@@ -352,8 +352,8 @@ func TestNew_DataDirResolutionError(t *testing.T) {
 
 		ctx := context.Background()
 		cfg := &lepconfig.Config{
-			Address:         "localhost:8080",
-			RetentionPeriod: metav1.Duration{Duration: time.Minute},
+			Address:                "localhost:8080",
+			MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
 		}
 
 		s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
@@ -376,9 +376,9 @@ func TestNew_SQLiteOpenError(t *testing.T) {
 
 		ctx := context.Background()
 		cfg := &lepconfig.Config{
-			Address:         "localhost:8080",
-			DataDir:         tmpDir,
-			RetentionPeriod: metav1.Duration{Duration: time.Minute},
+			Address:                "localhost:8080",
+			DataDir:                tmpDir,
+			MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
 		}
 
 		s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
@@ -411,10 +411,10 @@ func TestNew_WithMockNVML(t *testing.T) {
 		defer cancel()
 
 		cfg := &lepconfig.Config{
-			Address:         "invalid-address",
-			DataDir:         tmpDir,
-			RetentionPeriod: metav1.Duration{Duration: time.Minute},
-			Components:      []string{"-disable-all"},
+			Address:                "invalid-address",
+			DataDir:                tmpDir,
+			MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
+			Components:             []string{"-disable-all"},
 		}
 
 		s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
@@ -445,11 +445,11 @@ func TestNew_PluginSpecsFileNotFound(t *testing.T) {
 		defer cancel()
 
 		cfg := &lepconfig.Config{
-			Address:         "invalid-address",
-			DataDir:         tmpDir,
-			RetentionPeriod: metav1.Duration{Duration: time.Minute},
-			Components:      []string{"-disable-all"},
-			PluginSpecsFile: filepath.Join(tmpDir, "nonexistent-plugins.yaml"),
+			Address:                "invalid-address",
+			DataDir:                tmpDir,
+			MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
+			Components:             []string{"-disable-all"},
+			PluginSpecsFile:        filepath.Join(tmpDir, "nonexistent-plugins.yaml"),
 		}
 
 		s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
@@ -1455,11 +1455,11 @@ func TestNew_DBInMemoryMode(t *testing.T) {
 		defer cancel()
 
 		cfg := &lepconfig.Config{
-			Address:         "localhost:0",
-			DataDir:         tmpDir,
-			RetentionPeriod: metav1.Duration{Duration: time.Minute},
-			Components:      []string{"-disable-all"},
-			DBInMemory:      true,
+			Address:                "localhost:0",
+			DataDir:                tmpDir,
+			MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
+			Components:             []string{"-disable-all"},
+			DBInMemory:             true,
 		}
 
 		s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
@@ -1487,14 +1487,14 @@ func TestNew_DBInMemoryWithSessionCredentials(t *testing.T) {
 		defer cancel()
 
 		cfg := &lepconfig.Config{
-			Address:          "localhost:0",
-			DataDir:          tmpDir,
-			RetentionPeriod:  metav1.Duration{Duration: time.Minute},
-			Components:       []string{"-disable-all"},
-			DBInMemory:       true,
-			SessionToken:     "test-session-token",
-			SessionMachineID: "test-machine-id",
-			SessionEndpoint:  "https://api.example.com",
+			Address:                "localhost:0",
+			DataDir:                tmpDir,
+			MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
+			Components:             []string{"-disable-all"},
+			DBInMemory:             true,
+			SessionToken:           "test-session-token",
+			SessionMachineID:       "test-machine-id",
+			SessionEndpoint:        "https://api.example.com",
 		}
 
 		s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
@@ -1704,10 +1704,10 @@ func TestNew_MetadataReadError(t *testing.T) {
 		defer cancel()
 
 		cfg := &lepconfig.Config{
-			Address:         "localhost:0",
-			DataDir:         tmpDir,
-			RetentionPeriod: metav1.Duration{Duration: time.Minute},
-			Components:      []string{"-disable-all"},
+			Address:                "localhost:0",
+			DataDir:                tmpDir,
+			MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
+			Components:             []string{"-disable-all"},
 		}
 
 		s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)

@@ -1,14 +1,10 @@
 package fabricmanager
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +17,8 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/netutil"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	"github.com/leptonai/gpud/pkg/process"
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
@@ -65,13 +63,14 @@ func TestListPCINVSwitches_Mockey(t *testing.T) {
 
 	// Test listPCIs directly with inline NVSwitch bridge data
 	data := []byte("0005:00:00.0 Bridge [0680]: NVIDIA Corporation Device [10de:1af1] (rev a1)")
-	script := buildPrintScript(t, data)
 	mockey.PatchRun(func() {
-		// Mock LocateExecutable to return the script path
-		mockey.Mock(file.LocateExecutable).Return(script, nil).Build()
-		// Do not mock process.New or process.Read, let them run the script which will output the right data
+		// Mock LocateExecutable to return a fake path
+		mockey.Mock(file.LocateExecutable).Return("/usr/bin/lspci", nil).Build()
+		mockey.Mock(process.New).Return(&mockProcess{
+			stdoutReader: bytes.NewReader(data),
+		}, nil).Build()
 		ctx := context.Background()
-		lines, err := listPCIs(ctx, script, isNVIDIANVSwitchPCI)
+		lines, err := listPCIs(ctx, "lspci -nn", isNVIDIANVSwitchPCI)
 		assert.NoError(t, err)
 		assert.Len(t, lines, 1)
 		assert.Contains(t, lines[0], "Bridge")
@@ -83,13 +82,14 @@ func TestCountSMINVSwitches_Mockey(t *testing.T) {
 
 	// Test countSMINVSwitches directly with inline GPU data
 	data := []byte("GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-123)\nGPU 1: NVIDIA A100-SXM4-80GB (UUID: GPU-456)")
-	script := buildPrintScript(t, data)
 	mockey.PatchRun(func() {
-		// Mock LocateExecutable to return the script path
-		mockey.Mock(file.LocateExecutable).Return(script, nil).Build()
-		// Do not mock process.New or process.Read, let them run the script which will output the right data
+		// Mock LocateExecutable to return a fake path
+		mockey.Mock(file.LocateExecutable).Return("/usr/bin/nvidia-smi", nil).Build()
+		mockey.Mock(process.New).Return(&mockProcess{
+			stdoutReader: bytes.NewReader(data),
+		}, nil).Build()
 		ctx := context.Background()
-		lines, err := countSMINVSwitches(ctx, script)
+		lines, err := countSMINVSwitches(ctx, "nvidia-smi nvlink --status")
 		assert.NoError(t, err)
 		assert.Len(t, lines, 2)
 		assert.Contains(t, lines[0], "GPU 0")
@@ -699,6 +699,81 @@ func TestNewWithEventStore(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestNew_WithEventStoreAndFM(t *testing.T) {
+	lockMockeyPatch(t)
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	mockey.PatchRun(func() {
+		// Mock checkFMExists to return true
+		mockey.Mock(checkFMExists).Return(true).Build()
+		// Mock newWatcher to avoid real tail/journalctl
+		mockey.Mock(newWatcher).Return(&mockWatcher{ch: make(chan logLine)}, nil).Build()
+
+		instance := &components.GPUdInstance{
+			RootCtx:    context.Background(),
+			EventStore: store,
+		}
+		comp, err := New(instance)
+		assert.NoError(t, err)
+		assert.NotNil(t, comp)
+
+		err = comp.Close()
+		assert.NoError(t, err)
+	})
+}
+
+func TestGetFabricInfo_Errors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil device", func(t *testing.T) {
+		_, err := getFabricInfo(nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "nil device handle")
+	})
+
+	t.Run("not supported", func(t *testing.T) {
+		_, err := getFabricInfo("not a device")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "device does not support GetFabricState()")
+	})
+}
+
+func TestCollectFabricState_Errors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil instance", func(t *testing.T) {
+		report := collectFabricState(nil)
+		assert.False(t, report.Healthy)
+		assert.Contains(t, report.Err.Error(), "nvml instance is nil")
+	})
+
+	t.Run("no devices", func(t *testing.T) {
+		mockInst := &mockNVMLInstance{deviceCount: 0}
+		report := collectFabricState(mockInst)
+		assert.True(t, report.Healthy)
+		assert.Empty(t, report.Entries)
+	})
+
+	t.Run("query failed", func(t *testing.T) {
+		mockInst := &mockNVMLInstance{deviceCount: 1}
+		// override getFabricInfoFn
+		old := getFabricInfoFn
+		getFabricInfoFn = func(dev interface{}) (device.FabricState, error) {
+			return device.FabricState{}, errors.New("query failed")
+		}
+		defer func() { getFabricInfoFn = old }()
+
+		report := collectFabricState(mockInst)
+		assert.False(t, report.Healthy)
+		assert.Contains(t, report.Err.Error(), "fabric state query failed")
+	})
+}
+
 // TestCheck_FMNotActive_NothingToDo_WithPriorUnhealthy tests the interaction
 // between prior unhealthy fabric state and the nothing-to-do event path.
 func TestCheck_FMNotActive_NothingToDo_PreservesUnhealthy(t *testing.T) {
@@ -843,24 +918,4 @@ func TestCheckResult_HealthStates_ExtraInfo(t *testing.T) {
 	assert.Equal(t, "fabric manager found and active", states[0].Reason)
 	assert.NotEmpty(t, states[0].ExtraInfo)
 	assert.Contains(t, states[0].ExtraInfo["data"], "fabric_manager_active")
-}
-
-func buildPrintScript(t *testing.T, data []byte) string {
-	t.Helper()
-	var buf bytes.Buffer
-	buf.WriteString("#!/bin/sh\n")
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		buf.WriteString("printf '%s\\n' '")
-		buf.WriteString(escapeSingleQuotes(scanner.Text()))
-		buf.WriteString("'\n")
-	}
-	require.NoError(t, scanner.Err())
-	scriptPath := filepath.Join(t.TempDir(), "emit.sh")
-	require.NoError(t, os.WriteFile(scriptPath, buf.Bytes(), 0o755))
-	return scriptPath
-}
-
-func escapeSingleQuotes(s string) string {
-	return strings.ReplaceAll(s, "'", "'\"'\"'")
 }
