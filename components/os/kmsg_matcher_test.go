@@ -708,3 +708,27 @@ func TestKernelPanicStatefulMatcher(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateKernelPanicMatchFunc_MaxLinesWithoutCPUPID(t *testing.T) {
+	matcher := createKernelPanicMatchFunc()
+
+	eventName, message := matcher("Kernel panic - not syncing: hung_task: blocked tasks")
+	if eventName != "" || message != "" {
+		t.Fatalf("unexpected immediate panic event: %q %q", eventName, message)
+	}
+
+	for i := 0; i < 9; i++ {
+		eventName, message = matcher("line without cpu pid")
+		if eventName != "" || message != "" {
+			t.Fatalf("unexpected event before max lines at %d: %q %q", i, eventName, message)
+		}
+	}
+
+	eventName, message = matcher("10th line without cpu pid")
+	if eventName != eventNameKernelPanic {
+		t.Fatalf("eventName = %q, want %q", eventName, eventNameKernelPanic)
+	}
+	if message != "Kernel panic detected (no CPU/PID info found)" {
+		t.Fatalf("message = %q, want fallback panic message", message)
+	}
+}

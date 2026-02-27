@@ -13,57 +13,44 @@ import (
 // TestGetBlockDevicesWithLsblkErrors tests error handling in GetBlockDevicesWithLsblk
 func TestGetBlockDevicesWithLsblkErrors(t *testing.T) {
 	t.Run("lsblk command execution error", func(t *testing.T) {
-		// Mock lsblk to return an error
-		originalLsblkExecutor := lsblkCommandExecutor
-		lsblkCommandExecutor = func(ctx context.Context, lsblkBin string, flags string) ([]byte, error) {
-			return nil, fmt.Errorf("lsblk command failed: permission denied")
-		}
-		defer func() { lsblkCommandExecutor = originalLsblkExecutor }()
-
-		// Mock version detection to succeed
-		originalGetLsblkVersion := getLsblkBinPathAndVersionFunc
-		getLsblkBinPathAndVersionFunc = func(ctx context.Context) (string, string, error) {
-			return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
-		}
-		defer func() { getLsblkBinPathAndVersionFunc = originalGetLsblkVersion }()
-
 		ctx := context.Background()
-		_, err := GetBlockDevicesWithLsblk(ctx)
+		_, err := getBlockDevicesWithLsblk(ctx, getBlockDevicesDeps{
+			getLsblkBinPathAndVersion: func(context.Context) (string, string, error) {
+				return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
+			},
+			executeLsblkCommand: func(context.Context, string, string) ([]byte, error) {
+				return nil, fmt.Errorf("lsblk command failed: permission denied")
+			},
+			findMnt: FindMnt,
+		})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "permission denied")
 	})
 
 	t.Run("version detection error", func(t *testing.T) {
-		// Mock version detection to fail
-		originalGetLsblkVersion := getLsblkBinPathAndVersionFunc
-		getLsblkBinPathAndVersionFunc = func(ctx context.Context) (string, string, error) {
-			return "", "", fmt.Errorf("lsblk not found in PATH")
-		}
-		defer func() { getLsblkBinPathAndVersionFunc = originalGetLsblkVersion }()
-
 		ctx := context.Background()
-		_, err := GetBlockDevicesWithLsblk(ctx)
+		_, err := getBlockDevicesWithLsblk(ctx, getBlockDevicesDeps{
+			getLsblkBinPathAndVersion: func(context.Context) (string, string, error) {
+				return "", "", fmt.Errorf("lsblk not found in PATH")
+			},
+			executeLsblkCommand: executeLsblkCommand,
+			findMnt:             FindMnt,
+		})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "lsblk not found")
 	})
 
 	t.Run("invalid JSON parsing", func(t *testing.T) {
-		// Mock lsblk to return invalid JSON
-		originalLsblkExecutor := lsblkCommandExecutor
-		lsblkCommandExecutor = func(ctx context.Context, lsblkBin string, flags string) ([]byte, error) {
-			return []byte(`{"blockdevices": [invalid json}`), nil
-		}
-		defer func() { lsblkCommandExecutor = originalLsblkExecutor }()
-
-		// Mock version detection
-		originalGetLsblkVersion := getLsblkBinPathAndVersionFunc
-		getLsblkBinPathAndVersionFunc = func(ctx context.Context) (string, string, error) {
-			return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
-		}
-		defer func() { getLsblkBinPathAndVersionFunc = originalGetLsblkVersion }()
-
 		ctx := context.Background()
-		_, err := GetBlockDevicesWithLsblk(ctx)
+		_, err := getBlockDevicesWithLsblk(ctx, getBlockDevicesDeps{
+			getLsblkBinPathAndVersion: func(context.Context) (string, string, error) {
+				return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
+			},
+			executeLsblkCommand: func(context.Context, string, string) ([]byte, error) {
+				return []byte(`{"blockdevices": [invalid json}`), nil
+			},
+			findMnt: FindMnt,
+		})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to unmarshal")
 	})
@@ -75,9 +62,7 @@ func TestParseLsblkPairsFormat(t *testing.T) {
 	pairsData := `NAME="/dev/sda" TYPE="disk" SIZE="137438953472" ROTA="1" SERIAL="" WWN="" VENDOR="Msft    " MODEL="Virtual Disk    " REV="1.0 " MOUNTPOINT="" FSTYPE="" FSUSED="" PARTUUID="" PKNAME=""
 NAME="/dev/sda1" TYPE="part" SIZE="137322544640" ROTA="1" SERIAL="" WWN="" VENDOR="" MODEL="" REV="" MOUNTPOINT="/boot" FSTYPE="ext4" FSUSED="1073741824" PARTUUID="" PKNAME="/dev/sda"`
 
-	// Mock findmnt for mount point
-	originalFindMntExecutor := findMntExecutor
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		if target == "/boot" {
 			return &FindMntOutput{
 				Filesystems: []FoundMnt{{Fstype: "ext4"}},
@@ -85,10 +70,9 @@ NAME="/dev/sda1" TYPE="part" SIZE="137322544640" ROTA="1" SERIAL="" WWN="" VENDO
 		}
 		return nil, fmt.Errorf("not found")
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	ctx := context.Background()
-	devs, err := parseLsblkPairs(ctx, []byte(pairsData))
+	devs, err := parseLsblkPairsWithFindMnt(ctx, []byte(pairsData), findMnt)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, len(devs), "Should have 1 top-level device")
@@ -164,14 +148,12 @@ func TestDecideLsblkFlagVersions(t *testing.T) {
 func TestFillFstypeFromFindmntEdgeCases(t *testing.T) {
 	t.Run("device with existing fstype not overwritten", func(t *testing.T) {
 		callCount := 0
-		originalFindMntExecutor := findMntExecutor
-		findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+		findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 			callCount++
 			return &FindMntOutput{
 				Filesystems: []FoundMnt{{Fstype: "xfs"}},
 			}, nil
 		}
-		defer func() { findMntExecutor = originalFindMntExecutor }()
 
 		ctx := context.Background()
 		cache := make(map[string]string)
@@ -181,7 +163,7 @@ func TestFillFstypeFromFindmntEdgeCases(t *testing.T) {
 			FSType:     "ext4", // Already has fstype
 		}
 
-		fillFstypeFromFindmnt(ctx, dev, cache)
+		fillFstypeFromFindmntWithFindMnt(ctx, dev, cache, findMnt)
 
 		assert.Equal(t, "ext4", dev.FSType, "Existing fstype should not be changed")
 		assert.Equal(t, 0, callCount, "findmnt should not be called")
@@ -189,12 +171,10 @@ func TestFillFstypeFromFindmntEdgeCases(t *testing.T) {
 
 	t.Run("device without mount point", func(t *testing.T) {
 		callCount := 0
-		originalFindMntExecutor := findMntExecutor
-		findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+		findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 			callCount++
 			return nil, fmt.Errorf("should not be called")
 		}
-		defer func() { findMntExecutor = originalFindMntExecutor }()
 
 		ctx := context.Background()
 		cache := make(map[string]string)
@@ -204,7 +184,7 @@ func TestFillFstypeFromFindmntEdgeCases(t *testing.T) {
 			FSType:     "",
 		}
 
-		fillFstypeFromFindmnt(ctx, dev, cache)
+		fillFstypeFromFindmntWithFindMnt(ctx, dev, cache, findMnt)
 
 		assert.Equal(t, "", dev.FSType, "FSType should remain empty")
 		assert.Equal(t, 0, callCount, "findmnt should not be called")
@@ -212,14 +192,12 @@ func TestFillFstypeFromFindmntEdgeCases(t *testing.T) {
 
 	t.Run("cache hit prevents redundant calls", func(t *testing.T) {
 		callCount := 0
-		originalFindMntExecutor := findMntExecutor
-		findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+		findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 			callCount++
 			return &FindMntOutput{
 				Filesystems: []FoundMnt{{Fstype: "btrfs"}},
 			}, nil
 		}
-		defer func() { findMntExecutor = originalFindMntExecutor }()
 
 		ctx := context.Background()
 		cache := make(map[string]string)
@@ -231,7 +209,7 @@ func TestFillFstypeFromFindmntEdgeCases(t *testing.T) {
 			FSType:     "",
 		}
 
-		fillFstypeFromFindmnt(ctx, dev, cache)
+		fillFstypeFromFindmntWithFindMnt(ctx, dev, cache, findMnt)
 
 		assert.Equal(t, "cached-fs", dev.FSType, "Should use cached value")
 		assert.Equal(t, 0, callCount, "findmnt should not be called due to cache hit")
@@ -241,42 +219,36 @@ func TestFillFstypeFromFindmntEdgeCases(t *testing.T) {
 // TestGetFstypeFromFindmntErrorHandling tests error scenarios in getFstypeFromFindmnt
 func TestGetFstypeFromFindmntErrorHandling(t *testing.T) {
 	t.Run("findmnt returns error", func(t *testing.T) {
-		originalFindMntExecutor := findMntExecutor
-		findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+		findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 			return nil, errors.New("findmnt: permission denied")
 		}
-		defer func() { findMntExecutor = originalFindMntExecutor }()
 
 		ctx := context.Background()
-		fstype := getFstypeFromFindmnt(ctx, "/mnt/test")
+		fstype := getFstypeFromFindmntWithFindMnt(ctx, "/mnt/test", findMnt)
 		assert.Equal(t, "", fstype, "Should return empty string on error")
 	})
 
 	t.Run("findmnt returns empty filesystems", func(t *testing.T) {
-		originalFindMntExecutor := findMntExecutor
-		findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+		findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 			return &FindMntOutput{
 				Filesystems: []FoundMnt{}, // Empty slice
 			}, nil
 		}
-		defer func() { findMntExecutor = originalFindMntExecutor }()
 
 		ctx := context.Background()
-		fstype := getFstypeFromFindmnt(ctx, "/mnt/test")
+		fstype := getFstypeFromFindmntWithFindMnt(ctx, "/mnt/test", findMnt)
 		assert.Equal(t, "", fstype, "Should return empty string for no filesystems")
 	})
 
 	t.Run("findmnt returns empty fstype", func(t *testing.T) {
-		originalFindMntExecutor := findMntExecutor
-		findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+		findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 			return &FindMntOutput{
 				Filesystems: []FoundMnt{{Fstype: ""}}, // Empty fstype
 			}, nil
 		}
-		defer func() { findMntExecutor = originalFindMntExecutor }()
 
 		ctx := context.Background()
-		fstype := getFstypeFromFindmnt(ctx, "/mnt/test")
+		fstype := getFstypeFromFindmntWithFindMnt(ctx, "/mnt/test", findMnt)
 		assert.Equal(t, "", fstype, "Should return empty string for empty fstype")
 	})
 }
@@ -304,10 +276,8 @@ func TestComplexDeviceHierarchy(t *testing.T) {
    ]
 }`
 
-	// Mock findmnt for various mount points
-	originalFindMntExecutor := findMntExecutor
 	findMntCalls := make(map[string]int)
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		findMntCalls[target]++
 		switch target {
 		case "/boot":
@@ -317,10 +287,9 @@ func TestComplexDeviceHierarchy(t *testing.T) {
 		}
 		return nil, fmt.Errorf("not mounted")
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	ctx := context.Background()
-	devs, err := parseLsblkJSON(ctx, []byte(complexJSON))
+	devs, err := parseLsblkJSONWithFindMnt(ctx, []byte(complexJSON), findMnt)
 	require.NoError(t, err)
 
 	// Verify hierarchy

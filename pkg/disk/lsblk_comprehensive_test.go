@@ -233,10 +233,8 @@ func TestParseLsblkWithFindmntFallback(t *testing.T) {
    ]
 }`
 
-	// Mock findmnt to return ext4 for the specific mount point
-	originalFindMntExecutor := findMntExecutor
 	findMntCallCount := 0
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		findMntCallCount++
 		expectedMount := "/var/lib/kubelet/pods/b76d2533-919d-4fc7-8274-132b7a7b7bf6/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0"
 		if target == expectedMount {
@@ -262,10 +260,9 @@ func TestParseLsblkWithFindmntFallback(t *testing.T) {
 		// For unmounted devices, return error (simulating findmnt failure)
 		return nil, fmt.Errorf("findmnt: can't find %s in /proc/self/mountinfo", target)
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	ctx := context.Background()
-	devs, err := parseLsblkJSON(ctx, []byte(lsblkJSON))
+	devs, err := parseLsblkJSONWithFindMnt(ctx, []byte(lsblkJSON), findMnt)
 	require.NoError(t, err)
 
 	// Verify we got all devices
@@ -335,25 +332,7 @@ func TestGetBlockDevicesWithLsblkMocked(t *testing.T) {
    ]
 }`
 
-	// Mock lsblk command execution
-	originalLsblkExecutor := lsblkCommandExecutor
-	lsblkCommandExecutor = func(ctx context.Context, lsblkBin string, flags string) ([]byte, error) {
-		// Return our test JSON regardless of the command
-		return []byte(lsblkJSON), nil
-	}
-	defer func() { lsblkCommandExecutor = originalLsblkExecutor }()
-
-	// Mock lsblk version detection
-	originalGetLsblkVersion := getLsblkBinPathAndVersionFunc
-	getLsblkBinPathAndVersionFunc = func(ctx context.Context) (string, string, error) {
-		// Return a version that supports JSON
-		return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
-	}
-	defer func() { getLsblkBinPathAndVersionFunc = originalGetLsblkVersion }()
-
-	// Mock findmnt
-	originalFindMntExecutor := findMntExecutor
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		if target == "/var/lib/kubelet" {
 			return &FindMntOutput{
 				Filesystems: []FoundMnt{
@@ -363,10 +342,20 @@ func TestGetBlockDevicesWithLsblkMocked(t *testing.T) {
 		}
 		return nil, fmt.Errorf("not found")
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	ctx := context.Background()
-	devs, err := GetBlockDevicesWithLsblk(ctx)
+	devs, err := getBlockDevicesWithLsblk(
+		ctx,
+		getBlockDevicesDeps{
+			getLsblkBinPathAndVersion: func(context.Context) (string, string, error) {
+				return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
+			},
+			executeLsblkCommand: func(context.Context, string, string) ([]byte, error) {
+				return []byte(lsblkJSON), nil
+			},
+			findMnt: findMnt,
+		},
+	)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, len(devs), "Should have 1 device")
@@ -400,8 +389,7 @@ func TestFindmntCachingPerformance(t *testing.T) {
 }`
 
 	callCount := 0
-	originalFindMntExecutor := findMntExecutor
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		callCount++
 		if target == "/mnt/data" {
 			return &FindMntOutput{
@@ -410,10 +398,9 @@ func TestFindmntCachingPerformance(t *testing.T) {
 		}
 		return nil, fmt.Errorf("not found")
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	ctx := context.Background()
-	devs, err := parseLsblkJSON(ctx, []byte(lsblkJSON))
+	devs, err := parseLsblkJSONWithFindMnt(ctx, []byte(lsblkJSON), findMnt)
 	require.NoError(t, err)
 
 	// Verify all devices got the fstype
@@ -442,15 +429,13 @@ func TestNullFstypeWithoutMountpoint(t *testing.T) {
 
 	// Mock findmnt - should not be called
 	callCount := 0
-	originalFindMntExecutor := findMntExecutor
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		callCount++
 		return nil, fmt.Errorf("should not be called")
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	ctx := context.Background()
-	devs, err := parseLsblkJSON(ctx, []byte(lsblkJSON))
+	devs, err := parseLsblkJSONWithFindMnt(ctx, []byte(lsblkJSON), findMnt)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, len(devs))
@@ -473,17 +458,15 @@ func TestExistingFstypeNotOverwritten(t *testing.T) {
 
 	// Mock findmnt - should not be called
 	callCount := 0
-	originalFindMntExecutor := findMntExecutor
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		callCount++
 		return &FindMntOutput{
 			Filesystems: []FoundMnt{{Fstype: "ext4"}}, // Different fstype
 		}, nil
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	ctx := context.Background()
-	devs, err := parseLsblkJSON(ctx, []byte(lsblkJSON))
+	devs, err := parseLsblkJSONWithFindMnt(ctx, []byte(lsblkJSON), findMnt)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, len(devs))

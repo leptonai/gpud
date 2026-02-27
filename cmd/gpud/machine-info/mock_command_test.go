@@ -3,9 +3,11 @@ package machineinfo
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"flag"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,9 +37,55 @@ func newCLIContext(t *testing.T, args []string) *cli.Context {
 
 	_ = flags.String("log-level", "info", "")
 	_ = flags.String("state-file", "", "")
+	_ = flags.String("output-format", gpudcommon.OutputFormatPlain, "")
 
 	require.NoError(t, flags.Parse(args))
 	return cli.NewContext(app, flags, nil)
+}
+
+func captureOutput(t *testing.T, fn func()) (string, string) {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+
+	stdoutR, stdoutW, err := os.Pipe()
+	require.NoError(t, err)
+	stderrR, stderrW, err := os.Pipe()
+	require.NoError(t, err)
+
+	os.Stdout = stdoutW
+	os.Stderr = stderrW
+	t.Cleanup(func() {
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+	})
+
+	stdoutDone := make(chan string, 1)
+	go func(reader *os.File) {
+		b, _ := io.ReadAll(reader)
+		stdoutDone <- string(b)
+	}(stdoutR)
+
+	stderrDone := make(chan string, 1)
+	go func(reader *os.File) {
+		b, _ := io.ReadAll(reader)
+		stderrDone <- string(b)
+	}(stderrR)
+
+	fn()
+
+	require.NoError(t, stdoutW.Close())
+	require.NoError(t, stderrW.Close())
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	stdout := <-stdoutDone
+	stderr := <-stderrDone
+	require.NoError(t, stdoutR.Close())
+	require.NoError(t, stderrR.Close())
+
+	return stdout, stderr
 }
 
 // TestCommand_InvalidLogLevel tests when an invalid log level is provided.
@@ -49,6 +97,7 @@ func TestCommand_InvalidLogLevel(t *testing.T) {
 
 		_ = flags.String("log-level", "invalid-level", "")
 		_ = flags.String("state-file", "", "")
+		_ = flags.String("output-format", gpudcommon.OutputFormatPlain, "")
 
 		require.NoError(t, flags.Parse([]string{"--log-level", "invalid-level"}))
 		cliContext := cli.NewContext(app, flags, nil)
@@ -224,6 +273,51 @@ func TestCommand_SuccessWithProviderNoPrivateIP(t *testing.T) {
 	})
 }
 
+func TestCommand_FillsProviderPrivateIPFromMachineNIC(t *testing.T) {
+	mockey.PatchConvey("command fills provider private ip from machine nic info", t, func() {
+		mockey.Mock(gpudcommon.StateFileFromContext).To(func(cliContext *cli.Context) (string, error) {
+			return "/nonexistent/state.db", nil
+		}).Build()
+
+		mockNVML := nvidianvml.NewNoOp()
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return mockNVML, nil
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			return &apiv1.MachineInfo{
+				MachineID: "test-machine-id",
+				NICInfo: &apiv1.MachineNICInfo{
+					PrivateIPInterfaces: []apiv1.MachineNetworkInterface{
+						{IP: "", Addr: netip.MustParseAddr("10.0.0.7")},
+						{IP: "8.8.8.8", Addr: netip.MustParseAddr("8.8.8.8")},
+						{IP: "10.0.0.42", Addr: netip.MustParseAddr("10.0.0.42")},
+					},
+				},
+			}, nil
+		}).Build()
+
+		mockey.Mock(netutil.PublicIP).To(func() (string, error) {
+			return "1.2.3.4", nil
+		}).Build()
+
+		providerInfo := &providers.Info{
+			Provider:  "aws",
+			PublicIP:  "1.2.3.4",
+			PrivateIP: "",
+			Region:    "us-east-1",
+		}
+		mockey.Mock(pkgmachineinfo.GetProvider).To(func(publicIP string) *providers.Info {
+			return providerInfo
+		}).Build()
+
+		cliContext := newCLIContext(t, []string{})
+		err := Command(cliContext)
+		require.NoError(t, err)
+		assert.Equal(t, "10.0.0.42", providerInfo.PrivateIP)
+	})
+}
+
 // TestCommand_ProviderRegionFallbackToMachineLocation tests provider region display fallback.
 func TestCommand_ProviderRegionFallbackToMachineLocation(t *testing.T) {
 	mockey.PatchConvey("command fills empty provider region from machine location", t, func() {
@@ -366,6 +460,7 @@ func TestCommand_ValidLogLevels(t *testing.T) {
 
 				_ = flags.String("log-level", level, "")
 				_ = flags.String("state-file", "", "")
+				_ = flags.String("output-format", gpudcommon.OutputFormatPlain, "")
 
 				require.NoError(t, flags.Parse([]string{"--log-level", level}))
 				cliContext := cli.NewContext(app, flags, nil)
@@ -375,4 +470,168 @@ func TestCommand_ValidLogLevels(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestCommand_JSONOutput(t *testing.T) {
+	mockey.PatchConvey("command json output", t, func() {
+		mockey.Mock(gpudcommon.StateFileFromContext).To(func(cliContext *cli.Context) (string, error) {
+			return "/nonexistent/state.db", nil
+		}).Build()
+
+		mockNVML := nvidianvml.NewNoOp()
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return mockNVML, nil
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			return &apiv1.MachineInfo{
+				MachineID: "test-machine-id",
+			}, nil
+		}).Build()
+
+		mockey.Mock(netutil.PublicIP).To(func() (string, error) {
+			return "1.2.3.4", nil
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.GetProvider).To(func(publicIP string) *providers.Info {
+			return &providers.Info{
+				Provider:  "aws",
+				PublicIP:  publicIP,
+				PrivateIP: "10.0.0.1",
+			}
+		}).Build()
+		mockey.Mock(pkgmachineinfo.GetMachineLocation).To(func() *apiv1.MachineLocation {
+			return &apiv1.MachineLocation{Region: "us-east-1"}
+		}).Build()
+
+		cliContext := newCLIContext(t, []string{
+			"--output-format", "json",
+			"--log-level", "debug",
+		})
+
+		stdout, stderr := captureOutput(t, func() {
+			require.NoError(t, Command(cliContext))
+		})
+
+		assert.Empty(t, stderr)
+		var out map[string]any
+		require.NoError(t, json.Unmarshal([]byte(stdout), &out))
+		assert.Equal(t, "", out["machine_id"])
+
+		providerOut, ok := out["provider"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "aws", providerOut["provider"])
+		assert.Equal(t, "us-east-1", providerOut["region"])
+		assert.NotContains(t, stdout, "successfully found provider")
+	})
+}
+
+func TestCommand_JSONOutputWithoutMachineLocation(t *testing.T) {
+	mockey.PatchConvey("command json output without machine location fallback", t, func() {
+		mockey.Mock(gpudcommon.StateFileFromContext).To(func(cliContext *cli.Context) (string, error) {
+			return "/nonexistent/state.db", nil
+		}).Build()
+
+		mockNVML := nvidianvml.NewNoOp()
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return mockNVML, nil
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			return &apiv1.MachineInfo{
+				MachineID: "test-machine-id",
+			}, nil
+		}).Build()
+
+		mockey.Mock(netutil.PublicIP).To(func() (string, error) {
+			return "1.2.3.4", nil
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.GetProvider).To(func(publicIP string) *providers.Info {
+			return &providers.Info{
+				Provider:  "aws",
+				PublicIP:  publicIP,
+				PrivateIP: "10.0.0.1",
+			}
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.GetMachineLocation).To(func() *apiv1.MachineLocation {
+			return nil
+		}).Build()
+
+		cliContext := newCLIContext(t, []string{
+			"--output-format", "json",
+		})
+
+		stdout, stderr := captureOutput(t, func() {
+			require.NoError(t, Command(cliContext))
+		})
+
+		assert.Empty(t, stderr)
+		var out map[string]any
+		require.NoError(t, json.Unmarshal([]byte(stdout), &out))
+
+		providerOut, ok := out["provider"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "aws", providerOut["provider"])
+		assert.Equal(t, "", providerOut["region"])
+	})
+}
+
+func TestCommand_JSONOutputNilProvider(t *testing.T) {
+	mockey.PatchConvey("command json output nil provider", t, func() {
+		mockey.Mock(gpudcommon.StateFileFromContext).To(func(cliContext *cli.Context) (string, error) {
+			return "/nonexistent/state.db", nil
+		}).Build()
+
+		mockNVML := nvidianvml.NewNoOp()
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return mockNVML, nil
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			return &apiv1.MachineInfo{
+				MachineID: "test-machine-id",
+			}, nil
+		}).Build()
+
+		mockey.Mock(netutil.PublicIP).To(func() (string, error) {
+			return "", errors.New("no public IP")
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.GetProvider).To(func(publicIP string) *providers.Info {
+			return nil
+		}).Build()
+
+		cliContext := newCLIContext(t, []string{
+			"--output-format", "json",
+		})
+
+		stdout, stderr := captureOutput(t, func() {
+			require.NoError(t, Command(cliContext))
+		})
+
+		assert.Empty(t, stderr)
+		var out map[string]any
+		require.NoError(t, json.Unmarshal([]byte(stdout), &out))
+		assert.Contains(t, out, "provider")
+		assert.Nil(t, out["provider"])
+	})
+}
+
+func TestCommand_InvalidLogLevelJSON(t *testing.T) {
+	mockey.PatchConvey("command invalid log level json", t, func() {
+		cliContext := newCLIContext(t, []string{
+			"--output-format", "json",
+			"--log-level", "invalid-level",
+		})
+
+		err := Command(cliContext)
+		require.Error(t, err)
+
+		jerr, ok := gpudcommon.AsJSONCommandError(err)
+		require.True(t, ok)
+		assert.Equal(t, "invalid_log_level", jerr.Code())
+		assert.NotEmpty(t, jerr.Error())
+	})
 }

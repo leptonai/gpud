@@ -49,24 +49,8 @@ func TestLsblkNullFstypeFallbackIntegration(t *testing.T) {
    ]
 }`
 
-	// Mock the lsblk command to return the problematic output
-	originalLsblkExecutor := lsblkCommandExecutor
-	lsblkCommandExecutor = func(ctx context.Context, lsblkBin string, flags string) ([]byte, error) {
-		return []byte(lsblkOutput), nil
-	}
-	defer func() { lsblkCommandExecutor = originalLsblkExecutor }()
-
-	// Mock version detection
-	originalGetLsblkVersion := getLsblkBinPathAndVersionFunc
-	getLsblkBinPathAndVersionFunc = func(ctx context.Context) (string, string, error) {
-		return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
-	}
-	defer func() { getLsblkBinPathAndVersionFunc = originalGetLsblkVersion }()
-
-	// Mock findmnt to provide the fstype that lsblk couldn't
-	originalFindMntExecutor := findMntExecutor
 	findMntCallCount := 0
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		findMntCallCount++
 		// Mock findmnt response for the test scenario
 		if target == "/var/lib/kubelet/pods/b76d2533-919d-4fc7-8274-132b7a7b7bf6/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0" ||
@@ -92,11 +76,21 @@ func TestLsblkNullFstypeFallbackIntegration(t *testing.T) {
 		}
 		return nil, nil // Return nil for devices without mount points
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	// Test 1: Verify devices are found (addresses "no block device found" warning)
 	ctx := context.Background()
-	devs, err := GetBlockDevicesWithLsblk(ctx)
+	devs, err := getBlockDevicesWithLsblk(
+		ctx,
+		getBlockDevicesDeps{
+			getLsblkBinPathAndVersion: func(context.Context) (string, string, error) {
+				return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
+			},
+			executeLsblkCommand: func(context.Context, string, string) ([]byte, error) {
+				return []byte(lsblkOutput), nil
+			},
+			findMnt: findMnt,
+		},
+	)
 	require.NoError(t, err, "Should successfully get block devices")
 	assert.Greater(t, len(devs), 0, "Should find at least one block device (fixes 'no block device found' warning)")
 
@@ -140,23 +134,7 @@ func TestFilteringWithFstypeFromFindmnt(t *testing.T) {
    ]
 }`
 
-	// Mock lsblk
-	originalLsblkExecutor := lsblkCommandExecutor
-	lsblkCommandExecutor = func(ctx context.Context, lsblkBin string, flags string) ([]byte, error) {
-		return []byte(lsblkOutput), nil
-	}
-	defer func() { lsblkCommandExecutor = originalLsblkExecutor }()
-
-	// Mock version
-	originalGetLsblkVersion := getLsblkBinPathAndVersionFunc
-	getLsblkBinPathAndVersionFunc = func(ctx context.Context) (string, string, error) {
-		return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
-	}
-	defer func() { getLsblkBinPathAndVersionFunc = originalGetLsblkVersion }()
-
-	// Mock findmnt to return different fstypes
-	originalFindMntExecutor := findMntExecutor
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		switch target {
 		case "/boot":
 			return &FindMntOutput{Filesystems: []FoundMnt{{Fstype: "vfat"}}}, nil
@@ -167,13 +145,24 @@ func TestFilteringWithFstypeFromFindmnt(t *testing.T) {
 		}
 		return nil, nil
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	// Test with fstype filter - should only get ext4 filesystems
 	ctx := context.Background()
-	devs, err := GetBlockDevicesWithLsblk(ctx, WithFstype(func(fstype string) bool {
-		return fstype == "ext4"
-	}))
+	devs, err := getBlockDevicesWithLsblk(
+		ctx,
+		getBlockDevicesDeps{
+			getLsblkBinPathAndVersion: func(context.Context) (string, string, error) {
+				return "/usr/bin/lsblk", "lsblk from util-linux 2.37.2", nil
+			},
+			executeLsblkCommand: func(context.Context, string, string) ([]byte, error) {
+				return []byte(lsblkOutput), nil
+			},
+			findMnt: findMnt,
+		},
+		WithFstype(func(fstype string) bool {
+			return fstype == "ext4"
+		}),
+	)
 	require.NoError(t, err)
 
 	// Should get the parent device with only the ext4 child
@@ -201,18 +190,15 @@ func TestRealWorldScenarioNoDevicesFound(t *testing.T) {
 	// Now test with our fix
 	lsblkWithNullFstype := `{"blockdevices": [{"name": "/dev/sda", "type": "disk", "fstype": null, "mountpoint": "/mnt"}]}`
 
-	// Mock findmnt to provide fstype
-	originalFindMntExecutor := findMntExecutor
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		if target == "/mnt" {
 			return &FindMntOutput{Filesystems: []FoundMnt{{Fstype: "ext4"}}}, nil
 		}
 		return nil, nil
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	ctx := context.Background()
-	devs, err := parseLsblkJSON(ctx, []byte(lsblkWithNullFstype))
+	devs, err := parseLsblkJSONWithFindMnt(ctx, []byte(lsblkWithNullFstype), findMnt)
 	require.NoError(t, err)
 
 	// After fix: Should find the device even with null fstype

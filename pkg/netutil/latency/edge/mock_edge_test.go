@@ -87,3 +87,67 @@ func TestMeasureDERP_SuccessWithMockey(t *testing.T) {
 		assert.Equal(t, ProviderTailscaleDERP, latencies[0].Provider)
 	})
 }
+
+func TestMeasureDERP_RegionNotFoundWithMockey(t *testing.T) {
+	mockey.PatchConvey("measureDERP fails when report has unknown region id", t, func() {
+		realMon, err := netmon.New(logger.Discard)
+		require.NoError(t, err)
+
+		mockey.Mock(netmon.New).To(func(logf logger.Logf) (*netmon.Monitor, error) {
+			return realMon, nil
+		}).Build()
+		mockey.Mock(portmapper.NewClient).To(func(logf logger.Logf, netMon *netmon.Monitor, debug *portmapper.DebugKnobs, control *controlknobs.Knobs, onChange func()) *portmapper.Client {
+			return &portmapper.Client{}
+		}).Build()
+		mockey.Mock((*netcheck.Client).GetReport).To(func(c *netcheck.Client, _ context.Context, m *tailcfg.DERPMap, _ *netcheck.GetReportOpts) (*netcheck.Report, error) {
+			return &netcheck.Report{
+				RegionLatency: map[int]time.Duration{
+					999: 100 * time.Millisecond,
+				},
+			}, nil
+		}).Build()
+
+		derp := &tailcfg.DERPMap{
+			Regions: map[int]*tailcfg.DERPRegion{
+				1: {RegionID: 1, RegionName: "Tokyo"},
+			},
+		}
+
+		latencies, err := measureDERP(context.Background(), derp)
+		require.Error(t, err)
+		assert.Nil(t, latencies)
+		assert.Contains(t, err.Error(), "region 999 not found in derpmap")
+	})
+}
+
+func TestMeasureDERP_RegionCodeNotFoundWithMockey(t *testing.T) {
+	mockey.PatchConvey("measureDERP fails when region name has no aws mapping", t, func() {
+		realMon, err := netmon.New(logger.Discard)
+		require.NoError(t, err)
+
+		mockey.Mock(netmon.New).To(func(logf logger.Logf) (*netmon.Monitor, error) {
+			return realMon, nil
+		}).Build()
+		mockey.Mock(portmapper.NewClient).To(func(logf logger.Logf, netMon *netmon.Monitor, debug *portmapper.DebugKnobs, control *controlknobs.Knobs, onChange func()) *portmapper.Client {
+			return &portmapper.Client{}
+		}).Build()
+		mockey.Mock((*netcheck.Client).GetReport).To(func(c *netcheck.Client, _ context.Context, m *tailcfg.DERPMap, _ *netcheck.GetReportOpts) (*netcheck.Report, error) {
+			return &netcheck.Report{
+				RegionLatency: map[int]time.Duration{
+					1: 100 * time.Millisecond,
+				},
+			}, nil
+		}).Build()
+
+		derp := &tailcfg.DERPMap{
+			Regions: map[int]*tailcfg.DERPRegion{
+				1: {RegionID: 1, RegionName: "Unknown Region"},
+			},
+		}
+
+		latencies, err := measureDERP(context.Background(), derp)
+		require.Error(t, err)
+		assert.Nil(t, latencies)
+		assert.Contains(t, err.Error(), "failed to get AWS region for Unknown Region")
+	})
+}
