@@ -44,9 +44,7 @@ func TestParseLsblkJSONWithNullFstype(t *testing.T) {
    ]
 }`
 
-	// Mock findmnt
-	originalFindMntExecutor := findMntExecutor
-	findMntExecutor = func(ctx context.Context, target string) (*FindMntOutput, error) {
+	findMnt := func(ctx context.Context, target string) (*FindMntOutput, error) {
 		if target == "/var/lib/kubelet/pods/b76d2533-919d-4fc7-8274-132b7a7b7bf6/volume-subpaths/nvidia-device-plugin-entrypoint/nvidia-device-plugin/0" {
 			return &FindMntOutput{
 				Filesystems: []FoundMnt{
@@ -56,10 +54,9 @@ func TestParseLsblkJSONWithNullFstype(t *testing.T) {
 		}
 		return nil, fmt.Errorf("findmnt mock: unexpected target %s", target)
 	}
-	defer func() { findMntExecutor = originalFindMntExecutor }()
 
 	ctx := context.Background()
-	devs, err := parseLsblkJSON(ctx, []byte(testJSON))
+	devs, err := parseLsblkJSONWithFindMnt(ctx, []byte(testJSON), findMnt)
 	if err != nil {
 		t.Fatalf("Failed to parse lsblk JSON: %v", err)
 	}

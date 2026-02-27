@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"io"
@@ -35,10 +36,56 @@ func newCLIContext(t *testing.T, args []string) *cli.Context {
 	_ = flags.Bool("reboot-history", false, "")
 	_ = flags.String("set-key", "", "")
 	_ = flags.String("set-value", "", "")
+	_ = flags.String("output-format", gpudcommon.OutputFormatPlain, "")
 
 	require.NoError(t, flags.Parse(args))
 
 	return cli.NewContext(app, flags, nil)
+}
+
+func captureOutput(t *testing.T, fn func()) (string, string) {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+
+	stdoutR, stdoutW, err := os.Pipe()
+	require.NoError(t, err)
+	stderrR, stderrW, err := os.Pipe()
+	require.NoError(t, err)
+
+	os.Stdout = stdoutW
+	os.Stderr = stderrW
+	t.Cleanup(func() {
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+	})
+
+	stdoutDone := make(chan string, 1)
+	go func(reader *os.File) {
+		b, _ := io.ReadAll(reader)
+		stdoutDone <- string(b)
+	}(stdoutR)
+
+	stderrDone := make(chan string, 1)
+	go func(reader *os.File) {
+		b, _ := io.ReadAll(reader)
+		stderrDone <- string(b)
+	}(stderrR)
+
+	fn()
+
+	require.NoError(t, stdoutW.Close())
+	require.NoError(t, stderrW.Close())
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	stdout := <-stdoutDone
+	stderr := <-stderrDone
+	require.NoError(t, stdoutR.Close())
+	require.NoError(t, stderrR.Close())
+
+	return stdout, stderr
 }
 
 // createMetadataDB creates a test database with metadata.
@@ -128,6 +175,7 @@ func TestCommand_InvalidLogLevel(t *testing.T) {
 		_ = flags.Bool("reboot-history", false, "")
 		_ = flags.String("set-key", "", "")
 		_ = flags.String("set-value", "", "")
+		_ = flags.String("output-format", gpudcommon.OutputFormatPlain, "")
 
 		require.NoError(t, flags.Parse([]string{"--log-level", "invalid-level"}))
 		cliContext := cli.NewContext(app, flags, nil)
@@ -381,4 +429,111 @@ func TestCommand_ValidLogLevels(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestCommand_JSONOutput(t *testing.T) {
+	mockey.PatchConvey("json output metadata and reboot history", t, func() {
+		mockey.Mock(osutil.RequireRoot).To(func() error {
+			return nil
+		}).Build()
+
+		dataDir := t.TempDir()
+		stateFile := filepath.Join(dataDir, "gpud.state")
+
+		rawToken := "nvapi-stg-1234567890abcdef"
+		evTime := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+		evMessage := "test reboot event"
+
+		createMetadataDB(t, stateFile, map[string]string{
+			pkgmetadata.MetadataKeyMachineID: "machine-1",
+			pkgmetadata.MetadataKeyToken:     rawToken,
+		})
+		insertRebootEvent(t, stateFile, evTime, evMessage)
+
+		cliContext := newCLIContext(t, []string{
+			"--data-dir", dataDir,
+			"--reboot-history",
+			"--output-format", "json",
+			"--log-level", "debug",
+		})
+
+		stdout, stderr := captureOutput(t, func() {
+			require.NoError(t, Command(cliContext))
+		})
+
+		assert.Empty(t, stderr)
+
+		var out struct {
+			Metadata      map[string]string `json:"metadata"`
+			RebootHistory []struct {
+				TimeUTC string `json:"time_utc"`
+				Age     string `json:"age"`
+				Message string `json:"message"`
+			} `json:"reboot_history"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(stdout), &out))
+		require.NotNil(t, out.Metadata)
+		assert.Equal(t, "machine-1", out.Metadata[pkgmetadata.MetadataKeyMachineID])
+		assert.Equal(t, pkgmetadata.MaskToken(rawToken), out.Metadata[pkgmetadata.MetadataKeyToken])
+		require.Len(t, out.RebootHistory, 1)
+		assert.Equal(t, evTime.Format(time.RFC3339), out.RebootHistory[0].TimeUTC)
+		assert.Equal(t, evMessage, out.RebootHistory[0].Message)
+		assert.NotContains(t, stdout, "Reboot History:")
+	})
+}
+
+func TestCommand_JSONOutputSetKeyValue(t *testing.T) {
+	mockey.PatchConvey("json output set key value", t, func() {
+		mockey.Mock(osutil.RequireRoot).To(func() error {
+			return nil
+		}).Build()
+
+		dataDir := t.TempDir()
+		stateFile := filepath.Join(dataDir, "gpud.state")
+
+		createMetadataDB(t, stateFile, map[string]string{
+			pkgmetadata.MetadataKeyMachineID: "machine-1",
+		})
+
+		cliContext := newCLIContext(t, []string{
+			"--data-dir", dataDir,
+			"--set-key", "test_key",
+			"--set-value", "test_value",
+			"--output-format", "json",
+		})
+
+		stdout, stderr := captureOutput(t, func() {
+			require.NoError(t, Command(cliContext))
+		})
+
+		assert.Empty(t, stderr)
+
+		var out struct {
+			Updated struct {
+				Key   string `json:"key"`
+				Value string `json:"value"`
+			} `json:"updated"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(stdout), &out))
+		assert.Equal(t, "test_key", out.Updated.Key)
+		assert.Equal(t, "test_value", out.Updated.Value)
+		assert.NotContains(t, stdout, "successfully updated metadata")
+	})
+}
+
+func TestCommand_InvalidLogLevelJSON(t *testing.T) {
+	mockey.PatchConvey("invalid log level json", t, func() {
+		cliContext := newCLIContext(t, []string{
+			"--output-format", "json",
+			"--log-level", "invalid-level",
+		})
+
+		err := Command(cliContext)
+		require.Error(t, err)
+
+		jerr, ok := gpudcommon.AsJSONCommandError(err)
+		require.True(t, ok)
+		assert.Equal(t, "invalid_log_level", jerr.Code())
+		assert.NotEmpty(t, jerr.Error())
+	})
 }

@@ -37,6 +37,10 @@ import (
 
 const diskPartitionsTimeout = 10 * time.Second
 
+func currentGOOS() string {
+	return runtime.GOOS
+}
+
 func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 	hostname, _ := os.Hostname()
 	info := &apiv1.MachineInfo{
@@ -47,7 +51,7 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		ContainerRuntimeVersion: "",
 		KernelVersion:           pkghost.KernelVersion(),
 		OSImage:                 pkghost.OSName(),
-		OperatingSystem:         runtime.GOOS,
+		OperatingSystem:         currentGOOS(),
 		SystemUUID:              pkghost.SystemUUID(),
 		MachineID:               pkghost.OSMachineID(),
 		BootID:                  pkghost.BootID(),
@@ -68,7 +72,7 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	if runtime.GOOS == "linux" {
+	if currentGOOS() == "linux" {
 		info.DiskInfo, err = GetMachineDiskInfo(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get machine disk info: %w", err)
@@ -301,6 +305,7 @@ func canonicalizeProviderName(provider string) string {
 	return normalized
 }
 
+//go:noinline
 func GetMachineLocation() *apiv1.MachineLocation {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -444,7 +449,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	}
 
 	// track nfs partitions only with available fields
-	if runtime.GOOS == "linux" {
+	if currentGOOS() == "linux" {
 		timeoutCtx, cancel := context.WithTimeout(ctx, diskPartitionsTimeout)
 		nfsParts, err := disk.GetPartitions(
 			timeoutCtx,
@@ -474,7 +479,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 		BlockDevices: rs,
 	}
 
-	if runtime.GOOS == "linux" {
+	if currentGOOS() == "linux" {
 		_, serr := os.Stat("/var/lib/kubelet")
 		if serr != nil && !os.IsNotExist(serr) {
 			return nil, serr

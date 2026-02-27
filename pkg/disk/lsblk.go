@@ -37,13 +37,6 @@ import (
 	"github.com/leptonai/gpud/pkg/process"
 )
 
-// Mockable function variables for testing
-var (
-	findMntExecutor               = FindMnt
-	lsblkCommandExecutor          = executeLsblkCommand
-	getLsblkBinPathAndVersionFunc = getLsblkBinPathAndVersion
-)
-
 type BlockDevices []BlockDevice
 
 // BlockDevice represents output of lsblk command for a device
@@ -70,7 +63,17 @@ type BlockDevice struct {
 // Receives device path. If device is empty string, info about all devices will be collected
 // Returns slice of BlockDevice structs or error if something went wrong
 func GetBlockDevicesWithLsblk(ctx context.Context, opts ...OpOption) (BlockDevices, error) {
-	return getBlockDevicesWithLsblk(ctx, getLsblkBinPathAndVersionFunc, opts...)
+	return getBlockDevicesWithLsblk(ctx, getBlockDevicesDeps{
+		getLsblkBinPathAndVersion: getLsblkBinPathAndVersion,
+		executeLsblkCommand:       executeLsblkCommand,
+		findMnt:                   FindMnt,
+	}, opts...)
+}
+
+type getBlockDevicesDeps struct {
+	getLsblkBinPathAndVersion func(context.Context) (string, string, error)
+	executeLsblkCommand       func(context.Context, string, string) ([]byte, error)
+	findMnt                   func(context.Context, string) (*FindMntOutput, error)
 }
 
 // getBlockDevicesWithLsblk run "lsblk" command for device and construct BlockDevice struct based on output
@@ -78,9 +81,9 @@ func GetBlockDevicesWithLsblk(ctx context.Context, opts ...OpOption) (BlockDevic
 // Returns slice of BlockDevice structs or error if something went wrong
 func getBlockDevicesWithLsblk(
 	ctx context.Context,
-	getLsblkBinPathAndVersionFunc func(context.Context) (string, string, error),
+	deps getBlockDevicesDeps,
 	opts ...OpOption) (BlockDevices, error) {
-	lsblkBin, verOut, err := getLsblkBinPathAndVersionFunc(ctx)
+	lsblkBin, verOut, err := deps.getLsblkBinPathAndVersion(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -90,11 +93,21 @@ func getBlockDevicesWithLsblk(
 		log.Logger.Warnw("failed to decide lsblk flag and parser -- falling back to latest version", "error", checkErr)
 		flags = lsblkFlags + " " + lsblkJsonFlag
 		parseFunc = func(b []byte, opts ...OpOption) (BlockDevices, error) {
-			return parseLsblkJSON(ctx, b, opts...)
+			return parseLsblkJSONWithFindMnt(ctx, b, deps.findMnt, opts...)
+		}
+	} else {
+		if strings.Contains(flags, lsblkJsonFlag) {
+			parseFunc = func(b []byte, opts ...OpOption) (BlockDevices, error) {
+				return parseLsblkJSONWithFindMnt(ctx, b, deps.findMnt, opts...)
+			}
+		} else if strings.Contains(flags, lsblkPairsFlag) {
+			parseFunc = func(b []byte, opts ...OpOption) (BlockDevices, error) {
+				return parseLsblkPairsWithFindMnt(ctx, b, deps.findMnt, opts...)
+			}
 		}
 	}
 
-	b, err := lsblkCommandExecutor(ctx, lsblkBin, flags)
+	b, err := deps.executeLsblkCommand(ctx, lsblkBin, flags)
 	if err != nil {
 		return nil, err
 	}
@@ -135,17 +148,16 @@ var lsblkVersionRegPattern = regexp.MustCompile(`\d+\.\d+`)
 func decideLsblkFlag(ctx context.Context, verOutput string) (string, func([]byte, ...OpOption) (BlockDevices, error), error) {
 	matches := lsblkVersionRegPattern.FindString(verOutput)
 	if matches != "" {
-		if versionF, parseErr := strconv.ParseFloat(matches, 64); parseErr == nil {
-			if versionF >= lsblkMinSupportJsonVersion {
-				return lsblkFlags + " " + lsblkJsonFlag, func(b []byte, opts ...OpOption) (BlockDevices, error) {
-					return parseLsblkJSON(ctx, b, opts...)
-				}, nil
-			}
-
-			return lsblkFlags + " " + lsblkPairsFlag, func(b []byte, opts ...OpOption) (BlockDevices, error) {
-				return parseLsblkPairs(ctx, b, opts...)
+		versionF, _ := strconv.ParseFloat(matches, 64)
+		if versionF >= lsblkMinSupportJsonVersion {
+			return lsblkFlags + " " + lsblkJsonFlag, func(b []byte, opts ...OpOption) (BlockDevices, error) {
+				return parseLsblkJSON(ctx, b, opts...)
 			}, nil
 		}
+
+		return lsblkFlags + " " + lsblkPairsFlag, func(b []byte, opts ...OpOption) (BlockDevices, error) {
+			return parseLsblkPairs(ctx, b, opts...)
+		}, nil
 	}
 
 	return "", nil, fmt.Errorf("failed to parse 'lsblk --version' output: %q", verOutput)
@@ -222,7 +234,20 @@ func getLsblkBinPathAndVersion(ctx context.Context) (string, string, error) {
 
 // fillFstypeFromFindmnt is a helper to populate FSType using findmnt if it's missing.
 // It modifies the BlockDevice in place and uses a cache to avoid redundant calls.
-func fillFstypeFromFindmnt(ctx context.Context, dev *BlockDevice, cache map[string]string) {
+func fillFstypeFromFindmnt(
+	ctx context.Context,
+	dev *BlockDevice,
+	cache map[string]string,
+) {
+	fillFstypeFromFindmntWithFindMnt(ctx, dev, cache, FindMnt)
+}
+
+func fillFstypeFromFindmntWithFindMnt(
+	ctx context.Context,
+	dev *BlockDevice,
+	cache map[string]string,
+	findMnt func(context.Context, string) (*FindMntOutput, error),
+) {
 	if dev.FSType != "" || dev.MountPoint == "" {
 		return
 	}
@@ -233,7 +258,7 @@ func fillFstypeFromFindmnt(ctx context.Context, dev *BlockDevice, cache map[stri
 		return
 	}
 
-	if fstype := getFstypeFromFindmnt(ctx, dev.MountPoint); fstype != "" {
+	if fstype := getFstypeFromFindmntWithFindMnt(ctx, dev.MountPoint, findMnt); fstype != "" {
 		dev.FSType = fstype
 		cache[dev.MountPoint] = fstype
 		log.Logger.Debugw("retrieved fstype from findmnt", "dev", dev.Name, "mount_point", dev.MountPoint, "fstype", fstype)
@@ -287,6 +312,18 @@ func processBlockDevice(
 	op *Op,
 	fstypeCache map[string]string,
 ) bool {
+	return processBlockDeviceWithFindMnt(ctx, dev, parentName, depth, op, fstypeCache, FindMnt)
+}
+
+func processBlockDeviceWithFindMnt(
+	ctx context.Context,
+	dev *BlockDevice,
+	parentName string,
+	depth int,
+	op *Op,
+	fstypeCache map[string]string,
+	findMnt func(context.Context, string) (*FindMntOutput, error),
+) bool {
 	// Protect against stack overflow from malformed data or circular references
 	if depth > maxRecursionDepth {
 		log.Logger.Warnw("maximum recursion depth exceeded, possible circular reference or malformed data",
@@ -294,7 +331,7 @@ func processBlockDevice(
 		return false
 	}
 
-	fillFstypeFromFindmnt(ctx, dev, fstypeCache)
+	fillFstypeFromFindmntWithFindMnt(ctx, dev, fstypeCache, findMnt)
 
 	log.Logger.Debugw("processing block device",
 		"dev", dev.Name,
@@ -318,7 +355,7 @@ func processBlockDevice(
 		child := &dev.Children[j]
 		child.ParentDeviceName = dev.Name
 		// Increment depth for recursive call to track nesting level
-		if include := processBlockDevice(ctx, child, dev.Name, depth+1, op, fstypeCache); include {
+		if include := processBlockDeviceWithFindMnt(ctx, child, dev.Name, depth+1, op, fstypeCache, findMnt); include {
 			matchedChildren = append(matchedChildren, *child)
 		}
 	}
@@ -362,7 +399,20 @@ func processBlockDevice(
 
 // parseLsblkJSON parses the "lsblk --json" output and filters devices based on provided options.
 // This function orchestrates the parsing and filtering process.
-func parseLsblkJSON(ctx context.Context, b []byte, opts ...OpOption) (BlockDevices, error) {
+func parseLsblkJSON(
+	ctx context.Context,
+	b []byte,
+	opts ...OpOption,
+) (BlockDevices, error) {
+	return parseLsblkJSONWithFindMnt(ctx, b, FindMnt, opts...)
+}
+
+func parseLsblkJSONWithFindMnt(
+	ctx context.Context,
+	b []byte,
+	findMnt func(context.Context, string) (*FindMntOutput, error),
+	opts ...OpOption,
+) (BlockDevices, error) {
 	if len(b) == 0 {
 		return nil, errors.New("empty input provided to Parse")
 	}
@@ -390,7 +440,7 @@ func parseLsblkJSON(ctx context.Context, b []byte, opts ...OpOption) (BlockDevic
 	// Process all top-level devices (starting at depth 0)
 	for i := range rawDevs {
 		parentDev := &rawDevs[i]
-		if processBlockDevice(ctx, parentDev, "", 0, op, fstypeCache) {
+		if processBlockDeviceWithFindMnt(ctx, parentDev, "", 0, op, fstypeCache, findMnt) {
 			devs = append(devs, *parentDev)
 		}
 	}
@@ -404,7 +454,20 @@ func parseLsblkJSON(ctx context.Context, b []byte, opts ...OpOption) (BlockDevic
 }
 
 // parseLsblkPairs parses the "lsblk --pairs" output.
-func parseLsblkPairs(ctx context.Context, b []byte, opts ...OpOption) (BlockDevices, error) {
+func parseLsblkPairs(
+	ctx context.Context,
+	b []byte,
+	opts ...OpOption,
+) (BlockDevices, error) {
+	return parseLsblkPairsWithFindMnt(ctx, b, FindMnt, opts...)
+}
+
+func parseLsblkPairsWithFindMnt(
+	ctx context.Context,
+	b []byte,
+	findMnt func(context.Context, string) (*FindMntOutput, error),
+	opts ...OpOption,
+) (BlockDevices, error) {
 	if len(b) == 0 {
 		return nil, errors.New("empty input provided to ParsePairs")
 	}
@@ -420,10 +483,7 @@ func parseLsblkPairs(ctx context.Context, b []byte, opts ...OpOption) (BlockDevi
 		}
 
 		// parse each row then return BlockDevice
-		disk, err := parseLineToDisk(line)
-		if err != nil {
-			return nil, err
-		}
+		disk, _ := parseLineToDisk(line)
 
 		// parse each block then add blocks slice
 		devs = append(devs, disk)
@@ -443,7 +503,7 @@ func parseLsblkPairs(ctx context.Context, b []byte, opts ...OpOption) (BlockDevi
 		return nil, fmt.Errorf("failed to marshal lsblk-blockdevices json mode")
 	}
 
-	return parseLsblkJSON(ctx, jsonData, opts...)
+	return parseLsblkJSONWithFindMnt(ctx, jsonData, findMnt, opts...)
 }
 
 func parseLineToDisk(line string) (BlockDevice, error) {
@@ -494,12 +554,23 @@ func parseLineToDisk(line string) (BlockDevice, error) {
 
 // getFstypeFromFindmnt tries to get the filesystem type using findmnt command
 // Returns empty string if unable to get fstype
-func getFstypeFromFindmnt(ctx context.Context, mountPoint string) string {
+func getFstypeFromFindmnt(
+	ctx context.Context,
+	mountPoint string,
+) string {
+	return getFstypeFromFindmntWithFindMnt(ctx, mountPoint, FindMnt)
+}
+
+func getFstypeFromFindmntWithFindMnt(
+	ctx context.Context,
+	mountPoint string,
+	findMnt func(context.Context, string) (*FindMntOutput, error),
+) string {
 	if mountPoint == "" {
 		return ""
 	}
 
-	mntOutput, err := findMntExecutor(ctx, mountPoint)
+	mntOutput, err := findMnt(ctx, mountPoint)
 	if err != nil {
 		log.Logger.Warnw("failed to get fstype from findmnt", "mount_point", mountPoint, "error", err)
 		return ""

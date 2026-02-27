@@ -5,6 +5,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	gpudcommon "github.com/leptonai/gpud/cmd/gpud/common"
 	cmdcompact "github.com/leptonai/gpud/cmd/gpud/compact"
 	cmdcustomplugins "github.com/leptonai/gpud/cmd/gpud/custom-plugins"
 	cmddown "github.com/leptonai/gpud/cmd/gpud/down"
@@ -753,6 +754,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},
+				&cli.StringFlag{
+					Name:  "output-format",
+					Usage: "set the output format [plain, json]",
+					Value: gpudcommon.OutputFormatPlain,
+				},
 			},
 		},
 		{
@@ -804,6 +810,11 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
+				},
+				&cli.StringFlag{
+					Name:  "output-format",
+					Usage: "set the output format [plain, json]",
+					Value: gpudcommon.OutputFormatPlain,
 				},
 				&cli.BoolFlag{
 					Name:  "reboot-history",

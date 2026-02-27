@@ -9,6 +9,18 @@ import (
 	pkgkmsgwriter "github.com/leptonai/gpud/pkg/kmsg/writer"
 )
 
+type fakeKmsgWriter struct{}
+
+func (w *fakeKmsgWriter) Write(msg *pkgkmsgwriter.KernelMessage) error { return nil }
+
+func TestNewInjector(t *testing.T) {
+	w := &fakeKmsgWriter{}
+
+	inj := NewInjector(w)
+	require.NotNil(t, inj)
+	require.Same(t, w, inj.KmsgWriter())
+}
+
 func TestRequest_Validate(t *testing.T) {
 	tests := []struct {
 		name        string

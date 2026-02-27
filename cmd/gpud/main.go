@@ -17,16 +17,29 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/cmd/gpud/command"
+	gpudcommon "github.com/leptonai/gpud/cmd/gpud/common"
 )
 
 func main() {
+	os.Exit(run(os.Args, os.Stdout, os.Stderr))
+}
+
+func run(args []string, stdout io.Writer, stderr io.Writer) int {
 	app := command.App()
-	if err := app.Run(os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "%s %s\n", cmdcommon.WarningSign, err)
-		os.Exit(1)
+	if err := app.Run(args); err != nil {
+		if jsonErr, ok := gpudcommon.AsJSONCommandError(err); ok {
+			if writeErr := gpudcommon.WriteJSONToWriter(stdout, jsonErr.Response()); writeErr != nil {
+				_, _ = fmt.Fprintf(stderr, "%s %s\n", cmdcommon.WarningSign, writeErr)
+			}
+			return jsonErr.ExitStatus()
+		}
+		_, _ = fmt.Fprintf(stderr, "%s %s\n", cmdcommon.WarningSign, err)
+		return 1
 	}
+	return 0
 }

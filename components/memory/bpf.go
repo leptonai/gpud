@@ -11,12 +11,16 @@ import (
 
 const vmallocInfoFile = "/proc/vmallocinfo"
 
+func isLinux() bool {
+	return runtime.GOOS == "linux"
+}
+
 // getCurrentBPFJITBufferBytes returns the current BPF JIT buffer size in bytes.
 // Useful to debug "failed to create shim task: OCI" due to insufficient BPF JIT buffer.
 // ref. https://github.com/awslabs/amazon-eks-ami/issues/1179
 // ref. https://github.com/deckhouse/deckhouse/issues/7402
 func getCurrentBPFJITBufferBytes() (uint64, error) {
-	if runtime.GOOS != "linux" {
+	if !isLinux() {
 		return 0, nil
 	}
 

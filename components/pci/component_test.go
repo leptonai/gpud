@@ -59,6 +59,16 @@ func TestTags(t *testing.T) {
 	assert.Len(t, tags, 1, "Component should return exactly 1 tag")
 }
 
+func TestIsSupported(t *testing.T) {
+	c := &component{}
+	assert.True(t, c.IsSupported())
+}
+
+func TestCheckResultComponentName(t *testing.T) {
+	cr := &checkResult{}
+	assert.Equal(t, Name, cr.ComponentName())
+}
+
 func TestComponentStates(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
