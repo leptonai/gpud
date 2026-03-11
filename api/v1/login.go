@@ -5,6 +5,7 @@ type LoginRequest struct {
 	Token              string            `json:"token"`
 	MachineID          string            `json:"machineID"`
 	NodeGroup          string            `json:"nodeGroup,omitempty"`
+	NodeLabels         map[string]string `json:"nodeLabels,omitempty"`
 	Network            *MachineNetwork   `json:"network,omitempty"`
 	Location           *MachineLocation  `json:"location,omitempty"`
 	Provider           string            `json:"provider"`

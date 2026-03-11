@@ -43,12 +43,24 @@ func Command(cliContext *cli.Context) (retErr error) {
 	}
 
 	gpuCountStr := cliContext.String("gpu-count")
+	token := cliContext.String("token")
+
+	var nodeLabels map[string]string
+	if cliContext.IsSet("node-labels") {
+		if token == "" {
+			return fmt.Errorf("--node-labels requires --token")
+		}
+
+		nodeLabels, err = login.ParseNodeLabelsJSON(cliContext.String("node-labels"))
+		if err != nil {
+			return fmt.Errorf("invalid --node-labels: %w", err)
+		}
+	}
 
 	// step 1.
 	// perform "login" if and only if configured
 	// Note: login.Login() always writes to persistent file (via dataDir), regardless of --db-in-memory flag.
 	// Only the server's runtime database respects --db-in-memory.
-	token := cliContext.String("token")
 	if cliContext.IsSet("token") || token != "" {
 		log.Logger.Debugw("attempting control plane login")
 
@@ -63,7 +75,8 @@ func Command(cliContext *cli.Context) (retErr error) {
 			NodeGroup: cliContext.String("node-group"),
 			DataDir:   dataDir,
 
-			GPUCount: gpuCountStr,
+			GPUCount:   gpuCountStr,
+			NodeLabels: nodeLabels,
 
 			PublicIP:  cliContext.String("public-ip"),
 			PrivateIP: cliContext.String("private-ip"),

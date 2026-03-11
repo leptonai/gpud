@@ -1,3 +1,4 @@
+//nolint:revive // Test handlers intentionally keep mock signature shapes close to the HTTP interfaces they exercise.
 package login
 
 import (
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
@@ -111,7 +113,7 @@ func TestSendRequest_InvalidResponseFormat(t *testing.T) {
 
 func TestSendRequest_ContextCancellation(t *testing.T) {
 	// Setup mock server with delay
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		// This sleep is intentionally left in place for the test
 		<-r.Context().Done()
 		// Context was canceled, connection should be aborted
@@ -135,7 +137,7 @@ func TestSendRequest_ContextCancellation(t *testing.T) {
 
 func TestSendRequest_EmptyMachineID(t *testing.T) {
 	// Setup mock server returning empty machineID
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "", // Empty machine ID
@@ -190,7 +192,7 @@ func TestSendRequest(t *testing.T) {
 
 func TestSendRequestWithTimeout(t *testing.T) {
 	// Setup mock server with delay
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Add a delay to simulate network latency
 		time.Sleep(100 * time.Millisecond)
 
@@ -291,6 +293,34 @@ func TestSendRequest_ReadError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, resp)
+}
+
+func TestMarshalLoginRequest_NodeLabels(t *testing.T) {
+	t.Run("omits nodeLabels when nil", func(t *testing.T) {
+		b, err := marshalLoginRequest(apiv1.LoginRequest{
+			Token: "test-token",
+		})
+		require.NoError(t, err)
+		assert.NotContains(t, string(b), `"nodeLabels"`)
+	})
+
+	t.Run("encodes explicit clear as empty object", func(t *testing.T) {
+		b, err := marshalLoginRequest(apiv1.LoginRequest{
+			Token:      "test-token",
+			NodeLabels: map[string]string{},
+		})
+		require.NoError(t, err)
+		assert.Contains(t, string(b), `"nodeLabels":{}`)
+	})
+
+	t.Run("encodes populated nodeLabels", func(t *testing.T) {
+		b, err := marshalLoginRequest(apiv1.LoginRequest{
+			Token:      "test-token",
+			NodeLabels: map[string]string{"team": "ml"},
+		})
+		require.NoError(t, err)
+		assert.Contains(t, string(b), `"nodeLabels":{"team":"ml"}`)
+	})
 }
 
 func TestSendRequest_ComplexRequest(t *testing.T) {

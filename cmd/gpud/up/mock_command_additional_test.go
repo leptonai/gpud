@@ -41,6 +41,7 @@ func newMockeyCLIContext(t *testing.T, args []string) *cli.Context {
 	_ = flags.String("endpoint", "", "")
 	_ = flags.String("machine-id", "", "")
 	_ = flags.String("node-group", "", "")
+	_ = flags.String("node-labels", "", "")
 	_ = flags.String("gpu-count", "", "")
 	_ = flags.String("public-ip", "", "")
 	_ = flags.String("private-ip", "", "")
@@ -179,6 +180,7 @@ func TestCommand_WithAllFlags(t *testing.T) {
 			"--endpoint", "https://api.example.com",
 			"--machine-id", "machine-123",
 			"--node-group", "gpu-nodes",
+			"--node-labels", `{"team":"ml","rack":"r42"}`,
 			"--gpu-count", "8",
 			"--public-ip", "1.2.3.4",
 			"--private-ip", "10.0.0.1",
@@ -192,9 +194,42 @@ func TestCommand_WithAllFlags(t *testing.T) {
 		assert.Equal(t, "https://api.example.com", loginCfgCapture.Endpoint)
 		assert.Equal(t, "machine-123", loginCfgCapture.MachineID)
 		assert.Equal(t, "gpu-nodes", loginCfgCapture.NodeGroup)
+		assert.Equal(t, map[string]string{"team": "ml", "rack": "r42"}, loginCfgCapture.NodeLabels)
 		assert.Equal(t, "8", loginCfgCapture.GPUCount)
 		assert.Equal(t, "1.2.3.4", loginCfgCapture.PublicIP)
 		assert.Equal(t, "10.0.0.1", loginCfgCapture.PrivateIP)
+	})
+}
+
+func TestCommand_NodeLabelsRequireToken(t *testing.T) {
+	mockey.PatchConvey("node labels require token", t, func() {
+		tmpDir := t.TempDir()
+
+		mockey.Mock(common.ResolveDataDir).To(func(cliContext *cli.Context) (string, error) {
+			return tmpDir, nil
+		}).Build()
+		mockey.Mock(osutil.RequireRoot).To(func() error { return nil }).Build()
+
+		cliContext := newMockeyCLIContext(t, []string{"--node-labels", `{"team":"ml"}`})
+		err := Command(cliContext)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--node-labels requires --token")
+	})
+}
+
+func TestCommand_InvalidNodeLabelsJSON(t *testing.T) {
+	mockey.PatchConvey("invalid node labels json", t, func() {
+		tmpDir := t.TempDir()
+
+		mockey.Mock(common.ResolveDataDir).To(func(cliContext *cli.Context) (string, error) {
+			return tmpDir, nil
+		}).Build()
+		mockey.Mock(osutil.RequireRoot).To(func() error { return nil }).Build()
+
+		cliContext := newMockeyCLIContext(t, []string{"--token", "test-token", "--node-labels", `{"team":123}`})
+		err := Command(cliContext)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid --node-labels")
 	})
 }
 
