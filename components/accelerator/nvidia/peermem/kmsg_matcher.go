@@ -19,6 +19,7 @@ var (
 	compiledPeermemInvalidContext = regexp.MustCompile(regexPeermemInvalidContext)
 )
 
+// HasPeermemInvalidContext reports whether a line contains a peermem invalid-context error.
 func HasPeermemInvalidContext(line string) bool {
 	if match := compiledPeermemInvalidContext.FindStringSubmatch(line); match != nil {
 		return true
@@ -26,6 +27,7 @@ func HasPeermemInvalidContext(line string) bool {
 	return false
 }
 
+// Match returns the peermem event metadata for a kernel log line.
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {

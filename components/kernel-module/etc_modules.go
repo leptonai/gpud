@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// DefaultEtcModulesPath is the default `/etc/modules` path.
 // ref. https://manpages.ubuntu.com/manpages/xenial/man5/modules.5.html
 const DefaultEtcModulesPath = "/etc/modules"
 

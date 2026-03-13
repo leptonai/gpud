@@ -1,3 +1,4 @@
+//nolint:revive // package name matches the directory import path used across the codebase.
 package os
 
 import (
@@ -39,6 +40,7 @@ type FileDescriptors struct {
 // For linux, it's "/proc/sys/fs/file-max".
 // ref. https://docs.kernel.org/admin-guide/sysctl/fs.html#file-max-file-nr
 func getLimit(path string) (uint64, error) {
+	//nolint:gosec // path is a procfs/test file selected by the caller.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
@@ -54,6 +56,7 @@ func getFileHandles(path string) (uint64, uint64, error) {
 	// the number of allocated file handles,
 	// the number of allocated but unused file handles,
 	// and the maximum number of file handles"
+	//nolint:gosec // path is a procfs/test file selected by the caller.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return 0, 0, err

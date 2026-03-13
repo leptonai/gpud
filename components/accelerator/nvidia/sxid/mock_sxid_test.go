@@ -1314,7 +1314,7 @@ func TestCheckResult_String_WithErrors_WithMockey(t *testing.T) {
 						Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal error",
 						Timestamp: metav1.Time{Time: time.Now()},
 					},
-					SXidError: SXidError{
+					Error: Error{
 						SXid:       12028,
 						DeviceUUID: "PCI:0000:05:00.0",
 						Detail: &Detail{
@@ -1348,7 +1348,7 @@ func TestCheckResult_String_WithNilDetail_WithMockey(t *testing.T) {
 						Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, error",
 						Timestamp: metav1.Time{Time: time.Now()},
 					},
-					SXidError: SXidError{
+					Error: Error{
 						SXid:       12028,
 						DeviceUUID: "PCI:0000:05:00.0",
 						Detail:     nil, // nil detail should be handled
@@ -1375,7 +1375,7 @@ func TestCheckResult_String_WithNilSuggestedActions_WithMockey(t *testing.T) {
 						Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, error",
 						Timestamp: metav1.Time{Time: time.Now()},
 					},
-					SXidError: SXidError{
+					Error: Error{
 						SXid:       12028,
 						DeviceUUID: "PCI:0000:05:00.0",
 						Detail: &Detail{

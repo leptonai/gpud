@@ -717,7 +717,7 @@ func TestCreateKernelPanicMatchFunc_MaxLinesWithoutCPUPID(t *testing.T) {
 		t.Fatalf("unexpected immediate panic event: %q %q", eventName, message)
 	}
 
-	for i := 0; i < 9; i++ {
+	for i := range 9 {
 		eventName, message = matcher("line without cpu pid")
 		if eventName != "" || message != "" {
 			t.Fatalf("unexpected event before max lines at %d: %q %q", i, eventName, message)

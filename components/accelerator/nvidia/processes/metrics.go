@@ -6,6 +6,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// SubSystem is the Prometheus subsystem name for process metrics.
 const SubSystem = "accelerator_nvidia_processes"
 
 var (

@@ -314,7 +314,7 @@ func TestExtractNVRMXidInfoExtended(t *testing.T) {
 			assert.Equalf(t, tt.expectedIntrinfo, info.Intrinfo, "log line: %s", tt.logLine)
 			assert.Equalf(t, tt.expectedErrorStatus, info.ErrorStatus, "log line: %s", tt.logLine)
 
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				info2 := ExtractNVRMXidInfoExtended(tt.logLine)
 				require.NotNilf(t, info2, "consistency check %d failed for log line %q", i+1, tt.logLine)
 				assert.Equalf(t, info.SubCode, info2.SubCode, "consistency check %d failed for log line %q", i+1, tt.logLine)
@@ -502,7 +502,6 @@ func TestMatchNVLinkExamples(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			xidErr := Match(tc.logLine)
 			if assert.NotNil(t, xidErr, "Match(%q) should not be nil", tc.logLine) {

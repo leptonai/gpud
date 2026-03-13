@@ -267,7 +267,7 @@ func TestLogin_MachineIDAlreadyAssignedWithSameNodeLabelsSkips(t *testing.T) {
 
 		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
 			if key == pkgmetadata.MetadataKeyLastSentNodeLabels {
-				return `{"team":"ml"}`, nil
+				return `{"user.node.lepton.ai/team":"ml"}`, nil
 			}
 			return "", nil
 		}).Build()
@@ -322,7 +322,7 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsRelogsIn(t *testing.
 
 		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
 			if key == pkgmetadata.MetadataKeyLastSentNodeLabels {
-				return `{"team":"old"}`, nil
+				return `{"user.node.lepton.ai/team":"old"}`, nil
 			}
 			return "", nil
 		}).Build()
@@ -377,8 +377,8 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsRelogsIn(t *testing.
 		err := Login(ctx, cfg)
 		require.NoError(t, err)
 		assert.Equal(t, "existing-machine-id", receivedMachineID)
-		assert.Equal(t, map[string]string{"team": "new"}, receivedRequest.NodeLabels)
-		assert.Equal(t, `{"team":"new"}`, recordedNodeLabels)
+		assert.Equal(t, map[string]string{"user.node.lepton.ai/team": "new"}, receivedRequest.NodeLabels)
+		assert.Equal(t, `{"user.node.lepton.ai/team":"new"}`, recordedNodeLabels)
 	})
 }
 
@@ -415,7 +415,7 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsAndMismatchedOverrid
 
 		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
 			if key == pkgmetadata.MetadataKeyLastSentNodeLabels {
-				return `{"team":"old"}`, nil
+				return `{"user.node.lepton.ai/team":"old"}`, nil
 			}
 			return "", nil
 		}).Build()

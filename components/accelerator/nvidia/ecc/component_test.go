@@ -123,6 +123,15 @@ func MockECCComponent(
 	}
 }
 
+func mustComponent(t *testing.T, c components.Component) *component {
+	t.Helper()
+
+	tc, ok := c.(*component)
+	require.True(t, ok)
+
+	return tc
+}
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := &mockNVMLInstance{
@@ -199,7 +208,7 @@ func TestCheck_Success(t *testing.T) {
 		Supported:      true,
 	}
 
-	getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+	getECCModeEnabledFunc := func(_ string, _ device.Device) (ECCMode, error) {
 		return eccMode, nil
 	}
 
@@ -220,11 +229,13 @@ func TestCheck_Success(t *testing.T) {
 		Supported: true,
 	}
 
-	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+	getECCErrorsFunc := func(_ string, _ device.Device, _ bool) (ECCErrors, error) {
 		return eccErrors, nil
 	}
 
-	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+	componentAny := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc)
+	component, ok := componentAny.(*component)
+	require.True(t, ok)
 	result := component.Check()
 
 	// Verify the data was collected
@@ -260,15 +271,17 @@ func TestCheck_ECCModeError(t *testing.T) {
 	}
 
 	errExpected := errors.New("ECC mode error")
-	getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+	getECCModeEnabledFunc := func(_ string, _ device.Device) (ECCMode, error) {
 		return ECCMode{}, errExpected
 	}
 
-	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+	getECCErrorsFunc := func(_ string, _ device.Device, _ bool) (ECCErrors, error) {
 		return ECCErrors{}, nil
 	}
 
-	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+	componentAny := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc)
+	component, ok := componentAny.(*component)
+	require.True(t, ok)
 	result := component.Check()
 
 	// Verify error handling
@@ -307,16 +320,18 @@ func TestCheck_ECCErrorsError(t *testing.T) {
 		Supported:      true,
 	}
 
-	getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+	getECCModeEnabledFunc := func(_ string, _ device.Device) (ECCMode, error) {
 		return eccMode, nil
 	}
 
 	errExpected := errors.New("ECC errors error")
-	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+	getECCErrorsFunc := func(_ string, _ device.Device, _ bool) (ECCErrors, error) {
 		return ECCErrors{}, errExpected
 	}
 
-	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+	componentAny := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc)
+	component, ok := componentAny.(*component)
+	require.True(t, ok)
 	result := component.Check()
 
 	// Verify error handling
@@ -336,7 +351,7 @@ func TestCheck_NoDevices(t *testing.T) {
 		return map[string]device.Device{} // Empty map
 	}
 
-	component := MockECCComponent(ctx, getDevicesFunc, nil, nil).(*component)
+	component := mustComponent(t, MockECCComponent(ctx, getDevicesFunc, nil, nil))
 	result := component.Check()
 
 	// Verify handling of no devices
@@ -352,7 +367,7 @@ func TestCheck_NoDevices(t *testing.T) {
 
 func TestLastHealthStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := MockECCComponent(ctx, nil, nil, nil).(*component)
+	component := mustComponent(t, MockECCComponent(ctx, nil, nil, nil))
 
 	// Set test data
 	component.lastMu.Lock()
@@ -395,7 +410,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 func TestLastHealthStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := MockECCComponent(ctx, nil, nil, nil).(*component)
+	component := mustComponent(t, MockECCComponent(ctx, nil, nil, nil))
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -419,7 +434,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 func TestLastHealthStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := MockECCComponent(ctx, nil, nil, nil).(*component)
+	component := mustComponent(t, MockECCComponent(ctx, nil, nil, nil))
 
 	// Don't set any data
 
@@ -443,8 +458,7 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Create mock functions that count calls
 	callCount := &atomic.Int32{}
@@ -468,7 +482,7 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := MockECCComponent(ctx, nil, nil, nil).(*component)
+	component := mustComponent(t, MockECCComponent(ctx, nil, nil, nil))
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -743,7 +757,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		return devs
 	}
 
-	getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+	getECCModeEnabledFunc := func(uuid string, _ device.Device) (ECCMode, error) {
 		return ECCMode{
 			UUID:           uuid,
 			EnabledCurrent: true,
@@ -752,7 +766,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		}, nil
 	}
 
-	getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+	getECCErrorsFunc := func(uuid string, _ device.Device, _ bool) (ECCErrors, error) {
 		return ECCErrors{
 			UUID: uuid,
 			Aggregate: AllECCErrorCounts{
@@ -771,7 +785,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		}, nil
 	}
 
-	component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+	component := mustComponent(t, MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc))
 	result := component.Check()
 
 	data, ok := result.(*checkResult)
@@ -810,15 +824,15 @@ func TestCheck_GPULostError(t *testing.T) {
 			return devs
 		}
 
-		getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+		getECCModeEnabledFunc := func(_ string, _ device.Device) (ECCMode, error) {
 			return ECCMode{}, nvmlerrors.ErrGPULost
 		}
 
-		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+		getECCErrorsFunc := func(_ string, _ device.Device, _ bool) (ECCErrors, error) {
 			return ECCErrors{}, nil
 		}
 
-		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+		component := mustComponent(t, MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc))
 		result := component.Check()
 
 		data, ok := result.(*checkResult)
@@ -841,7 +855,7 @@ func TestCheck_GPULostError(t *testing.T) {
 			return devs
 		}
 
-		getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+		getECCModeEnabledFunc := func(uuid string, _ device.Device) (ECCMode, error) {
 			return ECCMode{
 				UUID:           uuid,
 				EnabledCurrent: true,
@@ -850,11 +864,11 @@ func TestCheck_GPULostError(t *testing.T) {
 			}, nil
 		}
 
-		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+		getECCErrorsFunc := func(_ string, _ device.Device, _ bool) (ECCErrors, error) {
 			return ECCErrors{}, nvmlerrors.ErrGPULost
 		}
 
-		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+		component := mustComponent(t, MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc))
 		result := component.Check()
 
 		data, ok := result.(*checkResult)
@@ -890,15 +904,15 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 			return devs
 		}
 
-		getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+		getECCModeEnabledFunc := func(_ string, _ device.Device) (ECCMode, error) {
 			return ECCMode{}, nvmlerrors.ErrGPURequiresReset
 		}
 
-		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+		getECCErrorsFunc := func(_ string, _ device.Device, _ bool) (ECCErrors, error) {
 			return ECCErrors{}, nil
 		}
 
-		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+		component := mustComponent(t, MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc))
 		result := component.Check()
 
 		// Verify check result carries suggested actions
@@ -925,7 +939,7 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 			return devs
 		}
 
-		getECCModeEnabledFunc := func(uuid string, dev device.Device) (ECCMode, error) {
+		getECCModeEnabledFunc := func(uuid string, _ device.Device) (ECCMode, error) {
 			return ECCMode{
 				UUID:           uuid,
 				EnabledCurrent: true,
@@ -934,11 +948,11 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 			}, nil
 		}
 
-		getECCErrorsFunc := func(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
+		getECCErrorsFunc := func(_ string, _ device.Device, _ bool) (ECCErrors, error) {
 			return ECCErrors{}, nvmlerrors.ErrGPURequiresReset
 		}
 
-		component := MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc).(*component)
+		component := mustComponent(t, MockECCComponent(ctx, getDevicesFunc, getECCModeEnabledFunc, getECCErrorsFunc))
 		result := component.Check()
 
 		// Verify check result carries suggested actions

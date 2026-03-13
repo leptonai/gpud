@@ -106,11 +106,12 @@ func TestValueParserPUInt64(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("PUInt64() error = %v, wantErr %v", err, tt.wantErr)
 			}
-			if tt.want == nil && got != nil {
+			switch {
+			case tt.want == nil && got != nil:
 				t.Errorf("PUInt64() = %v, want nil", *got)
-			} else if tt.want != nil && got == nil {
+			case tt.want != nil && got == nil:
 				t.Errorf("PUInt64() = nil, want %v", *tt.want)
-			} else if tt.want != nil && got != nil && *got != *tt.want {
+			case tt.want != nil && got != nil && *got != *tt.want:
 				t.Errorf("PUInt64() = %v, want %v", *got, *tt.want)
 			}
 		})

@@ -118,6 +118,14 @@ func mockComponent(
 	}
 }
 
+func mustComponent(t *testing.T, c components.Component) *component {
+	t.Helper()
+
+	component, ok := c.(*component)
+	require.True(t, ok)
+	return component
+}
+
 // MockPersistenceModeComponentWithNVMLExists creates a component with control over NVMLExists
 func MockPersistenceModeComponentWithNVMLExists(
 	ctx context.Context,
@@ -216,11 +224,11 @@ func TestCheck_Success(t *testing.T) {
 		Enabled: true,
 	}
 
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
+	getPersistenceModeFunc := func(_ string, _ device.Device) (PersistenceMode, error) {
 		return persistenceMode, nil
 	}
 
-	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	component := mustComponent(t, mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc))
 	result := component.Check()
 
 	// Verify the data was collected
@@ -254,11 +262,11 @@ func TestCheck_PersistenceModeError(t *testing.T) {
 	}
 
 	errExpected := errors.New("persistence mode error")
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
+	getPersistenceModeFunc := func(_ string, _ device.Device) (PersistenceMode, error) {
 		return PersistenceMode{}, errExpected
 	}
 
-	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	component := mustComponent(t, mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc))
 	result := component.Check()
 
 	// Verify error handling
@@ -278,7 +286,7 @@ func TestCheck_NoDevices(t *testing.T) {
 		return map[string]device.Device{} // Empty map
 	}
 
-	component := mockComponent(ctx, getDevicesFunc, nil).(*component)
+	component := mustComponent(t, mockComponent(ctx, getDevicesFunc, nil))
 	result := component.Check()
 
 	// Verify handling of no devices
@@ -320,7 +328,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		return devs
 	}
 
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
+	getPersistenceModeFunc := func(uuid string, _ device.Device) (PersistenceMode, error) {
 		return PersistenceMode{
 			UUID:      uuid,
 			Enabled:   uuid == uuid1, // First device has persistence mode enabled
@@ -328,7 +336,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		}, nil
 	}
 
-	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	component := mustComponent(t, mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc))
 	result := component.Check()
 
 	// Verify the data was collected for both devices
@@ -391,9 +399,10 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 		nil,
 		nil,
 		false, // NVML doesn't exist
-	).(*component)
+	)
+	c := mustComponent(t, component)
 
-	result := component.Check()
+	result := c.Check()
 
 	data, ok := result.(*checkResult)
 	require.True(t, ok, "result should be of type *checkResult")
@@ -404,7 +413,7 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 
 func TestLastHealthStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := mockComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, mockComponent(ctx, nil, nil))
 
 	// Set test data
 	component.lastMu.Lock()
@@ -433,7 +442,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 func TestLastHealthStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := mockComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, mockComponent(ctx, nil, nil))
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -457,7 +466,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 func TestLastHealthStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := mockComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, mockComponent(ctx, nil, nil))
 
 	// Don't set any data
 
@@ -481,7 +490,7 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create mock functions that count calls
@@ -506,7 +515,7 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := mockComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, mockComponent(ctx, nil, nil))
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -779,7 +788,7 @@ func TestPersistenceModeCheck(t *testing.T) {
 			// Create component with mocked functions
 			c := &component{
 				nvmlInstance: mockNVML,
-				getPersistenceModeFunc: func(uuid string, dev device.Device) (PersistenceMode, error) {
+				getPersistenceModeFunc: func(uuid string, _ device.Device) (PersistenceMode, error) {
 					for _, pm := range tt.persistenceModes {
 						if pm.UUID == uuid {
 							return pm, nil
@@ -792,7 +801,9 @@ func TestPersistenceModeCheck(t *testing.T) {
 				},
 			}
 
-			result := c.Check().(*checkResult)
+			resultAny := c.Check()
+			result, ok := resultAny.(*checkResult)
+			require.True(t, ok)
 
 			// Verify the result
 			assert.Equal(t, tt.expectedHealth, result.health)
@@ -854,11 +865,11 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
+	getPersistenceModeFunc := func(_ string, _ device.Device) (PersistenceMode, error) {
 		return PersistenceMode{}, nvmlerrors.ErrGPULost
 	}
 
-	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	component := mustComponent(t, mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc))
 	result := component.Check()
 
 	// Verify error handling for GPU lost case
@@ -909,13 +920,13 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error via nvml.Return and mapping in GetPersistenceMode
-	getPersistenceModeFunc := func(uuid string, dev device.Device) (PersistenceMode, error) {
+	getPersistenceModeFunc := func(_ string, _ device.Device) (PersistenceMode, error) {
 		// Use any API that would surface this return in underlying helper; directly return the mapped error here
 		// because the persistence mode component only checks errors.Is on ErrGPURequiresReset
 		return PersistenceMode{}, nvmlerrors.ErrGPURequiresReset
 	}
 
-	component := mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc).(*component)
+	component := mustComponent(t, mockComponent(ctx, getDevicesFunc, getPersistenceModeFunc))
 	result := component.Check()
 
 	// Verify check result carries suggested actions

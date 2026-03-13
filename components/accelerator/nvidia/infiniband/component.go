@@ -28,6 +28,7 @@ import (
 )
 
 const (
+	// Name is the registered component name for NVIDIA InfiniBand monitoring.
 	Name = "accelerator-nvidia-infiniband"
 
 	defaultCheckInterval  = 30 * time.Second
@@ -90,6 +91,7 @@ type component struct {
 	ignoreFiles map[string]struct{}
 }
 
+// New creates the NVIDIA InfiniBand component for a gpud instance.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -535,10 +537,7 @@ func (c *component) Check() components.CheckResult {
 						portRecovered = strings.EqualFold(state, "ACTIVE") || strings.EqualFold(state, "UP")
 					}
 					if recoveryTime != nil && c.dropStickyWindow > 0 && portRecovered {
-						timeSinceRecovery = now.Sub(*recoveryTime)
-						if timeSinceRecovery < 0 {
-							timeSinceRecovery = 0
-						}
+						timeSinceRecovery = max(0, now.Sub(*recoveryTime))
 						if timeSinceRecovery < c.dropStickyWindow {
 							withinRecoveryStickyWindow = true
 						}

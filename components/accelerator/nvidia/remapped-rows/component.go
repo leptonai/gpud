@@ -46,6 +46,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New returns the NVIDIA remapped rows component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{

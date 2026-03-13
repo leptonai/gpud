@@ -3,6 +3,7 @@ package processes
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -39,6 +40,7 @@ type Processes struct {
 	GetProcessUtilizationSupported bool `json:"get_process_utilization_supported"`
 }
 
+// Process describes a single GPU-backed process observed through NVML.
 type Process struct {
 	PID    uint32   `json:"pid"`
 	Status []string `json:"status,omitempty"`
@@ -54,7 +56,7 @@ type Process struct {
 	BadEnvVarsForCUDA map[string]string `json:"bad_env_vars_for_cuda,omitempty"`
 
 	CmdArgs                     []string    `json:"cmd_args,omitempty"`
-	CreateTime                  metav1.Time `json:"create_time,omitempty"`
+	CreateTime                  metav1.Time `json:"create_time,omitzero"`
 	GPUUsedPercent              uint32      `json:"gpu_used_percent,omitempty"`
 	GPUUsedMemoryBytes          uint64      `json:"gpu_used_memory_bytes,omitempty"`
 	GPUUsedMemoryBytesHumanized string      `json:"gpu_used_memory_bytes_humanized,omitempty"`
@@ -69,6 +71,7 @@ type processInspector interface {
 	Environ() ([]string, error)
 }
 
+// GetProcesses returns the running GPU processes observed for the given device.
 func GetProcesses(uuid string, dev device.Device) (Processes, error) {
 	return getProcesses(uuid, dev, func(pid int32) (processInspector, error) {
 		return process.NewProcess(pid)
@@ -101,7 +104,12 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 	}
 
 	for _, proc := range computeProcs {
-		procObject, err := newProcessFunc(int32(proc.Pid))
+		pid, ok := int32FromUint32(proc.Pid)
+		if !ok {
+			return Processes{}, fmt.Errorf("process pid %d exceeds int32 range", proc.Pid)
+		}
+
+		procObject, err := newProcessFunc(pid)
 		if err != nil {
 			// ref. process does not exist
 			if errors.Is(err, process.ErrorProcessNotRunning) {
@@ -112,7 +120,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
 				continue
 			}
-			return Processes{}, fmt.Errorf("failed to get process %d: %v", proc.Pid, err)
+			return Processes{}, fmt.Errorf("failed to get process %d: %w", proc.Pid, err)
 		}
 
 		args, err := procObject.CmdlineSlice()
@@ -121,7 +129,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
 				continue
 			}
-			return Processes{}, fmt.Errorf("failed to get process %d args: %v", proc.Pid, err)
+			return Processes{}, fmt.Errorf("failed to get process %d args: %w", proc.Pid, err)
 		}
 		createTimeUnixMS, err := procObject.CreateTime()
 		if err != nil {
@@ -129,7 +137,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 				log.Logger.Debugw("process not running -- skipping", "pid", proc.Pid, "error", err)
 				continue
 			}
-			return Processes{}, fmt.Errorf("failed to get process %d create time: %v", proc.Pid, err)
+			return Processes{}, fmt.Errorf("failed to get process %d create time: %w", proc.Pid, err)
 		}
 		createTime := metav1.Unix(createTimeUnixMS/1000, 0)
 
@@ -168,22 +176,16 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 			if nvmlerrors.IsNoSuchFileOrDirectoryError(err) {
 				continue
 			}
-			return procs, fmt.Errorf("failed to get process %d status: %v", proc.Pid, err)
+			return procs, fmt.Errorf("failed to get process %d status: %w", proc.Pid, err)
 		}
-		isZombie := false
-		for _, s := range status {
-			if s == process.Zombie {
-				isZombie = true
-				break
-			}
-		}
+		isZombie := slices.Contains(status, process.Zombie)
 
 		envs, err := procObject.Environ()
 		if err != nil {
 			if nvmlerrors.IsNoSuchFileOrDirectoryError(err) {
 				continue
 			}
-			return procs, fmt.Errorf("failed to get process %d environ: %v", proc.Pid, err)
+			return procs, fmt.Errorf("failed to get process %d environ: %w", proc.Pid, err)
 		}
 
 		badEnvVars := make(map[string]string)
@@ -193,7 +195,7 @@ func getProcesses(uuid string, dev device.Device, newProcessFunc func(pid int32)
 				key, value := parts[0], parts[1]
 
 				// implementing "DCGM_FR_BAD_CUDA_ENV"
-				if _, ok := BAD_CUDA_ENV_KEYS[key]; ok {
+				if _, ok := badCUDAEnvKeys[key]; ok {
 					badEnvVars[key] = value
 				}
 			}

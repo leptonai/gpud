@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"math/rand"
 	"os"
@@ -18,6 +17,16 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
+//nolint:gosec // Benchmark data generation does not require cryptographic randomness.
+func benchmarkRandFloat32() float32 {
+	return rand.Float32()
+}
+
+//nolint:gosec // Benchmark data generation does not require cryptographic randomness.
+func benchmarkRandUint64(n int) uint64 {
+	return uint64(rand.Intn(n))
+}
+
 // BENCHMARK=true go test -v -run=TestSimulatedEvents -timeout=10m
 //
 // ingest 7 days, every 30 seconds, 8 ib ports == 20 MB
@@ -33,8 +42,7 @@ func TestSimulatedEvents(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Create infiniband store
 	store, err := New(ctx, dbRW, dbRO)
@@ -54,30 +62,30 @@ func TestSimulatedEvents(t *testing.T) {
 
 	for i := range portProfiles {
 		// 80% healthy ports, 20% problematic - typical for production clusters
-		if rand.Float32() < 0.8 {
+		if benchmarkRandFloat32() < 0.8 {
 			// Healthy port profile
 			portProfiles[i] = portProfile{
 				isHealthy:         true,
 				baseState:         "Active",
 				basePhysicalState: "LinkUp",
-				baseRate:          400,                  // High-performance
-				baseLinkDownCount: uint64(rand.Intn(5)), // Low link down count
-				failureRate:       0.001,                // Very low failure rate
-				recoveryRate:      0.9,                  // High recovery rate
+				baseRate:          400,                    // High-performance
+				baseLinkDownCount: benchmarkRandUint64(5), // Low link down count
+				failureRate:       0.001,                  // Very low failure rate
+				recoveryRate:      0.9,                    // High recovery rate
 			}
 		} else {
 			// Problematic port profile
-			problemType := rand.Float32()
+			problemType := benchmarkRandFloat32()
 			if problemType < 0.5 {
 				// Intermittent connection issues
 				portProfiles[i] = portProfile{
 					isHealthy:         false,
 					baseState:         "Active",
 					basePhysicalState: "LinkUp",
-					baseRate:          200,                        // Degraded performance
-					baseLinkDownCount: uint64(rand.Intn(50) + 10), // Higher link down count
-					failureRate:       0.05,                       // Higher failure rate
-					recoveryRate:      0.7,                        // Lower recovery rate
+					baseRate:          200,                          // Degraded performance
+					baseLinkDownCount: benchmarkRandUint64(50) + 10, // Higher link down count
+					failureRate:       0.05,                         // Higher failure rate
+					recoveryRate:      0.7,                          // Lower recovery rate
 				}
 			} else {
 				// Persistently down port
@@ -85,10 +93,10 @@ func TestSimulatedEvents(t *testing.T) {
 					isHealthy:         false,
 					baseState:         "Down",
 					basePhysicalState: "Disabled",
-					baseRate:          100,                         // Lowest rate when working
-					baseLinkDownCount: uint64(rand.Intn(100) + 20), // High link down count
-					failureRate:       0.1,                         // High failure rate
-					recoveryRate:      0.3,                         // Low recovery rate
+					baseRate:          100,                           // Lowest rate when working
+					baseLinkDownCount: benchmarkRandUint64(100) + 20, // High link down count
+					failureRate:       0.1,                           // High failure rate
+					recoveryRate:      0.3,                           // Low recovery rate
 				}
 			}
 		}
@@ -103,12 +111,12 @@ func TestSimulatedEvents(t *testing.T) {
 	currentPortStates := make([]portProfile, len(deviceNames))
 	copy(currentPortStates, portProfiles)
 
-	for i := 0; i < eventsN; i++ {
+	for i := range eventsN {
 		eventTime := now.Add(time.Duration(i*intervalSeconds) * time.Second)
 
 		// Create realistic IB ports with state evolution
 		ibPorts := make([]types.IBPort, len(deviceNames))
-		for j := 0; j < len(deviceNames); j++ {
+		for j := range deviceNames {
 			// Simulate realistic state transitions based on port profile
 			profile := &currentPortStates[j]
 
@@ -118,12 +126,12 @@ func TestSimulatedEvents(t *testing.T) {
 			currentRate := profile.baseRate
 
 			// Simulate failures and recoveries
-			if profile.isHealthy && rand.Float32() < profile.failureRate {
+			if profile.isHealthy && benchmarkRandFloat32() < profile.failureRate {
 				// Healthy port experiences temporary issue
 				currentState = "Init"
 				currentPhysicalState = "Polling"
 				currentRate = 100 // Degraded performance during issues
-			} else if !profile.isHealthy && rand.Float32() < profile.recoveryRate {
+			} else if !profile.isHealthy && benchmarkRandFloat32() < profile.recoveryRate {
 				// Problematic port temporarily recovers
 				currentState = "Active"
 				currentPhysicalState = "LinkUp"
@@ -133,19 +141,19 @@ func TestSimulatedEvents(t *testing.T) {
 			linkDownIncrement := uint64(0)
 			if currentState == "Down" || currentPhysicalState == "Disabled" {
 				// Increment link down counter occasionally for failed ports
-				if rand.Float32() < 0.1 {
+				if benchmarkRandFloat32() < 0.1 {
 					linkDownIncrement = 1
 				}
 			} else if currentState == "Init" || currentPhysicalState == "Polling" {
 				// Higher chance of link down increment during transitions
-				if rand.Float32() < 0.3 {
+				if benchmarkRandFloat32() < 0.3 {
 					linkDownIncrement = 1
 				}
 			}
 
 			// Add some ports with multiple port numbers for realism
 			portNumber := uint(1)
-			if j < 2 && rand.Float32() < 0.3 {
+			if j < 2 && benchmarkRandFloat32() < 0.3 {
 				portNumber = uint(2) // Some devices have dual ports
 			}
 
@@ -200,7 +208,10 @@ func TestSimulatedEvents(t *testing.T) {
 	purgeBeforeTime := now.Add(time.Duration(daysToIngest-3) * 24 * time.Hour)
 
 	// Get the table name from the store
-	storeImpl := store.(*ibPortsStore)
+	storeImpl, ok := store.(*ibPortsStore)
+	if !ok {
+		t.Fatal("expected *ibPortsStore")
+	}
 	purged, err := purge(ctx, dbRW, storeImpl.historyTable, purgeBeforeTime.Unix(), false)
 	if err != nil {
 		t.Fatalf("failed to purge data: %v", err)

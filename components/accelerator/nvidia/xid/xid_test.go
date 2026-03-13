@@ -12,7 +12,7 @@ import (
 // Status-aware detail selection for NVLink rules
 func Test_detailFromNVLinkInfo_StatusSpecific(t *testing.T) {
 	// Non-fatal SAW_MVB (errorStatus 0x8) should stay warning
-	infoWarn := &XidExtractedInfo{
+	infoWarn := &ExtractedInfo{
 		Xid:         144,
 		SubCodeName: "SAW_MVB",
 		SubCode:     0,
@@ -25,7 +25,7 @@ func Test_detailFromNVLinkInfo_StatusSpecific(t *testing.T) {
 	assert.Equal(t, apiv1.EventTypeWarning, detailWarn.EventType)
 
 	// Fatal SAW_MVB (errorStatus 0x2) should be fatal
-	infoFatal := &XidExtractedInfo{
+	infoFatal := &ExtractedInfo{
 		Xid:         144,
 		SubCodeName: "SAW_MVB",
 		SubCode:     0,
@@ -41,7 +41,7 @@ func Test_detailFromNVLinkInfo_StatusSpecific(t *testing.T) {
 	assert.Contains(t, detailFatal.SuggestedActionsByGPUd.RepairActions, apiv1.RepairActionTypeRebootSystem)
 
 	// Unknown errorStatus should fall back to base/subcode detail (warning)
-	infoUnknown := &XidExtractedInfo{
+	infoUnknown := &ExtractedInfo{
 		Xid:         144,
 		SubCodeName: "SAW_MVB",
 		SubCode:     0,

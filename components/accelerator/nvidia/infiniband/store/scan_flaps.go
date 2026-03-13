@@ -16,6 +16,7 @@ const (
 	// to be considered as a flap
 	defaultIbPortFlapBackToActiveThreshold = 3
 
+	// EventTypeIbPortFlap marks a port that repeatedly recovered after persistent down states.
 	EventTypeIbPortFlap = "ib_port_flap"
 )
 

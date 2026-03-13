@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
+	// Register the sqlite3 driver used by the store package.
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -258,15 +260,14 @@ func (s *ibPortsStore) getAllDeviceValues() map[string]any {
 	defer s.allMu.RUnlock()
 
 	// Create a copy to prevent race conditions when the caller iterates over the map
-	copy := make(map[string]any, len(s.allDeviceValues))
-	for k, v := range s.allDeviceValues {
-		copy[k] = v
-	}
-	return copy
+	deviceValuesCopy := make(map[string]any, len(s.allDeviceValues))
+	maps.Copy(deviceValuesCopy, s.allDeviceValues)
+	return deviceValuesCopy
 }
 
 // readAllDeviceValues selects all distinct device names from the table.
 func readAllDeviceValues(ctx context.Context, dbRO *sql.DB, tableName string) (map[string]any, error) {
+	//nolint:gosec // tableName is an internal store identifier, not user input.
 	query := fmt.Sprintf(`SELECT DISTINCT %s FROM %s;`, historyTableColumnDevice, tableName)
 
 	rows, err := dbRO.QueryContext(ctx, query)
@@ -309,15 +310,14 @@ func (s *ibPortsStore) getAllPortValues() map[uint]any {
 	defer s.allMu.RUnlock()
 
 	// Create a copy to prevent race conditions when the caller iterates over the map
-	copy := make(map[uint]any, len(s.allPortValues))
-	for k, v := range s.allPortValues {
-		copy[k] = v
-	}
-	return copy
+	portValuesCopy := make(map[uint]any, len(s.allPortValues))
+	maps.Copy(portValuesCopy, s.allPortValues)
+	return portValuesCopy
 }
 
 // readAllPortValues selects all distinct port numbers from the table.
 func readAllPortValues(ctx context.Context, dbRO *sql.DB, tableName string) (map[uint]any, error) {
+	//nolint:gosec // tableName is an internal store identifier, not user input.
 	query := fmt.Sprintf(`SELECT DISTINCT %s FROM %s;`, historyTableColumnPort, tableName)
 
 	rows, err := dbRO.QueryContext(ctx, query)

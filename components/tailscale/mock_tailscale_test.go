@@ -45,7 +45,7 @@ func TestCheckTailscaleInstalled_Found(t *testing.T) {
 
 func TestCheckTailscaleInstalled_NotFound(t *testing.T) {
 	mockey.PatchConvey("tailscale not found", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "", errors.New("not found")
 		}).Build()
 
@@ -70,7 +70,7 @@ func TestCheckTailscaledInstalled_Found(t *testing.T) {
 
 func TestCheckTailscaledInstalled_NotFound(t *testing.T) {
 	mockey.PatchConvey("tailscaled not found", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "", errors.New("not found")
 		}).Build()
 
@@ -81,7 +81,7 @@ func TestCheckTailscaledInstalled_NotFound(t *testing.T) {
 
 func TestGetTailscaleVersion_LocateError(t *testing.T) {
 	mockey.PatchConvey("locate tailscale error", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "", errors.New("not found")
 		}).Build()
 
@@ -106,10 +106,10 @@ func TestCheckTailscaleInstalled_Public(t *testing.T) {
 
 func TestGetTailscaleVersion_SuccessWithMockey(t *testing.T) {
 	mockey.PatchConvey("getTailscaleVersion success", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "/usr/bin/tailscale", nil
 		}).Build()
-		mockey.Mock((*exec.Cmd).CombinedOutput).To(func(cmd *exec.Cmd) ([]byte, error) {
+		mockey.Mock((*exec.Cmd).CombinedOutput).To(func(_ *exec.Cmd) ([]byte, error) {
 			return []byte("1.80.0\n"), nil
 		}).Build()
 
@@ -121,10 +121,10 @@ func TestGetTailscaleVersion_SuccessWithMockey(t *testing.T) {
 
 func TestGetTailscaleVersion_CommandErrorWithMockey(t *testing.T) {
 	mockey.PatchConvey("getTailscaleVersion command error", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "/usr/bin/tailscale", nil
 		}).Build()
-		mockey.Mock((*exec.Cmd).CombinedOutput).To(func(cmd *exec.Cmd) ([]byte, error) {
+		mockey.Mock((*exec.Cmd).CombinedOutput).To(func(_ *exec.Cmd) ([]byte, error) {
 			return []byte("bad output"), errors.New("exec failed")
 		}).Build()
 
@@ -136,10 +136,10 @@ func TestGetTailscaleVersion_CommandErrorWithMockey(t *testing.T) {
 
 func TestGetTailscaleVersion_PublicWrapperWithMockey(t *testing.T) {
 	mockey.PatchConvey("GetTailscaleVersion public wrapper", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "/usr/bin/tailscale", nil
 		}).Build()
-		mockey.Mock((*exec.Cmd).CombinedOutput).To(func(cmd *exec.Cmd) ([]byte, error) {
+		mockey.Mock((*exec.Cmd).CombinedOutput).To(func(_ *exec.Cmd) ([]byte, error) {
 			return []byte("1.80.0\n"), nil
 		}).Build()
 
@@ -151,10 +151,10 @@ func TestGetTailscaleVersion_PublicWrapperWithMockey(t *testing.T) {
 
 func TestComponentCheck_ServiceInactiveWithMockey(t *testing.T) {
 	mockey.PatchConvey("component Check marks unhealthy when service inactive", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "/usr/bin/tailscaled", nil
 		}).Build()
-		mockey.Mock(systemd.IsActive).To(func(service string) (bool, error) {
+		mockey.Mock(systemd.IsActive).To(func(_ string) (bool, error) {
 			return false, nil
 		}).Build()
 

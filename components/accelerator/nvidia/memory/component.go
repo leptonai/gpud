@@ -23,6 +23,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
+// Name is the ID of the NVIDIA memory component.
 const Name = "accelerator-nvidia-memory"
 
 var _ components.Component = &component{}
@@ -41,6 +42,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates a NVIDIA memory component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -99,7 +101,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 

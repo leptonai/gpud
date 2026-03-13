@@ -47,6 +47,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates the CPU component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -243,10 +244,12 @@ type checkResult struct {
 	reason string
 }
 
+// Cores reports CPU core counts.
 type Cores struct {
 	Logical int `json:"logical"`
 }
 
+// Usage reports aggregate CPU utilization and load averages.
 type Usage struct {
 	// Used CPU in percentage.
 	// Parse into float64 to get the actual value.

@@ -69,7 +69,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 		return nil, fmt.Errorf("no host in endpoint URL: %s", endpointURL)
 	}
 
-	b, err := marshalLoginRequest(req)
+	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling login request: %w", err)
 	}
@@ -115,37 +115,4 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 
 	log.Logger.Debugw("login request processed", "data", string(b), "endpointURL", endpointURL, "machineID", resp.MachineID)
 	return &resp, nil
-}
-
-func marshalLoginRequest(req apiv1.LoginRequest) ([]byte, error) {
-	type loginRequestPayload struct {
-		Token              string                 `json:"token"`
-		MachineID          string                 `json:"machineID"`
-		NodeGroup          string                 `json:"nodeGroup,omitempty"`
-		NodeLabels         *map[string]string     `json:"nodeLabels,omitempty"`
-		Network            *apiv1.MachineNetwork  `json:"network,omitempty"`
-		Location           *apiv1.MachineLocation `json:"location,omitempty"`
-		Provider           string                 `json:"provider"`
-		ProviderInstanceID string                 `json:"providerInstanceID"`
-		MachineInfo        *apiv1.MachineInfo     `json:"machineInfo,omitempty"`
-		Resources          map[string]string      `json:"resources,omitempty"`
-	}
-
-	payload := loginRequestPayload{
-		Token:              req.Token,
-		MachineID:          req.MachineID,
-		NodeGroup:          req.NodeGroup,
-		Network:            req.Network,
-		Location:           req.Location,
-		Provider:           req.Provider,
-		ProviderInstanceID: req.ProviderInstanceID,
-		MachineInfo:        req.MachineInfo,
-		Resources:          req.Resources,
-	}
-	if req.NodeLabels != nil {
-		nodeLabels := req.NodeLabels
-		payload.NodeLabels = &nodeLabels
-	}
-
-	return json.Marshal(payload)
 }

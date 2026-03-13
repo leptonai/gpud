@@ -118,6 +118,14 @@ func MockNVLinkComponent(
 	}
 }
 
+func mustComponent(t *testing.T, c components.Component) *component {
+	t.Helper()
+
+	component, ok := c.(*component)
+	require.True(t, ok)
+	return component
+}
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := &mockNVMLInstance{
@@ -200,11 +208,13 @@ func TestCheckOnce_Success(t *testing.T) {
 		States: []NVLinkState{nvLinkState, nvLinkState},
 	}
 
-	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
+	getNVLinkFunc := func(_ string, _ device.Device) (NVLink, error) {
 		return nvLink, nil
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	componentAny := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc)
+	component, ok := componentAny.(*component)
+	require.True(t, ok)
 	_ = component.Check()
 
 	// Verify the data was collected
@@ -239,11 +249,13 @@ func TestCheckOnce_NVLinkError(t *testing.T) {
 	}
 
 	errExpected := errors.New("NVLink error")
-	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
+	getNVLinkFunc := func(_ string, _ device.Device) (NVLink, error) {
 		return NVLink{}, errExpected
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	componentAny := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc)
+	component, ok := componentAny.(*component)
+	require.True(t, ok)
 	_ = component.Check()
 
 	// Verify error handling
@@ -264,7 +276,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 		return map[string]device.Device{} // Empty map
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, nil).(*component)
+	component := mustComponent(t, MockNVLinkComponent(ctx, getDevicesFunc, nil))
 	_ = component.Check()
 
 	// Verify handling of no devices
@@ -280,7 +292,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 
 func TestStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockNVLinkComponent(ctx, nil, nil))
 
 	// Set test data
 	nvLinkState := NVLinkState{
@@ -317,7 +329,7 @@ func TestStates_WithData(t *testing.T) {
 
 func TestStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockNVLinkComponent(ctx, nil, nil))
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -341,7 +353,7 @@ func TestStates_WithError(t *testing.T) {
 
 func TestStates_WithSuggestedActions(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockNVLinkComponent(ctx, nil, nil))
 
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
@@ -365,7 +377,7 @@ func TestStates_WithSuggestedActions(t *testing.T) {
 
 func TestStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockNVLinkComponent(ctx, nil, nil))
 
 	// Don't set any data
 
@@ -389,8 +401,7 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Create mock functions that count calls
 	callCount := &atomic.Int32{}
@@ -414,7 +425,7 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := MockNVLinkComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockNVLinkComponent(ctx, nil, nil))
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -741,12 +752,12 @@ func TestCheck_MetricsGeneration(t *testing.T) {
 		States:    nvLinkStates,
 	}
 
-	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
+	getNVLinkFunc := func(_ string, _ device.Device) (NVLink, error) {
 		return nvLink, nil
 	}
 
 	// Create a component and run Check
-	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	component := mustComponent(t, MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc))
 	_ = component.Check()
 
 	// Verify the data was collected
@@ -791,11 +802,11 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
+	getNVLinkFunc := func(_ string, _ device.Device) (NVLink, error) {
 		return NVLink{}, nvmlerrors.ErrGPULost
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	component := mustComponent(t, MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc))
 	result := component.Check()
 
 	// Verify error handling for GPU lost case
@@ -846,13 +857,13 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error via nvml.Return and mapping in GetNVLink
-	getNVLinkFunc := func(uuid string, dev device.Device) (NVLink, error) {
+	getNVLinkFunc := func(_ string, _ device.Device) (NVLink, error) {
 		// Use any API that would surface this return in underlying helper; directly return the mapped error here
 		// because the nvlink component only checks errors.Is on ErrGPURequiresReset
 		return NVLink{}, nvmlerrors.ErrGPURequiresReset
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc).(*component)
+	component := mustComponent(t, MockNVLinkComponent(ctx, getDevicesFunc, getNVLinkFunc))
 	result := component.Check()
 
 	// Verify check result carries suggested actions
@@ -897,9 +908,9 @@ func TestCheck_ThresholdViolationInactive(t *testing.T) {
 		},
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, func(string, device.Device) (NVLink, error) {
+	component := mustComponent(t, MockNVLinkComponent(ctx, getDevicesFunc, func(string, device.Device) (NVLink, error) {
 		return nvLink, nil
-	}).(*component)
+	}))
 	component.getThresholdsFunc = func() ExpectedLinkStates {
 		return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 1}
 	}
@@ -935,9 +946,9 @@ func TestCheck_ThresholdViolationUnsupported(t *testing.T) {
 		Supported: false,
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, func(string, device.Device) (NVLink, error) {
+	component := mustComponent(t, MockNVLinkComponent(ctx, getDevicesFunc, func(string, device.Device) (NVLink, error) {
 		return nvLink, nil
-	}).(*component)
+	}))
 	component.getThresholdsFunc = func() ExpectedLinkStates {
 		return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 1}
 	}
@@ -977,9 +988,9 @@ func TestCheck_ThresholdSatisfied(t *testing.T) {
 		},
 	}
 
-	component := MockNVLinkComponent(ctx, getDevicesFunc, func(string, device.Device) (NVLink, error) {
+	component := mustComponent(t, MockNVLinkComponent(ctx, getDevicesFunc, func(string, device.Device) (NVLink, error) {
 		return nvLink, nil
-	}).(*component)
+	}))
 	component.getThresholdsFunc = func() ExpectedLinkStates {
 		return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 1}
 	}

@@ -37,12 +37,12 @@ func (m *mockEventBucket) Name() string {
 	return "mock-event-bucket"
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
+func (m *mockEventBucket) Insert(_ context.Context, event eventstore.Event) error {
 	m.events = append(m.events, event)
 	return nil
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
+func (m *mockEventBucket) Find(_ context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -55,14 +55,14 @@ func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(_ context.Context, _ time.Time) (eventstore.Events, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return m.events, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *mockEventBucket) Latest(_ context.Context) (*eventstore.Event, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -72,7 +72,7 @@ func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error)
 	return &m.events[0], nil
 }
 
-func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockEventBucket) Purge(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
 
@@ -85,7 +85,7 @@ type mockEventStore struct {
 	bucket eventstore.Bucket
 }
 
-func (m *mockEventStore) Bucket(name string, options ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *mockEventStore) Bucket(_ string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	return m.bucket, nil
 }
 
@@ -169,6 +169,14 @@ func (m *mockNVMLInstance) Shutdown() error {
 
 func (m *mockNVMLInstance) InitError() error {
 	return nil
+}
+
+func mustComponent(t *testing.T, comp components.Component) *component {
+	t.Helper()
+
+	c, ok := comp.(*component)
+	require.True(t, ok)
+	return c
 }
 
 // Helper function to convert apiv1.Event to eventstore.Event
@@ -384,7 +392,7 @@ func TestEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the event bucket directly to ensure it's properly initialized
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	c.eventBucket = eventBucket
 
 	// Get events
@@ -397,7 +405,7 @@ func TestEvents(t *testing.T) {
 func TestCheckOnceRemappingIssueDetection(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create test database
@@ -457,9 +465,9 @@ func TestCheckOnceRemappingIssueDetection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the underlying component to modify getRemappedRowsFunc
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	c.eventBucket = eventBucket // Ensure eventBucket is set directly
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
+	c.getRemappedRowsFunc = func(uuid string, _ device.Device) (RemappedRows, error) {
 		switch uuid {
 		case "GPU1":
 			// Healthy GPU - no events expected
@@ -513,7 +521,7 @@ func TestCheckOnceRemappingIssueDetection(t *testing.T) {
 func TestCheckOnceWithNVMLError(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create test database
@@ -562,7 +570,7 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the underlying component
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	c.eventBucket = eventBucket // Ensure eventBucket is set directly
 
 	// Instead of trying to modify c.Check, which isn't assignable,
@@ -600,7 +608,7 @@ func TestCheckOnceWithNVMLError(t *testing.T) {
 func TestEventsWithDB(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	since := time.Now().Add(-1 * time.Hour)
@@ -836,7 +844,7 @@ func TestComponentStates(t *testing.T) {
 
 			comp, err := New(gpudInstance)
 			require.NoError(t, err)
-			c := comp.(*component)
+			c := mustComponent(t, comp)
 
 			// Set the data directly
 			c.lastMu.Lock()
@@ -849,13 +857,14 @@ func TestComponentStates(t *testing.T) {
 			}
 
 			// Calculate the reason and health based on the data
-			if !tt.rowRemappingSupported {
+			switch {
+			case !tt.rowRemappingSupported:
 				c.lastCheckResult.health = apiv1.HealthStateTypeHealthy
 				c.lastCheckResult.reason = fmt.Sprintf("%q does not support row remapping", c.lastCheckResult.ProductName)
-			} else if len(tt.remappedRows) == 0 {
+			case len(tt.remappedRows) == 0:
 				c.lastCheckResult.health = apiv1.HealthStateTypeHealthy
 				c.lastCheckResult.reason = "no issue detected"
-			} else {
+			default:
 				issues := make([]string, 0)
 				for _, row := range tt.remappedRows {
 					if row.QualifiesForRMA() {
@@ -931,7 +940,7 @@ func TestComponentStatesWithError(t *testing.T) {
 
 	comp, err := New(gpudInstance)
 	require.NoError(t, err)
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Set error in the data
 	c.lastMu.Lock()
@@ -997,7 +1006,7 @@ func TestComponentStatesWithNilData(t *testing.T) {
 	// since we're just checking the default behavior when lastCheckResult is nil
 
 	// Get states and check default values
-	states := comp.(*component).LastHealthStates()
+	states := mustComponent(t, comp).LastHealthStates()
 	require.Len(t, states, 1)
 
 	state := states[0]
@@ -1011,7 +1020,7 @@ func TestComponentStatesWithNilData(t *testing.T) {
 func TestStateTransitions(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create test database
@@ -1064,11 +1073,11 @@ func TestStateTransitions(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the underlying component
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	c.eventBucket = eventBucket
 
 	// Create a function that changes GPU state after each check
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
+	c.getRemappedRowsFunc = func(uuid string, _ device.Device) (RemappedRows, error) {
 		stateChangeMu.Lock()
 		defer stateChangeMu.Unlock()
 
@@ -1182,7 +1191,7 @@ func TestStateTransitions(t *testing.T) {
 func TestRemappedRowsThresholds(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create test database
@@ -1231,7 +1240,7 @@ func TestRemappedRowsThresholds(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the underlying component
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	c.eventBucket = eventBucket
 
 	// Test cases with different row error counts
@@ -1250,7 +1259,7 @@ func TestRemappedRowsThresholds(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			// Configure the test case
-			c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
+			c.getRemappedRowsFunc = func(uuid string, _ device.Device) (RemappedRows, error) {
 				return RemappedRows{
 					UUID:                             uuid,
 					RemappedDueToUncorrectableErrors: tc.uncorrectableErrors,
@@ -1279,7 +1288,7 @@ func TestRemappedRowsThresholds(t *testing.T) {
 func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create test database
@@ -1334,11 +1343,11 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get the underlying component
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	c.eventBucket = eventBucket
 
 	// Configure mixed states for different GPUs
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
+	c.getRemappedRowsFunc = func(uuid string, _ device.Device) (RemappedRows, error) {
 		switch uuid {
 		case "GPU1":
 			// Healthy
@@ -1402,7 +1411,7 @@ func TestCheckOnceWithMultipleGPUs(t *testing.T) {
 func TestErrorHandlingInAccessors(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	cases := []struct {
@@ -1416,7 +1425,7 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 			name:                  "No errors",
 			mockDeviceError:       false,
 			mockCapabilitiesError: false,
-			mockGetRemappedRowsFunc: func(uuid string, dev device.Device) (RemappedRows, error) {
+			mockGetRemappedRowsFunc: func(uuid string, _ device.Device) (RemappedRows, error) {
 				return RemappedRows{UUID: uuid}, nil
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
@@ -1425,7 +1434,7 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 			name:                  "GetRemappedRows error",
 			mockDeviceError:       false,
 			mockCapabilitiesError: false,
-			mockGetRemappedRowsFunc: func(uuid string, dev device.Device) (RemappedRows, error) {
+			mockGetRemappedRowsFunc: func(_ string, _ device.Device) (RemappedRows, error) {
 				// Simulate error for remapped rows
 				return RemappedRows{}, errors.New("NVML error getting remapped rows")
 			},
@@ -1478,7 +1487,7 @@ func TestErrorHandlingInAccessors(t *testing.T) {
 			require.NoError(t, err)
 
 			// Get the underlying component
-			c := comp.(*component)
+			c := mustComponent(t, comp)
 			c.eventBucket = eventBucket
 
 			// Set up the mock function
@@ -1593,7 +1602,7 @@ func TestComponentWithNoNVML(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run the check
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	result := c.Check()
 	data, ok := result.(*checkResult)
 	require.True(t, ok)
@@ -1617,7 +1626,7 @@ func TestComponentWithNoNVML(t *testing.T) {
 
 // TestCheckSuggestedActionsWithNilEventBucket verifies that suggestedActions are set based on remapping state, regardless of eventBucket availability.
 func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create a proper mock device using testutil
@@ -1647,7 +1656,7 @@ func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
 	comp, err := New(gpudInstance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	// Explicitly ensure eventBucket is nil (though New should handle it based on EventStore == nil for non-Linux)
 	// Forcing it to nil for clarity in test intent, especially if runtime.GOOS affects New's behavior.
 	if c.eventBucket != nil {
@@ -1657,7 +1666,7 @@ func TestCheckSuggestedActionsWithNilEventBucket(t *testing.T) {
 	}
 
 	// Configure getRemappedRowsFunc to indicate remapping is pending
-	c.getRemappedRowsFunc = func(uuid string, dev device.Device) (RemappedRows, error) {
+	c.getRemappedRowsFunc = func(uuid string, _ device.Device) (RemappedRows, error) {
 		return RemappedRows{
 			UUID:             uuid,
 			RemappingPending: true, // Condition that would normally trigger suggestedAction
@@ -1728,7 +1737,7 @@ func TestNewWithFailureInjector(t *testing.T) {
 	require.NotNil(t, comp)
 
 	// Get the underlying component
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Verify failure injection UUIDs are stored
 	_, hasPendingUUID := c.gpuUUIDsWithRowRemappingPending["GPU-pending-uuid"]

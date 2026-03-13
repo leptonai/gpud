@@ -45,7 +45,7 @@ func TestDebugThresholdFailingOldDrop(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return 7 healthy ports (below threshold)
 			return createHealthyDevices(7, 400), nil
 		},
@@ -58,7 +58,7 @@ func TestDebugThresholdFailingOldDrop(t *testing.T) {
 	t.Logf("Event in store: %+v", events[0])
 
 	// Execute the check
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 
 	// Debug output
 	t.Logf("Health: %s", cr.health)
@@ -174,7 +174,7 @@ func TestThreeConditionsIndependently(t *testing.T) {
 						AtLeastRate:  400,
 					}
 				},
-				getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+				getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 					devices := createHealthyDevices(healthyPorts, 400)
 					if healthyPorts > 0 {
 						devices[healthyPorts-1].Name = "mlx5_test"
@@ -183,7 +183,7 @@ func TestThreeConditionsIndependently(t *testing.T) {
 				},
 			}
 
-			cr := c.Check().(*checkResult)
+			cr := requireCheckResult(t, c.Check())
 
 			t.Logf("%s", tc.description)
 			t.Logf("  Health: %s, Reason: %s", cr.health, cr.reason)
@@ -209,7 +209,7 @@ type mockIBPortsStoreDebug struct {
 	events []infinibandstore.Event
 }
 
-func (m *mockIBPortsStoreDebug) Insert(time.Time, []types.IBPort) error {
+func (m *mockIBPortsStoreDebug) Insert(_ time.Time, _ []types.IBPort) error {
 	println("Insert called")
 	return nil
 }
@@ -219,7 +219,7 @@ func (m *mockIBPortsStoreDebug) Scan() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreDebug) LastEvents(since time.Time) ([]infinibandstore.Event, error) {
+func (m *mockIBPortsStoreDebug) LastEvents(_ time.Time) ([]infinibandstore.Event, error) {
 	// Debug log
 	if len(m.events) > 0 {
 		println("LastEvents called, returning", len(m.events), "events")
@@ -227,7 +227,7 @@ func (m *mockIBPortsStoreDebug) LastEvents(since time.Time) ([]infinibandstore.E
 	return m.events, nil
 }
 
-func (m *mockIBPortsStoreDebug) SetEventType(string, uint, time.Time, string, string) error {
+func (m *mockIBPortsStoreDebug) SetEventType(_ string, _ uint, _ time.Time, _ string, _ string) error {
 	return nil
 }
 
@@ -236,6 +236,6 @@ func (m *mockIBPortsStoreDebug) SetHealthy() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreDebug) Tombstone(timestamp time.Time) error {
+func (m *mockIBPortsStoreDebug) Tombstone(_ time.Time) error {
 	return nil
 }

@@ -1,5 +1,5 @@
 // Package types contains shared types for the infiniband package to avoid import cycles.
-package types
+package types //nolint:revive // The directory name is intentionally generic for shared InfiniBand types.
 
 import "strings"
 
@@ -28,6 +28,7 @@ type IBPort struct {
 	TotalLinkDowned uint64 `json:"total_link_downed"`
 }
 
+// IsIBPort reports whether the port is using the InfiniBand link layer.
 func (p IBPort) IsIBPort() bool {
 	return strings.EqualFold(p.LinkLayer, "infiniband")
 }

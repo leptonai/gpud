@@ -3,20 +3,19 @@ package login
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
-	"regexp"
 	"sort"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-const maxNodeLabels = 8
-
-var (
-	kubernetesLabelNameRegexp  = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)
-	kubernetesLabelValueRegexp = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)
+const (
+	maxNodeLabels          = 8
+	managedNodeLabelPrefix = "user.node.lepton.ai/"
 )
 
-// ParseNodeLabelsJSON parses a JSON object of unprefixed Kubernetes label name/value pairs.
+// ParseNodeLabelsJSON parses a JSON object of Kubernetes label key/value pairs.
+// Keys without the managed prefix are normalized later.
 // Omit the flag to send no nodeLabels field, or pass {} to explicitly clear the labels.
 func ParseNodeLabelsJSON(raw string) (map[string]string, error) {
 	trimmed := strings.TrimSpace(raw)
@@ -44,15 +43,40 @@ func normalizeNodeLabels(labels map[string]string) (map[string]string, error) {
 		return nil, nil
 	}
 
-	cloned := maps.Clone(labels)
-	if err := ValidateNodeLabels(cloned); err != nil {
+	keys := make([]string, 0, len(labels))
+	for key := range labels {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	normalized := make(map[string]string, len(labels))
+	normalizedSources := make(map[string]string, len(labels))
+	for _, key := range keys {
+		normalizedKey := normalizeNodeLabelKey(key)
+		if prevKey, ok := normalizedSources[normalizedKey]; ok {
+			return nil, fmt.Errorf("node label keys %q and %q normalize to the same managed key %q", prevKey, key, normalizedKey)
+		}
+
+		normalizedSources[normalizedKey] = key
+		normalized[normalizedKey] = labels[key]
+	}
+
+	if err := ValidateNodeLabels(normalized); err != nil {
 		return nil, err
 	}
-	return cloned, nil
+	return normalized, nil
 }
 
-// ValidateNodeLabels validates the unprefixed label names and values that GPUd sends
-// during login. The control plane is responsible for adding the managed prefix later.
+func normalizeNodeLabelKey(key string) string {
+	if strings.HasPrefix(key, managedNodeLabelPrefix) {
+		return key
+	}
+	return managedNodeLabelPrefix + key
+}
+
+// ValidateNodeLabels validates the final Kubernetes label keys and values that GPUd sends
+// during login, after managed-prefix normalization has been applied. This means the
+// Kubernetes qualified-name length checks run against the fully prefixed key.
 func ValidateNodeLabels(labels map[string]string) error {
 	if labels == nil {
 		return nil
@@ -97,30 +121,15 @@ func canonicalNodeLabels(labels map[string]string) (string, error) {
 }
 
 func validateNodeLabelName(key string) error {
-	if key == "" {
-		return fmt.Errorf("must not be empty")
-	}
-	if strings.Contains(key, "/") {
-		return fmt.Errorf("must be unprefixed; do not include a DNS prefix or '/'")
-	}
-	if len(key) > 63 {
-		return fmt.Errorf("must be 63 characters or less")
-	}
-	if !kubernetesLabelNameRegexp.MatchString(key) {
-		return fmt.Errorf("must start and end with an alphanumeric character and may contain '-', '_' or '.' in between")
+	if errs := validation.IsQualifiedName(key); len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 	return nil
 }
 
 func validateNodeLabelValue(value string) error {
-	if value == "" {
-		return nil
-	}
-	if len(value) > 63 {
-		return fmt.Errorf("must be 63 characters or less")
-	}
-	if !kubernetesLabelValueRegexp.MatchString(value) {
-		return fmt.Errorf("must start and end with an alphanumeric character and may contain '-', '_' or '.' in between")
+	if errs := validation.IsValidLabelValue(value); len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 	return nil
 }

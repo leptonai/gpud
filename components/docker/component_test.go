@@ -426,7 +426,8 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, Name, c.Name())
 
 	// Create a new instance with different ignoreConnectionErrors
-	comp := c.(*component)
+	comp, ok := c.(*component)
+	require.True(t, ok)
 	comp.ignoreConnectionErrors = false
 	assert.False(t, comp.ignoreConnectionErrors)
 }
@@ -436,7 +437,8 @@ func TestComponentStates(t *testing.T) {
 	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
-	comp := c.(*component)
+	comp, ok := c.(*component)
+	require.True(t, ok)
 
 	// Test with empty data
 	comp.lastCheckResult = &checkResult{
@@ -489,7 +491,8 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
 	c, err := New(gpudInstance)
 	require.NoError(t, err)
-	comp := c.(*component)
+	comp, ok := c.(*component)
+	require.True(t, ok)
 
 	// Test with connection error
 	mockData := &checkResult{
@@ -513,7 +516,8 @@ func TestCheckOnceErrorConditions(t *testing.T) {
 	// Create a new component that doesn't ignore connection errors
 	c2, err := New(gpudInstance)
 	require.NoError(t, err)
-	comp2 := c2.(*component)
+	comp2, ok := c2.(*component)
+	require.True(t, ok)
 	comp2.ignoreConnectionErrors = false
 
 	mockData.health = apiv1.HealthStateTypeUnhealthy
@@ -1010,7 +1014,8 @@ func TestCheckErrorHandling(t *testing.T) {
 			}
 
 			result := comp.Check()
-			cr := result.(*checkResult)
+			cr, ok := result.(*checkResult)
+			require.True(t, ok)
 
 			// Verify the error was captured
 			assert.NotNil(t, cr.err)
@@ -1056,7 +1061,8 @@ func TestCheckErrorHandlingEdgeCases(t *testing.T) {
 		}
 
 		result := comp.Check()
-		cr := result.(*checkResult)
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 		assert.Contains(t, cr.reason, "error listing containers")
@@ -1084,7 +1090,8 @@ func TestCheckErrorHandlingEdgeCases(t *testing.T) {
 		}
 
 		result := comp.Check()
-		cr := result.(*checkResult)
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Contains(t, cr.reason, "connection error to docker daemon")
@@ -1111,7 +1118,8 @@ func TestCheckErrorHandlingEdgeCases(t *testing.T) {
 		}
 
 		result := comp.Check()
-		cr := result.(*checkResult)
+		cr, ok := result.(*checkResult)
+		require.True(t, ok)
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 		assert.Contains(t, cr.reason, "error listing containers")
@@ -1150,7 +1158,8 @@ func TestCheckDockerClientVersionErrorHandling(t *testing.T) {
 			}
 
 			result := comp.Check()
-			cr := result.(*checkResult)
+			cr, ok := result.(*checkResult)
+			require.True(t, ok)
 
 			// Verify the version error is handled specially
 			assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
@@ -1188,7 +1197,8 @@ func TestCheckErrorHandlingWithSuccessfulScenario(t *testing.T) {
 	}
 
 	result := comp.Check()
-	cr := result.(*checkResult)
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
 
 	// Verify successful scenario
 	assert.Nil(t, cr.err)

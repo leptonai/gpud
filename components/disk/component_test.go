@@ -1,3 +1,4 @@
+//revive:disable:unused-parameter
 package disk
 
 import (
@@ -28,11 +29,15 @@ type mockEventStore struct {
 	mock.Mock
 }
 
-func (m *mockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *mockEventStore) Bucket(name string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	args := m.Called(name) // Do not pass opts to m.Called for simplicity unless needed
 	var bucket eventstore.Bucket
 	if args.Get(0) != nil {
-		bucket = args.Get(0).(eventstore.Bucket)
+		var ok bool
+		bucket, ok = args.Get(0).(eventstore.Bucket)
+		if !ok {
+			return nil, args.Error(1)
+		}
 	}
 	return bucket, args.Error(1)
 }
@@ -57,14 +62,22 @@ func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*eventstore.Event), args.Error(1)
+	ev, ok := args.Get(0).(*eventstore.Event)
+	if !ok {
+		return nil, args.Error(1)
+	}
+	return ev, args.Error(1)
 }
 
 func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	args := m.Called(ctx, since)
 	var events eventstore.Events
 	if args.Get(0) != nil {
-		events = args.Get(0).(eventstore.Events)
+		var ok bool
+		events, ok = args.Get(0).(eventstore.Events)
+		if !ok {
+			return nil, args.Error(1)
+		}
 	}
 	return events, args.Error(1)
 }
@@ -74,7 +87,11 @@ func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*eventstore.Event), args.Error(1)
+	ev, ok := args.Get(0).(*eventstore.Event)
+	if !ok {
+		return nil, args.Error(1)
+	}
+	return ev, args.Error(1)
 }
 
 func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -105,7 +122,10 @@ func createTestComponent(ctx context.Context, mountPoints, mountTargets []string
 		MountTargets: mountTargets,
 	}
 	c, _ := New(gpudInstance)
-	ct := c.(*component)
+	ct, ok := c.(*component)
+	if !ok {
+		panic("unexpected component type")
+	}
 	ct.retryInterval = 0
 
 	// Initialize statWithTimeoutFunc with real implementation for tests that don't override it
@@ -134,7 +154,7 @@ func createTestComponentWithTime(ctx context.Context, mountPoints, mountTargets 
 
 func runChecks(c *component, times int) *checkResult {
 	var cr *checkResult
-	for i := 0; i < times; i++ {
+	for range times {
 		result := c.Check()
 		var ok bool
 		cr, ok = result.(*checkResult)
@@ -196,7 +216,7 @@ func TestNewComponent(t *testing.T) {
 }
 
 func TestComponentStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	c := createTestComponent(ctx, []string{}, []string{})
@@ -412,7 +432,7 @@ func TestCheckOnce(t *testing.T) {
 }
 
 func TestErrorRetry(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	mockDevice := disk.BlockDevice{
@@ -832,7 +852,7 @@ func TestFindMntRetryLogic(t *testing.T) {
 
 	// Create a file in the directory to ensure it exists and has content
 	testFile := tempDir + "/testfile"
-	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	err = os.WriteFile(testFile, []byte("test content"), 0o600)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -885,7 +905,7 @@ func TestFindMntRetryLogic(t *testing.T) {
 			}
 
 			// Create component with mock functions
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			c := &component{
@@ -960,11 +980,11 @@ func TestMountTargetUsagesInitialization(t *testing.T) {
 
 	// Create a file in the directory to ensure it exists and has content
 	testFile := tempDir + "/testfile"
-	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	err = os.WriteFile(testFile, []byte("test content"), 0o600)
 	require.NoError(t, err)
 
 	// Test that MountTargetUsages is properly initialized
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	c := &component{
@@ -1040,11 +1060,11 @@ func TestFindMntLogging(t *testing.T) {
 
 	// Create a file in the directory to ensure it exists and has content
 	testFile := tempDir + "/testfile"
-	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	err = os.WriteFile(testFile, []byte("test content"), 0o600)
 	require.NoError(t, err)
 
 	// Test logging on retry success
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	callCount := 0
@@ -1249,7 +1269,7 @@ func TestNFSPartitionsRetrieval(t *testing.T) {
 
 // TestNFSPartitionsErrorRetry tests error handling and retry logic for NFS partitions
 func TestNFSPartitionsErrorRetry(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	mockDevice := disk.BlockDevice{
@@ -1836,10 +1856,7 @@ func TestNew_EventStoreHandling(t *testing.T) {
 		mockEventStore.AssertCalled(t, "Bucket", Name)
 
 		// kmsgSyncer is only created on Linux when running as root
-		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
-			// kmsgSyncer might be set on Linux as root
-			// We can't easily test this without mocking kmsg.NewSyncer
-		} else {
+		if runtime.GOOS != "linux" || os.Geteuid() != 0 {
 			assert.Nil(t, diskComp.kmsgSyncer, "kmsgSyncer should be nil when not on Linux as root")
 		}
 	})
@@ -2180,7 +2197,7 @@ func TestComponent_StatTimedOut_ConsecutiveFailures(t *testing.T) {
 		return disk.Partitions{mockNFSPartition()}, nil
 	}
 
-	for i := 0; i < nfsStatTimeoutConsecutiveThreshold-1; i++ {
+	for range nfsStatTimeoutConsecutiveThreshold - 1 {
 		cr := runChecks(c, 1)
 		require.NotNil(t, cr)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
@@ -2497,7 +2514,7 @@ func TestComponent_TimeoutScenarios_CompleteFlow(t *testing.T) {
 		{
 			name: "context_canceled",
 			ctxFunc: func() (context.Context, context.CancelFunc) {
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithCancel(t.Context())
 				cancel() // Cancel immediately
 				return ctx, cancel
 			},
@@ -2548,7 +2565,7 @@ func TestComponent_TimeoutScenarios_CompleteFlow(t *testing.T) {
 			c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
 				return disk.Partitions{}, nil
 			}
-			c.getNFSPartitionsFunc = func(timeoutCtx context.Context) (disk.Partitions, error) {
+			c.getNFSPartitionsFunc = func(_ context.Context) (disk.Partitions, error) {
 				// Test with the scenario's context to simulate timeout behavior
 				testCtx, testCancel := scenario.ctxFunc()
 				defer testCancel()
@@ -2729,7 +2746,7 @@ func TestComponent_LookbackPeriodUsage(t *testing.T) {
 	}()
 
 	// Get the component and set custom lookback period
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	c.lookbackPeriod = customLookbackPeriod
 
 	// Verify that both eventBucket and rebootEventStore are set
@@ -2924,7 +2941,7 @@ func TestComponent_StatWithTimeoutDeadlineExceeded(t *testing.T) {
 }
 
 func TestComponent_Ext4PartitionsTimeoutSetsReasonAndError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	c := createTestComponent(ctx, []string{}, []string{})
@@ -2965,7 +2982,7 @@ func TestComponent_Ext4PartitionsTimeoutSetsReasonAndError(t *testing.T) {
 }
 
 func TestComponent_NFSPartitionsTimeoutSetsReasonAndError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	c := createTestComponent(ctx, []string{"/mnt/nfs"}, []string{})
@@ -3140,7 +3157,7 @@ func TestComponentWithMountPointFiltering(t *testing.T) {
 
 // TestComponent_SuperblockWriteErrorDetection tests detection and health evaluation of superblock write errors
 func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	now := time.Now()
@@ -3370,7 +3387,7 @@ func TestComponent_SuperblockWriteErrorDetection(t *testing.T) {
 
 // TestComponent_SuperblockWriteErrorWithMixedEventTypes tests superblock write errors with other error types
 func TestComponent_SuperblockWriteErrorWithMixedEventTypes(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	now := time.Now()
@@ -3540,7 +3557,7 @@ func TestComponent_SuperblockWriteErrorWithMixedEventTypes(t *testing.T) {
 
 // TestComponent_SuperblockWriteErrorSuggestedActions tests suggested actions logic specifically for superblock write errors
 func TestComponent_SuperblockWriteErrorSuggestedActions(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	now := time.Now()
@@ -3684,7 +3701,7 @@ func TestComponent_SuperblockWriteErrorSuggestedActions(t *testing.T) {
 
 // TestComponent_SuperblockWriteErrorEventStoreErrors tests error handling in event store operations
 func TestComponent_SuperblockWriteErrorEventStoreErrors(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	now := time.Now()
@@ -3814,7 +3831,7 @@ func TestComponent_SuperblockWriteErrorEventStoreErrors(t *testing.T) {
 
 // TestComponent_SuperblockWriteErrorIntegration tests end-to-end integration with real examples
 func TestComponent_SuperblockWriteErrorIntegration(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	now := time.Now()
@@ -3958,7 +3975,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		assert.Contains(t, cr.reason, "ext4 partition /: free space 15 GiB is below 20 GiB threshold (100 GiB total)")
@@ -4010,7 +4027,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		// NFS partitions with low free space currently do not impact health state.
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
@@ -4047,7 +4064,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -4083,7 +4100,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -4124,7 +4141,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		assert.Contains(t, cr.reason, "ext4 partition /: free space 400 MiB is below 500 MiB threshold")
@@ -4228,7 +4245,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		// Should still be healthy because percentage threshold only logs warning,
 		// doesn't affect health state (bytes threshold is not exceeded)
@@ -4272,7 +4289,7 @@ func TestDiskUsageThresholds(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		// Should be healthy - above all thresholds
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)

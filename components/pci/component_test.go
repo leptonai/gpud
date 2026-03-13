@@ -22,6 +22,16 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
+func mustComponent(t *testing.T, comp components.Component) *component {
+	t.Helper()
+
+	c, ok := comp.(*component)
+	if !ok {
+		t.Fatal("expected *component")
+	}
+	return c
+}
+
 func TestNewComponent(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
@@ -251,7 +261,7 @@ func TestCheckOnce_VirtualMachine(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	defer func() {
 		_ = comp.Close()
 	}()
@@ -296,7 +306,7 @@ func TestCheckOnce_EventCreation(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	defer func() {
 		_ = comp.Close()
 	}()
@@ -469,7 +479,7 @@ func TestComponent_States(t *testing.T) {
 
 	t.Run("component states with data", func(t *testing.T) {
 		// Inject test data
-		c := comp.(*component)
+		c := mustComponent(t, comp)
 		c.lastMu.Lock()
 		c.lastCheckResult = &checkResult{
 			Devices: []pci.Device{
@@ -491,7 +501,7 @@ func TestComponent_States(t *testing.T) {
 
 	t.Run("component states with error", func(t *testing.T) {
 		// Inject error data
-		c := comp.(*component)
+		c := mustComponent(t, comp)
 		c.lastMu.Lock()
 		testError := errors.New("test error")
 		c.lastCheckResult = &checkResult{
@@ -531,7 +541,7 @@ func TestCheckOnce_ListFuncError(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	defer func() {
 		_ = comp.Close()
 	}()
@@ -546,7 +556,7 @@ func TestCheckOnce_ListFuncError(t *testing.T) {
 
 	// Mock the listFunc to return an error
 	testErr := errors.New("test list error")
-	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(_ context.Context) (pci.Devices, error) {
 		called = true
 		return nil, testErr
 	}
@@ -591,7 +601,7 @@ func TestCheckOnce_ACSDevices(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	c.currentVirtEnv = host.VirtualizationEnvironment{
 		Type:  "baremetal",
@@ -617,7 +627,7 @@ func TestCheckOnce_ACSDevices(t *testing.T) {
 			},
 		},
 	}
-	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(_ context.Context) (pci.Devices, error) {
 		return mockDevices, nil
 	}
 
@@ -672,7 +682,7 @@ func TestCheckOnce_NoACSDevices(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	c.currentVirtEnv = host.VirtualizationEnvironment{
 		Type:  "baremetal",
@@ -694,7 +704,7 @@ func TestCheckOnce_NoACSDevices(t *testing.T) {
 			AccessControlService: nil,
 		},
 	}
-	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(_ context.Context) (pci.Devices, error) {
 		return mockDevices, nil
 	}
 
@@ -745,7 +755,7 @@ func TestCheckOnce_RecentEvent(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	c.currentVirtEnv = host.VirtualizationEnvironment{
 		Type:  "baremetal",
@@ -767,7 +777,7 @@ func TestCheckOnce_RecentEvent(t *testing.T) {
 	c.eventBucket = mockBucket
 
 	// Set up a mock listFunc
-	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(_ context.Context) (pci.Devices, error) {
 		// This will always be called in Check() since it doesn't check for recent events
 		return nil, nil
 	}
@@ -799,7 +809,7 @@ func TestCheckOnce_EventBucketLatestError(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	c.currentVirtEnv = host.VirtualizationEnvironment{
 		Type:  "baremetal",
@@ -817,7 +827,7 @@ func TestCheckOnce_EventBucketLatestError(t *testing.T) {
 			},
 		},
 	}
-	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(_ context.Context) (pci.Devices, error) {
 		return mockDevices, nil
 	}
 
@@ -882,15 +892,15 @@ func (m *mockEventBucket) Name() string {
 	return "mock-bucket"
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
+func (m *mockEventBucket) Insert(context.Context, eventstore.Event) error {
 	return m.insertErr
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+func (m *mockEventBucket) Find(context.Context, eventstore.Event) (*eventstore.Event, error) {
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(context.Context, time.Time) (eventstore.Events, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -913,7 +923,7 @@ func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.
 	return nil, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *mockEventBucket) Latest(context.Context) (*eventstore.Event, error) {
 	if m.latestFunc != nil {
 		m.latestFunc()
 	}
@@ -923,7 +933,7 @@ func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error)
 	return m.latestEvent, nil
 }
 
-func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockEventBucket) Purge(context.Context, int64) (int, error) {
 	return 0, nil
 }
 
@@ -1012,7 +1022,7 @@ func TestData_CreateEvent(t *testing.T) {
 				_ = comp.Close()
 			}()
 
-			c := comp.(*component)
+			c := mustComponent(t, comp)
 			uuids := c.findACSEnabledDeviceUUIDsFunc(cr.Devices)
 
 			if tt.wantNil {
@@ -1045,7 +1055,7 @@ func TestConcurrentAccess(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Setup data
 	testDevices := []pci.Device{
@@ -1061,14 +1071,12 @@ func TestConcurrentAccess(t *testing.T) {
 
 	// Test concurrent access to lastCheckResult
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			states := comp.LastHealthStates()
 			assert.NoError(t, err)
 			assert.NotEmpty(t, states)
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -1092,7 +1100,7 @@ func TestKVMEnvironment(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Simulate KVM environment
 	c.currentVirtEnv = host.VirtualizationEnvironment{
@@ -1102,7 +1110,7 @@ func TestKVMEnvironment(t *testing.T) {
 
 	// This function should return early for KVM virtualization
 	var getPCICalled bool
-	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(_ context.Context) (pci.Devices, error) {
 		getPCICalled = true
 		return nil, nil
 	}
@@ -1156,7 +1164,7 @@ type mockStore struct {
 	bucketErr error
 }
 
-func (m *mockStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *mockStore) Bucket(string, ...eventstore.OpOption) (eventstore.Bucket, error) {
 	return nil, m.bucketErr
 }
 
@@ -1179,7 +1187,7 @@ func TestCheckOnce_EventBucketInsertError(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	c.currentVirtEnv = host.VirtualizationEnvironment{
 		Type:  "baremetal",
@@ -1197,7 +1205,7 @@ func TestCheckOnce_EventBucketInsertError(t *testing.T) {
 			},
 		},
 	}
-	c.getPCIDevicesFunc = func(ctx context.Context) (pci.Devices, error) {
+	c.getPCIDevicesFunc = func(_ context.Context) (pci.Devices, error) {
 		return mockDevices, nil
 	}
 
@@ -1246,7 +1254,7 @@ func TestStartAndClose(t *testing.T) {
 
 	// Check that ctx was canceled
 	select {
-	case <-comp.(*component).ctx.Done():
+	case <-mustComponent(t, comp).ctx.Done():
 		// Success - context was canceled
 	default:
 		t.Error("Context was not canceled after Close()")
@@ -1272,7 +1280,7 @@ func TestEvents(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	if c.eventBucket == nil {
 		t.Skip("eventBucket is nil, skipping test")
 	}
@@ -1446,7 +1454,7 @@ func TestNewWithNilEventStore(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	assert.Nil(t, c.eventBucket)
 
 	// Close should not panic with nil eventBucket
@@ -1473,7 +1481,7 @@ func TestStartWithEvents(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Skip if eventBucket is nil
 	if c.eventBucket == nil {
@@ -1522,7 +1530,7 @@ func TestStartWithBucketLatestError(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Skip if eventBucket is nil
 	if c.eventBucket == nil {
@@ -1569,7 +1577,7 @@ func TestCheckWithRealDevicesOnLinux(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Force isKVM to false to test baremetal path
 	c.currentVirtEnv = host.VirtualizationEnvironment{
@@ -1607,7 +1615,7 @@ func TestCheckWithUnknownVirtEnv(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Set unknown virtualization environment
 	c.currentVirtEnv = host.VirtualizationEnvironment{

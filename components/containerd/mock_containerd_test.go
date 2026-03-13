@@ -12,11 +12,8 @@ import (
 
 func TestCheckContainerdInstalled_WithMockey(t *testing.T) {
 	mockey.PatchConvey("checkContainerdInstalled respects LocateExecutable", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
-			if name == "containerd" {
-				return "/usr/bin/containerd", nil
-			}
-			return "", errors.New("not found")
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
+			return "/usr/bin/containerd", nil
 		}).Build()
 
 		assert.True(t, checkContainerdInstalled())
@@ -25,7 +22,7 @@ func TestCheckContainerdInstalled_WithMockey(t *testing.T) {
 
 func TestCheckContainerdInstalled_NotFoundWithMockey(t *testing.T) {
 	mockey.PatchConvey("checkContainerdInstalled handles not found", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "", errors.New("not found")
 		}).Build()
 
@@ -35,7 +32,7 @@ func TestCheckContainerdInstalled_NotFoundWithMockey(t *testing.T) {
 
 func TestCheckContainerdInstalled_PublicWrapperWithMockey(t *testing.T) {
 	mockey.PatchConvey("CheckContainerdInstalled public wrapper", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(name string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "/usr/bin/containerd", nil
 		}).Build()
 

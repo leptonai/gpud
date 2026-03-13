@@ -1,3 +1,4 @@
+// Package components defines the component interfaces and registry used by gpud.
 package components
 
 import (
@@ -45,6 +46,7 @@ type GPUdInstance struct {
 	FailureInjector *FailureInjector
 }
 
+// FailureInjector configures test-only failure injection for selected components.
 type FailureInjector struct {
 	GPUUUIDsWithRowRemappingPending               []string
 	GPUUUIDsWithRowRemappingFailed                []string

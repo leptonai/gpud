@@ -12,6 +12,7 @@ var (
 	defaultConfigs   = make(pkgnfschecker.Configs, 0)
 )
 
+// GetDefaultConfigs returns the current default NFS checker configs.
 func GetDefaultConfigs() pkgnfschecker.Configs {
 	defaultConfigsMu.RLock()
 	defer defaultConfigsMu.RUnlock()
@@ -19,6 +20,7 @@ func GetDefaultConfigs() pkgnfschecker.Configs {
 	return defaultConfigs
 }
 
+// SetDefaultConfigs replaces the default NFS checker configs.
 func SetDefaultConfigs(cfgs pkgnfschecker.Configs) {
 	log.Logger.Infow("setting default nfs checker configs", "count", len(cfgs))
 

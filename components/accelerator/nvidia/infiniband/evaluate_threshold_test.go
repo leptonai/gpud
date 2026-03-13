@@ -40,7 +40,7 @@ func TestCheckWithEmptyIbportsToEvaluate(t *testing.T) {
 		},
 		nvmlInstance: &mockNVMLInstance{exists: true, productName: "Tesla V100"},
 		eventBucket:  mockBucket,
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			return mockDevices, nil
 		},
 		getThresholdsFunc: func() types.ExpectedPortStates {

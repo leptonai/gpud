@@ -5,20 +5,36 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
+func newLocalHTTPServer(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("loopback listener unavailable in this environment: %v", err)
+	}
+
+	server := httptest.NewUnstartedServer(handler)
+	server.Listener = listener
+	server.Start()
+	t.Cleanup(server.Close)
+
+	return server
+}
+
 func TestSendRequest_Success(t *testing.T) {
 	// Setup mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify request
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
@@ -30,7 +46,6 @@ func TestSendRequest_Success(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
 
 	// Execute test
 	ctx := context.Background()
@@ -62,7 +77,7 @@ func TestSendRequest_HttpError(t *testing.T) {
 
 func TestSendRequest_BadStatusCode(t *testing.T) {
 	// Setup mock server returning error status
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		// Use a different variable name to avoid confusion with client's 'resp'
 		apiResp := apiv1.LoginResponse{
@@ -70,7 +85,6 @@ func TestSendRequest_BadStatusCode(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(apiResp)
 	}))
-	defer server.Close()
 
 	// Execute test
 	ctx := context.Background()
@@ -91,11 +105,10 @@ func TestSendRequest_BadStatusCode(t *testing.T) {
 
 func TestSendRequest_InvalidResponseFormat(t *testing.T) {
 	// Setup mock server returning invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("invalid json"))
 	}))
-	defer server.Close()
 
 	// Execute test
 	ctx := context.Background()
@@ -113,12 +126,11 @@ func TestSendRequest_InvalidResponseFormat(t *testing.T) {
 
 func TestSendRequest_ContextCancellation(t *testing.T) {
 	// Setup mock server with delay
-	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		// This sleep is intentionally left in place for the test
 		<-r.Context().Done()
 		// Context was canceled, connection should be aborted
 	}))
-	defer server.Close()
 
 	// Create a context that's already canceled
 	ctx, cancel := context.WithCancel(context.Background())
@@ -137,14 +149,13 @@ func TestSendRequest_ContextCancellation(t *testing.T) {
 
 func TestSendRequest_EmptyMachineID(t *testing.T) {
 	// Setup mock server returning empty machineID
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "", // Empty machine ID
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
 
 	// Execute test
 	ctx := context.Background()
@@ -162,7 +173,7 @@ func TestSendRequest_EmptyMachineID(t *testing.T) {
 
 func TestSendRequest(t *testing.T) {
 	// Setup mock server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify request
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
@@ -174,7 +185,6 @@ func TestSendRequest(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
 
 	// Execute test
 	ctx := context.Background()
@@ -192,7 +202,7 @@ func TestSendRequest(t *testing.T) {
 
 func TestSendRequestWithTimeout(t *testing.T) {
 	// Setup mock server with delay
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Add a delay to simulate network latency
 		time.Sleep(100 * time.Millisecond)
 
@@ -202,7 +212,6 @@ func TestSendRequestWithTimeout(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
 
 	// Create context with a very short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
@@ -241,7 +250,7 @@ func TestSendRequestWithMarshalError(t *testing.T) {
 
 func TestSendRequest_ServerError(t *testing.T) {
 	// Setup mock server returning a 500 Internal Server Error
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		// Use a different variable name
 		apiResp := apiv1.LoginResponse{
@@ -249,7 +258,6 @@ func TestSendRequest_ServerError(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(apiResp)
 	}))
-	defer server.Close()
 
 	ctx := context.Background()
 	req := apiv1.LoginRequest{
@@ -269,7 +277,7 @@ func TestSendRequest_ServerError(t *testing.T) {
 
 func TestSendRequest_ReadError(t *testing.T) {
 	// Setup mock server that will close the connection without sending a complete response
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Force-close the connection by hijacking it
 		hj, ok := w.(http.Hijacker)
 		if !ok {
@@ -282,7 +290,6 @@ func TestSendRequest_ReadError(t *testing.T) {
 		}
 		_ = conn.Close() // This forces the connection to close abruptly
 	}))
-	defer server.Close()
 
 	ctx := context.Background()
 	req := apiv1.LoginRequest{
@@ -295,37 +302,9 @@ func TestSendRequest_ReadError(t *testing.T) {
 	assert.Nil(t, resp)
 }
 
-func TestMarshalLoginRequest_NodeLabels(t *testing.T) {
-	t.Run("omits nodeLabels when nil", func(t *testing.T) {
-		b, err := marshalLoginRequest(apiv1.LoginRequest{
-			Token: "test-token",
-		})
-		require.NoError(t, err)
-		assert.NotContains(t, string(b), `"nodeLabels"`)
-	})
-
-	t.Run("encodes explicit clear as empty object", func(t *testing.T) {
-		b, err := marshalLoginRequest(apiv1.LoginRequest{
-			Token:      "test-token",
-			NodeLabels: map[string]string{},
-		})
-		require.NoError(t, err)
-		assert.Contains(t, string(b), `"nodeLabels":{}`)
-	})
-
-	t.Run("encodes populated nodeLabels", func(t *testing.T) {
-		b, err := marshalLoginRequest(apiv1.LoginRequest{
-			Token:      "test-token",
-			NodeLabels: map[string]string{"team": "ml"},
-		})
-		require.NoError(t, err)
-		assert.Contains(t, string(b), `"nodeLabels":{"team":"ml"}`)
-	})
-}
-
 func TestSendRequest_ComplexRequest(t *testing.T) {
 	// Setup mock server to verify complex request data
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse and verify request body
 		var receivedReq apiv1.LoginRequest
 		err := json.NewDecoder(r.Body).Decode(&receivedReq)
@@ -344,7 +323,6 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
 
 	ctx := context.Background()
 	req := apiv1.LoginRequest{
@@ -370,14 +348,13 @@ func TestSendRequest_ComplexRequest(t *testing.T) {
 
 func TestSendRequest_EmptyMachineIDReturnsError(t *testing.T) {
 	// Setup mock server returning empty machineID
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "", // Empty machine ID
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
 
 	// Execute test
 	ctx := context.Background()
@@ -395,7 +372,7 @@ func TestSendRequest_EmptyMachineIDReturnsError(t *testing.T) {
 
 func TestSendRequest_EmptyMachineIDWithMessageReturnsError(t *testing.T) {
 	// Setup mock server returning empty machineID but with an error message
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "",
@@ -403,7 +380,6 @@ func TestSendRequest_EmptyMachineIDWithMessageReturnsError(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
 
 	// Execute test
 	ctx := context.Background()
@@ -422,7 +398,7 @@ func TestSendRequest_EmptyMachineIDWithMessageReturnsError(t *testing.T) {
 
 func TestSendRequest_EmptyMachineIDWithStatusReturnsError(t *testing.T) {
 	// Setup mock server returning empty machineID but with status
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "",
@@ -430,7 +406,6 @@ func TestSendRequest_EmptyMachineIDWithStatusReturnsError(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
 
 	// Execute test
 	ctx := context.Background()
@@ -450,7 +425,7 @@ func TestSendRequest_EmptyMachineIDWithStatusReturnsError(t *testing.T) {
 func TestSendRequest_EmptyMachineIDWithOKStatusCodeReturnsError(t *testing.T) {
 	// Setup mock server returning empty machineID but with HTTP 200 OK
 	// This simulates a case where server returns success but without a machine ID
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		resp := apiv1.LoginResponse{
 			MachineID: "",
@@ -458,7 +433,6 @@ func TestSendRequest_EmptyMachineIDWithOKStatusCodeReturnsError(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
-	defer server.Close()
 
 	// Execute test
 	ctx := context.Background()

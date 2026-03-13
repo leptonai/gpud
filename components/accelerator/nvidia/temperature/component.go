@@ -23,6 +23,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
+// Name is the ID of the NVIDIA temperature component.
 const Name = "accelerator-nvidia-temperature"
 
 var _ components.Component = &component{}
@@ -40,6 +41,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates a NVIDIA temperature component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	if gpudInstance == nil {
 		return nil, errors.New("gpud instance is nil")
@@ -101,7 +103,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 
@@ -200,10 +202,10 @@ func (c *component) Check() components.CheckResult {
 		// NOTE: Some older GPUs or H100 may return ThresholdCelsiusSlowdownMargin of 0 or negative values,
 		// indicating the margin temperature feature is not reliably supported.
 		// We skip the margin check in such cases to avoid false positive alerts.
+		// A threshold of 0 disables the margin check, while <= 0 readings are treated as unreliable.
 		if temp.ThresholdCelsiusSlowdown > 0 && temp.MarginTemperatureSupported &&
-			marginThreshold.CelsiusSlowdownMargin > 0 && // threshold of 0 means the margin check is disabled
-			temp.ThresholdCelsiusSlowdownMargin > 0 { // margin <= 0 indicates unreliable/unsupported data
-
+			marginThreshold.CelsiusSlowdownMargin > 0 &&
+			temp.ThresholdCelsiusSlowdownMargin > 0 {
 			// margin left less than the threshold, indicating the GPU is approaching the slowdown threshold
 			// e.g.,
 			// 5°C margin left means the GPU is approaching the slowdown threshold at 82°C
@@ -270,16 +272,17 @@ func (c *component) Check() components.CheckResult {
 		metricMemMaxUsedPercent.With(prometheus.Labels{"uuid": uuid}).Set(memMaxPct)
 	}
 
-	if len(marginThresholdExceeded) > 0 {
+	switch {
+	case len(marginThresholdExceeded) > 0:
 		cr.health = apiv1.HealthStateTypeDegraded
 		cr.reason = fmt.Sprintf("margin threshold exceeded: %s", strings.Join(marginThresholdExceeded, ", "))
-	} else if len(gpuTempThresholdExceeded) > 0 {
+	case len(gpuTempThresholdExceeded) > 0:
 		cr.health = apiv1.HealthStateTypeDegraded
 		cr.reason = fmt.Sprintf("GPU temperature anomalies detected: %s", strings.Join(gpuTempThresholdExceeded, ", "))
-	} else if len(hbmTempThresholdExceeded) > 0 {
+	case len(hbmTempThresholdExceeded) > 0:
 		cr.health = apiv1.HealthStateTypeDegraded
 		cr.reason = fmt.Sprintf("HBM temperature anomalies detected: %s", strings.Join(hbmTempThresholdExceeded, ", "))
-	} else {
+	default:
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no temperature issue found", len(devs))
 	}

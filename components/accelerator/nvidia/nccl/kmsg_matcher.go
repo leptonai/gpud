@@ -17,6 +17,7 @@ var (
 	compiledNCCLSegfaultInLibnccl = regexp.MustCompile(regexNCCLSegfaultInLibnccl)
 )
 
+// HasNCCLSegfaultInLibnccl reports whether a line contains an NCCL segfault signature.
 func HasNCCLSegfaultInLibnccl(line string) bool {
 	if match := compiledNCCLSegfaultInLibnccl.FindStringSubmatch(line); match != nil {
 		return true
@@ -24,6 +25,7 @@ func HasNCCLSegfaultInLibnccl(line string) bool {
 	return false
 }
 
+// Match returns the NCCL event metadata for a kernel log line.
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {

@@ -1,3 +1,4 @@
+//revive:disable:unused-parameter
 package disk
 
 import (
@@ -24,11 +25,11 @@ type mockRebootEventStore struct {
 // Ensure mockRebootEventStore implements pkghost.RebootEventStore
 var _ pkghost.RebootEventStore = (*mockRebootEventStore)(nil)
 
-func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *mockRebootEventStore) RecordReboot(_ context.Context) error {
 	return nil
 }
 
-func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockRebootEventStore) GetRebootEvents(_ context.Context, _ time.Time) (eventstore.Events, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -312,7 +313,7 @@ func TestEventTypeDifferentiation(t *testing.T) {
 
 // TestComponent_Check_SuggestedActions tests the integration of suggested actions in Check method
 func TestComponent_Check_SuggestedActions(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	now := time.Now()
@@ -354,10 +355,10 @@ func TestComponent_Check_SuggestedActions(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{}
 		},
-		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+		getExt4PartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		},
-		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+		getNFSPartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		},
 	}
@@ -426,7 +427,7 @@ func TestCheckResult_HealthStates_WithSuggestedActions(t *testing.T) {
 
 // TestLookbackPeriod tests that lookbackPeriod is properly used
 func TestLookbackPeriod(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	now := time.Now()
@@ -473,7 +474,7 @@ func TestLookbackPeriod(t *testing.T) {
 		getGroupConfigsFunc: func() pkgnfschecker.Configs {
 			return pkgnfschecker.Configs{}
 		},
-		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+		getExt4PartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 			// Return at least one partition so the component doesn't exit early
 			return disk.Partitions{
 				{
@@ -488,7 +489,7 @@ func TestLookbackPeriod(t *testing.T) {
 				},
 			}, nil
 		},
-		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+		getNFSPartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		},
 	}
@@ -519,7 +520,7 @@ func (m *simpleMockEventBucket) Name() string {
 	return "disk-test-bucket"
 }
 
-func (m *simpleMockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
+func (m *simpleMockEventBucket) Insert(_ context.Context, event eventstore.Event) error {
 	if m.insertErr != nil {
 		return m.insertErr
 	}
@@ -527,7 +528,7 @@ func (m *simpleMockEventBucket) Insert(ctx context.Context, event eventstore.Eve
 	return nil
 }
 
-func (m *simpleMockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
+func (m *simpleMockEventBucket) Find(_ context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	if m.findErr != nil {
 		return nil, m.findErr
 	}
@@ -539,7 +540,7 @@ func (m *simpleMockEventBucket) Find(ctx context.Context, event eventstore.Event
 	return nil, nil
 }
 
-func (m *simpleMockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *simpleMockEventBucket) Get(_ context.Context, since time.Time) (eventstore.Events, error) {
 	var result eventstore.Events
 	for _, e := range m.events {
 		if e.Time.After(since) || e.Time.Equal(since) {
@@ -551,7 +552,7 @@ func (m *simpleMockEventBucket) Get(ctx context.Context, since time.Time) (event
 
 func (m *simpleMockEventBucket) Close() {}
 
-func (m *simpleMockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *simpleMockEventBucket) Latest(_ context.Context) (*eventstore.Event, error) {
 	if len(m.events) == 0 {
 		return nil, nil
 	}
@@ -564,13 +565,13 @@ func (m *simpleMockEventBucket) Latest(ctx context.Context) (*eventstore.Event, 
 	return &latest, nil
 }
 
-func (m *simpleMockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *simpleMockEventBucket) Purge(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
 
 // TestComponent_Check_DeduplicationAndSorting tests that duplicate failure reasons are deduplicated and sorted
 func TestComponent_Check_DeduplicationAndSorting(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	now := time.Now()
@@ -622,7 +623,7 @@ func TestComponent_Check_DeduplicationAndSorting(t *testing.T) {
 			return pkgnfschecker.Configs{}
 		},
 		freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded, // 500MB
-		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+		getExt4PartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 			return disk.Partitions{
 				{
 					Device:     "/dev/sda1",
@@ -636,7 +637,7 @@ func TestComponent_Check_DeduplicationAndSorting(t *testing.T) {
 				},
 			}, nil
 		},
-		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+		getNFSPartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		},
 	}

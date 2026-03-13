@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	// RegexNVRMXidCombined matches standard NVRM XID messages and captures the device ID and XID code.
 	// e.g.,
 	// [...] NVRM: Xid (0000:03:00): 14, Channel 00000001
 	// [...] NVRM: Xid (PCI:0000:05:00): 79, pid='<unknown>', name=<unknown>, GPU has fallen off the bus.
@@ -15,18 +16,19 @@ const (
 	//
 	// ref.
 	// https://docs.nvidia.com/deploy/pdf/XID_Errors.pdf
-
-	// Combined regex to extract both device UUID and Xid error code in one match
+	//
 	// Group 1: Device UUID (with or without PCI: prefix)
 	// Group 2: Xid error code
 	RegexNVRMXidCombined = `NVRM: Xid \(((?:PCI:)?[0-9a-fA-F:]+)\).*?: (\d+),`
 
+	// RegexNVRMXidExtended matches NVLink5 XID messages with subcode fields.
 	// Extended regex for NVLink5 errors (XIDs 144-150) with subcode information
 	// Captures: PCI address, XID, optional pid/name, subcode name, severity, XC type, injection, link, intrinfo, errorstatus
 	// Example: NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 08 (0x004505c6 0x00000000 ...)
 	// Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
 	RegexNVRMXidExtended = `NVRM: Xid \(PCI:([0-9a-fA-F:]+)\): (\d+)(?:, pid=(\d+), name=([^,]+))?, ([A-Z_]+(?:/[A-Z_]+)?)\s+(Nonfatal|Fatal)\s+(XC[01])\s+(i\d+)\s+Link\s+(-?\d+)\s+\((0x[0-9a-fA-F]+)\s+(0x[0-9a-fA-F]+)(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?(?:\s+(0x[0-9a-fA-F]+))?`
 
+	// RegexNVRMFallenOffBusMultiline matches multiline fallen-off-the-bus logs that imply XID 79.
 	// Fallback signatures for "GPU has fallen off the bus" logs that do not include
 	// explicit "NVRM: Xid (...)" text.
 	//
@@ -35,6 +37,7 @@ const (
 	// NVRM: ... fallen off the bus and is not responding to commands.
 	RegexNVRMFallenOffBusMultiline = `(?s)NVRM:\s+The NVIDIA GPU ((?:[0-9a-fA-F]{4}:)?[0-9a-fA-F]{2}:[0-9a-fA-F]{2})\.0.*?fallen off the bus and is not responding to commands\.`
 
+	// RegexNVRMFallenOffBusSingleLine matches single-line fallen-off-the-bus logs that imply XID 79.
 	// Single-line example:
 	// NVRM: GPU 0000:18:00.0: GPU has fallen off the bus.
 	RegexNVRMFallenOffBusSingleLine = `NVRM:\s+GPU ((?:[0-9a-fA-F]{4}:)?[0-9a-fA-F]{2}:[0-9a-fA-F]{2})\.0:\s+GPU has fallen off the bus\.?`
@@ -84,9 +87,9 @@ func ExtractNVRMXid(line string) int {
 	return id
 }
 
-// XidExtractedInfo contains detailed information extracted from NVLink5 XID error logs (XIDs 144-150).
+// ExtractedInfo contains detailed information extracted from NVLink5 XID error logs (XIDs 144-150).
 // Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
-type XidExtractedInfo struct {
+type ExtractedInfo struct {
 	DeviceUUID          string   `json:"device_uuid"`                     // PCI device address (e.g., "0018:01:00")
 	Xid                 int      `json:"xid"`                             // XID error code (144-150 for NVLink5)
 	Pid                 string   `json:"pid,omitempty"`                   // Process ID (optional, may be empty)
@@ -110,7 +113,7 @@ type XidExtractedInfo struct {
 //
 // Reference: https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html
 // Returns nil if the line doesn't match the extended format.
-func ExtractNVRMXidInfoExtended(line string) *XidExtractedInfo {
+func ExtractNVRMXidInfoExtended(line string) *ExtractedInfo {
 	match := compiledRegexNVRMXidExtended.FindStringSubmatch(line)
 	if match == nil {
 		return nil
@@ -162,7 +165,7 @@ func ExtractNVRMXidInfoExtended(line string) *XidExtractedInfo {
 		}
 	}
 
-	return &XidExtractedInfo{
+	return &ExtractedInfo{
 		DeviceUUID:          match[nvrmXidRegexIdxDeviceUUID],
 		Xid:                 xidCode,
 		Pid:                 match[nvrmXidRegexIdxPid],         // May be empty
@@ -187,7 +190,8 @@ func calculateSubCode(intrinfo uint32) int {
 	return int((intrinfo >> 20) & 0x3F)
 }
 
-type XidError struct {
+// Error describes a parsed XID kernel message.
+type Error struct {
 	Xid        int     `json:"xid"`
 	DeviceUUID string  `json:"device_uuid"`
 	Detail     *Detail `json:"detail,omitempty"`
@@ -195,14 +199,14 @@ type XidError struct {
 
 // Match returns a matching xid error object if found.
 // Otherwise, returns nil.
-func Match(line string) *XidError {
+func Match(line string) *Error {
 	if info := ExtractNVRMXidInfoExtended(line); info != nil {
 		if detail, ok := detailFromNVLinkInfo(info); ok {
 			deviceUUID := info.DeviceUUID
 			if deviceUUID != "" && !strings.HasPrefix(deviceUUID, "PCI:") {
 				deviceUUID = "PCI:" + deviceUUID
 			}
-			return &XidError{
+			return &Error{
 				Xid:        info.Xid,
 				DeviceUUID: deviceUUID,
 				Detail:     detail,
@@ -216,7 +220,7 @@ func Match(line string) *XidError {
 		if !ok {
 			return nil
 		}
-		return &XidError{
+		return &Error{
 			Xid:        extractedID,
 			DeviceUUID: deviceUUID,
 			Detail:     detail,
@@ -230,7 +234,7 @@ func Match(line string) *XidError {
 		if !ok {
 			return nil
 		}
-		return &XidError{
+		return &Error{
 			Xid:        xid,
 			DeviceUUID: fallbackDeviceUUID,
 			Detail:     detail,

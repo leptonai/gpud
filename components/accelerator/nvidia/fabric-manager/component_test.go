@@ -98,7 +98,7 @@ func TestCheckFMExists(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		tempDir := t.TempDir()
 		binPath := filepath.Join(tempDir, "nv-fabricmanager")
-		require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+		require.NoError(t, os.Symlink("/bin/sh", binPath))
 		t.Setenv("PATH", tempDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 		assert.True(t, checkFMExists())
 	})
@@ -596,7 +596,6 @@ func TestCheckAllBranches(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc // Capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -645,7 +644,7 @@ func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	}
 
 	devices := make(map[string]device.Device)
-	for i := 0; i < m.deviceCount; i++ {
+	for i := range m.deviceCount {
 		devices[fmt.Sprintf("device-%d", i)] = nil // Using nil for simplicity since we only need the count
 	}
 	return devices
@@ -930,7 +929,6 @@ func TestCheckDeviceCountLogic(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1014,7 +1012,6 @@ func TestCheckDeviceCountWithActiveManager(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1083,7 +1080,6 @@ func TestCheckNVSwitchNotDetected(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1263,7 +1259,6 @@ func TestCheck_FabricStateUnhealthy_ComponentBecomesUnhealthy(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

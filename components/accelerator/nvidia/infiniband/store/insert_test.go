@@ -22,7 +22,8 @@ func TestLastTimestampInitialization(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 	s.lastInsertedTsMu.RLock()
 	lastTs := s.lastInsertedTs
 	s.lastInsertedTsMu.RUnlock()
@@ -30,6 +31,7 @@ func TestLastTimestampInitialization(t *testing.T) {
 
 	// Insert some data manually to test initialization with existing data
 	fixedTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	//nolint:gosec // defaultHistoryTable is a test-controlled identifier, not user input.
 	insertSQL := fmt.Sprintf(`INSERT INTO %s (timestamp, device, port, link_layer, state, physical_state, rate_gb_sec, total_link_downed, event_type, event_reason, extra_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, defaultHistoryTable)
 	_, err = dbRW.ExecContext(ctx, insertSQL, fixedTime.Unix(), "mlx5_0", 1, "infiniband", "active", "linkup", 400, 0, "", "", "")
 	require.NoError(t, err)
@@ -38,7 +40,8 @@ func TestLastTimestampInitialization(t *testing.T) {
 	store2, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s2 := store2.(*ibPortsStore)
+	s2, ok := store2.(*ibPortsStore)
+	require.True(t, ok)
 	s2.lastInsertedTsMu.RLock()
 	lastTs2 := s2.lastInsertedTs
 	s2.lastInsertedTsMu.RUnlock()
@@ -81,6 +84,7 @@ func TestInsertWithValidData(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify data was inserted
+	//nolint:gosec // defaultHistoryTable is a test-controlled identifier, not user input.
 	query := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE timestamp = ?`, defaultHistoryTable)
 	row := dbRO.QueryRowContext(ctx, query, eventTime.Unix())
 	var count int
@@ -89,6 +93,7 @@ func TestInsertWithValidData(t *testing.T) {
 	assert.Equal(t, 2, count, "Should have inserted 2 records")
 
 	// Verify specific data
+	//nolint:gosec // defaultHistoryTable is a test-controlled identifier, not user input.
 	query = fmt.Sprintf(`SELECT device, port, state, physical_state, rate_gb_sec, total_link_downed FROM %s WHERE timestamp = ? ORDER BY device`, defaultHistoryTable)
 	rows, err := dbRO.QueryContext(ctx, query, eventTime.Unix())
 	require.NoError(t, err)
@@ -171,6 +176,7 @@ func TestInsertWithNonIBPorts(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify only IB ports were inserted
+	//nolint:gosec // defaultHistoryTable is a test-controlled identifier, not user input.
 	query := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE timestamp = ?`, defaultHistoryTable)
 	row := dbRO.QueryRowContext(ctx, query, eventTime.Unix())
 	var count int
@@ -179,6 +185,7 @@ func TestInsertWithNonIBPorts(t *testing.T) {
 	assert.Equal(t, 1, count, "Should have inserted only 1 IB port")
 
 	// Verify it's the correct port
+	//nolint:gosec // defaultHistoryTable is a test-controlled identifier, not user input.
 	query = fmt.Sprintf(`SELECT device, link_layer FROM %s WHERE timestamp = ?`, defaultHistoryTable)
 	row = dbRO.QueryRowContext(ctx, query, eventTime.Unix())
 	var device, linkLayer string
@@ -196,7 +203,8 @@ func TestInsertWithMinimumInterval(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 	s.configMu.Lock()
 	s.minInsertInterval = 1 * time.Minute // Set a longer interval for testing
 	s.configMu.Unlock()
@@ -225,6 +233,7 @@ func TestInsertWithMinimumInterval(t *testing.T) {
 	require.NoError(t, err) // Should not error, but should be skipped
 
 	// Verify only one record was inserted
+	//nolint:gosec // defaultHistoryTable is a test-controlled identifier, not user input.
 	query := fmt.Sprintf(`SELECT COUNT(*) FROM %s`, defaultHistoryTable)
 	row := dbRO.QueryRowContext(ctx, query)
 	var count int
@@ -287,6 +296,7 @@ func TestInsertWithEmptyPorts(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify no records were inserted
+	//nolint:gosec // defaultHistoryTable is a test-controlled identifier, not user input.
 	query := fmt.Sprintf(`SELECT COUNT(*) FROM %s`, defaultHistoryTable)
 	row := dbRO.QueryRowContext(ctx, query)
 	var count int
@@ -303,7 +313,8 @@ func TestUpdateAndGetLastInsertTimestamp(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Initial timestamp should be zero
 	lastTs := s.getLastInsertTimestamp()
@@ -342,6 +353,7 @@ func TestReadLastTimestamp(t *testing.T) {
 
 	// Insert test data
 	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	//nolint:gosec // defaultHistoryTable is a test-controlled identifier, not user input.
 	insertSQL := fmt.Sprintf(`INSERT INTO %s (timestamp, device, port, link_layer, state, physical_state, rate_gb_sec, total_link_downed, event_type, event_reason, extra_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, defaultHistoryTable)
 	_, err = dbRW.ExecContext(ctx, insertSQL, testTime.Unix(), "mlx5_0", 1, "infiniband", "active", "linkup", 400, 0, "", "", "")
 	require.NoError(t, err)
@@ -385,7 +397,8 @@ func TestInsertUpdatesDeviceAndPortValues(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Check initial state
 	devices := s.getAllDeviceValues()

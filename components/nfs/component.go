@@ -46,6 +46,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates the NFS component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -114,7 +115,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 
@@ -186,9 +187,12 @@ func (c *component) Check() components.CheckResult {
 	msg := make([]string, 0, len(memberConfigs))
 	for _, memberConfig := range memberConfigs {
 		// Create checker with timeout
-		timeoutCtx, cancel = context.WithTimeout(c.ctx, 5*time.Second)
-		checker, err := c.newChecker(timeoutCtx, &memberConfig)
-		cancel()
+		var checker pkgnfschecker.Checker
+		{
+			timeoutCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+			checker, err = c.newChecker(timeoutCtx, &memberConfig)
+			cancel()
+		}
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
@@ -203,9 +207,11 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		// Write with timeout
-		timeoutCtx, cancel = context.WithTimeout(c.ctx, 5*time.Second)
-		err = c.writeChecker(timeoutCtx, checker)
-		cancel()
+		{
+			timeoutCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+			err = c.writeChecker(timeoutCtx, checker)
+			cancel()
+		}
 		if err != nil {
 			cr.err = err
 			cr.health = apiv1.HealthStateTypeDegraded
@@ -219,9 +225,12 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		// Check with timeout
-		timeoutCtx, cancel = context.WithTimeout(c.ctx, 5*time.Second)
-		nfsResult := c.checkChecker(timeoutCtx, checker)
-		cancel()
+		var nfsResult pkgnfschecker.CheckResult
+		{
+			timeoutCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
+			nfsResult = c.checkChecker(timeoutCtx, checker)
+			cancel()
+		}
 		if len(nfsResult.Error) > 0 {
 			cr.err = errors.New(nfsResult.Error)
 			cr.health = apiv1.HealthStateTypeDegraded

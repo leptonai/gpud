@@ -32,6 +32,7 @@ type PersistenceMode struct {
 	Supported bool `json:"supported"`
 }
 
+// GetPersistenceMode returns the persistence mode for a device.
 func GetPersistenceMode(uuid string, dev device.Device) (PersistenceMode, error) {
 	mode := PersistenceMode{
 		UUID:      uuid,

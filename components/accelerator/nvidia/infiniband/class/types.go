@@ -326,6 +326,7 @@ type Device struct {
 // /sys/class/infiniband.
 type Devices []Device
 
+// RenderTable writes all devices in a human-readable table format.
 func (devs Devices) RenderTable(wr io.Writer) {
 	for _, dev := range devs {
 		dev.RenderTable(wr)
@@ -333,6 +334,7 @@ func (devs Devices) RenderTable(wr io.Writer) {
 	}
 }
 
+// RenderTable writes a single device in a human-readable table format.
 func (dev Device) RenderTable(wr io.Writer) {
 	table := tablewriter.NewWriter(wr)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)

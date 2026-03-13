@@ -36,7 +36,7 @@ func TestCheckKubeletInstalled_Found(t *testing.T) {
 // TestCheckKubeletInstalled_NotFound tests checkKubeletInstalled when kubelet is not found
 func TestCheckKubeletInstalled_NotFound(t *testing.T) {
 	mockey.PatchConvey("kubelet not found in PATH", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(bin string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "", errors.New("executable \"kubelet\" not found in PATH")
 		}).Build()
 
@@ -73,11 +73,11 @@ func TestNew_Success(t *testing.T) {
 // TestNew_WithMockedDependencies tests New with mocked checkKubeletInstalled
 func TestNew_WithMockedDependencies(t *testing.T) {
 	mockey.PatchConvey("New with mocked dependencies", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(bin string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "/usr/bin/kubelet", nil
 		}).Build()
 
-		mockey.Mock(netutil.IsPortOpen).To(func(port int) bool {
+		mockey.Mock(netutil.IsPortOpen).To(func(_ int) bool {
 			return true
 		}).Build()
 
@@ -193,7 +193,7 @@ func TestComponent_Check_NilCheckFunctions(t *testing.T) {
 // TestComponent_Check_ListPodsError tests Check when ListPodsFromKubeletReadOnlyPort fails
 func TestComponent_Check_ListPodsError(t *testing.T) {
 	mockey.PatchConvey("Check with ListPodsFromKubeletReadOnlyPort error", t, func() {
-		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(ctx context.Context, port int) (string, []PodStatus, error) {
+		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(_ context.Context, _ int) (string, []PodStatus, error) {
 			return "", nil, errors.New("connection refused")
 		}).Build()
 
@@ -222,7 +222,7 @@ func TestComponent_Check_ListPodsError(t *testing.T) {
 // TestComponent_Check_FailedCountThreshold tests Check when failed count exceeds threshold
 func TestComponent_Check_FailedCountThreshold(t *testing.T) {
 	mockey.PatchConvey("Check with failed count at threshold", t, func() {
-		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(ctx context.Context, port int) (string, []PodStatus, error) {
+		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(_ context.Context, _ int) (string, []PodStatus, error) {
 			return "", nil, errors.New("connection refused")
 		}).Build()
 
@@ -252,7 +252,7 @@ func TestComponent_Check_FailedCountThreshold(t *testing.T) {
 // TestComponent_Check_FailedCountReset tests that failed count resets on success
 func TestComponent_Check_FailedCountReset(t *testing.T) {
 	mockey.PatchConvey("Check resets failed count on success", t, func() {
-		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(ctx context.Context, port int) (string, []PodStatus, error) {
+		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(_ context.Context, _ int) (string, []PodStatus, error) {
 			return "test-node", []PodStatus{{Name: "pod1"}}, nil
 		}).Build()
 
@@ -295,7 +295,7 @@ func TestComponent_Check_Success(t *testing.T) {
 			},
 		}
 
-		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(ctx context.Context, port int) (string, []PodStatus, error) {
+		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(_ context.Context, _ int) (string, []PodStatus, error) {
 			return "test-node", pods, nil
 		}).Build()
 
@@ -669,7 +669,7 @@ func TestComponent_Check_ContextCancellation(t *testing.T) {
 // TestComponent_ConcurrentAccess tests concurrent access to component
 func TestComponent_ConcurrentAccess(t *testing.T) {
 	mockey.PatchConvey("concurrent access to component", t, func() {
-		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(ctx context.Context, port int) (string, []PodStatus, error) {
+		mockey.Mock(ListPodsFromKubeletReadOnlyPort).To(func(_ context.Context, _ int) (string, []PodStatus, error) {
 			return "test-node", []PodStatus{{Name: "pod1"}}, nil
 		}).Build()
 
@@ -687,7 +687,7 @@ func TestComponent_ConcurrentAccess(t *testing.T) {
 
 		// Run concurrent operations
 		done := make(chan bool, 20)
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			go func() {
 				c.Check()
 				done <- true
@@ -699,7 +699,7 @@ func TestComponent_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Wait for all goroutines
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			<-done
 		}
 

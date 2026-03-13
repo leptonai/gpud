@@ -18,7 +18,7 @@ import (
 
 func TestComponentCheck_VirtualMemoryErrorWithMockey(t *testing.T) {
 	mockey.PatchConvey("Check returns error when VirtualMemory fails", t, func() {
-		mockey.Mock(mem.VirtualMemoryWithContext).To(func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+		mockey.Mock(mem.VirtualMemoryWithContext).To(func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 			return nil, errors.New("vmem failed")
 		}).Build()
 
@@ -37,7 +37,7 @@ func TestComponentCheck_BPFJITError(t *testing.T) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getVirtualMemoryFunc: func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+		getVirtualMemoryFunc: func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 			return &mem.VirtualMemoryStat{
 				Total:        1024,
 				Available:    512,
@@ -59,7 +59,7 @@ func TestComponentCheck_BPFJITError(t *testing.T) {
 
 func TestComponentCheck_LowAvailableThresholdWithMockey(t *testing.T) {
 	mockey.PatchConvey("Check completes when available memory is low", t, func() {
-		mockey.Mock(mem.VirtualMemoryWithContext).To(func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+		mockey.Mock(mem.VirtualMemoryWithContext).To(func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 			return &mem.VirtualMemoryStat{
 				Total:       1024,
 				Available:   1,
@@ -90,17 +90,17 @@ type stubEventBucket struct {
 }
 
 func (s *stubEventBucket) Name() string { return "memory" }
-func (s *stubEventBucket) Insert(ctx context.Context, ev eventstore.Event) error {
+func (s *stubEventBucket) Insert(_ context.Context, _ eventstore.Event) error {
 	return nil
 }
-func (s *stubEventBucket) Find(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+func (s *stubEventBucket) Find(_ context.Context, _ eventstore.Event) (*eventstore.Event, error) {
 	return nil, nil
 }
-func (s *stubEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (s *stubEventBucket) Get(_ context.Context, _ time.Time) (eventstore.Events, error) {
 	return nil, s.getErr
 }
-func (s *stubEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) { return nil, nil }
-func (s *stubEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (s *stubEventBucket) Latest(_ context.Context) (*eventstore.Event, error) { return nil, nil }
+func (s *stubEventBucket) Purge(_ context.Context, beforeTimestamp int64) (int, error) {
 	s.lastPurgeBefore = beforeTimestamp
 	s.purgeCount = 1
 	return 1, nil
@@ -112,7 +112,7 @@ type staticBucketStore struct {
 	err    error
 }
 
-func (s *staticBucketStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (s *staticBucketStore) Bucket(_ string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

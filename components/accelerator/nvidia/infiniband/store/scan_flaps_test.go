@@ -372,14 +372,14 @@ func TestScanIBPortFlaps(t *testing.T) {
 	t.Run("successful_flap_detection", func(t *testing.T) {
 		// Insert test data that represents 2 flap cycles
 		// Cycle 1: down for 25s, then active
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+25*time.Second), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+30*time.Second), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+25*time.Second), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+30*time.Second), device, port, "active", 5)
 
 		// Cycle 2: down for 25s, then active
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+25*time.Second), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+30*time.Second), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+25*time.Second), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+30*time.Second), device, port, "active", 5)
 
 		// Scan for flaps
 		result, err := store.scanIBPortFlaps(device, port, currentTime.Add(-3*time.Minute))
@@ -399,9 +399,9 @@ func TestScanIBPortFlaps(t *testing.T) {
 		require.NoError(t, err)
 
 		// Insert test data - all active
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "active", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "active", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "active", 5)
 
 		// Scan for flaps
 		result, err := store.scanIBPortFlaps(device, port, currentTime.Add(-4*time.Minute))
@@ -415,9 +415,9 @@ func TestScanIBPortFlaps(t *testing.T) {
 		require.NoError(t, err)
 
 		// Insert test data - only 1 flap cycle when we need 2
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+25*time.Second), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+30*time.Second), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+25*time.Second), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+30*time.Second), device, port, "active", 5)
 
 		// Scan for flaps
 		result, err := store.scanIBPortFlaps(device, port, currentTime.Add(-2*time.Minute))
@@ -432,14 +432,14 @@ func TestScanIBPortFlaps(t *testing.T) {
 
 		// Insert test data - down intervals too short (15s < 20s threshold)
 		// Cycle 1
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+15*time.Second), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+20*time.Second), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+15*time.Second), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+20*time.Second), device, port, "active", 5)
 
 		// Cycle 2
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+15*time.Second), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+20*time.Second), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+15*time.Second), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+20*time.Second), device, port, "active", 5)
 
 		// Scan for flaps
 		result, err := store.scanIBPortFlaps(device, port, currentTime.Add(-3*time.Minute))
@@ -454,21 +454,21 @@ func TestScanIBPortFlaps(t *testing.T) {
 
 		// Insert complex scenario: persistent down, then 2 flaps
 		// Long persistent down (not a flap)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-5*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-4*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-5*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-4*time.Minute), device, port, "down", 5)
 
 		// Back to active
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-3*time.Minute+30*time.Second), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-3*time.Minute+30*time.Second), device, port, "active", 5)
 
 		// Flap 1
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-3*time.Minute+25*time.Second), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+30*time.Second), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-3*time.Minute+25*time.Second), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+30*time.Second), device, port, "active", 5)
 
 		// Flap 2
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+25*time.Second), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+30*time.Second), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute+25*time.Second), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute+30*time.Second), device, port, "active", 5)
 
 		// Scan for flaps
 		result, err := store.scanIBPortFlaps(device, port, currentTime.Add(-6*time.Minute))

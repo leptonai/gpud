@@ -1,3 +1,4 @@
+//revive:disable:unused-parameter
 package disk
 
 import (
@@ -22,13 +23,13 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 	// Helper function to create a test component with mocked dependencies
 	createTestComponentWithEvents := func(diskEvents eventstore.Events, rebootEvents eventstore.Events) (*component, *mockEventBucket, *mockRebootEventStore) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 
 		// Create mock event bucket
 		mockBucket := &mockEventBucket{}
 		// Use mock.MatchedBy to match any time argument
-		mockBucket.On("Get", ctx, mock.MatchedBy(func(t time.Time) bool { return true })).Return(diskEvents, nil)
+		mockBucket.On("Get", ctx, mock.MatchedBy(func(_ time.Time) bool { return true })).Return(diskEvents, nil)
 		mockBucket.On("Close").Return()
 
 		// Create mock reboot event store
@@ -94,7 +95,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 
 		// Run check
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		// Verify the component reports healthy state
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
@@ -131,7 +132,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 		}()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -166,7 +167,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 		}()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -201,7 +202,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 		}()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -236,7 +237,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 		}()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -271,7 +272,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 		}()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -306,7 +307,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 		}()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -355,7 +356,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 		}()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -406,7 +407,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 		}()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		// Should be unhealthy because NVMe failure persists
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
@@ -431,7 +432,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 		}()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
@@ -443,7 +444,7 @@ func TestDiskFailureResolutionAfterReboot(t *testing.T) {
 // cleaned up when failures are resolved after reboot
 func TestFailureReasonMapCleanup(t *testing.T) {
 	now := time.Now()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	// Create a component with all failure types before reboot
@@ -509,7 +510,7 @@ func TestFailureReasonMapCleanup(t *testing.T) {
 	}
 
 	mockBucket := &mockEventBucket{}
-	mockBucket.On("Get", ctx, mock.MatchedBy(func(t time.Time) bool { return true })).Return(allFailureEvents, nil)
+	mockBucket.On("Get", ctx, mock.MatchedBy(func(_ time.Time) bool { return true })).Return(allFailureEvents, nil)
 	mockBucket.On("Close").Return()
 
 	mockRebootStore := &mockRebootEventStore{
@@ -540,7 +541,7 @@ func TestFailureReasonMapCleanup(t *testing.T) {
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	// All failures should be resolved after reboot
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)

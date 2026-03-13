@@ -11,7 +11,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
 
-func TestGPMSupportedByDevice(t *testing.T) {
+func TestSupportedByDevice(t *testing.T) {
 	testCases := []struct {
 		name                  string
 		gpmDeviceSupport      nvml.GpmSupport
@@ -77,7 +77,7 @@ func TestGPMSupportedByDevice(t *testing.T) {
 				tc.gpmDeviceSupportRet,
 			)
 
-			supported, err := GPMSupportedByDevice(mockDevice)
+			supported, err := SupportedByDevice(mockDevice)
 
 			if tc.expectError {
 				assert.Error(t, err)

@@ -28,11 +28,11 @@ type mockDevice struct {
 	uuid              string
 }
 
-func (m *mockDevice) GetNvLinkState(link int) (nvml.EnableState, nvml.Return) {
+func (m *mockDevice) GetNvLinkState(_ int) (nvml.EnableState, nvml.Return) {
 	return m.nvLinkState, m.nvLinkStateErr
 }
 
-func (m *mockDevice) GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
+func (m *mockDevice) GetNvLinkErrorCounter(_ int, counter nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
 	switch counter {
 	case nvml.NVLINK_ERROR_DL_REPLAY:
 		return m.replayErrors, m.replayErrorsErr
@@ -208,7 +208,7 @@ func TestGetNVLink(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Mock the NVML functions
-			nvml.DeviceGetNvLinkErrorCounter = func(device nvml.Device, link int, counter nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
+			nvml.DeviceGetNvLinkErrorCounter = func(_ nvml.Device, link int, counter nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
 				return tc.mockDev.GetNvLinkErrorCounter(link, counter)
 			}
 

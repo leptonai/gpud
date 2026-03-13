@@ -31,8 +31,10 @@ var gpuPortConfigs = map[string]types.ExpectedPortStates{
 	"gb200": {AtLeastPorts: 8, AtLeastRate: 400},
 }
 
+// ErrNoExpectedPortStates reports that the GPU product does not have a known InfiniBand profile.
 var ErrNoExpectedPortStates = errors.New("no expected port states found (not supported)")
 
+// SupportsInfinibandPortRate returns the expected InfiniBand port thresholds for a GPU product.
 func SupportsInfinibandPortRate(gpuProductName string) (types.ExpectedPortStates, error) {
 	p := strings.ToLower(gpuProductName)
 

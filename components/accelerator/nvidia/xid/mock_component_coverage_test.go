@@ -31,6 +31,22 @@ func (m *configurableNVML) NVMLExists() bool    { return m.nvmlExists }
 func (m *configurableNVML) ProductName() string { return m.productName }
 func (m *configurableNVML) InitError() error    { return m.initErr }
 
+func mustComponent(t *testing.T, comp components.Component) *component {
+	t.Helper()
+
+	c, ok := comp.(*component)
+	require.True(t, ok)
+	return c
+}
+
+func mustCheckResult(t *testing.T, result components.CheckResult) *checkResult {
+	t.Helper()
+
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	return cr
+}
+
 type stubEventBucket struct {
 	getErr    error
 	getEvents eventstore.Events
@@ -39,16 +55,16 @@ type stubEventBucket struct {
 	findEvent *eventstore.Event
 }
 
-func (s *stubEventBucket) Name() string                                          { return "stub" }
-func (s *stubEventBucket) Insert(ctx context.Context, ev eventstore.Event) error { return s.insertErr }
-func (s *stubEventBucket) Find(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+func (s *stubEventBucket) Name() string                                       { return "stub" }
+func (s *stubEventBucket) Insert(_ context.Context, _ eventstore.Event) error { return s.insertErr }
+func (s *stubEventBucket) Find(_ context.Context, _ eventstore.Event) (*eventstore.Event, error) {
 	return s.findEvent, s.findErr
 }
-func (s *stubEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (s *stubEventBucket) Get(_ context.Context, _ time.Time) (eventstore.Events, error) {
 	return s.getEvents, s.getErr
 }
-func (s *stubEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) { return nil, nil }
-func (s *stubEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (s *stubEventBucket) Latest(_ context.Context) (*eventstore.Event, error) { return nil, nil }
+func (s *stubEventBucket) Purge(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
 func (s *stubEventBucket) Close() {}
@@ -58,7 +74,7 @@ type stubEventStore struct {
 	err    error
 }
 
-func (s *stubEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (s *stubEventStore) Bucket(_ string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	return s.bucket, s.err
 }
 
@@ -67,8 +83,8 @@ type stubRebootStore struct {
 	err    error
 }
 
-func (s *stubRebootStore) RecordReboot(ctx context.Context) error { return nil }
-func (s *stubRebootStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (s *stubRebootStore) RecordReboot(_ context.Context) error { return nil }
+func (s *stubRebootStore) GetRebootEvents(_ context.Context, _ time.Time) (eventstore.Events, error) {
 	return s.events, s.err
 }
 
@@ -114,7 +130,7 @@ func TestCheckResult_Coverage_WithMockey(t *testing.T) {
 }
 
 func TestNew_Branches_WithMockey(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	mockey.PatchConvey("New returns event bucket error", t, func() {
@@ -130,7 +146,7 @@ func TestNew_Branches_WithMockey(t *testing.T) {
 
 	mockey.PatchConvey("New returns watcher error when running as root", t, func() {
 		mockey.Mock(os.Geteuid).To(func() int { return 0 }).Build()
-		mockey.Mock(kmsg.NewWatcher).To(func(opts ...kmsg.OpOption) (kmsg.Watcher, error) {
+		mockey.Mock(kmsg.NewWatcher).To(func(...kmsg.OpOption) (kmsg.Watcher, error) {
 			return nil, errors.New("watcher failed")
 		}).Build()
 
@@ -146,7 +162,7 @@ func TestNew_Branches_WithMockey(t *testing.T) {
 }
 
 func TestComponent_Start_Events_Close_Coverage_WithMockey(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	t.Run("Start exits on context canceled update", func(t *testing.T) {
@@ -200,7 +216,7 @@ func TestComponent_Start_Events_Close_Coverage_WithMockey(t *testing.T) {
 }
 
 func TestComponent_start_Branches_WithMockey(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	extraCh := make(chan *eventstore.Event, 2)
@@ -292,7 +308,7 @@ func TestCheck_EarlyBranches_WithMockey(t *testing.T) {
 				return now
 			},
 		}
-		cr := c.Check().(*checkResult)
+		cr := mustCheckResult(t, c.Check())
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Contains(t, cr.reason, "NVML library is not loaded")
 	})
@@ -305,7 +321,7 @@ func TestCheck_EarlyBranches_WithMockey(t *testing.T) {
 				return now
 			},
 		}
-		cr := c.Check().(*checkResult)
+		cr := mustCheckResult(t, c.Check())
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 		assert.Contains(t, cr.reason, "NVML initialization error")
 		require.NotNil(t, cr.suggestedActions)
@@ -320,7 +336,7 @@ func TestCheck_EarlyBranches_WithMockey(t *testing.T) {
 				return now
 			},
 		}
-		cr := c.Check().(*checkResult)
+		cr := mustCheckResult(t, c.Check())
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Contains(t, cr.reason, "missing product name")
 	})
@@ -341,14 +357,14 @@ func TestCheck_EarlyBranches_WithMockey(t *testing.T) {
 				return now
 			},
 		}
-		cr := c.Check().(*checkResult)
+		cr := mustCheckResult(t, c.Check())
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "matched 0 xid errors from 1 kmsg(s)", cr.reason)
 	})
 }
 
 func TestStart_RetryContextDoneBranch_WithMockey(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	c := &component{ctx: ctx}
 
 	mockey.PatchConvey("start retries until context is canceled", t, func() {
@@ -401,7 +417,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 	}
 
 	t.Run("find error branch", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		c := &component{
 			ctx:          ctx,
 			cancel:       cancel,
@@ -416,7 +432,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 	})
 
 	t.Run("same event branch", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		c := &component{
 			ctx:          ctx,
 			cancel:       cancel,
@@ -431,7 +447,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 	})
 
 	t.Run("insert error branch", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		c := &component{
 			ctx:          ctx,
 			cancel:       cancel,
@@ -446,7 +462,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 	})
 
 	t.Run("post-insert state update error branch", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		c := &component{
 			ctx:          ctx,
 			cancel:       cancel,
@@ -470,7 +486,7 @@ func TestNew_ReadAllKmsgSetOnLinuxRoot_WithMockey(t *testing.T) {
 		t.Skip("this branch is only reachable on linux")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	mockey.PatchConvey("new sets readAllKmsg when running as root on linux", t, func() {
@@ -482,7 +498,7 @@ func TestNew_ReadAllKmsgSetOnLinuxRoot_WithMockey(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, comp)
 
-		c := comp.(*component)
+		c := mustComponent(t, comp)
 		require.NotNil(t, c.readAllKmsg)
 		_ = c.Close()
 	})

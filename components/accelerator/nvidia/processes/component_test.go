@@ -64,9 +64,13 @@ func createMockDevice(uuid string, runningProcs []nvml.ProcessInfo) device.Devic
 			return uuid, nvml.SUCCESS
 		},
 		GetProcessUtilizationFunc: func(pid uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			pid32, ok := uint32FromUint64(pid)
+			if !ok {
+				return nil, nvml.ERROR_INVALID_ARGUMENT
+			}
 			return []nvml.ProcessUtilizationSample{
 				{
-					Pid:       uint32(pid),
+					Pid:       pid32,
 					TimeStamp: 123456789,
 					SmUtil:    50,
 					MemUtil:   30,
@@ -78,6 +82,14 @@ func createMockDevice(uuid string, runningProcs []nvml.ProcessInfo) device.Devic
 	}
 
 	return testutil.NewMockDevice(mockDevice, "test-arch", "test-brand", "test-cuda", "test-pci")
+}
+
+func mustComponent(t *testing.T, comp components.Component) *component {
+	t.Helper()
+
+	c, ok := comp.(*component)
+	require.True(t, ok)
+	return c
 }
 
 func TestNew(t *testing.T) {
@@ -207,10 +219,10 @@ func TestCheck(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Cast to component to access internal Check method
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Set the getProcessesFunc for testing
-	c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
+	c.getProcessesFunc = func(uuid string, _ device.Device) (Processes, error) {
 		return Processes{
 			UUID: uuid,
 			RunningProcesses: []Process{
@@ -259,11 +271,11 @@ func TestCheckError(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Cast to component to access internal methods
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Create a getProcessesFunc that returns an error
 	testErr := errors.New("test error")
-	c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
+	c.getProcessesFunc = func(_ string, _ device.Device) (Processes, error) {
 		return Processes{}, testErr
 	}
 
@@ -291,7 +303,7 @@ func TestLastHealthStates(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Cast to component to access internal lastCheckResult
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// At this point, lastCheckResult should be nil
 	states := c.LastHealthStates()
@@ -424,7 +436,7 @@ func TestCheckEdgeCases(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
+		c := mustComponent(t, comp)
 		result := c.Check()
 
 		data, ok := result.(*checkResult)
@@ -446,7 +458,7 @@ func TestCheckEdgeCases(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
+		c := mustComponent(t, comp)
 		result := c.Check()
 
 		data, ok := result.(*checkResult)
@@ -485,10 +497,10 @@ func TestCheckEdgeCases(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
+		c := mustComponent(t, comp)
 
 		// Set up the getProcessesFunc to match device UUID
-		c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
+		c.getProcessesFunc = func(uuid string, _ device.Device) (Processes, error) {
 			if uuid == "gpu-uuid-1" {
 				return Processes{
 					UUID: uuid,
@@ -496,15 +508,14 @@ func TestCheckEdgeCases(t *testing.T) {
 						{PID: 1234, GPUUsedMemoryBytes: 100000000},
 					},
 				}, nil
-			} else {
-				return Processes{
-					UUID: uuid,
-					RunningProcesses: []Process{
-						{PID: 5678, GPUUsedMemoryBytes: 200000000},
-						{PID: 9012, GPUUsedMemoryBytes: 300000000},
-					},
-				}, nil
 			}
+			return Processes{
+				UUID: uuid,
+				RunningProcesses: []Process{
+					{PID: 5678, GPUUsedMemoryBytes: 200000000},
+					{PID: 9012, GPUUsedMemoryBytes: 300000000},
+				},
+			}, nil
 		}
 
 		result := c.Check()
@@ -544,10 +555,10 @@ func TestCheck_GPULostError(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Cast to component to access internal methods
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Create a getProcessesFunc that returns GPU lost error
-	c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
+	c.getProcessesFunc = func(_ string, _ device.Device) (Processes, error) {
 		return Processes{}, nvmlerrors.ErrGPULost
 	}
 
@@ -601,10 +612,10 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Cast to component to access internal methods
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Create a getProcessesFunc that returns GPU requires reset error
-	c.getProcessesFunc = func(uuid string, dev device.Device) (Processes, error) {
+	c.getProcessesFunc = func(_ string, _ device.Device) (Processes, error) {
 		return Processes{}, nvmlerrors.ErrGPURequiresReset
 	}
 

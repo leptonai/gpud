@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	// Name is the ID of the NVIDIA HW slowdown component.
 	Name = "accelerator-nvidia-hw-slowdown"
 
 	// DefaultStateHWSlowdownEvaluationWindow is the window to evaluate the HW slowdown state.
@@ -62,6 +63,8 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates a NVIDIA HW slowdown component.
+// New creates an NVIDIA HW slowdown component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -165,7 +168,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	// hw slowdown events are ONLY used internally within this package
 	// solely to evaluate the suggested actions
 	// so we don't need to return any events externally

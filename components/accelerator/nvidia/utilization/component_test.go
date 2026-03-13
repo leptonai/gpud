@@ -115,6 +115,14 @@ func MockUtilizationComponent(
 	return comp
 }
 
+func mustComponent(t *testing.T, c components.Component) *component {
+	t.Helper()
+
+	component, ok := c.(*component)
+	require.True(t, ok)
+	return component
+}
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	mockNVMLInstance := &mockInstance{
@@ -190,11 +198,11 @@ func TestCheck_Success(t *testing.T) {
 		Supported:         true,
 	}
 
-	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
+	getUtilizationFunc := func(_ string, _ device.Device) (Utilization, error) {
 		return utilization, nil
 	}
 
-	component := MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc))
 	result := component.Check()
 
 	// Verify the data was collected
@@ -228,11 +236,11 @@ func TestCheck_UtilizationError(t *testing.T) {
 	}
 
 	errExpected := errors.New("utilization error")
-	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
+	getUtilizationFunc := func(_ string, _ device.Device) (Utilization, error) {
 		return Utilization{}, errExpected
 	}
 
-	component := MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc))
 	result := component.Check()
 
 	// Verify error handling
@@ -252,7 +260,7 @@ func TestCheck_NoDevices(t *testing.T) {
 		return map[string]device.Device{} // Empty map
 	}
 
-	component := MockUtilizationComponent(ctx, getDevicesFunc, nil).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, getDevicesFunc, nil))
 	result := component.Check()
 
 	// Verify handling of no devices
@@ -267,7 +275,7 @@ func TestCheck_NoDevices(t *testing.T) {
 
 func TestLastHealthStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := MockUtilizationComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, nil, nil))
 
 	// Set test data
 	component.lastMu.Lock()
@@ -298,7 +306,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 
 func TestLastHealthStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := MockUtilizationComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, nil, nil))
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -322,7 +330,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 
 func TestLastHealthStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := MockUtilizationComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, nil, nil))
 
 	// Don't set any data
 
@@ -346,7 +354,7 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create mock functions that count calls
@@ -371,7 +379,7 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := MockUtilizationComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, nil, nil))
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -635,7 +643,7 @@ func TestCheck_MultipleGPUs(t *testing.T) {
 		return devs
 	}
 
-	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
+	getUtilizationFunc := func(uuid string, _ device.Device) (Utilization, error) {
 		// Return different utilization values based on UUID
 		if uuid == uuid1 {
 			return Utilization{
@@ -644,17 +652,16 @@ func TestCheck_MultipleGPUs(t *testing.T) {
 				MemoryUsedPercent: 60,
 				Supported:         true,
 			}, nil
-		} else {
-			return Utilization{
-				UUID:              uuid2,
-				GPUUsedPercent:    90,
-				MemoryUsedPercent: 85,
-				Supported:         true,
-			}, nil
 		}
+		return Utilization{
+			UUID:              uuid2,
+			GPUUsedPercent:    90,
+			MemoryUsedPercent: 85,
+			Supported:         true,
+		}, nil
 	}
 
-	component := MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc))
 	result := component.Check()
 
 	// Verify the data was collected for both GPUs
@@ -706,11 +713,11 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
+	getUtilizationFunc := func(_ string, _ device.Device) (Utilization, error) {
 		return Utilization{}, nvmlerrors.ErrGPULost
 	}
 
-	component := MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc))
 	result := component.Check()
 
 	// Verify error handling for GPU lost case
@@ -761,13 +768,13 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error via nvml.Return and mapping in GetUtilization
-	getUtilizationFunc := func(uuid string, dev device.Device) (Utilization, error) {
+	getUtilizationFunc := func(_ string, _ device.Device) (Utilization, error) {
 		// Use any API that would surface this return in underlying helper; directly return the mapped error here
 		// because the utilization component only checks errors.Is on ErrGPURequiresReset
 		return Utilization{}, nvmlerrors.ErrGPURequiresReset
 	}
 
-	component := MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc).(*component)
+	component := mustComponent(t, MockUtilizationComponent(ctx, getDevicesFunc, getUtilizationFunc))
 	result := component.Check()
 
 	// Verify check result carries suggested actions

@@ -3,6 +3,7 @@ package fabricmanager
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -114,7 +115,7 @@ func Test_isNVIDIANVSwitchPCI(t *testing.T) {
 // This avoids shelling out to a subprocess, making the test fully deterministic.
 func filterFixture(t *testing.T, relativePath string, matchFunc func(string) bool) []string {
 	t.Helper()
-	f, err := os.Open(relativePath)
+	f, err := os.Open(filepath.Clean(relativePath))
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, f.Close())

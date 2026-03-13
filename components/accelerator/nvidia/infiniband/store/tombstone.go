@@ -39,6 +39,7 @@ func (s *ibPortsStore) Tombstone(timestamp time.Time) error {
 }
 
 func setTombstoneTimestamp(ctx context.Context, dbRW *sql.DB, metadataTable string, timestamp time.Time) error {
+	//nolint:gosec // metadataTable is an internal store identifier, not user input.
 	query := fmt.Sprintf(`INSERT OR REPLACE INTO %s (%s, %s) VALUES (?, ?);`, metadataTable, metadataColumnKey, metadataColumnValue)
 
 	start := time.Now()
@@ -52,6 +53,7 @@ func setTombstoneTimestamp(ctx context.Context, dbRW *sql.DB, metadataTable stri
 }
 
 func getTombstoneTimestamp(ctx context.Context, dbRO *sql.DB, metadataTable string) (time.Time, error) {
+	//nolint:gosec // metadataTable is an internal store identifier, not user input.
 	query := fmt.Sprintf(`SELECT %s FROM %s WHERE %s = ? LIMIT 1;`, metadataColumnValue, metadataTable, metadataColumnKey)
 
 	start := time.Now()

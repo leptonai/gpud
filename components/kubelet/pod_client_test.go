@@ -31,7 +31,7 @@ func TestListFromKubeletReadOnlyPort(t *testing.T) {
 	portRaw := srv.URL[len("http://127.0.0.1:"):]
 	port, _ := strconv.ParseInt(portRaw, 10, 32)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	nodeName, pods, err := ListPodsFromKubeletReadOnlyPort(ctx, int(port))
 	require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestListFromKubeletReadOnlyPort(t *testing.T) {
 func TestGetFromKubeletReadOnlyPort_ParseError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}))
 	defer srv.Close()
@@ -56,7 +56,7 @@ func TestGetFromKubeletReadOnlyPort_ParseError(t *testing.T) {
 	portRaw := srv.URL[len("http://127.0.0.1:"):]
 	port, _ := strconv.ParseInt(portRaw, 10, 32)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	_, result, err := ListPodsFromKubeletReadOnlyPort(ctx, int(port))
 
@@ -67,7 +67,7 @@ func TestGetFromKubeletReadOnlyPort_ParseError(t *testing.T) {
 func TestGetFromKubeletReadOnlyPort_ConnError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}))
 
@@ -76,7 +76,7 @@ func TestGetFromKubeletReadOnlyPort_ConnError(t *testing.T) {
 
 	srv.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// connection error should not be a failure
@@ -137,7 +137,7 @@ func Test_PodStatusJSON(t *testing.T) {
 
 			if tc.name == "with conditions" {
 				// For the case with time values, just make sure it doesn't error and produces valid JSON
-				var obj map[string]interface{}
+				var obj map[string]any
 				err = json.Unmarshal(jsonData, &obj)
 				require.NoError(t, err)
 				assert.NotEmpty(t, obj)
@@ -151,7 +151,7 @@ func Test_PodStatusJSON(t *testing.T) {
 func Test_parsePodsFromKubeletReadOnlyPort(t *testing.T) {
 	t.Parallel()
 
-	file, err := os.OpenFile("kubelet-readonly-pods.json", os.O_RDONLY, 0644)
+	file, err := os.Open("kubelet-readonly-pods.json")
 	require.NoError(t, err)
 	defer func() {
 		_ = file.Close()

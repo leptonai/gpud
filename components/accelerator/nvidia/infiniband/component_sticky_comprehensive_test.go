@@ -152,7 +152,7 @@ func TestComprehensiveStickyWindowScenarios(t *testing.T) {
 						AtLeastRate:  400,
 					}
 				},
-				getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+				getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 					if tt.thresholdsFailing {
 						return createHealthyDevices(7, 400), nil // Below threshold
 					}
@@ -167,7 +167,7 @@ func TestComprehensiveStickyWindowScenarios(t *testing.T) {
 			}
 
 			// Execute
-			cr := c.Check().(*checkResult)
+			cr := requireCheckResult(t, c.Check())
 
 			// Assert
 			if tt.expectHealthy {
@@ -209,7 +209,7 @@ func TestStickyWindowTransitions(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			if portsHealthy {
 				return createHealthyDevices(8, 400), nil
 			}
@@ -219,7 +219,7 @@ func TestStickyWindowTransitions(t *testing.T) {
 
 	// Phase 1: Initial healthy state
 	t.Log("Phase 1: Initial healthy state")
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 
 	// Phase 2: Port fails, drop event created
@@ -233,7 +233,7 @@ func TestStickyWindowTransitions(t *testing.T) {
 			EventReason: "mlx5_7 port 1 down",
 		},
 	}
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Contains(t, cr.reason, "only 7 port(s)")
 	assert.Contains(t, cr.reason, "mlx5_7")
@@ -241,14 +241,14 @@ func TestStickyWindowTransitions(t *testing.T) {
 	// Phase 3: Port stays down for 30 minutes
 	t.Log("Phase 3: Port down for 30 minutes")
 	currentTime = currentTime.Add(30 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	require.True(t, cr.thresholdsFailing, "Threshold failure should be recorded while port remains down")
 
 	// Phase 4: Port recovers - enters sticky window
 	t.Log("Phase 4: Port recovers - sticky window starts")
 	portsHealthy = true
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Should remain unhealthy in sticky window")
 	assert.Contains(t, cr.reason, "mlx5_7")
@@ -259,14 +259,14 @@ func TestStickyWindowTransitions(t *testing.T) {
 	// Phase 5: Within sticky window (5 minutes after recovery)
 	t.Log("Phase 5: 5 minutes after recovery - still sticky")
 	currentTime = currentTime.Add(5 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Should still be unhealthy within 10-minute window")
 
 	// Phase 6: Sticky window expires (11 minutes after recovery)
 	t.Log("Phase 6: Sticky window expires")
 	currentTime = currentTime.Add(6 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"Should be healthy after sticky window")
 
@@ -323,7 +323,7 @@ func TestDormantPortFiltering(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			// All ports healthy now
 			return createHealthyDevices(8, 400), nil
 		},
@@ -331,7 +331,7 @@ func TestDormantPortFiltering(t *testing.T) {
 
 	// Scenario 1: No recovery tracked, thresholds passing
 	t.Log("Scenario 1: No recovery, thresholds passing")
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"Old drops should be ignored without recovery or threshold failure")
 
@@ -340,7 +340,7 @@ func TestDormantPortFiltering(t *testing.T) {
 	recoveryTime := baseTime
 	c.thresholdRecoveryTime = &recoveryTime
 
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Recent drop should make it unhealthy")
 	assert.Contains(t, cr.reason, "mlx5_7", "Recent drop should be included")
@@ -378,12 +378,12 @@ func TestEdgeCasesAndErrorConditions(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 				return createHealthyDevices(8, 400), nil
 			},
 		}
 
-		cr := c.Check().(*checkResult)
+		cr := requireCheckResult(t, c.Check())
 		// Future events should be treated as recent (dropAge would be negative -> 0)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 			"Future events should be processed as recent drops")
@@ -423,12 +423,12 @@ func TestEdgeCasesAndErrorConditions(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 				return createHealthyDevices(8, 400), nil
 			},
 		}
 
-		cr := c.Check().(*checkResult)
+		cr := requireCheckResult(t, c.Check())
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 		assert.Contains(t, cr.reason, "mlx5_0", "Drop should be included")
 		assert.Contains(t, cr.reason, "mlx5_1", "Flap should always be included")
@@ -445,7 +445,7 @@ type mockIBPortsStoreComprehensive struct {
 	events []infinibandstore.Event
 }
 
-func (m *mockIBPortsStoreComprehensive) Insert(time.Time, []types.IBPort) error {
+func (m *mockIBPortsStoreComprehensive) Insert(_ time.Time, _ []types.IBPort) error {
 	return nil
 }
 
@@ -453,11 +453,11 @@ func (m *mockIBPortsStoreComprehensive) Scan() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreComprehensive) LastEvents(since time.Time) ([]infinibandstore.Event, error) {
+func (m *mockIBPortsStoreComprehensive) LastEvents(_ time.Time) ([]infinibandstore.Event, error) {
 	return m.events, nil
 }
 
-func (m *mockIBPortsStoreComprehensive) SetEventType(string, uint, time.Time, string, string) error {
+func (m *mockIBPortsStoreComprehensive) SetEventType(_ string, _ uint, _ time.Time, _ string, _ string) error {
 	return nil
 }
 
@@ -466,6 +466,6 @@ func (m *mockIBPortsStoreComprehensive) SetHealthy() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreComprehensive) Tombstone(timestamp time.Time) error {
+func (m *mockIBPortsStoreComprehensive) Tombstone(_ time.Time) error {
 	return nil
 }

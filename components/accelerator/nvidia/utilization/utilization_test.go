@@ -163,7 +163,7 @@ func TestUtilizationWithCustomMockDevice(t *testing.T) {
 // TestGetUtilizationWithNilDevice tests the behavior of GetUtilization when passed a nil device.
 // This is a defensive test to ensure proper error handling in case of nil devices.
 func TestGetUtilizationWithNilDevice(t *testing.T) {
-	var nilDevice device.Device = nil
+	var nilDevice device.Device
 	testUUID := "GPU-NILTEST"
 
 	// We expect the function to panic with a nil device

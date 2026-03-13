@@ -7,7 +7,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
-// Defines the SXid error information that is static.
+// Detail describes a static SXID catalog entry.
 // ref. https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
 type Detail struct {
 	DocumentVersion string `json:"documentation_version"`
@@ -28,8 +28,7 @@ type Detail struct {
 	OtherImpact    string `json:"other_impact"`
 }
 
-// Returns the error if found.
-// Otherwise, returns false.
+// GetDetail returns the SXID detail for the given ID.
 func GetDetail(id int) (*Detail, bool) {
 	e, ok := details[id]
 	return &e, ok

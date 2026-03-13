@@ -35,12 +35,17 @@ import (
 const Name = "accelerator-nvidia-error-xid"
 
 const (
+	// StateNameErrorXid is the health state name for XID errors.
 	StateNameErrorXid = "error_xid"
 
-	EventNameErrorXid    = "error_xid"
+	// EventNameErrorXid is emitted when GPUd detects an XID error.
+	EventNameErrorXid = "error_xid"
+	// EventKeyErrorXidData stores the serialized XID payload.
 	EventKeyErrorXidData = "data"
-	EventKeyDeviceUUID   = "device_uuid"
+	// EventKeyDeviceUUID stores the device identifier associated with an XID event.
+	EventKeyDeviceUUID = "device_uuid"
 
+	// DefaultStateUpdatePeriod is the background XID state refresh period.
 	DefaultStateUpdatePeriod = 30 * time.Second
 )
 
@@ -70,6 +75,7 @@ type component struct {
 	currState apiv1.HealthState
 }
 
+// New returns the NVIDIA XID component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -287,8 +293,8 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		cr.FoundErrors = append(cr.FoundErrors, FoundError{
-			Kmsg:     kmsg,
-			XidError: *xidErr,
+			Kmsg:  kmsg,
+			Error: *xidErr,
 		})
 	}
 
@@ -328,7 +334,7 @@ type checkResult struct {
 // FoundError represents a found XID error and its corresponding kmsg.
 type FoundError struct {
 	Kmsg kmsg.Message
-	XidError
+	Error
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -488,11 +494,17 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			logger := log.Logger.With("id", id, "xid", xidErr.Xid, "xidName", xidName, "deviceUUID", xidErr.DeviceUUID)
 			logger.Infow("got xid event", "kmsg", message, "kmsgTimestamp", message.Timestamp.Unix())
 
+			xidValue, ok := uint64FromInt(xidErr.Xid)
+			if !ok {
+				logger.Errorw("invalid negative xid code", "xid", xidErr.Xid)
+				continue
+			}
+
 			xidPayload := xidErrorEventDetail{
 				Time:       metav1.NewTime(message.Timestamp.Time),
 				DataSource: "kmsg",
 				DeviceUUID: xidErr.DeviceUUID,
-				Xid:        uint64(xidErr.Xid),
+				Xid:        xidValue,
 			}
 			if xidErr.Detail != nil {
 				xidPayload.SubCode = xidErr.Detail.SubCode

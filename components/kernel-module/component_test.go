@@ -61,7 +61,10 @@ func TestCheckOnce(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			comp, err := New(&components.GPUdInstance{})
 			require.NoError(t, err)
-			c := comp.(*component)
+			c, ok := comp.(*component)
+			if !ok {
+				t.Fatal("expected *component")
+			}
 
 			c.getAllModulesFunc = func() ([]string, error) {
 				return tt.modulesToLoad, tt.loadError
@@ -125,7 +128,8 @@ func TestStates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 			require.NoError(t, err)
-			c := comp.(*component)
+			c, ok := comp.(*component)
+			require.True(t, ok)
 
 			c.getAllModulesFunc = func() ([]string, error) {
 				return tt.modulesToLoad, tt.loadError
@@ -213,7 +217,10 @@ func TestGetReason(t *testing.T) {
 				// Special case for nil data test
 				comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 				require.NoError(t, err)
-				c := comp.(*component)
+				c, ok := comp.(*component)
+				if !ok {
+					t.Fatal("expected *component")
+				}
 
 				// Ensure lastCheckResult is nil
 				c.lastMu.Lock()
@@ -229,7 +236,10 @@ func TestGetReason(t *testing.T) {
 			// For all other tests, create component and run Check
 			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 			require.NoError(t, err)
-			c := comp.(*component)
+			c, ok := comp.(*component)
+			if !ok {
+				t.Fatal("expected *component")
+			}
 
 			// Mock the getAllModulesFunc
 			c.getAllModulesFunc = func() ([]string, error) {
@@ -304,7 +314,8 @@ func TestGetHealth(t *testing.T) {
 				// Special case for nil data test
 				comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 				require.NoError(t, err)
-				c := comp.(*component)
+				c, ok := comp.(*component)
+				require.True(t, ok)
 
 				// Ensure lastCheckResult is nil
 				c.lastMu.Lock()
@@ -321,7 +332,8 @@ func TestGetHealth(t *testing.T) {
 			// For all other tests, create component and run Check
 			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 			require.NoError(t, err)
-			c := comp.(*component)
+			c, ok := comp.(*component)
+			require.True(t, ok)
 
 			// Mock the getAllModulesFunc
 			c.getAllModulesFunc = func() ([]string, error) {
@@ -432,7 +444,7 @@ func TestDataGetStates(t *testing.T) {
 				assert.Contains(t, state.ExtraInfo, "data")
 
 				// Verify that the JSON encoding works
-				var decodedData map[string]interface{}
+				var decodedData map[string]any
 				err := json.Unmarshal([]byte(state.ExtraInfo["data"]), &decodedData)
 				assert.NoError(t, err, "Should be able to decode the JSON data")
 
@@ -492,7 +504,8 @@ func TestCheckOnceLogic(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			comp, err := New(&components.GPUdInstance{KernelModulesToCheck: tt.modulesToCheck})
 			require.NoError(t, err)
-			c := comp.(*component)
+			c, ok := comp.(*component)
+			require.True(t, ok)
 
 			c.getAllModulesFunc = func() ([]string, error) {
 				return tt.modulesToLoad, tt.loadError
@@ -520,7 +533,8 @@ func TestCheckOnceLogic(t *testing.T) {
 func TestDataTimestamp(t *testing.T) {
 	comp, err := New(&components.GPUdInstance{})
 	require.NoError(t, err)
-	c := comp.(*component)
+	c, ok := comp.(*component)
+	require.True(t, ok)
 
 	beforeCheck := time.Now().UTC()
 	time.Sleep(10 * time.Millisecond)

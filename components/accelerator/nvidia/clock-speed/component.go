@@ -22,6 +22,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
+// Name is the component name reported by the NVIDIA clock speed checker.
 const Name = "accelerator-nvidia-clock-speed"
 
 var _ components.Component = &component{}
@@ -39,6 +40,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates the NVIDIA clock speed component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -96,7 +98,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 

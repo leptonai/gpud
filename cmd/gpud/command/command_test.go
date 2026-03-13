@@ -1,9 +1,11 @@
 package command
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli"
 )
 
 func TestAppHasInfinibandExcludeDevicesFlag(t *testing.T) {
@@ -66,5 +68,49 @@ func TestAppHasOutputFormatFlag(t *testing.T) {
 
 	for cmdName, foundCmd := range wantCommands {
 		require.Truef(t, foundCmd, "expected command %q to exist", cmdName)
+	}
+}
+
+func TestAppUpHasNodeLabelsFlag(t *testing.T) {
+	t.Parallel()
+
+	app := App()
+
+	foundUp := false
+	for _, cmd := range app.Commands {
+		if cmd.Name != "up" {
+			continue
+		}
+
+		foundUp = true
+		require.Contains(t, cmd.UsageText, "--node-labels")
+
+		foundFlag := false
+		for _, f := range cmd.Flags {
+			if f.GetName() != "node-labels" {
+				continue
+			}
+
+			foundFlag = true
+			usage := nodeLabelsFlagUsage(f)
+			require.Contains(t, usage, "JSON object")
+			require.Contains(t, usage, "user.node.lepton.ai/")
+			require.Contains(t, usage, "{}")
+		}
+
+		require.True(t, foundFlag, "up command is missing --node-labels")
+	}
+
+	require.True(t, foundUp, "expected command %q to exist", "up")
+}
+
+func nodeLabelsFlagUsage(flag cli.Flag) string {
+	switch typed := flag.(type) {
+	case cli.StringFlag:
+		return typed.Usage
+	case *cli.StringFlag:
+		return typed.Usage
+	default:
+		return strings.TrimSpace(flag.String())
 	}
 }

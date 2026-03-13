@@ -18,7 +18,7 @@ import (
 
 func TestComponentCheck_TimeStatErrorWithMockey(t *testing.T) {
 	mockey.PatchConvey("Check returns error when time stats fail", t, func() {
-		mockey.Mock(getTimeStatForAllCPUs).To(func(ctx context.Context) (gopscpu.TimesStat, error) {
+		mockey.Mock(getTimeStatForAllCPUs).To(func(_ context.Context) (gopscpu.TimesStat, error) {
 			return gopscpu.TimesStat{}, errors.New("times failed")
 		}).Build()
 
@@ -32,13 +32,13 @@ func TestComponentCheck_TimeStatErrorWithMockey(t *testing.T) {
 
 func TestComponentCheck_LoadAverageErrorWithMockey(t *testing.T) {
 	mockey.PatchConvey("Check returns error when load average fails", t, func() {
-		mockey.Mock(getTimeStatForAllCPUs).To(func(ctx context.Context) (gopscpu.TimesStat, error) {
+		mockey.Mock(getTimeStatForAllCPUs).To(func(_ context.Context) (gopscpu.TimesStat, error) {
 			return gopscpu.TimesStat{User: 1, System: 1, Idle: 1}, nil
 		}).Build()
-		mockey.Mock(getUsedPercentForAllCPUs).To(func(ctx context.Context) (float64, error) {
+		mockey.Mock(getUsedPercentForAllCPUs).To(func(_ context.Context) (float64, error) {
 			return 10.0, nil
 		}).Build()
-		mockey.Mock(load.AvgWithContext).To(func(ctx context.Context) (*load.AvgStat, error) {
+		mockey.Mock(load.AvgWithContext).To(func(_ context.Context) (*load.AvgStat, error) {
 			return nil, errors.New("load failed")
 		}).Build()
 
@@ -55,7 +55,7 @@ type staticBucketStore struct {
 	err    error
 }
 
-func (s *staticBucketStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (s *staticBucketStore) Bucket(_ string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -76,7 +76,7 @@ func TestNew_EventBucketErrorWithMockey(t *testing.T) {
 func TestGetTimeStatForAllCPUs_WithMockey(t *testing.T) {
 	t.Run("times error", func(t *testing.T) {
 		mockey.PatchConvey("getTimeStatForAllCPUs returns error from gopsutil", t, func() {
-			mockey.Mock(gopscpu.TimesWithContext).To(func(ctx context.Context, percpu bool) ([]gopscpu.TimesStat, error) {
+			mockey.Mock(gopscpu.TimesWithContext).To(func(_ context.Context, _ bool) ([]gopscpu.TimesStat, error) {
 				return nil, errors.New("times error")
 			}).Build()
 			_, err := getTimeStatForAllCPUs(context.Background())
@@ -86,7 +86,7 @@ func TestGetTimeStatForAllCPUs_WithMockey(t *testing.T) {
 
 	t.Run("invalid result size", func(t *testing.T) {
 		mockey.PatchConvey("getTimeStatForAllCPUs validates result count", t, func() {
-			mockey.Mock(gopscpu.TimesWithContext).To(func(ctx context.Context, percpu bool) ([]gopscpu.TimesStat, error) {
+			mockey.Mock(gopscpu.TimesWithContext).To(func(_ context.Context, _ bool) ([]gopscpu.TimesStat, error) {
 				return []gopscpu.TimesStat{
 					{CPU: "cpu0"},
 					{CPU: "cpu1"},
@@ -99,7 +99,7 @@ func TestGetTimeStatForAllCPUs_WithMockey(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		mockey.PatchConvey("getTimeStatForAllCPUs returns single stat", t, func() {
-			mockey.Mock(gopscpu.TimesWithContext).To(func(ctx context.Context, percpu bool) ([]gopscpu.TimesStat, error) {
+			mockey.Mock(gopscpu.TimesWithContext).To(func(_ context.Context, _ bool) ([]gopscpu.TimesStat, error) {
 				return []gopscpu.TimesStat{
 					{CPU: "cpu-total", User: 1},
 				}, nil
@@ -114,7 +114,7 @@ func TestGetTimeStatForAllCPUs_WithMockey(t *testing.T) {
 func TestGetUsedPercentForAllCPUs_WithMockey(t *testing.T) {
 	t.Run("percent error", func(t *testing.T) {
 		mockey.PatchConvey("getUsedPercentForAllCPUs returns error from gopsutil", t, func() {
-			mockey.Mock(gopscpu.PercentWithContext).To(func(ctx context.Context, interval time.Duration, percpu bool) ([]float64, error) {
+			mockey.Mock(gopscpu.PercentWithContext).To(func(_ context.Context, _ time.Duration, _ bool) ([]float64, error) {
 				return nil, errors.New("percent error")
 			}).Build()
 			_, err := getUsedPercentForAllCPUs(context.Background())
@@ -124,7 +124,7 @@ func TestGetUsedPercentForAllCPUs_WithMockey(t *testing.T) {
 
 	t.Run("invalid result size", func(t *testing.T) {
 		mockey.PatchConvey("getUsedPercentForAllCPUs validates result count", t, func() {
-			mockey.Mock(gopscpu.PercentWithContext).To(func(ctx context.Context, interval time.Duration, percpu bool) ([]float64, error) {
+			mockey.Mock(gopscpu.PercentWithContext).To(func(_ context.Context, _ time.Duration, _ bool) ([]float64, error) {
 				return []float64{1.0, 2.0}, nil
 			}).Build()
 			_, err := getUsedPercentForAllCPUs(context.Background())
@@ -134,7 +134,7 @@ func TestGetUsedPercentForAllCPUs_WithMockey(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		mockey.PatchConvey("getUsedPercentForAllCPUs returns one value", t, func() {
-			mockey.Mock(gopscpu.PercentWithContext).To(func(ctx context.Context, interval time.Duration, percpu bool) ([]float64, error) {
+			mockey.Mock(gopscpu.PercentWithContext).To(func(_ context.Context, _ time.Duration, _ bool) ([]float64, error) {
 				return []float64{42.5}, nil
 			}).Build()
 			v, err := getUsedPercentForAllCPUs(context.Background())

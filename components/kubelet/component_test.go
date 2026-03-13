@@ -180,7 +180,7 @@ func Test_componentLastHealthStates(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           checkResult
-		failedCount    int
+		failedCount    int32
 		expectedHealth apiv1.HealthStateType
 	}{
 		{
@@ -228,7 +228,7 @@ func Test_componentLastHealthStates(t *testing.T) {
 			c := &component{
 				lastCheckResult: &tc.data,
 			}
-			c.failedCount.Store(int32(tc.failedCount))
+			c.failedCount.Store(tc.failedCount)
 
 			states := c.LastHealthStates()
 			require.Len(t, states, 1)
@@ -288,7 +288,7 @@ func TestListPodsFromKubeletReadOnlyPort_HTTPError(t *testing.T) {
 	t.Parallel()
 
 	// Setup server that returns different HTTP errors
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "Server Error", http.StatusInternalServerError)
 	}))
 	defer srv.Close()
@@ -296,7 +296,7 @@ func TestListPodsFromKubeletReadOnlyPort_HTTPError(t *testing.T) {
 	portStr := srv.URL[len("http://127.0.0.1:"):]
 	port, _ := strconv.ParseInt(portStr, 10, 32)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Should fail due to HTTP error
@@ -360,7 +360,7 @@ func Test_componentLastHealthStates_ConnectionErrors(t *testing.T) {
 	testCases := []struct {
 		name           string
 		data           checkResult
-		failedCount    int
+		failedCount    int32
 		expectedHealth apiv1.HealthStateType
 	}{
 		{
@@ -388,7 +388,7 @@ func Test_componentLastHealthStates_ConnectionErrors(t *testing.T) {
 			c := &component{
 				lastCheckResult: &tc.data,
 			}
-			c.failedCount.Store(int32(tc.failedCount))
+			c.failedCount.Store(tc.failedCount)
 
 			states := c.LastHealthStates()
 			require.Len(t, states, 1)
@@ -407,7 +407,7 @@ func Test_componentLastHealthStates_ContextCancellation(t *testing.T) {
 	}
 
 	// Create a canceled context - we don't need to use it, just testing component behavior
-	_, cancel := context.WithCancel(context.Background())
+	_, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	// Should still return states using cached data

@@ -37,7 +37,8 @@ type LoginConfig struct {
 	// If not specified, the control plane will use the detected number of GPUs.
 	GPUCount string
 
-	// NodeLabels contains unprefixed Kubernetes label name/value pairs to attach during login.
+	// NodeLabels contains Kubernetes label key/value pairs to attach during login.
+	// Keys without the managed "user.node.lepton.ai/" prefix are normalized before validation and sending.
 	// Nil means "leave labels unchanged"; an empty but non-nil map means "clear labels".
 	NodeLabels map[string]string
 

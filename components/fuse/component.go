@@ -54,6 +54,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates a FUSE component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{

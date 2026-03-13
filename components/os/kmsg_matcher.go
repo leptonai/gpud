@@ -1,3 +1,4 @@
+//nolint:revive // package name matches the directory import path used across the codebase.
 package os
 
 import (
@@ -38,7 +39,7 @@ var (
 	kernelPanicCPUPIDRegexp = regexp.MustCompile(`CPU: (\d+) PID: (\d+) Comm: (\S+)`)
 )
 
-// Returns true if the line indicates that the file-max limit has been reached.
+// HasVFSFileMaxLimitReached returns true if the line indicates that the file-max limit has been reached.
 // ref. https://docs.kernel.org/admin-guide/sysctl/fs.html#file-max-file-nr
 func HasVFSFileMaxLimitReached(line string) bool {
 	if match := compiledVFSFileMaxLimitReached.FindStringSubmatch(line); match != nil {
@@ -57,6 +58,7 @@ type KernelPanicInstance struct {
 	ProcessName string
 }
 
+// Summary returns a human-readable summary of the kernel panic.
 func (k *KernelPanicInstance) Summary() string {
 	if k == nil {
 		return ""
@@ -165,6 +167,7 @@ func extractCPUandPID(line string, instance *KernelPanicInstance) bool {
 // Global kernel panic matcher instance
 var kernelPanicMatcher = createKernelPanicMatchFunc()
 
+// Match matches OS-related kernel log lines to event names and messages.
 func Match(line string) (eventName string, message string) {
 	// First check kernel panic matcher (stateful)
 	if eventName, message := kernelPanicMatcher(line); eventName != "" {

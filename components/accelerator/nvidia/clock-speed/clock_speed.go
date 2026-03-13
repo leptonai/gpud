@@ -30,6 +30,7 @@ type ClockSpeed struct {
 	ClockMemorySupported bool `json:"clock_memory_supported"`
 }
 
+// GetClockSpeed returns the graphics and memory clock speeds for a GPU.
 func GetClockSpeed(uuid string, dev device.Device) (ClockSpeed, error) {
 	clockSpeed := ClockSpeed{
 		UUID:  uuid,
@@ -38,9 +39,10 @@ func GetClockSpeed(uuid string, dev device.Device) (ClockSpeed, error) {
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g2efc4dd4096173f01d80b2a8bbfd97ad
 	graphicsClock, ret := dev.GetClockInfo(nvml.CLOCK_GRAPHICS)
-	if nvmlerrors.IsNotSupportError(ret) {
+	switch {
+	case nvmlerrors.IsNotSupportError(ret):
 		clockSpeed.ClockGraphicsSupported = false
-	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+	case ret != nvml.SUCCESS: // not a "not supported" error, not a success return, thus return an error here
 		if nvmlerrors.IsGPULostError(ret) {
 			return clockSpeed, nvmlerrors.ErrGPULost
 		}
@@ -48,16 +50,17 @@ func GetClockSpeed(uuid string, dev device.Device) (ClockSpeed, error) {
 			return clockSpeed, nvmlerrors.ErrGPURequiresReset
 		}
 		return clockSpeed, fmt.Errorf("failed to get device clock info for nvml.CLOCK_GRAPHICS: %v", nvml.ErrorString(ret))
-	} else {
+	default:
 		clockSpeed.ClockGraphicsSupported = true
 		clockSpeed.GraphicsMHz = graphicsClock
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g2efc4dd4096173f01d80b2a8bbfd97ad
 	memClock, ret := dev.GetClockInfo(nvml.CLOCK_MEM)
-	if nvmlerrors.IsNotSupportError(ret) {
+	switch {
+	case nvmlerrors.IsNotSupportError(ret):
 		clockSpeed.ClockMemorySupported = false
-	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+	case ret != nvml.SUCCESS: // not a "not supported" error, not a success return, thus return an error here
 		if nvmlerrors.IsGPULostError(ret) {
 			return clockSpeed, nvmlerrors.ErrGPULost
 		}
@@ -65,7 +68,7 @@ func GetClockSpeed(uuid string, dev device.Device) (ClockSpeed, error) {
 			return clockSpeed, nvmlerrors.ErrGPURequiresReset
 		}
 		return clockSpeed, fmt.Errorf("failed to get device clock info for nvml.CLOCK_MEM: %v", nvml.ErrorString(ret))
-	} else {
+	default:
 		clockSpeed.ClockMemorySupported = true
 		clockSpeed.MemoryMHz = memClock
 	}

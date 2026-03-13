@@ -3,6 +3,7 @@ package xid
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,8 +62,7 @@ func evolveHealthyState(events eventstore.Events, devices map[string]device.Devi
 	var lastXidErr *xidErrorEventDetail
 	lastHealth := healthStateHealthy
 	xidRebootMap := make(map[uint64]int)
-	for i := len(events) - 1; i >= 0; i-- {
-		event := events[i]
+	for _, event := range slices.Backward(events) {
 		log.Logger.Debugf("EvolveHealthyState: event: %v %v %+v %+v %+v", event.Time, event.Name, lastSuggestedAction, xidRebootMap, lastXidErr)
 		if event.Name == EventNameErrorXid {
 			resolvedEvent := resolveXIDEvent(event, devices)
@@ -142,7 +142,12 @@ func (xidErr *xidErrorEventDetail) buildMessage(devices map[string]device.Device
 		header = fmt.Sprintf("XID %d.%d (err status 0x%08x)", xidErr.Xid, xidErr.SubCode, xidErr.ErrorStatus)
 	}
 
-	desc := catalogMnemonicMap[int(xidErr.Xid)]
+	xidCode, ok := intFromUint64(xidErr.Xid)
+	if !ok {
+		return fmt.Sprintf("%s detected on GPU %s", header, xidErr.DeviceUUID)
+	}
+
+	desc := catalogMnemonicMap[xidCode]
 	if desc == "" {
 		// mnemonic identifier not found, use the description
 		desc = xidErr.Description
@@ -197,11 +202,16 @@ func resolveXIDEvent(event eventstore.Event, devices map[string]device.Device) e
 			return ret
 		}
 
+		xidValue, ok := uint64FromInt(currXid)
+		if !ok {
+			return ret
+		}
+
 		xidErr := xidErrorEventDetail{
 			Time:                   metav1.NewTime(event.Time),
 			DataSource:             "kmsg",
 			DeviceUUID:             event.ExtraInfo[EventKeyDeviceUUID],
-			Xid:                    uint64(currXid),
+			Xid:                    xidValue,
 			SuggestedActionsByGPUd: detail.SuggestedActionsByGPUd,
 		}
 
@@ -214,7 +224,12 @@ func resolveXIDEvent(event eventstore.Event, devices map[string]device.Device) e
 // addEventDetails populates event fields/message from parsed XID detail and
 // rewrites the stored ExtraInfo payload in JSON form for downstream consumers.
 func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices map[string]device.Device) eventstore.Event {
-	detail, ok := getDetailWithSubCodeAndStatus(int(xidErr.Xid), xidErr.SubCode, xidErr.ErrorStatus)
+	xidCode, ok := intFromUint64(xidErr.Xid)
+	if !ok {
+		return ev
+	}
+
+	detail, ok := getDetailWithSubCodeAndStatus(xidCode, xidErr.SubCode, xidErr.ErrorStatus)
 	if !ok {
 		detail = nil
 	}

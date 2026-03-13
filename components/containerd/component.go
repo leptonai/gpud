@@ -68,6 +68,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates a containerd component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 
@@ -97,7 +98,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		checkDependencyInstalledFunc: checkContainerdInstalled,
 		checkSocketExistsFunc:        checkSocketExistsFunc,
 		checkContainerdRunningFunc:   CheckContainerdRunning,
-		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+		checkServiceActiveFunc: func(_ context.Context) (bool, error) {
 			return systemd.IsActive("containerd")
 		},
 		getContainerdUptimeFunc: func() (*time.Duration, error) {
@@ -150,7 +151,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 
@@ -306,7 +307,8 @@ func (c *component) Check() components.CheckResult {
 		} else {
 			danglingCount = danglingPodCount(cr.Pods, kubeletPods)
 		}
-		if danglingCount > DanglingUnhealthyThreshold {
+		switch {
+		case danglingCount > DanglingUnhealthyThreshold:
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = fmt.Sprintf("node has %v dangling pods, unhealthy threshold %v", danglingCount, DanglingUnhealthyThreshold)
 			cr.suggestedAction = &apiv1.SuggestedActions{
@@ -314,11 +316,11 @@ func (c *component) Check() components.CheckResult {
 				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
 			}
 			return cr
-		} else if danglingCount > DanglingDegradedThreshold {
+		case danglingCount > DanglingDegradedThreshold:
 			cr.health = apiv1.HealthStateTypeDegraded
 			cr.reason = fmt.Sprintf("node has %v dangling pods, consider reboot system to recover, degraded threshold %v", danglingCount, DanglingDegradedThreshold)
 			return cr
-		} else if danglingCount != 0 {
+		case danglingCount != 0:
 			cr.reason = fmt.Sprintf("node has %v dangling pods", danglingCount)
 		}
 	}
@@ -329,7 +331,6 @@ func (c *component) Check() components.CheckResult {
 		c.nvmlInstance.ProductName() != "" &&
 		len(cr.Pods) > 0 &&
 		c.getContainerdConfigFunc != nil {
-
 		// check "nvidia-container-toolkit-daemonset" pod
 		// whose containers include "nvidia-container-toolkit-ctr"
 		// which performs containerd.toml configuration updates
@@ -349,10 +350,8 @@ func (c *component) Check() components.CheckResult {
 
 		if toolkitCtrCreatedAt.IsZero() {
 			reason := "nvidia GPUs found but nvidia-container-toolkit pod is not found"
-
 			cr.appendReason(reason)
 			log.Logger.Warnw(reason)
-
 		} else {
 			now := c.getTimeNowFunc()
 			elapsed := now.Sub(toolkitCtrCreatedAt)
@@ -360,21 +359,18 @@ func (c *component) Check() components.CheckResult {
 			// been running long enough
 			if elapsed > c.containerToolkitCreationThreshold {
 				config, err := c.getContainerdConfigFunc()
-				if err != nil {
+				switch {
+				case err != nil:
 					reason := "error getting containerd config"
-
 					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
-
-				} else if !bytes.Contains(config, []byte(containerdConfigNvidiaDefaultRuntime)) ||
-					!bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePlugin)) {
+				case !bytes.Contains(config, []byte(containerdConfigNvidiaDefaultRuntime)) ||
+					!bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePlugin)):
 					reason := fmt.Sprintf("nvidia-container-toolkit pod is running but %s is missing NVIDIA runtime configuration", defaultContainerdConfigPath)
-
 					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
-
 					cr.health = apiv1.HealthStateTypeUnhealthy
-				} else {
+				default:
 					log.Logger.Debugw("containerd config contains nvidia")
 				}
 			} else {

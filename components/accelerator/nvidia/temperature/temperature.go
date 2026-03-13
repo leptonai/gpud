@@ -11,6 +11,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
+// Temperature represents the NVIDIA temperature readings and thresholds for a device.
 type Temperature struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
@@ -48,18 +49,22 @@ type Temperature struct {
 	UsedPercentGPUMax   string `json:"used_percent_gpu_max"`
 }
 
+// GetUsedPercentShutdown returns the shutdown threshold usage percentage.
 func (temp Temperature) GetUsedPercentShutdown() (float64, error) {
 	return strconv.ParseFloat(temp.UsedPercentShutdown, 64)
 }
 
+// GetUsedPercentSlowdown returns the slowdown threshold usage percentage.
 func (temp Temperature) GetUsedPercentSlowdown() (float64, error) {
 	return strconv.ParseFloat(temp.UsedPercentSlowdown, 64)
 }
 
+// GetUsedPercentMemMax returns the HBM memory max threshold usage percentage.
 func (temp Temperature) GetUsedPercentMemMax() (float64, error) {
 	return strconv.ParseFloat(temp.UsedPercentMemMax, 64)
 }
 
+// GetUsedPercentGPUMax returns the GPU max threshold usage percentage.
 func (temp Temperature) GetUsedPercentGPUMax() (float64, error) {
 	return strconv.ParseFloat(temp.UsedPercentGPUMax, 64)
 }
@@ -69,6 +74,7 @@ func (temp Temperature) GetUsedPercentGPUMax() (float64, error) {
 // ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g92d1c5182a14dd4be7090e3c1480b121
 const temperatureSensorMemory nvml.TemperatureSensors = 1
 
+// GetTemperature returns the temperature readings and thresholds for a device.
 func GetTemperature(uuid string, dev device.Device) (Temperature, error) {
 	temp := Temperature{
 		UUID:  uuid,

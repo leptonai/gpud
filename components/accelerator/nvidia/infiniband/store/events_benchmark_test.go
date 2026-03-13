@@ -20,7 +20,7 @@ func BenchmarkEventsQuery(b *testing.B) {
 
 	// Pre-populate with realistic event data
 	now := time.Now()
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		eventTime := now.Add(time.Duration(i*30) * time.Second)
 		if err := store.SetEventType("mlx5_0", 1, eventTime, "ib_port_drop", "Simulated drop event"); err != nil {
 			b.Fatalf("failed to set event: %v", err)
@@ -37,7 +37,7 @@ func BenchmarkEventsQuery(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := store.LastEvents(queryTime)
 		if err != nil {
 			b.Fatalf("failed to query events: %v", err)

@@ -1,3 +1,4 @@
+//nolint:revive // package name matches the directory import path used across the codebase.
 package os
 
 import (
@@ -16,7 +17,7 @@ func TestGetLimit(t *testing.T) {
 	}()
 
 	testPath := filepath.Join(tmpDir, "file-max")
-	err = os.WriteFile(testPath, []byte("1000000\n"), 0644)
+	err = os.WriteFile(testPath, []byte("1000000\n"), 0o600)
 	assert.NoError(t, err)
 
 	// Test valid case
@@ -30,7 +31,7 @@ func TestGetLimit(t *testing.T) {
 
 	// Test invalid content
 	invalidPath := filepath.Join(tmpDir, "invalid-file-max")
-	err = os.WriteFile(invalidPath, []byte("not-a-number\n"), 0644)
+	err = os.WriteFile(invalidPath, []byte("not-a-number\n"), 0o600)
 	assert.NoError(t, err)
 	_, err = getLimit(invalidPath)
 	assert.Error(t, err)
@@ -44,7 +45,7 @@ func TestGetFileHandles(t *testing.T) {
 	}()
 
 	testPath := filepath.Join(tmpDir, "file-nr")
-	err = os.WriteFile(testPath, []byte("1000 500 10000\n"), 0644)
+	err = os.WriteFile(testPath, []byte("1000 500 10000\n"), 0o600)
 	assert.NoError(t, err)
 
 	// Test valid case
@@ -59,7 +60,7 @@ func TestGetFileHandles(t *testing.T) {
 
 	// Test invalid content - wrong number of fields
 	invalidPath1 := filepath.Join(tmpDir, "invalid-file-nr-1")
-	err = os.WriteFile(invalidPath1, []byte("1000 500\n"), 0644)
+	err = os.WriteFile(invalidPath1, []byte("1000 500\n"), 0o600)
 	assert.NoError(t, err)
 	_, _, err = getFileHandles(invalidPath1)
 	assert.Error(t, err)
@@ -67,14 +68,14 @@ func TestGetFileHandles(t *testing.T) {
 
 	// Test invalid content - not numbers
 	invalidPath2 := filepath.Join(tmpDir, "invalid-file-nr-2")
-	err = os.WriteFile(invalidPath2, []byte("a b c\n"), 0644)
+	err = os.WriteFile(invalidPath2, []byte("a b c\n"), 0o600)
 	assert.NoError(t, err)
 	_, _, err = getFileHandles(invalidPath2)
 	assert.Error(t, err)
 
 	// Test invalid content - second field not a number
 	invalidPath3 := filepath.Join(tmpDir, "invalid-file-nr-3")
-	err = os.WriteFile(invalidPath3, []byte("1000 b 10000\n"), 0644)
+	err = os.WriteFile(invalidPath3, []byte("1000 b 10000\n"), 0o600)
 	assert.NoError(t, err)
 	_, _, err = getFileHandles(invalidPath3)
 	assert.Error(t, err)

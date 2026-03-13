@@ -192,12 +192,14 @@ func TestCreateMetadataTableWithData(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert some test data
+	//nolint:gosec // Test-controlled table and column names.
 	query := fmt.Sprintf(`INSERT INTO %s (%s, %s) VALUES (?, ?)`, tableName, metadataColumnKey, metadataColumnValue)
 	_, err = dbRW.ExecContext(ctx, query, "test_key", "test_value")
 	require.NoError(t, err)
 
 	// Verify data was inserted correctly
 	var value string
+	//nolint:gosec // Test-controlled table and column names.
 	selectQuery := fmt.Sprintf(`SELECT %s FROM %s WHERE %s = ?`, metadataColumnValue, tableName, metadataColumnKey)
 	err = dbRW.QueryRowContext(ctx, selectQuery, "test_key").Scan(&value)
 	require.NoError(t, err)
@@ -230,6 +232,7 @@ func TestCreateMetadataTablePrimaryKeyConstraint(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert first row
+	//nolint:gosec // Test-controlled table and column names.
 	query := fmt.Sprintf(`INSERT INTO %s (%s, %s) VALUES (?, ?)`, tableName, metadataColumnKey, metadataColumnValue)
 	_, err = dbRW.ExecContext(ctx, query, "duplicate_key", "value1")
 	require.NoError(t, err)

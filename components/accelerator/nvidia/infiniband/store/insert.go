@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetricsrecorder "github.com/leptonai/gpud/pkg/metrics/recorder"
@@ -58,6 +56,7 @@ func (s *ibPortsStore) Insert(eventTime time.Time, ibPorts []types.IBPort) error
 	}()
 
 	// Prepare statement once for all inserts
+	//nolint:gosec // Table and column names are internal store identifiers, not user input.
 	insertStatement := fmt.Sprintf(`INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 		historyTable,
 		historyTableColumnTimestamp,
@@ -135,6 +134,7 @@ func (s *ibPortsStore) getLastInsertTimestamp() time.Time {
 // readLastTimestamp returns the last timestamp of the table.
 // If the table is empty, it returns a zero time.
 func readLastTimestamp(ctx context.Context, dbRO *sql.DB, tableName string) (time.Time, error) {
+	//nolint:gosec // tableName is an internal store identifier, not user input.
 	query := fmt.Sprintf(`SELECT %s FROM %s ORDER BY %s DESC LIMIT 1;`, historyTableColumnTimestamp, tableName, historyTableColumnTimestamp)
 
 	start := time.Now()

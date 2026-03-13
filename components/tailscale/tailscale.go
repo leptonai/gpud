@@ -43,6 +43,7 @@ func getTailscaleVersion() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	//nolint:gosec // p is an absolute path returned by LocateExecutable for the tailscale binary.
 	out, err := exec.Command(p, "--version").CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("tailscale --version failed: %w: %s", err, strings.TrimSpace(string(out)))

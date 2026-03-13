@@ -185,6 +185,8 @@ func TestComponentReadClass(t *testing.T) {
 }
 
 // Helper function to update port state file
+//
+//nolint:unparam // These helpers keep the port explicit to mirror the sysfs layout under test.
 func updatePortState(t *testing.T, classRootDir, device string, port int, state string) {
 	stateFile := filepath.Join(classRootDir, device, "ports", fmt.Sprintf("%d", port), "state")
 	var stateContent string
@@ -200,10 +202,12 @@ func updatePortState(t *testing.T, classRootDir, device string, port int, state 
 	default:
 		stateContent = "4: ACTIVE" // default to active
 	}
-	assert.NoError(t, os.WriteFile(stateFile, []byte(stateContent), 0644))
+	assert.NoError(t, os.WriteFile(stateFile, []byte(stateContent), 0o600))
 }
 
 // Helper function to update port physical state file
+//
+//nolint:unparam // These helpers keep the port explicit to mirror the sysfs layout under test.
 func updatePortPhysState(t *testing.T, classRootDir, device string, port int, physState string) {
 	physStateFile := filepath.Join(classRootDir, device, "ports", fmt.Sprintf("%d", port), "phys_state")
 	var physStateContent string
@@ -219,25 +223,31 @@ func updatePortPhysState(t *testing.T, classRootDir, device string, port int, ph
 	default:
 		physStateContent = "5: LinkUp" // default to LinkUp
 	}
-	assert.NoError(t, os.WriteFile(physStateFile, []byte(physStateContent), 0644))
+	assert.NoError(t, os.WriteFile(physStateFile, []byte(physStateContent), 0o600))
 }
 
 // Helper function to update link_downed counter
+//
+//nolint:unparam // These helpers keep the port explicit to mirror the sysfs layout under test.
 func updateLinkDownedCounter(t *testing.T, classRootDir, device string, port int, count uint64) {
 	counterFile := filepath.Join(classRootDir, device, "ports", fmt.Sprintf("%d", port), "counters", "link_downed")
-	assert.NoError(t, os.WriteFile(counterFile, []byte(fmt.Sprintf("%d", count)), 0644))
+	assert.NoError(t, os.WriteFile(counterFile, fmt.Appendf(nil, "%d", count), 0o600))
 }
 
 // Helper function to update port rate
+//
+//nolint:unparam // These helpers keep the port explicit to mirror the sysfs layout under test.
 func updatePortRate(t *testing.T, classRootDir, device string, port int, rate string) {
 	rateFile := filepath.Join(classRootDir, device, "ports", fmt.Sprintf("%d", port), "rate")
-	assert.NoError(t, os.WriteFile(rateFile, []byte(rate), 0644))
+	assert.NoError(t, os.WriteFile(rateFile, []byte(rate), 0o600))
 }
 
 // Helper function to update error counters
+//
+//nolint:unparam // These helpers keep the port explicit to mirror the sysfs layout under test.
 func updateErrorCounter(t *testing.T, classRootDir, device string, port int, counterName string, value uint64) {
 	counterFile := filepath.Join(classRootDir, device, "ports", fmt.Sprintf("%d", port), "counters", counterName)
-	assert.NoError(t, os.WriteFile(counterFile, []byte(fmt.Sprintf("%d", value)), 0644))
+	assert.NoError(t, os.WriteFile(counterFile, fmt.Appendf(nil, "%d", value), 0o600))
 }
 
 // Helper function to copy test class directory
@@ -259,9 +269,10 @@ func copyTestClassDir(t *testing.T, origClassDir string) string {
 		destPath := filepath.Join(classRootDir, relPath)
 
 		if d.IsDir() {
-			return os.MkdirAll(destPath, 0755)
+			return os.MkdirAll(destPath, 0o750)
 		}
 
+		//nolint:gosec // path comes from walking a known test fixture directory rooted at origClassDir.
 		srcFile, err := os.Open(path)
 		if err != nil {
 			return err
@@ -270,7 +281,8 @@ func copyTestClassDir(t *testing.T, origClassDir string) string {
 			_ = srcFile.Close()
 		}()
 
-		destFile, err := os.Create(destPath)
+		//nolint:gosec // destPath is derived from the temporary test directory under classRootDir.
+		destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		if err != nil {
 			return err
 		}
@@ -394,7 +406,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 		}
 
 		// Simulate rapid flapping on multiple ports
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			// Ports go down
 			updatePortState(t, classRootDir, "mlx5_0", 1, "Down")
 			updatePortState(t, classRootDir, "mlx5_1", 1, "Down")
@@ -446,7 +458,7 @@ func TestComponentReadClass_FlapDetection(t *testing.T) {
 		}
 
 		// Port flaps with increasing error counters
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			// Port goes down with errors
 			updatePortState(t, classRootDir, "mlx5_4", 1, "Down")
 			linkDownedCount++
@@ -527,7 +539,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 		updateLinkDownedCounter(t, classRootDir, "mlx5_4", 1, linkDownedCount)
 
 		// Check multiple times over 5 minutes without link_downed counter changing
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			timeNow = timeNow.Add(30 * time.Second)
 			cr := c.Check()
 			assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType()) // 5 active ports, need 8, so unhealthy
@@ -570,7 +582,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 		}
 
 		// Simulate rapidly increasing error counters (packet drops)
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			errorCount += 500
 			updateErrorCounter(t, classRootDir, "mlx5_5", 1, "port_rcv_errors", errorCount)
 			updateErrorCounter(t, classRootDir, "mlx5_5", 1, "port_xmit_discards", errorCount/2)
@@ -629,7 +641,7 @@ func TestComponentReadClass_DropDetection(t *testing.T) {
 		updateLinkDownedCounter(t, classRootDir, "mlx5_8", 1, linkDownedCount)
 
 		// Stay down for 5 minutes
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			timeNow = timeNow.Add(30 * time.Second)
 			cr := c.Check()
 			assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
@@ -704,7 +716,9 @@ func TestComponentReadClass_CombinedFlapAndDrop(t *testing.T) {
 		updateLinkDownedCounter(t, classRootDir, "mlx5_1", 1, linkDownedCount)
 
 		// Other ports will flap
-		for i := 0; i < 3; i++ {
+		rcvErrorValue := uint64(0)
+		symbolErrorValue := uint64(0)
+		for range 3 {
 			// mlx5_4 and mlx5_5 flap
 			updatePortState(t, classRootDir, "mlx5_4", 1, "Down")
 			updatePortState(t, classRootDir, "mlx5_5", 1, "Down")
@@ -730,8 +744,10 @@ func TestComponentReadClass_CombinedFlapAndDrop(t *testing.T) {
 			assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType()) // Back to 6 active ports
 
 			// Add increasing error counters during flaps
-			updateErrorCounter(t, classRootDir, "mlx5_4", 1, "port_rcv_errors", uint64(100*(i+1)))
-			updateErrorCounter(t, classRootDir, "mlx5_5", 1, "symbol_error", uint64(50*(i+1)))
+			rcvErrorValue += 100
+			symbolErrorValue += 50
+			updateErrorCounter(t, classRootDir, "mlx5_4", 1, "port_rcv_errors", rcvErrorValue)
+			updateErrorCounter(t, classRootDir, "mlx5_5", 1, "symbol_error", symbolErrorValue)
 		}
 
 		// mlx5_0 and mlx5_1 remain down throughout (persistent drop)
@@ -787,7 +803,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 
 		// Simulate rapid increase in receive errors (1000 errors per 30 seconds)
 		baseErrors := uint64(100)
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			baseErrors += 1000
 			updateErrorCounter(t, classRootDir, "mlx5_0", 1, "port_rcv_errors", baseErrors)
 
@@ -831,7 +847,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 		symbolErrors := uint64(25)
 		linkIntegrityErrors := uint64(10)
 
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			rcvErrors += 500
 			xmitDiscards += 250
 			symbolErrors += 125
@@ -877,7 +893,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 
 		// Burst of errors
 		errors := uint64(100)
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			errors += 5000 // Large burst
 			updateErrorCounter(t, classRootDir, "mlx5_6", 1, "port_rcv_errors", errors)
 
@@ -887,7 +903,7 @@ func TestComponentReadClass_ErrorCounterRates(t *testing.T) {
 		}
 
 		// Quiet period - no new errors for 5 minutes
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			timeNow = timeNow.Add(30 * time.Second)
 			cr := c.Check()
 			assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
@@ -992,10 +1008,12 @@ func TestComponentReadClass_EdgeCases(t *testing.T) {
 		// All InfiniBand ports go down simultaneously (excluding Ethernet bond)
 		// Only InfiniBand ports are counted by the component due to IsIBPort() filtering
 		ibDevices := []string{"mlx5_0", "mlx5_1", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9"}
-		for i, device := range ibDevices {
+		currentLinkDowned := linkDownedBase
+		for _, device := range ibDevices {
 			updatePortState(t, subClassRootDir, device, 1, "Down")
 			updatePortPhysState(t, subClassRootDir, device, 1, "Disabled")
-			updateLinkDownedCounter(t, subClassRootDir, device, 1, linkDownedBase+uint64(i))
+			updateLinkDownedCounter(t, subClassRootDir, device, 1, currentLinkDowned)
+			currentLinkDowned++
 		}
 
 		timeNow = timeNow.Add(30 * time.Second)
@@ -1116,19 +1134,19 @@ type mockIBPortsStore struct {
 	events []infinibandstore.Event
 }
 
-func (m *mockIBPortsStore) Insert(eventTime time.Time, ibPorts []types.IBPort) error {
+func (m *mockIBPortsStore) Insert(_ time.Time, _ []types.IBPort) error {
 	return nil
 }
 
-func (m *mockIBPortsStore) SetEventType(device string, port uint, timestamp time.Time, eventType string, eventReason string) error {
+func (m *mockIBPortsStore) SetEventType(_ string, _ uint, _ time.Time, _ string, _ string) error {
 	return nil
 }
 
-func (m *mockIBPortsStore) LastEvents(since time.Time) ([]infinibandstore.Event, error) {
+func (m *mockIBPortsStore) LastEvents(_ time.Time) ([]infinibandstore.Event, error) {
 	return m.events, nil
 }
 
-func (m *mockIBPortsStore) Tombstone(timestamp time.Time) error {
+func (m *mockIBPortsStore) Tombstone(_ time.Time) error {
 	return nil
 }
 

@@ -28,6 +28,26 @@ func openTestEventStore(t *testing.T) (eventstore.Store, func()) {
 	}
 }
 
+func mustComponent(t *testing.T, comp components.Component) *component {
+	t.Helper()
+
+	c, ok := comp.(*component)
+	if !ok {
+		t.Fatal("expected *component")
+	}
+	return c
+}
+
+func mustCheckResult(t *testing.T, result components.CheckResult) *checkResult {
+	t.Helper()
+
+	cr, ok := result.(*checkResult)
+	if !ok {
+		t.Fatal("expected *checkResult")
+	}
+	return cr
+}
+
 func TestNew(t *testing.T) {
 	// Create a test event store
 	store, cleanup := openTestEventStore(t)
@@ -127,7 +147,7 @@ func TestEvents(t *testing.T) {
 		require.NoError(t, err)
 
 		// Set eventBucket to nil
-		c := comp.(*component)
+		c := mustComponent(t, comp)
 		c.eventBucket = nil
 
 		// Test Events with nil bucket
@@ -265,7 +285,7 @@ func TestCheckOnce(t *testing.T) {
 			require.NoError(t, err)
 
 			// Set the custom list connections function
-			c := comp.(*component)
+			c := mustComponent(t, comp)
 			c.listConnectionsFunc = tc.listConnectionsFunc
 
 			// Run Check
@@ -300,7 +320,7 @@ func TestCheckWithEventHandling(t *testing.T) {
 	comp, err := New(instance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Need to set thresholds directly on the component
 	c.congestedPercentAgainstThreshold = 70.0
@@ -310,7 +330,7 @@ func TestCheckWithEventHandling(t *testing.T) {
 	origBucket := c.eventBucket
 	mockBucket := &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+		findFn: func(context.Context, eventstore.Event) (*eventstore.Event, error) {
 			// Always return nil to trigger an insert
 			return nil, nil
 		},
@@ -353,7 +373,7 @@ func TestMetricsRecording(t *testing.T) {
 	comp, err := New(instance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Mock connection info with specific values
 	c.listConnectionsFunc = func() (fuse.ConnectionInfos, error) {
@@ -389,7 +409,7 @@ func TestLastHealthStates(t *testing.T) {
 	comp, err := New(instance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Test LastHealthStates when there's no last check result
 	states := comp.LastHealthStates()
@@ -499,7 +519,7 @@ func TestCheckWithEventBucketError(t *testing.T) {
 	comp, err := New(instance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	// Need to set threshold directly
 	c.congestedPercentAgainstThreshold = 70.0
 
@@ -509,7 +529,7 @@ func TestCheckWithEventBucketError(t *testing.T) {
 	// Mock find call to return an error
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+		findFn: func(context.Context, eventstore.Event) (*eventstore.Event, error) {
 			return nil, nil // Return nil to trigger an insert attempt
 		},
 	}
@@ -549,7 +569,7 @@ func TestFindError(t *testing.T) {
 	comp, err := New(instance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	// Need to set threshold directly
 	c.congestedPercentAgainstThreshold = 70.0
 
@@ -559,7 +579,7 @@ func TestFindError(t *testing.T) {
 	// Mock find call to return an error
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+		findFn: func(context.Context, eventstore.Event) (*eventstore.Event, error) {
 			return nil, errors.New("mock find error")
 		},
 	}
@@ -598,7 +618,7 @@ func TestThresholdExceeded(t *testing.T) {
 	comp, err := New(instance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	// Need to set thresholds directly
 	c.congestedPercentAgainstThreshold = 70.0
 	c.maxBackgroundPercentAgainstThreshold = 60.0
@@ -773,12 +793,12 @@ func TestEventsWithError(t *testing.T) {
 	comp, err := New(instance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Create a mock event bucket with error behavior
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: c.eventBucket,
-		getFn: func(ctx context.Context, since time.Time) (eventstore.Events, error) {
+		getFn: func(context.Context, time.Time) (eventstore.Events, error) {
 			return nil, errors.New("mock get error")
 		},
 	}
@@ -804,7 +824,7 @@ func TestInsertError(t *testing.T) {
 	comp, err := New(instance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	// Need to set threshold directly
 	c.congestedPercentAgainstThreshold = 70.0
 
@@ -816,12 +836,12 @@ func TestInsertError(t *testing.T) {
 	findCalled := false
 	c.eventBucket = &eventWrapperBucket{
 		wrapped: origBucket,
-		findFn: func(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+		findFn: func(_ context.Context, ev eventstore.Event) (*eventstore.Event, error) {
 			findCalled = true
 			// Return the event to trigger an Insert (based on the actual code behavior)
 			return &ev, nil
 		},
-		insertFn: func(ctx context.Context, ev eventstore.Event) error {
+		insertFn: func(_ context.Context, _ eventstore.Event) error {
 			// Return an error from Insert to test the error path
 			return errors.New("mock insert error")
 		},
@@ -864,7 +884,7 @@ func TestConnectionInfoJSONError(t *testing.T) {
 	comp, err := New(instance)
 	require.NoError(t, err)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	// Need to set threshold directly
 	c.congestedPercentAgainstThreshold = 70.0
 
@@ -884,7 +904,7 @@ func TestConnectionInfoJSONError(t *testing.T) {
 
 	// Run Check - this should still succeed but log an error
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	// Check should complete successfully
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
@@ -922,7 +942,7 @@ type mockErrorEventStore struct {
 	err error
 }
 
-func (m *mockErrorEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *mockErrorEventStore) Bucket(_ string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	return nil, m.err
 }
 
@@ -938,7 +958,7 @@ func TestEventsWithNilBucket(t *testing.T) {
 	require.NoError(t, err)
 
 	// Force eventBucket to nil to ensure code path coverage
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	c.eventBucket = nil
 
 	// Call Events - should return nil, nil

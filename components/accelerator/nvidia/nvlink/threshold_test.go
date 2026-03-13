@@ -63,27 +63,23 @@ func TestConcurrentAccess(t *testing.T) {
 	var writeCount int32
 
 	// Start multiple writers
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < iterations; j++ {
-				value := id*100 + j
+	for i := range 5 {
+		wg.Go(func() {
+			for j := range iterations {
+				value := i*100 + j
 				SetDefaultExpectedLinkStates(ExpectedLinkStates{
 					AtLeastGPUsWithAllLinksFeatureEnabled: value,
 				})
 				atomic.AddInt32(&writeCount, 1)
 				time.Sleep(time.Microsecond)
 			}
-		}(i)
+		})
 	}
 
 	// Start multiple readers that verify consistency
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+	for range 5 {
+		wg.Go(func() {
+			for range iterations {
 				val := GetDefaultExpectedLinkStates()
 
 				// All read values should be non-negative (validation should handle negatives)
@@ -99,21 +95,19 @@ func TestConcurrentAccess(t *testing.T) {
 
 				time.Sleep(time.Microsecond)
 			}
-		}()
+		})
 	}
 
 	// Start writers with negative values to test validation under concurrency
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < iterations/2; j++ {
+	for i := range 2 {
+		wg.Go(func() {
+			for j := range iterations / 2 {
 				SetDefaultExpectedLinkStates(ExpectedLinkStates{
-					AtLeastGPUsWithAllLinksFeatureEnabled: -(id*10 + j),
+					AtLeastGPUsWithAllLinksFeatureEnabled: -(i*10 + j),
 				})
 				time.Sleep(time.Microsecond)
 			}
-		}(i)
+		})
 	}
 
 	// Wait for all goroutines to complete

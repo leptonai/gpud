@@ -179,28 +179,54 @@ func TestReadAll(t *testing.T) {
 
 	// Test 3: Wait for command
 	t.Run("wait for command", func(t *testing.T) {
-		p := newTestProcess("echo", "test")
-		completed := false
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := Read(
-			ctx,
-			p,
-			WithReadStdout(),
-			WithProcessLine(func(line string) {}),
-			WithWaitForCmd(),
-		)
-		cancel()
-
-		require.NoError(t, err)
-
-		select {
-		case <-p.Wait():
-			completed = true
-		default:
+		waitCh := make(chan error, 1)
+		p := &testProcess{
+			stdout: io.NopCloser(strings.NewReader("test\n")),
+			waitCh: waitCh,
 		}
 
-		assert.True(t, completed, "command should have completed")
+		lineRead := make(chan struct{}, 1)
+		readErrCh := make(chan error, 1)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		go func() {
+			readErrCh <- Read(
+				ctx,
+				p,
+				WithReadStdout(),
+				WithProcessLine(func(line string) {
+					select {
+					case lineRead <- struct{}{}:
+					default:
+					}
+				}),
+				WithWaitForCmd(),
+			)
+		}()
+
+		select {
+		case <-lineRead:
+		case <-time.After(1 * time.Second):
+			t.Fatal("expected stdout to be processed")
+		}
+
+		select {
+		case err := <-readErrCh:
+			t.Fatalf("Read returned before Wait() completed: %v", err)
+		case <-time.After(100 * time.Millisecond):
+		}
+
+		waitCh <- nil
+		close(waitCh)
+
+		select {
+		case err := <-readErrCh:
+			require.NoError(t, err)
+		case <-time.After(1 * time.Second):
+			t.Fatal("Read did not complete after Wait() returned")
+		}
 	})
 }
 

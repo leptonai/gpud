@@ -1,3 +1,4 @@
+//revive:disable:unused-parameter
 package disk
 
 import (
@@ -35,8 +36,8 @@ func TestNew_DefaultNFSPartitionsFunc_Executes(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	diskComp := comp.(*component)
-	cctx, cancel := context.WithCancel(context.Background())
+	diskComp := mustComponent(t, comp)
+	cctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, _ = diskComp.getNFSPartitionsFunc(cctx)
 }
@@ -51,10 +52,10 @@ func TestNewComponent_InjectableBranches(t *testing.T) {
 			_ = comp.Close()
 		}()
 
-		diskComp := comp.(*component)
+		diskComp := mustComponent(t, comp)
 		require.NotNil(t, diskComp.getBlockDevicesFunc)
 
-		cctx, cancel := context.WithCancel(context.Background())
+		cctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, _ = diskComp.getBlockDevicesFunc(cctx)
 	})
@@ -69,7 +70,7 @@ func TestNewComponent_InjectableBranches(t *testing.T) {
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx:    context.Background(),
 			EventStore: mockStore,
-		}, "linux", 0, func(ctx context.Context, matchFunc kmsg.MatchFunc, eventBucket eventstore.Bucket, opts ...kmsg.OpOption) (*kmsg.Syncer, error) {
+		}, "linux", 0, func(_ context.Context, _ kmsg.MatchFunc, _ eventstore.Bucket, _ ...kmsg.OpOption) (*kmsg.Syncer, error) {
 			return nil, expectedErr
 		})
 		require.ErrorIs(t, err, expectedErr)
@@ -85,12 +86,12 @@ func TestNewComponent_InjectableBranches(t *testing.T) {
 		comp, err := newComponent(&components.GPUdInstance{
 			RootCtx:    context.Background(),
 			EventStore: mockStore,
-		}, "linux", 0, func(ctx context.Context, matchFunc kmsg.MatchFunc, eventBucket eventstore.Bucket, opts ...kmsg.OpOption) (*kmsg.Syncer, error) {
+		}, "linux", 0, func(_ context.Context, _ kmsg.MatchFunc, _ eventstore.Bucket, _ ...kmsg.OpOption) (*kmsg.Syncer, error) {
 			return &kmsg.Syncer{}, nil
 		})
 		require.NoError(t, err)
 
-		diskComp := comp.(*component)
+		diskComp := mustComponent(t, comp)
 		assert.NotNil(t, diskComp.kmsgSyncer)
 
 		// Avoid calling Close on the zero-value kmsg.Syncer from this test.
@@ -104,7 +105,7 @@ func TestComponent_Close_ClosesKmsgSyncer(t *testing.T) {
 	mockBucket := new(mockEventBucket)
 	mockBucket.On("Close").Return()
 
-	cctx, cancel := context.WithCancel(context.Background())
+	cctx, cancel := context.WithCancel(t.Context())
 	c := &component{
 		ctx:         cctx,
 		cancel:      cancel,
@@ -118,7 +119,7 @@ func TestComponent_Close_ClosesKmsgSyncer(t *testing.T) {
 }
 
 func TestComponent_fetchBlockDevices_ContextCanceled_AppendsReason(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	c := createTestComponent(ctx, nil, nil)
 	defer func() {
 		_ = c.Close()
@@ -126,7 +127,7 @@ func TestComponent_fetchBlockDevices_ContextCanceled_AppendsReason(t *testing.T)
 	c.retryInterval = 10 * time.Millisecond
 	cancel()
 
-	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+	c.getBlockDevicesFunc = func(_ context.Context) (disk.BlockDevices, error) {
 		return nil, errors.New("lsblk failed")
 	}
 
@@ -142,7 +143,7 @@ func TestComponent_fetchBlockDevices_ContextCanceled_AppendsReason(t *testing.T)
 }
 
 func TestComponent_fetchBlockDevices_ContextCanceled_FromOKReason(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	c := createTestComponent(ctx, nil, nil)
 	defer func() {
 		_ = c.Close()
@@ -150,7 +151,7 @@ func TestComponent_fetchBlockDevices_ContextCanceled_FromOKReason(t *testing.T) 
 	c.retryInterval = 10 * time.Millisecond
 	cancel()
 
-	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+	c.getBlockDevicesFunc = func(_ context.Context) (disk.BlockDevices, error) {
 		return nil, errors.New("lsblk failed")
 	}
 
@@ -171,7 +172,7 @@ func TestComponent_fetchBlockDevices_NoDevices_AppendsReasonAndSetsDefaultHealth
 		_ = c.Close()
 	}()
 
-	c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+	c.getBlockDevicesFunc = func(_ context.Context) (disk.BlockDevices, error) {
 		return disk.BlockDevices{}, nil
 	}
 
@@ -193,7 +194,7 @@ func TestComponent_fetchPartitions_ContextCanceled_AppendsReason(t *testing.T) {
 		{
 			name: "ext4",
 			call: func(c *component, cr *checkResult) bool {
-				c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+				c.getExt4PartitionsFunc = func(_ context.Context) (disk.Partitions, error) {
 					return nil, errors.New("ext4 failed")
 				}
 				return c.fetchExt4Partitions(cr)
@@ -203,7 +204,7 @@ func TestComponent_fetchPartitions_ContextCanceled_AppendsReason(t *testing.T) {
 		{
 			name: "nfs",
 			call: func(c *component, cr *checkResult) bool {
-				c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+				c.getNFSPartitionsFunc = func(_ context.Context) (disk.Partitions, error) {
 					return nil, errors.New("nfs failed")
 				}
 				return c.fetchNFSPartitions(cr)
@@ -214,7 +215,7 @@ func TestComponent_fetchPartitions_ContextCanceled_AppendsReason(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			c := createTestComponent(ctx, nil, nil)
 			defer func() {
 				_ = c.Close()
@@ -256,22 +257,22 @@ func TestComponent_Check_MountTargetStatAndFindMntBranches(t *testing.T) {
 		}()
 
 		findMntCalled := false
-		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		c.getBlockDevicesFunc = func(_ context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 		}
-		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		c.getExt4PartitionsFunc = func(_ context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		}
-		c.statWithTimeoutFunc = func(ctx context.Context, path string) (os.FileInfo, error) {
+		c.statWithTimeoutFunc = func(_ context.Context, _ string) (os.FileInfo, error) {
 			return nil, errors.New("permission denied")
 		}
-		c.findMntFunc = func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+		c.findMntFunc = func(_ context.Context, _ string) (*disk.FindMntOutput, error) {
 			findMntCalled = true
 			return nil, errors.New("should not be called")
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
 		assert.False(t, findMntCalled)
@@ -280,30 +281,30 @@ func TestComponent_Check_MountTargetStatAndFindMntBranches(t *testing.T) {
 	t.Run("findmnt error returns unhealthy when component context is canceled", func(t *testing.T) {
 		targetDir := t.TempDir()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		c := createTestComponent(ctx, nil, []string{targetDir})
 		defer func() {
 			_ = c.Close()
 		}()
 		c.retryInterval = 10 * time.Millisecond
 
-		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		c.getBlockDevicesFunc = func(_ context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 		}
-		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		c.getExt4PartitionsFunc = func(_ context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		}
-		c.statWithTimeoutFunc = func(ctx context.Context, path string) (os.FileInfo, error) {
+		c.statWithTimeoutFunc = func(_ context.Context, _ string) (os.FileInfo, error) {
 			return os.Stat(targetDir)
 		}
-		c.findMntFunc = func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+		c.findMntFunc = func(_ context.Context, _ string) (*disk.FindMntOutput, error) {
 			return nil, errors.New("findmnt failed")
 		}
 
 		cancel()
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 		assert.ErrorIs(t, cr.err, context.Canceled)
 	})
@@ -343,10 +344,10 @@ func TestComponent_Check_AdditionalEventBranchCoverage(t *testing.T) {
 				return pkgnfschecker.Configs{}
 			},
 			freeSpaceThresholdBytesDegraded: defaultFreeSpaceThresholdBytesDegraded,
-			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+			getBlockDevicesFunc: func(_ context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
-			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			getExt4PartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 				return disk.Partitions{
 					{
 						Device:     "/dev/sda1",
@@ -359,12 +360,12 @@ func TestComponent_Check_AdditionalEventBranchCoverage(t *testing.T) {
 					},
 				}, nil
 			},
-			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			getNFSPartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 				return disk.Partitions{}, nil
 			},
 		}
 
-		cr := c.Check().(*checkResult)
+		cr := mustCheckResult(t, c.Check())
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 		assert.NotNil(t, cr.suggestedActions)
 		assert.Contains(t, cr.reason, messageNVMeTimeout)
@@ -398,10 +399,10 @@ func TestComponent_Check_AdditionalEventBranchCoverage(t *testing.T) {
 				return pkgnfschecker.Configs{}
 			},
 			freeSpaceThresholdBytesDegraded: 20 * 1024 * 1024 * 1024, // 20 GiB
-			getBlockDevicesFunc: func(ctx context.Context) (disk.BlockDevices, error) {
+			getBlockDevicesFunc: func(_ context.Context) (disk.BlockDevices, error) {
 				return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 			},
-			getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			getExt4PartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 				return disk.Partitions{
 					{
 						Device:     "/dev/sda1",
@@ -414,12 +415,12 @@ func TestComponent_Check_AdditionalEventBranchCoverage(t *testing.T) {
 					},
 				}, nil
 			},
-			getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
+			getNFSPartitionsFunc: func(_ context.Context) (disk.Partitions, error) {
 				return disk.Partitions{}, nil
 			},
 		}
 
-		cr := c.Check().(*checkResult)
+		cr := mustCheckResult(t, c.Check())
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 		assert.Contains(t, cr.reason, messageRAIDArrayFailure)
 		assert.Contains(t, cr.reason, "ext4 partition /: free space 10 GiB is below 20 GiB threshold")
@@ -438,13 +439,13 @@ func TestComponent_Check_AdditionalEventBranchCoverage(t *testing.T) {
 				{VolumePath: "/mnt/untracked"},
 			}
 		}
-		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
+		c.getBlockDevicesFunc = func(_ context.Context) (disk.BlockDevices, error) {
 			return disk.BlockDevices{{Name: "sda", Type: "disk"}}, nil
 		}
-		c.getExt4PartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		c.getExt4PartitionsFunc = func(_ context.Context) (disk.Partitions, error) {
 			return disk.Partitions{}, nil
 		}
-		c.getNFSPartitionsFunc = func(ctx context.Context) (disk.Partitions, error) {
+		c.getNFSPartitionsFunc = func(_ context.Context) (disk.Partitions, error) {
 			return disk.Partitions{
 				{
 					Device:     "10.0.0.1:/share",
@@ -459,7 +460,7 @@ func TestComponent_Check_AdditionalEventBranchCoverage(t *testing.T) {
 			}, nil
 		}
 
-		cr := c.Check().(*checkResult)
+		cr := mustCheckResult(t, c.Check())
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 		assert.Equal(t, "ok", cr.reason)
 	})

@@ -13,6 +13,7 @@ const (
 	// it's marked as "drop" candidates, and 3 minutes is not long enough
 	defaultIbPortDropThreshold = 4 * time.Minute
 
+	// EventTypeIbPortDrop marks a port that has remained down long enough to be a drop.
 	EventTypeIbPortDrop = "ib_port_drop"
 )
 

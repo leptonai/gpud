@@ -185,7 +185,7 @@ func TestGetMemoryGB10UnifiedMemory(t *testing.T) {
 	dev := testutil.NewMockDevice(mockDevice, "blackwell", "NVIDIA RTX", "13.0", "0000:0f:00.0")
 
 	// Mock virtual memory function
-	mockVirtualMemory := func(ctx context.Context) (*gopsutilmem.VirtualMemoryStat, error) {
+	mockVirtualMemory := func(_ context.Context) (*gopsutilmem.VirtualMemoryStat, error) {
 		return &gopsutilmem.VirtualMemoryStat{
 			Total:       128 * 1024 * 1024 * 1024, // 128 GB
 			Free:        64 * 1024 * 1024 * 1024,  // 64 GB
@@ -223,7 +223,7 @@ func TestGetMemoryGB10UnifiedMemoryError(t *testing.T) {
 	dev := testutil.NewMockDevice(mockDevice, "blackwell", "NVIDIA RTX", "13.0", "0000:0f:00.0")
 
 	// Mock virtual memory function that returns an error
-	mockVirtualMemory := func(ctx context.Context) (*gopsutilmem.VirtualMemoryStat, error) {
+	mockVirtualMemory := func(_ context.Context) (*gopsutilmem.VirtualMemoryStat, error) {
 		return nil, errors.New("failed to get system memory")
 	}
 

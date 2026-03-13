@@ -22,8 +22,10 @@ import (
 )
 
 const (
+	// Name is the component name reported by the NVIDIA GPU count checker.
 	Name = "accelerator-nvidia-gpu-counts"
 
+	// EventNameMisMatch records a GPU count mismatch event in the event store.
 	EventNameMisMatch = "gpu-count-mismatch"
 )
 
@@ -52,6 +54,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates the NVIDIA GPU count component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -133,7 +136,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	// gpu count mismatch events are ONLY used internally within this package
 	// solely to evaluate the suggested actions
 	// so we don't need to return any events externally

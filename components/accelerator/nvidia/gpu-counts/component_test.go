@@ -96,11 +96,11 @@ type mockRebootEventStore struct {
 // Ensure mockRebootEventStore implements pkghost.RebootEventStore
 var _ pkghost.RebootEventStore = (*mockRebootEventStore)(nil)
 
-func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *mockRebootEventStore) RecordReboot(_ context.Context) error {
 	return nil
 }
 
-func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockRebootEventStore) GetRebootEvents(_ context.Context, _ time.Time) (eventstore.Events, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -129,7 +129,7 @@ func (m *mockEventBucket) Name() string {
 	return m.name
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, ev eventstore.Event) error {
+func (m *mockEventBucket) Insert(_ context.Context, ev eventstore.Event) error {
 	m.insertCalled = true
 	if m.insertErr != nil {
 		return m.insertErr
@@ -138,7 +138,7 @@ func (m *mockEventBucket) Insert(ctx context.Context, ev eventstore.Event) error
 	return nil
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+func (m *mockEventBucket) Find(_ context.Context, _ eventstore.Event) (*eventstore.Event, error) {
 	m.findCalled = true
 	if m.findErr != nil {
 		return nil, m.findErr
@@ -146,7 +146,7 @@ func (m *mockEventBucket) Find(ctx context.Context, ev eventstore.Event) (*event
 	return m.foundEvent, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(_ context.Context, since time.Time) (eventstore.Events, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -160,14 +160,14 @@ func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.
 	return result, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *mockEventBucket) Latest(_ context.Context) (*eventstore.Event, error) {
 	if m.latestErr != nil {
 		return nil, m.latestErr
 	}
 	return m.latestEvent, nil
 }
 
-func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockEventBucket) Purge(_ context.Context, beforeTimestamp int64) (int, error) {
 	m.purgeCalled = true
 	m.purgeBeforeTimestamp = beforeTimestamp
 	if m.purgeErr != nil {
@@ -290,7 +290,7 @@ func TestComponent_IsSupported(t *testing.T) {
 
 // TestComponent_Start tests the Start method
 func TestComponent_Start(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	mockDevices := map[string]device.Device{
@@ -306,7 +306,7 @@ func TestComponent_Start(t *testing.T) {
 		ctx:          ctx,
 		cancel:       cancel,
 		nvmlInstance: mockInstance,
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 1, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -503,7 +503,7 @@ func TestComponent_Check_Success(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -546,7 +546,7 @@ func TestComponent_Check_LspciError(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 0, testErr
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -585,7 +585,7 @@ func TestComponent_Check_ThresholdNotSet(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 1, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -620,7 +620,7 @@ func TestComponent_Check_LspciCountMismatch(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 1, nil // lspci reports 1 GPU
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -659,7 +659,7 @@ func TestComponent_Check_NVMLCountMismatch(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil // lspci reports 2 GPUs
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -692,7 +692,7 @@ func TestComponent_Check_NVMLZeroDevices(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil // lspci reports 2 GPUs
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -898,8 +898,7 @@ func TestDefaultExpectedGPUCounts(t *testing.T) {
 
 // TestComponent_Integration tests the full lifecycle of the component
 func TestComponent_Integration(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Create mock devices
 	mockDevices := map[string]device.Device{
@@ -957,8 +956,7 @@ func TestComponent_Integration(t *testing.T) {
 
 // TestComponent_ConcurrentAccess tests concurrent access to the component
 func TestComponent_ConcurrentAccess(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mockDevices := map[string]device.Device{
 		"test-uuid": testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", "0000:00:00.0"),
@@ -971,7 +969,7 @@ func TestComponent_ConcurrentAccess(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 1, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -984,13 +982,11 @@ func TestComponent_ConcurrentAccess(t *testing.T) {
 
 	// Run multiple checks concurrently
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 10 {
+		wg.Go(func() {
 			_ = c.Check()
 			_ = c.LastHealthStates()
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -1054,7 +1050,7 @@ func TestComponent_Check_ContextCancellation(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			// Return context canceled error
 			return 0, ctx.Err()
 		},
@@ -1083,7 +1079,7 @@ func TestComponent_Check_LargeGPUCount(t *testing.T) {
 
 	// Create many mock devices
 	mockDevices := make(map[string]device.Device)
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		uuid := fmt.Sprintf("test-uuid-%d", i)
 		pciAddress := fmt.Sprintf("0000:00:%02x.0", i)
 		mockDevices[uuid] = testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", pciAddress)
@@ -1096,7 +1092,7 @@ func TestComponent_Check_LargeGPUCount(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product-multi-gpu",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 16, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1134,7 +1130,7 @@ func TestComponent_Check_NegativeThreshold(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 1, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1193,7 +1189,7 @@ func TestComponent_Check_ProductNameEdgeCases(t *testing.T) {
 					nvmlExists:  true,
 					productName: tc.productName,
 				},
-				getCountLspci: func(ctx context.Context) (int, error) {
+				getCountLspci: func(_ context.Context) (int, error) {
 					return 1, nil
 				},
 				getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1256,7 +1252,7 @@ func TestComponent_Check_BoundaryValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create the number of devices specified
 			mockDevices := make(map[string]device.Device)
-			for i := 0; i < tc.nvmlDevices; i++ {
+			for i := range tc.nvmlDevices {
 				uuid := fmt.Sprintf("test-uuid-%d", i)
 				pciAddress := fmt.Sprintf("0000:%02x:00.0", i%256)
 				mockDevices[uuid] = testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", pciAddress)
@@ -1269,7 +1265,7 @@ func TestComponent_Check_BoundaryValues(t *testing.T) {
 					nvmlExists:  true,
 					productName: "test-product",
 				},
-				getCountLspci: func(ctx context.Context) (int, error) {
+				getCountLspci: func(_ context.Context) (int, error) {
 					return tc.lspciCount, nil
 				},
 				getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1310,7 +1306,7 @@ func TestComponent_Check_ErrorMessageValidation(t *testing.T) {
 				nvmlExists:  true,
 				productName: "test-product",
 			},
-			getCountLspci: func(ctx context.Context) (int, error) {
+			getCountLspci: func(_ context.Context) (int, error) {
 				return 5, nil // This doesn't matter for health check anymore
 			},
 			getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1346,7 +1342,7 @@ func TestComponent_Check_ErrorMessageValidation(t *testing.T) {
 				nvmlExists:  true,
 				productName: "test-product",
 			},
-			getCountLspci: func(ctx context.Context) (int, error) {
+			getCountLspci: func(_ context.Context) (int, error) {
 				return 5, nil // This doesn't matter for health check anymore
 			},
 			getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1385,7 +1381,7 @@ func TestComponent_Check_LspciLoggingBehavior(t *testing.T) {
 				nvmlExists:  true,
 				productName: "test-product",
 			},
-			getCountLspci: func(ctx context.Context) (int, error) {
+			getCountLspci: func(_ context.Context) (int, error) {
 				return 8, nil // Successfully returns count
 			},
 			getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1420,7 +1416,7 @@ func TestComponent_Check_LspciLoggingBehavior(t *testing.T) {
 				nvmlExists:  true,
 				productName: "test-product",
 			},
-			getCountLspci: func(ctx context.Context) (int, error) {
+			getCountLspci: func(_ context.Context) (int, error) {
 				return 0, errors.New("lspci command failed")
 			},
 			getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1492,7 +1488,7 @@ func TestComponent_GetTimeNowFunc(t *testing.T) {
 				nvmlExists:  true,
 				productName: "test-product",
 			},
-			getCountLspci: func(ctx context.Context) (int, error) {
+			getCountLspci: func(_ context.Context) (int, error) {
 				return 1, nil
 			},
 			getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1566,7 +1562,7 @@ func TestComponent_Check_OnlyNVMLMatters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create the number of devices specified for NVML
 			mockDevices := make(map[string]device.Device)
-			for i := 0; i < tc.nvmlDevices; i++ {
+			for i := range tc.nvmlDevices {
 				uuid := fmt.Sprintf("test-uuid-%d", i)
 				pciAddress := fmt.Sprintf("0000:%02x:00.0", i%256)
 				mockDevices[uuid] = testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "1.0", pciAddress)
@@ -1579,7 +1575,7 @@ func TestComponent_Check_OnlyNVMLMatters(t *testing.T) {
 					nvmlExists:  true,
 					productName: "test-product",
 				},
-				getCountLspci: func(ctx context.Context) (int, error) {
+				getCountLspci: func(_ context.Context) (int, error) {
 					return tc.lspciCount, tc.lspciError
 				},
 				getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1637,7 +1633,7 @@ func TestComponent_Check_SuggestedActions_NoReboot(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1709,7 +1705,7 @@ func TestComponent_Check_SuggestedActions_OneSequence(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1761,7 +1757,7 @@ func TestComponent_Check_SuggestedActions_RebootEventsError(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1820,7 +1816,7 @@ func TestComponent_Check_SuggestedActions_GPUMismatchEventsError(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -1859,7 +1855,7 @@ func TestComponent_Check_SuggestedActions_NoEventBucket(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -2060,7 +2056,7 @@ func TestComponent_Check_SuggestedActions_TwoSequences(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -2128,7 +2124,7 @@ func TestComponent_Check_SuggestedActions_NoActionAfterReboot(t *testing.T) {
 			nvmlExists:  true,
 			productName: "test-product",
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 2, nil
 		},
 		getThresholdsFunc: func() ExpectedGPUCounts {
@@ -2183,7 +2179,7 @@ func TestComponent_GetTimeNowFunc_Integration(t *testing.T) {
 				nvmlExists:  true,
 				productName: "test-product",
 			},
-			getCountLspci: func(ctx context.Context) (int, error) {
+			getCountLspci: func(_ context.Context) (int, error) {
 				return 2, nil
 			},
 			getThresholdsFunc: func() ExpectedGPUCounts {
@@ -2278,7 +2274,7 @@ func TestComponent_GetTimeNowFunc_Integration(t *testing.T) {
 				nvmlExists:  true,
 				productName: "test-product",
 			},
-			getCountLspci: func(ctx context.Context) (int, error) {
+			getCountLspci: func(_ context.Context) (int, error) {
 				return 1, nil
 			},
 			getThresholdsFunc: func() ExpectedGPUCounts {
@@ -2295,10 +2291,8 @@ func TestComponent_GetTimeNowFunc_Integration(t *testing.T) {
 
 		// Run multiple checks concurrently
 		var wg sync.WaitGroup
-		for i := 0; i < 5; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		for range 5 {
+			wg.Go(func() {
 				result := c.Check()
 				cr, ok := result.(*checkResult)
 				if ok {
@@ -2306,7 +2300,7 @@ func TestComponent_GetTimeNowFunc_Integration(t *testing.T) {
 					timestamps = append(timestamps, cr.ts)
 					mu.Unlock()
 				}
-			}()
+			})
 		}
 		wg.Wait()
 

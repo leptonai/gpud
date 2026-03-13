@@ -1,4 +1,4 @@
-package types
+package types //nolint:revive // The directory name is intentionally generic for shared InfiniBand types.
 
 // ExpectedPortStates configures the expected state of the ports.
 type ExpectedPortStates struct {

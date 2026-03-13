@@ -107,6 +107,7 @@ const (
 	nfsStatTimeoutConsecutiveThreshold = 5
 )
 
+// New creates a disk component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	return newComponent(gpudInstance, runtime.GOOS, os.Geteuid(), kmsg.NewSyncer)
 }
@@ -512,10 +513,8 @@ func (c *component) Check() components.CheckResult {
 	if len(groupConfigs) == 0 {
 		log.Logger.Infow("skipping NFS partitions check as no NFS configs are set")
 		cr.NFSPartitions = disk.Partitions{}
-	} else {
-		if !c.fetchNFSPartitions(cr) {
-			return cr
-		}
+	} else if !c.fetchNFSPartitions(cr) {
+		return cr
 	}
 
 	devToUsage := make(map[string]disk.Usage)
@@ -577,7 +576,7 @@ func (c *component) Check() components.CheckResult {
 		// e.g.,
 		// "unexpected end of JSON input"
 		prevFailed := false
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
 			mntOut, err := c.findMntFunc(cctx, target)
 			ccancel()
@@ -738,10 +737,9 @@ func (c *component) fetchBlockDevices(cr *checkResult) bool {
 	// e.g.,
 	// "unexpected end of JSON input"
 	prevFailed := false
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		blks, err := c.getBlockDevicesFunc(c.ctx) // "getBlockDevicesFunc" itself already sets its own timeout
 		if err != nil {
-
 			select {
 			case <-c.ctx.Done():
 				cr.health = apiv1.HealthStateTypeUnhealthy
@@ -797,7 +795,7 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 	// e.g.,
 	// "unexpected end of JSON input"
 	prevFailed := false
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		parts, err := c.getExt4PartitionsFunc(c.ctx) // "getExt4PartitionsFunc" itself already sets its own timeout
 		if err != nil {
 			select {
@@ -835,7 +833,7 @@ func (c *component) fetchExt4Partitions(cr *checkResult) bool {
 
 func (c *component) fetchNFSPartitions(cr *checkResult) bool {
 	prevFailed := false
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		parts, err := c.getNFSPartitionsFunc(c.ctx) // "getNFSPartitionsFunc" itself already sets its own timeout
 		if err != nil {
 			select {

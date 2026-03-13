@@ -9,6 +9,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
+// NVLink reports NVLink state for a single GPU.
 type NVLink struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
@@ -24,8 +25,12 @@ type NVLink struct {
 	Supported bool `json:"supported"`
 }
 
+// NVLinkStates is the collection of per-link NVLink states for a GPU.
+//
+//nolint:revive // NVIDIA NVLink naming is kept for API compatibility.
 type NVLinkStates []NVLinkState
 
+// AllFeatureEnabled reports whether every discovered link is enabled.
 func (s NVLinkStates) AllFeatureEnabled() bool {
 	for _, state := range s {
 		if !state.FeatureEnabled {
@@ -35,6 +40,7 @@ func (s NVLinkStates) AllFeatureEnabled() bool {
 	return true
 }
 
+// TotalReplayErrors sums replay errors across all links.
 func (s NVLinkStates) TotalReplayErrors() uint64 {
 	var total uint64
 	for _, state := range s {
@@ -43,6 +49,7 @@ func (s NVLinkStates) TotalReplayErrors() uint64 {
 	return total
 }
 
+// TotalRecoveryErrors sums recovery errors across all links.
 func (s NVLinkStates) TotalRecoveryErrors() uint64 {
 	var total uint64
 	for _, state := range s {
@@ -51,6 +58,7 @@ func (s NVLinkStates) TotalRecoveryErrors() uint64 {
 	return total
 }
 
+// TotalCRCErrors sums CRC errors across all links.
 func (s NVLinkStates) TotalCRCErrors() uint64 {
 	var total uint64
 	for _, state := range s {
@@ -59,6 +67,9 @@ func (s NVLinkStates) TotalCRCErrors() uint64 {
 	return total
 }
 
+// NVLinkState reports the state and error counters for a single link.
+//
+//nolint:revive // NVIDIA NVLink naming is kept for API compatibility.
 type NVLinkState struct {
 	// Link is the nvlink link number.
 	Link int `json:"link"`
@@ -78,7 +89,7 @@ type NVLinkState struct {
 	ThroughputRawRxBytes uint64 `json:"throughput_raw_rx_bytes"`
 }
 
-// Queries the nvlink information.
+// GetNVLink queries the NVLink information for a device.
 func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 	nvlink := NVLink{
 		UUID:      uuid,
@@ -86,7 +97,7 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 		Supported: true,
 	}
 
-	for link := 0; link < int(nvml.NVLINK_MAX_LINKS); link++ {
+	for link := range int(nvml.NVLINK_MAX_LINKS) {
 		// may fail at the beginning
 		// ref. https://docs.nvidia.com/deploy/nvml-api/group__NvLink.html#group__NvLink_1g774a9e6cb2f4897701cbc01c5a0a1f3a
 		//

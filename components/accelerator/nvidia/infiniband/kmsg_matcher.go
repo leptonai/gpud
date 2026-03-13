@@ -96,6 +96,7 @@ func HasAccessRegFailed(line string) bool {
 	return false
 }
 
+// Match returns the normalized event name and message for a matching kmsg line.
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {

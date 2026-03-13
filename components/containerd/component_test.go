@@ -1,3 +1,4 @@
+//revive:disable:unused-parameter
 package containerd
 
 import (
@@ -80,7 +81,7 @@ func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.
 
 func runContainerdChecks(c *component, times int) *checkResult {
 	var cr *checkResult
-	for i := 0; i < times; i++ {
+	for range times {
 		result := c.Check()
 		var ok bool
 		cr, ok = result.(*checkResult)
@@ -89,6 +90,22 @@ func runContainerdChecks(c *component, times int) *checkResult {
 		}
 	}
 	return cr
+}
+
+func mustCheckResult(t *testing.T, result components.CheckResult) *checkResult {
+	t.Helper()
+
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	return cr
+}
+
+func mustComponent(t *testing.T, comp components.Component) *component {
+	t.Helper()
+
+	c, ok := comp.(*component)
+	require.True(t, ok)
+	return c
 }
 
 func (m *mockNVMLInstance) Shutdown() error {
@@ -100,7 +117,7 @@ func (m *mockNVMLInstance) InitError() error {
 }
 
 func Test_componentStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	c := &component{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -115,7 +132,7 @@ func Test_componentStart(t *testing.T) {
 }
 
 func TestComponentBasics(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	c := &component{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -143,7 +160,7 @@ func TestComponentBasics(t *testing.T) {
 }
 
 func TestTags(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	c := &component{ctx: ctx, cancel: cancel}
 
 	expectedTags := []string{
@@ -518,7 +535,7 @@ func TestComponentEvents(t *testing.T) {
 // More thorough test of the component methods with different contexts
 func TestComponentWithDifferentContexts(t *testing.T) {
 	// Create component with canceled context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // Cancel right away
 	comp := &component{
 		ctx:                          ctx,
@@ -686,7 +703,7 @@ func TestGetStatesEdgeCases(t *testing.T) {
 	t.Run("data with many pods", func(t *testing.T) {
 		// Create data with multiple pods
 		pods := make([]PodSandbox, 10)
-		for i := 0; i < 10; i++ {
+		for i := range pods {
 			pods[i] = PodSandbox{
 				ID:        fmt.Sprintf("pod-%d", i),
 				Name:      fmt.Sprintf("test-pod-%d", i),
@@ -1254,7 +1271,7 @@ func TestData_GetStatesWithNillastCheckResult(t *testing.T) {
 
 // TestConcurrentAccess tests concurrent access to component's States method
 func TestConcurrentAccess(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	comp := &component{
@@ -1274,15 +1291,15 @@ func TestConcurrentAccess(t *testing.T) {
 	wg.Add(goroutines)
 
 	// Create multiple goroutines to access States concurrently
-	for i := 0; i < goroutines; i++ {
-		go func(id int) {
+	for range goroutines {
+		go func() {
 			defer wg.Done()
 
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				states := comp.LastHealthStates()
 				assert.NotEmpty(t, states)
 			}
-		}(i)
+		}()
 	}
 
 	wg.Wait()
@@ -1417,7 +1434,7 @@ func TestCheckContainerdInstalled(t *testing.T) {
 				cr = runContainerdChecks(comp, socketMissingConsecutiveThreshold)
 			} else {
 				result := comp.Check()
-				cr = result.(*checkResult)
+				cr = mustCheckResult(t, result)
 			}
 
 			// Verify results
@@ -1654,7 +1671,7 @@ func TestDataGetStatesWithExtraFields(t *testing.T) {
 
 // TestComponentStartError tests error handling in the Start method
 func TestComponentStartError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Create component and immediately cancel context
 	c := &component{
@@ -1675,7 +1692,7 @@ func TestComponentStartError(t *testing.T) {
 
 // TestCloseError tests error handling in the Close method
 func TestCloseError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Test closing after already closed
 	c := &component{
@@ -1897,7 +1914,7 @@ func TestCheckOnceSocketNotExists(t *testing.T) {
 		endpoint: "unix:///mock/endpoint",
 	}
 
-	for i := 0; i < socketMissingConsecutiveThreshold-1; i++ {
+	for range socketMissingConsecutiveThreshold - 1 {
 		_ = comp.Check()
 		assert.NotNil(t, comp.lastCheckResult)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastCheckResult.health)
@@ -2041,9 +2058,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 					},
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "ok",
@@ -2064,9 +2079,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 					CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeUnhealthy,
 			expectedReason:                    "nvidia-container-toolkit pod is running but /etc/containerd/config.toml is missing NVIDIA runtime configuration",
@@ -2096,9 +2109,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 					},
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "ok",
@@ -2128,9 +2139,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 					},
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "ok",
@@ -2154,9 +2163,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 					CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "nvidia GPUs found but nvidia-container-toolkit pod is not found",
@@ -2179,9 +2186,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 					State: "SANDBOX_READY",
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "nvidia GPUs found but nvidia-container-toolkit pod is not found",
@@ -2202,9 +2207,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 					CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "error getting containerd config",
@@ -2213,7 +2216,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			c := &component{
@@ -2466,11 +2469,12 @@ func TestDataString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.data.String()
 
-			if tt.expectEmpty {
+			switch {
+			case tt.expectEmpty:
 				assert.Empty(t, result)
-			} else if tt.expectedResult != "" {
+			case tt.expectedResult != "":
 				assert.Equal(t, tt.expectedResult, result)
-			} else {
+			default:
 				for _, str := range tt.expectContains {
 					assert.Contains(t, result, str)
 				}
@@ -2667,7 +2671,7 @@ func TestCheckWithNilFunctions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			// Create component with the provided functions
@@ -2714,7 +2718,7 @@ func TestCheckWithNilFunctions(t *testing.T) {
 
 // TestCheckServiceActiveError tests handling of service active check errors
 func TestCheckServiceActiveError(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create error to test with
@@ -2961,7 +2965,7 @@ func TestNVMLValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			c := &component{
@@ -3004,7 +3008,7 @@ func TestNVMLValidation(t *testing.T) {
 
 func TestNVMLValidationIntegration(t *testing.T) {
 	// This test verifies the complete flow including the NVML check integration
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Test case where NVML exists, GPU detected, but config missing nvidia
@@ -3201,7 +3205,7 @@ func TestCheckContainerdActiveness(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			comp := &component{
@@ -3236,7 +3240,7 @@ func TestCheckContainerdActiveness(t *testing.T) {
 }
 
 func TestCheckContainerdActiveness_SocketMissingConsecutiveFailures(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	socketExists := false
@@ -3248,7 +3252,7 @@ func TestCheckContainerdActiveness_SocketMissingConsecutiveFailures(t *testing.T
 		},
 	}
 
-	for i := 0; i < socketMissingConsecutiveThreshold-1; i++ {
+	for range socketMissingConsecutiveThreshold - 1 {
 		cr := &checkResult{}
 		result := comp.checkContainerdActiveness(cr)
 		assert.False(t, result)
@@ -3294,9 +3298,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 			pods: []PodSandbox{
 				{Name: "regular-pod", Containers: []PodSandboxContainerStatus{{Name: "regular-container"}}},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "ok",
@@ -3310,9 +3312,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 			pods: []PodSandbox{
 				{Name: "regular-pod", Containers: []PodSandboxContainerStatus{{Name: "regular-container"}}},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "ok",
@@ -3323,10 +3323,8 @@ func TestContainerToolkitValidation(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			pods: []PodSandbox{},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			pods:                              []PodSandbox{},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "ok",
@@ -3345,9 +3343,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 					},
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "nvidia GPUs found but nvidia-container-toolkit pod is not found",
@@ -3371,9 +3367,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 					},
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "ok",
@@ -3397,9 +3391,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 					},
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "ok",
@@ -3423,9 +3415,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 					},
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "ok",
@@ -3449,9 +3439,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 					},
 				},
 			},
-			getTimeNowFunc: func() time.Time {
-				return time.Now()
-			},
+			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeHealthy,
 			expectedReason:                    "nvidia GPUs found but nvidia-container-toolkit pod is not found",
@@ -3460,7 +3448,7 @@ func TestContainerToolkitValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			c := &component{
@@ -3797,7 +3785,7 @@ func TestNewWithFailureInjectorContainerdSocketMissing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			gpudInstance := &components.GPUdInstance{
@@ -3810,7 +3798,7 @@ func TestNewWithFailureInjectorContainerdSocketMissing(t *testing.T) {
 			require.NotNil(t, comp)
 
 			// Cast to the internal component type to access the function
-			c := comp.(*component)
+			c := mustComponent(t, comp)
 			require.NotNil(t, c.checkSocketExistsFunc)
 
 			// Test the behavior of checkSocketExistsFunc
@@ -3831,7 +3819,7 @@ func TestNewWithFailureInjectorContainerdSocketMissing(t *testing.T) {
 // 2. 5th check (at threshold) results in Unhealthy state
 // 3. Recovery when socket exists again resets the counter
 func TestContainerdSocketMissingFailureInjectorIntegration(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create component with failure injector enabled
@@ -3844,7 +3832,7 @@ func TestContainerdSocketMissingFailureInjectorIntegration(t *testing.T) {
 
 	comp, err := New(gpudInstance)
 	require.NoError(t, err)
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Override checkDependencyInstalledFunc to return true (containerd is installed)
 	c.checkDependencyInstalledFunc = func() bool {
@@ -3862,7 +3850,7 @@ func TestContainerdSocketMissingFailureInjectorIntegration(t *testing.T) {
 	// First 4 checks should be Healthy (below threshold)
 	for i := 1; i < socketMissingConsecutiveThreshold; i++ {
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 			"Check %d should be Healthy (below threshold)", i)
@@ -3874,7 +3862,7 @@ func TestContainerdSocketMissingFailureInjectorIntegration(t *testing.T) {
 
 	// 5th check should be Unhealthy (at threshold)
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Check at threshold should be Unhealthy")
 	assert.Contains(t, cr.reason, fmt.Sprintf("failed continuously for %d checks", socketMissingConsecutiveThreshold),
@@ -3882,7 +3870,7 @@ func TestContainerdSocketMissingFailureInjectorIntegration(t *testing.T) {
 
 	// Subsequent checks should remain Unhealthy
 	result = c.Check()
-	cr = result.(*checkResult)
+	cr = mustCheckResult(t, result)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Subsequent checks should remain Unhealthy")
 }
@@ -3890,7 +3878,7 @@ func TestContainerdSocketMissingFailureInjectorIntegration(t *testing.T) {
 // TestContainerdSocketMissingRecovery tests that the consecutive counter resets
 // when the socket becomes available again.
 func TestContainerdSocketMissingRecovery(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	socketExists := false
@@ -3920,9 +3908,9 @@ func TestContainerdSocketMissingRecovery(t *testing.T) {
 	}
 
 	// Run 3 checks with socket missing (below threshold)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		result := comp.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 			"Check %d should be Healthy", i+1)
 	}
@@ -3932,7 +3920,7 @@ func TestContainerdSocketMissingRecovery(t *testing.T) {
 
 	// Run a check - should be healthy and counter should reset
 	result := comp.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"Check after recovery should be Healthy")
 	assert.Equal(t, "ok", cr.reason,
@@ -3943,7 +3931,7 @@ func TestContainerdSocketMissingRecovery(t *testing.T) {
 
 	// First check after recovery should show count as 1 (reset occurred)
 	result = comp.Check()
-	cr = result.(*checkResult)
+	cr = mustCheckResult(t, result)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"First check after re-failure should be Healthy")
 	assert.Contains(t, cr.reason, "detected 1/5 consecutive checks",

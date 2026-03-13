@@ -6,6 +6,7 @@ import (
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
+// SubSystem is the Prometheus subsystem name for the NVIDIA HW slowdown component.
 const SubSystem = "accelerator_nvidia_clock"
 
 var (

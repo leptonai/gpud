@@ -44,6 +44,7 @@ func readBPFJITBufferBytes(file string) (uint64, error) {
 		return 0, err
 	}
 
+	//nolint:gosec // caller controls the procfs/test file path for this helper.
 	f, err := os.Open(file)
 	if err != nil {
 		return 0, err

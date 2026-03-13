@@ -9,6 +9,9 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
+// ECCMode reports the current and pending ECC mode for a single GPU.
+//
+//nolint:revive // NVIDIA ECC naming is kept for API compatibility.
 type ECCMode struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
@@ -26,7 +29,7 @@ type ECCMode struct {
 	Supported bool `json:"supported"`
 }
 
-// Returns the current and pending ECC modes.
+// GetECCModeEnabled returns the current and pending ECC modes.
 // "pending" ECC mode refers to the target mode following the next reboot.
 func GetECCModeEnabled(uuid string, dev device.Device) (ECCMode, error) {
 	result := ECCMode{

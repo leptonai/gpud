@@ -1,3 +1,4 @@
+//nolint:revive // package name matches the directory import path used across the codebase.
 package os
 
 import (

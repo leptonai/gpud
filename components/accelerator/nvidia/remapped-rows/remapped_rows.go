@@ -48,6 +48,7 @@ type RemappedRows struct {
 	Supported bool `json:"supported"`
 }
 
+// GetRemappedRows returns the row remapping state for the given GPU.
 func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 	remRws := RemappedRows{
 		UUID:      uuid,
@@ -82,13 +83,13 @@ func GetRemappedRows(uuid string, dev device.Device) (RemappedRows, error) {
 	return remRws, nil
 }
 
-// Returns true if a GPU requires a reset to remap the rows.
+// RequiresReset reports whether a GPU needs a reset to apply pending remaps.
 func (r RemappedRows) RequiresReset() bool {
 	// "isPending indicates whether or not there are pending remappings. A reset will be required to actually remap the row."
 	return r.RemappingPending
 }
 
-// Returns true if a GPU qualifies for RMA.
+// QualifiesForRMA reports whether a GPU meets NVIDIA's RMA criteria.
 // ref. https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/index.html#rma-policy-thresholds-for-row-remapping
 func (r RemappedRows) QualifiesForRMA() bool {
 	// "Regarding row-remapping failures, the RMA criteria is met when the row-remapping failure flag is set and validated by the field diagnostic."

@@ -228,6 +228,7 @@ func Test_connect(t *testing.T) {
 		// Create a temporary file
 		tmpDir := t.TempDir()
 		filePath := filepath.Join(tmpDir, "a_file")
+		// #nosec G304 -- filePath is constructed from t.TempDir() within this test.
 		f, err := os.Create(filePath)
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
@@ -246,6 +247,7 @@ func Test_connect(t *testing.T) {
 		// Create a temporary directory and a file to act as the socket path
 		tempDir := t.TempDir()
 		socketPath := filepath.Join(tempDir, "test_cancel.sock")
+		// #nosec G304 -- socketPath is constructed from t.TempDir() within this test.
 		f, err := os.Create(socketPath) // Create the file so os.Stat passes
 		require.NoError(t, err)
 		require.NoError(t, f.Close())
@@ -254,7 +256,7 @@ func Test_connect(t *testing.T) {
 		endpoint := "unix://" + socketPath
 
 		// Create a context and cancel it calling connect
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel() // Immediately cancel
 
 		_, err = connect(ctx, endpoint)
@@ -325,7 +327,7 @@ func TestListSandboxStatus(t *testing.T) {
 func TestCreateClient(t *testing.T) {
 	t.Run("with canceled context", func(t *testing.T) {
 		// Create a context and immediately cancel it
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel() // Immediately cancel
 
 		// Create a connection to a non-existent endpoint (connection creation will succeed due to lazy initialization)

@@ -34,6 +34,7 @@ func (s *ibPortsStore) readDevPortSnapshots(device string, port uint, since time
 	rootCtx := s.rootCtx
 	s.configMu.RUnlock()
 
+	//nolint:gosec // Table and column names are internal store identifiers, not user input.
 	query := fmt.Sprintf(`SELECT %s, %s, %s FROM %s WHERE %s = ? AND %s = ?`,
 		historyTableColumnTimestamp,
 		historyTableColumnState,
@@ -73,7 +74,7 @@ func (s *ibPortsStore) readDevPortSnapshots(device string, port uint, since time
 	for rows.Next() {
 		var ts int64
 		var state string
-		var totalLinkDowned int
+		var totalLinkDowned uint64
 		if err := rows.Scan(&ts, &state, &totalLinkDowned); err != nil {
 			return nil, err
 		}
@@ -81,7 +82,7 @@ func (s *ibPortsStore) readDevPortSnapshots(device string, port uint, since time
 		snapshot := devPortSnapshot{
 			ts:              time.Unix(ts, 0).UTC(),
 			state:           state,
-			totalLinkDowned: uint64(totalLinkDowned),
+			totalLinkDowned: totalLinkDowned,
 		}
 		snapshots = append(snapshots, snapshot)
 	}
