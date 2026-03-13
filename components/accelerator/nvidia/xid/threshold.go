@@ -32,12 +32,14 @@ const (
 	DefaultLookbackPeriod = eventstore.DefaultRetention
 )
 
+// GetDefaultRebootThreshold returns the configured reboot threshold for XID recovery.
 func GetDefaultRebootThreshold() RebootThreshold {
 	defaultRebootThresholdMu.RLock()
 	defer defaultRebootThresholdMu.RUnlock()
 	return defaultRebootThreshold
 }
 
+// SetDefaultRebootThreshold updates the configured reboot threshold for XID recovery.
 func SetDefaultRebootThreshold(threshold RebootThreshold) {
 	log.Logger.Infow("setting default reboot threshold", "threshold", threshold.Threshold)
 
@@ -46,12 +48,14 @@ func SetDefaultRebootThreshold(threshold RebootThreshold) {
 	defaultRebootThreshold = threshold
 }
 
+// GetLookbackPeriod returns the XID event lookback window.
 func GetLookbackPeriod() time.Duration {
 	defaultLookbackPeriodMu.RLock()
 	defer defaultLookbackPeriodMu.RUnlock()
 	return defaultLookbackPeriod
 }
 
+// SetLookbackPeriod updates the XID event lookback window.
 func SetLookbackPeriod(period time.Duration) {
 	log.Logger.Infow("setting lookback period", "period", period)
 

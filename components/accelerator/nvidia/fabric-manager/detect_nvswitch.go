@@ -80,7 +80,7 @@ const DeviceVendorID = "10de"
 // enumeration. It's used by the Fabric Manager component to determine if NVSwitch
 // is present and therefore if Fabric Manager service is required.
 func ListPCINVSwitches(ctx context.Context) ([]string, error) {
-	return listPCIs(ctx, "lspci -nn", isNVIDIANVSwitchPCI)
+	return listPCIs(ctx, isNVIDIANVSwitchPCI)
 }
 
 // isNVIDIANVSwitchPCI determines if a lspci output line represents an NVSwitch device.
@@ -117,7 +117,9 @@ func isNVIDIANVSwitchPCI(line string) bool {
 // specific types of NVIDIA devices (e.g., GPUs vs NVSwitch bridges).
 //
 // This function is used internally by ListPCINVSwitches to enumerate NVSwitch devices.
-func listPCIs(ctx context.Context, command string, matchFunc func(line string) bool) ([]string, error) {
+func listPCIs(ctx context.Context, matchFunc func(line string) bool) ([]string, error) {
+	const command = "lspci -nn"
+
 	lspciPath, err := file.LocateExecutable(strings.Split(command, " ")[0])
 	if lspciPath == "" || err != nil {
 		return nil, fmt.Errorf("failed to locate lspci: %w", err)
@@ -183,7 +185,7 @@ func listPCIs(ctx context.Context, command string, matchFunc func(line string) b
 //
 //	GPU 7: NVIDIA A100-SXM4-80GB (UUID: GPU-754035b4-4708-efcd-b261-623aea38bcad)
 func CountSMINVSwitches(ctx context.Context) ([]string, error) {
-	return countSMINVSwitches(ctx, "nvidia-smi nvlink --status")
+	return countSMINVSwitches(ctx)
 }
 
 // countSMINVSwitches executes the given nvidia-smi command and parses the output
@@ -195,7 +197,9 @@ func CountSMINVSwitches(ctx context.Context) ([]string, error) {
 //   - "UUID" - ensures it's a valid GPU description line
 //
 // This pattern matches the standard nvidia-smi output format for NVLink status.
-func countSMINVSwitches(ctx context.Context, command string) ([]string, error) {
+func countSMINVSwitches(ctx context.Context) ([]string, error) {
+	const command = "nvidia-smi nvlink --status"
+
 	execPath, err := file.LocateExecutable(strings.Split(command, " ")[0])
 	if execPath == "" || err != nil {
 		return nil, fmt.Errorf("failed to locate nvidia-smi: %w", err)

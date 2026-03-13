@@ -1,7 +1,6 @@
 package fabricmanager
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -297,8 +296,7 @@ func TestWatchFabricManagerLogs(t *testing.T) {
 
 	t.Run("watch with deduplication", func(t *testing.T) {
 		// Create duplicate lines for testing
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		// Create a process that outputs duplicate lines with same timestamp
 		p, err := process.New(
@@ -378,7 +376,7 @@ func TestErrorHandling(t *testing.T) {
 func TestMultipleWatchers(t *testing.T) {
 	t.Run("create multiple watchers and close them", func(t *testing.T) {
 		watchers := make([]watcher, 3)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			w, err := newWatcher([][]string{{"echo", fmt.Sprintf("test %d", i)}})
 			require.NoError(t, err)
 			watchers[i] = w

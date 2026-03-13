@@ -50,7 +50,7 @@ func (m *mockComponent) LastHealthStates() apiv1.HealthStates {
 	}
 }
 
-func (m *mockComponent) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (m *mockComponent) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	return apiv1.Events{}, nil
 }
 
@@ -84,13 +84,21 @@ func (r *mockCheckResult) HealthStates() apiv1.HealthStates {
 }
 
 // Mock function that returns a component without error
-func mockInitFuncSuccess(instance *GPUdInstance) (Component, error) {
+func mockInitFuncSuccess(_ *GPUdInstance) (Component, error) {
 	return newMockComponent("test-component"), nil
 }
 
 // Mock function that returns an error
-func mockInitFuncError(instance *GPUdInstance) (Component, error) {
+func mockInitFuncError(_ *GPUdInstance) (Component, error) {
 	return nil, fmt.Errorf("mock init error")
+}
+
+func mustRegistry(t *testing.T, r Registry) *registry {
+	t.Helper()
+
+	reg, ok := r.(*registry)
+	require.True(t, ok)
+	return reg
 }
 
 func TestHasRegistered(t *testing.T) {
@@ -98,7 +106,7 @@ func TestHasRegistered(t *testing.T) {
 	r := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
-	reg := r.(*registry)
+	reg := mustRegistry(t, r)
 
 	// When registry is empty, should return false
 	assert.False(t, reg.hasRegistered("test-component"))
@@ -121,7 +129,7 @@ func TestRegisterInitFunc(t *testing.T) {
 	r := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
-	reg := r.(*registry)
+	reg := mustRegistry(t, r)
 
 	// Test registering a component successfully
 	_, err := reg.Register(mockInitFuncSuccess)
@@ -147,7 +155,7 @@ func TestAll(t *testing.T) {
 	r := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
-	reg := r.(*registry)
+	reg := mustRegistry(t, r)
 
 	// Test empty registry
 	components := reg.All()
@@ -183,7 +191,7 @@ func TestMustRegister(t *testing.T) {
 
 	// Test successful registration
 	require.NotPanics(t, func() {
-		r.MustRegister(func(instance *GPUdInstance) (Component, error) {
+		r.MustRegister(func(_ *GPUdInstance) (Component, error) {
 			return newMockComponent("must-register-component"), nil
 		})
 	})
@@ -195,14 +203,14 @@ func TestMustRegister(t *testing.T) {
 
 	// Test panic on registration error
 	require.Panics(t, func() {
-		r.MustRegister(func(instance *GPUdInstance) (Component, error) {
+		r.MustRegister(func(_ *GPUdInstance) (Component, error) {
 			return nil, fmt.Errorf("initialization error")
 		})
 	})
 
 	// Test panic on duplicate registration
 	require.Panics(t, func() {
-		r.MustRegister(func(instance *GPUdInstance) (Component, error) {
+		r.MustRegister(func(_ *GPUdInstance) (Component, error) {
 			return newMockComponent("must-register-component"), nil
 		})
 	})
@@ -213,7 +221,7 @@ func TestGet(t *testing.T) {
 	r := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
-	reg := r.(*registry)
+	reg := mustRegistry(t, r)
 
 	// Test getting a component that doesn't exist
 	component := r.Get("non-existent")
@@ -237,7 +245,7 @@ func TestListAll(t *testing.T) {
 	r := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
-	reg := r.(*registry)
+	reg := mustRegistry(t, r)
 
 	// Test empty registry
 	components := reg.listAll()
@@ -279,7 +287,7 @@ func TestNewRegistry(t *testing.T) {
 	assert.True(t, ok)
 
 	// Cast to registry to check internal state
-	reg := r.(*registry)
+	reg := mustRegistry(t, r)
 
 	// Check that the gpudInstance is set correctly
 	assert.Equal(t, instance, reg.gpudInstance)
@@ -294,7 +302,7 @@ func TestDeregister(t *testing.T) {
 	r := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
-	reg := r.(*registry)
+	reg := mustRegistry(t, r)
 
 	// Test deregistering a component that doesn't exist
 	component := r.Deregister("non-existent")
@@ -330,18 +338,19 @@ func TestRegisterMetrics(t *testing.T) {
 
 	// Create a test component registration function
 	compName := "metrics-test-component"
-	initFunc := func(instance *GPUdInstance) (Component, error) {
+	initFunc := func(_ *GPUdInstance) (Component, error) {
 		return newMockComponent(compName), nil
 	}
 
 	// Register the component
-	_, err := r.(*registry).Register(initFunc)
+	reg := mustRegistry(t, r)
+	_, err := reg.Register(initFunc)
 	assert.NoError(t, err)
 
 	// Verify the component was registered in metrics
 	// This is a basic verification that the code path is executed
 	// A more thorough test would need to mock the metrics package
-	assert.True(t, r.(*registry).hasRegistered(compName))
+	assert.True(t, reg.hasRegistered(compName))
 }
 
 func TestConcurrentRegistryOperations(t *testing.T) {
@@ -358,16 +367,17 @@ func TestConcurrentRegistryOperations(t *testing.T) {
 	wg.Add(concurrency * 3) // register, get, and deregister operations
 
 	// Create a unique component for each goroutine
-	for i := 0; i < concurrency; i++ {
+	reg := mustRegistry(t, r)
+	for i := range concurrency {
 		compName := fmt.Sprintf("concurrent-comp-%d", i)
 
 		// Test concurrent registration
 		go func(name string) {
 			defer wg.Done()
-			initFunc := func(instance *GPUdInstance) (Component, error) {
+			initFunc := func(_ *GPUdInstance) (Component, error) {
 				return newMockComponent(name), nil
 			}
-			_, err := r.(*registry).Register(initFunc)
+			_, err := reg.Register(initFunc)
 			assert.NoError(t, err)
 		}(compName)
 
@@ -375,7 +385,7 @@ func TestConcurrentRegistryOperations(t *testing.T) {
 		go func(name string) {
 			defer wg.Done()
 			// Try getting the component multiple times
-			for j := 0; j < 5; j++ {
+			for range 5 {
 				comp := r.Get(name)
 				if comp != nil {
 					assert.Equal(t, name, comp.Name())
@@ -412,11 +422,11 @@ func TestRegistryErrorCases(t *testing.T) {
 	r := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
-	reg := r.(*registry)
+	reg := mustRegistry(t, r)
 
 	// Test case 1: Init function returns error
 	errorMsg := "initialization failed error"
-	initFuncWithError := func(instance *GPUdInstance) (Component, error) {
+	initFuncWithError := func(_ *GPUdInstance) (Component, error) {
 		return nil, fmt.Errorf("%s", errorMsg)
 	}
 
@@ -426,7 +436,7 @@ func TestRegistryErrorCases(t *testing.T) {
 
 	// Test case 2: Duplicate component registration
 	compName := "duplicate-component"
-	initFunc := func(instance *GPUdInstance) (Component, error) {
+	initFunc := func(_ *GPUdInstance) (Component, error) {
 		return newMockComponent(compName), nil
 	}
 
@@ -463,11 +473,11 @@ func TestRegisterAlreadyRegisteredError(t *testing.T) {
 	r := NewRegistry(&GPUdInstance{
 		RootCtx: context.Background(),
 	})
-	reg := r.(*registry)
+	reg := mustRegistry(t, r)
 
 	// Create a test component name and init function
 	compName := "already-registered-test-component"
-	initFunc := func(instance *GPUdInstance) (Component, error) {
+	initFunc := func(_ *GPUdInstance) (Component, error) {
 		return newMockComponent(compName), nil
 	}
 

@@ -63,10 +63,12 @@ func BenchmarkInsertRealistic(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
-		eventTime := now.Add(time.Duration(i) * time.Second)
+	insertIndex := 0
+	for b.Loop() {
+		eventTime := now.Add(time.Duration(insertIndex) * time.Second)
 		if err := store.Insert(eventTime, testPorts); err != nil {
 			b.Fatalf("failed to insert: %v", err)
 		}
+		insertIndex++
 	}
 }

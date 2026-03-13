@@ -25,7 +25,7 @@ func createECCErrorsDevice(
 	memoryErrorRet nvml.Return,
 ) device.Device {
 	mockDevice := &mock.Device{
-		GetTotalEccErrorsFunc: func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType) (uint64, nvml.Return) {
+		GetTotalEccErrorsFunc: func(errorType nvml.MemoryErrorType, _ nvml.EccCounterType) (uint64, nvml.Return) {
 			if totalECCRet != nvml.SUCCESS {
 				return 0, totalECCRet
 			}
@@ -34,7 +34,7 @@ func createECCErrorsDevice(
 			}
 			return totalECCUncorrected, nvml.SUCCESS
 		},
-		GetMemoryErrorCounterFunc: func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, location nvml.MemoryLocation) (uint64, nvml.Return) {
+		GetMemoryErrorCounterFunc: func(errorType nvml.MemoryErrorType, _ nvml.EccCounterType, _ nvml.MemoryLocation) (uint64, nvml.Return) {
 			if memoryErrorRet != nvml.SUCCESS {
 				return 0, memoryErrorRet
 			}

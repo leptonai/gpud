@@ -70,7 +70,7 @@ func TestListPCINVSwitches_Mockey(t *testing.T) {
 			stdoutReader: bytes.NewReader(data),
 		}, nil).Build()
 		ctx := context.Background()
-		lines, err := listPCIs(ctx, "lspci -nn", isNVIDIANVSwitchPCI)
+		lines, err := listPCIs(ctx, isNVIDIANVSwitchPCI)
 		assert.NoError(t, err)
 		assert.Len(t, lines, 1)
 		assert.Contains(t, lines[0], "Bridge")
@@ -89,7 +89,7 @@ func TestCountSMINVSwitches_Mockey(t *testing.T) {
 			stdoutReader: bytes.NewReader(data),
 		}, nil).Build()
 		ctx := context.Background()
-		lines, err := countSMINVSwitches(ctx, "nvidia-smi nvlink --status")
+		lines, err := countSMINVSwitches(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, lines, 2)
 		assert.Contains(t, lines[0], "GPU 0")
@@ -122,8 +122,7 @@ func TestHasNothingToDoEvent_WithMatchingEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer bucket.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Insert a matching nothing-to-do event
 	err = bucket.Insert(ctx, eventstore.Event{
@@ -155,8 +154,7 @@ func TestHasNothingToDoEvent_NoMatchingEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer bucket.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Insert a different event (not nothing-to-do)
 	err = bucket.Insert(ctx, eventstore.Event{
@@ -190,8 +188,7 @@ func TestHasNothingToDoEvent_ErrorQuerying(t *testing.T) {
 	// Close the bucket to cause Get errors
 	bucket.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	c := &component{
 		ctx:         ctx,
@@ -283,8 +280,7 @@ func TestCheck_FMNotActive_NothingToDoEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer bucket.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Insert a nothing-to-do event
 	err = bucket.Insert(ctx, eventstore.Event{
@@ -297,7 +293,7 @@ func TestCheck_FMNotActive_NothingToDoEvent(t *testing.T) {
 
 	comp := &component{
 		ctx:    ctx,
-		cancel: cancel,
+		cancel: func() {},
 		nvmlInstance: &mockNVMLInstance{
 			exists:      true,
 			supportsFM:  true,
@@ -335,12 +331,11 @@ func TestCheck_FMNotActive_NoNothingToDoEvent(t *testing.T) {
 	require.NoError(t, err)
 	defer bucket.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	comp := &component{
 		ctx:    ctx,
-		cancel: cancel,
+		cancel: func() {},
 		nvmlInstance: &mockNVMLInstance{
 			exists:      true,
 			supportsFM:  true,
@@ -377,8 +372,7 @@ func TestCheck_FabricStateUnhealthy_ThenFMNothingToDo(t *testing.T) {
 	require.NoError(t, err)
 	defer bucket.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Insert a nothing-to-do event
 	err = bucket.Insert(ctx, eventstore.Event{
@@ -391,7 +385,7 @@ func TestCheck_FabricStateUnhealthy_ThenFMNothingToDo(t *testing.T) {
 
 	comp := &component{
 		ctx:    ctx,
-		cancel: cancel,
+		cancel: func() {},
 		nvmlInstance: &mockNVMLInstance{
 			exists:              true,
 			supportsFM:          true,
@@ -464,7 +458,7 @@ func TestCheck_GetCountLspciError(t *testing.T) {
 			productName:         "NVIDIA H100",
 			deviceCount:         2,
 		},
-		getCountLspci: func(ctx context.Context) (int, error) {
+		getCountLspci: func(_ context.Context) (int, error) {
 			return 0, errors.New("lspci failed")
 		},
 		collectFabricStateFunc: func() fabricStateReport {
@@ -643,8 +637,7 @@ func TestComponentEvents_Timestamp(t *testing.T) {
 	require.NoError(t, err)
 	defer bucket.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Insert events at specific times
 	now := time.Now().UTC()
@@ -683,8 +676,7 @@ func TestNewWithEventStore(t *testing.T) {
 	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	instance := &components.GPUdInstance{
 		RootCtx:    ctx,
@@ -763,7 +755,7 @@ func TestCollectFabricState_Errors(t *testing.T) {
 		mockInst := &mockNVMLInstance{deviceCount: 1}
 		// override getFabricInfoFn
 		old := getFabricInfoFn
-		getFabricInfoFn = func(dev interface{}) (device.FabricState, error) {
+		getFabricInfoFn = func(_ any) (device.FabricState, error) {
 			return device.FabricState{}, errors.New("query failed")
 		}
 		defer func() { getFabricInfoFn = old }()

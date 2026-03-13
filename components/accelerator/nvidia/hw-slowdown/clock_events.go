@@ -15,7 +15,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
-// Returns true if clock events is supported by this device.
+// ClockEventsSupportedByDevice reports whether clock events are supported by a device.
 func ClockEventsSupportedByDevice(dev device.Device) (bool, error) {
 	// clock events are supported in versions 535 and above
 	// otherwise, CGO call just exits with
@@ -101,6 +101,7 @@ func (evs *ClockEvents) HWSlowdownEvent() *eventstore.Event {
 	}
 }
 
+// GetClockEvents returns the current clock events for a device.
 func GetClockEvents(uuid string, dev device.Device) (ClockEvents, error) {
 	return GetClockEventsWithTime(uuid, dev, nil)
 }

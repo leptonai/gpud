@@ -260,10 +260,10 @@ func TestScanIBPortDrops(t *testing.T) {
 	t.Run("successful_drop_detection", func(t *testing.T) {
 		// Insert test data that represents a drop scenario
 		// Port down for 3 minutes (> 2 minute threshold)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime, device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime, device, port, "down", 5)
 
 		// Scan for drops
 		result, err := store.scanIBPortDrops(device, port, currentTime.Add(-4*time.Minute))
@@ -283,9 +283,9 @@ func TestScanIBPortDrops(t *testing.T) {
 		require.NoError(t, err)
 
 		// Insert test data - all active
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "active", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "active", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "active", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "active", 5)
 
 		// Scan for drops
 		result, err := store.scanIBPortDrops(device, port, currentTime.Add(-4*time.Minute))
@@ -299,8 +299,8 @@ func TestScanIBPortDrops(t *testing.T) {
 		require.NoError(t, err)
 
 		// Insert test data - down for only 1 minute (< 2 minute threshold)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime, device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime, device, port, "down", 5)
 
 		// Scan for drops
 		result, err := store.scanIBPortDrops(device, port, currentTime.Add(-2*time.Minute))
@@ -314,10 +314,10 @@ func TestScanIBPortDrops(t *testing.T) {
 		require.NoError(t, err)
 
 		// Insert test data - down but link count changes
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 6) // Link count changed
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime, device, port, "down", 6)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-3*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Minute), device, port, "down", 5)
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Minute), device, port, "down", 6) // Link count changed
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime, device, port, "down", 6)
 
 		// Scan for drops
 		result, err := store.scanIBPortDrops(device, port, currentTime.Add(-4*time.Minute))

@@ -13,13 +13,14 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
-func createSXidEvent(eventTime time.Time, sxid uint64, eventType apiv1.EventType, suggestedAction apiv1.RepairActionType) eventstore.Event {
+func createSXidEvent(eventTime time.Time, sxid uint64, eventType apiv1.EventType, repairAction apiv1.RepairActionType) eventstore.Event {
 	sxidErr := sxidErrorEventDetail{
+		Time:       metav1.NewTime(eventTime),
 		SXid:       sxid,
 		DataSource: "test",
 		DeviceUUID: "PCI:0000:9b:00",
 		SuggestedActionsByGPUd: &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{suggestedAction},
+			RepairActions: []apiv1.RepairActionType{repairAction},
 		},
 	}
 	sxidData, _ := json.Marshal(sxidErr)

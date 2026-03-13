@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -18,9 +19,12 @@ import (
 	"github.com/leptonai/gpud/pkg/systemd"
 )
 
+// ErrEmptyToken reports a login attempt without a registration token.
 var ErrEmptyToken = errors.New("token is empty")
 
 // LoginConfig contains the configuration for the login operation.
+//
+//nolint:revive // Kept for CLI/package API stability.
 type LoginConfig struct {
 	Token     string
 	Endpoint  string
@@ -32,6 +36,11 @@ type LoginConfig struct {
 	// GPUCount is the number of GPUs to be reported to the control plane.
 	// If not specified, the control plane will use the detected number of GPUs.
 	GPUCount string
+
+	// NodeLabels contains Kubernetes label key/value pairs to attach during login.
+	// Keys without the managed "user.node.lepton.ai/" prefix are normalized before validation and sending.
+	// Nil means "leave labels unchanged"; an empty but non-nil map means "clear labels".
+	NodeLabels map[string]string
 
 	PublicIP  string // optional: overrides detected public IP
 	PrivateIP string // optional: overrides detected private IP
@@ -74,6 +83,17 @@ type LoginConfig struct {
 func Login(ctx context.Context, cfg LoginConfig) error {
 	if cfg.Token == "" {
 		return ErrEmptyToken
+	}
+
+	normalizedNodeLabels, err := normalizeNodeLabels(cfg.NodeLabels)
+	if err != nil {
+		return fmt.Errorf("invalid node labels: %w", err)
+	}
+	cfg.NodeLabels = normalizedNodeLabels
+
+	desiredNodeLabelsJSON, err := canonicalNodeLabels(cfg.NodeLabels)
+	if err != nil {
+		return fmt.Errorf("invalid node labels: %w", err)
 	}
 
 	dataDir, err := config.ResolveDataDir(cfg.DataDir)
@@ -125,9 +145,44 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	}
 	log.Logger.Debugw("successfully read machine ID")
 
+	reloginExistingMachine := false
 	if prevMachineID != "" {
-		fmt.Printf("machine ID %s already assigned (skipping login)\n", prevMachineID)
-		return nil
+		shouldRefreshLogin, err := shouldRefreshLoginForNodeLabels(ctx, dbRO, desiredNodeLabelsJSON, cfg.NodeLabels != nil)
+		if err != nil {
+			return fmt.Errorf("failed to read previous node labels: %w", err)
+		}
+		if shouldRefreshLogin {
+			reloginExistingMachine = true
+			log.Logger.Infow("re-running login to refresh node labels", "machineID", prevMachineID)
+		} else {
+			fmt.Printf("machine ID %s already assigned (skipping login)\n", prevMachineID)
+			return nil
+		}
+	}
+
+	if reloginExistingMachine {
+		// Once we have a locally persisted machine ID, a follow-up login is a refresh for that
+		// exact machine, not an opportunity to point this daemon at a different control-plane record.
+		// Before node-label refreshes existed, this code path always skipped the login entirely, so a
+		// hidden/manual machine-id override could never silently retarget an already-registered node.
+		// Keep that invariant explicit: if a caller wants to operate on a different machine ID, they
+		// must first clear the local state instead of piggybacking on the refresh flow.
+		if cfg.MachineID != "" && cfg.MachineID != prevMachineID {
+			return fmt.Errorf("stored machine ID %q does not match requested machine ID %q", prevMachineID, cfg.MachineID)
+		}
+
+		// Use the persisted machine ID for the refresh request even when the caller omitted it so the
+		// control plane sees an unambiguous relogin for the machine already assigned to this host.
+		cfg.MachineID = prevMachineID
+	}
+
+	if prevMachineID != "" && cfg.NodeGroup == "" {
+		// Existing machines relogin by machine ID; node group is only needed for new-machine login.
+		log.Logger.Debugw("using existing machine login path", "machineID", cfg.MachineID)
+	}
+
+	if prevMachineID != "" && cfg.NodeLabels != nil {
+		log.Logger.Debugw("node labels configured for relogin", "machineID", cfg.MachineID, "nodeLabels", cfg.NodeLabels)
 	}
 
 	log.Logger.Debugw("creating nvml instance")
@@ -154,6 +209,7 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}
+	req.NodeLabels = cfg.NodeLabels
 	log.Logger.Debugw("successfully created login request", "duration", time.Since(loginCreatedAt))
 
 	if cfg.PublicIP != "" { // overwrite if not empty
@@ -226,6 +282,14 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	}
 	log.Logger.Debugw("successfully recorded private IP")
 
+	if cfg.NodeLabels != nil {
+		log.Logger.Debugw("recording last sent node labels")
+		if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyLastSentNodeLabels, desiredNodeLabelsJSON); err != nil {
+			return fmt.Errorf("failed to record last sent node labels: %w", err)
+		}
+		log.Logger.Debugw("successfully recorded last sent node labels")
+	}
+
 	log.Logger.Debugw("getting fifo file")
 	fifoFile := config.FifoFilePath(dataDir)
 	log.Logger.Debugw("successfully got fifo file")
@@ -267,6 +331,19 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 
 	fmt.Printf("%s successfully logged in and assigned machine id %s\n", cmdcommon.CheckMark, loginResp.MachineID)
 	return nil
+}
+
+func shouldRefreshLoginForNodeLabels(ctx context.Context, dbRO *sql.DB, desiredNodeLabelsJSON string, nodeLabelsConfigured bool) (bool, error) {
+	if !nodeLabelsConfigured {
+		return false, nil
+	}
+
+	prevNodeLabelsJSON, err := pkgmetadata.ReadMetadata(ctx, dbRO, pkgmetadata.MetadataKeyLastSentNodeLabels)
+	if err != nil {
+		return false, err
+	}
+
+	return prevNodeLabelsJSON != desiredNodeLabelsJSON, nil
 }
 
 func serverRunning() bool {

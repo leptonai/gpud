@@ -23,16 +23,25 @@ func BenchmarkScanRealistic(b *testing.B) {
 	// Create a dataset with realistic drop/flap patterns
 	deviceNames := []string{"mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3"}
 	now := time.Now()
+	linkDownCounts := make([]uint64, 100)
+	for i := range linkDownCounts {
+		if i > 0 {
+			linkDownCounts[i] = linkDownCounts[i-1]
+		}
+		if i > 0 && i%10 == 0 {
+			linkDownCounts[i]++
+		}
+	}
 
 	// Insert baseline data with some problematic patterns
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		eventTime := now.Add(time.Duration(i*30) * time.Second) // Every 30s
 
 		ports := make([]types.IBPort, len(deviceNames))
 		for j, device := range deviceNames {
 			state := "Active"
 			physState := "LinkUp"
-			linkDown := uint64(i / 10) // Gradual increase
+			linkDown := linkDownCounts[i] // Gradual increase
 
 			// Simulate flapping on device 1
 			if j == 1 && i%10 < 3 {
@@ -64,7 +73,7 @@ func BenchmarkScanRealistic(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if err := store.Scan(); err != nil {
 			b.Fatalf("failed to scan: %v", err)
 		}

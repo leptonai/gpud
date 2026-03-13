@@ -3,6 +3,7 @@ package gpm
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -13,7 +14,8 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
-func GPMSupportedByDevice(dev device.Device) (bool, error) {
+// SupportedByDevice reports whether GPM is supported for the given device.
+func SupportedByDevice(dev device.Device) (bool, error) {
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlGpmFunctions.html#group__nvmlGpmFunctions_1gdfd08d875be65f0532201913da9b8890
 	gpuQuerySupport, ret := dev.GpmQueryDeviceSupport()
 
@@ -40,8 +42,8 @@ func GPMSupportedByDevice(dev device.Device) (bool, error) {
 	return gpuQuerySupport.IsSupportedDevice != 0, nil
 }
 
-// GPMMetrics contains the GPM metrics for a device.
-type GPMMetrics struct {
+// Metrics contains the GPM metrics for a device.
+type Metrics struct {
 	// Time is the time the metrics were collected.
 	Time metav1.Time `json:"time"`
 
@@ -55,7 +57,7 @@ type GPMMetrics struct {
 	Metrics map[nvml.GpmMetricId]float64 `json:"metrics"`
 }
 
-// Returns the map from the metrics ID to the value for this device.
+// GetGPMMetrics returns the map from metric ID to value for a device.
 // Don't call these in parallel for multiple devices.
 // It "SIGSEGV: segmentation violation" in cgo execution.
 // Returns nil if it's not supported.
@@ -66,6 +68,10 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.D
 	}
 	if len(metricIDs) > 98 {
 		return nil, fmt.Errorf("too many metric IDs provided (%d > 98)", len(metricIDs))
+	}
+	numMetrics, err := uint32FromInt(len(metricIDs))
+	if err != nil {
+		return nil, err
 	}
 
 	sample1, ret := nvml.GpmSampleAlloc()
@@ -116,13 +122,17 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.D
 	}
 
 	gpmMetric := nvml.GpmMetricsGetType{
-		NumMetrics: uint32(len(metricIDs)),
+		NumMetrics: numMetrics,
 		Sample1:    sample1,
 		Sample2:    sample2,
 		Metrics:    [210]nvml.GpmMetric{},
 	}
 	for i := range metricIDs {
-		gpmMetric.Metrics[i].MetricId = uint32(metricIDs[i])
+		metricID, err := uint32FromMetricID(metricIDs[i])
+		if err != nil {
+			return nil, err
+		}
+		gpmMetric.Metrics[i].MetricId = metricID
 	}
 	if ret = nvml.GpmMetricsGet(&gpmMetric); ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("failed to get gpm metric: %v", nvml.ErrorString(ret))
@@ -136,4 +146,18 @@ func GetGPMMetrics(ctx context.Context, dev device.Device, sampleDuration time.D
 		metrics[metricIDs[i]] = gpmMetric.Metrics[i].Value
 	}
 	return metrics, nil
+}
+
+func uint32FromInt(v int) (uint32, error) {
+	if v < 0 || v > math.MaxUint32 {
+		return 0, fmt.Errorf("value %d overflows uint32", v)
+	}
+	return uint32(v), nil
+}
+
+func uint32FromMetricID(v nvml.GpmMetricId) (uint32, error) {
+	if v < 0 {
+		return 0, fmt.Errorf("metric ID %d overflows uint32", v)
+	}
+	return uint32FromInt(int(v))
 }

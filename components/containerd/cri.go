@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	defaultSocketFile               = "/run/containerd/containerd.sock"
+	defaultSocketFile = "/run/containerd/containerd.sock"
+	// DefaultContainerRuntimeEndpoint is the default CRI socket for containerd.
 	DefaultContainerRuntimeEndpoint = "unix:///run/containerd/containerd.sock"
 )
 
@@ -95,7 +96,7 @@ func connect(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 	// Attempt to establish connection with retries
 	var conn *grpc.ClientConn
 	var dialErr error
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		// "WithBlock" ctx cancel is no-op
 		conn, dialErr = grpc.DialContext(ctx, addr, defaultDialOptions()...) //nolint:staticcheck
 		if conn != nil && dialErr == nil {
@@ -158,6 +159,7 @@ func createClient(ctx context.Context, conn *grpc.ClientConn) (runtimeapi.Runtim
 	return runtimeClient, imageClient, nil
 }
 
+// CheckSocketExists reports whether the default containerd socket exists.
 func CheckSocketExists() bool {
 	// if containerd is disabled or aborted (due to invalid config), the socket file will not exist
 	// vice versa, if the socket file exists, containerd is running
@@ -174,6 +176,7 @@ func CheckSocketExists() bool {
 	return true
 }
 
+// CheckContainerdRunning reports whether containerd is reachable via its default CRI endpoint.
 func CheckContainerdRunning(ctx context.Context) bool {
 	cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
 	defer ccancel()
@@ -226,6 +229,7 @@ func GetVersionFromCli(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	// #nosec G204 -- containerdPath is resolved via LocateExecutable for the fixed "containerd" binary name.
 	out, err := exec.CommandContext(ctx, containerdPath, "--version").Output()
 	if err != nil {
 		return "", err
@@ -287,7 +291,6 @@ func convertToPodSandboxes(listPodSandboxResp *runtimeapi.ListPodSandboxResponse
 			// to be filled in later
 			Containers: nil,
 		}
-
 	}
 	for _, container := range listContainersResp.Containers {
 		podSandboxID := container.PodSandboxId
@@ -345,6 +348,7 @@ type PodSandbox struct {
 	Containers []PodSandboxContainerStatus `json:"containers,omitempty"`
 }
 
+// PodSandboxContainerStatus is the simplified CRI container status attached to a sandbox.
 // ref. https://pkg.go.dev/k8s.io/cri-api/pkg/apis/runtime/v1#ContainerStatus
 type PodSandboxContainerStatus struct {
 	ID    string `json:"id,omitempty"`

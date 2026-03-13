@@ -2,6 +2,7 @@ package xid
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"testing"
@@ -255,7 +256,7 @@ func TestMatchDmesgWithXid119(t *testing.T) {
 	lines := strings.Split(string(data), "\n")
 
 	// Find all XID errors
-	var xidErrors []*XidError
+	var xidErrors []*Error
 	for _, line := range lines {
 		if xidErr := Match(line); xidErr != nil {
 			xidErrors = append(xidErrors, xidErr)
@@ -296,9 +297,7 @@ func TestMatchReturnsNilWhenFallbackDetailMissing(t *testing.T) {
 	originalDetails := details
 
 	clonedDetails := make(map[int]Detail, len(details))
-	for xid, detail := range details {
-		clonedDetails[xid] = detail
-	}
+	maps.Copy(clonedDetails, details)
 	delete(clonedDetails, 79)
 	details = clonedDetails
 
@@ -346,7 +345,6 @@ func TestNormalizePCIBDF(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, normalizePCIBDF(tt.input))
 		})

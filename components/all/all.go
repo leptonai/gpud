@@ -39,11 +39,13 @@ import (
 	componentstailscale "github.com/leptonai/gpud/components/tailscale"
 )
 
+// Component describes a component registration entry.
 type Component struct {
 	Name     string
 	InitFunc components.InitFunc
 }
 
+// All returns every component registration in initialization order.
 func All() []Component {
 	return componentInits
 }

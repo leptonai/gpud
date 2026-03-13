@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	// Name is the component name reported by the NVIDIA GPM checker.
 	Name = "accelerator-nvidia-gpm"
 
 	sampleDuration = 5 * time.Second
@@ -77,6 +78,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates the NVIDIA GPM component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -86,7 +88,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		nvmlInstance:        gpudInstance.NVMLInstance,
-		getGPMSupportedFunc: GPMSupportedByDevice,
+		getGPMSupportedFunc: SupportedByDevice,
 		getGPMMetricsFunc: func(ctx2 context.Context, dev device.Device) (map[gonvml.GpmMetricId]float64, error) {
 			return GetGPMMetrics(
 				ctx2,
@@ -142,7 +144,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 
@@ -270,7 +272,7 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		now := metav1.Time{Time: time.Now().UTC()}
-		cr.GPMMetrics = append(cr.GPMMetrics, GPMMetrics{
+		cr.GPMMetrics = append(cr.GPMMetrics, Metrics{
 			Time:           now,
 			UUID:           uuid,
 			SampleDuration: metav1.Duration{Duration: sampleDuration},
@@ -291,8 +293,8 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	GPMSupported bool         `json:"gpm_supported,omitempty"`
-	GPMMetrics   []GPMMetrics `json:"gpm_metrics,omitempty"`
+	GPMSupported bool      `json:"gpm_supported,omitempty"`
+	GPMMetrics   []Metrics `json:"gpm_metrics,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

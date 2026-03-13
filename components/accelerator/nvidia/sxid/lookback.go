@@ -18,12 +18,14 @@ const (
 	DefaultLookbackPeriod = eventstore.DefaultRetention
 )
 
+// GetLookbackPeriod returns the SXID event lookback window.
 func GetLookbackPeriod() time.Duration {
 	defaultLookbackPeriodMu.RLock()
 	defer defaultLookbackPeriodMu.RUnlock()
 	return defaultLookbackPeriod
 }
 
+// SetLookbackPeriod updates the SXID event lookback window.
 func SetLookbackPeriod(period time.Duration) {
 	log.Logger.Infow("setting lookback period", "period", period)
 

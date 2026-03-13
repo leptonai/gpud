@@ -36,14 +36,14 @@ type fakeRuntimeServer struct {
 	listContainersErr  error
 }
 
-func (f *fakeRuntimeServer) Version(ctx context.Context, _ *runtimeapi.VersionRequest) (*runtimeapi.VersionResponse, error) {
+func (f *fakeRuntimeServer) Version(_ context.Context, _ *runtimeapi.VersionRequest) (*runtimeapi.VersionResponse, error) {
 	if f.versionErr != nil {
 		return nil, f.versionErr
 	}
 	return &runtimeapi.VersionResponse{RuntimeVersion: f.version}, nil
 }
 
-func (f *fakeRuntimeServer) Status(ctx context.Context, _ *runtimeapi.StatusRequest) (*runtimeapi.StatusResponse, error) {
+func (f *fakeRuntimeServer) Status(_ context.Context, _ *runtimeapi.StatusRequest) (*runtimeapi.StatusResponse, error) {
 	if f.statusErr != nil {
 		return nil, f.statusErr
 	}
@@ -53,14 +53,14 @@ func (f *fakeRuntimeServer) Status(ctx context.Context, _ *runtimeapi.StatusRequ
 	return &runtimeapi.StatusResponse{}, nil
 }
 
-func (f *fakeRuntimeServer) ListPodSandbox(ctx context.Context, _ *runtimeapi.ListPodSandboxRequest) (*runtimeapi.ListPodSandboxResponse, error) {
+func (f *fakeRuntimeServer) ListPodSandbox(_ context.Context, _ *runtimeapi.ListPodSandboxRequest) (*runtimeapi.ListPodSandboxResponse, error) {
 	if f.listPodSandboxErr != nil {
 		return nil, f.listPodSandboxErr
 	}
 	return f.listPodSandboxResp, nil
 }
 
-func (f *fakeRuntimeServer) ListContainers(ctx context.Context, _ *runtimeapi.ListContainersRequest) (*runtimeapi.ListContainersResponse, error) {
+func (f *fakeRuntimeServer) ListContainers(_ context.Context, _ *runtimeapi.ListContainersRequest) (*runtimeapi.ListContainersResponse, error) {
 	if f.listContainersErr != nil {
 		return nil, f.listContainersErr
 	}
@@ -153,7 +153,7 @@ func TestCheckContainerdRunning_WithMockey(t *testing.T) {
 	require.NoError(t, err)
 
 	mockey.PatchConvey("CheckContainerdRunning uses mocked connect", t, func() {
-		mockey.Mock(connect).To(func(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
+		mockey.Mock(connect).To(func(_ context.Context, _ string) (*grpc.ClientConn, error) {
 			return conn, nil
 		}).Build()
 
@@ -163,7 +163,7 @@ func TestCheckContainerdRunning_WithMockey(t *testing.T) {
 
 func TestCheckContainerdRunning_ConnectErrorWithMockey(t *testing.T) {
 	mockey.PatchConvey("CheckContainerdRunning returns false on connect error", t, func() {
-		mockey.Mock(connect).To(func(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
+		mockey.Mock(connect).To(func(_ context.Context, _ string) (*grpc.ClientConn, error) {
 			return nil, errors.New("connect failed")
 		}).Build()
 		assert.False(t, CheckContainerdRunning(context.Background()))
@@ -178,7 +178,7 @@ func TestCheckSocketExists_WithMockey(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, tempFile.Close())
 
-		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
+		mockey.Mock(os.Stat).To(func(_ string) (os.FileInfo, error) {
 			return info, nil
 		}).Build()
 
@@ -186,7 +186,7 @@ func TestCheckSocketExists_WithMockey(t *testing.T) {
 	})
 
 	mockey.PatchConvey("CheckSocketExists returns false for missing socket", t, func() {
-		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
+		mockey.Mock(os.Stat).To(func(_ string) (os.FileInfo, error) {
 			return nil, os.ErrNotExist
 		}).Build()
 
@@ -194,7 +194,7 @@ func TestCheckSocketExists_WithMockey(t *testing.T) {
 	})
 
 	mockey.PatchConvey("CheckSocketExists returns false for stat error", t, func() {
-		mockey.Mock(os.Stat).To(func(name string) (os.FileInfo, error) {
+		mockey.Mock(os.Stat).To(func(_ string) (os.FileInfo, error) {
 			return nil, fmt.Errorf("stat failed")
 		}).Build()
 
@@ -204,10 +204,10 @@ func TestCheckSocketExists_WithMockey(t *testing.T) {
 
 func TestGetVersionFromCli_WithMockey(t *testing.T) {
 	mockey.PatchConvey("GetVersionFromCli parses version", t, func() {
-		mockey.Mock(pkgfile.LocateExecutable).To(func(bin string) (string, error) {
+		mockey.Mock(pkgfile.LocateExecutable).To(func(_ string) (string, error) {
 			return "/usr/bin/containerd", nil
 		}).Build()
-		mockey.Mock((*exec.Cmd).Output).To(func(cmd *exec.Cmd) ([]byte, error) {
+		mockey.Mock((*exec.Cmd).Output).To(func(_ *exec.Cmd) ([]byte, error) {
 			return []byte("containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb"), nil
 		}).Build()
 
@@ -309,7 +309,7 @@ func TestGetVersion_UnimplementedFallbackWithMockey(t *testing.T) {
 	t.Cleanup(cleanup)
 
 	mockey.PatchConvey("GetVersion falls back to cli on unimplemented", t, func() {
-		mockey.Mock(GetVersionFromCli).To(func(ctx context.Context) (string, error) {
+		mockey.Mock(GetVersionFromCli).To(func(_ context.Context) (string, error) {
 			return "1.7.99", nil
 		}).Build()
 

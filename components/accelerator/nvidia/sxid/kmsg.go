@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	// RegexNVSwitchSXidKMessage matches NVSwitch SXid kernel messages and captures the SXid value.
 	// e.g.,
 	// [111111111.111] nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error (First)
 	// [131453.740743] nvidia-nvswitch0: SXid (PCI:0000:00:00.0): 20034, Fatal, Link 30 LTSSM Fault Up
@@ -15,7 +16,7 @@ const (
 	// https://docs.nvidia.com/datacenter/tesla/pdf/fabric-manager-user-guide.pdf
 	RegexNVSwitchSXidKMessage = `SXid.*?: (\d+),`
 
-	// Regex to extract PCI device ID from NVSwitch SXid messages
+	// RegexNVSwitchSXidDeviceUUID matches NVSwitch SXid messages and captures the PCI device ID.
 	RegexNVSwitchSXidDeviceUUID = `SXid \((PCI:[0-9a-fA-F:\.]+)\)`
 )
 
@@ -45,7 +46,8 @@ func ExtractNVSwitchSXidDeviceUUID(line string) string {
 	return ""
 }
 
-type SXidError struct {
+// Error describes a parsed SXid kernel message.
+type Error struct {
 	SXid       int     `json:"sxid"`
 	DeviceUUID string  `json:"device_uuid"`
 	Detail     *Detail `json:"detail,omitempty"`
@@ -53,7 +55,7 @@ type SXidError struct {
 
 // Match returns a matching xid error object if found.
 // Otherwise, returns nil.
-func Match(line string) *SXidError {
+func Match(line string) *Error {
 	extractedID := ExtractNVSwitchSXid(line)
 	if extractedID == 0 {
 		return nil
@@ -63,7 +65,7 @@ func Match(line string) *SXidError {
 		return nil
 	}
 	deviceUUID := ExtractNVSwitchSXidDeviceUUID(line)
-	return &SXidError{
+	return &Error{
 		SXid:       extractedID,
 		DeviceUUID: deviceUUID,
 		Detail:     detail,

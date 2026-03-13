@@ -18,7 +18,7 @@ import (
 // TestGetAllModules_ReadFileError tests getAllModules when os.ReadFile returns an error.
 func TestGetAllModules_ReadFileError(t *testing.T) {
 	mockey.PatchConvey("ReadFile error in getAllModules", t, func() {
-		mockey.Mock(os.ReadFile).To(func(name string) ([]byte, error) {
+		mockey.Mock(os.ReadFile).To(func(_ string) ([]byte, error) {
 			return nil, errors.New("permission denied")
 		}).Build()
 
@@ -35,12 +35,12 @@ func TestGetAllModules_ReadFileError(t *testing.T) {
 func TestGetAllModules_ParseError(t *testing.T) {
 	mockey.PatchConvey("parseEtcModules error in getAllModules", t, func() {
 		// Mock os.ReadFile to return valid data
-		mockey.Mock(os.ReadFile).To(func(name string) ([]byte, error) {
+		mockey.Mock(os.ReadFile).To(func(_ string) ([]byte, error) {
 			return []byte("module1\nmodule2"), nil
 		}).Build()
 
 		// Mock parseEtcModules to return an error
-		mockey.Mock(parseEtcModules).To(func(b []byte) ([]string, error) {
+		mockey.Mock(parseEtcModules).To(func(_ []byte) ([]string, error) {
 			return nil, errors.New("parse error")
 		}).Build()
 
@@ -55,7 +55,7 @@ func TestGetAllModules_ParseError(t *testing.T) {
 // TestGetAllModules_Success tests getAllModules with successful read and parse.
 func TestGetAllModules_Success(t *testing.T) {
 	mockey.PatchConvey("successful getAllModules", t, func() {
-		mockey.Mock(os.ReadFile).To(func(name string) ([]byte, error) {
+		mockey.Mock(os.ReadFile).To(func(_ string) ([]byte, error) {
 			return []byte("# comment\nmodule_b\nmodule_a\n"), nil
 		}).Build()
 
@@ -72,7 +72,7 @@ func TestGetAllModules_Success(t *testing.T) {
 // TestCheckResultString_YamlMarshalError tests checkResult.String when yaml.Marshal fails.
 func TestCheckResultString_YamlMarshalError(t *testing.T) {
 	mockey.PatchConvey("yaml.Marshal error in checkResult.String", t, func() {
-		mockey.Mock(yaml.Marshal).To(func(o interface{}) ([]byte, error) {
+		mockey.Mock(yaml.Marshal).To(func(_ any) ([]byte, error) {
 			return nil, errors.New("yaml marshal error")
 		}).Build()
 
@@ -250,7 +250,10 @@ func TestComponentIsSupportedWithMockey(t *testing.T) {
 		c, err := New(&components.GPUdInstance{})
 		require.NoError(t, err)
 
-		result := c.(*component).IsSupported()
+		comp, ok := c.(*component)
+		require.True(t, ok)
+
+		result := comp.IsSupported()
 		assert.True(t, result)
 	})
 }
@@ -261,7 +264,8 @@ func TestComponentStart_WithMockey(t *testing.T) {
 		gpudInstance := &components.GPUdInstance{}
 		c, err := New(gpudInstance)
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		// Mock getAllModulesFunc to prevent actual file access
 		comp.getAllModulesFunc = func() ([]string, error) {
@@ -285,7 +289,8 @@ func TestComponentClose_WithMockey(t *testing.T) {
 	mockey.PatchConvey("Close cancels context", t, func() {
 		c, err := New(&components.GPUdInstance{})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		err = comp.Close()
 		require.NoError(t, err)
@@ -307,7 +312,8 @@ func TestComponentCheck_GetAllModulesError(t *testing.T) {
 			KernelModulesToCheck: []string{"nvidia"},
 		})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		testErr := errors.New("failed to read modules")
 		comp.getAllModulesFunc = func() ([]string, error) {
@@ -331,7 +337,8 @@ func TestComponentCheck_AllModulesLoaded(t *testing.T) {
 			KernelModulesToCheck: []string{"nvidia", "nvidia_uvm"},
 		})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		comp.getAllModulesFunc = func() ([]string, error) {
 			return []string{"nvidia", "nvidia_uvm", "nvidia_drm"}, nil
@@ -355,7 +362,8 @@ func TestComponentCheck_MissingModules(t *testing.T) {
 			KernelModulesToCheck: []string{"nvidia", "nvidia_uvm", "nvidia_drm"},
 		})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		comp.getAllModulesFunc = func() ([]string, error) {
 			return []string{"nvidia"}, nil
@@ -380,7 +388,8 @@ func TestComponentCheck_NoModulesToCheck(t *testing.T) {
 			KernelModulesToCheck: nil,
 		})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		comp.getAllModulesFunc = func() ([]string, error) {
 			return []string{"module1", "module2"}, nil
@@ -402,7 +411,8 @@ func TestComponentCheck_EmptyLoadedModules(t *testing.T) {
 			KernelModulesToCheck: []string{"nvidia"},
 		})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		comp.getAllModulesFunc = func() ([]string, error) {
 			return []string{}, nil
@@ -423,7 +433,8 @@ func TestComponentLastHealthStates_BeforeCheck(t *testing.T) {
 	mockey.PatchConvey("LastHealthStates before Check", t, func() {
 		c, err := New(&components.GPUdInstance{})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		states := comp.LastHealthStates()
 
@@ -440,7 +451,8 @@ func TestComponentLastHealthStates_AfterCheck(t *testing.T) {
 			KernelModulesToCheck: []string{"nvidia"},
 		})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		comp.getAllModulesFunc = func() ([]string, error) {
 			return []string{"nvidia"}, nil
@@ -462,7 +474,10 @@ func TestComponentTagsWithMockey(t *testing.T) {
 		c, err := New(&components.GPUdInstance{})
 		require.NoError(t, err)
 
-		tags := c.(*component).Tags()
+		comp, ok := c.(*component)
+		require.True(t, ok)
+
+		tags := comp.Tags()
 
 		assert.Equal(t, []string{Name}, tags)
 	})
@@ -566,7 +581,8 @@ func TestComponentCheck_TimestampSet(t *testing.T) {
 	mockey.PatchConvey("Check sets timestamp", t, func() {
 		c, err := New(&components.GPUdInstance{})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		comp.getAllModulesFunc = func() ([]string, error) {
 			return []string{}, nil
@@ -594,7 +610,8 @@ func TestComponentCheck_UpdatesLastCheckResult(t *testing.T) {
 			KernelModulesToCheck: []string{"module1"},
 		})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		// First check - modules present
 		comp.getAllModulesFunc = func() ([]string, error) {
@@ -627,7 +644,8 @@ func TestComponentCheck_ConcurrentSafety(t *testing.T) {
 			KernelModulesToCheck: []string{"module1"},
 		})
 		require.NoError(t, err)
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		comp.getAllModulesFunc = func() ([]string, error) {
 			time.Sleep(1 * time.Millisecond) // Small delay to increase chance of race
@@ -637,7 +655,7 @@ func TestComponentCheck_ConcurrentSafety(t *testing.T) {
 		done := make(chan bool, 20)
 
 		// Run concurrent checks
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			go func() {
 				comp.Check()
 				done <- true
@@ -649,7 +667,7 @@ func TestComponentCheck_ConcurrentSafety(t *testing.T) {
 		}
 
 		// Wait for all goroutines
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			<-done
 		}
 

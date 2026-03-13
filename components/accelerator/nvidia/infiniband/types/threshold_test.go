@@ -1,13 +1,15 @@
-package types
+package types_test
 
 import (
 	"testing"
+
+	infinibandtypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
 func TestExpectedPortStates_IsZero(t *testing.T) {
 	tests := []struct {
 		name     string
-		eps      *ExpectedPortStates
+		eps      *infinibandtypes.ExpectedPortStates
 		expected bool
 	}{
 		{
@@ -17,32 +19,32 @@ func TestExpectedPortStates_IsZero(t *testing.T) {
 		},
 		{
 			name:     "zero ports and zero rate",
-			eps:      &ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 0},
+			eps:      &infinibandtypes.ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 0},
 			expected: true,
 		},
 		{
 			name:     "negative ports and zero rate",
-			eps:      &ExpectedPortStates{AtLeastPorts: -1, AtLeastRate: 0},
+			eps:      &infinibandtypes.ExpectedPortStates{AtLeastPorts: -1, AtLeastRate: 0},
 			expected: true,
 		},
 		{
 			name:     "zero ports and positive rate",
-			eps:      &ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 100},
+			eps:      &infinibandtypes.ExpectedPortStates{AtLeastPorts: 0, AtLeastRate: 100},
 			expected: true,
 		},
 		{
 			name:     "positive ports and zero rate",
-			eps:      &ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 0},
+			eps:      &infinibandtypes.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 0},
 			expected: true,
 		},
 		{
 			name:     "positive ports and positive rate",
-			eps:      &ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
+			eps:      &infinibandtypes.ExpectedPortStates{AtLeastPorts: 1, AtLeastRate: 100},
 			expected: false,
 		},
 		{
 			name:     "valid configuration - 8 ports at 400 Gb/s",
-			eps:      &ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400},
+			eps:      &infinibandtypes.ExpectedPortStates{AtLeastPorts: 8, AtLeastRate: 400},
 			expected: false,
 		},
 	}

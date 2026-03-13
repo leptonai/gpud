@@ -6,6 +6,7 @@ import (
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
+// SubSystem is the Prometheus subsystem used by disk metrics.
 const SubSystem = "disk"
 
 var (

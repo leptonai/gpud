@@ -23,6 +23,7 @@ const (
 // because we do not want to lose important events.
 // If purgeAllEvents is true, it will purge all events.
 func purge(ctx context.Context, dbRW *sql.DB, tableName string, beforeTimestamp int64, purgeAllEvents bool) (int, error) {
+	//nolint:gosec // tableName is an internal store identifier, not user input.
 	deleteStatement := fmt.Sprintf(`DELETE FROM %s WHERE %s < ?`, tableName, historyTableColumnTimestamp)
 	if !purgeAllEvents {
 		deleteStatement += fmt.Sprintf(` AND %s = ''`, historyTableColumnEventType)

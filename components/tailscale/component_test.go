@@ -32,20 +32,21 @@ func mockComponent(
 		},
 	}
 	// Initialize lastCheckResult for tests that don't call CheckOnce
-	if isInstalled && (!isActive || activeError != nil) {
+	switch {
+	case isInstalled && (!isActive || activeError != nil):
 		c.lastCheckResult = &checkResult{
 			TailscaledServiceActive: isActive,
 			health:                  apiv1.HealthStateTypeUnhealthy,
 			err:                     activeError,
 			reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
 		}
-	} else if isInstalled && isActive {
+	case isInstalled && isActive:
 		c.lastCheckResult = &checkResult{
 			TailscaledServiceActive: true,
 			health:                  apiv1.HealthStateTypeHealthy,
 			reason:                  "tailscaled service is active/running",
 		}
-	} else {
+	default:
 		c.lastCheckResult = &checkResult{
 			TailscaledServiceActive: false,
 			health:                  apiv1.HealthStateTypeHealthy,
@@ -97,7 +98,7 @@ func TestTags(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	c := mockComponent(ctx, true, true, nil)

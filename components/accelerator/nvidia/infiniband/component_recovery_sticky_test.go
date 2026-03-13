@@ -51,7 +51,7 @@ func TestRecoveryStickyWindow(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			// Initially, port mlx5_7 is down
 			if currentTime.Before(portRecoveryTime) {
 				return createMixedDevices(7, 1), nil // 7 healthy, 1 down (mlx5_7)
@@ -63,7 +63,7 @@ func TestRecoveryStickyWindow(t *testing.T) {
 
 	// Step 1: Initial state with port down (simulating 08:00:00)
 	t.Log("Step 1: Port goes down at 08:00:00")
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Contains(t, cr.reason, "only 7 port(s) are active")
 
@@ -78,7 +78,7 @@ func TestRecoveryStickyWindow(t *testing.T) {
 			EventReason: fmt.Sprintf("mlx5_7 port 1 down since %s", portDownTime.Format(time.RFC3339)),
 		},
 	}
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Contains(t, cr.reason, "device(s) down too long: mlx5_7")
 
@@ -89,7 +89,7 @@ func TestRecoveryStickyWindow(t *testing.T) {
 	// Step 4: First check after recovery (simulating 08:47:30)
 	t.Log("Step 4: First check at 08:47:30 - should STILL be unhealthy")
 	currentTime = firstCheckAfterRecovery
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 
 	// CRITICAL TEST: Even though thresholds are now met (all 8 ports healthy),
 	// the component should STILL be unhealthy because we're within the sticky window
@@ -106,14 +106,14 @@ func TestRecoveryStickyWindow(t *testing.T) {
 	// Step 5: Check 5 minutes after recovery - still within sticky window
 	t.Log("Step 5: Check at 08:52:00 (5 min after recovery) - should STILL be unhealthy")
 	currentTime = portRecoveryTime.Add(5 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Should still be unhealthy 5 minutes after recovery")
 
 	// Step 6: Check 11 minutes after recovery - outside sticky window
 	t.Log("Step 6: Check at 08:58:00 (11 min after recovery) - should be healthy")
 	currentTime = portRecoveryTime.Add(11 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"Should be healthy after sticky window expires")
 	assert.Contains(t, cr.reason, "no infiniband port issue")
@@ -144,7 +144,7 @@ func TestMultipleRecoveries(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			if portsHealthy {
 				return createHealthyDevices(8, 400), nil
 			}
@@ -163,19 +163,19 @@ func TestMultipleRecoveries(t *testing.T) {
 			EventReason: "mlx5_7 port 1 down",
 		},
 	}
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 
 	t.Log("Cycle 1: Port recovers")
 	portsHealthy = true
 	currentTime = currentTime.Add(30 * time.Second)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Should be unhealthy immediately after recovery")
 
 	t.Log("Cycle 1: Sticky window expires")
 	currentTime = currentTime.Add(6 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"Should be healthy after sticky window")
 
@@ -183,13 +183,13 @@ func TestMultipleRecoveries(t *testing.T) {
 	t.Log("Cycle 2: Another port failure")
 	portsHealthy = false
 	currentTime = currentTime.Add(10 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 
 	t.Log("Cycle 2: Port recovers again")
 	portsHealthy = true
 	currentTime = currentTime.Add(1 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Should be unhealthy in new sticky window")
 
@@ -240,7 +240,7 @@ func TestDormantPortsWithRecovery(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			if activePortHealthy {
 				// 8 active healthy ports + 4 dormant ports
 				return createMixedDevices(8, 4), nil
@@ -261,7 +261,7 @@ func TestDormantPortsWithRecovery(t *testing.T) {
 
 	// Initial state: dormant ports exist but thresholds are met
 	t.Log("Initial: Dormant ports exist but shouldn't cause issues")
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"Dormant ports beyond threshold should not cause unhealthy state")
 
@@ -276,7 +276,7 @@ func TestDormantPortsWithRecovery(t *testing.T) {
 		EventReason: "mlx5_7 port 1 down (active port)",
 	})
 
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	// Should include all drop events when thresholds are failing
 	assert.Contains(t, cr.reason, "mlx5_7")
@@ -287,7 +287,7 @@ func TestDormantPortsWithRecovery(t *testing.T) {
 	t.Log("Active port recovers - within sticky window")
 	activePortHealthy = true
 	currentTime = currentTime.Add(30 * time.Second)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Should remain unhealthy within sticky window")
 	// Only the recent active port drop should be included
@@ -299,7 +299,7 @@ func TestDormantPortsWithRecovery(t *testing.T) {
 	// After sticky window expires
 	t.Log("Sticky window expires")
 	currentTime = currentTime.Add(11 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"Should be healthy after sticky window, ignoring dormant ports")
 }
@@ -309,7 +309,7 @@ type mockIBPortsStoreForRecovery struct {
 	events []infinibandstore.Event
 }
 
-func (m *mockIBPortsStoreForRecovery) Insert(time.Time, []types.IBPort) error {
+func (m *mockIBPortsStoreForRecovery) Insert(_ time.Time, _ []types.IBPort) error {
 	return nil
 }
 
@@ -317,11 +317,11 @@ func (m *mockIBPortsStoreForRecovery) Scan() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreForRecovery) LastEvents(since time.Time) ([]infinibandstore.Event, error) {
+func (m *mockIBPortsStoreForRecovery) LastEvents(_ time.Time) ([]infinibandstore.Event, error) {
 	return m.events, nil
 }
 
-func (m *mockIBPortsStoreForRecovery) SetEventType(string, uint, time.Time, string, string) error {
+func (m *mockIBPortsStoreForRecovery) SetEventType(_ string, _ uint, _ time.Time, _ string, _ string) error {
 	return nil
 }
 
@@ -330,6 +330,6 @@ func (m *mockIBPortsStoreForRecovery) SetHealthy() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreForRecovery) Tombstone(timestamp time.Time) error {
+func (m *mockIBPortsStoreForRecovery) Tombstone(_ time.Time) error {
 	return nil
 }

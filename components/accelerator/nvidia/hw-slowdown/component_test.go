@@ -3,12 +3,14 @@ package hwslowdown
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -251,7 +253,6 @@ func TestCheckOnce(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// Set up test database
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
@@ -283,19 +284,19 @@ func TestCheckOnce(t *testing.T) {
 					health: apiv1.HealthStateTypeHealthy,
 					reason: "Initial state",
 				},
-				getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+				getClockEventsFunc: func(uuid string, _ device.Device) (ClockEvents, error) {
 					if events, ok := tc.mockClockEvents[uuid]; ok {
 						return events, nil
 					}
 					return ClockEvents{}, fmt.Errorf("no mock clock events for %s", uuid)
 				},
-				getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+				getClockEventsSupportedFunc: func(_ device.Device) (bool, error) {
 					return true, nil
 				},
 				getSystemDriverVersionFunc: func() (string, error) {
 					return "535.104.05", nil
 				},
-				parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+				parseDriverVersionFunc: func(_ string) (int, int, int, error) {
 					return 535, 104, 5, nil
 				},
 				checkClockEventsSupportedFunc: func(major int) bool {
@@ -393,7 +394,7 @@ func TestComponentStates(t *testing.T) {
 			health: apiv1.HealthStateTypeHealthy,
 			reason: "Initial state",
 		},
-		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+		getClockEventsFunc: func(uuid string, _ device.Device) (ClockEvents, error) {
 			return ClockEvents{
 				UUID:                 uuid,
 				Time:                 metav1.Time{Time: time.Now()},
@@ -403,13 +404,13 @@ func TestComponentStates(t *testing.T) {
 				Supported:            true,
 			}, nil
 		},
-		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+		getClockEventsSupportedFunc: func(_ device.Device) (bool, error) {
 			return true, nil
 		},
 		getSystemDriverVersionFunc: func() (string, error) {
 			return "535.104.05", nil
 		},
-		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+		parseDriverVersionFunc: func(_ string) (int, int, int, error) {
 			return 535, 104, 5, nil
 		},
 		checkClockEventsSupportedFunc: func(major int) bool {
@@ -440,7 +441,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			name:               "zero evaluation window",
 			window:             0,
 			thresholdPerMinute: 0.6,
-			setupStore:         func(bucket eventstore.Bucket, ctx context.Context) error { return nil },
+			setupStore:         func(_ eventstore.Bucket, _ context.Context) error { return nil },
 			expectError:        false,
 			expectedStates:     1,
 			expectHealthy:      true,
@@ -449,7 +450,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 			name:               "negative evaluation window",
 			window:             -10 * time.Minute,
 			thresholdPerMinute: 0.6,
-			setupStore:         func(bucket eventstore.Bucket, ctx context.Context) error { return nil },
+			setupStore:         func(_ eventstore.Bucket, _ context.Context) error { return nil },
 			expectError:        false,
 			expectedStates:     1,
 			expectHealthy:      true,
@@ -497,7 +498,6 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 			defer cleanup()
@@ -543,7 +543,7 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 					health: apiv1.HealthStateTypeHealthy,
 					reason: "Initial state",
 				},
-				getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+				getClockEventsFunc: func(uuid string, _ device.Device) (ClockEvents, error) {
 					return ClockEvents{
 						UUID:                 uuid,
 						Time:                 metav1.Time{Time: time.Now()},
@@ -553,13 +553,13 @@ func TestComponentStatesEdgeCases(t *testing.T) {
 						Supported:            true,
 					}, nil
 				},
-				getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+				getClockEventsSupportedFunc: func(_ device.Device) (bool, error) {
 					return true, nil
 				},
 				getSystemDriverVersionFunc: func() (string, error) {
 					return "535.104.05", nil
 				},
-				parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+				parseDriverVersionFunc: func(_ string) (int, int, int, error) {
 					return 535, 104, 5, nil
 				},
 				checkClockEventsSupportedFunc: func(major int) bool {
@@ -668,7 +668,7 @@ func TestComponentStart(t *testing.T) {
 			reason: "Initial state",
 		},
 		// Initialize mock functions to avoid nil pointer dereference if Start() is called
-		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+		getClockEventsFunc: func(uuid string, _ device.Device) (ClockEvents, error) {
 			return ClockEvents{
 				UUID:                 uuid,
 				Time:                 metav1.Time{Time: time.Now()},
@@ -678,13 +678,13 @@ func TestComponentStart(t *testing.T) {
 				Supported:            true,
 			}, nil
 		},
-		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+		getClockEventsSupportedFunc: func(_ device.Device) (bool, error) {
 			return true, nil
 		},
 		getSystemDriverVersionFunc: func() (string, error) {
 			return "535.104.05", nil
 		},
-		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+		parseDriverVersionFunc: func(_ string) (int, int, int, error) {
 			return 535, 104, 5, nil
 		},
 		checkClockEventsSupportedFunc: func(major int) bool {
@@ -741,7 +741,7 @@ func TestComponentEvents(t *testing.T) {
 		freqPerMinThreshold:        0.1,
 		eventBucket:                bucket,
 		nvmlInstance:               mockNVML,
-		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+		getClockEventsFunc: func(uuid string, _ device.Device) (ClockEvents, error) {
 			return ClockEvents{
 				UUID:                 uuid,
 				Time:                 metav1.Time{Time: time.Now()},
@@ -751,13 +751,13 @@ func TestComponentEvents(t *testing.T) {
 				Supported:            true,
 			}, nil
 		},
-		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+		getClockEventsSupportedFunc: func(_ device.Device) (bool, error) {
 			return true, nil
 		},
 		getSystemDriverVersionFunc: func() (string, error) {
 			return "535.104.05", nil
 		},
-		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+		parseDriverVersionFunc: func(_ string) (int, int, int, error) {
 			return 535, 104, 5, nil
 		},
 		checkClockEventsSupportedFunc: func(major int) bool {
@@ -826,7 +826,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 		freqPerMinThreshold:        thresholdFrequency,
 		eventBucket:                bucket,
 		nvmlInstance:               mockNVML,
-		getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+		getClockEventsFunc: func(uuid string, _ device.Device) (ClockEvents, error) {
 			return ClockEvents{
 				UUID:                 uuid,
 				Time:                 metav1.Time{Time: time.Now().UTC()},
@@ -837,13 +837,13 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 				HWSlowdownReasons:    []string{"GPU slowdown detected"},
 			}, nil
 		},
-		getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+		getClockEventsSupportedFunc: func(_ device.Device) (bool, error) {
 			return true, nil
 		},
 		getSystemDriverVersionFunc: func() (string, error) {
 			return "535.104.05", nil
 		},
-		parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+		parseDriverVersionFunc: func(_ string) (int, int, int, error) {
 			return 535, 104, 5, nil
 		},
 		checkClockEventsSupportedFunc: func(major int) bool {
@@ -866,7 +866,7 @@ func TestHighFrequencySlowdownEvents(t *testing.T) {
 	totalEventsToInsert := eventsPerGPU
 	windowMinutes := int(window.Minutes())
 
-	for i := 0; i < totalEventsToInsert; i++ {
+	for i := range totalEventsToInsert {
 		// Distribute events evenly within the window
 		eventTime := now.Add(-time.Duration(i*(windowMinutes/totalEventsToInsert)) * time.Minute)
 
@@ -962,7 +962,6 @@ func TestDataMethods(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// Test String method
 			assert.Equal(t, tc.expectString, tc.checkResult.String())
@@ -1018,7 +1017,6 @@ func TestNewComponent(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			instance := &components.GPUdInstance{
 				RootCtx:      context.Background(),
@@ -1128,7 +1126,7 @@ func TestCheckEdgeCases(t *testing.T) {
 			mockGetSystemDriverVersion: func() (string, error) {
 				return "535.104.05", nil
 			},
-			mockParseDriverVersion: func(driverVersion string) (int, int, int, error) {
+			mockParseDriverVersion: func(_ string) (int, int, int, error) {
 				return 0, 0, 0, fmt.Errorf("parse error")
 			},
 			expectHealthy: false,
@@ -1153,10 +1151,10 @@ func TestCheckEdgeCases(t *testing.T) {
 			mockGetSystemDriverVersion: func() (string, error) {
 				return "450.104.05", nil
 			},
-			mockParseDriverVersion: func(driverVersion string) (int, int, int, error) {
+			mockParseDriverVersion: func(_ string) (int, int, int, error) {
 				return 450, 104, 5, nil
 			},
-			mockCheckClockEventsSupported: func(major int) bool {
+			mockCheckClockEventsSupported: func(_ int) bool {
 				return false
 			},
 			expectHealthy: true,
@@ -1181,13 +1179,13 @@ func TestCheckEdgeCases(t *testing.T) {
 			mockGetSystemDriverVersion: func() (string, error) {
 				return "535.104.05", nil
 			},
-			mockParseDriverVersion: func(driverVersion string) (int, int, int, error) {
+			mockParseDriverVersion: func(_ string) (int, int, int, error) {
 				return 535, 104, 5, nil
 			},
-			mockCheckClockEventsSupported: func(major int) bool {
+			mockCheckClockEventsSupported: func(_ int) bool {
 				return true
 			},
-			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
+			mockGetClockEventsSupported: func(_ device.Device) (bool, error) {
 				return false, nil
 			},
 			expectHealthy: true,
@@ -1212,13 +1210,13 @@ func TestCheckEdgeCases(t *testing.T) {
 			mockGetSystemDriverVersion: func() (string, error) {
 				return "535.104.05", nil
 			},
-			mockParseDriverVersion: func(driverVersion string) (int, int, int, error) {
+			mockParseDriverVersion: func(_ string) (int, int, int, error) {
 				return 535, 104, 5, nil
 			},
-			mockCheckClockEventsSupported: func(major int) bool {
+			mockCheckClockEventsSupported: func(_ int) bool {
 				return true
 			},
-			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
+			mockGetClockEventsSupported: func(_ device.Device) (bool, error) {
 				return false, fmt.Errorf("clock events supported error")
 			},
 			expectHealthy: false,
@@ -1243,16 +1241,16 @@ func TestCheckEdgeCases(t *testing.T) {
 			mockGetSystemDriverVersion: func() (string, error) {
 				return "535.104.05", nil
 			},
-			mockParseDriverVersion: func(driverVersion string) (int, int, int, error) {
+			mockParseDriverVersion: func(_ string) (int, int, int, error) {
 				return 535, 104, 5, nil
 			},
-			mockCheckClockEventsSupported: func(major int) bool {
+			mockCheckClockEventsSupported: func(_ int) bool {
 				return true
 			},
-			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
+			mockGetClockEventsSupported: func(_ device.Device) (bool, error) {
 				return true, nil
 			},
-			mockGetClockEvents: func(uuid string, dev device.Device) (ClockEvents, error) {
+			mockGetClockEvents: func(_ string, _ device.Device) (ClockEvents, error) {
 				return ClockEvents{}, fmt.Errorf("clock events error")
 			},
 			expectHealthy: false,
@@ -1277,13 +1275,13 @@ func TestCheckEdgeCases(t *testing.T) {
 			mockGetSystemDriverVersion: func() (string, error) {
 				return "535.104.05", nil
 			},
-			mockParseDriverVersion: func(driverVersion string) (int, int, int, error) {
+			mockParseDriverVersion: func(_ string) (int, int, int, error) {
 				return 535, 104, 5, nil
 			},
-			mockCheckClockEventsSupported: func(major int) bool {
+			mockCheckClockEventsSupported: func(_ int) bool {
 				return true
 			},
-			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
+			mockGetClockEventsSupported: func(_ device.Device) (bool, error) {
 				return false, nvmlerrors.ErrGPULost
 			},
 			expectHealthy: false,
@@ -1308,16 +1306,16 @@ func TestCheckEdgeCases(t *testing.T) {
 			mockGetSystemDriverVersion: func() (string, error) {
 				return "535.104.05", nil
 			},
-			mockParseDriverVersion: func(driverVersion string) (int, int, int, error) {
+			mockParseDriverVersion: func(_ string) (int, int, int, error) {
 				return 535, 104, 5, nil
 			},
-			mockCheckClockEventsSupported: func(major int) bool {
+			mockCheckClockEventsSupported: func(_ int) bool {
 				return true
 			},
-			mockGetClockEventsSupported: func(dev device.Device) (bool, error) {
+			mockGetClockEventsSupported: func(_ device.Device) (bool, error) {
 				return true, nil
 			},
-			mockGetClockEvents: func(uuid string, dev device.Device) (ClockEvents, error) {
+			mockGetClockEvents: func(_ string, _ device.Device) (ClockEvents, error) {
 				return ClockEvents{}, nvmlerrors.ErrGPULost
 			},
 			expectHealthy: false,
@@ -1326,7 +1324,6 @@ func TestCheckEdgeCases(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -1485,7 +1482,6 @@ func TestFailureInjection(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
@@ -1538,7 +1534,7 @@ func TestFailureInjection(t *testing.T) {
 				gpuUUIDsWithHWSlowdown:           make(map[string]any),
 				gpuUUIDsWithHWSlowdownThermal:    make(map[string]any),
 				gpuUUIDsWithHWSlowdownPowerBrake: make(map[string]any),
-				getClockEventsFunc: func(uuid string, dev device.Device) (ClockEvents, error) {
+				getClockEventsFunc: func(uuid string, _ device.Device) (ClockEvents, error) {
 					// Return clean state - injection should override these
 					return ClockEvents{
 						UUID:                 uuid,
@@ -1549,13 +1545,13 @@ func TestFailureInjection(t *testing.T) {
 						Supported:            true,
 					}, nil
 				},
-				getClockEventsSupportedFunc: func(dev device.Device) (bool, error) {
+				getClockEventsSupportedFunc: func(_ device.Device) (bool, error) {
 					return true, nil
 				},
 				getSystemDriverVersionFunc: func() (string, error) {
 					return "535.104.05", nil
 				},
-				parseDriverVersionFunc: func(driverVersion string) (int, int, int, error) {
+				parseDriverVersionFunc: func(_ string) (int, int, int, error) {
 					return 535, 104, 5, nil
 				},
 				checkClockEventsSupportedFunc: func(major int) bool {
@@ -1576,7 +1572,8 @@ func TestFailureInjection(t *testing.T) {
 
 			// Run the check
 			result := c.Check()
-			cr := result.(*checkResult)
+			cr, ok := result.(*checkResult)
+			require.True(t, ok)
 
 			// Verify the injected states
 			assert.NotNil(t, cr)
@@ -1607,14 +1604,7 @@ func TestFailureInjection(t *testing.T) {
 				// Verify reasons contain expected strings
 				if expectedReasons, ok := tc.expectedReasonsContain[uuid]; ok {
 					for _, expectedReason := range expectedReasons {
-						found := false
-						for _, reason := range event.HWSlowdownReasons {
-							if reason == expectedReason {
-								found = true
-								break
-							}
-						}
-						assert.True(t, found,
+						assert.True(t, slices.Contains(event.HWSlowdownReasons, expectedReason),
 							"GPU %s should have reason '%s' in %v", uuid, expectedReason, event.HWSlowdownReasons)
 					}
 				}
@@ -1669,7 +1659,6 @@ func TestFailureInjectionFromGPUdInstance(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// Create GPUdInstance with failure injector
 			instance := &components.GPUdInstance{

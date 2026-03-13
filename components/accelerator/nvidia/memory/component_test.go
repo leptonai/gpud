@@ -107,6 +107,14 @@ func MockMemoryComponent(
 	}
 }
 
+func mustComponent(t *testing.T, c components.Component) *component {
+	t.Helper()
+
+	component, ok := c.(*component)
+	require.True(t, ok)
+	return component
+}
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	mockNVMLInstance := &mockNvmlInstance{}
@@ -196,11 +204,11 @@ func TestCheckOnce_Success(t *testing.T) {
 		Supported: true,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
+	getMemoryFunc := func(_ string, _ device.Device, _ string, _ GetVirtualMemoryFunc) (Memory, error) {
 		return memory, nil
 	}
 
-	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc))
 	result := component.Check()
 
 	// Verify the data was collected
@@ -237,11 +245,11 @@ func TestCheckOnce_MemoryError(t *testing.T) {
 	}
 
 	errExpected := errors.New("memory error")
-	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
+	getMemoryFunc := func(_ string, _ device.Device, _ string, _ GetVirtualMemoryFunc) (Memory, error) {
 		return Memory{}, errExpected
 	}
 
-	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc))
 	result := component.Check()
 
 	// Verify error handling
@@ -264,7 +272,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 		nvmlExists: true,
 	}
 
-	component := MockMemoryComponent(ctx, mockNVMLInstance, nil).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, mockNVMLInstance, nil))
 	result := component.Check()
 
 	// Verify handling of no devices
@@ -312,11 +320,11 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		Supported:      true,      // Mark as supported so it doesn't get skipped
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
+	getMemoryFunc := func(_ string, _ device.Device, _ string, _ GetVirtualMemoryFunc) (Memory, error) {
 		return invalidMemory, nil
 	}
 
-	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc))
 	result := component.Check()
 
 	// Verify error handling for GetUsedPercent failure
@@ -331,7 +339,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 
 func TestStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := MockMemoryComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, nil, nil))
 
 	// Set test data
 	component.lastMu.Lock()
@@ -368,7 +376,7 @@ func TestStates_WithData(t *testing.T) {
 
 func TestStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := MockMemoryComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, nil, nil))
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -392,7 +400,7 @@ func TestStates_WithError(t *testing.T) {
 
 func TestStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := MockMemoryComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, nil, nil))
 
 	// Don't set any data
 
@@ -416,7 +424,7 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create mock functions that count calls
@@ -444,7 +452,7 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := MockMemoryComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, nil, nil))
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -672,7 +680,7 @@ func TestCheckOnce_NilNvmlInstance(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a component with nil nvmlInstance
-	component := MockMemoryComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, nil, nil))
 	result := component.Check()
 
 	// Verify data when nvmlInstance is nil
@@ -695,7 +703,7 @@ func TestCheckOnce_NvmlNotExists(t *testing.T) {
 		nvmlExists: false,
 	}
 
-	component := MockMemoryComponent(ctx, mockNVMLInstance, nil).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, mockNVMLInstance, nil))
 	result := component.Check()
 
 	// Verify data when NVML doesn't exist
@@ -730,11 +738,11 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
+	getMemoryFunc := func(_ string, _ device.Device, _ string, _ GetVirtualMemoryFunc) (Memory, error) {
 		return Memory{}, nvmlerrors.ErrGPULost
 	}
 
-	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc))
 	result := component.Check()
 
 	// Verify error handling for GPU lost case
@@ -787,11 +795,11 @@ func TestCheck_UnsupportedMemory(t *testing.T) {
 		Supported: false,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
+	getMemoryFunc := func(_ string, _ device.Device, _ string, _ GetVirtualMemoryFunc) (Memory, error) {
 		return unsupportedMemory, nil
 	}
 
-	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc))
 	result := component.Check()
 
 	// Verify handling of unsupported memory
@@ -836,7 +844,7 @@ func TestCheck_MixedSupportedUnsupportedDevices(t *testing.T) {
 		nvmlExists: true,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
+	getMemoryFunc := func(uuid string, _ device.Device, _ string, _ GetVirtualMemoryFunc) (Memory, error) {
 		if uuid == uuid1 {
 			// Return supported memory
 			return Memory{
@@ -852,16 +860,15 @@ func TestCheck_MixedSupportedUnsupportedDevices(t *testing.T) {
 				UsedPercent:       "50.00",
 				Supported:         true,
 			}, nil
-		} else {
-			// Return unsupported memory
-			return Memory{
-				UUID:      uuid,
-				Supported: false,
-			}, nil
 		}
+		// Return unsupported memory
+		return Memory{
+			UUID:      uuid,
+			Supported: false,
+		}, nil
 	}
 
-	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc))
 	result := component.Check()
 
 	// Verify handling of mixed supported/unsupported devices
@@ -895,11 +902,11 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 		nvmlExists: true,
 	}
 
-	getMemoryFunc := func(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
+	getMemoryFunc := func(_ string, _ device.Device, _ string, _ GetVirtualMemoryFunc) (Memory, error) {
 		return Memory{}, nvmlerrors.ErrGPURequiresReset
 	}
 
-	component := MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc).(*component)
+	component := mustComponent(t, MockMemoryComponent(ctx, mockNVMLInstance, getMemoryFunc))
 	result := component.Check()
 
 	// Verify check result carries suggested actions

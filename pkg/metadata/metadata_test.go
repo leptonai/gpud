@@ -123,3 +123,58 @@ func TestSetAndReadMetadata(t *testing.T) {
 	_, err = ReadMetadata(canceledCtx, dbRO, testKey)
 	assert.Error(t, err)
 }
+
+func TestSetAndReadMetadata_LastSentNodeLabels(t *testing.T) {
+	t.Parallel()
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	require.NoError(t, CreateTableMetadata(ctx, dbRW))
+
+	initialLabels := `{"rack":"r42"}`
+	require.NoError(t, SetMetadata(ctx, dbRW, MetadataKeyLastSentNodeLabels, initialLabels))
+
+	value, err := ReadMetadata(ctx, dbRO, MetadataKeyLastSentNodeLabels)
+	require.NoError(t, err)
+	assert.Equal(t, initialLabels, value)
+
+	updatedLabels := `{}`
+	require.NoError(t, SetMetadata(ctx, dbRW, MetadataKeyLastSentNodeLabels, updatedLabels))
+
+	value, err = ReadMetadata(ctx, dbRO, MetadataKeyLastSentNodeLabels)
+	require.NoError(t, err)
+	assert.Equal(t, updatedLabels, value)
+
+	var rowCount int
+	err = dbRO.QueryRow(
+		"SELECT COUNT(*) FROM "+tableNameGPUdMetadata+" WHERE "+columnKey+" = ?",
+		MetadataKeyLastSentNodeLabels,
+	).Scan(&rowCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, rowCount)
+}
+
+func TestReadAllMetadata_IncludesLastSentNodeLabels(t *testing.T) {
+	t.Parallel()
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	require.NoError(t, CreateTableMetadata(ctx, dbRW))
+	require.NoError(t, SetMetadata(ctx, dbRW, MetadataKeyMachineID, "machine-123"))
+	require.NoError(t, SetMetadata(ctx, dbRW, MetadataKeyToken, "token-abc"))
+	require.NoError(t, SetMetadata(ctx, dbRW, MetadataKeyLastSentNodeLabels, `{"team":"ml"}`))
+
+	metadata, err := ReadAllMetadata(ctx, dbRO)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		MetadataKeyMachineID:          "machine-123",
+		MetadataKeyToken:              "token-abc",
+		MetadataKeyLastSentNodeLabels: `{"team":"ml"}`,
+	}, metadata)
+}

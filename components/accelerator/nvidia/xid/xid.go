@@ -4,13 +4,12 @@ package xid
 import (
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
 
-// Defines the Xid error information that is static.
+// Detail describes a static XID catalog entry.
 type Detail struct {
 	// Code is the error code of the Xid error, as documented in
 	// https://docs.nvidia.com/deploy/xid-errors/analyzing-xid-catalog.html.
@@ -71,8 +70,7 @@ var (
 	nvlinkRulesByXID            = indexNVLinkRules()
 )
 
-// Returns the error if found.
-// Otherwise, returns false.
+// GetDetail returns the XID detail for the given code.
 func GetDetail(id int) (*Detail, bool) {
 	e, ok := details[id]
 	return &e, ok
@@ -83,12 +81,12 @@ func GetDetail(id int) (*Detail, bool) {
 func getDetailWithSubCode(xid int, subCode int) (*Detail, bool) {
 	if subMap, ok := detailsWithSubCodes[xid]; ok {
 		if detail, ok := subMap[subCode]; ok {
-			copy := detail
-			return &copy, true
+			detailCopy := detail
+			return &detailCopy, true
 		}
 		if detail, ok := subMap[0]; ok {
-			copy := detail
-			return &copy, true
+			detailCopy := detail
+			return &detailCopy, true
 		}
 	}
 	return GetDetail(xid)
@@ -100,8 +98,8 @@ func getDetailWithSubCodeAndStatus(xid int, subCode int, errorStatus uint32) (*D
 	if statusMap, ok := detailsWithSubCodesByStatus[xid]; ok {
 		if subMap, ok := statusMap[subCode]; ok {
 			if detail, ok := subMap[errorStatus]; ok {
-				copy := detail
-				return &copy, true
+				detailCopy := detail
+				return &detailCopy, true
 			}
 		}
 	}
@@ -1312,7 +1310,7 @@ var details = map[int]Detail{
 			// recommending stopping the workloads and GPU reset to clear this error.
 			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
 			//
-			// NOTE: The Alibaba Cloud doc explains explains Xid 63 as ECC page retirement or row remapping recording event,
+			// NOTE: The Alibaba Cloud doc explains Xid 63 as ECC page retirement or row remapping recording event,
 			// recommending submitting a ticket to request for technical support.
 			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
 			//
@@ -1367,7 +1365,7 @@ var details = map[int]Detail{
 			// recommending stopping the workloads and rebooting the system.
 			// "Xid messages", https://cloud.google.com/compute/docs/troubleshooting/troubleshooting-gpus#xid_messages (accessed on Nov 3, 2024)
 			//
-			// NOTE: The Alibaba Cloud doc explains explains Xid 64 as ECC page retirement or row remapper recording failure,
+			// NOTE: The Alibaba Cloud doc explains Xid 64 as ECC page retirement or row remapper recording failure,
 			// recommending submitting a ticket to request for technical support.
 			// "Diagnose GPU-accelerated nodes", https://www.alibabacloud.com/help/en/ack/ack-managed-and-ack-dedicated/user-guide/use-node-diagnosis-to-self-troubleshoot-gpu-node-problems (accessed on Nov 3, 2024)
 			//
@@ -2953,7 +2951,7 @@ var details = map[int]Detail{
 	},
 }
 
-func detailFromNVLinkInfo(info *XidExtractedInfo) (*Detail, bool) {
+func detailFromNVLinkInfo(info *ExtractedInfo) (*Detail, bool) {
 	base, ok := GetDetail(info.Xid)
 	if !ok {
 		return nil, false
@@ -3098,7 +3096,7 @@ func indexNVLinkRules() map[int][]nvlinkRule {
 	return indexed
 }
 
-func lookupNVLinkRule(info *XidExtractedInfo) (*nvlinkRule, bool) {
+func lookupNVLinkRule(info *ExtractedInfo) (*nvlinkRule, bool) {
 	rules := nvlinkRulesByXID[info.Xid]
 	for i := range rules {
 		rule := &rules[i]
@@ -3154,7 +3152,7 @@ func patternMatches(pattern string, intrinfo uint32) bool {
 		return false
 	}
 	for idx, r := range pattern {
-		bit := uint(31 - idx)
+		bit := 31 - idx
 		switch r {
 		case '1':
 			if ((intrinfo >> bit) & 1) == 0 {
@@ -3333,9 +3331,7 @@ func mergeSuggestedActions(base, addition *apiv1.SuggestedActions) *apiv1.Sugges
 	for act := range set {
 		actions = append(actions, act)
 	}
-	sort.Slice(actions, func(i, j int) bool {
-		return actions[i] < actions[j]
-	})
+	slices.Sort(actions)
 	return &apiv1.SuggestedActions{RepairActions: actions}
 }
 
@@ -3343,7 +3339,5 @@ func copySuggestedActions(src *apiv1.SuggestedActions) *apiv1.SuggestedActions {
 	if src == nil {
 		return nil
 	}
-	actions := make([]apiv1.RepairActionType, len(src.RepairActions))
-	copy(actions, src.RepairActions)
 	return &apiv1.SuggestedActions{RepairActions: slices.Clone(src.RepairActions)}
 }

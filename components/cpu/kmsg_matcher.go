@@ -52,6 +52,7 @@ func HasSoftLockup(line string) (string, bool) {
 	return "", false
 }
 
+// Match matches CPU-related kernel log lines to event names and messages.
 func Match(line string) (eventName string, message string) {
 	// Check for blocked too long
 	if processInfo, ok := HasBlockedTooLong(line); ok {

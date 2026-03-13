@@ -20,6 +20,7 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
 
+// Name is the ID of the NVIDIA peermem component.
 const Name = "accelerator-nvidia-peermem"
 
 var _ components.Component = &component{}
@@ -39,6 +40,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates a NVIDIA peermem component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{

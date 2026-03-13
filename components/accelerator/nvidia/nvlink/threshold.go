@@ -6,6 +6,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
+// ExpectedLinkStates defines the minimum healthy NVLink state across GPUs.
 type ExpectedLinkStates struct {
 	// AtLeastGPUsWithAllLinksFeatureEnabled is the expected/minimum number of GPUs with all links feature enabled.
 	// This is useful to detect the following scenarios:
@@ -25,12 +26,14 @@ var (
 	}
 )
 
+// GetDefaultExpectedLinkStates returns the process-wide default NVLink thresholds.
 func GetDefaultExpectedLinkStates() ExpectedLinkStates {
 	defaultExpectedLinkStatesMu.RLock()
 	defer defaultExpectedLinkStatesMu.RUnlock()
 	return defaultExpectedLinkStates
 }
 
+// SetDefaultExpectedLinkStates updates the process-wide default NVLink thresholds.
 func SetDefaultExpectedLinkStates(states ExpectedLinkStates) {
 	// Validate and sanitize negative values
 	if states.AtLeastGPUsWithAllLinksFeatureEnabled < 0 {

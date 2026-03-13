@@ -28,12 +28,14 @@ var (
 	}
 )
 
+// GetDefaultExpectedGPUCounts returns the default expected GPU count thresholds.
 func GetDefaultExpectedGPUCounts() ExpectedGPUCounts {
 	defaultExpectedGPUCountsMu.RLock()
 	defer defaultExpectedGPUCountsMu.RUnlock()
 	return defaultExpectedGPUCounts
 }
 
+// SetDefaultExpectedGPUCounts updates the default expected GPU count thresholds.
 func SetDefaultExpectedGPUCounts(cnt ExpectedGPUCounts) {
 	log.Logger.Infow("setting default expected GPU counts", "count", cnt.Count)
 

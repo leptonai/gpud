@@ -41,6 +41,14 @@ func createTestComponent() *component {
 	}
 }
 
+func mustCheckResult(t *testing.T, result components.CheckResult) *checkResult {
+	t.Helper()
+
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	return cr
+}
+
 func TestNewComponent(t *testing.T) {
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
 	defer cleanup()
@@ -182,10 +190,10 @@ func TestCheckWithInvalidConfigs(t *testing.T) {
 				},
 			}
 		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
+		findMntTargetDevice: func(_ string) (string, string, error) {
 			return "server:/export/path", "nfs", nil
 		},
-		isNFSFSType: func(fsType string) bool {
+		isNFSFSType: func(_ string) bool {
 			return true
 		},
 		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
@@ -221,15 +229,15 @@ func TestCheckWithValidConfigs(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "server:/export/path", "nfs", nil
 	}
-	c.isNFSFSType = func(fsType string) bool {
+	c.isNFSFSType = func(_ string) bool {
 		return true
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	// The check should succeed
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
@@ -437,10 +445,10 @@ func TestCheckWithNFSCheckerError(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "server:/export/path", "nfs", nil
 	}
-	c.isNFSFSType = func(fsType string) bool {
+	c.isNFSFSType = func(_ string) bool {
 		return true
 	}
 
@@ -468,12 +476,12 @@ func TestCheckWithNewCheckerError(t *testing.T) {
 		}
 		return "server:/export/path", "nfs", nil
 	}
-	c.isNFSFSType = func(fsType string) bool {
+	c.isNFSFSType = func(_ string) bool {
 		return true
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "invalid nfs group configs")
@@ -484,11 +492,12 @@ func TestCheckWithWriteError(t *testing.T) {
 	// Create a directory that we'll make read-only
 	tempDir := t.TempDir()
 	readOnlyDir := filepath.Join(tempDir, "readonly")
-	err := os.MkdirAll(readOnlyDir, 0755)
+	err := os.MkdirAll(readOnlyDir, 0o700)
 	require.NoError(t, err)
 
 	// Make the directory read-only to cause write to fail
-	require.NoError(t, os.Chmod(readOnlyDir, 0555))
+	//nolint:gosec // test intentionally makes the directory read-only.
+	require.NoError(t, os.Chmod(readOnlyDir, 0o500))
 	defer func() {
 		_ = os.RemoveAll(readOnlyDir)
 	}()
@@ -502,15 +511,15 @@ func TestCheckWithWriteError(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "server:/export/path", "nfs", nil
 	}
-	c.isNFSFSType = func(fsType string) bool {
+	c.isNFSFSType = func(_ string) bool {
 		return true
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "failed to write to nfs checker")
@@ -535,15 +544,15 @@ func TestCheckWithMultipleMemberConfigs(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "server:/export/path", "nfs", nil
 	}
-	c.isNFSFSType = func(fsType string) bool {
+	c.isNFSFSType = func(_ string) bool {
 		return true
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	// Both checks should succeed
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
@@ -567,16 +576,16 @@ func TestCheckWithCheckerError(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "server:/export/path", "nfs", nil
 	}
-	c.isNFSFSType = func(fsType string) bool {
+	c.isNFSFSType = func(_ string) bool {
 		return true
 	}
 
 	// Pre-populate the file with wrong content to make Check() fail
 	nfsFile := filepath.Join(tmpDir, "test-machine")
-	err := os.WriteFile(nfsFile, []byte("wrong content"), 0644)
+	err := os.WriteFile(nfsFile, []byte("wrong content"), 0o600)
 	require.NoError(t, err)
 
 	// The check should fail because Write() will overwrite with expected content,
@@ -589,12 +598,12 @@ func TestCheckWithCheckerError(t *testing.T) {
 	assert.Contains(t, result.Summary(), "correctly read/wrote on")
 }
 
-func TestCheckResultInterface(t *testing.T) {
+func TestCheckResultInterface(_ *testing.T) {
 	// Verify that checkResult implements components.CheckResult interface
 	var _ components.CheckResult = &checkResult{}
 }
 
-func TestComponentInterface(t *testing.T) {
+func TestComponentInterface(_ *testing.T) {
 	// Verify that component implements components.Component interface
 	var _ components.Component = &component{}
 }
@@ -607,7 +616,7 @@ func TestConcurrentAccess(t *testing.T) {
 
 	// Test concurrent access to LastHealthStates
 	done := make(chan bool, 10)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		go func() {
 			defer func() { done <- true }()
 			states := c.LastHealthStates()
@@ -616,7 +625,7 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 
 	// Wait for all goroutines to complete
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 }
@@ -667,15 +676,15 @@ func TestCheckWithFindMntTargetDeviceError(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "", "", errors.New("mount target device error")
 	}
-	c.isNFSFSType = func(fsType string) bool {
+	c.isNFSFSType = func(_ string) bool {
 		return true
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "failed to find mount target device for "+tmpDir)
@@ -695,15 +704,15 @@ func TestCheckWithNonNFSMount(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "/dev/sda1", "ext4", nil
 	}
-	c.isNFSFSType = func(fsType string) bool {
+	c.isNFSFSType = func(_ string) bool {
 		return false // Not an NFS filesystem
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Equal(t, fmt.Sprintf("The user applied path %q as NFS volume, but in fact the file system type %q is not NFS.", tmpDir, "ext4"), result.Summary())
@@ -722,7 +731,7 @@ func TestCheckWithValidNFSMount(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "server:/export/path", "nfs", nil
 	}
 	c.isNFSFSType = func(fsType string) bool {
@@ -730,7 +739,7 @@ func TestCheckWithValidNFSMount(t *testing.T) {
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	// Should succeed with valid NFS mount
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
@@ -756,7 +765,7 @@ func TestCheckWithMultipleVolumesOneFails(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		callCount++
 		if callCount == 1 {
 			return "server1:/export/path1", "nfs", nil
@@ -769,7 +778,7 @@ func TestCheckWithMultipleVolumesOneFails(t *testing.T) {
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	// Should fail on second mount check
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
@@ -844,15 +853,15 @@ func TestCheckWithEmptyMemberConfigs(t *testing.T) {
 		// Return empty configs to test the empty member configs scenario
 		return pkgnfschecker.Configs{}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "server:/export/path", "nfs", nil
 	}
-	c.isNFSFSType = func(fsType string) bool {
+	c.isNFSFSType = func(_ string) bool {
 		return true
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	// Should be healthy with no configs
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
@@ -941,7 +950,7 @@ func TestCheckWithCleanSuccess(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "server:/export/path", "nfs", nil
 	}
 	c.isNFSFSType = func(fsType string) bool {
@@ -949,7 +958,7 @@ func TestCheckWithCleanSuccess(t *testing.T) {
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	// Should succeed - Clean() should be called successfully
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
@@ -971,7 +980,7 @@ func TestCheckCallOrder(t *testing.T) {
 			},
 		}
 	}
-	c.findMntTargetDevice = func(dir string) (string, string, error) {
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
 		return "server:/export/path", "nfs", nil
 	}
 	c.isNFSFSType = func(fsType string) bool {
@@ -979,7 +988,8 @@ func TestCheckCallOrder(t *testing.T) {
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
 
 	// Verify that the full sequence completed successfully (Write → Check → Clean)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
@@ -998,9 +1008,11 @@ func TestCheckCleanNotCalledOnEarlierFailures(t *testing.T) {
 
 	t.Run("Clean not called when Write fails", func(t *testing.T) {
 		// Make directory read-only to cause Write() to fail
-		err := os.Chmod(tmpDir, 0555)
+		//nolint:gosec // test intentionally makes the directory read-only.
+		err := os.Chmod(tmpDir, 0o500)
 		require.NoError(t, err)
-		defer func() { _ = os.Chmod(tmpDir, 0755) }()
+		//nolint:gosec // restore original test directory permissions for cleanup.
+		defer func() { _ = os.Chmod(tmpDir, 0o700) }()
 
 		c := createTestComponent()
 		c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
@@ -1012,7 +1024,7 @@ func TestCheckCleanNotCalledOnEarlierFailures(t *testing.T) {
 				},
 			}
 		}
-		c.findMntTargetDevice = func(dir string) (string, string, error) {
+		c.findMntTargetDevice = func(_ string) (string, string, error) {
 			return "server:/export/path", "nfs", nil
 		}
 		c.isNFSFSType = func(fsType string) bool {
@@ -1020,7 +1032,7 @@ func TestCheckCleanNotCalledOnEarlierFailures(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		// Should fail during config validation, before Write() is even called
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
@@ -1047,31 +1059,31 @@ func TestCheckWithValidateTimeout(t *testing.T) {
 				},
 			}
 		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
+		findMntTargetDevice: func(_ string) (string, string, error) {
 			return "server:/export/path", "nfs", nil
 		},
-		isNFSFSType: func(fsType string) bool {
+		isNFSFSType: func(_ string) bool {
 			return true
 		},
-		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+		validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 			return context.DeadlineExceeded
 		},
-		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+		newChecker: func(_ context.Context, _ *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
 			return nil, errors.New("should not be called")
 		},
-		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+		writeChecker: func(_ context.Context, _ pkgnfschecker.Checker) error {
 			return errors.New("should not be called")
 		},
-		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+		checkChecker: func(_ context.Context, _ pkgnfschecker.Checker) pkgnfschecker.CheckResult {
 			return pkgnfschecker.CheckResult{Error: "should not be called"}
 		},
-		cleanChecker: func(checker pkgnfschecker.Checker) error {
+		cleanChecker: func(_ pkgnfschecker.Checker) error {
 			return errors.New("should not be called")
 		},
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Equal(t, "NFS validation timed out - server may be unresponsive", result.Summary())
@@ -1093,31 +1105,31 @@ func TestCheckWithNewCheckerTimeout(t *testing.T) {
 				},
 			}
 		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
+		findMntTargetDevice: func(_ string) (string, string, error) {
 			return "server:/export/path", "nfs", nil
 		},
-		isNFSFSType: func(fsType string) bool {
+		isNFSFSType: func(_ string) bool {
 			return true
 		},
-		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+		validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 			return nil // Success
 		},
-		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+		newChecker: func(_ context.Context, _ *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
 			return nil, context.DeadlineExceeded
 		},
-		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+		writeChecker: func(_ context.Context, _ pkgnfschecker.Checker) error {
 			return errors.New("should not be called")
 		},
-		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+		checkChecker: func(_ context.Context, _ pkgnfschecker.Checker) pkgnfschecker.CheckResult {
 			return pkgnfschecker.CheckResult{Error: "should not be called"}
 		},
-		cleanChecker: func(checker pkgnfschecker.Checker) error {
+		cleanChecker: func(_ pkgnfschecker.Checker) error {
 			return errors.New("should not be called")
 		},
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Equal(t, "NFS checker creation timed out for "+tmpDir+" - server may be unresponsive", result.Summary())
@@ -1140,31 +1152,31 @@ func TestCheckWithWriteCheckerTimeout(t *testing.T) {
 				},
 			}
 		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
+		findMntTargetDevice: func(_ string) (string, string, error) {
 			return "server:/export/path", "nfs", nil
 		},
-		isNFSFSType: func(fsType string) bool {
+		isNFSFSType: func(_ string) bool {
 			return true
 		},
-		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+		validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 			return nil // Success
 		},
-		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+		newChecker: func(_ context.Context, _ *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
 			return mockChecker, nil // Success
 		},
-		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+		writeChecker: func(_ context.Context, _ pkgnfschecker.Checker) error {
 			return context.DeadlineExceeded
 		},
-		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+		checkChecker: func(_ context.Context, _ pkgnfschecker.Checker) pkgnfschecker.CheckResult {
 			return pkgnfschecker.CheckResult{Error: "should not be called"}
 		},
-		cleanChecker: func(checker pkgnfschecker.Checker) error {
+		cleanChecker: func(_ pkgnfschecker.Checker) error {
 			return errors.New("should not be called")
 		},
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Equal(t, "NFS write timed out for "+tmpDir+" - server may be unresponsive", result.Summary())
@@ -1187,35 +1199,35 @@ func TestCheckWithCheckCheckerTimeoutResult(t *testing.T) {
 				},
 			}
 		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
+		findMntTargetDevice: func(_ string) (string, string, error) {
 			return "server:/export/path", "nfs", nil
 		},
-		isNFSFSType: func(fsType string) bool {
+		isNFSFSType: func(_ string) bool {
 			return true
 		},
-		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+		validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 			return nil // Success
 		},
-		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+		newChecker: func(_ context.Context, _ *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
 			return mockChecker, nil // Success
 		},
-		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+		writeChecker: func(_ context.Context, _ pkgnfschecker.Checker) error {
 			return nil // Success
 		},
-		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+		checkChecker: func(_ context.Context, _ pkgnfschecker.Checker) pkgnfschecker.CheckResult {
 			return pkgnfschecker.CheckResult{
 				Dir:          tmpDir,
 				Error:        "operation timed out",
 				TimeoutError: true, // This is the key field that indicates timeout
 			}
 		},
-		cleanChecker: func(checker pkgnfschecker.Checker) error {
+		cleanChecker: func(_ pkgnfschecker.Checker) error {
 			return errors.New("should not be called")
 		},
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Equal(t, "NFS check timed out for "+tmpDir+" - server may be unresponsive", result.Summary())
@@ -1275,31 +1287,31 @@ func TestCheckWithNonTimeoutErrors(t *testing.T) {
 						},
 					}
 				},
-				findMntTargetDevice: func(dir string) (string, string, error) {
+				findMntTargetDevice: func(_ string) (string, string, error) {
 					return "server:/export/path", "nfs", nil
 				},
-				isNFSFSType: func(fsType string) bool {
+				isNFSFSType: func(_ string) bool {
 					return true
 				},
-				validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+				validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 					if tc.validateError != nil {
 						return tc.validateError
 					}
 					return nil
 				},
-				newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+				newChecker: func(_ context.Context, _ *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
 					if tc.newCheckerError != nil {
 						return nil, tc.newCheckerError
 					}
 					return mockChecker, nil
 				},
-				writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+				writeChecker: func(_ context.Context, _ pkgnfschecker.Checker) error {
 					if tc.writeError != nil {
 						return tc.writeError
 					}
 					return nil
 				},
-				checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+				checkChecker: func(_ context.Context, _ pkgnfschecker.Checker) pkgnfschecker.CheckResult {
 					if tc.checkResult.Error != "" {
 						return tc.checkResult
 					}
@@ -1308,7 +1320,7 @@ func TestCheckWithNonTimeoutErrors(t *testing.T) {
 						Message: "success",
 					}
 				},
-				cleanChecker: func(checker pkgnfschecker.Checker) error {
+				cleanChecker: func(_ pkgnfschecker.Checker) error {
 					return nil
 				},
 			}
@@ -1337,34 +1349,34 @@ func TestCheckWithSuccessfulOperations(t *testing.T) {
 				},
 			}
 		},
-		findMntTargetDevice: func(dir string) (string, string, error) {
+		findMntTargetDevice: func(_ string) (string, string, error) {
 			return "server:/export/path", "nfs", nil
 		},
-		isNFSFSType: func(fsType string) bool {
+		isNFSFSType: func(_ string) bool {
 			return true
 		},
-		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+		validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 			return nil
 		},
-		newChecker: func(ctx context.Context, cfg *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+		newChecker: func(_ context.Context, _ *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
 			return mockChecker, nil
 		},
-		writeChecker: func(ctx context.Context, checker pkgnfschecker.Checker) error {
+		writeChecker: func(_ context.Context, _ pkgnfschecker.Checker) error {
 			return nil
 		},
-		checkChecker: func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+		checkChecker: func(_ context.Context, _ pkgnfschecker.Checker) pkgnfschecker.CheckResult {
 			return pkgnfschecker.CheckResult{
 				Dir:     tmpDir,
 				Message: "correctly read/wrote on " + tmpDir,
 			}
 		},
-		cleanChecker: func(checker pkgnfschecker.Checker) error {
+		cleanChecker: func(_ pkgnfschecker.Checker) error {
 			return nil
 		},
 	}
 
 	result := c.Check()
-	cr := result.(*checkResult)
+	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "correctly read/wrote on")
@@ -1375,11 +1387,11 @@ func TestCheckWithSuccessfulOperations(t *testing.T) {
 // mockChecker is a simple mock implementation of the Checker interface for testing
 type mockChecker struct{}
 
-func (m *mockChecker) Write(ctx context.Context) error {
+func (m *mockChecker) Write(_ context.Context) error {
 	return nil
 }
 
-func (m *mockChecker) Check(ctx context.Context) pkgnfschecker.CheckResult {
+func (m *mockChecker) Check(_ context.Context) pkgnfschecker.CheckResult {
 	return pkgnfschecker.CheckResult{}
 }
 

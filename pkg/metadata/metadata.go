@@ -40,6 +40,9 @@ const (
 	MetadataKeyEndpoint  = "endpoint"
 	MetadataKeyPublicIP  = "public_ip"
 	MetadataKeyPrivateIP = "private_ip"
+	// MetadataKeyLastSentNodeLabels stores the last successfully sent login node labels payload.
+	// The value is a canonical JSON object string, e.g. {"rack":"r42"} or {} for explicit clear.
+	MetadataKeyLastSentNodeLabels = "last_sent_node_labels"
 
 	// MetadataKeyControlPlaneLoginSuccess represents the timestamp in unix seconds
 	// when the control plane login was successful.

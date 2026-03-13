@@ -43,6 +43,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates the kubelet component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -98,7 +99,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 
@@ -204,11 +205,12 @@ func (cr *checkResult) String() string {
 	for _, pod := range cr.Pods {
 		for _, container := range pod.ContainerStatuses {
 			state := "unknown"
-			if container.State.Running != nil {
+			switch {
+			case container.State.Running != nil:
 				state = "running"
-			} else if container.State.Terminated != nil {
+			case container.State.Terminated != nil:
 				state = "terminated"
-			} else if container.State.Waiting != nil {
+			case container.State.Waiting != nil:
 				state = "waiting"
 			}
 			table.Append([]string{pod.Namespace, pod.Name, container.Name, state})

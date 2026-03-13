@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -173,7 +174,8 @@ func TestSetTombstoneTimestampSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the timestamp was set by querying directly
-	query := `SELECT v FROM ` + metadataTable + ` WHERE k = ?`
+	//nolint:gosec // metadataTable is a test-controlled identifier, not user input.
+	query := fmt.Sprintf(`SELECT v FROM %s WHERE k = ?`, metadataTable)
 	row := dbRW.QueryRowContext(ctx, query, metadataKeyTombstoneTimestamp)
 
 	var timestampStr string
@@ -349,7 +351,8 @@ func TestGetTombstoneTimestampWithInvalidData(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert invalid timestamp data (non-numeric string)
-	query := `INSERT INTO ` + metadataTable + ` (k, v) VALUES (?, ?)`
+	//nolint:gosec // metadataTable is a test-controlled identifier, not user input.
+	query := fmt.Sprintf(`INSERT INTO %s (k, v) VALUES (?, ?)`, metadataTable)
 	_, err = dbRW.ExecContext(ctx, query, metadataKeyTombstoneTimestamp, "invalid_timestamp")
 	require.NoError(t, err)
 

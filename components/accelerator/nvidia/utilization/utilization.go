@@ -32,6 +32,7 @@ type Utilization struct {
 	Supported bool `json:"supported"`
 }
 
+// GetUtilization returns the utilization rates for a device.
 func GetUtilization(uuid string, dev device.Device) (Utilization, error) {
 	util := Utilization{
 		UUID:      uuid,

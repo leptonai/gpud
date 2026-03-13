@@ -14,6 +14,7 @@ import (
 
 const peerMemModule = "nvidia_peermem"
 
+// CheckLsmodPeermemModule checks whether `ib_core` is using `nvidia_peermem`.
 func CheckLsmodPeermemModule(ctx context.Context) (*LsmodPeermemModuleOutput, error) {
 	return checkLsmodPeermemModule(ctx, os.Geteuid, process.New)
 }
@@ -77,13 +78,12 @@ func checkLsmodPeermemModule(ctx context.Context, getEuid func() int, newProcess
 	return o, nil
 }
 
-// Returns true if infiniband (ib_core module) is using nvidia_peermem.
+// HasLsmodInfinibandPeerMem reports whether `ib_core` is using `nvidia_peermem`.
 func HasLsmodInfinibandPeerMem(lsmodOutput string) bool {
 	if lsmodOutput == "" {
 		return false
 	}
-	lines := strings.Split(lsmodOutput, "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(lsmodOutput, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 4 {
 			continue
@@ -103,6 +103,7 @@ func HasLsmodInfinibandPeerMem(lsmodOutput string) bool {
 	return false
 }
 
+// LsmodPeermemModuleOutput captures filtered `lsmod` output for peermem detection.
 type LsmodPeermemModuleOutput struct {
 	Raw                      string `json:"raw"`
 	IbcoreUsingPeermemModule bool   `json:"ibcore_using_peermem_module"`

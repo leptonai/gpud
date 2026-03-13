@@ -466,7 +466,7 @@ func TestGetUsedPercentMethods(t *testing.T) {
 
 // TestGetTemperatureWithNilDevice tests the behavior of GetTemperature when passed a nil device.
 func TestGetTemperatureWithNilDevice(t *testing.T) {
-	var nilDevice device.Device = nil
+	var nilDevice device.Device
 	testUUID := "GPU-NILTEST"
 
 	// We expect the function to panic with a nil device
@@ -484,13 +484,13 @@ func TestGetTemperatureEdgeCases(t *testing.T) {
 	t.Run("zero temperature", func(t *testing.T) {
 		mockDevice := &testutil.MockDevice{
 			Device: &mock.Device{
-				GetTemperatureFunc: func(sensor nvml.TemperatureSensors) (uint32, nvml.Return) {
+				GetTemperatureFunc: func(_ nvml.TemperatureSensors) (uint32, nvml.Return) {
 					return 0, nvml.SUCCESS
 				},
 				GetMarginTemperatureFunc: func() (nvml.MarginTemperature, nvml.Return) {
 					return nvml.MarginTemperature{MarginTemperature: 10}, nvml.SUCCESS
 				},
-				GetTemperatureThresholdFunc: func(thresholdType nvml.TemperatureThresholds) (uint32, nvml.Return) {
+				GetTemperatureThresholdFunc: func(_ nvml.TemperatureThresholds) (uint32, nvml.Return) {
 					return 100, nvml.SUCCESS
 				},
 			},
@@ -506,13 +506,13 @@ func TestGetTemperatureEdgeCases(t *testing.T) {
 	t.Run("high temperature", func(t *testing.T) {
 		mockDevice := &testutil.MockDevice{
 			Device: &mock.Device{
-				GetTemperatureFunc: func(sensor nvml.TemperatureSensors) (uint32, nvml.Return) {
+				GetTemperatureFunc: func(_ nvml.TemperatureSensors) (uint32, nvml.Return) {
 					return 99, nvml.SUCCESS
 				},
 				GetMarginTemperatureFunc: func() (nvml.MarginTemperature, nvml.Return) {
 					return nvml.MarginTemperature{MarginTemperature: 10}, nvml.SUCCESS
 				},
-				GetTemperatureThresholdFunc: func(thresholdType nvml.TemperatureThresholds) (uint32, nvml.Return) {
+				GetTemperatureThresholdFunc: func(_ nvml.TemperatureThresholds) (uint32, nvml.Return) {
 					return 100, nvml.SUCCESS
 				},
 			},
@@ -528,13 +528,13 @@ func TestGetTemperatureEdgeCases(t *testing.T) {
 	t.Run("temperature at threshold", func(t *testing.T) {
 		mockDevice := &testutil.MockDevice{
 			Device: &mock.Device{
-				GetTemperatureFunc: func(sensor nvml.TemperatureSensors) (uint32, nvml.Return) {
+				GetTemperatureFunc: func(_ nvml.TemperatureSensors) (uint32, nvml.Return) {
 					return 100, nvml.SUCCESS
 				},
 				GetMarginTemperatureFunc: func() (nvml.MarginTemperature, nvml.Return) {
 					return nvml.MarginTemperature{MarginTemperature: 10}, nvml.SUCCESS
 				},
-				GetTemperatureThresholdFunc: func(thresholdType nvml.TemperatureThresholds) (uint32, nvml.Return) {
+				GetTemperatureThresholdFunc: func(_ nvml.TemperatureThresholds) (uint32, nvml.Return) {
 					return 100, nvml.SUCCESS
 				},
 			},
@@ -554,13 +554,13 @@ func TestGetTemperatureWithGPULostError(t *testing.T) {
 	// Create a mock device that returns GPU_IS_LOST error
 	mockDevice := &testutil.MockDevice{
 		Device: &mock.Device{
-			GetTemperatureFunc: func(sensor nvml.TemperatureSensors) (uint32, nvml.Return) {
+			GetTemperatureFunc: func(_ nvml.TemperatureSensors) (uint32, nvml.Return) {
 				return 0, nvml.ERROR_GPU_IS_LOST
 			},
 			GetMarginTemperatureFunc: func() (nvml.MarginTemperature, nvml.Return) {
 				return nvml.MarginTemperature{}, nvml.ERROR_GPU_IS_LOST
 			},
-			GetTemperatureThresholdFunc: func(thresholdType nvml.TemperatureThresholds) (uint32, nvml.Return) {
+			GetTemperatureThresholdFunc: func(_ nvml.TemperatureThresholds) (uint32, nvml.Return) {
 				// This function needs to be mocked but its return values don't matter
 				// since the first call to GetTemperature will fail
 				return 0, nvml.ERROR_UNKNOWN

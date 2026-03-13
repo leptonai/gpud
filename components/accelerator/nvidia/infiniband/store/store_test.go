@@ -35,7 +35,8 @@ func TestNewStoreWithCustomValues(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, store)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Verify default values are set correctly
 	assert.Equal(t, defaultHistoryTable, s.historyTable)
@@ -62,17 +63,16 @@ func TestReadAllDeviceValuesErrorHandling(t *testing.T) {
 	err = createHistoryTable(ctx, dbRW, tableName)
 	require.NoError(t, err)
 
-	// Insert test data
-	insertQuery := fmt.Sprintf(`INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		tableName,
-		historyTableColumnTimestamp,
-		historyTableColumnDevice,
-		historyTableColumnPort,
-		historyTableColumnLinkLayer,
-		historyTableColumnState,
-		historyTableColumnPhysicalState,
-		historyTableColumnRateGBSec,
-		historyTableColumnTotalLinkDowned)
+	// Insert test data.
+	insertQuery := `INSERT INTO ` + tableName + ` (` + // #nosec G202 -- Table and column names are fixed test identifiers.
+		historyTableColumnTimestamp + `, ` +
+		historyTableColumnDevice + `, ` +
+		historyTableColumnPort + `, ` +
+		historyTableColumnLinkLayer + `, ` +
+		historyTableColumnState + `, ` +
+		historyTableColumnPhysicalState + `, ` +
+		historyTableColumnRateGBSec + `, ` +
+		historyTableColumnTotalLinkDowned + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err = dbRW.ExecContext(ctx, insertQuery, "2024-01-01T12:00:00Z", "mlx5_0", "1", "InfiniBand", "Active", "LinkUp", 100, 0)
 	require.NoError(t, err)
@@ -108,6 +108,7 @@ func TestReadAllPortValuesErrorHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert test data
+	//nolint:gosec // tableName and columns are test-controlled identifiers.
 	insertQuery := fmt.Sprintf(`INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		tableName,
 		historyTableColumnTimestamp,
@@ -193,6 +194,7 @@ func TestCreateHistoryTableSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify table was created by checking if we can query it
+	//nolint:gosec // testTable is a test-controlled identifier.
 	query := fmt.Sprintf(`SELECT name FROM sqlite_master WHERE type='table' AND name='%s'`, testTable)
 	row := dbRO.QueryRowContext(ctx, query)
 	var tableName string
@@ -201,6 +203,7 @@ func TestCreateHistoryTableSuccess(t *testing.T) {
 	assert.Equal(t, testTable, tableName)
 
 	// Verify indexes were created
+	//nolint:gosec // testTable is a test-controlled identifier.
 	query = fmt.Sprintf(`SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='%s'`, testTable)
 	rows, err := dbRO.QueryContext(ctx, query)
 	require.NoError(t, err)
@@ -247,6 +250,7 @@ func TestSelectAllDevices(t *testing.T) {
 	assert.Len(t, devices, 0)
 
 	// Insert test data with various devices
+	//nolint:gosec // tableName is a test-controlled identifier.
 	insertSQL := fmt.Sprintf(`INSERT INTO %s (timestamp, device, port, link_layer, state, physical_state, rate_gb_sec, total_link_downed, event_type, event_reason, extra_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, tableName)
 
 	// Insert multiple entries with same device
@@ -303,6 +307,7 @@ func TestSelectAllPorts(t *testing.T) {
 	assert.Len(t, ports, 0)
 
 	// Insert test data with various ports
+	//nolint:gosec // tableName is a test-controlled identifier.
 	insertSQL := fmt.Sprintf(`INSERT INTO %s (timestamp, device, port, link_layer, state, physical_state, rate_gb_sec, total_link_downed, event_type, event_reason, extra_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, tableName)
 
 	// Insert multiple entries with same port
@@ -372,10 +377,12 @@ func TestSelectAllPortsRowsError(t *testing.T) {
 
 	// Create a table with incompatible schema to trigger scan error
 	tableName := "test_port_scan_error"
+	//nolint:gosec // tableName is a test-controlled identifier.
 	_, err := dbRW.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE %s (port TEXT)`, tableName))
 	require.NoError(t, err)
 
 	// Insert string data where we expect uint
+	//nolint:gosec // tableName is a test-controlled identifier.
 	_, err = dbRW.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s (port) VALUES ('not_a_number')`, tableName))
 	require.NoError(t, err)
 
@@ -446,6 +453,7 @@ func TestStoreInitialization(t *testing.T) {
 	require.NoError(t, err)
 
 	// Insert test data
+	//nolint:gosec // defaultHistoryTable is a test-controlled identifier.
 	insertSQL := fmt.Sprintf(`INSERT INTO %s (timestamp, device, port, link_layer, state, physical_state, rate_gb_sec, total_link_downed, event_type, event_reason, extra_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, defaultHistoryTable)
 	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	_, err = dbRW.ExecContext(ctx, insertSQL, testTime.Unix(), "mlx5_0", 1, "infiniband", "active", "linkup", 400, 0, "", "", "")
@@ -457,7 +465,8 @@ func TestStoreInitialization(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Verify initialization
 	assert.Equal(t, testTime.Unix(), s.getLastInsertTimestamp().Unix())
@@ -481,7 +490,8 @@ func TestUpdateAllDeviceValues(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Initial state should be empty
 	devices := s.getAllDeviceValues()
@@ -523,7 +533,8 @@ func TestUpdateAllPortValues(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Initial state should be empty
 	ports := s.getAllPortValues()
@@ -565,7 +576,8 @@ func TestGetAllDeviceValuesThreadSafety(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Add some initial devices
 	initialDevices := map[string]any{
@@ -579,7 +591,7 @@ func TestGetAllDeviceValuesThreadSafety(t *testing.T) {
 
 	// Reader goroutine
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			devices := s.getAllDeviceValues()
 			assert.GreaterOrEqual(t, len(devices), 2)
 		}
@@ -588,7 +600,7 @@ func TestGetAllDeviceValuesThreadSafety(t *testing.T) {
 
 	// Writer goroutine
 	go func() {
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			newDevices := map[string]any{
 				fmt.Sprintf("mlx5_%d", i): nil,
 			}
@@ -614,7 +626,8 @@ func TestGetAllPortValuesThreadSafety(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Add some initial ports
 	initialPorts := map[uint]any{
@@ -628,7 +641,7 @@ func TestGetAllPortValuesThreadSafety(t *testing.T) {
 
 	// Reader goroutine
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			ports := s.getAllPortValues()
 			assert.GreaterOrEqual(t, len(ports), 2)
 		}
@@ -637,9 +650,9 @@ func TestGetAllPortValuesThreadSafety(t *testing.T) {
 
 	// Writer goroutine
 	go func() {
-		for i := 0; i < 100; i++ {
+		for port := uint(10); port < 110; port++ {
 			newPorts := map[uint]any{
-				uint(i + 10): nil,
+				port: nil,
 			}
 			s.updateAllPortValues(newPorts)
 		}
@@ -664,14 +677,16 @@ func TestStoreWithZeroRetentionAndPurge(t *testing.T) {
 	store1, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s1 := store1.(*ibPortsStore)
+	s1, ok := store1.(*ibPortsStore)
+	require.True(t, ok)
 	assert.Equal(t, defaultPurgeInterval, s1.purgeInterval, "First store should use default purge interval")
 
 	// Create second store with the same context and verify it gets its own default values
 	store2, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s2 := store2.(*ibPortsStore)
+	s2, ok := store2.(*ibPortsStore)
+	require.True(t, ok)
 	assert.Equal(t, defaultPurgeInterval, s2.purgeInterval, "Second store should also use default purge interval")
 
 	// Verify that both stores are independent instances

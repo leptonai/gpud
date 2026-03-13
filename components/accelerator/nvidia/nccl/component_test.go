@@ -41,12 +41,20 @@ func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*eventstore.Event), args.Error(1)
+	result, ok := args.Get(0).(*eventstore.Event)
+	if !ok {
+		return nil, fmt.Errorf("unexpected event type %T", args.Get(0))
+	}
+	return result, args.Error(1)
 }
 
 func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).(eventstore.Events), args.Error(1)
+	result, ok := args.Get(0).(eventstore.Events)
+	if !ok {
+		return nil, fmt.Errorf("unexpected events type %T", args.Get(0))
+	}
+	return result, args.Error(1)
 }
 
 func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
@@ -54,7 +62,11 @@ func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*eventstore.Event), args.Error(1)
+	result, ok := args.Get(0).(*eventstore.Event)
+	if !ok {
+		return nil, fmt.Errorf("unexpected latest event type %T", args.Get(0))
+	}
+	return result, args.Error(1)
 }
 
 func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -71,12 +83,16 @@ type MockEventStore struct {
 	mock.Mock
 }
 
-func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *MockEventStore) Bucket(name string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	args := m.Called(name)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(eventstore.Bucket), args.Error(1)
+	result, ok := args.Get(0).(eventstore.Bucket)
+	if !ok {
+		return nil, fmt.Errorf("unexpected bucket type %T", args.Get(0))
+	}
+	return result, args.Error(1)
 }
 
 // Complete implementation of nvidianvml.Instance for testing
@@ -94,12 +110,20 @@ func (m *mockNVMLInstance) Library() nvmllib.Library {
 	if args.Get(0) == nil {
 		return nil
 	}
-	return args.Get(0).(nvmllib.Library)
+	result, ok := args.Get(0).(nvmllib.Library)
+	if !ok {
+		return nil
+	}
+	return result
 }
 
 func (m *mockNVMLInstance) Devices() map[string]device.Device {
 	args := m.Called()
-	return args.Get(0).(map[string]device.Device)
+	result, ok := args.Get(0).(map[string]device.Device)
+	if !ok {
+		return nil
+	}
+	return result
 }
 
 func (m *mockNVMLInstance) ProductName() string {
@@ -144,7 +168,11 @@ func (m *mockNVMLInstance) FabricStateSupported() bool {
 
 func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.MemoryErrorManagementCapabilities {
 	args := m.Called()
-	return args.Get(0).(nvidiaproduct.MemoryErrorManagementCapabilities)
+	result, ok := args.Get(0).(nvidiaproduct.MemoryErrorManagementCapabilities)
+	if !ok {
+		return nvidiaproduct.MemoryErrorManagementCapabilities{}
+	}
+	return result
 }
 
 func (m *mockNVMLInstance) Shutdown() error {
@@ -225,7 +253,7 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
-		mockReadAllKmsg := func(ctx context.Context) ([]kmsg.Message, error) {
+		mockReadAllKmsg := func(_ context.Context) ([]kmsg.Message, error) {
 			return nil, assert.AnError
 		}
 
@@ -248,7 +276,7 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
-		mockReadAllKmsg := func(ctx context.Context) ([]kmsg.Message, error) {
+		mockReadAllKmsg := func(_ context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
 					Message: "non-matching message",
@@ -275,7 +303,7 @@ func TestCheck(t *testing.T) {
 		mockNvml.On("Devices").Return(map[string]device.Device{})
 		mockNvml.On("GetMemoryErrorManagementCapabilities").Return(nvidiaproduct.MemoryErrorManagementCapabilities{})
 
-		mockReadAllKmsg := func(ctx context.Context) ([]kmsg.Message, error) {
+		mockReadAllKmsg := func(_ context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
 					Message: "non-matching message",
@@ -483,7 +511,6 @@ func TestMatchFunctionality(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			gotEvent, gotMessage := Match(tc.input)

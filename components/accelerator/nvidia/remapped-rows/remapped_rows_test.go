@@ -230,7 +230,7 @@ func TestGetRemappedRows(t *testing.T) {
 }
 
 func TestGetRemappedRowsWithNilDevice(t *testing.T) {
-	var nilDevice device.Device = nil
+	var nilDevice device.Device
 	testUUID := "GPU-NILTEST"
 
 	// We expect the function to panic with a nil device

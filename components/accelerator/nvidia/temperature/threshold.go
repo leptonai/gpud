@@ -6,6 +6,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
+// Thresholds defines the temperature thresholds used for health evaluation.
 type Thresholds struct {
 	// CelsiusSlowdownMargin is the minimum thermal margin (°C) before marking the GPU as degraded.
 	CelsiusSlowdownMargin int32 `json:"celsius_slowdown_margin"`
@@ -27,12 +28,14 @@ var (
 	}
 )
 
+// GetDefaultThresholds returns the default temperature thresholds.
 func GetDefaultThresholds() Thresholds {
 	defaultThresholdsMU.RLock()
 	defer defaultThresholdsMU.RUnlock()
 	return defaultThresholds
 }
 
+// SetDefaultMarginThreshold sets the default margin threshold configuration.
 func SetDefaultMarginThreshold(threshold Thresholds) {
 	if threshold.CelsiusSlowdownMargin < 0 {
 		log.Logger.Warnw("invalid negative temperature margin threshold, treating as 0", "degraded_celsius", threshold.CelsiusSlowdownMargin)

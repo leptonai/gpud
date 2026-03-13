@@ -244,15 +244,17 @@ func TestCheck_GPMNotSupported(t *testing.T) {
 		return devs
 	}
 
-	getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+	getGPMSupportedFunc := func(_ device.Device) (bool, error) {
 		return false, nil
 	}
 
-	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+	getGPMMetricsFunc := func(_ context.Context, _ device.Device) (map[nvml.GpmMetricId]float64, error) {
 		return nil, nil
 	}
 
-	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 	component.Check()
 
 	// Verify data
@@ -285,7 +287,7 @@ func TestCheck_GPMSupported(t *testing.T) {
 		return devs
 	}
 
-	getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+	getGPMSupportedFunc := func(_ device.Device) (bool, error) {
 		return true, nil
 	}
 
@@ -296,11 +298,13 @@ func TestCheck_GPMSupported(t *testing.T) {
 		nvml.GPM_METRIC_DFMA_TENSOR_UTIL: 40.3,
 	}
 
-	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+	getGPMMetricsFunc := func(_ context.Context, _ device.Device) (map[nvml.GpmMetricId]float64, error) {
 		return expectedMetrics, nil
 	}
 
-	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 	component.Check()
 
 	// Verify data
@@ -337,15 +341,17 @@ func TestCheck_GPMSupportError(t *testing.T) {
 	}
 
 	errExpected := errors.New("GPM support check failed")
-	getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+	getGPMSupportedFunc := func(_ device.Device) (bool, error) {
 		return false, errExpected
 	}
 
-	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+	getGPMMetricsFunc := func(_ context.Context, _ device.Device) (map[nvml.GpmMetricId]float64, error) {
 		return nil, nil
 	}
 
-	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 	component.Check()
 
 	// Verify error handling
@@ -378,16 +384,18 @@ func TestCheck_GPMMetricsError(t *testing.T) {
 		return devs
 	}
 
-	getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+	getGPMSupportedFunc := func(_ device.Device) (bool, error) {
 		return true, nil
 	}
 
 	errExpected := errors.New("GPM metrics collection failed")
-	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+	getGPMMetricsFunc := func(_ context.Context, _ device.Device) (map[nvml.GpmMetricId]float64, error) {
 		return nil, errExpected
 	}
 
-	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 	component.Check()
 
 	// Verify error handling
@@ -408,7 +416,9 @@ func TestCheck_NoDevices(t *testing.T) {
 		return map[string]device.Device{} // Empty map
 	}
 
-	component := createMockGPMComponent(ctx, getDevicesFunc, nil, nil).(*component)
+	componentIface := createMockGPMComponent(ctx, getDevicesFunc, nil, nil)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 	component.Check()
 
 	// Verify handling of no devices
@@ -424,13 +434,15 @@ func TestCheck_NoDevices(t *testing.T) {
 
 func TestStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
+	componentIface := createMockGPMComponent(ctx, nil, nil, nil)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 
 	// Set test data
 	component.lastMu.Lock()
 	component.lastCheckResult = &checkResult{
 		GPMSupported: true,
-		GPMMetrics: []GPMMetrics{
+		GPMMetrics: []Metrics{
 			{
 				UUID: "gpu-uuid-123",
 				Metrics: map[nvml.GpmMetricId]float64{
@@ -458,7 +470,9 @@ func TestStates_WithData(t *testing.T) {
 
 func TestStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
+	componentIface := createMockGPMComponent(ctx, nil, nil, nil)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -482,7 +496,9 @@ func TestStates_WithError(t *testing.T) {
 
 func TestStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
+	componentIface := createMockGPMComponent(ctx, nil, nil, nil)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 
 	// Don't set any data
 
@@ -506,8 +522,7 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Use a channel to detect when Check is called
 	checkCalled := make(chan bool, 1)
@@ -539,7 +554,9 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
+	componentIface := createMockGPMComponent(ctx, nil, nil, nil)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -618,7 +635,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		return devs
 	}
 
-	getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+	getGPMSupportedFunc := func(_ device.Device) (bool, error) {
 		return true, nil
 	}
 
@@ -632,7 +649,7 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		nvml.GPM_METRIC_ANY_TENSOR_UTIL: 45.3,
 	}
 
-	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+	getGPMMetricsFunc := func(_ context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
 		uuid, _ := dev.GetUUID()
 		if uuid == uuid1 {
 			return metrics1, nil
@@ -640,7 +657,9 @@ func TestCheck_MultipleDevices(t *testing.T) {
 		return metrics2, nil
 	}
 
-	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 	component.Check()
 
 	// Verify data
@@ -702,11 +721,13 @@ func TestCheck_MixedGPMSupport(t *testing.T) {
 		nvml.GPM_METRIC_SM_OCCUPANCY: 75.5,
 	}
 
-	getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+	getGPMMetricsFunc := func(_ context.Context, _ device.Device) (map[nvml.GpmMetricId]float64, error) {
 		return metrics, nil
 	}
 
-	component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+	componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 	component.Check()
 
 	// Verify data
@@ -726,7 +747,9 @@ func TestCheck_MixedGPMSupport(t *testing.T) {
 func TestCheck_NVMLInstanceNil(t *testing.T) {
 	ctx := context.Background()
 
-	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
+	componentIface := createMockGPMComponent(ctx, nil, nil, nil)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 	component.nvmlInstance = nil
 
 	result := component.Check()
@@ -744,7 +767,9 @@ func TestCheck_NVMLNotLoaded(t *testing.T) {
 		nvmlExists: false,
 	}
 
-	component := createMockGPMComponent(ctx, nil, nil, nil).(*component)
+	componentIface := createMockGPMComponent(ctx, nil, nil, nil)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 	component.nvmlInstance = mockInstance
 
 	result := component.Check()
@@ -769,7 +794,7 @@ func TestData_String(t *testing.T) {
 		{
 			name: "empty metrics",
 			data: &checkResult{
-				GPMMetrics: []GPMMetrics{},
+				GPMMetrics: []Metrics{},
 			},
 			shouldMatch: true,
 			contains:    "no data",
@@ -777,7 +802,7 @@ func TestData_String(t *testing.T) {
 		{
 			name: "with metrics",
 			data: &checkResult{
-				GPMMetrics: []GPMMetrics{
+				GPMMetrics: []Metrics{
 					{
 						UUID: "gpu-uuid-123",
 						Metrics: map[nvml.GpmMetricId]float64{
@@ -882,7 +907,7 @@ func TestCheck_UpdateFrequency(t *testing.T) {
 	}
 
 	// Create a custom Start function to use a faster ticker for testing
-	originalStart := func(c *component) error {
+	originalStart := func(c *component) {
 		go func() {
 			ticker := time.NewTicker(50 * time.Millisecond) // Use shorter interval for testing
 			defer ticker.Stop()
@@ -897,14 +922,14 @@ func TestCheck_UpdateFrequency(t *testing.T) {
 				}
 			}
 		}()
-		return nil
 	}
 
-	component := createMockGPMComponent(ctx, getDevicesFunc, nil, nil).(*component)
+	componentIface := createMockGPMComponent(ctx, getDevicesFunc, nil, nil)
+	component, ok := componentIface.(*component)
+	require.True(t, ok)
 
 	// Start the component with our custom start function
-	err := originalStart(component)
-	assert.NoError(t, err)
+	originalStart(component)
 
 	// Wait for the context to be done
 	<-ctx.Done()
@@ -932,7 +957,7 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 
 	data := &checkResult{
 		GPMSupported: true,
-		GPMMetrics: []GPMMetrics{
+		GPMMetrics: []Metrics{
 			{
 				UUID:           uuid,
 				Metrics:        metrics,
@@ -958,18 +983,20 @@ func TestData_GetLastHealthStates_JSON(t *testing.T) {
 	require.Contains(t, state.ExtraInfo, "data")
 
 	// Parse the JSON data to verify its structure
-	var parsedData map[string]interface{}
+	var parsedData map[string]any
 	err := json.Unmarshal([]byte(state.ExtraInfo["data"]), &parsedData)
 	require.NoError(t, err, "Data should be valid JSON")
 
 	// Verify the GPM metrics data
-	assert.True(t, parsedData["gpm_supported"].(bool))
+	gpmSupported, ok := parsedData["gpm_supported"].(bool)
+	require.True(t, ok)
+	assert.True(t, gpmSupported)
 
-	gpmMetrics, ok := parsedData["gpm_metrics"].([]interface{})
+	gpmMetrics, ok := parsedData["gpm_metrics"].([]any)
 	require.True(t, ok, "gpm_metrics should be an array")
 	require.Len(t, gpmMetrics, 1)
 
-	metrics0, ok := gpmMetrics[0].(map[string]interface{})
+	metrics0, ok := gpmMetrics[0].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, uuid, metrics0["uuid"])
 
@@ -1002,11 +1029,13 @@ func TestCheck_GPMLostError(t *testing.T) {
 	// Test GPM support function returning GPU lost error
 	t.Run("GPU lost in GPM support check", func(t *testing.T) {
 		errExpected := nvmlerrors.ErrGPULost
-		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+		getGPMSupportedFunc := func(_ device.Device) (bool, error) {
 			return false, errExpected
 		}
 
-		component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, nil).(*component)
+		componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, nil)
+		component, ok := componentIface.(*component)
+		require.True(t, ok)
 		result := component.Check()
 
 		data, ok := result.(*checkResult)
@@ -1031,16 +1060,18 @@ func TestCheck_GPMLostError(t *testing.T) {
 
 	// Test GPM metrics function returning GPU lost error
 	t.Run("GPU lost in GPM metrics check", func(t *testing.T) {
-		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+		getGPMSupportedFunc := func(_ device.Device) (bool, error) {
 			return true, nil
 		}
 
 		errExpected := nvmlerrors.ErrGPULost
-		getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+		getGPMMetricsFunc := func(_ context.Context, _ device.Device) (map[nvml.GpmMetricId]float64, error) {
 			return nil, errExpected
 		}
 
-		component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+		componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc)
+		component, ok := componentIface.(*component)
+		require.True(t, ok)
 		result := component.Check()
 
 		data, ok := result.(*checkResult)
@@ -1086,11 +1117,13 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	// Test GPM support function returning GPU requires reset error
 	t.Run("GPU requires reset in GPM support check", func(t *testing.T) {
 		errExpected := nvmlerrors.ErrGPURequiresReset
-		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+		getGPMSupportedFunc := func(_ device.Device) (bool, error) {
 			return false, errExpected
 		}
 
-		component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, nil).(*component)
+		componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, nil)
+		component, ok := componentIface.(*component)
+		require.True(t, ok)
 		result := component.Check()
 
 		data, ok := result.(*checkResult)
@@ -1116,16 +1149,18 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 
 	// Test GPM metrics function returning GPU requires reset error
 	t.Run("GPU requires reset in GPM metrics check", func(t *testing.T) {
-		getGPMSupportedFunc := func(dev device.Device) (bool, error) {
+		getGPMSupportedFunc := func(_ device.Device) (bool, error) {
 			return true, nil
 		}
 
 		errExpected := nvmlerrors.ErrGPURequiresReset
-		getGPMMetricsFunc := func(ctx context.Context, dev device.Device) (map[nvml.GpmMetricId]float64, error) {
+		getGPMMetricsFunc := func(_ context.Context, _ device.Device) (map[nvml.GpmMetricId]float64, error) {
 			return nil, errExpected
 		}
 
-		component := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc).(*component)
+		componentIface := createMockGPMComponent(ctx, getDevicesFunc, getGPMSupportedFunc, getGPMMetricsFunc)
+		component, ok := componentIface.(*component)
+		require.True(t, ok)
 		result := component.Check()
 
 		data, ok := result.(*checkResult)

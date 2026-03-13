@@ -74,7 +74,7 @@ func TestListPCIs_ErrorsWithMockey(t *testing.T) {
 	mockey.PatchConvey("lspci executable not found", t, func() {
 		mockey.Mock(file.LocateExecutable).Return("", errors.New("not found")).Build()
 
-		lines, err := listPCIs(context.Background(), "lspci -nn", isNVIDIANVSwitchPCI)
+		lines, err := listPCIs(context.Background(), isNVIDIANVSwitchPCI)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to locate lspci")
 		assert.Nil(t, lines)
@@ -84,7 +84,7 @@ func TestListPCIs_ErrorsWithMockey(t *testing.T) {
 		mockey.Mock(file.LocateExecutable).Return("/usr/bin/lspci", nil).Build()
 		mockey.Mock(process.New).Return(nil, errors.New("new failed")).Build()
 
-		lines, err := listPCIs(context.Background(), "lspci -nn", isNVIDIANVSwitchPCI)
+		lines, err := listPCIs(context.Background(), isNVIDIANVSwitchPCI)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "new failed")
 		assert.Nil(t, lines)
@@ -94,7 +94,7 @@ func TestListPCIs_ErrorsWithMockey(t *testing.T) {
 		mockey.Mock(file.LocateExecutable).Return("/usr/bin/lspci", nil).Build()
 		mockey.Mock(process.New).Return(&mockProcess{startErr: errors.New("start failed")}, nil).Build()
 
-		lines, err := listPCIs(context.Background(), "lspci -nn", isNVIDIANVSwitchPCI)
+		lines, err := listPCIs(context.Background(), isNVIDIANVSwitchPCI)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "start failed")
 		assert.Nil(t, lines)
@@ -105,7 +105,7 @@ func TestListPCIs_ErrorsWithMockey(t *testing.T) {
 		mockey.Mock(process.New).Return(&mockProcess{}, nil).Build()
 		mockey.Mock(process.Read).Return(errors.New("read failed")).Build()
 
-		lines, err := listPCIs(context.Background(), "lspci -nn", isNVIDIANVSwitchPCI)
+		lines, err := listPCIs(context.Background(), isNVIDIANVSwitchPCI)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to read lspci output")
 		assert.Nil(t, lines)
@@ -116,7 +116,7 @@ func TestListPCIs_ErrorsWithMockey(t *testing.T) {
 		mockey.Mock(process.New).Return(&mockProcess{closeErr: errors.New("close failed")}, nil).Build()
 		mockey.Mock(process.Read).Return(nil).Build()
 
-		lines, err := listPCIs(context.Background(), "lspci -nn", isNVIDIANVSwitchPCI)
+		lines, err := listPCIs(context.Background(), isNVIDIANVSwitchPCI)
 		require.NoError(t, err)
 		assert.Empty(t, lines)
 	})
@@ -128,7 +128,7 @@ func TestCountSMINVSwitches_ErrorsWithMockey(t *testing.T) {
 	mockey.PatchConvey("nvidia-smi executable not found", t, func() {
 		mockey.Mock(file.LocateExecutable).Return("", errors.New("not found")).Build()
 
-		lines, err := countSMINVSwitches(context.Background(), "nvidia-smi nvlink --status")
+		lines, err := countSMINVSwitches(context.Background())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to locate nvidia-smi")
 		assert.Nil(t, lines)
@@ -138,7 +138,7 @@ func TestCountSMINVSwitches_ErrorsWithMockey(t *testing.T) {
 		mockey.Mock(file.LocateExecutable).Return("/usr/bin/nvidia-smi", nil).Build()
 		mockey.Mock(process.New).Return(nil, errors.New("new failed")).Build()
 
-		lines, err := countSMINVSwitches(context.Background(), "nvidia-smi nvlink --status")
+		lines, err := countSMINVSwitches(context.Background())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "new failed")
 		assert.Nil(t, lines)
@@ -148,7 +148,7 @@ func TestCountSMINVSwitches_ErrorsWithMockey(t *testing.T) {
 		mockey.Mock(file.LocateExecutable).Return("/usr/bin/nvidia-smi", nil).Build()
 		mockey.Mock(process.New).Return(&mockProcess{startErr: errors.New("start failed")}, nil).Build()
 
-		lines, err := countSMINVSwitches(context.Background(), "nvidia-smi nvlink --status")
+		lines, err := countSMINVSwitches(context.Background())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "start failed")
 		assert.Nil(t, lines)
@@ -159,7 +159,7 @@ func TestCountSMINVSwitches_ErrorsWithMockey(t *testing.T) {
 		mockey.Mock(process.New).Return(&mockProcess{}, nil).Build()
 		mockey.Mock(process.Read).Return(errors.New("read failed")).Build()
 
-		lines, err := countSMINVSwitches(context.Background(), "nvidia-smi nvlink --status")
+		lines, err := countSMINVSwitches(context.Background())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to read nvidia-smi nvlink output")
 		assert.Nil(t, lines)
@@ -170,7 +170,7 @@ func TestCountSMINVSwitches_ErrorsWithMockey(t *testing.T) {
 		mockey.Mock(process.New).Return(&mockProcess{closeErr: errors.New("close failed")}, nil).Build()
 		mockey.Mock(process.Read).Return(nil).Build()
 
-		lines, err := countSMINVSwitches(context.Background(), "nvidia-smi nvlink --status")
+		lines, err := countSMINVSwitches(context.Background())
 		require.NoError(t, err)
 		assert.Empty(t, lines)
 	})
@@ -185,7 +185,7 @@ func TestListPCIs_FiltersNonNVIDIAVendors_WithMockey(t *testing.T) {
 		mockey.Mock(process.New).Return(&mockProcess{
 			stdoutReader: bytes.NewReader(data),
 		}, nil).Build()
-		lines, err := listPCIs(context.Background(), "lspci -nn", isNVIDIANVSwitchPCI)
+		lines, err := listPCIs(context.Background(), isNVIDIANVSwitchPCI)
 		require.NoError(t, err)
 		require.Len(t, lines, 1)
 		assert.Contains(t, lines[0], "10de")
@@ -202,7 +202,7 @@ func TestCountSMINVSwitches_FiltersNonGPULines_WithMockey(t *testing.T) {
 		mockey.Mock(process.New).Return(&mockProcess{
 			stdoutReader: bytes.NewReader(data),
 		}, nil).Build()
-		lines, err := countSMINVSwitches(context.Background(), "nvidia-smi nvlink --status")
+		lines, err := countSMINVSwitches(context.Background())
 		require.NoError(t, err)
 		require.Len(t, lines, 2)
 		assert.Contains(t, lines[0], "GPU 0")

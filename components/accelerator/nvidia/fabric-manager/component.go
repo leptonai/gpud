@@ -105,6 +105,7 @@ import (
 )
 
 const (
+	// Name is the component name reported by the NVIDIA fabric manager checker.
 	Name = "accelerator-nvidia-fabric-manager"
 
 	// defaultFabricManagerPort is the TCP port for traditional nvidia-fabricmanager API (FM_CMD_PORT_NUMBER).
@@ -142,6 +143,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates the NVIDIA fabric manager component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{

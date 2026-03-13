@@ -218,7 +218,7 @@ func TestXIDComponent_SetHealthy(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Insert some XID events in the past
 	pastTime := time.Now().Add(-10 * time.Minute)
@@ -294,7 +294,7 @@ func TestXIDComponent_Events(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// If eventBucket is nil, create it manually for testing
 	if c.eventBucket == nil {
@@ -360,7 +360,7 @@ func TestXIDComponent_States(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// If eventBucket is nil, create it manually for testing
 	if c.eventBucket == nil {
@@ -464,7 +464,7 @@ func TestNewWithDifferentConfigurations(t *testing.T) {
 		assert.NotNil(t, comp)
 
 		// Check that the component initialized correctly with nil event store
-		c := comp.(*component)
+		c := mustComponent(t, comp)
 		assert.Nil(t, c.eventBucket)
 		assert.Nil(t, c.kmsgWatcher)
 	})
@@ -517,7 +517,7 @@ func TestCheck(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
+		c := mustComponent(t, comp)
 		c.readAllKmsg = nil
 
 		result := comp.Check()
@@ -536,8 +536,8 @@ func TestCheck(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
-		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+		c := mustComponent(t, comp)
+		c.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
 			return nil, assert.AnError
 		}
 
@@ -557,8 +557,8 @@ func TestCheck(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
-		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+		c := mustComponent(t, comp)
+		c.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -570,7 +570,7 @@ func TestCheck(t *testing.T) {
 		result := comp.Check()
 		assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 		assert.Contains(t, result.Summary(), "matched")
-		data := result.(*checkResult)
+		data := mustCheckResult(t, result)
 		assert.Len(t, data.FoundErrors, 1)
 		assert.Equal(t, 31, data.FoundErrors[0].Xid)
 	})
@@ -585,8 +585,8 @@ func TestCheck(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
-		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+		c := mustComponent(t, comp)
+		c.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -598,7 +598,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		result := comp.Check()
-		data := result.(*checkResult)
+		data := mustCheckResult(t, result)
 		assert.Len(t, data.FoundErrors, 1)
 		assert.Equal(t, 79, data.FoundErrors[0].Xid)
 		assert.Equal(t, "PCI:0000:18:00", data.FoundErrors[0].DeviceUUID)
@@ -617,8 +617,8 @@ func TestCheck(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
-		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+		c := mustComponent(t, comp)
+		c.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -640,7 +640,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		result := comp.Check()
-		data := result.(*checkResult)
+		data := mustCheckResult(t, result)
 
 		// Should only find XID 31, not 63 or 64
 		assert.Len(t, data.FoundErrors, 1)
@@ -665,8 +665,8 @@ func TestCheck(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
-		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+		c := mustComponent(t, comp)
+		c.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -680,7 +680,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		result := comp.Check()
-		data := result.(*checkResult)
+		data := mustCheckResult(t, result)
 
 		// Should find no errors since both XID 63 and 64 are skipped
 		assert.Len(t, data.FoundErrors, 0)
@@ -699,8 +699,8 @@ func TestCheck(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
-		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+		c := mustComponent(t, comp)
+		c.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -718,7 +718,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		result := comp.Check()
-		data := result.(*checkResult)
+		data := mustCheckResult(t, result)
 
 		// Should find all XIDs including 63 and 64 since row remapping is not supported
 		assert.Len(t, data.FoundErrors, 3)
@@ -745,8 +745,8 @@ func TestCheck(t *testing.T) {
 		comp, err := New(gpudInstance)
 		assert.NoError(t, err)
 
-		c := comp.(*component)
-		c.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+		c := mustComponent(t, comp)
+		c.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
 			return []kmsg.Message{
 				{
 					Timestamp: metav1.NewTime(time.Now()),
@@ -772,7 +772,7 @@ func TestCheck(t *testing.T) {
 		}
 
 		result := comp.Check()
-		data := result.(*checkResult)
+		data := mustCheckResult(t, result)
 
 		// Should find XIDs 31, 79, and 94, but not 63 or 64
 		assert.Len(t, data.FoundErrors, 3)
@@ -814,7 +814,7 @@ func TestClose(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Verify component context is canceled
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	select {
 	case <-c.ctx.Done():
 		// Expected, context should be canceled
@@ -845,7 +845,7 @@ func TestUpdateCurrentState(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// If eventBucket is nil, create it manually for testing
 	if c.eventBucket == nil {
@@ -1067,7 +1067,7 @@ func TestDataString(t *testing.T) {
 							Timestamp: metav1.NewTime(time.Now()),
 							Message:   "NVRM: Xid (PCI:0000:01:00): 31, pid=XXX",
 						},
-						XidError: XidError{
+						Error: Error{
 							Xid:        31,
 							DeviceUUID: "GPU-12345678",
 							Detail: &Detail{
@@ -1095,7 +1095,7 @@ func TestDataString(t *testing.T) {
 							Timestamp: metav1.NewTime(time.Now()),
 							Message:   "NVRM: Xid (PCI:0000:01:00): 102, unknown error",
 						},
-						XidError: XidError{
+						Error: Error{
 							Xid:        102,
 							DeviceUUID: "GPU-87654321",
 							Detail:     nil, // This should not cause a panic
@@ -1117,7 +1117,7 @@ func TestDataString(t *testing.T) {
 							Timestamp: metav1.NewTime(time.Now()),
 							Message:   "NVRM: Xid (PCI:0000:01:00): 31, GPU memory page fault",
 						},
-						XidError: XidError{
+						Error: Error{
 							Xid:        31,
 							DeviceUUID: "GPU-12345678",
 							Detail: &Detail{
@@ -1264,7 +1264,7 @@ func TestHandleEventChannel(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// If eventBucket is nil, create it manually for testing
 	if c.eventBucket == nil {
@@ -1285,14 +1285,12 @@ func TestHandleEventChannel(t *testing.T) {
 
 	// Create a wait group to wait for the go routine to finish
 	var wg sync.WaitGroup
-	wg.Add(1)
 
 	// Start the component in a goroutine with our test channels
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		// Call start with our test channel and fast ticker period
 		c.start(kmsgCh, 100*time.Millisecond)
-	}()
+	})
 
 	// Send a test XID kmsg
 	kmsgCh <- kmsg.Message{
@@ -1348,7 +1346,7 @@ func TestStartWithFallenOffBusFallback(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 	if c.eventBucket == nil {
 		c.eventBucket, err = store.Bucket(Name)
 		assert.NoError(t, err)
@@ -1456,7 +1454,7 @@ func TestStartWithXID63And64Skipping(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// If eventBucket is nil, create it manually for testing
 	if c.eventBucket == nil {
@@ -1566,7 +1564,7 @@ func TestStartWithXID63And64NotSkippedWhenNoRowRemapping(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, comp)
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// If eventBucket is nil, create it manually for testing
 	if c.eventBucket == nil {

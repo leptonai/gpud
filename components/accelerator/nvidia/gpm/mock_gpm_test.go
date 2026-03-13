@@ -228,8 +228,8 @@ func TestCheck_MissingProductName(t *testing.T) {
 	})
 }
 
-// TestGPMSupportedByDevice_WithMockey tests GPMSupportedByDevice with mocked device
-func TestGPMSupportedByDevice_WithMockey(t *testing.T) {
+// TestSupportedByDevice_WithMockey tests SupportedByDevice with a mocked device.
+func TestSupportedByDevice_WithMockey(t *testing.T) {
 	testCases := []struct {
 		name           string
 		gpmSupport     nvml.GpmSupport
@@ -302,7 +302,7 @@ func TestGPMSupportedByDevice_WithMockey(t *testing.T) {
 
 				dev := testutil.NewMockDevice(mockDevice, "test-arch", "test-brand", "test-cuda", "test-pci")
 
-				result, err := GPMSupportedByDevice(dev)
+				result, err := SupportedByDevice(dev)
 
 				if tc.expectError {
 					assert.Error(t, err)
@@ -632,7 +632,7 @@ func TestCheckResult_String(t *testing.T) {
 
 	t.Run("with GPM metrics", func(t *testing.T) {
 		cr := &checkResult{
-			GPMMetrics: []GPMMetrics{
+			GPMMetrics: []Metrics{
 				{
 					UUID: "gpu-1",
 					Metrics: map[nvml.GpmMetricId]float64{
@@ -687,7 +687,7 @@ func TestCheckResult_HealthStates_WithExtraInfo(t *testing.T) {
 		ts:     time.Now(),
 		health: apiv1.HealthStateTypeHealthy,
 		reason: "all good",
-		GPMMetrics: []GPMMetrics{
+		GPMMetrics: []Metrics{
 			{
 				UUID: "gpu-1",
 				Metrics: map[nvml.GpmMetricId]float64{

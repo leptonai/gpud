@@ -15,6 +15,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
+// ErrEmptyMachineID reports a successful login response that omitted the assigned machine ID.
 var ErrEmptyMachineID = errors.New("login request failed with empty machine ID")
 
 // SendRequest sends a login request and blocks until the login request is processed.

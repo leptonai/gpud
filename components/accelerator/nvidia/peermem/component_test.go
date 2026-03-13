@@ -99,7 +99,7 @@ func (m *mockEventBucket) Name() string {
 	return m.name
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, ev eventstore.Event) error {
+func (m *mockEventBucket) Insert(_ context.Context, ev eventstore.Event) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
@@ -109,7 +109,7 @@ func (m *mockEventBucket) Insert(ctx context.Context, ev eventstore.Event) error
 	return nil
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, ev eventstore.Event) (*eventstore.Event, error) {
+func (m *mockEventBucket) Find(_ context.Context, ev eventstore.Event) (*eventstore.Event, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.closed {
@@ -124,7 +124,7 @@ func (m *mockEventBucket) Find(ctx context.Context, ev eventstore.Event) (*event
 	return nil, nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(_ context.Context, since time.Time) (eventstore.Events, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.closed {
@@ -144,7 +144,7 @@ func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.
 	return result, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *mockEventBucket) Latest(_ context.Context) (*eventstore.Event, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.closed {
@@ -165,7 +165,7 @@ func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error)
 	return &latest, nil
 }
 
-func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockEventBucket) Purge(_ context.Context, beforeTimestamp int64) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closed {
@@ -204,14 +204,14 @@ type mockPeermemChecker struct {
 	err    error
 }
 
-func (m *mockPeermemChecker) Check(ctx context.Context) (*LsmodPeermemModuleOutput, error) {
+func (m *mockPeermemChecker) Check(_ context.Context) (*LsmodPeermemModuleOutput, error) {
 	return m.output, m.err
 }
 
 // Mock EventStore for testing New error path
 type mockErrorEventStore struct{}
 
-func (m *mockErrorEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *mockErrorEventStore) Bucket(_ string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	return nil, errors.New("failed to create bucket")
 }
 

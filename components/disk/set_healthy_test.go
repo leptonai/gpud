@@ -63,7 +63,7 @@ func TestComponent_SetHealthy(t *testing.T) {
 				_ = comp.Close()
 			}()
 
-			c := comp.(*component)
+			c := mustComponent(t, comp)
 
 			// Set up a fixed time for testing
 			fixedTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
@@ -95,14 +95,15 @@ func TestComponent_SetHealthy(t *testing.T) {
 
 			// Check mock expectations
 			if tt.checkResult != nil && c.eventBucket != nil {
-				tt.checkResult(t, c.eventBucket.(*mockEventBucket))
+				tt.checkResult(t, mustMockEventBucket(t, c.eventBucket))
 
 				// Verify that Purge was called with the correct timestamp
-				mockBucket := c.eventBucket.(*mockEventBucket)
+				mockBucket := mustMockEventBucket(t, c.eventBucket)
 				calls := mockBucket.Calls
 				for _, call := range calls {
 					if call.Method == "Purge" {
-						timestamp := call.Arguments[1].(int64)
+						timestamp, ok := call.Arguments[1].(int64)
+						require.True(t, ok)
 						assert.Equal(t, fixedTime.Unix(), timestamp)
 					}
 				}
@@ -112,7 +113,7 @@ func TestComponent_SetHealthy(t *testing.T) {
 }
 
 func TestComponent_SetHealthy_ContextTimeout(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Create a test component
 	gpudInstance := &components.GPUdInstance{
@@ -125,12 +126,13 @@ func TestComponent_SetHealthy_ContextTimeout(t *testing.T) {
 		_ = comp.Close()
 	}()
 
-	c := comp.(*component)
+	c := mustComponent(t, comp)
 
 	// Set up mock that simulates a slow Purge operation
 	mockBucket := &mockEventBucket{}
 	mockBucket.On("Purge", mock.Anything, mock.AnythingOfType("int64")).Run(func(args mock.Arguments) {
-		ctx := args.Get(0).(context.Context)
+		ctx, ok := args.Get(0).(context.Context)
+		require.True(t, ok)
 		// Wait for context to be canceled
 		<-ctx.Done()
 	}).Return(0, context.Canceled)
@@ -160,5 +162,6 @@ func TestComponent_ImplementsHealthSettable(t *testing.T) {
 	}()
 
 	// This will fail to compile if component doesn't implement HealthSettable
-	var _ components.HealthSettable = comp.(*component)
+	c := mustComponent(t, comp)
+	var _ components.HealthSettable = c
 }

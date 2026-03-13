@@ -28,8 +28,8 @@ const (
 	regexNVSwitchTopologyMismatch   = `.*detected number of NVSwitches don't match with any supported system topology.*`
 	messageNVSwitchTopologyMismatch = "NVSwitch topology mismatch detected - fabric manager failed to start"
 
-	// e.g.,
-	// request to query NVSwitch device information from NVSwitch driver failed with error:WARNING Nothing to do [NV_WARN_NOTHING_TO_DO]
+	// EventNVSwitchNothingToDo indicates fabric manager found no NVSwitch devices to manage.
+	// e.g., request to query NVSwitch device information from NVSwitch driver failed with error:WARNING Nothing to do [NV_WARN_NOTHING_TO_DO]
 	// This occurs when fabric manager starts but finds no NVSwitch devices to manage.
 	// This is NOT an error condition - it indicates the system does not need fabric manager.
 	// Common scenarios: GH200 standalone (no NVSwitch), simple NVLink bridges, PCIe GPUs.
@@ -48,6 +48,7 @@ var (
 	compiledNVSwitchNothingToDo      = regexp.MustCompile(regexNVSwitchNothingToDo)
 )
 
+// HasNVSwitchFatalSXid reports whether the log line contains an NVSwitch fatal SXid error.
 func HasNVSwitchFatalSXid(line string) bool {
 	if match := compiledNVSwitchFatalSXid.FindStringSubmatch(line); match != nil {
 		return true
@@ -55,6 +56,7 @@ func HasNVSwitchFatalSXid(line string) bool {
 	return false
 }
 
+// HasNVSwitchNonFatalSXid reports whether the log line contains an NVSwitch non-fatal SXid error.
 func HasNVSwitchNonFatalSXid(line string) bool {
 	if match := compiledNVSwitchNonFatalSXid.FindStringSubmatch(line); match != nil {
 		return true
@@ -62,6 +64,7 @@ func HasNVSwitchNonFatalSXid(line string) bool {
 	return false
 }
 
+// HasNVSwitchNVLinkFailure reports whether the log line contains an NVLink failure.
 func HasNVSwitchNVLinkFailure(line string) bool {
 	if match := compiledNVSwitchNVLinkFailure.FindStringSubmatch(line); match != nil {
 		return true
@@ -69,6 +72,7 @@ func HasNVSwitchNVLinkFailure(line string) bool {
 	return false
 }
 
+// HasNVSwitchTopologyMismatch reports whether the log line contains a topology mismatch error.
 func HasNVSwitchTopologyMismatch(line string) bool {
 	if match := compiledNVSwitchTopologyMismatch.FindStringSubmatch(line); match != nil {
 		return true
@@ -76,6 +80,7 @@ func HasNVSwitchTopologyMismatch(line string) bool {
 	return false
 }
 
+// HasNVSwitchNothingToDo reports whether the log line contains the NV_WARN_NOTHING_TO_DO marker.
 func HasNVSwitchNothingToDo(line string) bool {
 	if match := compiledNVSwitchNothingToDo.FindStringSubmatch(line); match != nil {
 		return true
@@ -83,6 +88,7 @@ func HasNVSwitchNothingToDo(line string) bool {
 	return false
 }
 
+// Match returns the first known event name and message for a fabric-manager log line.
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {

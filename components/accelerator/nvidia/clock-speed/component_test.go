@@ -302,7 +302,7 @@ func TestComponent_Start(t *testing.T) {
 		ctx:          ctx,
 		cancel:       cancel,
 		nvmlInstance: mockInstance,
-		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+		getClockSpeedFunc: func(_ string, _ device.Device) (ClockSpeed, error) {
 			return ClockSpeed{}, nil
 		},
 		getTimeNowFunc: func() time.Time {
@@ -372,7 +372,7 @@ func TestComponent_CheckOnce(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+		getClockSpeedFunc: func(uuid string, _ device.Device) (ClockSpeed, error) {
 			return ClockSpeed{
 				UUID:        uuid,
 				GraphicsMHz: 1000,
@@ -405,7 +405,7 @@ func TestComponent_CheckOnce(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+		getClockSpeedFunc: func(_ string, _ device.Device) (ClockSpeed, error) {
 			return ClockSpeed{}, testErr
 		},
 		getTimeNowFunc: func() time.Time {
@@ -490,7 +490,7 @@ func TestComponent_Check_MultipleDevices(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+		getClockSpeedFunc: func(uuid string, _ device.Device) (ClockSpeed, error) {
 			return ClockSpeed{
 				UUID:                   uuid,
 				GraphicsMHz:            1000,
@@ -534,7 +534,7 @@ func TestComponent_Check_GPU_Lost(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+		getClockSpeedFunc: func(_ string, _ device.Device) (ClockSpeed, error) {
 			return ClockSpeed{}, nvmlerrors.ErrGPULost
 		},
 		getTimeNowFunc: func() time.Time {
@@ -583,7 +583,7 @@ func TestComponent_Check_GPURequiresResetSuggestedActions(t *testing.T) {
 			devices:    mockDevices,
 			nvmlExists: true,
 		},
-		getClockSpeedFunc: func(uuid string, dev device.Device) (ClockSpeed, error) {
+		getClockSpeedFunc: func(_ string, _ device.Device) (ClockSpeed, error) {
 			return ClockSpeed{}, nvmlerrors.ErrGPURequiresReset
 		},
 		getTimeNowFunc: func() time.Time {

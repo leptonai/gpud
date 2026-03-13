@@ -1,7 +1,9 @@
-package types
+package types_test
 
 import (
 	"testing"
+
+	infinibandtypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
 
 func TestIBPort_IsIBPort(t *testing.T) {
@@ -44,7 +46,7 @@ func TestIBPort_IsIBPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			port := IBPort{
+			port := infinibandtypes.IBPort{
 				LinkLayer: tt.linkLayer,
 			}
 			result := port.IsIBPort()

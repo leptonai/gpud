@@ -38,14 +38,14 @@ func TestSetEventTypeSuccess(t *testing.T) {
 	timestamp := time.Now().Add(-1 * time.Hour)
 	eventType := "test_event"
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// Test successful update
 	err = store.SetEventType(device, port, timestamp, eventType, "test_reason")
 	require.NoError(t, err)
 
 	// Verify the event type was set
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp, device, port, eventType)
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp, device, port, eventType)
 }
 
 func TestSetEventTypeNoRowsAffected(t *testing.T) {
@@ -72,14 +72,14 @@ func TestSetEventTypeNoRowsAffected(t *testing.T) {
 	timestamp := time.Now().Add(-1 * time.Hour)
 	eventType := "test_event"
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp.Add(-1*time.Hour), "mlx5_1", 2, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp.Add(-1*time.Hour), "mlx5_1", 2, "active", "linkup", 400, 0)
 
 	// Test update with non-existent timestamp/device/port combination
 	err = store.SetEventType(device, port, timestamp, eventType, "test_reason")
 	require.NoError(t, err) // Should not error, but will log warning
 
 	// Verify no rows were updated (event type should remain empty)
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp.Add(-1*time.Hour), "mlx5_1", 2, "")
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp.Add(-1*time.Hour), "mlx5_1", 2, "")
 }
 
 func TestSetEventTypeMultipleRowsUpdate(t *testing.T) {
@@ -106,14 +106,14 @@ func TestSetEventTypeMultipleRowsUpdate(t *testing.T) {
 	timestamp := time.Now().Add(-1 * time.Hour)
 	eventType := "test_event"
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// Test update
 	err = store.SetEventType(device, port, timestamp, eventType, "test_reason")
 	require.NoError(t, err)
 
 	// Verify the event type was set
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp, device, port, eventType)
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp, device, port, eventType)
 }
 
 func TestSetEventTypeWithSpecialCharacters(t *testing.T) {
@@ -140,14 +140,14 @@ func TestSetEventTypeWithSpecialCharacters(t *testing.T) {
 	timestamp := time.Now().Add(-1 * time.Hour)
 	eventType := "test_event_with_special_chars!@#$%"
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// Test update with special characters
 	err = store.SetEventType(device, port, timestamp, eventType, "test_reason_with_special_chars")
 	require.NoError(t, err)
 
 	// Verify the event type was set
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp, device, port, eventType)
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp, device, port, eventType)
 }
 
 func TestSetEventTypeWithZeroValues(t *testing.T) {
@@ -174,14 +174,14 @@ func TestSetEventTypeWithZeroValues(t *testing.T) {
 	timestamp := time.Now().Add(-1 * time.Hour)
 	eventType := "test_event"
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// Test update with zero port
 	err = store.SetEventType(device, port, timestamp, eventType, "test_reason")
 	require.NoError(t, err)
 
 	// Verify the event type was set
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp, device, port, eventType)
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp, device, port, eventType)
 }
 
 func TestSetEventTypeWithEmptyEventType(t *testing.T) {
@@ -208,14 +208,14 @@ func TestSetEventTypeWithEmptyEventType(t *testing.T) {
 	timestamp := time.Now().Add(-1 * time.Hour)
 	eventType := "" // Empty event type
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// Test update with empty event type
 	err = store.SetEventType(device, port, timestamp, eventType, "")
 	require.NoError(t, err)
 
 	// Verify the event type was set to empty string
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp, device, port, eventType)
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp, device, port, eventType)
 }
 
 func TestSetEventTypeWithNonExistentTable(t *testing.T) {
@@ -364,21 +364,21 @@ func TestSetEventTypeUpdateExistingEvent(t *testing.T) {
 	initialEventType := "initial_event"
 	updatedEventType := "updated_event"
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// First update
 	err = store.SetEventType(device, port, timestamp, initialEventType, "initial_reason")
 	require.NoError(t, err)
 
 	// Verify first update
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp, device, port, initialEventType)
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp, device, port, initialEventType)
 
 	// Second update (overwrite existing event type)
 	err = store.SetEventType(device, port, timestamp, updatedEventType, "updated_reason")
 	require.NoError(t, err)
 
 	// Verify second update
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp, device, port, updatedEventType)
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp, device, port, updatedEventType)
 }
 
 func TestSetEventTypeRowsAffectedError(t *testing.T) {
@@ -405,7 +405,7 @@ func TestSetEventTypeRowsAffectedError(t *testing.T) {
 	timestamp := time.Now().Add(-1 * time.Hour)
 	eventType := "test_event"
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// Close database after insert to trigger RowsAffected error
 	_ = dbRW.Close()
@@ -439,19 +439,16 @@ func TestSetEventTypeWithLongEventType(t *testing.T) {
 	port := uint(1)
 	timestamp := time.Now().Add(-1 * time.Hour)
 	// Create a very long event type
-	eventType := ""
-	for i := 0; i < 1000; i++ {
-		eventType += "a"
-	}
+	eventType := strings.Repeat("a", 1000)
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// Test update with long event type
 	err = store.SetEventType(device, port, timestamp, eventType, "test_reason")
 	require.NoError(t, err)
 
 	// Verify the event type was set
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp, device, port, eventType)
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp, device, port, eventType)
 }
 
 func TestSetEventTypeWithEmptyDevice(t *testing.T) {
@@ -478,14 +475,14 @@ func TestSetEventTypeWithEmptyDevice(t *testing.T) {
 	timestamp := time.Now().Add(-1 * time.Hour)
 	eventType := "test_event"
 
-	insertTestData(t, ctx, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
+	insertTestData(ctx, t, dbRW, store.historyTable, timestamp, device, port, "active", "linkup", 400, 0)
 
 	// Test update with empty device
 	err = store.SetEventType(device, port, timestamp, eventType, "test_reason")
 	require.NoError(t, err)
 
 	// Verify the event type was set
-	verifyEventType(t, ctx, dbRO, store.historyTable, timestamp, device, port, eventType)
+	verifyEventType(ctx, t, dbRO, store.historyTable, timestamp, device, port, eventType)
 }
 
 // Helper functions
@@ -500,19 +497,24 @@ func populateStoreDevicePortMaps(store *ibPortsStore, devices []string, ports []
 	}
 }
 
-func insertTestData(t *testing.T, ctx context.Context, dbRW *sql.DB, tableName string, timestamp time.Time, device string, port uint, state string, physicalState string, rateGBSec int, totalLinkDowned uint64) {
+//nolint:unparam // These helpers keep full row fields explicit for readability in event-store tests.
+func insertTestData(ctx context.Context, t *testing.T, dbRW *sql.DB, tableName string, timestamp time.Time, device string, port uint, state string, physicalState string, rateGBSec int, totalLinkDowned uint64) {
+	//nolint:gosec // tableName is a test-controlled identifier, not user input.
 	insertSQL := fmt.Sprintf(`INSERT INTO %s (timestamp, device, port, link_layer, state, physical_state, rate_gb_sec, total_link_downed, event_type, event_reason, extra_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, tableName)
 	_, err := dbRW.ExecContext(ctx, insertSQL, timestamp.Unix(), device, port, "infiniband", state, physicalState, rateGBSec, totalLinkDowned, "", "", "")
 	require.NoError(t, err)
 }
 
-func insertTestDataWithEvent(t *testing.T, ctx context.Context, dbRW *sql.DB, tableName string, timestamp time.Time, device string, port uint, state string, physicalState string, rateGBSec int, totalLinkDowned uint64, eventType string, eventReason string) {
+//nolint:unparam // These helpers keep full row fields explicit for readability in event-store tests.
+func insertTestDataWithEvent(ctx context.Context, t *testing.T, dbRW *sql.DB, tableName string, timestamp time.Time, device string, port uint, state string, physicalState string, rateGBSec int, totalLinkDowned uint64, eventType string, eventReason string) {
+	//nolint:gosec // tableName is a test-controlled identifier, not user input.
 	insertSQL := fmt.Sprintf(`INSERT INTO %s (timestamp, device, port, link_layer, state, physical_state, rate_gb_sec, total_link_downed, event_type, event_reason, extra_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, tableName)
 	_, err := dbRW.ExecContext(ctx, insertSQL, timestamp.Unix(), device, port, "infiniband", state, physicalState, rateGBSec, totalLinkDowned, eventType, eventReason, "")
 	require.NoError(t, err)
 }
 
-func verifyEventType(t *testing.T, ctx context.Context, dbRO *sql.DB, tableName string, timestamp time.Time, device string, port uint, expectedEventType string) {
+func verifyEventType(ctx context.Context, t *testing.T, dbRO *sql.DB, tableName string, timestamp time.Time, device string, port uint, expectedEventType string) {
+	//nolint:gosec // tableName is a test-controlled identifier, not user input.
 	query := fmt.Sprintf(`SELECT event_type FROM %s WHERE timestamp = ? AND device = ? AND port = ?`, tableName)
 	row := dbRO.QueryRowContext(ctx, query, timestamp.Unix(), device, port)
 
@@ -554,15 +556,15 @@ func TestEventsSuccess(t *testing.T) {
 	since := baseTime.Add(-30 * time.Minute)
 
 	// Insert events before 'since' timestamp
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-1*time.Hour), "mlx5_0", 1, "active", "linkup", 400, 0, "event1", "reason1")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-1*time.Hour), "mlx5_0", 1, "active", "linkup", 400, 0, "event1", "reason1")
 
 	// Insert multiple events for mlx5_1 port 2 after 'since' - only latest should be returned
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-20*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event2_old", "reason2_old")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event2", "reason2")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-20*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event2_old", "reason2_old")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event2", "reason2")
 
 	// Insert multiple events for mlx5_2 port 3 after 'since' - only latest should be returned
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-10*time.Minute), "mlx5_2", 3, "active", "linkup", 400, 0, "event3_old", "reason3_old")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime, "mlx5_2", 3, "active", "linkup", 400, 0, "event3", "")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-10*time.Minute), "mlx5_2", 3, "active", "linkup", 400, 0, "event3_old", "reason3_old")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime, "mlx5_2", 3, "active", "linkup", 400, 0, "event3", "")
 
 	// Populate the device and port maps
 	populateStoreDevicePortMaps(store, []string{"mlx5_0", "mlx5_1", "mlx5_2"}, []uint{1, 2, 3})
@@ -616,7 +618,7 @@ func TestEventsNoEventsFound(t *testing.T) {
 	baseTime := time.Now().Add(-2 * time.Hour)
 	since := baseTime.Add(1 * time.Hour)
 
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-1*time.Hour), "mlx5_0", 1, "active", "linkup", 400, 0, "event1", "reason1")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-1*time.Hour), "mlx5_0", 1, "active", "linkup", 400, 0, "event1", "reason1")
 
 	// Test retrieving events - should return empty
 	events, err := store.LastEvents(since)
@@ -653,8 +655,8 @@ func TestEventsWithEmptyEventType(t *testing.T) {
 	baseTime := time.Now().Add(-1 * time.Hour)
 	since := baseTime.Add(-30 * time.Minute)
 
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_0", 1, "active", "linkup", 400, 0, "", "")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime, "mlx5_1", 2, "active", "linkup", 400, 0, "event1", "reason1")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_0", 1, "active", "linkup", 400, 0, "", "")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime, "mlx5_1", 2, "active", "linkup", 400, 0, "event1", "reason1")
 
 	// Populate the device and port maps
 	populateStoreDevicePortMaps(store, []string{"mlx5_0", "mlx5_1"}, []uint{1, 2})
@@ -695,9 +697,9 @@ func TestEventsOrderedByTimestamp(t *testing.T) {
 	baseTime := time.Now().Add(-1 * time.Hour)
 	since := baseTime.Add(-30 * time.Minute)
 
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime, "mlx5_0", 1, "active", "linkup", 400, 0, "event3", "reason3")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event2", "reason2")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-25*time.Minute), "mlx5_2", 3, "active", "linkup", 400, 0, "event1", "reason1")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime, "mlx5_0", 1, "active", "linkup", 400, 0, "event3", "reason3")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event2", "reason2")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-25*time.Minute), "mlx5_2", 3, "active", "linkup", 400, 0, "event1", "reason1")
 
 	// Populate the device and port maps
 	populateStoreDevicePortMaps(store, []string{"mlx5_0", "mlx5_1", "mlx5_2"}, []uint{1, 2, 3})
@@ -748,6 +750,7 @@ func TestEventsWithNullEventReason(t *testing.T) {
 	since := baseTime.Add(-30 * time.Minute)
 
 	// Insert with NULL event_reason
+	//nolint:gosec // store.historyTable is a test-controlled identifier, not user input.
 	insertSQL := fmt.Sprintf(`INSERT INTO %s (timestamp, device, port, link_layer, state, physical_state, rate_gb_sec, total_link_downed, event_type, event_reason, extra_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`, store.historyTable)
 	_, err = dbRW.ExecContext(ctx, insertSQL, baseTime.Unix(), "mlx5_0", 1, "infiniband", "active", "linkup", 400, 0, "event1", "")
 	require.NoError(t, err)
@@ -938,6 +941,7 @@ func TestEventsWithRowScanError(t *testing.T) {
 	baseTime := time.Now().Add(-1 * time.Hour)
 	since := baseTime.Add(-30 * time.Minute)
 
+	//nolint:gosec // store.historyTable is a test-controlled identifier, not user input.
 	insertSQL := fmt.Sprintf(`INSERT INTO %s (timestamp, device, port, link_layer, state, physical_state, rate_gb_sec, total_link_downed, event_type, event_reason, extra_info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, store.historyTable)
 	_, err = dbRW.ExecContext(ctx, insertSQL, baseTime.Unix(), "mlx5_0", 1, "infiniband", "active", "linkup", "invalid_rate", 0, "event1", "reason1", "")
 	require.NoError(t, err)
@@ -984,14 +988,14 @@ func TestEventsWithLargeDataSet(t *testing.T) {
 	// Insert events to create all 50 unique device/port combinations
 	// We need to ensure every combination of 10 devices × 5 ports exists
 	eventIndex := 0
-	for d := 0; d < 10; d++ {
-		for p := 0; p < 5; p++ {
+	ports := [...]uint{0, 1, 2, 3, 4}
+	for d := range 10 {
+		for _, port := range ports {
 			// Insert multiple events for each combination, with increasing timestamps
-			for j := 0; j < 20; j++ { // 20 events per combination = 1000 total
+			for range 20 { // 20 events per combination = 1000 total
 				eventTime := baseTime.Add(time.Duration(eventIndex) * time.Second)
 				device := fmt.Sprintf("mlx5_%d", d)
-				port := uint(p)
-				insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, eventTime, device, port, "active", "linkup", 400, 0, fmt.Sprintf("event_%d", eventIndex), fmt.Sprintf("reason_%d", eventIndex))
+				insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, eventTime, device, port, "active", "linkup", 400, 0, fmt.Sprintf("event_%d", eventIndex), fmt.Sprintf("reason_%d", eventIndex))
 				eventIndex++
 			}
 		}
@@ -999,11 +1003,10 @@ func TestEventsWithLargeDataSet(t *testing.T) {
 
 	// Populate the device and port maps - 10 devices and 5 ports
 	devices := make([]string, 10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		devices[i] = fmt.Sprintf("mlx5_%d", i)
 	}
-	ports := []uint{0, 1, 2, 3, 4}
-	populateStoreDevicePortMaps(store, devices, ports)
+	populateStoreDevicePortMaps(store, devices, ports[:])
 
 	// Test retrieving events
 	events, err := store.LastEvents(since)
@@ -1069,24 +1072,24 @@ func TestEventsReturnsOnlyLatestPerDevicePort(t *testing.T) {
 
 	// Scenario from user example: 5 events for mlx5_0 port 1
 	// We expect only the latest one
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-25*time.Minute), "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-20*time.Minute), "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-10*time.Minute), "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-25*time.Minute), "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-20*time.Minute), "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-10*time.Minute), "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
 	latestMLX5_0Port1Time := baseTime.Add(-5 * time.Minute)
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, latestMLX5_0Port1Time, "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, latestMLX5_0Port1Time, "mlx5_0", 1, "down", "linkup", 400, 0, "ib_port_drop", "mlx5_0 port 1 down since 2025-07-09T14:59:15Z")
 
 	// Add some events for different device/port combinations
 	// mlx5_1 port 2: 3 events
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-24*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event_1", "reason_1")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-18*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event_2", "reason_2")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-24*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event_1", "reason_1")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-18*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "event_2", "reason_2")
 	latestMLX5_1Port2Time := baseTime.Add(-12 * time.Minute)
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, latestMLX5_1Port2Time, "mlx5_1", 2, "active", "linkup", 400, 0, "event_3", "reason_3")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, latestMLX5_1Port2Time, "mlx5_1", 2, "active", "linkup", 400, 0, "event_3", "reason_3")
 
 	// mlx5_0 port 2: 2 events
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-22*time.Minute), "mlx5_0", 2, "active", "linkup", 400, 0, "event_A", "reason_A")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-22*time.Minute), "mlx5_0", 2, "active", "linkup", 400, 0, "event_A", "reason_A")
 	latestMLX5_0Port2Time := baseTime.Add(-8 * time.Minute)
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, latestMLX5_0Port2Time, "mlx5_0", 2, "active", "linkup", 400, 0, "event_B", "reason_B")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, latestMLX5_0Port2Time, "mlx5_0", 2, "active", "linkup", 400, 0, "event_B", "reason_B")
 
 	// Populate the device and port maps
 	populateStoreDevicePortMaps(store, []string{"mlx5_0", "mlx5_1"}, []uint{1, 2})
@@ -1167,12 +1170,12 @@ func TestEventsWithZeroTime(t *testing.T) {
 	baseTime := time.Now().Add(-2 * time.Hour)
 
 	// Insert events at different timestamps
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-1*time.Hour), "mlx5_0", 1, "active", "linkup", 400, 0, "old_event", "old_reason")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-30*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "middle_event", "middle_reason")
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime, "mlx5_2", 3, "active", "linkup", 400, 0, "recent_event", "")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-1*time.Hour), "mlx5_0", 1, "active", "linkup", 400, 0, "old_event", "old_reason")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-30*time.Minute), "mlx5_1", 2, "active", "linkup", 400, 0, "middle_event", "middle_reason")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime, "mlx5_2", 3, "active", "linkup", 400, 0, "recent_event", "")
 
 	// Insert one row with empty event type that should be filtered out
-	insertTestDataWithEvent(t, ctx, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_3", 4, "active", "linkup", 400, 0, "", "")
+	insertTestDataWithEvent(ctx, t, dbRW, store.historyTable, baseTime.Add(-15*time.Minute), "mlx5_3", 4, "active", "linkup", 400, 0, "", "")
 
 	// Populate the device and port maps
 	populateStoreDevicePortMaps(store, []string{"mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3"}, []uint{1, 2, 3, 4})

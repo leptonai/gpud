@@ -37,14 +37,14 @@ func TestDropStickyWindow(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			// Return 8 healthy ports (meeting threshold)
 			return createHealthyDevices(8, 400), nil
 		},
 	}
 
 	// Test 1: No events, should be healthy
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 	assert.Contains(t, cr.reason, "no infiniband port issue")
 
@@ -60,7 +60,7 @@ func TestDropStickyWindow(t *testing.T) {
 		},
 	}
 
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Contains(t, cr.reason, "device(s) down too long: mlx5_0")
 	require.NotNil(t, cr.suggestedActions)
@@ -75,7 +75,7 @@ func TestDropStickyWindow(t *testing.T) {
 		return mockTime
 	}
 
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 	assert.Contains(t, cr.reason, "no infiniband port issue")
 
@@ -90,7 +90,7 @@ func TestDropStickyWindow(t *testing.T) {
 			EventReason: "mlx5_7 port 1 down since " + dropTime.Format(time.RFC3339),
 		},
 	}
-	c.getClassDevicesFunc = func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 		// Return 7 healthy ports (mlx5_0 to mlx5_6) and 1 down port (mlx5_7)
 		devices := createHealthyDevices(7, 400) // mlx5_0 to mlx5_6
 		// Add mlx5_7 as a down port
@@ -109,7 +109,7 @@ func TestDropStickyWindow(t *testing.T) {
 		return devices, nil
 	}
 
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	// Should have both threshold violation and drop event in reason
 	assert.Contains(t, cr.reason, "only 7 port(s) are active")
@@ -124,11 +124,11 @@ func TestDropStickyWindow(t *testing.T) {
 			EventReason: "mlx5_1 port 1 flapping",
 		},
 	}
-	c.getClassDevicesFunc = func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 		return createHealthyDevices(8, 400), nil // Thresholds met
 	}
 
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Contains(t, cr.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_1")
 }
@@ -154,7 +154,7 @@ func TestDropStickyWindowEdgeCases(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			// Machine has 12 ports total, but only 8 are required
 			// 4 dormant ports should not trigger alerts when healthy
 			return createMixedDevices(8, 4), nil // 8 healthy, 4 dormant
@@ -179,17 +179,17 @@ func TestDropStickyWindowEdgeCases(t *testing.T) {
 		},
 	}
 
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 	assert.Contains(t, cr.reason, "no infiniband port issue")
 	// Dormant ports should not cause issues when outside sticky window
 
 	// Now make one of the required ports fail (threshold violation)
-	c.getClassDevicesFunc = func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 		return createMixedDevices(7, 5), nil // Only 7 healthy, 5 dormant
 	}
 
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	// Now the old drop events should be included because thresholds are violated
 	assert.Contains(t, cr.reason, "device(s) down too long")
@@ -219,7 +219,7 @@ func TestDropStickyWindowDisabled(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			return createHealthyDevices(8, 400), nil
 		},
 	}
@@ -235,7 +235,7 @@ func TestDropStickyWindowDisabled(t *testing.T) {
 		},
 	}
 
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"Sticky window disabled should not hold component unhealthy")
 	assert.Contains(t, cr.reason, "no infiniband port issue")
@@ -266,7 +266,7 @@ func TestDropStickyWindowRecoveryLongOutage(t *testing.T) {
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			if portsHealthy {
 				return createHealthyDevices(8, 400), nil
 			}
@@ -286,30 +286,32 @@ func TestDropStickyWindowRecoveryLongOutage(t *testing.T) {
 		},
 	}
 
-	cr := c.Check().(*checkResult)
+	cr := requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 
 	// Thresholds recover shortly after; even though the drop is older than the
 	// sticky window, we should remain unhealthy during the recovery window.
 	portsHealthy = true
 	currentTime = baseTime.Add(30 * time.Second)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 		"Long outage should remain sticky during recovery window")
 	assert.Contains(t, cr.reason, "device(s) down too long: mlx5_7")
 
 	// Once the recovery window passes, the component should return to healthy.
 	currentTime = baseTime.Add(12 * time.Minute)
-	cr = c.Check().(*checkResult)
+	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"Long outage should clear after recovery sticky window expires")
 	assert.Contains(t, cr.reason, "no infiniband port issue")
 }
 
 // Helper function to create healthy devices for testing
+//
+//nolint:unparam // Keeping rate explicit makes the sticky-window test fixtures easier to read.
 func createHealthyDevices(count int, rate int) infinibandclass.Devices {
 	devices := make(infinibandclass.Devices, 0, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		devices = append(devices, infinibandclass.Device{
 			Name: fmt.Sprintf("mlx5_%d", i),
 			Ports: []infinibandclass.Port{
@@ -331,7 +333,7 @@ func createMixedDevices(healthyCount, dormantCount int) infinibandclass.Devices 
 	devices := make(infinibandclass.Devices, 0, healthyCount+dormantCount)
 
 	// Add healthy devices
-	for i := 0; i < healthyCount; i++ {
+	for i := range healthyCount {
 		devices = append(devices, infinibandclass.Device{
 			Name: fmt.Sprintf("mlx5_%d", i),
 			Ports: []infinibandclass.Port{
@@ -347,7 +349,7 @@ func createMixedDevices(healthyCount, dormantCount int) infinibandclass.Devices 
 	}
 
 	// Add dormant devices
-	for i := 0; i < dormantCount; i++ {
+	for i := range dormantCount {
 		devices = append(devices, infinibandclass.Device{
 			Name: fmt.Sprintf("mlx5_%d", healthyCount+i),
 			Ports: []infinibandclass.Port{
@@ -370,7 +372,7 @@ type mockIBPortsStoreForStickyDrop struct {
 	events []infinibandstore.Event
 }
 
-func (m *mockIBPortsStoreForStickyDrop) Insert(time.Time, []types.IBPort) error {
+func (m *mockIBPortsStoreForStickyDrop) Insert(_ time.Time, _ []types.IBPort) error {
 	return nil
 }
 
@@ -378,11 +380,11 @@ func (m *mockIBPortsStoreForStickyDrop) Scan() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreForStickyDrop) LastEvents(since time.Time) ([]infinibandstore.Event, error) {
+func (m *mockIBPortsStoreForStickyDrop) LastEvents(_ time.Time) ([]infinibandstore.Event, error) {
 	return m.events, nil
 }
 
-func (m *mockIBPortsStoreForStickyDrop) SetEventType(string, uint, time.Time, string, string) error {
+func (m *mockIBPortsStoreForStickyDrop) SetEventType(_ string, _ uint, _ time.Time, _ string, _ string) error {
 	return nil
 }
 
@@ -390,7 +392,7 @@ func (m *mockIBPortsStoreForStickyDrop) SetHealthy() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreForStickyDrop) Tombstone(timestamp time.Time) error {
+func (m *mockIBPortsStoreForStickyDrop) Tombstone(_ time.Time) error {
 	return nil
 }
 

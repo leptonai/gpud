@@ -291,7 +291,6 @@ func TestSXIDComponent_Events(t *testing.T) {
 
 	// Insert test events
 	for _, event := range testEvents {
-		event := event // To avoid capturing the loop variable
 		err := component.eventBucket.Insert(ctx, event)
 		assert.NoError(t, err)
 	}
@@ -422,7 +421,7 @@ func TestSXIDComponent_Check(t *testing.T) {
 			Timestamp: metav1.Time{Time: time.Now()},
 		},
 	}
-	component.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+	component.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
 		return mockMessages, nil
 	}
 
@@ -451,7 +450,7 @@ func TestSXIDComponent_Check_Error(t *testing.T) {
 	component.nvmlInstance = mockNVML
 
 	// Mock the readAllKmsg function to return an error
-	component.readAllKmsg = func(ctx context.Context) ([]kmsg.Message, error) {
+	component.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
 		return nil, errors.New("test error")
 	}
 
@@ -592,7 +591,7 @@ func TestDataString(t *testing.T) {
 							Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal error",
 							Timestamp: metav1.Time{Time: time.Now()},
 						},
-						SXidError: SXidError{
+						Error: Error{
 							SXid:       12028,
 							DeviceUUID: "PCI:0000:05:00.0",
 							Detail: &Detail{
@@ -633,7 +632,7 @@ func TestDataString(t *testing.T) {
 							Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 20123, Unknown error",
 							Timestamp: metav1.Time{Time: time.Now()},
 						},
-						SXidError: SXidError{
+						Error: Error{
 							SXid:       20123,
 							DeviceUUID: "PCI:0000:05:00.0",
 							Detail:     nil, // This should not cause a panic
@@ -654,7 +653,7 @@ func TestDataString(t *testing.T) {
 							Message:   "nvidia-nvswitch1: SXid (PCI:0000:0a:00.0): 22013, Non-fatal, Link 57 Minion Link DLREQ interrupt",
 							Timestamp: metav1.Time{Time: time.Now()},
 						},
-						SXidError: SXidError{
+						Error: Error{
 							SXid:       22013,
 							DeviceUUID: "PCI:0000:0a:00.0",
 							Detail: &Detail{
@@ -830,22 +829,22 @@ type mockEventBucket struct {
 	events   eventstore.Events
 }
 
-func (m *mockEventBucket) Insert(ctx context.Context, event eventstore.Event) error {
+func (m *mockEventBucket) Insert(_ context.Context, _ eventstore.Event) error {
 	return nil
 }
 
-func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucket) Get(_ context.Context, _ time.Time) (eventstore.Events, error) {
 	if m.getError != nil {
 		return nil, m.getError
 	}
 	return m.events, nil
 }
 
-func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
+func (m *mockEventBucket) Find(_ context.Context, _ eventstore.Event) (*eventstore.Event, error) {
 	return nil, nil
 }
 
-func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *mockEventBucket) Latest(_ context.Context) (*eventstore.Event, error) {
 	if m.getError != nil {
 		return nil, m.getError
 	}
@@ -861,7 +860,7 @@ func (m *mockEventBucket) Name() string {
 	return "mock-bucket"
 }
 
-func (m *mockEventBucket) Purge(ctx context.Context, beforeUnixTime int64) (int, error) {
+func (m *mockEventBucket) Purge(_ context.Context, _ int64) (int, error) {
 	return 0, nil
 }
 
@@ -878,7 +877,7 @@ func (m *MockNVMLInstance) DeviceGetCount() (int, error) {
 	return 0, nil
 }
 
-func (m *MockNVMLInstance) DeviceGetHandleByIndex(idx int) (interface{}, error) {
+func (m *MockNVMLInstance) DeviceGetHandleByIndex(_ int) (any, error) {
 	return nil, nil
 }
 
@@ -1020,14 +1019,14 @@ type mockRebootEventStore struct {
 	getRebootEventsError error
 }
 
-func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockRebootEventStore) GetRebootEvents(_ context.Context, _ time.Time) (eventstore.Events, error) {
 	if m.getRebootEventsError != nil {
 		return nil, m.getRebootEventsError
 	}
 	return m.rebootEvents, nil
 }
 
-func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *mockRebootEventStore) RecordReboot(_ context.Context) error {
 	return nil
 }
 

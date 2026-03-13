@@ -49,7 +49,7 @@ func TestCheck_WithNVMLMissingLibrariesWithMockey(t *testing.T) {
 		comp, err := New(gpudInstance)
 		require.NoError(t, err)
 
-		mockey.Mock(file.FindLibrary).To(func(name string, opts ...file.OpOption) (string, error) {
+		mockey.Mock(file.FindLibrary).To(func(_ string, _ ...file.OpOption) (string, error) {
 			return "", file.ErrLibraryNotFound
 		}).Build()
 

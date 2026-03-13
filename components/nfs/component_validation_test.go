@@ -23,21 +23,21 @@ func TestComponentValidationOrdering(t *testing.T) {
 					{VolumePath: "/mnt/nfs"},
 				}
 			},
-			validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 				return context.DeadlineExceeded
 			},
-			findMntTargetDevice: func(dir string) (string, string, error) {
+			findMntTargetDevice: func(_ string) (string, string, error) {
 				t.Error("findMntTargetDevice should not be called on validation timeout")
 				return "", "", nil
 			},
-			isNFSFSType: func(fsType string) bool {
+			isNFSFSType: func(_ string) bool {
 				t.Error("isNFSFSType should not be called on validation timeout")
 				return false
 			},
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		assert.Equal(t, "NFS validation timed out - server may be unresponsive", cr.reason)
@@ -54,21 +54,21 @@ func TestComponentValidationOrdering(t *testing.T) {
 					{VolumePath: "/mnt/nfs"},
 				}
 			},
-			validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 				return validationErr
 			},
-			findMntTargetDevice: func(dir string) (string, string, error) {
+			findMntTargetDevice: func(_ string) (string, string, error) {
 				t.Error("findMntTargetDevice should not be called on validation error")
 				return "", "", nil
 			},
-			isNFSFSType: func(fsType string) bool {
+			isNFSFSType: func(_ string) bool {
 				t.Error("isNFSFSType should not be called on validation error")
 				return false
 			},
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		assert.Equal(t, "invalid nfs group configs", cr.reason)
@@ -85,21 +85,21 @@ func TestComponentValidationOrdering(t *testing.T) {
 					{VolumePath: "/mnt/nfs"},
 				}
 			},
-			validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 				return nil // validation passes
 			},
 			findMntTargetDevice: func(dir string) (string, string, error) {
 				assert.Equal(t, "/mnt/nfs", dir)
 				return "", "", mountErr
 			},
-			isNFSFSType: func(fsType string) bool {
+			isNFSFSType: func(_ string) bool {
 				t.Error("isNFSFSType should not be called when mount device not found")
 				return false
 			},
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		assert.Equal(t, "failed to find mount target device for /mnt/nfs", cr.reason)
@@ -115,7 +115,7 @@ func TestComponentValidationOrdering(t *testing.T) {
 					{VolumePath: "/mnt/ext4"},
 				}
 			},
-			validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 				return nil // validation passes
 			},
 			findMntTargetDevice: func(dir string) (string, string, error) {
@@ -129,7 +129,7 @@ func TestComponentValidationOrdering(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		assert.Equal(t, `The user applied path "/mnt/ext4" as NFS volume, but in fact the file system type "ext4" is not NFS.`, cr.reason)
@@ -150,7 +150,7 @@ func TestComponentValidationOrdering(t *testing.T) {
 					{VolumePath: "/mnt/nfs2"},
 				}
 			},
-			validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 				validateCalled = true
 				return nil
 			},
@@ -208,7 +208,7 @@ func TestValidationOrderingMultiplePaths(t *testing.T) {
 					{VolumePath: "/mnt/nfs3"},
 				}
 			},
-			validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 				return nil
 			},
 			findMntTargetDevice: func(dir string) (string, string, error) {
@@ -218,13 +218,13 @@ func TestValidationOrderingMultiplePaths(t *testing.T) {
 				}
 				return "server:/export", "nfs", nil
 			},
-			isNFSFSType: func(fsType string) bool {
+			isNFSFSType: func(_ string) bool {
 				return true
 			},
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		assert.Contains(t, cr.reason, "/mnt/invalid")
@@ -244,7 +244,7 @@ func TestValidationOrderingMultiplePaths(t *testing.T) {
 					{VolumePath: "/mnt/nfs3"},
 				}
 			},
-			validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
+			validateMemberConfigs: func(_ context.Context, _ pkgnfschecker.MemberConfigs) error {
 				return nil
 			},
 			findMntTargetDevice: func(dir string) (string, string, error) {
@@ -265,7 +265,7 @@ func TestValidationOrderingMultiplePaths(t *testing.T) {
 		}
 
 		result := c.Check()
-		cr := result.(*checkResult)
+		cr := mustCheckResult(t, result)
 
 		assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 		assert.Contains(t, cr.reason, "/mnt/ext4")

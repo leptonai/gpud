@@ -59,14 +59,10 @@ func calculateCPUUsage(
 	curStat cpu.TimesStat,
 	usedPct float64,
 ) float64 {
-	usedPercent := float64(0.0)
 	if prevStat == nil {
-		usedPercent = usedPct
-	} else {
-		usedPercent = calculateBusy(*prevStat, curStat)
+		return usedPct
 	}
-
-	return usedPercent
+	return calculateBusy(*prevStat, curStat)
 }
 
 // copied from https://pkg.go.dev/github.com/shirou/gopsutil/v4/cpu#PercentWithContext

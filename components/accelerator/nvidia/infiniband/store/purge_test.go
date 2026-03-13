@@ -28,18 +28,18 @@ func TestPurge(t *testing.T) {
 	currentTime := time.Now()
 
 	// Old data with empty event type (should be purged)
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-2*time.Hour), "mlx5_0", 1, "")
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-3*time.Hour), "mlx5_1", 2, "")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-2*time.Hour), "mlx5_0", 1, "")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-3*time.Hour), "mlx5_1", 2, "")
 
 	// Old data with event type (should NOT be purged)
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-4*time.Hour), "mlx5_2", 3, "ib_port_drop")
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-5*time.Hour), "mlx5_3", 4, "ib_port_flap")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-4*time.Hour), "mlx5_2", 3, "ib_port_drop")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-5*time.Hour), "mlx5_3", 4, "ib_port_flap")
 
 	// Recent data with empty event type (should NOT be purged)
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-30*time.Minute), "mlx5_4", 5, "")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-30*time.Minute), "mlx5_4", 5, "")
 
 	// Recent data with event type (should NOT be purged)
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-15*time.Minute), "mlx5_5", 6, "ib_port_drop")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-15*time.Minute), "mlx5_5", 6, "ib_port_drop")
 
 	// Purge data older than 1 hour
 	purgeBeforeTimestamp := currentTime.Add(-1 * time.Hour).Unix()
@@ -93,9 +93,9 @@ func TestPurgeWithAllEventsHavingEventTypes(t *testing.T) {
 
 	// Insert old data but all with event types
 	currentTime := time.Now()
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-2*time.Hour), "mlx5_0", 1, "ib_port_drop")
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-3*time.Hour), "mlx5_1", 2, "ib_port_flap")
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-4*time.Hour), "mlx5_2", 3, "some_event")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-2*time.Hour), "mlx5_0", 1, "ib_port_drop")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-3*time.Hour), "mlx5_1", 2, "ib_port_flap")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-4*time.Hour), "mlx5_2", 3, "some_event")
 
 	// Purge data older than 1 hour
 	purgeBeforeTimestamp := currentTime.Add(-1 * time.Hour).Unix()
@@ -132,9 +132,9 @@ func TestPurgeWithOnlyRecentData(t *testing.T) {
 
 	// Insert only recent data
 	currentTime := time.Now()
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-10*time.Minute), "mlx5_0", 1, "")
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-20*time.Minute), "mlx5_1", 2, "")
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-30*time.Minute), "mlx5_2", 3, "")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-10*time.Minute), "mlx5_0", 1, "")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-20*time.Minute), "mlx5_1", 2, "")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-30*time.Minute), "mlx5_2", 3, "")
 
 	// Purge data older than 1 hour
 	purgeBeforeTimestamp := currentTime.Add(-1 * time.Hour).Unix()
@@ -218,13 +218,16 @@ func TestPurgeWithLargeDataSet(t *testing.T) {
 	numRecentEntries := 50
 
 	// Insert old entries with empty event types (should be purged)
-	for i := 0; i < numOldEntries; i++ {
-		insertData(t, ctx, dbRW, tableName, currentTime.Add(-time.Duration(i+120)*time.Minute), fmt.Sprintf("mlx5_%d", i), uint(i%10), "")
+	ports := [...]uint{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	for i := range numOldEntries {
+		//nolint:gosec // i%10 is bounded to the fixed test-port array.
+		insertData(ctx, t, dbRW, tableName, currentTime.Add(-time.Duration(i+120)*time.Minute), fmt.Sprintf("mlx5_%d", i), ports[i%10], "")
 	}
 
 	// Insert recent entries with empty event types (should NOT be purged)
-	for i := 0; i < numRecentEntries; i++ {
-		insertData(t, ctx, dbRW, tableName, currentTime.Add(-time.Duration(i+1)*time.Minute), fmt.Sprintf("mlx5_recent_%d", i), uint(i%10), "")
+	for i := range numRecentEntries {
+		//nolint:gosec // i%10 is bounded to the fixed test-port array.
+		insertData(ctx, t, dbRW, tableName, currentTime.Add(-time.Duration(i+1)*time.Minute), fmt.Sprintf("mlx5_recent_%d", i), ports[i%10], "")
 	}
 
 	// Purge data older than 1 hour
@@ -398,18 +401,18 @@ func TestPurgeAllEventsTrue(t *testing.T) {
 	currentTime := time.Now()
 
 	// Old data with empty event type (should be purged)
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-2*time.Hour), "mlx5_0", 1, "")
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-3*time.Hour), "mlx5_1", 2, "")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-2*time.Hour), "mlx5_0", 1, "")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-3*time.Hour), "mlx5_1", 2, "")
 
 	// Old data with event type (should also be purged when purgeAllEvents=true)
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-4*time.Hour), "mlx5_2", 3, "ib_port_drop")
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-5*time.Hour), "mlx5_3", 4, "ib_port_flap")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-4*time.Hour), "mlx5_2", 3, "ib_port_drop")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-5*time.Hour), "mlx5_3", 4, "ib_port_flap")
 
 	// Recent data with empty event type (should NOT be purged)
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-30*time.Minute), "mlx5_4", 5, "")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-30*time.Minute), "mlx5_4", 5, "")
 
 	// Recent data with event type (should NOT be purged)
-	insertData(t, ctx, dbRW, tableName, currentTime.Add(-15*time.Minute), "mlx5_5", 6, "ib_port_drop")
+	insertData(ctx, t, dbRW, tableName, currentTime.Add(-15*time.Minute), "mlx5_5", 6, "ib_port_drop")
 
 	// Purge data older than 1 hour with purgeAllEvents=true
 	purgeBeforeTimestamp := currentTime.Add(-1 * time.Hour).Unix()
@@ -434,23 +437,21 @@ func TestPurgeAllEventsTrue(t *testing.T) {
 }
 
 // Helper function to insert test data
-func insertData(t *testing.T, ctx context.Context, dbRW *sql.DB, tableName string, ts time.Time, device string, port uint, eventType string) {
+func insertData(ctx context.Context, t *testing.T, dbRW *sql.DB, tableName string, ts time.Time, device string, port uint, eventType string) {
 	t.Helper()
 
-	query := fmt.Sprintf(`INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		tableName,
-		historyTableColumnTimestamp,
-		historyTableColumnDevice,
-		historyTableColumnPort,
-		historyTableColumnLinkLayer,
-		historyTableColumnState,
-		historyTableColumnPhysicalState,
-		historyTableColumnRateGBSec,
-		historyTableColumnTotalLinkDowned,
-		historyTableColumnEventType,
-		historyTableColumnEventReason,
-		historyTableColumnExtraInfo,
-	)
+	query := `INSERT INTO ` + tableName + ` (` + // #nosec G202 -- Table and column names are fixed test identifiers.
+		historyTableColumnTimestamp + `, ` +
+		historyTableColumnDevice + `, ` +
+		historyTableColumnPort + `, ` +
+		historyTableColumnLinkLayer + `, ` +
+		historyTableColumnState + `, ` +
+		historyTableColumnPhysicalState + `, ` +
+		historyTableColumnRateGBSec + `, ` +
+		historyTableColumnTotalLinkDowned + `, ` +
+		historyTableColumnEventType + `, ` +
+		historyTableColumnEventReason + `, ` +
+		historyTableColumnExtraInfo + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err := dbRW.ExecContext(ctx, query, ts.Unix(), device, port, "infiniband", "active", "linkup", 100, 0, eventType, "", "")
 	require.NoError(t, err)
@@ -464,7 +465,8 @@ func TestGetPurgeBeforeTimestamp(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Test with no tombstone timestamp (should use retention period)
 	purgeBefore, purgeAllEvents := s.getPurgeBeforeTimestamp()
@@ -486,7 +488,8 @@ func TestGetPurgeBeforeTimestampWithTombstone(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Set tombstone timestamp to be after retention period
 	tombstoneTime := time.Now().Add(-1 * time.Hour)
@@ -510,7 +513,8 @@ func TestGetPurgeBeforeTimestampWithOldTombstone(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Set tombstone timestamp to be before retention period
 	tombstoneTime := time.Now().Add(-7 * 24 * time.Hour) // 7 days ago (older than default retention)
@@ -536,7 +540,8 @@ func TestGetPurgeBeforeTimestampWithTombstoneError(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Make getTombstoneTimestamp fail by using non-existent table
 	s.configMu.Lock()
@@ -557,7 +562,8 @@ func TestGetPurgeBeforeTimestampWithContextTimeout(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Use a context with very short timeout
 	shortCtx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)

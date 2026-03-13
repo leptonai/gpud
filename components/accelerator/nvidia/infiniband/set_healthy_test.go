@@ -193,7 +193,7 @@ func TestComponent_SetHealthy(t *testing.T) {
 }
 
 // TestComponent_ImplementsHealthSettable verifies the interface implementation
-func TestComponent_ImplementsHealthSettable(t *testing.T) {
+func TestComponent_ImplementsHealthSettable(_ *testing.T) {
 	// This will fail to compile if component doesn't implement HealthSettable
 	var _ components.HealthSettable = &component{}
 }
@@ -205,15 +205,15 @@ type mockIBPortsStoreForSetHealthy struct {
 	tombstoneErr  error
 }
 
-func (m *mockIBPortsStoreForSetHealthy) Insert(eventTime time.Time, ibPorts []types.IBPort) error {
+func (m *mockIBPortsStoreForSetHealthy) Insert(_ time.Time, _ []types.IBPort) error {
 	return nil
 }
 
-func (m *mockIBPortsStoreForSetHealthy) SetEventType(device string, port uint, timestamp time.Time, eventType string, eventReason string) error {
+func (m *mockIBPortsStoreForSetHealthy) SetEventType(_ string, _ uint, _ time.Time, _ string, _ string) error {
 	return nil
 }
 
-func (m *mockIBPortsStoreForSetHealthy) LastEvents(since time.Time) ([]infinibandstore.Event, error) {
+func (m *mockIBPortsStoreForSetHealthy) LastEvents(_ time.Time) ([]infinibandstore.Event, error) {
 	return m.events, nil
 }
 
@@ -249,7 +249,7 @@ func (m *mockEventBucketForSetHealthy) Name() string {
 	return "mock"
 }
 
-func (m *mockEventBucketForSetHealthy) Insert(ctx context.Context, event eventstore.Event) error {
+func (m *mockEventBucketForSetHealthy) Insert(_ context.Context, event eventstore.Event) error {
 	if m.insertErr != nil {
 		return m.insertErr
 	}
@@ -257,7 +257,7 @@ func (m *mockEventBucketForSetHealthy) Insert(ctx context.Context, event eventst
 	return nil
 }
 
-func (m *mockEventBucketForSetHealthy) Find(ctx context.Context, event eventstore.Event) (*eventstore.Event, error) {
+func (m *mockEventBucketForSetHealthy) Find(_ context.Context, event eventstore.Event) (*eventstore.Event, error) {
 	if m.findErr != nil {
 		return nil, m.findErr
 	}
@@ -269,7 +269,7 @@ func (m *mockEventBucketForSetHealthy) Find(ctx context.Context, event eventstor
 	return nil, nil
 }
 
-func (m *mockEventBucketForSetHealthy) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockEventBucketForSetHealthy) Get(_ context.Context, since time.Time) (eventstore.Events, error) {
 	var result eventstore.Events
 	for _, event := range m.events {
 		if !event.Time.Before(since) {
@@ -279,7 +279,7 @@ func (m *mockEventBucketForSetHealthy) Get(ctx context.Context, since time.Time)
 	return result, nil
 }
 
-func (m *mockEventBucketForSetHealthy) Latest(ctx context.Context) (*eventstore.Event, error) {
+func (m *mockEventBucketForSetHealthy) Latest(_ context.Context) (*eventstore.Event, error) {
 	if len(m.events) == 0 {
 		return nil, nil
 	}
@@ -292,7 +292,7 @@ func (m *mockEventBucketForSetHealthy) Latest(ctx context.Context) (*eventstore.
 	return &latest, nil
 }
 
-func (m *mockEventBucketForSetHealthy) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
+func (m *mockEventBucketForSetHealthy) Purge(_ context.Context, beforeTimestamp int64) (int, error) {
 	if m.purgeErr != nil {
 		return 0, m.purgeErr
 	}

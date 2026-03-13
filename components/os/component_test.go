@@ -1,3 +1,4 @@
+//nolint:forcetypeassert,revive // tests intentionally inspect concrete types; package name follows the directory import path.
 package os
 
 import (
@@ -8,6 +9,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -30,18 +32,26 @@ type mockRebootEventStore struct {
 	events eventstore.Events
 }
 
-func (m *mockRebootEventStore) RecordReboot(ctx context.Context) error {
+func mustUint64FromInt64(t *testing.T, v int64) uint64 {
+	t.Helper()
+	require.GreaterOrEqual(t, v, int64(0))
+	u, err := strconv.ParseUint(strconv.FormatInt(v, 10), 10, 64)
+	require.NoError(t, err)
+	return u
+}
+
+func (m *mockRebootEventStore) RecordReboot(_ context.Context) error {
 	return nil
 }
 
-func (m *mockRebootEventStore) GetRebootEvents(ctx context.Context, since time.Time) (eventstore.Events, error) {
+func (m *mockRebootEventStore) GetRebootEvents(_ context.Context, _ time.Time) (eventstore.Events, error) {
 	return m.events, nil
 }
 
 // errRebootEventStore is a mock implementation that always returns an error
 type errRebootEventStore struct{}
 
-func (m *errRebootEventStore) RecordReboot(ctx context.Context) error {
+func (m *errRebootEventStore) RecordReboot(_ context.Context) error {
 	return nil
 }
 
@@ -271,7 +281,8 @@ func TestComponent(t *testing.T) {
 
 		// Instead of directly calling Events, which has a bug with nil eventBucket,
 		// we'll test that rebootEventStore is correctly set and accessible
-		c := comp.(*component)
+		c, ok := comp.(*component)
+		require.True(t, ok)
 		assert.NotNil(t, c.rebootEventStore)
 
 		// Get events directly from the mock reboot store
@@ -297,7 +308,8 @@ func TestComponent(t *testing.T) {
 		}()
 
 		// Trigger CheckOnce manually
-		c := comp.(*component)
+		c, ok := comp.(*component)
+		require.True(t, ok)
 		_ = c.Check()
 
 		// Verify lastCheckResult is populated
@@ -347,7 +359,8 @@ func TestComponent_States(t *testing.T) {
 
 	t.Run("component states with data", func(t *testing.T) {
 		// Inject test data
-		c := comp.(*component)
+		c, ok := comp.(*component)
+		require.True(t, ok)
 		c.lastMu.Lock()
 		c.lastCheckResult = &checkResult{
 			Kernel: Kernel{
@@ -368,7 +381,8 @@ func TestComponent_States(t *testing.T) {
 
 	t.Run("component states with error", func(t *testing.T) {
 		// Inject error data
-		c := comp.(*component)
+		c, ok := comp.(*component)
+		require.True(t, ok)
 		c.lastMu.Lock()
 		c.lastCheckResult = &checkResult{
 			err:    errors.New("test error"),
@@ -388,7 +402,8 @@ func TestComponent_States(t *testing.T) {
 
 	t.Run("component states with too many zombie processes", func(t *testing.T) {
 		// Inject zombie process data
-		c := comp.(*component)
+		c, ok := comp.(*component)
+		require.True(t, ok)
 		expected := fmt.Sprintf("too many zombie processes: %d (threshold: %d)", defaultZombieProcessCountThresholdDegraded+1, defaultZombieProcessCountThresholdDegraded)
 		c.lastMu.Lock()
 		c.lastCheckResult = &checkResult{
@@ -455,7 +470,8 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 		defer func() {
 			_ = c.Close()
 		}()
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		// Override the process counting function to return an error
 		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -487,7 +503,8 @@ func TestCheckOnceWithMockedProcess(t *testing.T) {
 		defer func() {
 			_ = c.Close()
 		}()
-		comp := c.(*component)
+		comp, ok := c.(*component)
+		require.True(t, ok)
 
 		// Override the process counting function to return normal processes
 		comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -549,7 +566,8 @@ func TestComponent_UptimeError(t *testing.T) {
 	defer func() {
 		_ = c.Close()
 	}()
-	comp := c.(*component)
+	comp, ok := c.(*component)
+	require.True(t, ok)
 
 	// Directly set error data to simulate an uptime error
 	errorData := &checkResult{
@@ -631,7 +649,7 @@ func TestData_String(t *testing.T) {
 				},
 				Uptimes: Uptimes{
 					Seconds:             3600,
-					BootTimeUnixSeconds: uint64(time.Now().UTC().Add(-1 * time.Hour).Unix()),
+					BootTimeUnixSeconds: mustUint64FromInt64(t, time.Now().UTC().Add(-1*time.Hour).Unix()),
 				},
 				ZombieProcesses: 5,
 			},
@@ -895,7 +913,8 @@ func TestComponent_GetHostUptimeFunc(t *testing.T) {
 				assert.NoError(t, c.Close())
 			}()
 
-			comp := c.(*component)
+			comp, ok := c.(*component)
+			require.True(t, ok)
 
 			// Mock the uptime function
 			comp.getHostUptimeFunc = tt.uptimeFunc
@@ -1747,7 +1766,7 @@ func TestComponent_FileDescriptorWarningThreshold(t *testing.T) {
 			assert.Equal(t, fmt.Sprintf("%.2f", allocPct), data.FileDescriptors.AllocatedFileHandlesPercent,
 				"Allocated percentage should be calculated correctly")
 
-			thresholdPct := calcUsagePct(tt.usage, min(tt.thresholdAllocatedFH, tt.limit))
+			thresholdPct := calcUsagePct(tt.usage, minUint64(tt.thresholdAllocatedFH, tt.limit))
 			assert.Equal(t, fmt.Sprintf("%.2f", thresholdPct), data.FileDescriptors.ThresholdAllocatedFileHandlesPercent,
 				"Threshold percentage should be calculated correctly")
 		})
@@ -1985,15 +2004,15 @@ func TestComponent_ThresholdRunningPIDs(t *testing.T) {
 	}
 }
 
-// min returns the smaller of x or y
-func min(x, y uint64) uint64 {
+// minUint64 returns the smaller of x or y.
+func minUint64(x, y uint64) uint64 {
 	if x < y {
 		return x
 	}
 	return y
 }
 
-// TestMin tests the min function
+// TestMin tests the minUint64 function.
 func TestMin(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -2035,7 +2054,7 @@ func TestMin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := min(tt.x, tt.y)
+			result := minUint64(tt.x, tt.y)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -2166,7 +2185,7 @@ func TestFileDescriptorsStructFields(t *testing.T) {
 	// Calculate expected values
 	allocatedFHPct := calcUsagePct(allocatedFH, limit)
 	usedPct := calcUsagePct(usage, limit)
-	thresholdAllocFHPct := calcUsagePct(usage, min(thresholdAllocFH, limit))
+	thresholdAllocFHPct := calcUsagePct(usage, minUint64(thresholdAllocFH, limit))
 	maxRunningPIDsPct := calcUsagePct(runningPIDs, maxRunningPIDs)
 
 	// Verify all fields are populated correctly
@@ -2489,7 +2508,8 @@ func TestComponent_ZombieProcessThresholdEdgeCases(t *testing.T) {
 				_ = c.Close()
 			}()
 
-			comp := c.(*component)
+			comp, ok := c.(*component)
+			require.True(t, ok)
 			comp.zombieProcessCountThresholdDegraded = tt.threshold
 			// Set high threshold to be very high so we only test low threshold behavior
 			comp.zombieProcessCountThresholdUnhealthy = tt.threshold + 10000
@@ -2649,7 +2669,8 @@ func TestComponent_ProcessStatusMap(t *testing.T) {
 				_ = c.Close()
 			}()
 
-			comp := c.(*component)
+			comp, ok := c.(*component)
+			require.True(t, ok)
 
 			// Override the process counting function
 			comp.countProcessesByStatusFunc = func(ctx context.Context) (map[string][]process.ProcessStatus, error) {
@@ -2693,7 +2714,8 @@ func TestComponent_ZombieProcessHealthStates(t *testing.T) {
 		_ = c.Close()
 	}()
 
-	comp := c.(*component)
+	comp, ok := c.(*component)
+	require.True(t, ok)
 	comp.zombieProcessCountThresholdDegraded = 10
 	// Set high threshold to be very high so we only test low threshold behavior
 	comp.zombieProcessCountThresholdUnhealthy = 10000
@@ -2853,7 +2875,8 @@ func TestComponent_ZombieProcessLowHighThresholds(t *testing.T) {
 				_ = c.Close()
 			}()
 
-			comp := c.(*component)
+			comp, ok := c.(*component)
+			require.True(t, ok)
 			comp.zombieProcessCountThresholdDegraded = tt.lowThreshold
 			comp.zombieProcessCountThresholdUnhealthy = tt.highThreshold
 
@@ -3024,7 +3047,8 @@ func TestComponent_ZombieProcessMetricsWithThresholds(t *testing.T) {
 				_ = c.Close()
 			}()
 
-			comp := c.(*component)
+			comp, ok := c.(*component)
+			require.True(t, ok)
 			comp.zombieProcessCountThresholdDegraded = tc.lowThreshold
 			comp.zombieProcessCountThresholdUnhealthy = tc.highThreshold
 
@@ -3253,7 +3277,8 @@ func TestComponent_SuggestedActionsIntegration(t *testing.T) {
 				_ = c.Close()
 			}()
 
-			comp := c.(*component)
+			comp, ok := c.(*component)
+			require.True(t, ok)
 			comp.zombieProcessCountThresholdDegraded = tt.degradedThreshold
 			comp.zombieProcessCountThresholdUnhealthy = tt.unhealthyThreshold
 
@@ -3425,7 +3450,8 @@ func TestComponent_RunningPIDsThresholdPercentageChecks(t *testing.T) {
 				_ = c.Close()
 			}()
 
-			comp := c.(*component)
+			comp, ok := c.(*component)
+			require.True(t, ok)
 
 			// Set threshold values
 			comp.maxRunningPIDs = tt.maxRunningPIDs
@@ -3565,7 +3591,8 @@ func TestComponent_AllocatedFileHandlesThresholdPercentageChecks(t *testing.T) {
 				_ = c.Close()
 			}()
 
-			comp := c.(*component)
+			comp, ok := c.(*component)
+			require.True(t, ok)
 
 			// Set threshold values
 			comp.maxAllocatedFileHandles = tt.maxAllocatedFileHandles
@@ -3622,7 +3649,8 @@ func TestComponent_ThresholdPercentageChecksPriority(t *testing.T) {
 		_ = c.Close()
 	}()
 
-	comp := c.(*component)
+	comp, ok := c.(*component)
+	require.True(t, ok)
 
 	// Set both thresholds to trigger degraded state
 	comp.maxRunningPIDs = 10000
@@ -3803,7 +3831,7 @@ func TestComponent_ThresholdPercentageMetricsUpdates(t *testing.T) {
 	assert.Equal(t, float64(thresholdAllocatedFH), *dto.Gauge.Value)
 
 	// Verify threshold allocated file handles percent metric
-	expectedAllocFHPct := calcUsagePct(usage, min(thresholdAllocatedFH, limit))
+	expectedAllocFHPct := calcUsagePct(usage, minUint64(thresholdAllocatedFH, limit))
 	gauge, err = metricThresholdAllocatedFileHandlesPercent.GetMetricWith(prometheus.Labels{})
 	assert.NoError(t, err)
 	dto = &prometheusdto.Metric{}
@@ -4288,7 +4316,7 @@ func TestComponent_EventsSortingByTime(t *testing.T) {
 		assert.Equal(t, "Older system reboot event", events[3].Message)
 
 		// Verify sorting order by comparing adjacent timestamps
-		for i := 0; i < len(events)-1; i++ {
+		for i := range len(events) - 1 {
 			assert.True(t, events[i].Time.After(events[i+1].Time.Time) || events[i].Time.Time.Equal(events[i+1].Time.Time),
 				"Event %d should be newer than or equal to event %d", i, i+1)
 		}
@@ -4563,7 +4591,7 @@ type mockEventStore struct {
 	bucket eventstore.Bucket
 }
 
-func (m *mockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *mockEventStore) Bucket(_ string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	return m.bucket, nil
 }
 

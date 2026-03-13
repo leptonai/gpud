@@ -23,6 +23,7 @@ import (
 	"strconv"
 )
 
+// OOMEventName is emitted when the kernel reports an out-of-memory kill event.
 const OOMEventName = "OOM"
 
 func createMatchFunc() func(line string) (eventName string, message string) {
@@ -107,7 +108,7 @@ func createMatchFunc() func(line string) (eventName string, message string) {
 	}
 }
 
-// struct that contains information related to an OOM kill instance
+// OOMInstance contains information related to an OOM kill instance.
 type OOMInstance struct {
 	// process id of the killed process
 	Pid int
@@ -123,6 +124,7 @@ type OOMInstance struct {
 	Constraint string
 }
 
+// Summary returns a human-readable summary of the OOM event.
 func (o *OOMInstance) Summary() string {
 	if o == nil {
 		return ""
@@ -155,14 +157,13 @@ var (
 )
 
 // gets the container name from a line and adds it to the oomInstance.
-func getLegacyContainerName(line string, currentOomInstance *OOMInstance) error {
+func getLegacyContainerName(line string, currentOomInstance *OOMInstance) {
 	parsedLine := legacyContainerRegexp.FindStringSubmatch(line)
 	if parsedLine == nil {
-		return nil
+		return
 	}
 	currentOomInstance.ContainerName = path.Join("/", parsedLine[1])
 	currentOomInstance.VictimContainerName = path.Join("/", parsedLine[2])
-	return nil
 }
 
 // gets the container name from a line and adds it to the oomInstance.
@@ -170,7 +171,8 @@ func getContainerName(line string, currentOomInstance *OOMInstance) (bool, error
 	parsedLine := containerRegexp.FindStringSubmatch(line)
 	if parsedLine == nil {
 		// Fall back to the legacy format if it isn't found here.
-		return false, getLegacyContainerName(line, currentOomInstance)
+		getLegacyContainerName(line, currentOomInstance)
+		return false, nil
 	}
 	currentOomInstance.ContainerName = parsedLine[6]
 	currentOomInstance.VictimContainerName = parsedLine[5]

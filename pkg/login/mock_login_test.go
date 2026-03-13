@@ -1,3 +1,4 @@
+//nolint:revive // These mocks intentionally preserve full function signatures for patched package APIs.
 package login
 
 import (
@@ -39,7 +40,7 @@ func TestLogin_EmptyToken(t *testing.T) {
 // TestLogin_ResolveDataDirError tests error handling when data dir resolution fails.
 func TestLogin_ResolveDataDirError(t *testing.T) {
 	mockey.PatchConvey("resolve data dir error", t, func() {
-		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
 			return "", errors.New("failed to resolve data dir")
 		}).Build()
 
@@ -59,11 +60,11 @@ func TestLogin_ResolveDataDirError(t *testing.T) {
 // TestLogin_OpenDatabaseError tests error handling when database open fails.
 func TestLogin_OpenDatabaseError(t *testing.T) {
 	mockey.PatchConvey("open database error", t, func() {
-		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
 			return "/tmp/test", nil
 		}).Build()
 
-		mockey.Mock(sqlite.Open).To(func(dbPath string, opts ...sqlite.OpOption) (*sql.DB, error) {
+		mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
 			return nil, errors.New("failed to open database")
 		}).Build()
 
@@ -85,11 +86,11 @@ func TestLogin_CreateMetadataTableError(t *testing.T) {
 	mockey.PatchConvey("create metadata table error", t, func() {
 		mockDB := &sql.DB{}
 
-		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
 			return "/tmp/test", nil
 		}).Build()
 
-		mockey.Mock(sqlite.Open).To(func(dbPath string, opts ...sqlite.OpOption) (*sql.DB, error) {
+		mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
 			return mockDB, nil
 		}).Build()
 
@@ -97,7 +98,7 @@ func TestLogin_CreateMetadataTableError(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(ctx context.Context, db *sql.DB) error {
+		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(_ context.Context, _ *sql.DB) error {
 			return errors.New("failed to create table")
 		}).Build()
 
@@ -119,11 +120,11 @@ func TestLogin_CreateSessionStatesTableError(t *testing.T) {
 	mockey.PatchConvey("create session states table error", t, func() {
 		mockDB := &sql.DB{}
 
-		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
 			return "/tmp/test", nil
 		}).Build()
 
-		mockey.Mock(sqlite.Open).To(func(dbPath string, opts ...sqlite.OpOption) (*sql.DB, error) {
+		mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
 			return mockDB, nil
 		}).Build()
 
@@ -131,11 +132,11 @@ func TestLogin_CreateSessionStatesTableError(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(ctx context.Context, db *sql.DB) error {
+		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(_ context.Context, _ *sql.DB) error {
 			return nil
 		}).Build()
 
-		mockey.Mock(sessionstates.CreateTable).To(func(ctx context.Context, db *sql.DB) error {
+		mockey.Mock(sessionstates.CreateTable).To(func(_ context.Context, _ *sql.DB) error {
 			return errors.New("failed to create session states table")
 		}).Build()
 
@@ -157,11 +158,11 @@ func TestLogin_ReadMachineIDError(t *testing.T) {
 	mockey.PatchConvey("read machine id error", t, func() {
 		mockDB := &sql.DB{}
 
-		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
 			return "/tmp/test", nil
 		}).Build()
 
-		mockey.Mock(sqlite.Open).To(func(dbPath string, opts ...sqlite.OpOption) (*sql.DB, error) {
+		mockey.Mock(sqlite.Open).To(func(_ string, opts ...sqlite.OpOption) (*sql.DB, error) {
 			return mockDB, nil
 		}).Build()
 
@@ -169,15 +170,15 @@ func TestLogin_ReadMachineIDError(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(ctx context.Context, db *sql.DB) error {
+		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(_ context.Context, db *sql.DB) error {
 			return nil
 		}).Build()
 
-		mockey.Mock(sessionstates.CreateTable).To(func(ctx context.Context, db *sql.DB) error {
+		mockey.Mock(sessionstates.CreateTable).To(func(_ context.Context, db *sql.DB) error {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmetadata.ReadMachineID).To(func(ctx context.Context, db *sql.DB) (string, error) {
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(_ context.Context, db *sql.DB) (string, error) {
 			return "", errors.New("failed to read machine id")
 		}).Build()
 
@@ -199,11 +200,11 @@ func TestLogin_MachineIDAlreadyAssigned(t *testing.T) {
 	mockey.PatchConvey("machine id already assigned", t, func() {
 		mockDB := &sql.DB{}
 
-		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
 			return "/tmp/test", nil
 		}).Build()
 
-		mockey.Mock(sqlite.Open).To(func(dbPath string, opts ...sqlite.OpOption) (*sql.DB, error) {
+		mockey.Mock(sqlite.Open).To(func(_ string, opts ...sqlite.OpOption) (*sql.DB, error) {
 			return mockDB, nil
 		}).Build()
 
@@ -235,6 +236,237 @@ func TestLogin_MachineIDAlreadyAssigned(t *testing.T) {
 	})
 }
 
+func TestLogin_MachineIDAlreadyAssignedWithSameNodeLabelsSkips(t *testing.T) {
+	mockey.PatchConvey("machine id already assigned with unchanged node labels", t, func() {
+		mockDB := &sql.DB{}
+		nvmlCreated := false
+
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
+			return "/tmp/test", nil
+		}).Build()
+
+		mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
+			return mockDB, nil
+		}).Build()
+
+		mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(sessionstates.CreateTable).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+			return "existing-machine-id", nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
+			if key == pkgmetadata.MetadataKeyLastSentNodeLabels {
+				return `{"user.node.lepton.ai/team":"ml"}`, nil
+			}
+			return "", nil
+		}).Build()
+
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			nvmlCreated = true
+			return nvidianvml.NewNoOp(), nil
+		}).Build()
+
+		ctx := context.Background()
+		cfg := LoginConfig{
+			Token:      "test-token",
+			Endpoint:   "https://example.com",
+			DataDir:    "/tmp/test",
+			NodeLabels: map[string]string{"team": "ml"},
+		}
+
+		err := Login(ctx, cfg)
+		require.NoError(t, err)
+		assert.False(t, nvmlCreated)
+	})
+}
+
+func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsRelogsIn(t *testing.T) {
+	mockey.PatchConvey("machine id already assigned with changed node labels", t, func() {
+		mockDB := &sql.DB{}
+		mockNVML := nvidianvml.NewNoOp()
+
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
+			return "/tmp/test", nil
+		}).Build()
+
+		mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
+			return mockDB, nil
+		}).Build()
+
+		mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(sessionstates.CreateTable).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+			return "existing-machine-id", nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
+			if key == pkgmetadata.MetadataKeyLastSentNodeLabels {
+				return `{"user.node.lepton.ai/team":"old"}`, nil
+			}
+			return "", nil
+		}).Build()
+
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return mockNVML, nil
+		}).Build()
+
+		mockey.Mock((nvidianvml.Instance).Shutdown).To(func() error {
+			return nil
+		}).Build()
+
+		var receivedMachineID string
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+			receivedMachineID = machineID
+			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
+		}).Build()
+
+		var receivedRequest apiv1.LoginRequest
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+			receivedRequest = req
+			return &apiv1.LoginResponse{
+				MachineID: "existing-machine-id",
+				Token:     "session-token",
+			}, nil
+		}).Build()
+
+		recordedNodeLabels := ""
+		mockey.Mock(pkgmetadata.SetMetadata).To(func(_ context.Context, _ *sql.DB, key, value string) error {
+			if key == pkgmetadata.MetadataKeyLastSentNodeLabels {
+				recordedNodeLabels = value
+			}
+			return nil
+		}).Build()
+
+		mockey.Mock(config.FifoFilePath).To(func(dataDir string) string {
+			return "/tmp/test/fifo"
+		}).Build()
+
+		mockey.Mock(serverRunning).To(func() bool {
+			return false
+		}).Build()
+
+		ctx := context.Background()
+		cfg := LoginConfig{
+			Token:      "test-token",
+			Endpoint:   "https://example.com",
+			DataDir:    "/tmp/test",
+			NodeLabels: map[string]string{"team": "new"},
+		}
+
+		err := Login(ctx, cfg)
+		require.NoError(t, err)
+		assert.Equal(t, "existing-machine-id", receivedMachineID)
+		assert.Equal(t, map[string]string{"user.node.lepton.ai/team": "new"}, receivedRequest.NodeLabels)
+		assert.Equal(t, `{"user.node.lepton.ai/team":"new"}`, recordedNodeLabels)
+	})
+}
+
+func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsAndMismatchedOverrideFails(t *testing.T) {
+	mockey.PatchConvey("machine id already assigned with changed node labels and mismatched override", t, func() {
+		mockDB := &sql.DB{}
+		nvmlCreated := false
+		loginRequestCreated := false
+		requestSent := false
+
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
+			return "/tmp/test", nil
+		}).Build()
+
+		mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
+			return mockDB, nil
+		}).Build()
+
+		mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(sessionstates.CreateTable).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+			return "existing-machine-id", nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
+			if key == pkgmetadata.MetadataKeyLastSentNodeLabels {
+				return `{"user.node.lepton.ai/team":"old"}`, nil
+			}
+			return "", nil
+		}).Build()
+
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			nvmlCreated = true
+			return nvidianvml.NewNoOp(), nil
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+			loginRequestCreated = true
+			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
+		}).Build()
+
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+			requestSent = true
+			return &apiv1.LoginResponse{}, nil
+		}).Build()
+
+		ctx := context.Background()
+		cfg := LoginConfig{
+			Token:      "test-token",
+			Endpoint:   "https://example.com",
+			DataDir:    "/tmp/test",
+			MachineID:  "different-machine-id",
+			NodeLabels: map[string]string{"team": "new"},
+		}
+
+		err := Login(ctx, cfg)
+		require.Error(t, err)
+		assert.EqualError(t, err, `stored machine ID "existing-machine-id" does not match requested machine ID "different-machine-id"`)
+		assert.False(t, nvmlCreated)
+		assert.False(t, loginRequestCreated)
+		assert.False(t, requestSent)
+	})
+}
+
+func TestLogin_InvalidNodeLabels(t *testing.T) {
+	ctx := context.Background()
+	cfg := LoginConfig{
+		Token:      "test-token",
+		Endpoint:   "https://example.com",
+		DataDir:    "/tmp/test",
+		NodeLabels: map[string]string{"example.com/team": "ml"},
+	}
+
+	err := Login(ctx, cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid node labels")
+}
+
 // TestLogin_CreateNVMLInstanceError tests error handling when NVML instance creation fails.
 func TestLogin_CreateNVMLInstanceError(t *testing.T) {
 	mockey.PatchConvey("create nvml instance error", t, func() {
@@ -244,7 +476,7 @@ func TestLogin_CreateNVMLInstanceError(t *testing.T) {
 			return "/tmp/test", nil
 		}).Build()
 
-		mockey.Mock(sqlite.Open).To(func(dbPath string, opts ...sqlite.OpOption) (*sql.DB, error) {
+		mockey.Mock(sqlite.Open).To(func(_ string, opts ...sqlite.OpOption) (*sql.DB, error) {
 			return mockDB, nil
 		}).Build()
 
@@ -319,7 +551,7 @@ func TestLogin_CreateLoginRequestError(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return nil, errors.New("failed to get machine info")
 		}).Build()
 
@@ -374,7 +606,7 @@ func TestLogin_SendRequestError(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{
 				Network: &apiv1.MachineNetwork{
 					PublicIP:  "1.2.3.4",
@@ -438,7 +670,7 @@ func TestLogin_SendRequestErrorWithResponse(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
@@ -502,7 +734,7 @@ func TestLogin_SetMetadataEndpointError(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
@@ -574,7 +806,7 @@ func TestLogin_Success(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{
 				Network: &apiv1.MachineNetwork{
 					PublicIP:  "1.2.3.4",
@@ -653,7 +885,7 @@ func TestLogin_SuccessWithPublicPrivateIPOverride(t *testing.T) {
 		}).Build()
 
 		receivedRequest := &apiv1.LoginRequest{}
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{
 				Network: &apiv1.MachineNetwork{
 					PublicIP:  "1.2.3.4",
@@ -876,7 +1108,7 @@ func TestServerRunning_SystemctlExistsInactive(t *testing.T) {
 			return true
 		}).Build()
 
-		mockey.Mock(systemd.IsActive).To(func(service string) (bool, error) {
+		mockey.Mock(systemd.IsActive).To(func(_ string) (bool, error) {
 			return false, nil
 		}).Build()
 
@@ -892,7 +1124,7 @@ func TestServerRunning_SystemctlExistsActive(t *testing.T) {
 			return true
 		}).Build()
 
-		mockey.Mock(systemd.IsActive).To(func(service string) (bool, error) {
+		mockey.Mock(systemd.IsActive).To(func(_ string) (bool, error) {
 			return true, nil
 		}).Build()
 
@@ -908,7 +1140,7 @@ func TestServerRunning_SystemctlError(t *testing.T) {
 			return true
 		}).Build()
 
-		mockey.Mock(systemd.IsActive).To(func(service string) (bool, error) {
+		mockey.Mock(systemd.IsActive).To(func(_ string) (bool, error) {
 			return false, errors.New("systemctl failed")
 		}).Build()
 
@@ -932,6 +1164,7 @@ func TestLoginConfig_ZeroValue(t *testing.T) {
 	assert.Empty(t, cfg.NodeGroup)
 	assert.Empty(t, cfg.DataDir)
 	assert.Empty(t, cfg.GPUCount)
+	assert.Nil(t, cfg.NodeLabels)
 	assert.Empty(t, cfg.PublicIP)
 	assert.Empty(t, cfg.PrivateIP)
 }
@@ -1236,7 +1469,7 @@ func TestLogin_SendRequestWithDeprecatedErrorField(t *testing.T) {
 // TestSendRequest_URLCreationError tests error handling when URL creation fails.
 func TestSendRequestWrapper_URLCreationError(t *testing.T) {
 	mockey.PatchConvey("URL creation error", t, func() {
-		mockey.Mock(httputil.CreateURL).To(func(scheme, host, path string) (string, error) {
+		mockey.Mock(httputil.CreateURL).To(func(_, _, _ string) (string, error) {
 			return "", errors.New("invalid URL format")
 		}).Build()
 
@@ -1254,7 +1487,7 @@ func TestSendRequestWrapper_URLCreationError(t *testing.T) {
 func TestSendRequestWrapper_Success(t *testing.T) {
 	mockey.PatchConvey("successful send request", t, func() {
 		expectedURL := "https://example.com/api/v1/login"
-		mockey.Mock(httputil.CreateURL).To(func(scheme, host, path string) (string, error) {
+		mockey.Mock(httputil.CreateURL).To(func(_, _, _ string) (string, error) {
 			return expectedURL, nil
 		}).Build()
 
@@ -1281,7 +1514,7 @@ func TestSendRequestWrapper_Success(t *testing.T) {
 // TestSendRequest_SendRequestError tests error propagation from sendRequest.
 func TestSendRequestWrapper_SendRequestError(t *testing.T) {
 	mockey.PatchConvey("sendRequest returns error", t, func() {
-		mockey.Mock(httputil.CreateURL).To(func(scheme, host, path string) (string, error) {
+		mockey.Mock(httputil.CreateURL).To(func(_, _, _ string) (string, error) {
 			return "https://example.com/api/v1/login", nil
 		}).Build()
 

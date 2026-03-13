@@ -1,4 +1,6 @@
 // Package os queries the host OS information (e.g., kernel version).
+//
+//nolint:revive // package name follows the directory import path used across the codebase.
 package os
 
 import (
@@ -6,9 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -91,6 +95,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates the OS component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	return newComponent(gpudInstance, pstore.DefaultPstoreDir)
 }
@@ -526,27 +531,32 @@ type checkResult struct {
 	suggestedActions *apiv1.SuggestedActions
 }
 
+// MachineMetadata contains stable host identity values gathered from the OS.
 type MachineMetadata struct {
 	BootID        string `json:"boot_id"`
 	DmidecodeUUID string `json:"dmidecode_uuid"`
 	OSMachineID   string `json:"os_machine_id"`
 }
 
+// Host contains host-level identity fields.
 type Host struct {
 	ID string `json:"id"`
 }
 
+// Kernel contains kernel architecture and version information.
 type Kernel struct {
 	Arch    string `json:"arch"`
 	Version string `json:"version"`
 }
 
+// Platform contains OS platform metadata.
 type Platform struct {
 	Name    string `json:"name"`
 	Family  string `json:"family"`
 	Version string `json:"version"`
 }
 
+// Uptimes contains system uptime values in seconds.
 type Uptimes struct {
 	Seconds             uint64 `json:"seconds"`
 	BootTimeUnixSeconds uint64 `json:"boot_time_unix_seconds"`
@@ -561,7 +571,15 @@ func (cr *checkResult) String() string {
 		return ""
 	}
 
-	boottimeTS := time.Unix(int64(cr.Uptimes.BootTimeUnixSeconds), 0)
+	bootTimeUnixSeconds, err := strconv.ParseInt(
+		strconv.FormatUint(min(cr.Uptimes.BootTimeUnixSeconds, uint64(math.MaxInt64)), 10),
+		10,
+		64,
+	)
+	if err != nil {
+		bootTimeUnixSeconds = math.MaxInt64
+	}
+	boottimeTS := time.Unix(bootTimeUnixSeconds, 0)
 	nowUTC := time.Now().UTC()
 	uptimeHumanized := humanize.RelTime(boottimeTS, nowUTC, "ago", "from now")
 

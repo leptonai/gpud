@@ -19,7 +19,8 @@ func TestScan(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Add some mock devices and ports to scan
 	s.updateAllDeviceValues(map[string]any{"mlx5_0": nil, "mlx5_1": nil})
@@ -51,7 +52,8 @@ func TestScanWithTombstoneTimestamp(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Add some mock devices and ports
 	s.updateAllDeviceValues(map[string]any{"mlx5_0": nil})
@@ -75,7 +77,8 @@ func TestScanWithTombstoneTimestampError(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Corrupt the metadata table to cause getTombstoneTimestamp to fail
 	s.configMu.Lock()
@@ -96,7 +99,8 @@ func TestScanWithScanIBPortDropsError(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Add devices and ports
 	s.updateAllDeviceValues(map[string]any{"mlx5_0": nil})
@@ -121,7 +125,8 @@ func TestScanWithScanIBPortFlapsError(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Add devices and ports
 	s.updateAllDeviceValues(map[string]any{"mlx5_0": nil})
@@ -146,7 +151,8 @@ func TestScanWithSetEventTypeError(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Add devices and ports
 	s.updateAllDeviceValues(map[string]any{"mlx5_0": nil})
@@ -154,9 +160,9 @@ func TestScanWithSetEventTypeError(t *testing.T) {
 
 	// Insert test data that would create a drop event
 	currentTime := time.Now()
-	insertData(t, ctx, dbRW, s.historyTable, currentTime.Add(-10*time.Minute), "mlx5_0", 1, "")
-	insertData(t, ctx, dbRW, s.historyTable, currentTime.Add(-9*time.Minute), "mlx5_0", 1, "")
-	insertData(t, ctx, dbRW, s.historyTable, currentTime.Add(-8*time.Minute), "mlx5_0", 1, "")
+	insertData(ctx, t, dbRW, s.historyTable, currentTime.Add(-10*time.Minute), "mlx5_0", 1, "")
+	insertData(ctx, t, dbRW, s.historyTable, currentTime.Add(-9*time.Minute), "mlx5_0", 1, "")
+	insertData(ctx, t, dbRW, s.historyTable, currentTime.Add(-8*time.Minute), "mlx5_0", 1, "")
 
 	// Corrupt the history table to make SetEventType fail
 	// This will cause the UPDATE statement in SetEventType to fail
@@ -178,7 +184,8 @@ func TestScanWithCustomThresholds(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Set specific thresholds for testing
 	s.configMu.Lock()
@@ -204,7 +211,8 @@ func TestScanWithZeroTombstoneTimestamp(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Add devices and ports
 	s.updateAllDeviceValues(map[string]any{"mlx5_0": nil})
@@ -228,7 +236,8 @@ func TestScanWithTombstoneBeforeRetentionPeriod(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Add devices and ports
 	s.updateAllDeviceValues(map[string]any{"mlx5_0": nil})
@@ -252,7 +261,8 @@ func TestScanWithContextTimeout(t *testing.T) {
 	store, err := New(ctx, dbRW, dbRO)
 	require.NoError(t, err)
 
-	s := store.(*ibPortsStore)
+	s, ok := store.(*ibPortsStore)
+	require.True(t, ok)
 
 	// Use a context with very short timeout
 	shortCtx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)

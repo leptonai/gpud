@@ -291,7 +291,6 @@ func TestFabricStateToString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := devwrap.FabricStateToString(tt.state)
@@ -321,7 +320,6 @@ func TestFabricStatusToString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := devwrap.FabricStatusToString(tt.status)
@@ -366,7 +364,6 @@ func TestFabricSummaryToString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := devwrap.FabricSummaryToString(tt.summary)
@@ -456,7 +453,6 @@ func TestFabricStateReportRenderTable(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// Use RenderTable directly instead of the removed helper function
@@ -613,7 +609,7 @@ func (f *fakeNVMLInstanceDevices) Devices() map[string]devwrap.Device { return f
 func TestCollectFabricState_SortsEntriesAndReasons(t *testing.T) {
 	// Override NVML query with deterministic stub for this test
 	orig := getFabricInfoFn
-	getFabricInfoFn = func(dev interface{}) (devwrap.FabricState, error) {
+	getFabricInfoFn = func(dev any) (devwrap.FabricState, error) {
 		if d, ok := dev.(*issueDevice); ok {
 			return d.info, d.err
 		}
@@ -679,7 +675,7 @@ func TestCollectFabricState_SortsEntriesAndReasons(t *testing.T) {
 func TestCollectFabricState_SortsReasonsAcrossMultipleGPUs(t *testing.T) {
 	// Build three devices; two with issues, inserted out of order
 	orig := getFabricInfoFn
-	getFabricInfoFn = func(dev interface{}) (devwrap.FabricState, error) {
+	getFabricInfoFn = func(dev any) (devwrap.FabricState, error) {
 		if d, ok := dev.(*issueDevice); ok {
 			return d.info, d.err
 		}

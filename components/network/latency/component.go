@@ -25,9 +25,9 @@ import (
 const Name = "network-latency"
 
 const (
-	// 1 second
+	// MinGlobalMillisecondThreshold is the minimum allowed global latency threshold.
 	MinGlobalMillisecondThreshold = 1000
-	// 7 seconds by default to reach any of the DERP servers.
+	// DefaultGlobalMillisecondThreshold is the default global latency threshold.
 	DefaultGlobalMillisecondThreshold = 7000
 )
 
@@ -48,6 +48,7 @@ type component struct {
 	lastCheckResult *checkResult
 }
 
+// New creates a network latency component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	return &component{
@@ -83,7 +84,7 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
 	return nil, nil
 }
 

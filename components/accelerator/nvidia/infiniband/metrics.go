@@ -6,6 +6,7 @@ import (
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
 )
 
+// SubSystem is the Prometheus subsystem name for NVIDIA InfiniBand metrics.
 const SubSystem = "accelerator_nvidia_infiniband"
 
 var (

@@ -44,13 +44,13 @@ func TestSimpleDropProcessing(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 				// All thresholds met
 				return createHealthyDevices(8, 400), nil
 			},
 		}
 
-		cr := c.Check().(*checkResult)
+		cr := requireCheckResult(t, c.Check())
 
 		// Recent drop should be processed even with thresholds passing
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
@@ -84,13 +84,13 @@ func TestSimpleDropProcessing(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 				// Only 7 ports - thresholds failing
 				return createHealthyDevices(7, 400), nil
 			},
 		}
 
-		cr := c.Check().(*checkResult)
+		cr := requireCheckResult(t, c.Check())
 
 		// Should be unhealthy due to thresholds
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
@@ -107,7 +107,7 @@ type mockIBPortsStoreSimple struct {
 	events []infinibandstore.Event
 }
 
-func (m *mockIBPortsStoreSimple) Insert(time.Time, []types.IBPort) error {
+func (m *mockIBPortsStoreSimple) Insert(_ time.Time, _ []types.IBPort) error {
 	return nil
 }
 
@@ -115,11 +115,11 @@ func (m *mockIBPortsStoreSimple) Scan() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreSimple) LastEvents(since time.Time) ([]infinibandstore.Event, error) {
+func (m *mockIBPortsStoreSimple) LastEvents(_ time.Time) ([]infinibandstore.Event, error) {
 	return m.events, nil
 }
 
-func (m *mockIBPortsStoreSimple) SetEventType(string, uint, time.Time, string, string) error {
+func (m *mockIBPortsStoreSimple) SetEventType(_ string, _ uint, _ time.Time, _ string, _ string) error {
 	return nil
 }
 
@@ -127,6 +127,6 @@ func (m *mockIBPortsStoreSimple) SetHealthy() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreSimple) Tombstone(timestamp time.Time) error {
+func (m *mockIBPortsStoreSimple) Tombstone(_ time.Time) error {
 	return nil
 }

@@ -82,14 +82,14 @@ func TestDefaultConfig(t *testing.T) {
 		const numGoroutines = 10
 		results := make(chan pkgnfschecker.Configs, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			go func() {
 				results <- GetDefaultConfigs()
 			}()
 		}
 
 		// Collect all results
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			result := <-results
 			assert.Len(t, result, 1)
 			resultConfig := result[0]

@@ -14,6 +14,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
+// DefaultKubeletReadOnlyPort is the kubelet read-only port used for pod listing.
 const DefaultKubeletReadOnlyPort = 10255
 
 // ListPodsFromKubeletReadOnlyPort returns the node name and the list of pods
@@ -144,20 +145,22 @@ type PodStatus struct {
 	ContainerStatuses     []ContainerStatus `json:"containerStatuses,omitempty"`
 }
 
+// PodCondition is the simplified pod condition returned from the kubelet API.
 // ref. https://pkg.go.dev/k8s.io/api/core/v1#PodCondition
 type PodCondition struct {
 	Type               string      `json:"type,omitempty"`
 	Status             string      `json:"status,omitempty"`
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitzero"`
 	Reason             string      `json:"reason,omitempty"`
 	Message            string      `json:"message,omitempty"`
 }
 
+// ContainerStatus is the simplified container status returned from the kubelet API.
 // ref. https://pkg.go.dev/k8s.io/api/core/v1#ContainerStatus
 // ref. https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-and-container-status
 type ContainerStatus struct {
 	Name         string                `json:"name,omitempty"`
-	State        corev1.ContainerState `json:"state,omitempty"`
+	State        corev1.ContainerState `json:"state,omitzero"`
 	Ready        bool                  `json:"ready"`
 	RestartCount int32                 `json:"restartCount"`
 	Image        string                `json:"image,omitempty"`

@@ -119,6 +119,14 @@ func MockTemperatureComponent(
 	return c
 }
 
+func mustComponent(t *testing.T, c components.Component) *component {
+	t.Helper()
+
+	component, ok := c.(*component)
+	require.True(t, ok)
+	return component
+}
+
 func TestNew(t *testing.T) {
 	ctx := context.Background()
 	mockNVML := &mockNVMLInstance{
@@ -227,11 +235,11 @@ func TestCheck_HBMTemperatureExceedingThreshold(t *testing.T) {
 		UsedPercentGPUMax:              "75.00",
 	}
 
-	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+	getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 		return temperature, nil
 	}
 
-	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 	result := component.Check()
 
 	data, ok := result.(*checkResult)
@@ -281,11 +289,11 @@ func TestCheck_CurrentTemperatureExceedingThreshold(t *testing.T) {
 		UsedPercentGPUMax:              "75.00",
 	}
 
-	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+	getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 		return temperature, nil
 	}
 
-	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 	result := component.Check()
 
 	data, ok := result.(*checkResult)
@@ -335,11 +343,11 @@ func TestCheck_Success(t *testing.T) {
 		UsedPercentGPUMax:              "75.00", // 75/100 = 75%
 	}
 
-	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+	getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 		return temperature, nil
 	}
 
-	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 	result := component.Check()
 
 	// Verify the data was collected
@@ -375,11 +383,11 @@ func TestCheck_TemperatureError(t *testing.T) {
 	}
 
 	errExpected := errors.New("temperature error")
-	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+	getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 		return Temperature{}, errExpected
 	}
 
-	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 	result := component.Check()
 
 	// Verify error handling
@@ -401,7 +409,7 @@ func TestCheck_NoDevices(t *testing.T) {
 		prodName: "Test GPU",
 	}
 
-	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, nil))
 	result := component.Check()
 
 	// Verify handling of no devices
@@ -449,11 +457,11 @@ func TestCheck_GetUsedPercentSlowdownError(t *testing.T) {
 		UsedPercentGPUMax:        "75.00",
 	}
 
-	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+	getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 		return invalidTemperature, nil
 	}
 
-	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 	result := component.Check()
 
 	// Verify error handling for GetUsedPercentSlowdown failure
@@ -473,7 +481,7 @@ func TestLastHealthStates_WithData(t *testing.T) {
 		exists:   true,
 		prodName: "Test GPU",
 	}
-	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, nil))
 
 	// Set test data
 	component.lastMu.Lock()
@@ -515,7 +523,7 @@ func TestLastHealthStates_WithError(t *testing.T) {
 		exists:   true,
 		prodName: "Test GPU",
 	}
-	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, nil))
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -544,7 +552,7 @@ func TestLastHealthStates_NoData(t *testing.T) {
 		exists:   true,
 		prodName: "Test GPU",
 	}
-	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, nil))
 
 	// Don't set any data
 
@@ -573,7 +581,7 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Create mock NVML instance with devices
@@ -595,7 +603,7 @@ func TestStart(t *testing.T) {
 		prodName: "Test GPU",
 	}
 
-	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+	getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 		callCount.Add(1)
 		return Temperature{}, nil
 	}
@@ -621,7 +629,7 @@ func TestClose(t *testing.T) {
 		exists:   true,
 		prodName: "Test GPU",
 	}
-	component := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, nil))
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -742,11 +750,11 @@ func TestCheck_MarginTemperatureThreshold(t *testing.T) {
 				UsedPercentGPUMax:              "80.00", // 80/100 = 80.00%
 			}
 
-			getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+			getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 				return temperature, nil
 			}
 
-			component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+			component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 			result := component.Check()
 
 			// Verify the data was collected
@@ -838,11 +846,11 @@ func TestCheck_MarginTemperatureFallbackToHBM(t *testing.T) {
 				UsedPercentGPUMax:              "70.00",
 			}
 
-			getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+			getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 				return temperature, nil
 			}
 
-			component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+			component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 			result := component.Check()
 
 			data, ok := result.(*checkResult)
@@ -916,11 +924,11 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+	getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 		return Temperature{}, nvmlerrors.ErrGPULost
 	}
 
-	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 	result := component.Check()
 
 	// Verify error handling for GPU lost case
@@ -1174,7 +1182,7 @@ func TestCheck_NVMLNotExists(t *testing.T) {
 		prodName: "Test GPU",
 	}
 
-	comp := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
+	comp := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, nil))
 	result := comp.Check()
 
 	cr, ok := result.(*checkResult)
@@ -1225,7 +1233,7 @@ func TestCheck_EmptyProductName(t *testing.T) {
 		prodName: "",
 	}
 
-	comp := MockTemperatureComponent(ctx, mockNVML, nil).(*component)
+	comp := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, nil))
 	result := comp.Check()
 
 	cr, ok := result.(*checkResult)
@@ -1409,11 +1417,11 @@ func TestCheck_MarginTemperatureThresholdEdgeCases(t *testing.T) {
 				UsedPercentGPUMax:              "80.00",
 			}
 
-			getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+			getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 				return temperature, nil
 			}
 
-			component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+			component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 			result := component.Check()
 
 			data, ok := result.(*checkResult)
@@ -1456,11 +1464,11 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error
-	getTemperatureFunc := func(uuid string, dev device.Device) (Temperature, error) {
+	getTemperatureFunc := func(_ string, _ device.Device) (Temperature, error) {
 		return Temperature{}, nvmlerrors.ErrGPURequiresReset
 	}
 
-	component := MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc).(*component)
+	component := mustComponent(t, MockTemperatureComponent(ctx, mockNVML, getTemperatureFunc))
 	result := component.Check()
 
 	// Verify check result carries suggested actions

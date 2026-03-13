@@ -6,12 +6,22 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	"github.com/leptonai/gpud/components"
 	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
 	infinibandstore "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/store"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 )
+
+func requireCheckResult(t *testing.T, got components.CheckResult) *checkResult {
+	t.Helper()
+
+	cr, ok := got.(*checkResult)
+	require.True(t, ok, "expected *checkResult, got %T", got)
+	return cr
+}
 
 // TestProductionScenarios tests the exact three node scenarios from a.md
 // that motivated the sticky window implementation.
@@ -42,7 +52,7 @@ func TestProductionScenarios(t *testing.T) {
 		}
 
 		c := createTestComponent(checkTime, mockStore, 10*time.Minute, true)
-		cr := c.Check().(*checkResult)
+		cr := requireCheckResult(t, c.Check())
 
 		// Flaps should always be sticky until SetHealthy
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
@@ -67,7 +77,7 @@ func TestProductionScenarios(t *testing.T) {
 		}
 
 		c := createTestComponent(checkTime, mockStore, 10*time.Minute, true)
-		cr := c.Check().(*checkResult)
+		cr := requireCheckResult(t, c.Check())
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 			"Node 2: Flaps correctly remain sticky")
@@ -103,7 +113,7 @@ func TestProductionScenarios(t *testing.T) {
 			}
 
 			c := createTestComponent(recallTime, mockStore, 10*time.Minute, false) // Ports down
-			cr := c.Check().(*checkResult)
+			cr := requireCheckResult(t, c.Check())
 
 			assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 			assert.Contains(t, cr.reason, "only 7 port(s) are active")
@@ -128,7 +138,7 @@ func TestProductionScenarios(t *testing.T) {
 
 			// Simulate OLD behavior with no sticky window
 			c := createTestComponent(recoveryTime, mockStore, 0, true) // Sticky window disabled
-			cr := c.Check().(*checkResult)
+			cr := requireCheckResult(t, c.Check())
 
 			// OLD BEHAVIOR: Immediately healthy (confusing!)
 			assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
@@ -155,7 +165,7 @@ func TestProductionScenarios(t *testing.T) {
 			recoveryTimeAdjusted := recoveryTime.Add(-30 * time.Second)
 			c.thresholdRecoveryTime = &recoveryTimeAdjusted
 
-			cr := c.Check().(*checkResult)
+			cr := requireCheckResult(t, c.Check())
 
 			// NEW BEHAVIOR: Stays unhealthy during sticky window
 			assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
@@ -179,7 +189,7 @@ func TestProductionScenarios(t *testing.T) {
 			}
 
 			c := createTestComponent(afterStickyTime, mockStore, 10*time.Minute, true)
-			cr := c.Check().(*checkResult)
+			cr := requireCheckResult(t, c.Check())
 
 			assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 				"After sticky window expires: Correctly becomes Healthy")
@@ -243,13 +253,13 @@ func TestDormantPortHandling(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 				// 8 healthy ports (meeting threshold) + 4 dormant ports
 				return createMixedDevices(8, 4), nil
 			},
 		}
 
-		cr := c.Check().(*checkResult)
+		cr := requireCheckResult(t, c.Check())
 
 		// CRITICAL: Dormant ports should NOT cause issues when:
 		// 1. Thresholds are met (8 ports active)
@@ -289,13 +299,13 @@ func TestDormantPortHandling(t *testing.T) {
 					AtLeastRate:  400,
 				}
 			},
-			getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+			getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 				// Only 7 healthy ports (threshold failure)
 				return createMixedDevices(7, 5), nil
 			},
 		}
 
-		cr := c.Check().(*checkResult)
+		cr := requireCheckResult(t, c.Check())
 
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
 			"When thresholds fail, all drops are relevant")
@@ -320,7 +330,7 @@ func createTestComponent(checkTime time.Time, store infinibandstore.Store, stick
 				AtLeastRate:  400,
 			}
 		},
-		getClassDevicesFunc: func(ignoreFiles map[string]struct{}) (infinibandclass.Devices, error) {
+		getClassDevicesFunc: func(_ map[string]struct{}) (infinibandclass.Devices, error) {
 			if portsHealthy {
 				return createHealthyDevices(8, 400), nil
 			}
@@ -334,7 +344,7 @@ type mockIBPortsStoreProduction struct {
 	events []infinibandstore.Event
 }
 
-func (m *mockIBPortsStoreProduction) Insert(time.Time, []types.IBPort) error {
+func (m *mockIBPortsStoreProduction) Insert(_ time.Time, _ []types.IBPort) error {
 	return nil
 }
 
@@ -342,11 +352,11 @@ func (m *mockIBPortsStoreProduction) Scan() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreProduction) LastEvents(since time.Time) ([]infinibandstore.Event, error) {
+func (m *mockIBPortsStoreProduction) LastEvents(_ time.Time) ([]infinibandstore.Event, error) {
 	return m.events, nil
 }
 
-func (m *mockIBPortsStoreProduction) SetEventType(string, uint, time.Time, string, string) error {
+func (m *mockIBPortsStoreProduction) SetEventType(_ string, _ uint, _ time.Time, _ string, _ string) error {
 	return nil
 }
 
@@ -354,7 +364,7 @@ func (m *mockIBPortsStoreProduction) SetHealthy() error {
 	return nil
 }
 
-func (m *mockIBPortsStoreProduction) Tombstone(timestamp time.Time) error {
+func (m *mockIBPortsStoreProduction) Tombstone(_ time.Time) error {
 	return nil
 }
 

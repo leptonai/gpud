@@ -32,12 +32,17 @@ import (
 const Name = "accelerator-nvidia-error-sxid"
 
 const (
+	// StateNameErrorSXid is the health state name for SXID errors.
 	StateNameErrorSXid = "error_sxid"
 
-	EventNameErrorSXid    = "error_sxid"
+	// EventNameErrorSXid is emitted when GPUd detects an SXID error.
+	EventNameErrorSXid = "error_sxid"
+	// EventKeyErrorSXidData stores the serialized SXID payload.
 	EventKeyErrorSXidData = "data"
-	EventKeyDeviceUUID    = "device_uuid"
+	// EventKeyDeviceUUID stores the device identifier associated with an SXID event.
+	EventKeyDeviceUUID = "device_uuid"
 
+	// DefaultStateUpdatePeriod is the background SXID state refresh period.
 	DefaultStateUpdatePeriod = 30 * time.Second
 )
 
@@ -65,6 +70,7 @@ type component struct {
 	currState apiv1.HealthState
 }
 
+// New returns the NVIDIA SXID component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -262,8 +268,8 @@ func (c *component) Check() components.CheckResult {
 			continue
 		}
 		cr.FoundErrors = append(cr.FoundErrors, FoundError{
-			Kmsg:      kmsg,
-			SXidError: *sxidErr,
+			Kmsg:  kmsg,
+			Error: *sxidErr,
 		})
 	}
 
@@ -294,7 +300,7 @@ type checkResult struct {
 // FoundError represents a found SXID error and its corresponding kmsg.
 type FoundError struct {
 	Kmsg kmsg.Message
-	SXidError
+	Error
 }
 
 func (cr *checkResult) ComponentName() string {

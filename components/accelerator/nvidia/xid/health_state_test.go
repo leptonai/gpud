@@ -38,6 +38,22 @@ func createXidEvent(eventTime time.Time, xid uint64, eventType apiv1.EventType, 
 	return ret
 }
 
+func mustUint64FromInt(t *testing.T, v int) uint64 {
+	t.Helper()
+
+	ret, ok := uint64FromInt(v)
+	require.True(t, ok)
+	return ret
+}
+
+func mustIntFromUint64(t *testing.T, v uint64) int {
+	t.Helper()
+
+	ret, ok := intFromUint64(v)
+	require.True(t, ok)
+	return ret
+}
+
 // createXidEventWithNilSuggestedActions creates an XID event with SuggestedActionsByGPUd=nil.
 // This simulates XIDs that don't have suggested actions defined in the catalog.
 func createXidEventWithNilSuggestedActions(eventTime time.Time, xid uint64, eventType apiv1.EventType) eventstore.Event {
@@ -322,7 +338,7 @@ func Test_MatchToEventMessageFlowFormatsMnemonic(t *testing.T) {
 
 			xidPayload := xidErrorEventDetail{
 				DeviceUUID: xidErr.DeviceUUID,
-				Xid:        uint64(xidErr.Xid),
+				Xid:        mustUint64FromInt(t, xidErr.Xid),
 			}
 			if xidErr.Detail != nil {
 				xidPayload.SubCode = xidErr.Detail.SubCode
@@ -375,7 +391,7 @@ func Test_SubCodeDifferentiatesSameUnit(t *testing.T) {
 			// Step 3: Create the event detail payload (simulating component.go)
 			xidPayload := xidErrorEventDetail{
 				DeviceUUID:         xidErr.DeviceUUID,
-				Xid:                uint64(xidErr.Xid),
+				Xid:                mustUint64FromInt(t, xidErr.Xid),
 				SubCode:            xidErr.Detail.SubCode,
 				SubCodeDescription: xidErr.Detail.SubCodeDescription,
 				InvestigatoryHint:  xidErr.Detail.InvestigatoryHint,
@@ -525,7 +541,7 @@ func Test_StatusAwareMessages(t *testing.T) {
 
 			xidPayload := xidErrorEventDetail{
 				DeviceUUID:         xidErr.DeviceUUID,
-				Xid:                uint64(xidErr.Xid),
+				Xid:                mustUint64FromInt(t, xidErr.Xid),
 				SubCode:            xidErr.Detail.SubCode,
 				SubCodeDescription: xidErr.Detail.SubCodeDescription,
 				InvestigatoryHint:  xidErr.Detail.InvestigatoryHint,
@@ -640,7 +656,7 @@ func Test_HealthStateReason_NVLinkXIDs(t *testing.T) {
 			// Simulate the component behavior: create event and resolve it
 			xidPayload := xidErrorEventDetail{
 				DeviceUUID:         xidErr.DeviceUUID,
-				Xid:                uint64(xidErr.Xid),
+				Xid:                mustUint64FromInt(t, xidErr.Xid),
 				SubCode:            xidErr.Detail.SubCode,
 				SubCodeDescription: xidErr.Detail.SubCodeDescription,
 				InvestigatoryHint:  xidErr.Detail.InvestigatoryHint,
@@ -756,7 +772,7 @@ func Test_HealthStateReason_StandardXIDs(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Get detail from catalog
-			detail, ok := GetDetail(int(tc.xid))
+			detail, ok := GetDetail(mustIntFromUint64(t, tc.xid))
 			require.True(t, ok, "should find detail for XID %d", tc.xid)
 
 			xidPayload := xidErrorEventDetail{
@@ -1096,7 +1112,7 @@ func Test_EventType_EndToEnd_MatchThenAddEventDetails(t *testing.T) {
 			// Step 2: Create event with the correct Type from Match()
 			xidPayload := xidErrorEventDetail{
 				DeviceUUID:             xidErr.DeviceUUID,
-				Xid:                    uint64(xidErr.Xid),
+				Xid:                    mustUint64FromInt(t, xidErr.Xid),
 				SubCode:                xidErr.Detail.SubCode,
 				SubCodeDescription:     xidErr.Detail.SubCodeDescription,
 				ErrorStatus:            xidErr.Detail.ErrorStatus,
@@ -1164,7 +1180,7 @@ func Test_ComponentEventCreation_SetsEventType(t *testing.T) {
 				Time:       metav1.NewTime(time.Now()),
 				DataSource: "kmsg",
 				DeviceUUID: xidErr.DeviceUUID,
-				Xid:        uint64(xidErr.Xid),
+				Xid:        mustUint64FromInt(t, xidErr.Xid),
 			}
 			if xidErr.Detail != nil {
 				xidPayload.SubCode = xidErr.Detail.SubCode
@@ -1244,7 +1260,7 @@ func Test_NVLink_NonExtendedFormat_RebootRecovery(t *testing.T) {
 			// Create event and verify reboot clears it
 			xidPayload := xidErrorEventDetail{
 				DeviceUUID:             xidErr.DeviceUUID,
-				Xid:                    uint64(xidErr.Xid),
+				Xid:                    mustUint64FromInt(t, xidErr.Xid),
 				SuggestedActionsByGPUd: xidErr.Detail.SuggestedActionsByGPUd,
 			}
 			xidData, _ := json.Marshal(xidPayload)

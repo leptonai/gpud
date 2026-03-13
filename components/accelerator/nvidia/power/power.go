@@ -10,6 +10,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
+// Power reports NVIDIA GPU power readings and support flags.
 type Power struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
@@ -29,10 +30,12 @@ type Power struct {
 	GetPowerManagementLimitSupported bool `json:"get_power_management_limit_supported"`
 }
 
+// GetUsedPercent parses the cached percentage of used power.
 func (power Power) GetUsedPercent() (float64, error) {
 	return strconv.ParseFloat(power.UsedPercent, 64)
 }
 
+// GetPower queries power usage and power limits for a device.
 func GetPower(uuid string, dev device.Device) (Power, error) {
 	power := Power{
 		UUID:  uuid,
@@ -41,9 +44,10 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7ef7dff0ff14238d08a19ad7fb23fc87
 	powerUsage, ret := dev.GetPowerUsage()
-	if nvmlerrors.IsNotSupportError(ret) {
+	switch {
+	case nvmlerrors.IsNotSupportError(ret):
 		power.GetPowerUsageSupported = false
-	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+	case ret != nvml.SUCCESS: // not a "not supported" error, not a success return, thus return an error here
 		if nvmlerrors.IsGPULostError(ret) {
 			return power, nvmlerrors.ErrGPULost
 		}
@@ -51,16 +55,17 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 			return power, nvmlerrors.ErrGPURequiresReset
 		}
 		return power, fmt.Errorf("failed to get device power usage: %v", nvml.ErrorString(ret))
-	} else {
+	default:
 		power.GetPowerUsageSupported = true
 	}
 	power.UsageMilliWatts = powerUsage
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g263b5bf552d5ec7fcd29a088264d10ad
 	enforcedPowerLimit, ret := dev.GetEnforcedPowerLimit()
-	if nvmlerrors.IsNotSupportError(ret) {
+	switch {
+	case nvmlerrors.IsNotSupportError(ret):
 		power.GetPowerLimitSupported = false
-	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+	case ret != nvml.SUCCESS: // not a "not supported" error, not a success return, thus return an error here
 		if nvmlerrors.IsGPULostError(ret) {
 			return power, nvmlerrors.ErrGPULost
 		}
@@ -68,16 +73,17 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 			return power, nvmlerrors.ErrGPURequiresReset
 		}
 		return power, fmt.Errorf("failed to get device power limit: %v", nvml.ErrorString(ret))
-	} else {
+	default:
 		power.GetPowerLimitSupported = true
 	}
 	power.EnforcedLimitMilliWatts = enforcedPowerLimit
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf754f109beca3a4a8c8c1cd650d7d66c
 	managementPowerLimit, ret := dev.GetPowerManagementLimit()
-	if nvmlerrors.IsNotSupportError(ret) {
+	switch {
+	case nvmlerrors.IsNotSupportError(ret):
 		power.GetPowerManagementLimitSupported = false
-	} else if ret != nvml.SUCCESS { // not a "not supported" error, not a success return, thus return an error here
+	case ret != nvml.SUCCESS: // not a "not supported" error, not a success return, thus return an error here
 		if nvmlerrors.IsGPULostError(ret) {
 			return power, nvmlerrors.ErrGPULost
 		}
@@ -85,7 +91,7 @@ func GetPower(uuid string, dev device.Device) (Power, error) {
 			return power, nvmlerrors.ErrGPURequiresReset
 		}
 		return power, fmt.Errorf("failed to get device power management limit: %v", nvml.ErrorString(ret))
-	} else {
+	default:
 		power.GetPowerManagementLimitSupported = true
 	}
 	power.ManagementLimitMilliWatts = managementPowerLimit

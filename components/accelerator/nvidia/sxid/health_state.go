@@ -3,6 +3,7 @@ package sxid
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,8 +44,7 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 	var lastSXidErr *sxidErrorEventDetail
 	lastHealth := healthStateHealthy
 	sxidRebootMap := make(map[uint64]int)
-	for i := len(events) - 1; i >= 0; i-- {
-		event := events[i]
+	for _, event := range slices.Backward(events) {
 		log.Logger.Debugf("EvolveHealthyState: event: %v %v %+v %+v %+v", event.Time, event.Name, lastSuggestedAction, sxidRebootMap, lastSXidErr)
 		if event.Name == EventNameErrorSXid {
 			resolvedEvent := resolveSXIDEvent(event)
@@ -92,8 +92,12 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 	if lastSXidErr == nil {
 		reason = "SXIDComponent is healthy"
 	} else {
-		if sxidDetail, ok := GetDetail(int(lastSXidErr.SXid)); ok {
-			reason = fmt.Sprintf("SXID %d(%s) detected on %s", lastSXidErr.SXid, sxidDetail.Name, lastSXidErr.DeviceUUID)
+		if sxidID, ok := intFromUint64(lastSXidErr.SXid); ok {
+			if sxidDetail, found := GetDetail(sxidID); found {
+				reason = fmt.Sprintf("SXID %d(%s) detected on %s", lastSXidErr.SXid, sxidDetail.Name, lastSXidErr.DeviceUUID)
+			} else {
+				reason = fmt.Sprintf("SXID %d detected on %s", lastSXidErr.SXid, lastSXidErr.DeviceUUID)
+			}
 		} else {
 			reason = fmt.Sprintf("SXID %d detected on %s", lastSXidErr.SXid, lastSXidErr.DeviceUUID)
 		}
@@ -117,11 +121,16 @@ func resolveSXIDEvent(event eventstore.Event) eventstore.Event {
 			ret.Type = string(detail.EventType)
 			ret.Message = fmt.Sprintf("SXID %d(%s) detected on %s", currSXid, detail.Name, event.ExtraInfo[EventKeyDeviceUUID])
 
+			sxidValue, ok := uint64FromInt(currSXid)
+			if !ok {
+				return ret
+			}
+
 			sxidErr := sxidErrorEventDetail{
 				Time:                   metav1.NewTime(event.Time),
 				DataSource:             "kmsg",
 				DeviceUUID:             event.ExtraInfo[EventKeyDeviceUUID],
-				SXid:                   uint64(currSXid),
+				SXid:                   sxidValue,
 				SuggestedActionsByGPUd: detail.SuggestedActionsByGPUd,
 			}
 			raw, _ := json.Marshal(sxidErr)
@@ -149,4 +158,20 @@ type sxidErrorEventDetail struct {
 
 	// SuggestedActionsByGPUd are the suggested actions for the error.
 	SuggestedActionsByGPUd *apiv1.SuggestedActions `json:"suggested_actions_by_gpud,omitempty"`
+}
+
+const maxIntValue = int(^uint(0) >> 1)
+
+func intFromUint64(v uint64) (int, bool) {
+	if v > uint64(maxIntValue) {
+		return 0, false
+	}
+	return int(v), true
+}
+
+func uint64FromInt(v int) (uint64, bool) {
+	if v < 0 {
+		return 0, false
+	}
+	return uint64(v), true
 }

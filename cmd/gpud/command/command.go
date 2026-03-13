@@ -58,6 +58,9 @@ sudo gpud up
 # sign up here: https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton
 sudo gpud up --token <LEPTON_AI_TOKEN>
 
+# to attach custom node labels during login (keys without 'user.node.lepton.ai/' are auto-prefixed before Kubernetes label-key validation)
+sudo gpud up --token <LEPTON_AI_TOKEN> --node-labels '{"team":"ml","rack":"r42"}'
+
 # to start gpud without a systemd unit (e.g., mac)
 gpud run
 
@@ -100,6 +103,10 @@ nohup sudo gpud run &>> <your log file path> &
 				cli.StringFlag{
 					Name:  "node-group",
 					Usage: "(optional) node group to join",
+				},
+				cli.StringFlag{
+					Name:  "node-labels",
+					Usage: "(optional) JSON object of Kubernetes node label key/value pairs to send during login; keys without the 'user.node.lepton.ai/' prefix are auto-prefixed before Kubernetes label-key validation; use '{}' to clear previously managed labels",
 				},
 				cli.StringFlag{
 					Name:  "endpoint",

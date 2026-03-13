@@ -79,7 +79,7 @@ func Test_NVLinkLogCoverage(t *testing.T) {
 			// Create the payload and use buildMessage
 			xidPayload := xidErrorEventDetail{
 				DeviceUUID:         xidErr.DeviceUUID,
-				Xid:                uint64(xidErr.Xid),
+				Xid:                mustUint64FromInt(t, xidErr.Xid),
 				SubCode:            xidErr.Detail.SubCode,
 				SubCodeDescription: xidErr.Detail.SubCodeDescription,
 				InvestigatoryHint:  xidErr.Detail.InvestigatoryHint,

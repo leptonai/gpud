@@ -38,12 +38,20 @@ func (m *mockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*eventstore.Event), args.Error(1)
+	ev, ok := args.Get(0).(*eventstore.Event)
+	if !ok {
+		return nil, fmt.Errorf("expected *eventstore.Event, got %T", args.Get(0))
+	}
+	return ev, args.Error(1)
 }
 
 func (m *mockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).(eventstore.Events), args.Error(1)
+	evs, ok := args.Get(0).(eventstore.Events)
+	if !ok {
+		return nil, fmt.Errorf("expected eventstore.Events, got %T", args.Get(0))
+	}
+	return evs, args.Error(1)
 }
 
 func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
@@ -51,7 +59,11 @@ func (m *mockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*eventstore.Event), args.Error(1)
+	ev, ok := args.Get(0).(*eventstore.Event)
+	if !ok {
+		return nil, fmt.Errorf("expected *eventstore.Event, got %T", args.Get(0))
+	}
+	return ev, args.Error(1)
 }
 
 func (m *mockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -245,11 +257,11 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 	}
 
 	// Mock functions
-	mockGetTimeStatFunc := func(ctx context.Context) (cpu.TimesStat, error) {
+	mockGetTimeStatFunc := func(_ context.Context) (cpu.TimesStat, error) {
 		return mockCurTimeStat, nil
 	}
 
-	mockGetUsedPctFunc := func(ctx context.Context) (float64, error) {
+	mockGetUsedPctFunc := func(_ context.Context) (float64, error) {
 		return 25.5, nil
 	}
 
@@ -259,7 +271,7 @@ func TestComponentCheckOnceSuccess(t *testing.T) {
 		Load15: 1.1,
 	}
 
-	mockGetLoadAvgStatFunc := func(ctx context.Context) (*load.AvgStat, error) {
+	mockGetLoadAvgStatFunc := func(_ context.Context) (*load.AvgStat, error) {
 		return mockLoadAvgStat, nil
 	}
 
@@ -300,7 +312,7 @@ func TestComponentCheckOnceWithCPUUsageError(t *testing.T) {
 	testError := errors.New("CPU usage calculation error")
 
 	// Mock functions
-	mockGetTimeStatFunc := func(ctx context.Context) (cpu.TimesStat, error) {
+	mockGetTimeStatFunc := func(_ context.Context) (cpu.TimesStat, error) {
 		return cpu.TimesStat{}, testError
 	}
 
@@ -362,15 +374,15 @@ func TestComponentCheckOnceWithLoadAvgError(t *testing.T) {
 	testError := errors.New("load average calculation error")
 
 	// Mock functions
-	mockGetTimeStatFunc := func(ctx context.Context) (cpu.TimesStat, error) {
+	mockGetTimeStatFunc := func(_ context.Context) (cpu.TimesStat, error) {
 		return mockCurTimeStat, nil
 	}
 
-	mockGetUsedPctFunc := func(ctx context.Context) (float64, error) {
+	mockGetUsedPctFunc := func(_ context.Context) (float64, error) {
 		return 25.5, nil
 	}
 
-	mockGetLoadAvgStatFunc := func(ctx context.Context) (*load.AvgStat, error) {
+	mockGetLoadAvgStatFunc := func(_ context.Context) (*load.AvgStat, error) {
 		return nil, testError
 	}
 
@@ -437,11 +449,11 @@ func TestComponentCheckOnceWithGetUsedPctError(t *testing.T) {
 	testError := errors.New("CPU percent calculation error")
 
 	// Mock functions
-	mockGetTimeStatFunc := func(ctx context.Context) (cpu.TimesStat, error) {
+	mockGetTimeStatFunc := func(_ context.Context) (cpu.TimesStat, error) {
 		return cpu.TimesStat{}, nil
 	}
 
-	mockGetUsedPctFunc := func(ctx context.Context) (float64, error) {
+	mockGetUsedPctFunc := func(_ context.Context) (float64, error) {
 		return 0, testError
 	}
 
@@ -474,13 +486,13 @@ func TestComponentStart(t *testing.T) {
 		ctx:    ctx,
 		cancel: cancel,
 
-		getTimeStatFunc: func(ctx context.Context) (cpu.TimesStat, error) {
+		getTimeStatFunc: func(_ context.Context) (cpu.TimesStat, error) {
 			return cpu.TimesStat{}, nil
 		},
-		getUsedPctFunc: func(ctx context.Context) (float64, error) {
+		getUsedPctFunc: func(_ context.Context) (float64, error) {
 			return 0, nil
 		},
-		getLoadAvgStatFunc: func(ctx context.Context) (*load.AvgStat, error) {
+		getLoadAvgStatFunc: func(_ context.Context) (*load.AvgStat, error) {
 			return &load.AvgStat{}, nil
 		},
 
@@ -660,7 +672,7 @@ func TestCheckHealthState(t *testing.T) {
 	c := &component{
 		ctx:    ctx,
 		cancel: cancel,
-		getTimeStatFunc: func(ctx context.Context) (cpu.TimesStat, error) {
+		getTimeStatFunc: func(_ context.Context) (cpu.TimesStat, error) {
 			return cpu.TimesStat{
 				CPU:    "cpu-total",
 				User:   1000,
@@ -668,10 +680,10 @@ func TestCheckHealthState(t *testing.T) {
 				Idle:   8000,
 			}, nil
 		},
-		getUsedPctFunc: func(ctx context.Context) (float64, error) {
+		getUsedPctFunc: func(_ context.Context) (float64, error) {
 			return 25.5, nil
 		},
-		getLoadAvgStatFunc: func(ctx context.Context) (*load.AvgStat, error) {
+		getLoadAvgStatFunc: func(_ context.Context) (*load.AvgStat, error) {
 			return &load.AvgStat{
 				Load1:  1.5,
 				Load5:  1.25,

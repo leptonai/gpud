@@ -21,6 +21,7 @@ func (s *ibPortsStore) SetEventType(device string, port uint, timestamp time.Tim
 	rootCtx := s.rootCtx
 	s.configMu.RUnlock()
 
+	//nolint:gosec // Table and column names are internal store identifiers, not user input.
 	query := fmt.Sprintf(`UPDATE %s SET %s = ?, %s = ? WHERE %s = ? AND %s = ? AND %s = ?;`,
 		historyTable,
 		historyTableColumnEventType, historyTableColumnEventReason,
@@ -58,6 +59,7 @@ type Event struct {
 	EventReason string
 }
 
+// Events is a collection of InfiniBand port events.
 type Events []Event
 
 // LastEvents only returns the last event per device and per port,
@@ -103,6 +105,7 @@ func (s *ibPortsStore) LastEvents(since time.Time) ([]Event, error) {
 }
 
 func (s *ibPortsStore) lastEvents(device string, port uint, since time.Time) ([]Event, error) {
+	//nolint:gosec // Table and column names are internal store identifiers, not user input.
 	query := fmt.Sprintf(`SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s FROM %s WHERE %s = ? AND %s = ? AND %s != ""`,
 		historyTableColumnTimestamp,
 		historyTableColumnDevice,

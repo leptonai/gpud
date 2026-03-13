@@ -40,6 +40,22 @@ func MockPowerComponent(
 	}
 }
 
+func mustComponent(t *testing.T, comp components.Component) *component {
+	t.Helper()
+
+	c, ok := comp.(*component)
+	require.True(t, ok)
+	return c
+}
+
+func mustCheckResult(t *testing.T, result components.CheckResult) *checkResult {
+	t.Helper()
+
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	return cr
+}
+
 // mockNVMLInstance implements InstanceV2 interface for testing
 type mockNVMLInstance struct {
 	devices map[string]device.Device
@@ -178,15 +194,14 @@ func TestCheckOnce_Success(t *testing.T) {
 		GetPowerManagementLimitSupported: true,
 	}
 
-	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
+	getPowerFunc := func(_ string, _ device.Device) (Power, error) {
 		return power, nil
 	}
 
-	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, mockNvml, getPowerFunc))
 	result := component.Check()
 
-	// Cast the result to *checkResult
-	lastCheckResult := result.(*checkResult)
+	lastCheckResult := mustCheckResult(t, result)
 
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
@@ -215,15 +230,14 @@ func TestCheckOnce_PowerError(t *testing.T) {
 	}
 
 	errExpected := errors.New("power error")
-	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
+	getPowerFunc := func(_ string, _ device.Device) (Power, error) {
 		return Power{}, errExpected
 	}
 
-	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, mockNvml, getPowerFunc))
 	result := component.Check()
 
-	// Cast the result to *checkResult
-	lastCheckResult := result.(*checkResult)
+	lastCheckResult := mustCheckResult(t, result)
 
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
@@ -238,11 +252,10 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 		devices: map[string]device.Device{}, // Empty map
 	}
 
-	component := MockPowerComponent(ctx, mockNvml, nil).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, mockNvml, nil))
 	result := component.Check()
 
-	// Cast the result to *checkResult
-	lastCheckResult := result.(*checkResult)
+	lastCheckResult := mustCheckResult(t, result)
 
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
@@ -281,15 +294,14 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 		GetPowerManagementLimitSupported: true,
 	}
 
-	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
+	getPowerFunc := func(_ string, _ device.Device) (Power, error) {
 		return invalidPower, nil
 	}
 
-	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, mockNvml, getPowerFunc))
 	result := component.Check()
 
-	// Cast the result to *checkResult
-	lastCheckResult := result.(*checkResult)
+	lastCheckResult := mustCheckResult(t, result)
 
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "data should be marked unhealthy")
@@ -299,7 +311,7 @@ func TestCheckOnce_GetUsedPercentError(t *testing.T) {
 
 func TestStates_WithData(t *testing.T) {
 	ctx := context.Background()
-	component := MockPowerComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, nil, nil))
 
 	// Set test data
 	component.lastMu.Lock()
@@ -334,7 +346,7 @@ func TestStates_WithData(t *testing.T) {
 
 func TestStates_WithError(t *testing.T) {
 	ctx := context.Background()
-	component := MockPowerComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, nil, nil))
 
 	// Set test data with error
 	component.lastMu.Lock()
@@ -358,7 +370,7 @@ func TestStates_WithError(t *testing.T) {
 
 func TestStates_NoData(t *testing.T) {
 	ctx := context.Background()
-	component := MockPowerComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, nil, nil))
 
 	// Don't set any data
 
@@ -382,8 +394,7 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Create mock functions that count calls
 	callCount := &atomic.Int32{}
@@ -393,7 +404,7 @@ func TestStart(t *testing.T) {
 		},
 	}
 
-	component := MockPowerComponent(ctx, mockNvml, func(uuid string, dev device.Device) (Power, error) {
+	component := MockPowerComponent(ctx, mockNvml, func(_ string, _ device.Device) (Power, error) {
 		callCount.Add(1)
 		return Power{}, nil
 	})
@@ -411,7 +422,7 @@ func TestStart(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	ctx := context.Background()
-	component := MockPowerComponent(ctx, nil, nil).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, nil, nil))
 
 	err := component.Close()
 	assert.NoError(t, err)
@@ -481,11 +492,11 @@ func TestCheck_GPULostError(t *testing.T) {
 	}
 
 	// Use nvmlerrors.ErrGPULost for the error
-	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
+	getPowerFunc := func(_ string, _ device.Device) (Power, error) {
 		return Power{}, nvmlerrors.ErrGPULost
 	}
 
-	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, mockNvml, getPowerFunc))
 	result := component.Check()
 
 	// Verify error handling for GPU lost case
@@ -538,13 +549,13 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	defer func() { nvml.ErrorString = originalErrorString }()
 
 	// Return a Reset-like error via nvml.Return and mapping in GetPower
-	getPowerFunc := func(uuid string, dev device.Device) (Power, error) {
+	getPowerFunc := func(_ string, _ device.Device) (Power, error) {
 		// Use any API that would surface this return in underlying helper; directly return the mapped error here
 		// because the power component only checks errors.Is on ErrGPURequiresReset
 		return Power{}, nvmlerrors.ErrGPURequiresReset
 	}
 
-	component := MockPowerComponent(ctx, mockNvml, getPowerFunc).(*component)
+	component := mustComponent(t, MockPowerComponent(ctx, mockNvml, getPowerFunc))
 	result := component.Check()
 
 	// Verify check result carries suggested actions

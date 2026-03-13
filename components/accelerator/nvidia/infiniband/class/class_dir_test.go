@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -81,12 +82,12 @@ func TestClassDirExists(t *testing.T) {
 
 	// Create test files and directories
 	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	testDir := filepath.Join(tmpDir, "subdir")
-	if err := os.MkdirAll(testDir, 0755); err != nil {
+	if err := os.MkdirAll(testDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -158,32 +159,32 @@ func TestClassDirReadFile(t *testing.T) {
 	// Create test files
 	testContent := "test content"
 	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte(testContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	// File with whitespace
 	whitespaceContent := "  content with spaces  \n\t"
 	whitespaceFile := filepath.Join(tmpDir, "whitespace.txt")
-	if err := os.WriteFile(whitespaceFile, []byte(whitespaceContent), 0644); err != nil {
+	if err := os.WriteFile(whitespaceFile, []byte(whitespaceContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	// Empty file
 	emptyFile := filepath.Join(tmpDir, "empty.txt")
-	if err := os.WriteFile(emptyFile, []byte(""), 0644); err != nil {
+	if err := os.WriteFile(emptyFile, []byte(""), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	// Unreadable file (on Unix systems)
 	unreadableFile := filepath.Join(tmpDir, "unreadable.txt")
-	if err := os.WriteFile(unreadableFile, []byte("secret"), 0000); err != nil {
+	if err := os.WriteFile(unreadableFile, []byte("secret"), 0o000); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create subdirectory
 	subdir := filepath.Join(tmpDir, "subdir")
-	if err := os.MkdirAll(subdir, 0755); err != nil {
+	if err := os.MkdirAll(subdir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -275,20 +276,20 @@ func TestClassDirListDir(t *testing.T) {
 
 	files := []string{"file1.txt", "file2.txt"}
 	for _, f := range files {
-		if err := os.WriteFile(filepath.Join(tmpDir, f), []byte("content"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tmpDir, f), []byte("content"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	subdirs := []string{"subdir1", "subdir2", "emptydir"}
 	for _, d := range subdirs {
-		if err := os.MkdirAll(filepath.Join(tmpDir, d), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(tmpDir, d), 0o750); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	// Add a file in subdir1
-	if err := os.WriteFile(filepath.Join(tmpDir, "subdir1", "file3.txt"), []byte("content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "subdir1", "file3.txt"), []byte("content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -360,14 +361,7 @@ func TestClassDirListDir(t *testing.T) {
 
 				// Check all expected names are present
 				for _, wantName := range tt.wantNames {
-					found := false
-					for _, gotName := range gotNames {
-						if gotName == wantName {
-							found = true
-							break
-						}
-					}
-					if !found {
+					if !slices.Contains(gotNames, wantName) {
 						t.Errorf("listDir() missing expected entry %q", wantName)
 					}
 				}
@@ -387,18 +381,18 @@ func TestClassDirIntegration(t *testing.T) {
 	// Create a structure similar to /sys/class/infiniband
 	deviceDir := filepath.Join(tmpDir, "mlx5_0")
 	portDir := filepath.Join(deviceDir, "ports", "1")
-	if err := os.MkdirAll(portDir, 0755); err != nil {
+	if err := os.MkdirAll(portDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create some files
 	stateFile := filepath.Join(portDir, "state")
-	if err := os.WriteFile(stateFile, []byte("4: ACTIVE\n"), 0644); err != nil {
+	if err := os.WriteFile(stateFile, []byte("4: ACTIVE\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	rateFile := filepath.Join(portDir, "rate")
-	if err := os.WriteFile(rateFile, []byte("100 Gb/sec\n"), 0644); err != nil {
+	if err := os.WriteFile(rateFile, []byte("100 Gb/sec\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -466,7 +460,7 @@ func TestClassDirErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("listDir with path traversal", func(t *testing.T) {
+	t.Run("listDir with path traversal", func(_ *testing.T) {
 		// Attempt path traversal
 		_, err := cd.listDir("../")
 		// This might or might not error depending on the implementation
@@ -492,13 +486,14 @@ func TestClassDirPermissions(t *testing.T) {
 	}
 	defer func() {
 		// Restore permissions before cleanup
-		_ = os.Chmod(tmpDir, 0755)
+		//nolint:gosec // The directory needs execute permission restored so the temp tree can be removed.
+		_ = os.Chmod(tmpDir, 0o750)
 		_ = os.RemoveAll(tmpDir)
 	}()
 
 	// Create unreadable directory
 	unreadableDir := filepath.Join(tmpDir, "unreadable")
-	if err := os.MkdirAll(unreadableDir, 0755); err != nil {
+	if err := os.MkdirAll(unreadableDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	// Remove read permission
@@ -518,7 +513,8 @@ func TestClassDirPermissions(t *testing.T) {
 	}
 
 	// Restore permissions for cleanup
-	_ = os.Chmod(unreadableDir, 0755)
+	//nolint:gosec // The directory needs execute permission restored so the temp tree can be removed.
+	_ = os.Chmod(unreadableDir, 0o750)
 }
 
 // TestClassDirConcurrency tests thread safety
@@ -530,9 +526,9 @@ func TestClassDirConcurrency(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create test files
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		filename := filepath.Join(tmpDir, fmt.Sprintf("file%d.txt", i))
-		if err := os.WriteFile(filename, []byte(fmt.Sprintf("content %d", i)), 0644); err != nil {
+		if err := os.WriteFile(filename, fmt.Appendf(nil, "content %d", i), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -544,7 +540,7 @@ func TestClassDirConcurrency(t *testing.T) {
 
 	// Run concurrent operations
 	done := make(chan bool)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(i int) {
 			defer func() { done <- true }()
 
@@ -576,7 +572,7 @@ func TestClassDirConcurrency(t *testing.T) {
 	}
 
 	// Wait for all goroutines to complete
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 }

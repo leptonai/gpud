@@ -45,7 +45,7 @@ type fabricStateGetter interface {
 
 // getFabricInfo retrieves fabric state information from a device using the Device abstraction.
 // This method delegates to Device.GetFabricState() which handles V3/V1 API fallback internally.
-func getFabricInfo(dev interface{}) (device.FabricState, error) {
+func getFabricInfo(dev any) (device.FabricState, error) {
 	if dev == nil {
 		return device.FabricState{}, fmt.Errorf("nil device handle")
 	}

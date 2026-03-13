@@ -46,9 +46,13 @@ type MockEventStore struct {
 	mock.Mock
 }
 
-func (m *MockEventStore) Bucket(name string, opts ...eventstore.OpOption) (eventstore.Bucket, error) {
+func (m *MockEventStore) Bucket(name string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
 	args := m.Called(name)
-	return args.Get(0).(eventstore.Bucket), args.Error(1)
+	bucket, ok := args.Get(0).(eventstore.Bucket)
+	if !ok {
+		return nil, fmt.Errorf("expected eventstore.Bucket, got %T", args.Get(0))
+	}
+	return bucket, args.Error(1)
 }
 
 // MockEventBucket implements a mock for eventstore.Bucket
@@ -71,12 +75,20 @@ func (m *MockEventBucket) Find(ctx context.Context, event eventstore.Event) (*ev
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*eventstore.Event), args.Error(1)
+	ev, ok := args.Get(0).(*eventstore.Event)
+	if !ok {
+		return nil, fmt.Errorf("expected *eventstore.Event, got %T", args.Get(0))
+	}
+	return ev, args.Error(1)
 }
 
 func (m *MockEventBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
 	args := m.Called(ctx, since)
-	return args.Get(0).(eventstore.Events), args.Error(1)
+	evs, ok := args.Get(0).(eventstore.Events)
+	if !ok {
+		return nil, fmt.Errorf("expected eventstore.Events, got %T", args.Get(0))
+	}
+	return evs, args.Error(1)
 }
 
 func (m *MockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error) {
@@ -84,7 +96,11 @@ func (m *MockEventBucket) Latest(ctx context.Context) (*eventstore.Event, error)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*eventstore.Event), args.Error(1)
+	ev, ok := args.Get(0).(*eventstore.Event)
+	if !ok {
+		return nil, fmt.Errorf("expected *eventstore.Event, got %T", args.Get(0))
+	}
+	return ev, args.Error(1)
 }
 
 func (m *MockEventBucket) Purge(ctx context.Context, beforeTimestamp int64) (int, error) {
@@ -208,7 +224,7 @@ func TestComponentCheckOnce(t *testing.T) {
 		VmallocUsed:  16 * 1024 * 1024 * 1024, // 16GB
 	}
 
-	mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+	mockGetVMFunc := func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 		return mockVMStat, nil
 	}
 
@@ -257,7 +273,7 @@ func TestComponentCheckOnceWithVMError(t *testing.T) {
 	testError := errors.New("virtual memory error")
 
 	// Mock virtual memory function with error
-	mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+	mockGetVMFunc := func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 		return nil, testError
 	}
 
@@ -297,7 +313,7 @@ func TestComponentCheckOnceWithBPFError(t *testing.T) {
 		Free:        7 * 1024 * 1024 * 1024, // 7GB
 	}
 
-	mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+	mockGetVMFunc := func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 		return mockVMStat, nil
 	}
 
@@ -363,7 +379,7 @@ func TestNilEventBucket(t *testing.T) {
 
 func TestStart(t *testing.T) {
 	// Mock virtual memory function with a basic implementation to avoid nil pointer
-	mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+	mockGetVMFunc := func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 		return &mem.VirtualMemoryStat{
 			Total:     1024,
 			Available: 512,
@@ -418,7 +434,7 @@ func TestKubernetesMemoryPressureThreshold(t *testing.T) {
 			VmallocUsed:  16 * 1024 * 1024 * 1024,
 		}
 
-		mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+		mockGetVMFunc := func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 			return mockVMStat, nil
 		}
 
@@ -458,7 +474,7 @@ func TestKubernetesMemoryPressureThreshold(t *testing.T) {
 			VmallocUsed:  16 * 1024 * 1024 * 1024,
 		}
 
-		mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+		mockGetVMFunc := func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 			return mockVMStat, nil
 		}
 
@@ -498,7 +514,7 @@ func TestKubernetesMemoryPressureThreshold(t *testing.T) {
 			VmallocUsed:  16 * 1024 * 1024 * 1024,
 		}
 
-		mockGetVMFunc := func(ctx context.Context) (*mem.VirtualMemoryStat, error) {
+		mockGetVMFunc := func(_ context.Context) (*mem.VirtualMemoryStat, error) {
 			return mockVMStat, nil
 		}
 

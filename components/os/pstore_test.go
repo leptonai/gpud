@@ -1,3 +1,4 @@
+//nolint:forcetypeassert // tests intentionally inspect the concrete component implementation.
 package os
 
 import (
@@ -42,7 +43,7 @@ func TestNewComponent_PstoreInitialization(t *testing.T) {
 
 	// Create a test pstore directory with the testdata
 	testPstoreDir := filepath.Join(tmpDir, "pstore")
-	err = os.MkdirAll(testPstoreDir, 0755)
+	err = os.MkdirAll(testPstoreDir, 0o750)
 	require.NoError(t, err)
 
 	// Copy testdata to the test pstore directory
@@ -58,9 +59,10 @@ func TestNewComponent_PstoreInitialization(t *testing.T) {
 			if !entry.IsDir() {
 				srcFile := filepath.Join(subDirPath, entry.Name())
 				dstFile := filepath.Join(testPstoreDir, entry.Name())
+				//nolint:gosec // srcFile is produced from controlled testdata paths.
 				content, err := os.ReadFile(srcFile)
 				if err == nil {
-					require.NoError(t, os.WriteFile(dstFile, content, 0644))
+					require.NoError(t, os.WriteFile(dstFile, content, 0o600))
 				}
 			}
 		}
@@ -232,7 +234,7 @@ func TestNewComponent_PstoreIsFile(t *testing.T) {
 
 	// Create a file instead of directory
 	pstoreFile := filepath.Join(tmpDir, "pstore_as_file")
-	err = os.WriteFile(pstoreFile, []byte("not a directory"), 0644)
+	err = os.WriteFile(pstoreFile, []byte("not a directory"), 0o600)
 	require.NoError(t, err)
 
 	// Create the component with pstore path pointing to a file
@@ -274,7 +276,7 @@ func TestNewComponent_PstoreEventConversionAndInsertion(t *testing.T) {
 
 	// Create a test pstore directory with the testdata
 	testPstoreDir := filepath.Join(tmpDir, "pstore")
-	err = os.MkdirAll(testPstoreDir, 0755)
+	err = os.MkdirAll(testPstoreDir, 0o750)
 	require.NoError(t, err)
 
 	// Copy testdata to the test pstore directory
@@ -290,9 +292,10 @@ func TestNewComponent_PstoreEventConversionAndInsertion(t *testing.T) {
 			if !entry.IsDir() {
 				srcFile := filepath.Join(subDirPath, entry.Name())
 				dstFile := filepath.Join(testPstoreDir, entry.Name())
+				//nolint:gosec // srcFile is produced from controlled testdata paths.
 				content, err := os.ReadFile(srcFile)
 				if err == nil {
-					require.NoError(t, os.WriteFile(dstFile, content, 0644))
+					require.NoError(t, os.WriteFile(dstFile, content, 0o600))
 				}
 			}
 		}
@@ -373,7 +376,7 @@ func TestNewComponent_PstoreEventDuplication(t *testing.T) {
 
 	// Create a test pstore directory with the testdata
 	testPstoreDir := filepath.Join(tmpDir, "pstore")
-	err = os.MkdirAll(testPstoreDir, 0755)
+	err = os.MkdirAll(testPstoreDir, 0o750)
 	require.NoError(t, err)
 
 	// Copy testdata to the test pstore directory
@@ -389,9 +392,10 @@ func TestNewComponent_PstoreEventDuplication(t *testing.T) {
 			if !entry.IsDir() {
 				srcFile := filepath.Join(subDirPath, entry.Name())
 				dstFile := filepath.Join(testPstoreDir, entry.Name())
+				//nolint:gosec // srcFile is produced from controlled testdata paths.
 				content, err := os.ReadFile(srcFile)
 				if err == nil {
-					require.NoError(t, os.WriteFile(dstFile, content, 0644))
+					require.NoError(t, os.WriteFile(dstFile, content, 0o600))
 				}
 			}
 		}
@@ -447,18 +451,19 @@ func copyTestdata(src, dst string) error {
 		dstPath := filepath.Join(dst, entry.Name())
 
 		if entry.IsDir() {
-			if err := os.MkdirAll(dstPath, 0755); err != nil {
+			if err := os.MkdirAll(dstPath, 0o750); err != nil {
 				return err
 			}
 			if err := copyTestdata(srcPath, dstPath); err != nil {
 				return err
 			}
 		} else {
+			//nolint:gosec // srcPath is derived from controlled testdata roots.
 			srcFile, err := os.ReadFile(srcPath)
 			if err != nil {
 				return err
 			}
-			if err := os.WriteFile(dstPath, srcFile, 0644); err != nil {
+			if err := os.WriteFile(dstPath, srcFile, 0o600); err != nil {
 				return err
 			}
 		}

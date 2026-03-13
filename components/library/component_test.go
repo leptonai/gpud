@@ -50,7 +50,7 @@ func TestCheck(t *testing.T) {
 	}
 
 	// Case 1: One library not found
-	comp.findLibrary = func(name string, opts ...file.OpOption) (string, error) {
+	comp.findLibrary = func(name string, _ ...file.OpOption) (string, error) {
 		if name == "lib1.so" {
 			return "/usr/lib/lib1.so", nil
 		}
@@ -62,7 +62,7 @@ func TestCheck(t *testing.T) {
 	assert.Contains(t, result.Summary(), "lib2.so")
 
 	// Case 2: Error finding library
-	comp.findLibrary = func(name string, opts ...file.OpOption) (string, error) {
+	comp.findLibrary = func(_ string, _ ...file.OpOption) (string, error) {
 		return "", errors.New("some error")
 	}
 
@@ -70,7 +70,7 @@ func TestCheck(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
 
 	// Case 3: All libraries found
-	comp.findLibrary = func(name string, opts ...file.OpOption) (string, error) {
+	comp.findLibrary = func(name string, _ ...file.OpOption) (string, error) {
 		if name == "lib1.so" {
 			return "/usr/lib/lib1.so", nil
 		}

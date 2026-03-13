@@ -34,14 +34,14 @@ func TestReadDevPortSnapshots(t *testing.T) {
 	port := uint(1)
 	currentTime := time.Now()
 
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-4*time.Hour), device, port, "down", 5)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-3*time.Hour), device, port, "active", 5)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Hour), device, port, "active", 7)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "down", 10)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-30*time.Minute), device, port, "active", 12)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-4*time.Hour), device, port, "down", 5)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-3*time.Hour), device, port, "active", 5)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Hour), device, port, "active", 7)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "down", 10)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-30*time.Minute), device, port, "active", 12)
 
 	// Insert data for different device/port to ensure filtering works
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Hour), "mlx5_1", 2, "active", 3)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Hour), "mlx5_1", 2, "active", 3)
 
 	// Test reading all snapshots for device and port
 	snapshots, err := store.readDevPortSnapshots(device, port, time.Time{})
@@ -81,11 +81,11 @@ func TestReadDevPortSnapshotsWithSinceFilter(t *testing.T) {
 	port := uint(1)
 	currentTime := time.Now()
 
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-4*time.Hour), device, port, "down", 5)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-3*time.Hour), device, port, "active", 5)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Hour), device, port, "active", 7)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "down", 10)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-30*time.Minute), device, port, "active", 12)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-4*time.Hour), device, port, "down", 5)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-3*time.Hour), device, port, "active", 5)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Hour), device, port, "active", 7)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "down", 10)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-30*time.Minute), device, port, "active", 12)
 
 	// Test reading snapshots since 2.5 hours ago
 	since := currentTime.Add(-2*time.Hour - 30*time.Minute)
@@ -118,7 +118,7 @@ func TestReadDevPortSnapshotsNoResults(t *testing.T) {
 
 	// Insert data for different device/port
 	currentTime := time.Now()
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), "mlx5_1", 2, "active", 3)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), "mlx5_1", 2, "active", 3)
 
 	// Test reading snapshots for non-existent device/port
 	snapshots, err := store.readDevPortSnapshots("mlx5_0", 1, time.Time{})
@@ -147,8 +147,8 @@ func TestReadDevPortSnapshotsWithFutureTimestamp(t *testing.T) {
 	port := uint(1)
 	currentTime := time.Now()
 
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-2*time.Hour), device, port, "active", 5)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "down", 7)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-2*time.Hour), device, port, "active", 5)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "down", 7)
 
 	// Test reading snapshots since future timestamp
 	futureTime := currentTime.Add(1 * time.Hour)
@@ -239,7 +239,7 @@ func TestReadDevPortSnapshotsWithTimeout(t *testing.T) {
 	device := "mlx5_0"
 	port := uint(1)
 	currentTime := time.Now()
-	insertSnapshotData(t, ctx, dbRW, historyTable, currentTime.Add(-1*time.Hour), device, port, "active", 5)
+	insertSnapshotData(ctx, t, dbRW, historyTable, currentTime.Add(-1*time.Hour), device, port, "active", 5)
 
 	// Create store with a canceled context to simulate timeout/cancellation
 	canceledCtx, cancel := context.WithCancel(context.Background())
@@ -313,14 +313,17 @@ func TestReadDevPortSnapshotsLargeDataSet(t *testing.T) {
 	currentTime := time.Now()
 	numEntries := 1000
 
-	for i := 0; i < numEntries; i++ {
+	totalLinkDowned := uint64(0)
+	for i := range numEntries {
 		ts := currentTime.Add(-time.Duration(i) * time.Minute)
 		state := "active"
 		if i%10 == 0 {
 			state = "down"
 		}
-		totalLinkDowned := uint64(i / 10)
-		insertSnapshotData(t, ctx, dbRW, store.historyTable, ts, device, port, state, totalLinkDowned)
+		if i > 0 && i%10 == 0 {
+			totalLinkDowned++
+		}
+		insertSnapshotData(ctx, t, dbRW, store.historyTable, ts, device, port, state, totalLinkDowned)
 	}
 
 	// Test reading all snapshots
@@ -355,7 +358,7 @@ func TestReadDevPortSnapshotsWithSpecialCharacters(t *testing.T) {
 	port := uint(1)
 	currentTime := time.Now()
 
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "active", 5)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "active", 5)
 
 	// Test reading snapshots with special characters
 	snapshots, err := store.readDevPortSnapshots(device, port, time.Time{})
@@ -386,7 +389,7 @@ func TestReadDevPortSnapshotsWithZeroValues(t *testing.T) {
 	port := uint(0) // Zero port
 	currentTime := time.Now()
 
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "down", 0)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-1*time.Hour), device, port, "down", 0)
 
 	// Test reading snapshots with zero values
 	snapshots, err := store.readDevPortSnapshots(device, port, time.Time{})
@@ -418,8 +421,8 @@ func TestReadDevPortSnapshotsWithExactTimestampMatch(t *testing.T) {
 	currentTime := time.Now()
 
 	exactTime := currentTime.Add(-1 * time.Hour)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, exactTime, device, port, "active", 5)
-	insertSnapshotData(t, ctx, dbRW, store.historyTable, currentTime.Add(-30*time.Minute), device, port, "down", 7)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, exactTime, device, port, "active", 5)
+	insertSnapshotData(ctx, t, dbRW, store.historyTable, currentTime.Add(-30*time.Minute), device, port, "down", 7)
 
 	// Test reading snapshots with exact timestamp match
 	snapshots, err := store.readDevPortSnapshots(device, port, exactTime)
@@ -459,23 +462,21 @@ func TestDevPortSnapshotsSlice(t *testing.T) {
 }
 
 // Helper function to insert snapshot test data
-func insertSnapshotData(t *testing.T, ctx context.Context, dbRW *sql.DB, tableName string, ts time.Time, device string, port uint, state string, totalLinkDowned uint64) {
+func insertSnapshotData(ctx context.Context, t *testing.T, dbRW *sql.DB, tableName string, ts time.Time, device string, port uint, state string, totalLinkDowned uint64) {
 	t.Helper()
 
-	query := fmt.Sprintf(`INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		tableName,
-		historyTableColumnTimestamp,
-		historyTableColumnDevice,
-		historyTableColumnPort,
-		historyTableColumnLinkLayer,
-		historyTableColumnState,
-		historyTableColumnPhysicalState,
-		historyTableColumnRateGBSec,
-		historyTableColumnTotalLinkDowned,
-		historyTableColumnEventType,
-		historyTableColumnEventReason,
-		historyTableColumnExtraInfo,
-	)
+	query := `INSERT INTO ` + tableName + ` (` + // #nosec G202 -- Table and column names are fixed test identifiers.
+		historyTableColumnTimestamp + `, ` +
+		historyTableColumnDevice + `, ` +
+		historyTableColumnPort + `, ` +
+		historyTableColumnLinkLayer + `, ` +
+		historyTableColumnState + `, ` +
+		historyTableColumnPhysicalState + `, ` +
+		historyTableColumnRateGBSec + `, ` +
+		historyTableColumnTotalLinkDowned + `, ` +
+		historyTableColumnEventType + `, ` +
+		historyTableColumnEventReason + `, ` +
+		historyTableColumnExtraInfo + `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	_, err := dbRW.ExecContext(ctx, query, ts.Unix(), device, port, "infiniband", state, "linkup", 100, totalLinkDowned, "", "", "")
 	require.NoError(t, err)

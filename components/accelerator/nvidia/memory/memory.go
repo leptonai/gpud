@@ -16,6 +16,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
+// Memory reports the memory usage and thresholds for a device.
 type Memory struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
@@ -48,6 +49,7 @@ type Memory struct {
 	IsUnifiedMemory bool `json:"is_unified_memory"`
 }
 
+// GetUsedPercent returns the used memory percentage.
 func (mem Memory) GetUsedPercent() (float64, error) {
 	if mem.UsedPercent == "" {
 		return 0.0, nil
@@ -59,6 +61,7 @@ func (mem Memory) GetUsedPercent() (float64, error) {
 // This allows for dependency injection in tests.
 type GetVirtualMemoryFunc func(context.Context) (*gopsutilmem.VirtualMemoryStat, error)
 
+// GetMemory returns the memory statistics for a device.
 func GetMemory(uuid string, dev device.Device, productName string, getVirtualMemoryFunc GetVirtualMemoryFunc) (Memory, error) {
 	mem := Memory{
 		UUID:      uuid,

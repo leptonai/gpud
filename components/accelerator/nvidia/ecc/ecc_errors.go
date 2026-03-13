@@ -11,6 +11,9 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
+// ECCErrors reports ECC error counters for a single GPU.
+//
+//nolint:revive // NVIDIA ECC naming is kept for API compatibility.
 type ECCErrors struct {
 	// Represents the GPU UUID.
 	UUID string `json:"uuid"`
@@ -32,6 +35,7 @@ type ECCErrors struct {
 	Supported bool `json:"supported"`
 }
 
+// AllECCErrorCounts groups ECC counters across all supported memory locations.
 type AllECCErrorCounts struct {
 	// Total ECC error counts for the device.
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g9748430b6aa6cdbb2349c5e835d70b0f
@@ -74,6 +78,9 @@ type AllECCErrorCounts struct {
 	GPURegisterFile ECCErrorCounts `json:"gpu_register_file"`
 }
 
+// ECCErrorCounts reports corrected and uncorrected ECC errors.
+//
+//nolint:revive // NVIDIA ECC naming is kept for API compatibility.
 type ECCErrorCounts struct {
 	// A memory error that was correctedFor ECC errors, these are single bit errors.
 	// For Texture memory, these are errors fixed by resend.
@@ -87,6 +94,7 @@ type ECCErrorCounts struct {
 	Uncorrected uint64 `json:"uncorrected"`
 }
 
+// FindUncorrectedErrs returns human-readable descriptions for non-zero uncorrected errors.
 func (allCounts AllECCErrorCounts) FindUncorrectedErrs() []string {
 	errs := []string{}
 
@@ -124,6 +132,7 @@ func (allCounts AllECCErrorCounts) FindUncorrectedErrs() []string {
 	return errs
 }
 
+// GetECCErrors queries ECC counters for a device.
 func GetECCErrors(uuid string, dev device.Device, eccModeEnabledCurrent bool) (ECCErrors, error) {
 	result := ECCErrors{
 		UUID:      uuid,

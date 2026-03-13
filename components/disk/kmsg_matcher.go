@@ -67,7 +67,7 @@ var (
 	compiledSuperblockWriteError = regexp.MustCompile(regexSuperblockWriteError)
 )
 
-// Returns true if the line indicates a RAID array failure.
+// HasRAIDArrayFailure returns true if the line indicates a RAID array failure.
 func HasRAIDArrayFailure(line string) bool {
 	if match := compiledRAIDArrayFailure.FindStringSubmatch(line); match != nil {
 		return true
@@ -75,7 +75,7 @@ func HasRAIDArrayFailure(line string) bool {
 	return false
 }
 
-// Returns true if the line indicates filesystem was remounted read-only.
+// HasFilesystemReadOnly returns true if the line indicates the filesystem was remounted read-only.
 func HasFilesystemReadOnly(line string) bool {
 	if match := compiledFilesystemReadOnly.FindStringSubmatch(line); match != nil {
 		return true
@@ -83,7 +83,7 @@ func HasFilesystemReadOnly(line string) bool {
 	return false
 }
 
-// Returns true if the line indicates NVMe path failure.
+// HasNVMePathFailure returns true if the line indicates an NVMe path failure.
 func HasNVMePathFailure(line string) bool {
 	if match := compiledNVMePathFailure.FindStringSubmatch(line); match != nil {
 		return true
@@ -91,7 +91,7 @@ func HasNVMePathFailure(line string) bool {
 	return false
 }
 
-// Returns true if the line indicates NVMe controller timeout.
+// HasNVMeTimeout returns true if the line indicates an NVMe controller timeout.
 func HasNVMeTimeout(line string) bool {
 	if match := compiledNVMeTimeout.FindStringSubmatch(line); match != nil {
 		return true
@@ -99,7 +99,7 @@ func HasNVMeTimeout(line string) bool {
 	return false
 }
 
-// Returns true if the line indicates NVMe device was disabled.
+// HasNVMeDeviceDisabled returns true if the line indicates an NVMe device was disabled.
 func HasNVMeDeviceDisabled(line string) bool {
 	if match := compiledNVMeDeviceDisabled.FindStringSubmatch(line); match != nil {
 		return true
@@ -107,7 +107,7 @@ func HasNVMeDeviceDisabled(line string) bool {
 	return false
 }
 
-// Returns true if the line indicates attempt to access beyond end of device.
+// HasBeyondEndOfDevice returns true if the line indicates an access beyond the end of a device.
 func HasBeyondEndOfDevice(line string) bool {
 	if match := compiledBeyondEndOfDevice.FindStringSubmatch(line); match != nil {
 		return true
@@ -115,7 +115,7 @@ func HasBeyondEndOfDevice(line string) bool {
 	return false
 }
 
-// Returns true if the line indicates buffer I/O error.
+// HasBufferIOError returns true if the line indicates a buffer I/O error.
 func HasBufferIOError(line string) bool {
 	if match := compiledBufferIOError.FindStringSubmatch(line); match != nil {
 		return true
@@ -123,7 +123,7 @@ func HasBufferIOError(line string) bool {
 	return false
 }
 
-// Returns true if the line indicates superblock write error.
+// HasSuperblockWriteError returns true if the line indicates a superblock write error.
 func HasSuperblockWriteError(line string) bool {
 	if match := compiledSuperblockWriteError.FindStringSubmatch(line); match != nil {
 		return true
@@ -131,6 +131,7 @@ func HasSuperblockWriteError(line string) bool {
 	return false
 }
 
+// Match returns the first disk-related kernel message match for the given log line.
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {

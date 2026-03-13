@@ -16,7 +16,7 @@ import (
 )
 
 func TestGetProcessesWithNilDevice(t *testing.T) {
-	var nilDevice device.Device = nil
+	var nilDevice device.Device
 	testUUID := "GPU-NILTEST"
 
 	// We expect the function to panic with a nil device
@@ -122,7 +122,7 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_NewProcess(t *testing.T) {
 					{Pid: 1234, UsedGpuMemory: 1024},
 				}, nvml.SUCCESS
 			},
-			GetProcessUtilizationFunc: func(pid uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			GetProcessUtilizationFunc: func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 				return []nvml.ProcessUtilizationSample{}, nvml.SUCCESS
 			},
 		},
@@ -134,9 +134,7 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_NewProcess(t *testing.T) {
 	}
 
 	// Call the function
-	result, err := getProcesses(testUUID, mockDevice, func(pid int32) (processInspector, error) {
-		return mockNewProcessFunc(pid)
-	})
+	result, err := getProcesses(testUUID, mockDevice, mockNewProcessFunc)
 
 	// Should succeed but skip the process
 	assert.NoError(t, err)
@@ -159,23 +157,23 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_CmdlineSlice(t *testing.T) {
 					{Pid: 1234, UsedGpuMemory: 1024},
 				}, nvml.SUCCESS
 			},
-			GetProcessUtilizationFunc: func(pid uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			GetProcessUtilizationFunc: func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 				return []nvml.ProcessUtilizationSample{}, nvml.SUCCESS
 			},
 		},
 	}
 
 	// Create a custom test version that simulates CmdlineSlice failure
-	testGetProcesses := func(uuid string, dev device.Device) (Processes, error) {
+	testGetProcesses := func() Processes {
 		procs := Processes{
-			UUID:                                uuid,
+			UUID:                                testUUID,
 			GetComputeRunningProcessesSupported: true,
 			GetProcessUtilizationSupported:      true,
 		}
 
-		computeProcs, ret := dev.GetComputeRunningProcesses()
+		computeProcs, ret := mockDevice.GetComputeRunningProcesses()
 		if ret != nvml.SUCCESS {
-			return procs, nil
+			t.Fatalf("expected nvml.SUCCESS, got %s", nvml.ErrorString(ret))
 		}
 
 		for range computeProcs {
@@ -185,14 +183,13 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_CmdlineSlice(t *testing.T) {
 			}
 		}
 
-		return procs, nil
+		return procs
 	}
 
 	// Call the test function
-	result, err := testGetProcesses(testUUID, mockDevice)
+	result := testGetProcesses()
 
 	// Should succeed but skip the process
-	assert.NoError(t, err)
 	assert.Equal(t, testUUID, result.UUID)
 	assert.Len(t, result.RunningProcesses, 0) // Process should be skipped
 }
@@ -211,23 +208,23 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_CreateTime(t *testing.T) {
 					{Pid: 1234, UsedGpuMemory: 1024},
 				}, nvml.SUCCESS
 			},
-			GetProcessUtilizationFunc: func(pid uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			GetProcessUtilizationFunc: func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 				return []nvml.ProcessUtilizationSample{}, nvml.SUCCESS
 			},
 		},
 	}
 
 	// Test the CreateTime failure scenario
-	testGetProcesses := func(uuid string, dev device.Device) (Processes, error) {
+	testGetProcesses := func() Processes {
 		procs := Processes{
-			UUID:                                uuid,
+			UUID:                                testUUID,
 			GetComputeRunningProcessesSupported: true,
 			GetProcessUtilizationSupported:      true,
 		}
 
-		computeProcs, ret := dev.GetComputeRunningProcesses()
+		computeProcs, ret := mockDevice.GetComputeRunningProcesses()
 		if ret != nvml.SUCCESS {
-			return procs, nil
+			t.Fatalf("expected nvml.SUCCESS, got %s", nvml.ErrorString(ret))
 		}
 
 		for range computeProcs {
@@ -238,12 +235,11 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_CreateTime(t *testing.T) {
 			}
 		}
 
-		return procs, nil
+		return procs
 	}
 
-	result, err := testGetProcesses(testUUID, mockDevice)
+	result := testGetProcesses()
 
-	assert.NoError(t, err)
 	assert.Equal(t, testUUID, result.UUID)
 	assert.Len(t, result.RunningProcesses, 0) // Process should be skipped
 }
@@ -262,23 +258,23 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_Status(t *testing.T) {
 					{Pid: 1234, UsedGpuMemory: 1024},
 				}, nvml.SUCCESS
 			},
-			GetProcessUtilizationFunc: func(pid uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			GetProcessUtilizationFunc: func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 				return []nvml.ProcessUtilizationSample{}, nvml.SUCCESS
 			},
 		},
 	}
 
 	// Test the Status failure scenario - should continue processing
-	testGetProcesses := func(uuid string, dev device.Device) (Processes, error) {
+	testGetProcesses := func() Processes {
 		procs := Processes{
-			UUID:                                uuid,
+			UUID:                                testUUID,
 			GetComputeRunningProcessesSupported: true,
 			GetProcessUtilizationSupported:      true,
 		}
 
-		computeProcs, ret := dev.GetComputeRunningProcesses()
+		computeProcs, ret := mockDevice.GetComputeRunningProcesses()
 		if ret != nvml.SUCCESS {
-			return procs, nil
+			t.Fatalf("expected nvml.SUCCESS, got %s", nvml.ErrorString(ret))
 		}
 
 		for _, proc := range computeProcs {
@@ -295,12 +291,11 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_Status(t *testing.T) {
 			}
 		}
 
-		return procs, nil
+		return procs
 	}
 
-	result, err := testGetProcesses(testUUID, mockDevice)
+	result := testGetProcesses()
 
-	assert.NoError(t, err)
 	assert.Equal(t, testUUID, result.UUID)
 	assert.Len(t, result.RunningProcesses, 1) // Process should be included despite Status failure
 }
@@ -319,23 +314,23 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_Environ(t *testing.T) {
 					{Pid: 1234, UsedGpuMemory: 1024},
 				}, nvml.SUCCESS
 			},
-			GetProcessUtilizationFunc: func(pid uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			GetProcessUtilizationFunc: func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 				return []nvml.ProcessUtilizationSample{}, nvml.SUCCESS
 			},
 		},
 	}
 
 	// Test the Environ failure scenario - should continue processing
-	testGetProcesses := func(uuid string, dev device.Device) (Processes, error) {
+	testGetProcesses := func() Processes {
 		procs := Processes{
-			UUID:                                uuid,
+			UUID:                                testUUID,
 			GetComputeRunningProcessesSupported: true,
 			GetProcessUtilizationSupported:      true,
 		}
 
-		computeProcs, ret := dev.GetComputeRunningProcesses()
+		computeProcs, ret := mockDevice.GetComputeRunningProcesses()
 		if ret != nvml.SUCCESS {
-			return procs, nil
+			t.Fatalf("expected nvml.SUCCESS, got %s", nvml.ErrorString(ret))
 		}
 
 		for _, proc := range computeProcs {
@@ -353,12 +348,11 @@ func TestGetProcesses_NoSuchFileOrDirectoryError_Environ(t *testing.T) {
 			}
 		}
 
-		return procs, nil
+		return procs
 	}
 
-	result, err := testGetProcesses(testUUID, mockDevice)
+	result := testGetProcesses()
 
-	assert.NoError(t, err)
 	assert.Equal(t, testUUID, result.UUID)
 	assert.Len(t, result.RunningProcesses, 1)                   // Process should be included despite Environ failure
 	assert.Nil(t, result.RunningProcesses[0].BadEnvVarsForCUDA) // Should be nil due to Environ failure
@@ -379,7 +373,7 @@ func TestGetProcesses_Integration_NoSuchFileOrDirectoryError(t *testing.T) {
 					{Pid: 1002, UsedGpuMemory: 2048}, // This will succeed
 				}, nvml.SUCCESS
 			},
-			GetProcessUtilizationFunc: func(pid uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			GetProcessUtilizationFunc: func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 				return []nvml.ProcessUtilizationSample{}, nvml.SUCCESS
 			},
 		},
@@ -420,7 +414,7 @@ func TestGetProcesses_Integration_AllProcessesSkipped(t *testing.T) {
 					{Pid: 1003, UsedGpuMemory: 4096},
 				}, nvml.SUCCESS
 			},
-			GetProcessUtilizationFunc: func(pid uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			GetProcessUtilizationFunc: func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 				return []nvml.ProcessUtilizationSample{}, nvml.SUCCESS
 			},
 		},
