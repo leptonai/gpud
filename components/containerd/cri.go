@@ -2,12 +2,14 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"os/exec"
 	"sort"
+	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
@@ -63,6 +65,45 @@ func dialUnix(ctx context.Context, addr string) (net.Conn, error) {
 	return (&net.Dialer{}).DialContext(ctx, "unix", addr)
 }
 
+func probeUnixSocket(addr string) error {
+	probeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	conn, err := dialUnix(probeCtx, addr)
+	if err != nil {
+		return err
+	}
+
+	return conn.Close()
+}
+
+func diagnoseDialError(addr string, dialErr error) error {
+	// grpc.DialContext with WithBlock can report only the outer context timeout for
+	// unix socket failures. On the host we debugged, /run/containerd/containerd.sock
+	// was root:root 0660, so a non-root gpud process hit EACCES even though the
+	// initial gRPC error surfaced as context deadline exceeded.
+	if dialErr == nil || !errors.Is(dialErr, context.DeadlineExceeded) {
+		return dialErr
+	}
+
+	probeErr := probeUnixSocket(addr)
+	if probeErr == nil {
+		return dialErr
+	}
+
+	return probeErr
+}
+
+func dialGRPCContext(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	return grpc.DialContext(ctx, addr, opts...) //nolint:staticcheck
+}
+
+func isPermanentDialError(err error) bool {
+	return errors.Is(err, os.ErrPermission) ||
+		errors.Is(err, syscall.EACCES) ||
+		errors.Is(err, syscall.EPERM)
+}
+
 func parseUnixEndpoint(endpoint string) (string, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil {
@@ -98,7 +139,7 @@ func connect(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 	var dialErr error
 	for i := range 3 {
 		// "WithBlock" ctx cancel is no-op
-		conn, dialErr = grpc.DialContext(ctx, addr, defaultDialOptions()...) //nolint:staticcheck
+		conn, dialErr = dialGRPCContext(ctx, addr, defaultDialOptions()...)
 		if conn != nil && dialErr == nil {
 			if conn.GetState() == connectivity.Ready {
 				break
@@ -108,6 +149,17 @@ func connect(ctx context.Context, endpoint string) (*grpc.ClientConn, error) {
 			_ = conn.Close()
 			conn = nil
 		} else {
+			dialErr = diagnoseDialError(addr, dialErr)
+			// Permission errors are not transient. Return immediately so callers see
+			// the real socket access problem instead of a misleading retry timeout.
+			if isPermanentDialError(dialErr) {
+				log.Logger.Warnw("failed to dial endpoint",
+					"endpoint", endpoint,
+					"error", dialErr,
+				)
+				return nil, fmt.Errorf("failed to establish connection: %w", dialErr)
+			}
+
 			log.Logger.Warnw("failed to dial endpoint, retrying",
 				"endpoint", endpoint,
 				"attempt", i+1,
@@ -293,6 +345,11 @@ func convertToPodSandboxes(listPodSandboxResp *runtimeapi.ListPodSandboxResponse
 		}
 	}
 	for _, container := range listContainersResp.Containers {
+		if container == nil || container.Metadata == nil {
+			log.Logger.Warnw("skipping malformed container entry", "container", container)
+			continue
+		}
+
 		podSandboxID := container.PodSandboxId
 		podSandbox, ok := podSandboxes[podSandboxID]
 		if !ok {

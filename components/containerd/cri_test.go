@@ -582,6 +582,85 @@ func TestConvertToPodSandboxes(t *testing.T) {
 		result := convertToPodSandboxes(podSandboxResp, listContainersResp)
 		require.Len(t, result, 0)
 	})
+
+	t.Run("matched container with nil entry or metadata", func(t *testing.T) {
+		podSandboxResp := &runtimeapi.ListPodSandboxResponse{
+			Items: []*runtimeapi.PodSandbox{
+				{
+					Id: "pod-1",
+					Metadata: &runtimeapi.PodSandboxMetadata{
+						Name:      "pod-1",
+						Namespace: "default",
+					},
+					State: runtimeapi.PodSandboxState_SANDBOX_READY,
+				},
+			},
+		}
+
+		listContainersResp := &runtimeapi.ListContainersResponse{
+			Containers: []*runtimeapi.Container{
+				nil,
+				{
+					Id:           "container-1",
+					PodSandboxId: "pod-1",
+					Metadata:     nil,
+					State:        runtimeapi.ContainerState_CONTAINER_RUNNING,
+				},
+			},
+		}
+
+		result := convertToPodSandboxes(podSandboxResp, listContainersResp)
+		require.Len(t, result, 1)
+		assert.Equal(t, "pod-1", result[0].Name)
+		assert.Empty(t, result[0].Containers)
+	})
+
+	t.Run("valid matched containers are preserved when malformed entries are skipped", func(t *testing.T) {
+		podSandboxResp := &runtimeapi.ListPodSandboxResponse{
+			Items: []*runtimeapi.PodSandbox{
+				{
+					Id: "pod-1",
+					Metadata: &runtimeapi.PodSandboxMetadata{
+						Name:      "pod-1",
+						Namespace: "default",
+					},
+					State: runtimeapi.PodSandboxState_SANDBOX_READY,
+				},
+			},
+		}
+
+		listContainersResp := &runtimeapi.ListContainersResponse{
+			Containers: []*runtimeapi.Container{
+				nil,
+				{
+					Id:           "container-bad",
+					PodSandboxId: "pod-1",
+					Metadata:     nil,
+					State:        runtimeapi.ContainerState_CONTAINER_RUNNING,
+				},
+				{
+					Id:           "container-good",
+					PodSandboxId: "pod-1",
+					Metadata: &runtimeapi.ContainerMetadata{
+						Name: "good-container",
+					},
+					Image: &runtimeapi.ImageSpec{
+						UserSpecifiedImage: "busybox:latest",
+					},
+					CreatedAt: 123,
+					State:     runtimeapi.ContainerState_CONTAINER_RUNNING,
+				},
+			},
+		}
+
+		result := convertToPodSandboxes(podSandboxResp, listContainersResp)
+		require.Len(t, result, 1)
+		require.Len(t, result[0].Containers, 1)
+		assert.Equal(t, "container-good", result[0].Containers[0].ID)
+		assert.Equal(t, "good-container", result[0].Containers[0].Name)
+		assert.Equal(t, "busybox:latest", result[0].Containers[0].Image)
+		assert.Equal(t, int64(123), result[0].Containers[0].CreatedAt)
+	})
 }
 
 // Test the listAllSandboxes function with mocks that isolate the function callbacks
