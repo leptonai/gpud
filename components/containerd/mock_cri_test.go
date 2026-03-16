@@ -257,6 +257,36 @@ func TestConnectAndCreateClientWithFakeRuntimeServer(t *testing.T) {
 	require.NotNil(t, imageClient)
 }
 
+func TestConnectSurfacesPermissionDeniedErrorWithMockey(t *testing.T) {
+	mockey.PatchConvey("connect returns permission denied when unix socket access is blocked", t, func() {
+		tmpDir := t.TempDir()
+		socketPath := filepath.Join(tmpDir, "containerd.sock")
+		f, err := os.Create(socketPath)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		endpoint := "unix://" + socketPath
+
+		var grpcDialCalls int
+		mockey.Mock(dialGRPCContext).To(func(_ context.Context, _ string, _ ...grpc.DialOption) (*grpc.ClientConn, error) {
+			grpcDialCalls++
+			return nil, context.DeadlineExceeded
+		}).Build()
+
+		var probeCalls int
+		mockey.Mock(probeUnixSocket).To(func(_ string) error {
+			probeCalls++
+			return &net.OpError{Op: "dial", Net: "unix", Err: os.ErrPermission}
+		}).Build()
+
+		_, err = connect(context.Background(), endpoint)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "permission denied")
+		assert.Equal(t, 1, grpcDialCalls)
+		assert.Equal(t, 1, probeCalls)
+	})
+}
+
 func TestCreateClientVersionAndStatusErrors(t *testing.T) {
 	testCases := []struct {
 		name    string
