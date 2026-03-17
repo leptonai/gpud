@@ -1,10 +1,10 @@
 package nvlink
 
 import (
-	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
@@ -21,12 +21,8 @@ func TestEvaluateThresholds_ZeroThreshold(t *testing.T) {
 
 	evaluateHealthStateWithThresholds(cr)
 
-	if cr.health != apiv1.HealthStateTypeHealthy {
-		t.Fatalf("expected health to remain healthy, got %q", cr.health)
-	}
-	if cr.reason != "existing reason" {
-		t.Fatalf("expected reason to remain unchanged, got %q", cr.reason)
-	}
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "existing reason", cr.reason)
 }
 
 func TestEvaluateThresholds_NoData(t *testing.T) {
@@ -37,12 +33,8 @@ func TestEvaluateThresholds_NoData(t *testing.T) {
 
 	evaluateHealthStateWithThresholds(cr)
 
-	if cr.health != apiv1.HealthStateTypeHealthy {
-		t.Fatalf("expected healthy when no data, got %q", cr.health)
-	}
-	if cr.reason != reasonNoNVLinkData {
-		t.Fatalf("expected reason %q, got %q", reasonNoNVLinkData, cr.reason)
-	}
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, reasonNoNVLinkData, cr.reason)
 }
 
 func TestEvaluateThresholds_Satisfied(t *testing.T) {
@@ -63,12 +55,9 @@ func TestEvaluateThresholds_Satisfied(t *testing.T) {
 
 	evaluateHealthStateWithThresholds(cr)
 
-	if cr.health != apiv1.HealthStateTypeHealthy {
-		t.Fatalf("expected healthy, got %q", cr.health)
-	}
-	if cr.reason == "" || cr.reason == reasonNoNVLinkData {
-		t.Fatalf("expected informative reason, got %q", cr.reason)
-	}
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.NotEmpty(t, cr.reason)
+	assert.NotEqual(t, reasonNoNVLinkData, cr.reason)
 }
 
 func TestEvaluateThresholds_ViolationInactive(t *testing.T) {
@@ -89,21 +78,12 @@ func TestEvaluateThresholds_ViolationInactive(t *testing.T) {
 
 	evaluateHealthStateWithThresholds(cr)
 
-	if cr.health != apiv1.HealthStateTypeUnhealthy {
-		t.Fatalf("expected unhealthy, got %q", cr.health)
-	}
-	if cr.reason == "" || cr.reason == reasonNoNVLinkData {
-		t.Fatalf("expected violation reason, got %q", cr.reason)
-	}
-	if want := "inactive nvlinks=GPU-0"; !strings.Contains(cr.reason, want) {
-		t.Fatalf("expected reason to contain %q, got %q", want, cr.reason)
-	}
-	if cr.suggestedActions == nil {
-		t.Fatalf("expected suggested actions when nvlink is inactive")
-	}
-	if diff := cmp.Diff([]apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, cr.suggestedActions.RepairActions); diff != "" {
-		t.Fatalf("unexpected suggested actions (-want +got):\n%s", diff)
-	}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.NotEmpty(t, cr.reason)
+	assert.NotEqual(t, reasonNoNVLinkData, cr.reason)
+	assert.Contains(t, cr.reason, "inactive nvlinks=GPU-0")
+	require.NotNil(t, cr.suggestedActions)
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, cr.suggestedActions.RepairActions)
 }
 
 func TestEvaluateThresholds_ViolationUnsupported(t *testing.T) {
@@ -121,15 +101,9 @@ func TestEvaluateThresholds_ViolationUnsupported(t *testing.T) {
 
 	evaluateHealthStateWithThresholds(cr)
 
-	if cr.health != apiv1.HealthStateTypeUnhealthy {
-		t.Fatalf("expected unhealthy, got %q", cr.health)
-	}
-	if want := "unsupported nvlinks=GPU-1"; !strings.Contains(cr.reason, want) {
-		t.Fatalf("expected reason to contain %q, got %q", want, cr.reason)
-	}
-	if cr.suggestedActions != nil {
-		t.Fatalf("did not expect suggested actions when nvlink is unsupported")
-	}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "unsupported nvlinks=GPU-1")
+	assert.Nil(t, cr.suggestedActions)
 }
 
 func TestEvaluateThresholds_EmptyStates(t *testing.T) {
@@ -148,12 +122,8 @@ func TestEvaluateThresholds_EmptyStates(t *testing.T) {
 	evaluateHealthStateWithThresholds(cr)
 
 	// Should be unhealthy - 0 active GPUs < 1 required
-	if cr.health != apiv1.HealthStateTypeUnhealthy {
-		t.Fatalf("expected unhealthy for GPU with empty states, got %q", cr.health)
-	}
-	if !strings.Contains(cr.reason, "nvlink threshold violated") {
-		t.Fatalf("expected threshold violation in reason, got %q", cr.reason)
-	}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "nvlink threshold violated")
 }
 
 func TestEvaluateThresholds_MixedInactiveAndUnsupported(t *testing.T) {
@@ -185,20 +155,10 @@ func TestEvaluateThresholds_MixedInactiveAndUnsupported(t *testing.T) {
 	evaluateHealthStateWithThresholds(cr)
 
 	// Should be unhealthy - 0 active GPUs < 2 required
-	if cr.health != apiv1.HealthStateTypeUnhealthy {
-		t.Fatalf("expected unhealthy, got %q", cr.health)
-	}
-
-	// Verify both types appear in reason
-	if !strings.Contains(cr.reason, "inactive nvlinks=GPU-1") {
-		t.Errorf("missing inactive GPUs in reason: %q", cr.reason)
-	}
-	if !strings.Contains(cr.reason, "unsupported nvlinks=GPU-0") {
-		t.Errorf("missing unsupported GPUs in reason: %q", cr.reason)
-	}
-	if !strings.Contains(cr.reason, "require >=2") {
-		t.Errorf("missing threshold requirement in reason: %q", cr.reason)
-	}
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "inactive nvlinks=GPU-1")
+	assert.Contains(t, cr.reason, "unsupported nvlinks=GPU-0")
+	assert.Contains(t, cr.reason, "require >=2")
 }
 
 func TestEvaluateThresholds_NegativeThresholdTreatedAsUnset(t *testing.T) {
@@ -219,14 +179,10 @@ func TestEvaluateThresholds_NegativeThresholdTreatedAsUnset(t *testing.T) {
 	evaluateHealthStateWithThresholds(cr)
 
 	// Should keep existing state since threshold is treated as unset
-	if cr.reason != "existing reason" {
-		t.Fatalf("expected reason to remain unchanged for negative threshold, got %q", cr.reason)
-	}
+	assert.Equal(t, "existing reason", cr.reason)
 
 	// Verify that the threshold is considered zero/unset
-	if !thresholds.IsZero() {
-		t.Fatalf("negative threshold should be treated as IsZero")
-	}
+	assert.True(t, thresholds.IsZero())
 }
 
 func TestEvaluateThresholds_MultipleGPUsPartialActive(t *testing.T) {
@@ -266,10 +222,93 @@ func TestEvaluateThresholds_MultipleGPUsPartialActive(t *testing.T) {
 	evaluateHealthStateWithThresholds(cr)
 
 	// Should be healthy - 2 GPUs have all links active (GPU-0 and GPU-2)
-	if cr.health != apiv1.HealthStateTypeHealthy {
-		t.Fatalf("expected healthy with 2 fully active GPUs, got %q", cr.health)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Contains(t, cr.reason, "satisfied")
+}
+
+func TestEvaluateThresholds_ImplicitFailureWhenSystemExpectedNVLink(t *testing.T) {
+	cr := &checkResult{
+		NVLinks: []NVLink{
+			{
+				UUID:      "GPU-0",
+				Supported: false,
+			},
+			{
+				UUID:      "GPU-1",
+				Supported: false,
+			},
+		},
+		UnsupportedNVLinkUUIDs: []string{"GPU-0", "GPU-1"},
+		SystemExpectedNVLink:   true,
 	}
-	if !strings.Contains(cr.reason, "satisfied") {
-		t.Fatalf("expected satisfied in reason, got %q", cr.reason)
+
+	evaluateHealthStateWithThresholds(cr)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "no GPUs report active nvlink links")
+	assert.Contains(t, cr.reason, "unsupported nvlinks=GPU-0,GPU-1")
+	assert.Nil(t, cr.suggestedActions)
+}
+
+func TestEvaluateThresholds_ImplicitFallbackDoesNotFailPartialDegradation(t *testing.T) {
+	cr := &checkResult{
+		NVLinks: []NVLink{
+			{
+				UUID:      "GPU-0",
+				Supported: true,
+				States: []NVLinkState{
+					{FeatureEnabled: true},
+				},
+			},
+			{
+				UUID:      "GPU-1",
+				Supported: true,
+				States: []NVLinkState{
+					{FeatureEnabled: false},
+				},
+			},
+		},
+		ActiveNVLinkUUIDs:    []string{"GPU-0"},
+		InactiveNVLinkUUIDs:  []string{"GPU-1"},
+		SystemExpectedNVLink: true,
+		health:               apiv1.HealthStateTypeHealthy,
+		reason:               "all 2 GPU(s) were checked, no nvlink issue found",
 	}
+
+	evaluateHealthStateWithThresholds(cr)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "all 2 GPU(s) were checked, no nvlink issue found", cr.reason)
+}
+
+func TestEvaluateThresholds_PartialDegradationFailsWhenThresholdConfigured(t *testing.T) {
+	thresholds := ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 2}
+	cr := &checkResult{
+		NVLinks: []NVLink{
+			{
+				UUID:      "GPU-0",
+				Supported: true,
+				States: []NVLinkState{
+					{FeatureEnabled: true},
+				},
+			},
+			{
+				UUID:      "GPU-1",
+				Supported: true,
+				States: []NVLinkState{
+					{FeatureEnabled: false},
+				},
+			},
+		},
+		ActiveNVLinkUUIDs:    []string{"GPU-0"},
+		InactiveNVLinkUUIDs:  []string{"GPU-1"},
+		ExpectedLinkStates:   &thresholds,
+		SystemExpectedNVLink: true,
+	}
+
+	evaluateHealthStateWithThresholds(cr)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "require >=2 GPUs with all links active; got 1")
+	assert.Contains(t, cr.reason, "inactive nvlinks=GPU-1")
 }

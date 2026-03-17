@@ -85,6 +85,18 @@ func (m *mockNVMLInstance) InitError() error {
 	return nil
 }
 
+type mockNVMLInstanceNoFabric struct {
+	mockNVMLInstance
+}
+
+func (m *mockNVMLInstanceNoFabric) FabricManagerSupported() bool {
+	return false
+}
+
+func (m *mockNVMLInstanceNoFabric) FabricStateSupported() bool {
+	return false
+}
+
 // mockNVMLInstanceNVMLNotExists is a special mock for the case where NVMLExists returns false
 type mockNVMLInstanceNVMLNotExists struct {
 	mockNVMLInstance
@@ -435,7 +447,7 @@ func TestClose(t *testing.T) {
 	case <-component.ctx.Done():
 		// Context is properly canceled
 	default:
-		t.Fatal("component context was not canceled on Close")
+		require.FailNow(t, "component context was not canceled on Close")
 	}
 }
 
@@ -1003,4 +1015,174 @@ func TestCheck_ThresholdSatisfied(t *testing.T) {
 	assert.Contains(t, cr.reason, "threshold satisfied")
 	assert.Empty(t, cr.InactiveNVLinkUUIDs)
 	assert.Empty(t, cr.UnsupportedNVLinkUUIDs)
+}
+
+func TestCheck_ImplicitFailureWhenMultiGPUSystemHasNoActiveNVLink(t *testing.T) {
+	ctx := context.Background()
+
+	devs := map[string]device.Device{
+		"gpu-uuid-0": testutil.NewMockDevice(&mock.Device{}, "arch", "brand", "cuda", "pci-0"),
+		"gpu-uuid-1": testutil.NewMockDevice(&mock.Device{}, "arch", "brand", "cuda", "pci-1"),
+	}
+
+	component := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		nvmlInstance: &mockNVMLInstance{
+			devicesFunc: func() map[string]device.Device {
+				return devs
+			},
+		},
+		getNVLinkFunc: func(uuid string, _ device.Device) (NVLink, error) {
+			return NVLink{
+				UUID:      uuid,
+				Supported: false,
+			}, nil
+		},
+		getThresholdsFunc: GetDefaultExpectedLinkStates,
+	}
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.True(t, cr.SystemExpectedNVLink)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Len(t, cr.UnsupportedNVLinkUUIDs, 2)
+	assert.Contains(t, cr.reason, "no GPUs report active nvlink links")
+}
+
+func TestCheck_MultiGPUWithoutExpectedNVLinkStillSkipsByDefault(t *testing.T) {
+	ctx := context.Background()
+
+	devs := map[string]device.Device{
+		"gpu-uuid-0": testutil.NewMockDevice(&mock.Device{}, "arch", "brand", "cuda", "pci-0"),
+		"gpu-uuid-1": testutil.NewMockDevice(&mock.Device{}, "arch", "brand", "cuda", "pci-1"),
+	}
+
+	component := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		nvmlInstance: &mockNVMLInstanceNoFabric{
+			mockNVMLInstance: mockNVMLInstance{
+				devicesFunc: func() map[string]device.Device {
+					return devs
+				},
+			},
+		},
+		getNVLinkFunc: func(uuid string, _ device.Device) (NVLink, error) {
+			return NVLink{
+				UUID:      uuid,
+				Supported: false,
+			}, nil
+		},
+		getThresholdsFunc: GetDefaultExpectedLinkStates,
+	}
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.False(t, cr.SystemExpectedNVLink)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "all 2 GPU(s) were checked, no nvlink issue found", cr.reason)
+	assert.Len(t, cr.UnsupportedNVLinkUUIDs, 2)
+}
+
+func TestCheck_SingleGPUSystemDoesNotExpectNVLinkByDefault(t *testing.T) {
+	ctx := context.Background()
+
+	devs := map[string]device.Device{
+		"gpu-uuid-0": testutil.NewMockDevice(&mock.Device{}, "arch", "brand", "cuda", "pci-0"),
+	}
+
+	component := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		nvmlInstance: &mockNVMLInstance{
+			devicesFunc: func() map[string]device.Device {
+				return devs
+			},
+		},
+		getNVLinkFunc: func(uuid string, _ device.Device) (NVLink, error) {
+			return NVLink{
+				UUID:      uuid,
+				Supported: false,
+			}, nil
+		},
+		getThresholdsFunc: GetDefaultExpectedLinkStates,
+	}
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.False(t, cr.SystemExpectedNVLink)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", cr.reason)
+	assert.Equal(t, []string{"gpu-uuid-0"}, cr.UnsupportedNVLinkUUIDs)
+}
+
+func TestCheck_PartialActiveNVLinkWithoutThresholdRemainsHealthy(t *testing.T) {
+	ctx := context.Background()
+
+	devs := map[string]device.Device{
+		"gpu-uuid-0": testutil.NewMockDevice(&mock.Device{}, "arch", "brand", "cuda", "pci-0"),
+		"gpu-uuid-1": testutil.NewMockDevice(&mock.Device{}, "arch", "brand", "cuda", "pci-1"),
+	}
+
+	component := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		nvmlInstance: &mockNVMLInstance{
+			devicesFunc: func() map[string]device.Device {
+				return devs
+			},
+		},
+		getNVLinkFunc: func(uuid string, _ device.Device) (NVLink, error) {
+			switch uuid {
+			case "gpu-uuid-0":
+				return NVLink{
+					UUID:      uuid,
+					Supported: true,
+					States: []NVLinkState{
+						{FeatureEnabled: true},
+					},
+				}, nil
+			case "gpu-uuid-1":
+				return NVLink{
+					UUID:      uuid,
+					Supported: true,
+					States: []NVLinkState{
+						{FeatureEnabled: false},
+					},
+				}, nil
+			default:
+				return NVLink{}, nil
+			}
+		},
+		getThresholdsFunc: GetDefaultExpectedLinkStates,
+	}
+
+	result := component.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.True(t, cr.SystemExpectedNVLink)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "all 2 GPU(s) were checked, no nvlink issue found", cr.reason)
+	assert.Equal(t, []string{"gpu-uuid-0"}, cr.ActiveNVLinkUUIDs)
+	assert.Equal(t, []string{"gpu-uuid-1"}, cr.InactiveNVLinkUUIDs)
 }

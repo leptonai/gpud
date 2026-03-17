@@ -160,6 +160,26 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
+	// Only expect NVLink by default on multi-GPU hosts that advertise NVIDIA
+	// fabric support. This keeps 1-GPU machines safe: for a single GPU,
+	// `nvidia-smi topo -p2p n` legitimately shows only the self entry:
+	//
+	//   $ nvidia-smi topo -p2p n
+	//        GPU0
+	//   GPU0 X
+	//
+	// On a healthy 2-GPU NVLink-capable host, peer entries should be `OK`:
+	//
+	//   $ nvidia-smi topo -p2p n
+	//        GPU0 GPU1
+	//   GPU0 X    OK
+	//   GPU1 OK   X
+	//
+	// This flag is intentionally conservative: it only enables the fallback for
+	// the obvious "zero GPUs have active NVLink" case. If some GPUs are active
+	// and some are not, operators must still configure ExpectedLinkStates to make
+	// partial degradation fail health checks.
+	cr.SystemExpectedNVLink = len(devs) > 1 && (c.nvmlInstance.FabricManagerSupported() || c.nvmlInstance.FabricStateSupported())
 	for uuid, dev := range devs {
 		nvLink, err := c.getNVLinkFunc(uuid, dev)
 		if err != nil {
@@ -255,6 +275,12 @@ type checkResult struct {
 	// ExpectedLinkStates defines the threshold for how many GPUs must have active NVLink
 	// Used by evaluateHealthStateWithThresholds to determine if the system is healthy
 	ExpectedLinkStates *ExpectedLinkStates `json:"expected_link_states,omitempty"`
+
+	// SystemExpectedNVLink reports whether this node looks like a multi-GPU NVIDIA
+	// host where GPUD expects an NVLink fabric to exist by default. This lets the
+	// component catch obvious topology failures even when no explicit threshold is
+	// configured.
+	SystemExpectedNVLink bool `json:"system_expected_nvlink,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time

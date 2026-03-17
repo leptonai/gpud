@@ -13,6 +13,37 @@ const (
 	reasonNoNVLinkData          = "no nvlink data (skipped evaluation)"
 )
 
+func appendNVLinkFailureDetails(reason string, cr *checkResult) string {
+	if cr == nil {
+		return reason
+	}
+
+	detailParts := []string{}
+	if len(cr.InactiveNVLinkUUIDs) > 0 {
+		detailParts = append(detailParts, fmt.Sprintf("inactive nvlinks=%s", strings.Join(cr.InactiveNVLinkUUIDs, ",")))
+	}
+	if len(cr.UnsupportedNVLinkUUIDs) > 0 {
+		detailParts = append(detailParts, fmt.Sprintf("unsupported nvlinks=%s", strings.Join(cr.UnsupportedNVLinkUUIDs, ",")))
+	}
+	if len(detailParts) == 0 {
+		return reason
+	}
+	return fmt.Sprintf("%s (%s)", reason, strings.Join(detailParts, "; "))
+}
+
+func setNVLinkSuggestedActions(cr *checkResult) {
+	if cr == nil {
+		return
+	}
+	if cr.suggestedActions == nil && len(cr.InactiveNVLinkUUIDs) > 0 {
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			RepairActions: []apiv1.RepairActionType{
+				apiv1.RepairActionTypeRebootSystem,
+			},
+		}
+	}
+}
+
 // evaluateHealthStateWithThresholds updates the check result using the configured
 // ExpectedLinkStates. This mirrors the InfiniBand threshold evaluation so that
 // operators can declare how many GPUs must have NVLink fully active. When all
@@ -42,6 +73,43 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 	}
 
 	if cr.ExpectedLinkStates == nil || cr.ExpectedLinkStates.IsZero() {
+		// WHY: even without an explicit operator threshold, a multi-GPU
+		// NVLink-capable system should not report healthy when *zero* GPUs have
+		// active NVLink. A real field report on H100 looked like:
+		//
+		//   $ nvidia-smi topo -p2p n
+		//        GPU0 GPU1 GPU2 GPU3 GPU4 GPU5 GPU6 GPU7
+		//   GPU0 X    NS   NS   NS   NS   NS   NS   NS
+		//   ...
+		//   GPU7 NS   NS   NS   NS   NS   NS   NS   X
+		//
+		// Legend: `OK` = peer path works, `NS` = not supported. On that host
+		// GPUD previously returned healthy because the threshold was unset.
+		// This fallback converts only the obvious "all peers broken" case into
+		// Unhealthy while still leaving single-GPU systems alone.
+		//
+		// IMPORTANT: this does NOT make partial degradation unhealthy by default.
+		// If 1+ GPUs still have all links active, the implicit fallback stays
+		// healthy. Operators must set ExpectedLinkStates when they want GPUD to
+		// fail nodes where only some GPUs lost NVLink connectivity.
+		//
+		// Operators can usually confirm the same failure with:
+		//   $ nvidia-smi nvlink -s
+		//   Unable to retrieve NVLink information as all links are inActive
+		if cr.SystemExpectedNVLink && len(cr.NVLinks) > 0 && len(cr.ActiveNVLinkUUIDs) == 0 {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("no GPUs report active nvlink links on %d-GPU NVLink-capable system", len(cr.NVLinks))
+			cr.reason = appendNVLinkFailureDetails(cr.reason, cr)
+			setNVLinkSuggestedActions(cr)
+			log.Logger.Warnw(
+				"detected system-wide nvlink failure without explicit threshold",
+				"gpuCount", len(cr.NVLinks),
+				"inactiveGPUs", cr.InactiveNVLinkUUIDs,
+				"unsupportedGPUs", cr.UnsupportedNVLinkUUIDs,
+			)
+			return
+		}
+
 		if cr.reason == "" {
 			cr.reason = reasonNoThresholdConfigured
 		}
@@ -68,23 +136,6 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 	cr.health = apiv1.HealthStateTypeUnhealthy
 	cr.reason = fmt.Sprintf("nvlink threshold violated: require >=%d GPUs with all links active; got %d", required, active)
 	log.Logger.Warnw(cr.reason, "requiredGPUs", required, "activeGPUs", active)
-
-	detailParts := []string{}
-	if len(cr.InactiveNVLinkUUIDs) > 0 {
-		detailParts = append(detailParts, fmt.Sprintf("inactive nvlinks=%s", strings.Join(cr.InactiveNVLinkUUIDs, ",")))
-	}
-	if len(cr.UnsupportedNVLinkUUIDs) > 0 {
-		detailParts = append(detailParts, fmt.Sprintf("unsupported nvlinks=%s", strings.Join(cr.UnsupportedNVLinkUUIDs, ",")))
-	}
-	if len(detailParts) > 0 {
-		cr.reason = fmt.Sprintf("%s (%s)", cr.reason, strings.Join(detailParts, "; "))
-	}
-
-	if cr.suggestedActions == nil && len(cr.InactiveNVLinkUUIDs) > 0 {
-		cr.suggestedActions = &apiv1.SuggestedActions{
-			RepairActions: []apiv1.RepairActionType{
-				apiv1.RepairActionTypeRebootSystem,
-			},
-		}
-	}
+	cr.reason = appendNVLinkFailureDetails(cr.reason, cr)
+	setNVLinkSuggestedActions(cr)
 }
