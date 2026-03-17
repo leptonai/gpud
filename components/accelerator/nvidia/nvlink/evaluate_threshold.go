@@ -19,6 +19,9 @@ func appendNVLinkFailureDetails(reason string, cr *checkResult) string {
 	}
 
 	detailParts := []string{}
+	if cr.PeerNVLinkProbePairCount > 0 && cr.PeerNVLinkOKPairCount == 0 && len(cr.PeerNVLinkObservedStatusCodes) > 0 {
+		detailParts = append(detailParts, fmt.Sprintf("peer nvlink p2p statuses=%s", strings.Join(cr.PeerNVLinkObservedStatusCodes, ",")))
+	}
 	if len(cr.InactiveNVLinkUUIDs) > 0 {
 		detailParts = append(detailParts, fmt.Sprintf("inactive nvlinks=%s", strings.Join(cr.InactiveNVLinkUUIDs, ",")))
 	}
@@ -35,7 +38,8 @@ func setNVLinkSuggestedActions(cr *checkResult) {
 	if cr == nil {
 		return
 	}
-	if cr.suggestedActions == nil && len(cr.InactiveNVLinkUUIDs) > 0 {
+	if cr.suggestedActions == nil &&
+		(len(cr.InactiveNVLinkUUIDs) > 0 || (cr.PeerNVLinkProbePairCount > 0 && cr.PeerNVLinkOKPairCount == 0)) {
 		cr.suggestedActions = &apiv1.SuggestedActions{
 			RepairActions: []apiv1.RepairActionType{
 				apiv1.RepairActionTypeRebootSystem,
@@ -73,6 +77,25 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 	}
 
 	if cr.ExpectedLinkStates == nil || cr.ExpectedLinkStates.IsZero() {
+		if cr.SystemExpectedNVLink && len(cr.NVLinks) > 1 && cr.PeerNVLinkProbePairCount > 0 && cr.PeerNVLinkOKPairCount == 0 {
+			// WHY: once NVML confirms that every probed GPU pair lacks NVLink P2P
+			// connectivity, the node should not remain healthy by default just
+			// because each individual GPU still reports enabled NVLink ports.
+			// This matches the operator-visible failure signal from
+			// `nvidia-smi topo -p2p n`, where all peer entries degrade to `NS`.
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("no GPU pairs report NVLink P2P connectivity on %d-GPU NVLink-capable system", len(cr.NVLinks))
+			cr.reason = appendNVLinkFailureDetails(cr.reason, cr)
+			setNVLinkSuggestedActions(cr)
+			log.Logger.Warnw(
+				"detected system-wide nvlink peer-to-peer failure without explicit threshold",
+				"gpuCount", len(cr.NVLinks),
+				"probedPairs", cr.PeerNVLinkProbePairCount,
+				"observedPeerStatuses", cr.PeerNVLinkObservedStatusCodes,
+			)
+			return
+		}
+
 		// WHY: even without an explicit operator threshold, a multi-GPU
 		// NVLink-capable system should not report healthy when *zero* GPUs have
 		// active NVLink. A real field report on H100 looked like:

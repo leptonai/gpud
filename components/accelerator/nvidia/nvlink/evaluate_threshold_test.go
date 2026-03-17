@@ -250,6 +250,40 @@ func TestEvaluateThresholds_ImplicitFailureWhenSystemExpectedNVLink(t *testing.T
 	assert.Nil(t, cr.suggestedActions)
 }
 
+func TestEvaluateThresholds_ImplicitFailureWhenPeerNVLinkP2PReportsNoOKPairs(t *testing.T) {
+	cr := &checkResult{
+		NVLinks: []NVLink{
+			{
+				UUID:      "GPU-0",
+				Supported: true,
+				States: []NVLinkState{
+					{FeatureEnabled: true},
+				},
+			},
+			{
+				UUID:      "GPU-1",
+				Supported: true,
+				States: []NVLinkState{
+					{FeatureEnabled: true},
+				},
+			},
+		},
+		ActiveNVLinkUUIDs:             []string{"GPU-0", "GPU-1"},
+		PeerNVLinkProbePairCount:      1,
+		PeerNVLinkOKPairCount:         0,
+		PeerNVLinkObservedStatusCodes: []string{p2pStatusNotSupported},
+		SystemExpectedNVLink:          true,
+	}
+
+	evaluateHealthStateWithThresholds(cr)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "no GPU pairs report NVLink P2P connectivity")
+	assert.Contains(t, cr.reason, "peer nvlink p2p statuses=NS")
+	require.NotNil(t, cr.suggestedActions)
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, cr.suggestedActions.RepairActions)
+}
+
 func TestEvaluateThresholds_ImplicitFallbackDoesNotFailPartialDegradation(t *testing.T) {
 	cr := &checkResult{
 		NVLinks: []NVLink{
