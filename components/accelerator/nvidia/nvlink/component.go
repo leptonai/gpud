@@ -34,9 +34,10 @@ type component struct {
 
 	getTimeNowFunc func() time.Time
 
-	nvmlInstance      nvidianvml.Instance
-	getNVLinkFunc     func(uuid string, dev device.Device) (NVLink, error)
-	getThresholdsFunc func() ExpectedLinkStates
+	nvmlInstance             nvidianvml.Instance
+	getNVLinkFunc            func(uuid string, dev device.Device) (NVLink, error)
+	getPeerNVLinkP2PStatusFn func(dev device.Device, peer device.Device) (string, error)
+	getThresholdsFunc        func() ExpectedLinkStates
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -52,9 +53,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		nvmlInstance:      gpudInstance.NVMLInstance,
-		getNVLinkFunc:     GetNVLink,
-		getThresholdsFunc: GetDefaultExpectedLinkStates,
+		nvmlInstance:             gpudInstance.NVMLInstance,
+		getNVLinkFunc:            GetNVLink,
+		getPeerNVLinkP2PStatusFn: getPeerNVLinkP2PStatus,
+		getThresholdsFunc:        GetDefaultExpectedLinkStates,
 	}
 	return c, nil
 }
@@ -160,7 +162,79 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
-	for uuid, dev := range devs {
+	// Only expect NVLink by default on multi-GPU hosts that advertise NVIDIA
+	// fabric support. This keeps 1-GPU machines safe: for a single GPU,
+	// `nvidia-smi topo -p2p n` legitimately shows only the self entry:
+	//
+	//   $ nvidia-smi topo -p2p n
+	//        GPU0
+	//   GPU0 X
+	//
+	// On a healthy 2-GPU NVLink-capable host, peer entries should be `OK`:
+	//
+	//   $ nvidia-smi topo -p2p n
+	//        GPU0 GPU1
+	//   GPU0 X    OK
+	//   GPU1 OK   X
+	//
+	// This flag is intentionally conservative: it only enables the fallback for
+	// the obvious "zero GPUs have active NVLink" case. If some GPUs are active
+	// and some are not, operators must still configure ExpectedLinkStates to make
+	// partial degradation fail health checks.
+	cr.SystemExpectedNVLink = len(devs) > 1 && (c.nvmlInstance.FabricManagerSupported() || c.nvmlInstance.FabricStateSupported())
+	sortedUUIDs := make([]string, 0, len(devs))
+	for uuid := range devs {
+		sortedUUIDs = append(sortedUUIDs, uuid)
+	}
+	sort.Strings(sortedUUIDs)
+
+	if c.getPeerNVLinkP2PStatusFn != nil && len(sortedUUIDs) > 1 {
+		peerNVLinkOKGPUUUIDs := make(map[string]struct{})
+		peerNVLinkObservedStatusCodes := make(map[string]struct{})
+		cr.PeerNVLinkExpectedPairCount = len(sortedUUIDs) * (len(sortedUUIDs) - 1) / 2
+
+		// WHY: per-GPU NVLink port state can stay FEATURE_ENABLED even when the
+		// fabric is unusable between GPU peers. In the field this showed up as
+		// `nvidia-smi topo -p2p n` reporting only `NS` peer entries while GPUD
+		// still rendered every GPU as NVLink enabled/supported. Probe pairwise
+		// NVLink P2P status here so the component can catch topology-level
+		// failures that per-port state alone misses.
+		for i := 0; i < len(sortedUUIDs); i++ {
+			for j := i + 1; j < len(sortedUUIDs); j++ {
+				uuid := sortedUUIDs[i]
+				peerUUID := sortedUUIDs[j]
+
+				statusCode, err := c.getPeerNVLinkP2PStatusFn(devs[uuid], devs[peerUUID])
+				if err != nil {
+					log.Logger.Debugw(
+						"failed to get nvlink peer-to-peer status",
+						"uuid", uuid,
+						"peer_uuid", peerUUID,
+						"error", err,
+					)
+					continue
+				}
+
+				cr.PeerNVLinkProbePairCount++
+				peerNVLinkObservedStatusCodes[statusCode] = struct{}{}
+				if statusCode == p2pStatusOK {
+					cr.PeerNVLinkOKPairCount++
+					peerNVLinkOKGPUUUIDs[uuid] = struct{}{}
+					peerNVLinkOKGPUUUIDs[peerUUID] = struct{}{}
+				}
+			}
+		}
+
+		if len(peerNVLinkOKGPUUUIDs) > 0 {
+			cr.PeerNVLinkOKGPUUUIDs = sortedKeys(peerNVLinkOKGPUUUIDs)
+		}
+		if len(peerNVLinkObservedStatusCodes) > 0 {
+			cr.PeerNVLinkObservedStatusCodes = sortedKeys(peerNVLinkObservedStatusCodes)
+		}
+	}
+
+	for _, uuid := range sortedUUIDs {
+		dev := devs[uuid]
 		nvLink, err := c.getNVLinkFunc(uuid, dev)
 		if err != nil {
 			cr.err = err
@@ -198,6 +272,10 @@ func (c *component) Check() components.CheckResult {
 			metricSupported.With(labels).Set(1.0)
 		} else {
 			metricSupported.With(labels).Set(0.0)
+			metricFeatureEnabled.With(labels).Set(0.0)
+			metricReplayErrors.With(labels).Set(0.0)
+			metricRecoveryErrors.With(labels).Set(0.0)
+			metricCRCErrors.With(labels).Set(0.0)
 			cr.UnsupportedNVLinkUUIDs = append(cr.UnsupportedNVLinkUUIDs, uuid)
 			continue
 		}
@@ -256,6 +334,31 @@ type checkResult struct {
 	// Used by evaluateHealthStateWithThresholds to determine if the system is healthy
 	ExpectedLinkStates *ExpectedLinkStates `json:"expected_link_states,omitempty"`
 
+	// PeerNVLinkProbePairCount is the number of GPU peer pairs where NVML returned
+	// a usable P2P-over-NVLink status. This mirrors `nvidia-smi topo -p2p n`.
+	PeerNVLinkProbePairCount int `json:"peer_nvlink_probe_pair_count,omitempty"`
+
+	// PeerNVLinkExpectedPairCount is the total number of unique GPU peer pairs GPUD
+	// tried to inspect. Comparing this with PeerNVLinkProbePairCount lets the
+	// health evaluator distinguish a confirmed all-NS matrix from partial data.
+	PeerNVLinkExpectedPairCount int `json:"peer_nvlink_expected_pair_count,omitempty"`
+
+	// PeerNVLinkOKPairCount is the number of peer pairs that report NVLink P2P OK.
+	PeerNVLinkOKPairCount int `json:"peer_nvlink_ok_pair_count,omitempty"`
+
+	// PeerNVLinkOKGPUUUIDs lists GPUs that have at least one peer with NVLink P2P OK.
+	PeerNVLinkOKGPUUUIDs []string `json:"peer_nvlink_ok_gpu_uuids,omitempty"`
+
+	// PeerNVLinkObservedStatusCodes lists the distinct peer NVLink P2P status codes
+	// observed across probed GPU pairs (e.g. OK, NS, TNS).
+	PeerNVLinkObservedStatusCodes []string `json:"peer_nvlink_observed_status_codes,omitempty"`
+
+	// SystemExpectedNVLink reports whether this node looks like a multi-GPU NVIDIA
+	// host where GPUD expects an NVLink fabric to exist by default. This lets the
+	// component catch obvious topology failures even when no explicit threshold is
+	// configured.
+	SystemExpectedNVLink bool `json:"system_expected_nvlink,omitempty"`
+
 	// timestamp of the last check
 	ts time.Time
 	// error from the last check
@@ -267,6 +370,49 @@ type checkResult struct {
 	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
+}
+
+func (cr *checkResult) hasCompletePeerNVLinkProbeCoverage() bool {
+	if cr == nil || cr.PeerNVLinkExpectedPairCount == 0 {
+		return false
+	}
+	return cr.PeerNVLinkProbePairCount == cr.PeerNVLinkExpectedPairCount
+}
+
+func (cr *checkResult) missingPeerNVLinkProbePairCount() int {
+	if cr == nil || cr.PeerNVLinkExpectedPairCount <= cr.PeerNVLinkProbePairCount {
+		return 0
+	}
+	return cr.PeerNVLinkExpectedPairCount - cr.PeerNVLinkProbePairCount
+}
+
+func (cr *checkResult) hasPeerNVLinkP2PFailure() bool {
+	if cr == nil {
+		return false
+	}
+	return cr.SystemExpectedNVLink &&
+		len(cr.NVLinks) > 1 &&
+		cr.PeerNVLinkProbePairCount > 0 &&
+		cr.PeerNVLinkOKPairCount == 0
+}
+
+func (cr *checkResult) peerNVLinkStatusesSuggestReboot() bool {
+	if cr == nil || len(cr.PeerNVLinkObservedStatusCodes) == 0 {
+		return false
+	}
+	for _, statusCode := range cr.PeerNVLinkObservedStatusCodes {
+		switch statusCode {
+		case p2pStatusChipsetNotSupported,
+			p2pStatusGPUNotSupported,
+			p2pStatusTopologyNotSupported,
+			p2pStatusDisabledByRegkey,
+			p2pStatusNotSupported:
+			continue
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 func (cr *checkResult) ComponentName() string {
@@ -284,10 +430,29 @@ func (cr *checkResult) String() string {
 	buf := bytes.NewBuffer(nil)
 	table := tablewriter.NewWriter(buf)
 	table.SetAlignment(tablewriter.ALIGN_CENTER)
-	table.SetHeader([]string{"GPU UUID", "GPU Bus ID", "NVLink Enabled", "NVLink Supported"})
+	headers := []string{"GPU UUID", "GPU Bus ID", "NVLink Enabled", "NVLink Supported"}
+	peerNVLinkOKGPUUUIDs := make(map[string]struct{}, len(cr.PeerNVLinkOKGPUUUIDs))
+	for _, uuid := range cr.PeerNVLinkOKGPUUUIDs {
+		peerNVLinkOKGPUUUIDs[uuid] = struct{}{}
+	}
+	includePeerColumn := cr.PeerNVLinkProbePairCount > 0
+	if includePeerColumn {
+		headers = append(headers, "NVLink P2P OK")
+	}
+	table.SetHeader(headers)
 	for _, nvlink := range cr.NVLinks {
 		featureEnabled := nvlink.Supported && len(nvlink.States) > 0 && nvlink.States.AllFeatureEnabled()
-		table.Append([]string{nvlink.UUID, nvlink.BusID, fmt.Sprintf("%t", featureEnabled), fmt.Sprintf("%t", nvlink.Supported)})
+		row := []string{
+			nvlink.UUID,
+			nvlink.BusID,
+			fmt.Sprintf("%t", featureEnabled),
+			fmt.Sprintf("%t", nvlink.Supported),
+		}
+		if includePeerColumn {
+			_, ok := peerNVLinkOKGPUUUIDs[nvlink.UUID]
+			row = append(row, fmt.Sprintf("%t", ok))
+		}
+		table.Append(row)
 	}
 	table.Render()
 
@@ -355,4 +520,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
 	return apiv1.HealthStates{state}
+}
+
+func sortedKeys(values map[string]struct{}) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
