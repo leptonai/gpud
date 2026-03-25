@@ -75,6 +75,13 @@ func (b *stubBucket) insertCount() int {
 	return len(b.inserted)
 }
 
+func isDedupDisabledOption(t *testing.T, opt OpOption) bool {
+	t.Helper()
+	op := &Op{}
+	opt(op)
+	return op.disableDedup
+}
+
 func TestNewSyncer_UsesNewWatcher_WithMockey(t *testing.T) {
 	mockey.PatchConvey("NewSyncer uses NewWatcher when watcher is nil", t, func() {
 		ch := make(chan Message)
@@ -82,11 +89,39 @@ func TestNewSyncer_UsesNewWatcher_WithMockey(t *testing.T) {
 		sw := &stubWatcher{ch: ch}
 
 		mockey.Mock(NewWatcher).To(func(opts ...OpOption) (Watcher, error) {
+			require.Empty(t, opts)
 			return sw, nil
 		}).Build()
 
 		bucket := &stubBucket{}
 		syncer, err := NewSyncer(context.Background(), func(string) (string, string) { return "", "" }, bucket)
+		require.NoError(t, err)
+		require.NotNil(t, syncer)
+		syncer.Close()
+	})
+}
+
+func TestNewSyncer_WithEventDedupWindowFunc_DisablesWatcherDedup_WithMockey(t *testing.T) {
+	mockey.PatchConvey("NewSyncer disables watcher dedup only when event override func is set", t, func() {
+		ch := make(chan Message)
+		close(ch)
+		sw := &stubWatcher{ch: ch}
+
+		mockey.Mock(NewWatcher).To(func(opts ...OpOption) (Watcher, error) {
+			require.Len(t, opts, 1)
+			require.True(t, isDedupDisabledOption(t, opts[0]))
+			return sw, nil
+		}).Build()
+
+		bucket := &stubBucket{}
+		syncer, err := NewSyncer(
+			context.Background(),
+			func(string) (string, string) { return "", "" },
+			bucket,
+			WithEventDedupWindowFunc(func(event eventstore.Event) (time.Duration, bool) {
+				return time.Minute, true
+			}),
+		)
 		require.NoError(t, err)
 		require.NotNil(t, syncer)
 		syncer.Close()

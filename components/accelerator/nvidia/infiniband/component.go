@@ -33,8 +33,14 @@ const (
 
 	defaultCheckInterval  = 30 * time.Second
 	defaultRequestTimeout = 15 * time.Second
-	// Keep kmsg dedup window aligned with other noisy components (disk, peermem).
-	defaultKmsgCacheKeyTruncateSeconds = 300
+	// Preserve the long-standing 5-minute coalescing behavior for the existing
+	// InfiniBand kmsg events unless a per-event override is configured.
+	defaultKmsgEventDedupWindow = 5 * time.Minute
+	// ACCESS_REG failures on restricted PFs are repetitive and usually represent
+	// a known configuration issue rather than a new fault. Report them once per
+	// device per day by default so operators still see the signal without
+	// flooding the event timeline.
+	defaultAccessRegEventDedupWindow = 24 * time.Hour
 
 	// defaultDropStickyWindow defines the stabilization period after an IB port drop
 	// during which the component remains unhealthy even if thresholds recover.
@@ -70,10 +76,9 @@ type component struct {
 	nvmlInstance   nvidianvml.Instance
 	toolOverwrites pkgconfigcommon.ToolOverwrites
 
-	ibPortsStore   infinibandstore.Store
-	eventBucket    eventstore.Bucket
-	kmsgSyncer     *kmsg.Syncer
-	kmsgSyncerOpts []kmsg.OpOption
+	ibPortsStore infinibandstore.Store
+	eventBucket  eventstore.Bucket
+	kmsgSyncer   *kmsg.Syncer
 
 	getTimeNowFunc      func() time.Time
 	getThresholdsFunc   func() types.ExpectedPortStates
@@ -104,9 +109,6 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		nvmlInstance:   gpudInstance.NVMLInstance,
 		toolOverwrites: gpudInstance.NVIDIAToolOverwrites,
-		kmsgSyncerOpts: []kmsg.OpOption{
-			kmsg.WithCacheKeyTruncateSeconds(defaultKmsgCacheKeyTruncateSeconds),
-		},
 
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -148,8 +150,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				cctx,
 				Match,
 				c.eventBucket,
-				// ACCESS_REG and other mlx5 kmsg events can burst; coalesce within 5 minutes to reduce event noise.
-				c.kmsgSyncerOpts...,
+				kmsg.WithCacheKeyTruncateSeconds(int(defaultKmsgEventDedupWindow.Seconds())),
+				kmsg.WithEventDedupWindowFunc(c.kmsgEventDedupWindow),
 			)
 			if err != nil {
 				ccancel()
@@ -159,6 +161,21 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	}
 
 	return c, nil
+}
+
+func (c *component) kmsgEventDedupWindow(event eventstore.Event) (time.Duration, bool) {
+	if event.Name != eventAccessRegFailed {
+		return 0, false
+	}
+
+	// ACCESS_REG is only safe to dedup per device when the matcher was able to
+	// carry a PCI identifier into the normalized message. Fall back to the
+	// legacy generic window when the device is unknown.
+	if !strings.Contains(event.Message, pciDeviceMessagePrefix) {
+		return defaultKmsgEventDedupWindow, true
+	}
+
+	return defaultAccessRegEventDedupWindow, true
 }
 
 func (c *component) Name() string { return Name }
@@ -213,7 +230,7 @@ func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, 
 		return nil, err
 	}
 
-	// Filter to only return kmsg events for PCI power and port module temperature
+	// Filter to only return the supported InfiniBand kmsg events.
 	allEvents := evs.Events()
 	filteredEvents := make(apiv1.Events, 0, len(allEvents))
 	for _, ev := range allEvents {

@@ -258,6 +258,62 @@ func TestComponentEventsFiltersKmsgEvents(t *testing.T) {
 	assert.True(t, foundTemp, "Should find temperature event")
 }
 
+func TestComponentKmsgEventDedupWindow_AccessRegPerDeviceWindow(t *testing.T) {
+	t.Parallel()
+
+	c := &component{}
+
+	dedupWindow, ok := c.kmsgEventDedupWindow(eventstore.Event{
+		Name:    eventAccessRegFailed,
+		Type:    string(apiv1.EventTypeWarning),
+		Message: messageAccessRegFailed + " (PCI device 0000:d2:00.0)",
+	})
+	require.True(t, ok)
+	assert.Equal(t, defaultAccessRegEventDedupWindow, dedupWindow)
+}
+
+func TestComponentKmsgEventDedupWindow_PreservesDefaultGenericKmsgBehavior(t *testing.T) {
+	t.Parallel()
+
+	c := &component{}
+
+	dedupWindow, ok := c.kmsgEventDedupWindow(eventstore.Event{
+		Name:    eventPCIPowerInsufficient,
+		Type:    string(apiv1.EventTypeWarning),
+		Message: messagePCIPowerInsufficient,
+	})
+	assert.False(t, ok)
+	assert.Zero(t, dedupWindow)
+}
+
+func TestComponentKmsgEventDedupWindow_AccessRegWithoutPCIDeviceFallsBackToGenericWindow(t *testing.T) {
+	t.Parallel()
+
+	c := &component{}
+
+	dedupWindow, ok := c.kmsgEventDedupWindow(eventstore.Event{
+		Name:    eventAccessRegFailed,
+		Type:    string(apiv1.EventTypeWarning),
+		Message: messageAccessRegFailed,
+	})
+	require.True(t, ok)
+	assert.Equal(t, defaultKmsgEventDedupWindow, dedupWindow)
+}
+
+func TestComponentKmsgEventDedupWindow_UnconfiguredEventReturnsFalse(t *testing.T) {
+	t.Parallel()
+
+	c := &component{}
+
+	dedupWindow, ok := c.kmsgEventDedupWindow(eventstore.Event{
+		Name:    "other_event",
+		Type:    string(apiv1.EventTypeWarning),
+		Message: "other message",
+	})
+	assert.False(t, ok)
+	assert.Zero(t, dedupWindow)
+}
+
 func TestComponentClose(t *testing.T) {
 	t.Parallel()
 
@@ -307,7 +363,18 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, Name, comp.Name())
 }
 
-func getKmsgCacheKeyTruncateSecondsFromOption(t *testing.T, opt kmsg.OpOption) int {
+func hasKmsgEventDedupWindowFunc(t *testing.T, opt kmsg.OpOption) bool {
+	t.Helper()
+	op := &kmsg.Op{}
+	opt(op)
+
+	v := reflect.ValueOf(op).Elem().FieldByName("eventDedupWindowFunc")
+	require.True(t, v.IsValid(), "eventDedupWindowFunc field must exist")
+	require.Equal(t, reflect.Func, v.Kind(), "eventDedupWindowFunc must be func")
+	return !v.IsNil()
+}
+
+func getKmsgCacheKeyTruncateSeconds(t *testing.T, opt kmsg.OpOption) int {
 	t.Helper()
 	op := &kmsg.Op{}
 	opt(op)
@@ -316,28 +383,6 @@ func getKmsgCacheKeyTruncateSecondsFromOption(t *testing.T, opt kmsg.OpOption) i
 	require.True(t, v.IsValid(), "cacheKeyTruncateSeconds field must exist")
 	require.Equal(t, reflect.Int, v.Kind(), "cacheKeyTruncateSeconds must be int")
 	return int(v.Int())
-}
-
-func TestNew_KmsgSyncerOpts_DefaultFiveMinuteDedup(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	gpudInstance := &components.GPUdInstance{
-		RootCtx:              ctx,
-		NVIDIAToolOverwrites: pkgconfigcommon.ToolOverwrites{},
-	}
-
-	comp, err := New(gpudInstance)
-	require.NoError(t, err)
-	require.NotNil(t, comp)
-
-	casted, ok := comp.(*component)
-	require.True(t, ok)
-	require.Len(t, casted.kmsgSyncerOpts, 1)
-
-	truncateSeconds := getKmsgCacheKeyTruncateSecondsFromOption(t, casted.kmsgSyncerOpts[0])
-	assert.Equal(t, defaultKmsgCacheKeyTruncateSeconds, truncateSeconds)
-	assert.Equal(t, 300, truncateSeconds)
 }
 
 // mockEventStore for testing New errors

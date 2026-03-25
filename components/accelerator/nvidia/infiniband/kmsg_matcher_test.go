@@ -117,7 +117,7 @@ func TestMatch(t *testing.T) {
 			name:        "With timestamp - ACCESS_REG failed",
 			line:        "[Sun Dec 1 14:54:40 2024] mlx5_core 0000:d2:00.0: mlx5_cmd_out_err:838:(pid 268269): ACCESS_REG(0x805) op_mod(0x1) failed",
 			wantEvent:   eventAccessRegFailed,
-			wantMessage: messageAccessRegFailed,
+			wantMessage: messageAccessRegFailed + " (PCI device 0000:d2:00.0)",
 		},
 		{
 			name:        "No match",
@@ -237,6 +237,33 @@ func TestLogLineProcessor(t *testing.T) {
 				assert.Empty(t, name)
 				assert.Empty(t, msg)
 			}
+		})
+	}
+}
+
+func TestAccessRegFailedMessage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		line string
+		want string
+	}{
+		{
+			name: "includes PCI device when present",
+			line: "mlx5_core 0000:d2:00.0: mlx5_cmd_out_err:838:(pid 268269): ACCESS_REG(0x805) op_mod(0x1) failed",
+			want: messageAccessRegFailed + " (PCI device 0000:d2:00.0)",
+		},
+		{
+			name: "falls back to generic message when device is missing",
+			line: "mlx5_cmd_out_err:838:(pid 1441871): ACCESS_REG(0x805) op_mod(0x1) failed",
+			want: messageAccessRegFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, accessRegFailedMessage(tt.line))
 		})
 	}
 }
