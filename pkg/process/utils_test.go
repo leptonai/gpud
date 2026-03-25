@@ -73,19 +73,29 @@ func (p *testProcess) Closed() bool {
 	return false
 }
 
-func newTestProcess(command string, args ...string) *testProcess {
+func newTestProcess(command string, args ...string) (*testProcess, error) {
 	cmd := exec.Command(command, args...)
-	stdout, _ := cmd.StdoutPipe()
-	stderr, _ := cmd.StderrPipe()
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
 	waitCh := make(chan error, 1)
 	p := &testProcess{cmd: cmd, waitCh: waitCh, stdout: stdout, stderr: stderr}
 
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
 	go func() {
-		waitCh <- cmd.Run()
+		waitCh <- cmd.Wait()
 		close(waitCh)
 	}()
 
-	return p
+	return p, nil
 }
 
 func TestReadAll(t *testing.T) {
@@ -126,11 +136,12 @@ func TestReadAll(t *testing.T) {
 
 	// Test 1: Basic echo command
 	t.Run("basic echo command", func(t *testing.T) {
-		p := newTestProcess("echo", "hello world")
+		p, err := newTestProcess("echo", "hello world")
+		require.NoError(t, err)
 		output := ""
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := Read(ctx, p, WithReadStdout(), WithProcessLine(func(line string) {
+		err = Read(ctx, p, WithReadStdout(), WithProcessLine(func(line string) {
 			output = line
 		}))
 		cancel()
@@ -143,38 +154,23 @@ func TestReadAll(t *testing.T) {
 	t.Run("multiple lines", func(t *testing.T) {
 		// WHY: `echo` handling of `\n` escapes varies across `/bin/sh` implementations (e.g., bash-as-sh),
 		// so `printf` ensures deterministic multi-line output across platforms.
-		const maxAttempts = 3
-		var lastErr error
-		var lastLineCount int
+		p, err := newTestProcess("sh", "-c", "printf '%s\\n' line1 line2 line3")
+		require.NoError(t, err)
+		lines := []string{}
 
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			p := newTestProcess("sh", "-c", "printf '%s\\n' line1 line2 line3")
-			lines := []string{}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err = Read(
+			ctx,
+			p,
+			WithReadStdout(),
+			WithProcessLine(func(line string) {
+				lines = append(lines, line)
+			}),
+		)
+		cancel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			err := Read(
-				ctx,
-				p,
-				WithReadStdout(),
-				WithProcessLine(func(line string) {
-					lines = append(lines, line)
-				}),
-			)
-			cancel()
-
-			// WHY: This test occasionally flakes on slow/loaded runners; retry a few times
-			// before failing to avoid masking real regressions with transient timing issues.
-			if err == nil && len(lines) == 3 {
-				return
-			}
-
-			lastErr = err
-			lastLineCount = len(lines)
-			time.Sleep(50 * time.Millisecond)
-		}
-
-		require.NoError(t, lastErr, "lines=%d", lastLineCount)
-		require.Equal(t, 3, lastLineCount, "expected 3 lines")
+		require.NoError(t, err)
+		require.Equal(t, []string{"line1", "line2", "line3"}, lines)
 	})
 
 	// Test 3: Wait for command

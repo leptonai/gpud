@@ -872,7 +872,7 @@ func TestComponent_Events_NilBucket_WithMockey(t *testing.T) {
 
 // TestNew_WithEventStoreAsRoot_KmsgSyncer tests that New() creates a kmsg syncer
 // with the correct dedup options when running as root with an event store.
-// This covers the os.Geteuid() == 0 branch and the kmsgSyncerOpts pass-through.
+// This covers the os.Geteuid() == 0 branch and the custom kmsg dedup option pass-through.
 func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 	mockey.PatchConvey("New creates kmsg syncer with dedup opts when running as root", t, func() {
 		// Mock os.Geteuid to simulate running as root
@@ -920,10 +920,11 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 		assert.NotNil(t, tc.kmsgSyncer, "kmsgSyncer should be set when running as root")
 		assert.NotNil(t, tc.eventBucket, "eventBucket should be set")
 
-		// Verify the 5-minute dedup option was passed through to NewSyncer
-		require.Len(t, capturedOpts, 1, "should pass exactly one OpOption to NewSyncer")
-		truncateSeconds := getKmsgCacheKeyTruncateSecondsFromOption(t, capturedOpts[0])
-		assert.Equal(t, 300, truncateSeconds, "should pass 300s (5min) dedup window to NewSyncer")
+		// Verify InfiniBand keeps the long-standing 5-minute generic kmsg dedup
+		// and only adds the shared per-event override resolver for ACCESS_REG.
+		require.Len(t, capturedOpts, 2, "should pass exactly two OpOptions to NewSyncer")
+		assert.Equal(t, int(defaultKmsgEventDedupWindow.Seconds()), getKmsgCacheKeyTruncateSeconds(t, capturedOpts[0]))
+		assert.True(t, hasKmsgEventDedupWindowFunc(t, capturedOpts[1]))
 
 		// Clean up
 		err = c.Close()

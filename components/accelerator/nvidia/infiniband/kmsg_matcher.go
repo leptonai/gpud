@@ -56,12 +56,18 @@ const (
 	eventAccessRegFailed   = "access_reg_failed"
 	regexAccessRegFailed   = `mlx5_cmd_out_err.*ACCESS_REG.*failed`
 	messageAccessRegFailed = "MLX5 ACCESS_REG command failed - device may have restricted PF access"
+	regexPCIDevice         = `\b[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]\b`
+	// pciDeviceMessagePrefix is the sentinel used to embed PCI BDF addresses
+	// in normalized event messages. Both the matcher (accessRegFailedMessage)
+	// and the component (kmsgEventDedupWindow) must agree on this format.
+	pciDeviceMessagePrefix = "(PCI device "
 )
 
 var (
 	compiledPCIPowerInsufficient      = regexp.MustCompile(regexPCIPowerInsufficient)
 	compiledPortModuleHighTemperature = regexp.MustCompile(regexPortModuleHighTemperature)
 	compiledAccessRegFailed           = regexp.MustCompile(regexAccessRegFailed)
+	compiledPCIDevice                 = regexp.MustCompile(regexPCIDevice)
 )
 
 // HasPCIPowerInsufficient returns true if the line indicates that the power inefficient event has been detected.
@@ -100,7 +106,7 @@ func HasAccessRegFailed(line string) bool {
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {
-			return m.eventName, m.message
+			return m.eventName, m.getMessage(line)
 		}
 	}
 	return "", ""
@@ -109,14 +115,29 @@ func Match(line string) (eventName string, message string) {
 type match struct {
 	check     func(string) bool
 	eventName string
-	regex     string
 	message   string
+	messageFn func(string) string
+}
+
+func (m match) getMessage(line string) string {
+	if m.messageFn != nil {
+		return m.messageFn(line)
+	}
+	return m.message
 }
 
 func getMatches() []match {
 	return []match{
-		{check: HasPCIPowerInsufficient, eventName: eventPCIPowerInsufficient, regex: regexPCIPowerInsufficient, message: messagePCIPowerInsufficient},
-		{check: HasPortModuleHighTemperature, eventName: eventPortModuleHighTemperature, regex: regexPortModuleHighTemperature, message: messagePortModuleHighTemperature},
-		{check: HasAccessRegFailed, eventName: eventAccessRegFailed, regex: regexAccessRegFailed, message: messageAccessRegFailed},
+		{check: HasPCIPowerInsufficient, eventName: eventPCIPowerInsufficient, message: messagePCIPowerInsufficient},
+		{check: HasPortModuleHighTemperature, eventName: eventPortModuleHighTemperature, message: messagePortModuleHighTemperature},
+		{check: HasAccessRegFailed, eventName: eventAccessRegFailed, messageFn: accessRegFailedMessage},
 	}
+}
+
+func accessRegFailedMessage(line string) string {
+	pciDevice := compiledPCIDevice.FindString(line)
+	if pciDevice == "" {
+		return messageAccessRegFailed
+	}
+	return messageAccessRegFailed + " " + pciDeviceMessagePrefix + pciDevice + ")"
 }

@@ -1365,31 +1365,29 @@ func TestStartWithFallenOffBusFallback(t *testing.T) {
 			"NVRM: fallen off the bus and is not responding to commands.",
 	}
 
-	deadline := time.Now().Add(5 * time.Second)
-	foundXid79 := false
 	xidRegex := regexp.MustCompile(`XID (\d+)`)
-	for time.Now().Before(deadline) {
+	require.Eventually(t, func() bool {
 		events, err := comp.Events(ctx, time.Now().Add(-1*time.Hour))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
+		foundXid79 := false
 		for _, event := range events {
 			if matches := xidRegex.FindStringSubmatch(event.Message); len(matches) > 1 {
 				xidCode, err := strconv.Atoi(matches[1])
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				if xidCode == 79 {
 					foundXid79 = true
 					break
 				}
 			}
 		}
-		if foundXid79 {
-			break
+		if !foundXid79 {
+			return false
 		}
 
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	assert.True(t, foundXid79, "expected synthetic XID 79 event to be stored from fallen-off-bus fallback format")
+		states := comp.LastHealthStates()
+		return len(states) == 1 && states[0].Health == apiv1.HealthStateTypeUnhealthy
+	}, 5*time.Second, 50*time.Millisecond, "expected synthetic XID 79 event to be stored and reflected in unhealthy state")
 
 	states := comp.LastHealthStates()
 	assert.NotEmpty(t, states)
