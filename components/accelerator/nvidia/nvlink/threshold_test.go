@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestExpectedLinkStates_IsZero(t *testing.T) {
@@ -24,9 +26,7 @@ func TestExpectedLinkStates_IsZero(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			states := ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: tc.value}
 			got := states.IsZero()
-			if got != tc.expected {
-				t.Fatalf("IsZero() for value %d: expected %v, got %v", tc.value, tc.expected, got)
-			}
+			assert.Equal(t, tc.expected, got)
 		})
 	}
 }
@@ -39,9 +39,7 @@ func TestDefaultExpectedLinkStates(t *testing.T) {
 	SetDefaultExpectedLinkStates(custom)
 
 	got := GetDefaultExpectedLinkStates()
-	if got != custom {
-		t.Fatalf("expected %+v, got %+v", custom, got)
-	}
+	assert.Equal(t, custom, got)
 }
 
 func TestConcurrentAccess(t *testing.T) {
@@ -61,6 +59,7 @@ func TestConcurrentAccess(t *testing.T) {
 
 	// Track successful writes
 	var writeCount int32
+	var negativeReadCount int32
 
 	// Start multiple writers
 	for i := range 5 {
@@ -82,10 +81,8 @@ func TestConcurrentAccess(t *testing.T) {
 			for range iterations {
 				val := GetDefaultExpectedLinkStates()
 
-				// All read values should be non-negative (validation should handle negatives)
 				if val.AtLeastGPUsWithAllLinksFeatureEnabled < 0 {
-					t.Errorf("read negative value during concurrent access: %d",
-						val.AtLeastGPUsWithAllLinksFeatureEnabled)
+					atomic.AddInt32(&negativeReadCount, 1)
 				}
 
 				// Collect read values for analysis
@@ -115,25 +112,17 @@ func TestConcurrentAccess(t *testing.T) {
 
 	// Verify we can still read without panic
 	final := GetDefaultExpectedLinkStates()
-	if final.AtLeastGPUsWithAllLinksFeatureEnabled < 0 {
-		t.Fatalf("final value should never be negative after validation: %d",
-			final.AtLeastGPUsWithAllLinksFeatureEnabled)
-	}
+	assert.GreaterOrEqual(t, final.AtLeastGPUsWithAllLinksFeatureEnabled, 0)
+	assert.Zero(t, negativeReadCount)
 
 	// Verify all read values were non-negative
 	for i, val := range readValues {
-		if val < 0 {
-			t.Errorf("read value %d at index %d was negative, validation failed", val, i)
-		}
+		assert.GreaterOrEqualf(t, val, 0, "read value at index %d was negative", i)
 	}
 
 	// Verify we actually performed reads and writes
-	if len(readValues) == 0 {
-		t.Error("no values were read during concurrent access test")
-	}
-	if writeCount == 0 {
-		t.Error("no writes were performed during concurrent access test")
-	}
+	assert.NotEmpty(t, readValues)
+	assert.NotZero(t, writeCount)
 
 	t.Logf("Concurrent test completed: %d writes, %d reads, final value: %d",
 		writeCount, len(readValues), final.AtLeastGPUsWithAllLinksFeatureEnabled)
@@ -166,9 +155,7 @@ func TestSetDefaultExpectedLinkStates_MultipleValues(t *testing.T) {
 			SetDefaultExpectedLinkStates(states)
 
 			got := GetDefaultExpectedLinkStates()
-			if got.AtLeastGPUsWithAllLinksFeatureEnabled != tc.expected {
-				t.Errorf("expected %d, got %d", tc.expected, got.AtLeastGPUsWithAllLinksFeatureEnabled)
-			}
+			assert.Equal(t, tc.expected, got.AtLeastGPUsWithAllLinksFeatureEnabled)
 		})
 	}
 }
@@ -198,20 +185,14 @@ func TestSetDefaultExpectedLinkStates_NegativeValues(t *testing.T) {
 			SetDefaultExpectedLinkStates(states)
 
 			got := GetDefaultExpectedLinkStates()
-			if got.AtLeastGPUsWithAllLinksFeatureEnabled != tc.expected {
-				t.Errorf("negative value %d should be treated as %d, got %d", tc.value, tc.expected, got.AtLeastGPUsWithAllLinksFeatureEnabled)
-			}
+			assert.Equal(t, tc.expected, got.AtLeastGPUsWithAllLinksFeatureEnabled)
 
 			// Verify IsZero returns true for sanitized negative values (now 0)
-			if !got.IsZero() {
-				t.Errorf("expected IsZero() to return true after negative value sanitization to 0")
-			}
+			assert.True(t, got.IsZero())
 
 			// Also test that the original negative value is treated as unset
 			negativeState := ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: tc.value}
-			if !negativeState.IsZero() {
-				t.Errorf("expected IsZero() to return true for negative value %d", tc.value)
-			}
+			assert.True(t, negativeState.IsZero())
 		})
 	}
 }
