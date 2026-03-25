@@ -19,6 +19,11 @@ func TestDeduper(t *testing.T) {
 		assert.NotNil(t, d.cache)
 	})
 
+	t.Run("disable dedup should return nil deduper", func(t *testing.T) {
+		d := newDeduper(5*time.Minute, 10*time.Minute, withDisableDedup())
+		assert.Nil(t, d)
+	})
+
 	t.Run("should return 1 for first occurrence", func(t *testing.T) {
 		d := newDeduper(5*time.Minute, 10*time.Minute)
 		msg := Message{
