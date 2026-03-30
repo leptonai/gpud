@@ -53,7 +53,8 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		Pprof:                  false,
 		EnableAutoUpdate:       true,
 		NvidiaToolOverwrites: nvidiacommon.ToolOverwrites{
-			InfinibandClassRootDir: options.InfinibandClassRootDir,
+			InfinibandClassRootDir:    options.InfinibandClassRootDir,
+			ExcludedInfinibandDevices: options.ExcludedInfinibandDevices,
 		},
 		FailureInjector: options.FailureInjector,
 		DBInMemory:      options.DBInMemory,
