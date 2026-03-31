@@ -394,6 +394,39 @@ func TestEvaluateThresholds_PeerNVLinkUnknownStatusSuggestsReboot(t *testing.T) 
 	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, cr.suggestedActions.RepairActions)
 }
 
+func TestEvaluateThresholds_ImplicitFallbackStaysHealthyWhenPeerP2POK(t *testing.T) {
+	// Simulates the A100 scenario where per-link NVLink state enumeration
+	// marks GPUs as "unsupported" (due to NVLINK_MAX_LINKS > actual links)
+	// but peer P2P probes show all pairs as OK.
+	cr := &checkResult{
+		NVLinks: []NVLink{
+			{UUID: "GPU-0", Supported: false},
+			{UUID: "GPU-1", Supported: false},
+			{UUID: "GPU-2", Supported: false},
+			{UUID: "GPU-3", Supported: false},
+			{UUID: "GPU-4", Supported: false},
+			{UUID: "GPU-5", Supported: false},
+			{UUID: "GPU-6", Supported: false},
+			{UUID: "GPU-7", Supported: false},
+		},
+		UnsupportedNVLinkUUIDs:        []string{"GPU-0", "GPU-1", "GPU-2", "GPU-3", "GPU-4", "GPU-5", "GPU-6", "GPU-7"},
+		PeerNVLinkProbePairCount:      28,
+		PeerNVLinkExpectedPairCount:   28,
+		PeerNVLinkOKPairCount:         28,
+		PeerNVLinkOKGPUUUIDs:          []string{"GPU-0", "GPU-1", "GPU-2", "GPU-3", "GPU-4", "GPU-5", "GPU-6", "GPU-7"},
+		PeerNVLinkObservedStatusCodes: []string{p2pStatusOK},
+		SystemExpectedNVLink:          true,
+		health:                        apiv1.HealthStateTypeHealthy,
+		reason:                        "all 8 GPU(s) were checked, no nvlink issue found",
+	}
+
+	evaluateHealthStateWithThresholds(cr)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
+		"system should stay healthy when P2P probes confirm NVLink connectivity")
+	assert.Nil(t, cr.suggestedActions)
+}
+
 func TestEvaluateThresholds_ImplicitFallbackDoesNotFailPartialDegradation(t *testing.T) {
 	cr := &checkResult{
 		NVLinks: []NVLink{

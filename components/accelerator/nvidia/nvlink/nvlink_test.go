@@ -121,6 +121,42 @@ func TestNVLinkStatesTotalCounters(t *testing.T) {
 	})
 }
 
+// TestGetNVLink_FewerLinksThanMax verifies that a GPU with fewer NVLink links
+// than NVLINK_MAX_LINKS (e.g. A100 with 12 links vs max 18) is correctly
+// reported as Supported=true. NVML returns NOT_SUPPORTED for link indices
+// beyond the GPU's actual link count, which must not be confused with the
+// GPU lacking NVLink hardware entirely.
+func TestGetNVLink_FewerLinksThanMax(t *testing.T) {
+	origDeviceGetNvLinkState := nvml.DeviceGetNvLinkState
+	origDeviceGetNvLinkErrorCounter := nvml.DeviceGetNvLinkErrorCounter
+	defer func() {
+		nvml.DeviceGetNvLinkState = origDeviceGetNvLinkState
+		nvml.DeviceGetNvLinkErrorCounter = origDeviceGetNvLinkErrorCounter
+	}()
+
+	const a100Links = 12
+
+	// Simulate A100: links 0-11 return FEATURE_ENABLED, links 12+ return NOT_SUPPORTED
+	nvml.DeviceGetNvLinkState = func(_ nvml.Device, link int) (nvml.EnableState, nvml.Return) {
+		if link < a100Links {
+			return nvml.FEATURE_ENABLED, nvml.SUCCESS
+		}
+		return 0, nvml.ERROR_NOT_SUPPORTED
+	}
+	nvml.DeviceGetNvLinkErrorCounter = func(_ nvml.Device, _ int, _ nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
+		return 0, nvml.SUCCESS
+	}
+
+	dev := &mockDevice{busID: "0000:04:00.0"}
+	nvlink, err := GetNVLink("GPU-a100-test", dev)
+	assert.NoError(t, err)
+	assert.True(t, nvlink.Supported, "A100 with 12 active links should report Supported=true")
+	assert.Equal(t, a100Links, len(nvlink.States), "should enumerate exactly 12 link states")
+	for i, state := range nvlink.States {
+		assert.True(t, state.FeatureEnabled, "link %d should be feature-enabled", i)
+	}
+}
+
 // TestGetNVLink tests the GetNVLink function with various device responses
 func TestGetNVLink(t *testing.T) {
 	// Override the NVML functions
