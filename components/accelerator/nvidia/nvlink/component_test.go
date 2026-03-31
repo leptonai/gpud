@@ -1433,3 +1433,187 @@ func TestCheck_PartialActiveNVLinkWithoutThresholdRemainsHealthy(t *testing.T) {
 	assert.Equal(t, []string{"gpu-uuid-0"}, cr.ActiveNVLinkUUIDs)
 	assert.Equal(t, []string{"gpu-uuid-1"}, cr.InactiveNVLinkUUIDs)
 }
+
+// TestCheck_A100SXM4_8GPU_AllLinksActive_AllP2POK simulates a real 8-GPU
+// NVIDIA A100-SXM4-80GB machine where all 12 NVLink 3.0 links per GPU are
+// active at 25 GB/s, and every P2P peer pair reports OK. The topology data
+// was captured from a production machine (driver 570.195.03, CUDA 12.8):
+//
+//	nvidia-smi topo -p2p n  → all OK
+//	nvidia-smi nvlink -s   → 12 links × 25 GB/s per GPU
+//	nvidia-smi topo -m     → NV12 between all GPU pairs
+//
+// Before the fix, this machine was reported UNHEALTHY because
+// NVLINK_MAX_LINKS (18) > A100's 12 links, causing DeviceGetNvLinkState to
+// return NOT_SUPPORTED at link index 12 and incorrectly setting Supported=false.
+func TestCheck_A100SXM4_8GPU_AllLinksActive_AllP2POK(t *testing.T) {
+	ctx := context.Background()
+
+	// Real UUIDs and PCI bus IDs from a production A100-SXM4-80GB machine.
+	a100GPUs := []struct {
+		uuid  string
+		busID string
+	}{
+		{"GPU-9206d7d6-4f40-abaf-e917-b7364d9b9f77", "00000001:00:00.0"},
+		{"GPU-2ff0e08c-3cf0-e567-2ffa-4d0f623851bf", "00000002:00:00.0"},
+		{"GPU-24b8a39c-fcc0-0840-0c19-5f233167ed69", "00000003:00:00.0"},
+		{"GPU-4953b5d5-20e4-33cf-2f19-d26667b47fff", "00000004:00:00.0"},
+		{"GPU-b6e34eb1-776b-f9c5-5666-73ea54fe6fb1", "0000000B:00:00.0"},
+		{"GPU-7743eb65-bcdc-4595-775b-98e85cdc477c", "0000000C:00:00.0"},
+		{"GPU-1a799be3-3879-4f91-37ab-bb25ad14951c", "0000000D:00:00.0"},
+		{"GPU-7758b9bc-95ea-ee13-e078-ced73b73a2f8", "0000000E:00:00.0"},
+	}
+
+	devs := make(map[string]device.Device, len(a100GPUs))
+	for _, gpu := range a100GPUs {
+		devs[gpu.uuid] = testutil.NewMockDevice(&mock.Device{}, "Ampere", "NVIDIA", "12.8", gpu.busID)
+	}
+
+	const a100NVLinks = 12
+
+	// Simulate A100 NVLink: 12 links per GPU, all FEATURE_ENABLED.
+	makeA100NVLinkStates := func() []NVLinkState {
+		states := make([]NVLinkState, a100NVLinks)
+		for i := range a100NVLinks {
+			states[i] = NVLinkState{
+				Link:           i,
+				FeatureEnabled: true,
+			}
+		}
+		return states
+	}
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		nvmlInstance: &mockNVMLInstance{
+			devicesFunc: func() map[string]device.Device {
+				return devs
+			},
+		},
+		getNVLinkFunc: func(uuid string, _ device.Device) (NVLink, error) {
+			busID := ""
+			for _, gpu := range a100GPUs {
+				if gpu.uuid == uuid {
+					busID = gpu.busID
+					break
+				}
+			}
+			return NVLink{
+				UUID:      uuid,
+				BusID:     busID,
+				Supported: true,
+				States:    makeA100NVLinkStates(),
+			}, nil
+		},
+		getPeerNVLinkP2PStatusFn: func(_ device.Device, _ device.Device) (string, error) {
+			return p2pStatusOK, nil
+		},
+		getThresholdsFunc: GetDefaultExpectedLinkStates,
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	// System identification
+	assert.True(t, cr.SystemExpectedNVLink,
+		"8-GPU A100-SXM4 with fabric manager should expect NVLink")
+	assert.Len(t, cr.NVLinks, 8)
+
+	// All GPUs should be active — not unsupported
+	assert.Len(t, cr.ActiveNVLinkUUIDs, 8,
+		"all 8 A100 GPUs should have active NVLink")
+	assert.Empty(t, cr.InactiveNVLinkUUIDs)
+	assert.Empty(t, cr.UnsupportedNVLinkUUIDs,
+		"no GPUs should be marked as unsupported")
+
+	// Each GPU should have exactly 12 link states
+	for _, nvl := range cr.NVLinks {
+		assert.Len(t, nvl.States, a100NVLinks,
+			"GPU %s should have %d NVLink states", nvl.UUID, a100NVLinks)
+		assert.True(t, nvl.States.AllFeatureEnabled(),
+			"all NVLink links for GPU %s should be feature-enabled", nvl.UUID)
+	}
+
+	// P2P: 8 GPUs → 8*7/2 = 28 unique pairs, all OK
+	assert.Equal(t, 28, cr.PeerNVLinkExpectedPairCount)
+	assert.Equal(t, 28, cr.PeerNVLinkProbePairCount)
+	assert.Equal(t, 28, cr.PeerNVLinkOKPairCount)
+	assert.Len(t, cr.PeerNVLinkOKGPUUUIDs, 8)
+	assert.Equal(t, []string{p2pStatusOK}, cr.PeerNVLinkObservedStatusCodes)
+
+	// Health verdict
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "all 8 GPU(s) were checked, no nvlink issue found", cr.reason)
+	assert.Nil(t, cr.suggestedActions)
+}
+
+// TestCheck_A100SXM4_8GPU_UnsupportedNVLinkButP2POK tests a pathological
+// scenario where the getNVLinkFunc erroneously marks all GPUs as Supported=false
+// (which happened pre-fix when NVLINK_MAX_LINKS > actual links) but the P2P
+// probe shows all pairs as OK. With the belt-and-suspenders fix in
+// evaluateHealthStateWithThresholds, this must still stay healthy.
+func TestCheck_A100SXM4_8GPU_UnsupportedNVLinkButP2POK(t *testing.T) {
+	ctx := context.Background()
+
+	uuids := []string{
+		"GPU-9206d7d6-4f40-abaf-e917-b7364d9b9f77",
+		"GPU-2ff0e08c-3cf0-e567-2ffa-4d0f623851bf",
+		"GPU-24b8a39c-fcc0-0840-0c19-5f233167ed69",
+		"GPU-4953b5d5-20e4-33cf-2f19-d26667b47fff",
+		"GPU-b6e34eb1-776b-f9c5-5666-73ea54fe6fb1",
+		"GPU-7743eb65-bcdc-4595-775b-98e85cdc477c",
+		"GPU-1a799be3-3879-4f91-37ab-bb25ad14951c",
+		"GPU-7758b9bc-95ea-ee13-e078-ced73b73a2f8",
+	}
+
+	devs := make(map[string]device.Device, len(uuids))
+	for _, uuid := range uuids {
+		devs[uuid] = testutil.NewMockDevice(&mock.Device{}, "Ampere", "NVIDIA", "12.8", "pci")
+	}
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		nvmlInstance: &mockNVMLInstance{
+			devicesFunc: func() map[string]device.Device {
+				return devs
+			},
+		},
+		// Simulate the pre-fix bug: all GPUs report Supported=false
+		getNVLinkFunc: func(uuid string, _ device.Device) (NVLink, error) {
+			return NVLink{
+				UUID:      uuid,
+				Supported: false,
+			}, nil
+		},
+		// But P2P probes show all pairs OK — NVLink IS working
+		getPeerNVLinkP2PStatusFn: func(_ device.Device, _ device.Device) (string, error) {
+			return p2pStatusOK, nil
+		},
+		getThresholdsFunc: GetDefaultExpectedLinkStates,
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.True(t, cr.SystemExpectedNVLink)
+	assert.Len(t, cr.UnsupportedNVLinkUUIDs, 8)
+	assert.Empty(t, cr.ActiveNVLinkUUIDs)
+
+	// Belt-and-suspenders: despite per-link state saying "unsupported", the
+	// P2P results prove NVLink works. System should remain healthy.
+	assert.Equal(t, 28, cr.PeerNVLinkOKPairCount)
+	assert.Len(t, cr.PeerNVLinkOKGPUUUIDs, 8)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
+		"should NOT be unhealthy when P2P probes confirm NVLink is working")
+	assert.Equal(t, "all 8 GPU(s) were checked, no nvlink issue found", cr.reason)
+}
