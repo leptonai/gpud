@@ -110,7 +110,15 @@ func GetNVLink(uuid string, dev device.Device) (NVLink, error) {
 		// hardware supporting NVLink. Root cause unknown but threshold detection is needed.
 		state, ret := nvml.DeviceGetNvLinkState(dev, link)
 		if nvmlerrors.IsNotSupportError(ret) {
-			nvlink.Supported = false
+			// NOT_SUPPORTED on the very first link means the GPU genuinely
+			// does not have NVLink hardware (e.g. GeForce, Tesla T4).
+			// NOT_SUPPORTED on a higher link index just means this GPU has
+			// fewer links than NVLINK_MAX_LINKS (e.g. A100 has 12 links
+			// while NVLINK_MAX_LINKS is 18). In that case the already-
+			// enumerated links are valid and the GPU supports NVLink.
+			if len(nvlink.States) == 0 {
+				nvlink.Supported = false
+			}
 			break
 		}
 		if nvmlerrors.IsGPULostError(ret) {

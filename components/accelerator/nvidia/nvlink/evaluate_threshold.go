@@ -139,7 +139,11 @@ func evaluateHealthStateWithThresholds(cr *checkResult) {
 		// Operators can usually confirm the same failure with:
 		//   $ nvidia-smi nvlink -s
 		//   Unable to retrieve NVLink information as all links are inActive
-		if cr.SystemExpectedNVLink && len(cr.NVLinks) > 0 && len(cr.ActiveNVLinkUUIDs) == 0 {
+		//
+		// The PeerNVLinkOKGPUUUIDs guard prevents false positives on GPUs whose
+		// per-link enumeration stops early (e.g. A100 with 12 links vs
+		// NVLINK_MAX_LINKS=18) but whose P2P probes confirm NVLink works.
+		if cr.SystemExpectedNVLink && len(cr.NVLinks) > 0 && len(cr.ActiveNVLinkUUIDs) == 0 && len(cr.PeerNVLinkOKGPUUUIDs) == 0 {
 			cr.health = apiv1.HealthStateTypeUnhealthy
 			cr.reason = fmt.Sprintf("no GPUs report active nvlink links on %d-GPU NVLink-capable system", len(cr.NVLinks))
 			cr.reason = appendNVLinkFailureDetails(cr.reason, cr)
