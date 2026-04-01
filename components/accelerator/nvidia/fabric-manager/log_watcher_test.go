@@ -1,6 +1,7 @@
 package fabricmanager
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -9,7 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/process"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 func TestParseLogLine(t *testing.T) {
@@ -438,6 +441,154 @@ func TestParallelLogWatching(t *testing.T) {
 		assert.True(t, contents["[INFO] Source1"], "should have source 1 output")
 		assert.True(t, contents["[INFO] Source2"], "should have source 2 output")
 	})
+}
+
+func TestEventDeduper(t *testing.T) {
+	t.Parallel()
+
+	t.Run("first occurrence returns 1", func(t *testing.T) {
+		d := newEventDeduper(15 * time.Minute)
+		assert.Equal(t, 1, d.addCache("event_name", "event message"))
+	})
+
+	t.Run("second occurrence returns 2", func(t *testing.T) {
+		d := newEventDeduper(15 * time.Minute)
+		d.addCache("event_name", "event message")
+		assert.Equal(t, 2, d.addCache("event_name", "event message"))
+	})
+
+	t.Run("different event names have independent counts", func(t *testing.T) {
+		d := newEventDeduper(15 * time.Minute)
+		assert.Equal(t, 1, d.addCache("event_a", "same message"))
+		assert.Equal(t, 1, d.addCache("event_b", "same message"))
+		assert.Equal(t, 2, d.addCache("event_a", "same message"))
+	})
+
+	t.Run("different messages have independent counts", func(t *testing.T) {
+		d := newEventDeduper(15 * time.Minute)
+		assert.Equal(t, 1, d.addCache("event_name", "message 1"))
+		assert.Equal(t, 1, d.addCache("event_name", "message 2"))
+		assert.Equal(t, 2, d.addCache("event_name", "message 1"))
+	})
+
+	t.Run("expiration resets count", func(t *testing.T) {
+		d := newEventDeduper(10 * time.Millisecond)
+		assert.Equal(t, 1, d.addCache("event_name", "message"))
+		assert.Equal(t, 2, d.addCache("event_name", "message"))
+		time.Sleep(30 * time.Millisecond)
+		assert.Equal(t, 1, d.addCache("event_name", "message"), "should be first occurrence again after expiration")
+	})
+}
+
+func TestEventDedupDefaultWindow(t *testing.T) {
+	t.Parallel()
+
+	// Verify the default event dedup window is 15 minutes.
+	assert.Equal(t, 15*time.Minute, defaultEventDedupWindow)
+}
+
+// TestLogLineProcessorEventDedup verifies that the logLineProcessor deduplicates
+// repeated events with different timestamps but the same name+message within the
+// event dedup window. This is the scenario described in the bug: the same
+// fabric-manager error repeats every second, each with a new timestamp.
+func TestLogLineProcessorEventDedup(t *testing.T) {
+	t.Parallel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch := make(chan logLine, 100)
+	mw := &mockWatcher{ch: ch}
+
+	llp := newLogLineProcessor(ctx, mw, Match, bucket)
+	defer llp.close()
+
+	// Simulate 60 topology mismatch errors arriving every second
+	// (mimics the reproduction script from the bug report).
+	base := time.Date(2026, time.April, 1, 16, 37, 0, 0, time.UTC)
+	for i := range 60 {
+		ch <- logLine{
+			ts:      base.Add(time.Duration(i) * time.Second),
+			content: "[ERROR] [tid 99999] detected number of NVSwitches don't match with any supported system topology, aborting fabric manager",
+		}
+	}
+
+	// Give the processor goroutine time to drain the channel and insert events.
+	require.Eventually(t, func() bool {
+		events, err := bucket.Get(ctx, base.Add(-time.Minute))
+		if err != nil {
+			return false
+		}
+		// At least one event should be present.
+		return len(events) >= 1
+	}, 5*time.Second, 50*time.Millisecond, "expected at least one event to be inserted")
+
+	// Verify only 1 event was inserted (all duplicates were deduped).
+	events, err := bucket.Get(ctx, base.Add(-time.Minute))
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(events), "expected exactly 1 event after dedup, got %d", len(events))
+	assert.Equal(t, eventNVSwitchTopologyMismatch, events[0].Name)
+	assert.Equal(t, messageNVSwitchTopologyMismatch, events[0].Message)
+}
+
+// TestLogLineProcessorEventDedupDifferentEvents verifies that distinct event
+// types are NOT suppressed by the event deduper.
+func TestLogLineProcessorEventDedupDifferentEvents(t *testing.T) {
+	t.Parallel()
+
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch := make(chan logLine, 100)
+	mw := &mockWatcher{ch: ch}
+
+	llp := newLogLineProcessor(ctx, mw, Match, bucket)
+	defer llp.close()
+
+	base := time.Date(2026, time.April, 1, 16, 37, 0, 0, time.UTC)
+
+	// Send two different event types
+	ch <- logLine{
+		ts:      base,
+		content: "[ERROR] [tid 99999] detected number of NVSwitches don't match with any supported system topology, aborting fabric manager",
+	}
+	ch <- logLine{
+		ts:      base.Add(time.Second),
+		content: "[ERROR] [tid 841] detected NVSwitch fatal error 20034 on fid 0 on NVSwitch pci bus id 00000000:86:00.0 physical id 3 port 33",
+	}
+
+	// Wait for both events to be processed.
+	require.Eventually(t, func() bool {
+		events, err := bucket.Get(ctx, base.Add(-time.Minute))
+		if err != nil {
+			return false
+		}
+		return len(events) >= 2
+	}, 5*time.Second, 50*time.Millisecond, "expected 2 distinct events to be inserted")
+
+	events, err := bucket.Get(ctx, base.Add(-time.Minute))
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(events), "different event types should not be deduped against each other")
 }
 
 func TestDefaultWatchCommandsSyntax(t *testing.T) {
