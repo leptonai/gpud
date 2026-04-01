@@ -17,10 +17,11 @@ import (
 )
 
 type logLineProcessor struct {
-	ctx         context.Context
-	w           watcher
-	matchFunc   matchFunc
-	eventBucket eventstore.Bucket
+	ctx          context.Context
+	w            watcher
+	matchFunc    matchFunc
+	eventBucket  eventstore.Bucket
+	eventDeduper *eventDeduper
 }
 
 type matchFunc func(line string) (eventName string, message string)
@@ -32,10 +33,11 @@ func newLogLineProcessor(
 	eventBucket eventstore.Bucket,
 ) *logLineProcessor {
 	llp := &logLineProcessor{
-		ctx:         ctx,
-		w:           w,
-		matchFunc:   matchFunc,
-		eventBucket: eventBucket,
+		ctx:          ctx,
+		w:            w,
+		matchFunc:    matchFunc,
+		eventBucket:  eventBucket,
+		eventDeduper: newEventDeduper(defaultEventDedupWindow),
 	}
 	go llp.watch()
 	return llp
@@ -61,7 +63,19 @@ func (llp *logLineProcessor) watch() {
 				continue
 			}
 
-			// lookup to prevent duplicate event insertions
+			// Event-level dedup: coalesce repeated events with the same name+message
+			// within the configured window (e.g., 15 minutes) regardless of timestamp.
+			// This prevents noisy log sources from flooding the event store with
+			// semantically identical events that differ only in timestamp.
+			if llp.eventDeduper != nil {
+				if occurrences := llp.eventDeduper.addCache(ev.Name, ev.Message); occurrences > 1 {
+					log.Logger.Debugw("skipping duplicate event within dedup window", "occurrences", occurrences, "eventName", ev.Name)
+					continue
+				}
+			}
+
+			// Exact-match lookup to prevent duplicate event insertions across
+			// process restarts (the in-memory event deduper is cold after a restart).
 			cctx, ccancel := context.WithTimeout(llp.ctx, 15*time.Second)
 			found, err := llp.eventBucket.Find(cctx, ev)
 			ccancel()
@@ -188,7 +202,48 @@ const (
 
 	defaultCacheExpiration    = 5 * time.Minute
 	defaultCachePurgeInterval = 10 * time.Minute
+
+	// defaultEventDedupWindow defines the time window within which semantically
+	// identical events (same name + message) are coalesced into a single event.
+	// The raw-line deduper only catches duplicates with the same second-level
+	// timestamp, but fabric-manager errors like topology mismatch can repeat
+	// every second with a new timestamp. This event-level dedup ensures we
+	// report at most one event per window regardless of how often the error
+	// appears in the log.
+	defaultEventDedupWindow = 15 * time.Minute
 )
+
+// eventDeduper deduplicates matched events by name+message, ignoring timestamp.
+// This catches repeated errors that differ only in when they occurred.
+type eventDeduper struct {
+	cache  *cache.Cache
+	window time.Duration
+}
+
+func newEventDeduper(window time.Duration) *eventDeduper {
+	return &eventDeduper{
+		cache:  cache.New(window, window*2),
+		window: window,
+	}
+}
+
+// addCache returns the occurrence count for the event key (name + message).
+// Returns 1 on first occurrence within the window.
+func (d *eventDeduper) addCache(name, message string) int {
+	k := name + "_" + message
+
+	var freq int
+	cur, found := d.cache.Get(k)
+	if !found {
+		freq = 1
+	} else {
+		v, _ := cur.(int)
+		freq = v + 1
+	}
+
+	d.cache.Set(k, freq, d.window)
+	return freq
+}
 
 // defaultWatchCommands monitors both the fabric manager log file and systemd journal.
 // We monitor both sources because:
