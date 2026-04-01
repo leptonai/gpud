@@ -66,15 +66,19 @@ func Command(cliContext *cli.Context) error {
 	}
 	log.Logger.Debugw("successfully read login success", "file", stateFile)
 
-	if err := checkLoginSuccess(loginSuccess, machineID); err != nil {
-		return err
-	}
-
+	// Read the latest session activity FIRST so we can cross-check it against
+	// the historical login-success timestamp. This lets us warn operators when
+	// the original login succeeded but the session is now failing (e.g. expired token).
 	log.Logger.Debugw("displaying login status from session_states table")
-	if err := displayLoginStatus(rootCtx, dbRO); err != nil {
+	lastState, err := displayLoginStatus(rootCtx, dbRO)
+	if err != nil {
 		return fmt.Errorf("failed to display login status: %w", err)
 	}
 	log.Logger.Debugw("successfully displayed login status")
+
+	if err := checkLoginSuccess(loginSuccess, machineID, lastState); err != nil {
+		return err
+	}
 
 	var active bool
 	if systemd.SystemctlExists() {

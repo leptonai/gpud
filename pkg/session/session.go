@@ -524,6 +524,18 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
 }
 
+// healthCheckHTTPError is returned by checkServerHealth when the control plane
+// responds with a non-OK HTTP status. It carries the status code and response
+// body so callers (e.g. keepAlive) can decide whether to persist the failure.
+type healthCheckHTTPError struct {
+	statusCode int
+	body       string
+}
+
+func (e *healthCheckHTTPError) Error() string {
+	return fmt.Sprintf("server health check failed: HTTP %d: %s", e.statusCode, e.body)
+}
+
 func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar, token string) error {
 	u, err := url.Parse(s.epControlPlane)
 	if err != nil {
@@ -554,7 +566,12 @@ func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar, tok
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server health check failed: %s", resp.Status)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		body := string(bodyBytes)
+		if len(body) > 500 {
+			body = body[:500]
+		}
+		return &healthCheckHTTPError{statusCode: resp.StatusCode, body: body}
 	}
 	return nil
 }

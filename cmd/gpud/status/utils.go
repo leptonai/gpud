@@ -14,7 +14,7 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
-func checkLoginSuccess(loginSuccess, machineID string) error {
+func checkLoginSuccess(loginSuccess, machineID string, lastState *sessionstates.State) error {
 	if loginSuccess == "" {
 		return nil
 	}
@@ -26,12 +26,20 @@ func checkLoginSuccess(loginSuccess, machineID string) error {
 	loginTimeUTC := time.Unix(ts, 0)
 	nowUTC := time.Now().UTC()
 	loginTimeHumanized := humanize.RelTime(loginTimeUTC, nowUTC, "ago", "from now")
-	fmt.Printf("%s login success at %s (machine id: %s)\n", cmdcommon.CheckMark, loginTimeHumanized, machineID)
+
+	// If the most recent session activity is a failure that happened after the
+	// original login success, the token is likely expired or invalid.
+	// Show a warning instead of a green checkmark to avoid misleading operators.
+	if lastState != nil && !lastState.Success && lastState.Timestamp > ts {
+		fmt.Printf("%s login success at %s (machine id: %s) -- but session is currently failing, see login activity above\n", cmdcommon.WarningSign, loginTimeHumanized, machineID)
+	} else {
+		fmt.Printf("%s login success at %s (machine id: %s)\n", cmdcommon.CheckMark, loginTimeHumanized, machineID)
+	}
 
 	return nil
 }
 
-func displayLoginStatus(ctx context.Context, dbRO *sql.DB) error {
+func displayLoginStatus(ctx context.Context, dbRO *sql.DB) (*sessionstates.State, error) {
 	status, err := sessionstates.ReadLast(ctx, dbRO)
 	if err != nil {
 		// Handle the case where the session_states table doesn't exist yet.
@@ -39,14 +47,14 @@ func displayLoginStatus(ctx context.Context, dbRO *sql.DB) error {
 		// or if the database was created with an older version that didn't have this table.
 		if sqlite.IsNoSuchTableError(err) {
 			fmt.Printf("No login activity recorded\n")
-			return nil
+			return nil, nil
 		}
-		return fmt.Errorf("failed to read login status: %w", err)
+		return nil, fmt.Errorf("failed to read login status: %w", err)
 	}
 
 	if status == nil {
 		fmt.Printf("No login activity recorded\n")
-		return nil
+		return nil, nil
 	}
 
 	statusTimeUTC := time.Unix(status.Timestamp, 0)
@@ -62,12 +70,12 @@ func displayLoginStatus(ctx context.Context, dbRO *sql.DB) error {
 	// Check for any failures and warn if present
 	hasFailures, err := sessionstates.HasAnyFailures(ctx, dbRO)
 	if err != nil {
-		return fmt.Errorf("failed to check for login failures: %w", err)
+		return nil, fmt.Errorf("failed to check for login failures: %w", err)
 	}
 
 	if hasFailures {
 		fmt.Printf("%s warning: there are login failure entries in the history\n", cmdcommon.WarningSign)
 	}
 
-	return nil
+	return status, nil
 }

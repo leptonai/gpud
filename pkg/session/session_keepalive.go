@@ -2,6 +2,9 @@ package session
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"net/http/cookiejar"
 	"time"
 
@@ -69,6 +72,15 @@ func (s *Session) keepAlive() {
 			// TODO: we can remove it once we migrate to gpud-gateway
 			if err := s.checkServerHealthFunc(ctx, jar, ""); err != nil {
 				log.Logger.Errorf("session keep alive: error checking server health: %v", err)
+
+				// Persist HTTP 403 Forbidden errors from health check to session_states,
+				// so that "gpud status" can surface them. Without this, a rejected token
+				// causes silent retry loops and "gpud status" never sees the failure.
+				var httpErr *healthCheckHTTPError
+				if errors.As(err, &httpErr) && httpErr.statusCode == http.StatusForbidden {
+					s.persistLoginStatus(ctx, false, fmt.Sprintf("HTTP %d: %s", httpErr.statusCode, httpErr.body))
+				}
+
 				cancel()
 				continue
 			}
