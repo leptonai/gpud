@@ -101,9 +101,84 @@ func TestKeepAliveHealthCheck403PersistsFailure(t *testing.T) {
 	assert.Contains(t, state.Message, "Forbidden")
 }
 
+// TestKeepAliveHealthCheck500TokenValidationPersistsFailure verifies that when
+// checkServerHealth returns an HTTP 500 error with "failed to validate token" body,
+// the keepAlive loop persists the failure to session_states. The control plane may
+// return 500 instead of 403 for auth failures (server-side bug).
+func TestKeepAliveHealthCheck500TokenValidationPersistsFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	stateFile := tmpDir + "/gpud.state"
+	dbSetup, err := sqlite.Open(stateFile)
+	require.NoError(t, err)
+	require.NoError(t, sessionstates.CreateTable(context.Background(), dbSetup))
+	require.NoError(t, dbSetup.Close())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := &Session{
+		ctx:     ctx,
+		dataDir: tmpDir,
+		reader:  make(chan Body, 20),
+		writer:  make(chan Body, 20),
+		closer:  &closeOnce{closer: make(chan any)},
+	}
+
+	var healthCheckCalls int32
+	s.checkServerHealthFunc = func(ctx context.Context, jar *cookiejar.Jar, token string) error {
+		count := atomic.AddInt32(&healthCheckCalls, 1)
+		if count >= 2 {
+			cancel()
+		}
+		// Simulate: server returns 500 with "failed to validate token" instead of 403
+		return &healthCheckHTTPError{
+			statusCode: http.StatusInternalServerError,
+			body:       `{"code":"InternalFailure","message":"failed to validate token"}`,
+		}
+	}
+
+	s.timeAfterFunc = func(d time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+	s.timeSleepFunc = func(d time.Duration) {}
+	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+		t.Fatal("startReader should not be called when health check fails")
+	}
+	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+		t.Fatal("startWriter should not be called when health check fails")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		s.keepAlive()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("keepAlive did not exit in time")
+	}
+
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	require.NoError(t, err)
+	defer func() { _ = dbRO.Close() }()
+
+	state, err := sessionstates.ReadLast(context.Background(), dbRO)
+	require.NoError(t, err)
+	require.NotNil(t, state, "Expected session state to be persisted for 500 with token validation failure")
+
+	assert.False(t, state.Success, "Session state should indicate failure")
+	assert.Contains(t, state.Message, "HTTP 500")
+	assert.Contains(t, state.Message, "failed to validate token")
+}
+
 // TestKeepAliveHealthCheckNon403DoesNotPersist verifies that non-403 health check
-// errors (e.g. 500s) do NOT persist to session_states. Only 403 (auth failure)
-// warrants a persistent record, since other errors are transient.
+// errors (e.g. generic 500s) do NOT persist to session_states. Only auth failures
+// warrant a persistent record, since other errors are transient.
 func TestKeepAliveHealthCheckNon403DoesNotPersist(t *testing.T) {
 	tmpDir := t.TempDir()
 
