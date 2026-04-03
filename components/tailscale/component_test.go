@@ -20,6 +20,18 @@ func mockComponent(
 	isActive bool,
 	activeError error,
 ) *component {
+	return mockComponentWithStatus(ctx, isInstalled, isActive, activeError, "Running", nil)
+}
+
+// mockComponentWithStatus creates a component with mock functions including tailscale status check
+func mockComponentWithStatus(
+	ctx context.Context,
+	isInstalled bool,
+	isActive bool,
+	activeError error,
+	backendState string,
+	statusError error,
+) *component {
 	cctx, cancel := context.WithCancel(ctx)
 	c := &component{
 		ctx:    cctx,
@@ -29,6 +41,9 @@ func mockComponent(
 		},
 		checkServiceActiveFunc: func() (bool, error) {
 			return isActive, activeError
+		},
+		checkTailscaleStatusFunc: func() (string, error) {
+			return backendState, statusError
 		},
 	}
 	// Initialize lastCheckResult for tests that don't call CheckOnce
@@ -40,11 +55,20 @@ func mockComponent(
 			err:                     activeError,
 			reason:                  "tailscaled installed but tailscaled service is not active or failed to check",
 		}
+	case isInstalled && isActive && backendState == "Running" && statusError == nil:
+		c.lastCheckResult = &checkResult{
+			TailscaledServiceActive: true,
+			BackendState:            "Running",
+			health:                  apiv1.HealthStateTypeHealthy,
+			reason:                  "tailscaled service is active/running",
+		}
 	case isInstalled && isActive:
 		c.lastCheckResult = &checkResult{
 			TailscaledServiceActive: true,
-			health:                  apiv1.HealthStateTypeHealthy,
-			reason:                  "tailscaled service is active/running",
+			BackendState:            backendState,
+			health:                  apiv1.HealthStateTypeUnhealthy,
+			err:                     statusError,
+			reason:                  "tailscaled service is active but tailscale is not running",
 		}
 	default:
 		c.lastCheckResult = &checkResult{
@@ -134,28 +158,36 @@ func TestClose(t *testing.T) {
 
 func TestCheckOnce(t *testing.T) {
 	testCases := []struct {
-		name         string
-		isInstalled  bool
-		isActive     bool
-		activeError  error
-		expectActive bool
-		expectError  bool
-		expectReason string
+		name          string
+		isInstalled   bool
+		isActive      bool
+		activeError   error
+		backendState  string
+		statusError   error
+		expectActive  bool
+		expectError   bool
+		expectReason  string
+		expectBackend string
 	}{
 		{
-			name:         "tailscaled installed and active",
-			isInstalled:  true,
-			isActive:     true,
-			activeError:  nil,
-			expectActive: true,
-			expectError:  false,
-			expectReason: "tailscaled service is active/running",
+			name:          "tailscaled installed and active and running",
+			isInstalled:   true,
+			isActive:      true,
+			activeError:   nil,
+			backendState:  "Running",
+			statusError:   nil,
+			expectActive:  true,
+			expectError:   false,
+			expectReason:  "tailscaled service is active/running",
+			expectBackend: "Running",
 		},
 		{
 			name:         "tailscaled installed but not active",
 			isInstalled:  true,
 			isActive:     false,
 			activeError:  nil,
+			backendState: "Running",
+			statusError:  nil,
 			expectActive: false,
 			expectError:  false,
 			expectReason: "tailscaled installed but tailscaled service is not active or failed to check",
@@ -165,6 +197,8 @@ func TestCheckOnce(t *testing.T) {
 			isInstalled:  true,
 			isActive:     false,
 			activeError:  errors.New("test error"),
+			backendState: "Running",
+			statusError:  nil,
 			expectActive: false,
 			expectError:  true,
 			expectReason: "tailscaled installed but tailscaled service is not active or failed to check",
@@ -174,16 +208,53 @@ func TestCheckOnce(t *testing.T) {
 			isInstalled:  false,
 			isActive:     false,
 			activeError:  nil,
+			backendState: "",
+			statusError:  nil,
 			expectActive: false,
 			expectError:  false,
 			expectReason: "tailscaled is not installed",
+		},
+		{
+			name:          "tailscaled active but logged out (Stopped)",
+			isInstalled:   true,
+			isActive:      true,
+			activeError:   nil,
+			backendState:  "Stopped",
+			statusError:   nil,
+			expectActive:  true,
+			expectError:   false,
+			expectReason:  "tailscaled service is active but tailscale is not running (state: Stopped)",
+			expectBackend: "Stopped",
+		},
+		{
+			name:          "tailscaled active but needs login",
+			isInstalled:   true,
+			isActive:      true,
+			activeError:   nil,
+			backendState:  "NeedsLogin",
+			statusError:   nil,
+			expectActive:  true,
+			expectError:   false,
+			expectReason:  "tailscaled service is active but tailscale is not running (state: NeedsLogin)",
+			expectBackend: "NeedsLogin",
+		},
+		{
+			name:         "tailscaled active but status check failed",
+			isInstalled:  true,
+			isActive:     true,
+			activeError:  nil,
+			backendState: "",
+			statusError:  errors.New("tailscale status failed"),
+			expectActive: true,
+			expectError:  true,
+			expectReason: "tailscaled service is active but failed to check tailscale status",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			c := mockComponent(ctx, tc.isInstalled, tc.isActive, tc.activeError)
+			c := mockComponentWithStatus(ctx, tc.isInstalled, tc.isActive, tc.activeError, tc.backendState, tc.statusError)
 
 			_ = c.Check()
 
@@ -196,13 +267,13 @@ func TestCheckOnce(t *testing.T) {
 				"TailscaledServiceActive should match expected value")
 			assert.Equal(t, tc.expectReason, lastCheckResult.reason,
 				"Reason should match expected value")
+			if tc.expectBackend != "" {
+				assert.Equal(t, tc.expectBackend, lastCheckResult.BackendState,
+					"BackendState should match expected value")
+			}
 
 			if tc.expectError {
-				if tc.activeError != nil {
-					assert.Equal(t, tc.activeError, lastCheckResult.err, "Error should match expected error")
-				} else {
-					assert.NotNil(t, lastCheckResult.err, "Error should be set when expected")
-				}
+				assert.NotNil(t, lastCheckResult.err, "Error should be set when expected")
 			} else {
 				assert.Nil(t, lastCheckResult.err, "Error should not be set when not expected")
 			}
@@ -216,47 +287,70 @@ func TestStates(t *testing.T) {
 		isInstalled    bool
 		isActive       bool
 		activeError    error
+		backendState   string
+		statusError    error
 		expectedHealth apiv1.HealthStateType
-		expectedStatus bool
 	}{
 		{
-			name:           "tailscaled installed and active",
+			name:           "tailscaled installed and active and running",
 			isInstalled:    true,
 			isActive:       true,
 			activeError:    nil,
+			backendState:   "Running",
+			statusError:    nil,
 			expectedHealth: apiv1.HealthStateTypeHealthy,
-			expectedStatus: true,
 		},
 		{
 			name:           "tailscaled installed but not active",
 			isInstalled:    true,
 			isActive:       false,
 			activeError:    nil,
+			backendState:   "Running",
+			statusError:    nil,
 			expectedHealth: apiv1.HealthStateTypeUnhealthy,
-			expectedStatus: false,
 		},
 		{
 			name:           "tailscaled installed but error checking status",
 			isInstalled:    true,
 			isActive:       false,
 			activeError:    errors.New("test error"),
+			backendState:   "Running",
+			statusError:    nil,
 			expectedHealth: apiv1.HealthStateTypeUnhealthy,
-			expectedStatus: false,
 		},
 		{
 			name:           "tailscaled not installed",
 			isInstalled:    false,
 			isActive:       false,
 			activeError:    nil,
+			backendState:   "",
+			statusError:    nil,
 			expectedHealth: apiv1.HealthStateTypeHealthy,
-			expectedStatus: true,
+		},
+		{
+			name:           "tailscaled active but logged out",
+			isInstalled:    true,
+			isActive:       true,
+			activeError:    nil,
+			backendState:   "Stopped",
+			statusError:    nil,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+		},
+		{
+			name:           "tailscaled active but needs login",
+			isInstalled:    true,
+			isActive:       true,
+			activeError:    nil,
+			backendState:   "NeedsLogin",
+			statusError:    nil,
+			expectedHealth: apiv1.HealthStateTypeUnhealthy,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			c := mockComponent(ctx, tc.isInstalled, tc.isActive, tc.activeError)
+			c := mockComponentWithStatus(ctx, tc.isInstalled, tc.isActive, tc.activeError, tc.backendState, tc.statusError)
 
 			// Run CheckOnce to populate lastCheckResult
 			_ = c.Check()
