@@ -4,6 +4,7 @@ package tailscale
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ type component struct {
 
 	checkTailscaledInstalled func() bool
 	checkServiceActiveFunc   func() (bool, error)
+	checkTailscaleStatusFunc func() (string, error)
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -42,6 +44,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		checkServiceActiveFunc: func() (bool, error) {
 			return systemd.IsActive("tailscaled")
 		},
+		checkTailscaleStatusFunc: checkTailscaleStatus,
 	}
 	return c, nil
 }
@@ -125,6 +128,22 @@ func (c *component) Check() components.CheckResult {
 		}
 	}
 
+	if c.checkTailscaleStatusFunc != nil {
+		cr.BackendState, cr.err = c.checkTailscaleStatusFunc()
+		if cr.err != nil {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "tailscaled service is active but failed to check tailscale status"
+			log.Logger.Warnw(cr.reason, "error", cr.err)
+			return cr
+		}
+		if cr.BackendState != "Running" {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("tailscaled service is active but tailscale is not running (state: %s)", cr.BackendState)
+			log.Logger.Warnw(cr.reason, "backendState", cr.BackendState)
+			return cr
+		}
+	}
+
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "tailscaled service is active/running"
 
@@ -136,6 +155,9 @@ var _ components.CheckResult = &checkResult{}
 type checkResult struct {
 	// TailscaledServiceActive is true if the tailscaled service is active.
 	TailscaledServiceActive bool `json:"tailscaled_service_active"`
+	// BackendState is the tailscale backend state from "tailscale status --json".
+	// Common values: "Running", "Stopped", "NeedsLogin", "NeedsMachineAuth", "Starting".
+	BackendState string `json:"backend_state,omitempty"`
 
 	// timestamp of the last check
 	ts time.Time
