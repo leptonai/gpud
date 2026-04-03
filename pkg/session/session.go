@@ -509,9 +509,19 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	if resp.StatusCode != http.StatusOK {
 		log.Logger.Warnw("session reader: request resp not ok -- retrying", "status", resp.Status, "statusCode", resp.StatusCode)
 
-		// Persist 403 Forbidden errors to session_states table
-		if resp.StatusCode == http.StatusForbidden {
-			s.persistLoginFailure(ctx, resp)
+		// Persist authentication-related failures to session_states so "gpud status" surfaces them.
+		// The server returns 401/403 for auth errors, but may also return 500 with
+		// "failed to validate token" when the token is invalid (server-side bug).
+		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusInternalServerError {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			body := string(bodyBytes)
+			if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized || strings.Contains(body, "failed to validate token") {
+				message := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, body)
+				if len(message) > 500 {
+					message = message[:500]
+				}
+				s.persistLoginStatus(ctx, false, message)
+			}
 		}
 
 		close(pipeFinishCh)
@@ -522,6 +532,18 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	log.Logger.Infow("session reader got X-GPUD-Server-ID", "serverID", serverID)
 
 	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
+}
+
+// healthCheckHTTPError is returned by checkServerHealth when the control plane
+// responds with a non-OK HTTP status. It carries the status code and response
+// body so callers (e.g. keepAlive) can decide whether to persist the failure.
+type healthCheckHTTPError struct {
+	statusCode int
+	body       string
+}
+
+func (e *healthCheckHTTPError) Error() string {
+	return fmt.Sprintf("server health check failed: HTTP %d: %s", e.statusCode, e.body)
 }
 
 func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar, token string) error {
@@ -554,7 +576,12 @@ func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar, tok
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server health check failed: %s", resp.Status)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		body := string(bodyBytes)
+		if len(body) > 500 {
+			body = body[:500]
+		}
+		return &healthCheckHTTPError{statusCode: resp.StatusCode, body: body}
 	}
 	return nil
 }
@@ -658,21 +685,6 @@ func (s *Session) handleReaderPipe(respBody io.ReadCloser, closec, finish chan a
 	}
 }
 
-func (s *Session) persistLoginFailure(ctx context.Context, resp *http.Response) {
-	// Read response body to get error message
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Logger.Warnw("failed to read response body for login failure", "error", err)
-		return
-	}
-
-	message := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))
-	if len(message) > 500 {
-		message = message[:500] // Truncate long messages
-	}
-
-	s.persistLoginStatus(ctx, false, message)
-}
 
 func (s *Session) persistLoginStatus(ctx context.Context, success bool, message string) {
 	stateFile := config.StateFilePath(s.dataDir)

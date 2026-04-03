@@ -2,7 +2,11 @@ package session
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"net/http/cookiejar"
+	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -69,6 +73,19 @@ func (s *Session) keepAlive() {
 			// TODO: we can remove it once we migrate to gpud-gateway
 			if err := s.checkServerHealthFunc(ctx, jar, ""); err != nil {
 				log.Logger.Errorf("session keep alive: error checking server health: %v", err)
+
+				// Persist authentication-related failures from health check to session_states,
+				// so that "gpud status" can surface them. Without this, a rejected token
+				// causes silent retry loops and "gpud status" never sees the failure.
+				// The server may return 401/403 for auth errors, or 500 with
+				// "failed to validate token" when the token is invalid.
+				var httpErr *healthCheckHTTPError
+				if errors.As(err, &httpErr) {
+					if httpErr.statusCode == http.StatusForbidden || httpErr.statusCode == http.StatusUnauthorized || strings.Contains(httpErr.body, "failed to validate token") {
+						s.persistLoginStatus(ctx, false, fmt.Sprintf("HTTP %d: %s", httpErr.statusCode, httpErr.body))
+					}
+				}
+
 				cancel()
 				continue
 			}
