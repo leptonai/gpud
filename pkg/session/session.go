@@ -685,7 +685,6 @@ func (s *Session) handleReaderPipe(respBody io.ReadCloser, closec, finish chan a
 	}
 }
 
-
 func (s *Session) persistLoginStatus(ctx context.Context, success bool, message string) {
 	stateFile := config.StateFilePath(s.dataDir)
 
