@@ -150,16 +150,20 @@ func TestReadAll(t *testing.T) {
 		assert.Equal(t, "hello world", output)
 	})
 
-	// Test 2: Multiple lines
+	// Test 2: Multiple lines (uses in-memory reader to avoid cmd.Wait pipe-close race)
 	t.Run("multiple lines", func(t *testing.T) {
-		// WHY: `echo` handling of `\n` escapes varies across `/bin/sh` implementations (e.g., bash-as-sh),
-		// so `printf` ensures deterministic multi-line output across platforms.
-		p, err := newTestProcess("sh", "-c", "printf '%s\\n' line1 line2 line3")
-		require.NoError(t, err)
+		stdoutReader := strings.NewReader("line1\nline2\nline3\n")
+		p := &testProcess{
+			stdout: io.NopCloser(stdoutReader),
+			waitCh: make(chan error, 1),
+		}
+		p.waitCh <- nil
+		close(p.waitCh)
+
 		lines := []string{}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err = Read(
+		err := Read(
 			ctx,
 			p,
 			WithReadStdout(),

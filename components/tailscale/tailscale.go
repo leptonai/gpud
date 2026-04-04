@@ -1,13 +1,17 @@
 package tailscale
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 func checkTailscaleInstalled() bool {
@@ -63,6 +67,38 @@ func parseVersionFromOutput(out, name string) (string, error) {
 		return "", fmt.Errorf("invalid %s version output: %s", name, strings.TrimSpace(out))
 	}
 	return matches[1], nil
+}
+
+// tailscaleStatus represents the relevant fields from "tailscale status --json".
+type tailscaleStatus struct {
+	BackendState string `json:"BackendState"`
+}
+
+// checkTailscaleStatus runs "tailscale status --json" and returns the backend state.
+// Common BackendState values: "Running", "Stopped", "NeedsLogin", "NeedsMachineAuth", "Starting".
+func checkTailscaleStatus() (string, error) {
+	p, err := pkgfile.LocateExecutable("tailscale")
+	if err != nil {
+		return "", err
+	}
+
+	proc, err := process.New(process.WithCommand(p, "status", "--json"))
+	if err != nil {
+		return "", fmt.Errorf("failed to create tailscale status process: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	out, err := proc.StartAndWaitForCombinedOutput(ctx)
+	if err != nil {
+		return "", fmt.Errorf("tailscale status --json failed: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	var status tailscaleStatus
+	if err := json.Unmarshal(out, &status); err != nil {
+		return "", fmt.Errorf("failed to parse tailscale status JSON: %w", err)
+	}
+	return status.BackendState, nil
 }
 
 // CheckTailscaleInstalled checks if the tailscale binary is installed.
