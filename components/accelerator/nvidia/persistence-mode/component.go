@@ -16,6 +16,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
@@ -24,6 +25,16 @@ import (
 
 // Name is the ID of the NVIDIA persistence mode component.
 const Name = "accelerator-nvidia-persistence-mode"
+
+const (
+	// EventNamePersistenceModeDisabled is emitted when persistence mode is detected as disabled.
+	EventNamePersistenceModeDisabled = "persistence_mode_disabled"
+
+	// EventKeyDeviceUUID stores the device UUID associated with the event.
+	EventKeyDeviceUUID = "device_uuid"
+	// EventKeyDeviceBusID stores the PCI bus ID associated with the event.
+	EventKeyDeviceBusID = "device_bus_id"
+)
 
 var _ components.Component = &component{}
 
@@ -35,6 +46,8 @@ type component struct {
 
 	nvmlInstance           nvidianvml.Instance
 	getPersistenceModeFunc func(uuid string, dev device.Device) (PersistenceMode, error)
+
+	eventBucket eventstore.Bucket
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -52,6 +65,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		nvmlInstance:           gpudInstance.NVMLInstance,
 		getPersistenceModeFunc: GetPersistenceMode,
 	}
+
+	if gpudInstance.EventStore != nil {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+	}
+
 	return c, nil
 }
 
@@ -98,14 +121,26 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
-	return nil, nil
+func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
+
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
 
 	return nil
 }
@@ -190,6 +225,36 @@ func (c *component) Check() components.CheckResult {
 	for _, pm := range cr.PersistenceModes {
 		if pm.Supported && !pm.Enabled {
 			notEnabled = append(notEnabled, fmt.Sprintf("%s persistence mode supported but not enabled", pm.UUID))
+
+			if c.eventBucket != nil {
+				ev := eventstore.Event{
+					Component: Name,
+					Time:      cr.ts,
+					Name:      EventNamePersistenceModeDisabled,
+					Type:      string(apiv1.EventTypeWarning),
+					Message:   fmt.Sprintf("GPU %s (%s) persistence mode is supported but not enabled", pm.UUID, pm.BusID),
+					ExtraInfo: map[string]string{
+						EventKeyDeviceUUID:  pm.UUID,
+						EventKeyDeviceBusID: pm.BusID,
+					},
+				}
+
+				findCtx, findCancel := context.WithTimeout(c.ctx, 15*time.Second)
+				found, findErr := c.eventBucket.Find(findCtx, ev)
+				findCancel()
+				if findErr != nil {
+					log.Logger.Warnw("error finding persistence mode event", "uuid", pm.UUID, "error", findErr)
+				} else if found == nil {
+					insertCtx, insertCancel := context.WithTimeout(c.ctx, 15*time.Second)
+					insertErr := c.eventBucket.Insert(insertCtx, ev)
+					insertCancel()
+					if insertErr != nil {
+						log.Logger.Warnw("error inserting persistence mode event", "uuid", pm.UUID, "error", insertErr)
+					} else {
+						log.Logger.Infow("recorded persistence mode disabled event", "uuid", pm.UUID, "bus_id", pm.BusID)
+					}
+				}
+			}
 		}
 	}
 
