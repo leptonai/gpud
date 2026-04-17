@@ -103,8 +103,6 @@ const (
 
 	getBlockDevicesTimeout = 10 * time.Second
 	getPartitionsTimeout   = 10 * time.Second
-
-	nfsStatTimeoutConsecutiveThreshold = 5
 )
 
 // New creates a disk component.
@@ -699,14 +697,21 @@ func (c *component) Check() components.CheckResult {
 		cr.reason += strings.Join(degradedPartitionsDueToThresholdExceeded, "; ")
 	}
 
-	var statTimeoutMounts []string
+	type statTimeoutEntry struct {
+		mountPoint  string
+		consecutive int
+	}
+	var statTimeouts []statTimeoutEntry
 	for _, p := range cr.NFSPartitions {
 		consecutive := c.recordNFSStatTimeout(p.MountPoint, p.StatTimedOut)
-		if p.StatTimedOut && consecutive >= nfsStatTimeoutConsecutiveThreshold {
-			statTimeoutMounts = append(statTimeoutMounts, p.MountPoint)
+		if p.StatTimedOut {
+			statTimeouts = append(statTimeouts, statTimeoutEntry{
+				mountPoint:  p.MountPoint,
+				consecutive: consecutive,
+			})
 		}
 	}
-	if len(statTimeoutMounts) > 0 {
+	if len(statTimeouts) > 0 {
 		if cr.reason == "ok" {
 			cr.reason = ""
 		}
@@ -715,9 +720,9 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		var timeoutReasons []string
-		for _, mountPoint := range statTimeoutMounts {
+		for _, e := range statTimeouts {
 			timeoutReasons = append(timeoutReasons,
-				fmt.Sprintf("%s stat timed out (possible connection issue) has failed continuously for %d checks", mountPoint, nfsStatTimeoutConsecutiveThreshold),
+				fmt.Sprintf("%s stat timed out (server may be unresponsive) — failed %d consecutive check(s)", e.mountPoint, e.consecutive),
 			)
 		}
 		cr.reason += strings.Join(timeoutReasons, "; ")
