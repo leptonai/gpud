@@ -1385,6 +1385,61 @@ func TestCheck_FabricStateSupported_ReportsLegacyFMStatus(t *testing.T) {
 	}
 }
 
+func TestCheck_FabricStateUnhealthy_PreservedWhenFabricManagerActive(t *testing.T) {
+	t.Parallel()
+
+	reason := "GPU GPU-f13cbf8c-a35e-2979-c6e4-c4463ee120c9: bandwidth degraded, summary=Unhealthy"
+
+	comp := &component{
+		ctx:    context.Background(),
+		cancel: func() {},
+		nvmlInstance: &mockNVMLInstance{
+			exists:              true,
+			supportsFM:          true,
+			supportsFabricState: true,
+			productName:         "NVIDIA H100 80GB HBM3",
+			deviceCount:         8,
+		},
+		testingMode: true,
+		collectFabricStateFunc: func() fabricStateReport {
+			return fabricStateReport{
+				Healthy: false,
+				Reason:  reason,
+				Entries: []device.FabricStateEntry{{
+					GPUUUID: "GPU-f13cbf8c-a35e-2979-c6e4-c4463ee120c9",
+					State:   "Completed",
+					Status:  "Success",
+					Summary: "Unhealthy",
+					Health: device.FabricHealthSnapshot{
+						Bandwidth:             "Degraded",
+						RouteRecoveryProgress: "Not Supported",
+						RouteUnhealthy:        "Not Supported",
+						AccessTimeoutRecovery: "Not Supported",
+					},
+				}},
+			}
+		},
+		checkNVSwitchExistsFunc: func() bool { return true },
+		checkFMExistsFunc:       func() bool { return true },
+		checkFMActiveFunc:       func() bool { return true },
+	}
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+
+	assert.True(t, cr.FabricManagerActive)
+	assert.True(t, cr.FabricStateSupported)
+	assert.Equal(t, reason, cr.FabricStateReason)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, "NVIDIA H100 80GB HBM3 with unhealthy fabric state: "+reason, cr.reason)
+
+	states := comp.LastHealthStates()
+	require.Len(t, states, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+	assert.Equal(t, "NVIDIA H100 80GB HBM3 with unhealthy fabric state: "+reason, states[0].Reason)
+}
+
 func TestCheck_FabricStateSupported_SkipsLegacyFMForGB200(t *testing.T) {
 	t.Parallel()
 
