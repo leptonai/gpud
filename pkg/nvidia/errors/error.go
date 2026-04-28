@@ -126,10 +126,14 @@ func IsNotFoundError(ret nvml.Return) bool {
 	return isNotFoundError(ret, nvml.ErrorString)
 }
 
+// IsNoSuchFileOrDirectoryError returns true if the referenced file or process no longer exists.
+// Also matches ESRCH, which procfs returns for /proc/<pid>/* of a just-exited process.
 func IsNoSuchFileOrDirectoryError(err error) bool {
 	if err == nil {
 		return false
 	}
 	s := strings.ToLower(err.Error())
-	return strings.Contains(s, "not found") || strings.Contains(s, "no such file or directory")
+	return strings.Contains(s, "not found") ||
+		strings.Contains(s, "no such file or directory") ||
+		strings.Contains(s, "no such process")
 }

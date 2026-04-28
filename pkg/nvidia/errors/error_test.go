@@ -655,6 +655,11 @@ func TestIsNoSuchFileOrDirectoryError(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "no such process (ESRCH)",
+			err:      errors.New("open /proc/2748003/environ: no such process"),
+			expected: true,
+		},
+		{
 			name:     "different error",
 			err:      errors.New("permission denied"),
 			expected: false,
