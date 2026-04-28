@@ -14,11 +14,13 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
+	"github.com/leptonai/gpud/pkg/sqlite"
 )
 
 // mockNVMLInstance implements the nvml.InstanceV2 interface for testing
@@ -100,6 +102,16 @@ func mockComponent(
 	devicesFunc func() map[string]device.Device,
 	getPersistenceModeFunc func(uuid string, dev device.Device) (PersistenceMode, error),
 ) components.Component {
+	return mockComponentWithBucket(ctx, devicesFunc, getPersistenceModeFunc, nil)
+}
+
+// mockComponentWithBucket creates a component with mocked functions and an optional event bucket.
+func mockComponentWithBucket(
+	ctx context.Context,
+	devicesFunc func() map[string]device.Device,
+	getPersistenceModeFunc func(uuid string, dev device.Device) (PersistenceMode, error),
+	bucket eventstore.Bucket,
+) components.Component {
 	cctx, cancel := context.WithCancel(ctx)
 
 	mockInstance := &mockNVMLInstance{
@@ -112,6 +124,7 @@ func mockComponent(
 		cancel:                 cancel,
 		nvmlInstance:           mockInstance,
 		getPersistenceModeFunc: getPersistenceModeFunc,
+		eventBucket:            bucket,
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -480,13 +493,314 @@ func TestLastHealthStates_NoData(t *testing.T) {
 	assert.Equal(t, "no data yet", state.Reason)
 }
 
-func TestEvents(t *testing.T) {
+func TestEvents_NoBucket(t *testing.T) {
 	ctx := context.Background()
 	component := mockComponent(ctx, nil, nil)
 
 	events, err := component.Events(ctx, time.Now())
 	assert.NoError(t, err)
 	assert.Empty(t, events)
+}
+
+func TestEvents_WithBucket(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-123"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{uuid: mockDev}
+
+	comp := mustComponent(t, mockComponentWithBucket(
+		ctx,
+		func() map[string]device.Device { return devs },
+		func(_ string, _ device.Device) (PersistenceMode, error) {
+			return PersistenceMode{UUID: uuid, BusID: "0000:01:00.0", Supported: true, Enabled: false}, nil
+		},
+		bucket,
+	))
+
+	// Run a check to trigger event insertion
+	comp.Check()
+
+	// Query events via the component's Events() method
+	events, err := comp.Events(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Equal(t, EventNamePersistenceModeDisabled, events[0].Name)
+	assert.Equal(t, apiv1.EventTypeWarning, events[0].Type)
+}
+
+func TestCheck_EventRecordedOnPersistenceModeDisabled(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-abc"
+	busID := "0000:3b:00.0"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", busID)
+
+	devs := map[string]device.Device{uuid: mockDev}
+
+	comp := mustComponent(t, mockComponentWithBucket(
+		ctx,
+		func() map[string]device.Device { return devs },
+		func(u string, _ device.Device) (PersistenceMode, error) {
+			return PersistenceMode{UUID: u, BusID: busID, Supported: true, Enabled: false}, nil
+		},
+		bucket,
+	))
+
+	// First check should insert an event
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+
+	events, err := bucket.Get(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Equal(t, EventNamePersistenceModeDisabled, events[0].Name)
+	assert.Equal(t, uuid, events[0].ExtraInfo[EventKeyDeviceUUID])
+	assert.Equal(t, busID, events[0].ExtraInfo[EventKeyDeviceBusID])
+	assert.Contains(t, events[0].Message, uuid)
+	assert.Contains(t, events[0].Message, busID)
+}
+
+func TestCheck_EventDeduplication(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-dedup"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{uuid: mockDev}
+
+	comp := mustComponent(t, mockComponentWithBucket(
+		ctx,
+		func() map[string]device.Device { return devs },
+		func(u string, _ device.Device) (PersistenceMode, error) {
+			return PersistenceMode{UUID: u, BusID: "test-pci", Supported: true, Enabled: false}, nil
+		},
+		bucket,
+	))
+
+	// Run Check multiple times
+	comp.Check()
+	comp.Check()
+	comp.Check()
+
+	// Should still have only 1 event due to dedup
+	events, err := bucket.Get(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.Len(t, events, 1, "duplicate events should not be inserted")
+}
+
+func TestCheck_NoEventWhenPersistenceModeEnabled(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-ok"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{uuid: mockDev}
+
+	comp := mustComponent(t, mockComponentWithBucket(
+		ctx,
+		func() map[string]device.Device { return devs },
+		func(u string, _ device.Device) (PersistenceMode, error) {
+			return PersistenceMode{UUID: u, BusID: "test-pci", Supported: true, Enabled: true}, nil
+		},
+		bucket,
+	))
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+
+	// No events should be recorded
+	events, err := bucket.Get(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.Empty(t, events, "no events should be recorded when persistence mode is enabled")
+}
+
+func TestCheck_MultipleGPUsPartialEvents(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	ctx := context.Background()
+
+	uuid1 := "gpu-uuid-enabled"
+	uuid2 := "gpu-uuid-disabled"
+
+	mockDevice1 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid1, nvml.SUCCESS
+		},
+	}
+	mockDev1 := testutil.NewMockDevice(mockDevice1, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+
+	mockDevice2 := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid2, nvml.SUCCESS
+		},
+	}
+	mockDev2 := testutil.NewMockDevice(mockDevice2, "test-arch", "test-brand", "test-cuda", "0000:02:00.0")
+
+	devs := map[string]device.Device{uuid1: mockDev1, uuid2: mockDev2}
+
+	comp := mustComponent(t, mockComponentWithBucket(
+		ctx,
+		func() map[string]device.Device { return devs },
+		func(u string, _ device.Device) (PersistenceMode, error) {
+			if u == uuid1 {
+				return PersistenceMode{UUID: u, BusID: "0000:01:00.0", Supported: true, Enabled: true}, nil
+			}
+			return PersistenceMode{UUID: u, BusID: "0000:02:00.0", Supported: true, Enabled: false}, nil
+		},
+		bucket,
+	))
+
+	comp.Check()
+
+	// Only the disabled GPU should have an event
+	events, err := bucket.Get(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	require.Len(t, events, 1, "only the disabled GPU should generate an event")
+	assert.Equal(t, uuid2, events[0].ExtraInfo[EventKeyDeviceUUID])
+}
+
+func TestNew_WithEventStore(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	mockInstance := &mockNVMLInstance{
+		devicesFunc: func() map[string]device.Device { return nil },
+	}
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+		EventStore:   store,
+	}
+
+	c, err := New(gpudInstance)
+	require.NoError(t, err)
+	require.NotNil(t, c)
+
+	tc, ok := c.(*component)
+	require.True(t, ok)
+	assert.NotNil(t, tc.eventBucket, "eventBucket should be set when EventStore is provided")
+}
+
+func TestCheck_NoEventWhenNotSupported(t *testing.T) {
+	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+
+	store, err := eventstore.New(dbRW, dbRO, eventstore.DefaultRetention)
+	require.NoError(t, err)
+
+	bucket, err := store.Bucket(Name)
+	require.NoError(t, err)
+	defer bucket.Close()
+
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-unsupported"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", "test-pci")
+
+	devs := map[string]device.Device{uuid: mockDev}
+
+	comp := mustComponent(t, mockComponentWithBucket(
+		ctx,
+		func() map[string]device.Device { return devs },
+		func(u string, _ device.Device) (PersistenceMode, error) {
+			// Persistence mode not supported — disabled but not flagged
+			return PersistenceMode{UUID: u, BusID: "test-pci", Supported: false, Enabled: false}, nil
+		},
+		bucket,
+	))
+
+	result := comp.Check()
+	cr, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+
+	events, err := bucket.Get(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.Empty(t, events, "no events for unsupported persistence mode")
 }
 
 func TestStart(t *testing.T) {
