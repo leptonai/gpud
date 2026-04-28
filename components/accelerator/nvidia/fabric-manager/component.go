@@ -504,6 +504,10 @@ func (c *component) Check() components.CheckResult {
 
 	cr.FabricManagerActive = true
 
+	if cr.health == apiv1.HealthStateTypeUnhealthy {
+		return cr
+	}
+
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = "fabric manager found and active"
 
