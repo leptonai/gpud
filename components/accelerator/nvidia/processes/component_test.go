@@ -367,6 +367,57 @@ func TestCheckErrorCounterResetsAfterSuccess(t *testing.T) {
 	)
 }
 
+func TestCheckGenericProcessErrorDoesNotMaskLaterCriticalError(t *testing.T) {
+	ctx := context.Background()
+
+	mockDev1 := createMockDevice("gpu-uuid-1", nil)
+	mockDev2 := createMockDevice("gpu-uuid-2", nil)
+	mockDevices := map[string]device.Device{
+		"gpu-uuid-1": mockDev1,
+		"gpu-uuid-2": mockDev2,
+	}
+	mockInstance := &mockNVMLInstance{
+		nvmlExists: true,
+		devicesFunc: func() map[string]device.Device {
+			return mockDevices
+		},
+	}
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+
+	comp, err := New(gpudInstance)
+	require.NoError(t, err)
+
+	c := mustComponent(t, comp)
+
+	testErr := errors.New("transient process query error")
+	var checkedUUIDs []string
+	c.getProcessesFunc = func(uuid string, _ device.Device) (Processes, error) {
+		checkedUUIDs = append(checkedUUIDs, uuid)
+		switch uuid {
+		case "gpu-uuid-1":
+			return Processes{}, testErr
+		case "gpu-uuid-2":
+			return Processes{}, nvmlerrors.ErrGPULost
+		default:
+			require.Failf(t, "unexpected GPU UUID", "uuid=%s", uuid)
+			return Processes{}, nil
+		}
+	}
+
+	result := c.Check()
+
+	data, ok := result.(*checkResult)
+	require.True(t, ok)
+	assert.Equal(t, []string{"gpu-uuid-1", "gpu-uuid-2"}, checkedUUIDs)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.True(t, errors.Is(data.err, nvmlerrors.ErrGPULost), "error should be nvmlerrors.ErrGPULost")
+	assert.Equal(t, nvmlerrors.ErrGPULost.Error(), data.reason)
+}
+
 func TestLastHealthStates(t *testing.T) {
 	ctx := context.Background()
 	mockInstance := &mockNVMLInstance{nvmlExists: true}

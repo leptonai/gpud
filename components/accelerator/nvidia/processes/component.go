@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -163,13 +164,21 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
-	for uuid, dev := range devs {
+	uuids := make([]string, 0, len(devs))
+	for uuid := range devs {
+		uuids = append(uuids, uuid)
+	}
+	sort.Strings(uuids)
+
+	var genericErr error
+	var genericErrUUID string
+	for _, uuid := range uuids {
+		dev := devs[uuid]
 		procs, err := c.getProcessesFunc(uuid, dev)
 		if err != nil {
-			cr.err = err
-
 			if errors.Is(err, nvmlerrors.ErrGPURequiresReset) {
 				c.recordGetProcessesError(false)
+				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = nvmlerrors.ErrGPURequiresReset.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
@@ -184,6 +193,7 @@ func (c *component) Check() components.CheckResult {
 
 			if errors.Is(err, nvmlerrors.ErrGPULost) {
 				c.recordGetProcessesError(false)
+				cr.err = err
 				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = nvmlerrors.ErrGPULost.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
@@ -196,27 +206,37 @@ func (c *component) Check() components.CheckResult {
 				return cr
 			}
 
-			consecutive := c.recordGetProcessesError(true)
-			if consecutive < getProcessesErrorConsecutiveThreshold {
-				cr.health = apiv1.HealthStateTypeHealthy
-				cr.reason = fmt.Sprintf(
-					"error getting processes (detected %d/%d consecutive checks)",
-					consecutive,
-					getProcessesErrorConsecutiveThreshold,
-				)
-				log.Logger.Warnw(cr.reason, "uuid", uuid, "error", err)
-				return cr
+			if genericErr == nil {
+				genericErr = err
+				genericErrUUID = uuid
 			}
-
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = fmt.Sprintf("error getting processes (failed continuously for %d checks)", getProcessesErrorConsecutiveThreshold)
-			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", err)
-			return cr
+			log.Logger.Warnw("error getting processes", "uuid", uuid, "error", err)
+			continue
 		}
 
 		cr.Processes = append(cr.Processes, procs)
 
 		metricRunningProcesses.With(prometheus.Labels{"uuid": uuid}).Set(float64(len(procs.RunningProcesses)))
+	}
+
+	if genericErr != nil {
+		cr.err = genericErr
+		consecutive := c.recordGetProcessesError(true)
+		if consecutive < getProcessesErrorConsecutiveThreshold {
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = fmt.Sprintf(
+				"error getting processes (detected %d/%d consecutive checks)",
+				consecutive,
+				getProcessesErrorConsecutiveThreshold,
+			)
+			log.Logger.Warnw(cr.reason, "uuid", genericErrUUID, "error", genericErr)
+			return cr
+		}
+
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = fmt.Sprintf("error getting processes (failed continuously for %d checks)", getProcessesErrorConsecutiveThreshold)
+		log.Logger.Warnw(cr.reason, "uuid", genericErrUUID, "error", genericErr)
+		return cr
 	}
 
 	c.recordGetProcessesError(false)
