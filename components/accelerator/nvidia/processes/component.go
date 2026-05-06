@@ -212,7 +212,8 @@ func (c *component) Check() components.CheckResult {
 			}
 			log.Logger.Warnw("error getting processes", "uuid", uuid, "error", err)
 			// Keep scanning other GPUs so a transient query error on one GPU does
-			// not hide a later GPU lost/reset error in the same component check.
+			// not hide a later GPU lost/reset error in the same component check;
+			// the consecutive counter is evaluated only after this full scan.
 			continue
 		}
 
@@ -243,6 +244,8 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
+	// A clean full scan resets the counter, so generic process-query errors must
+	// be uninterrupted across checks before this component becomes unhealthy.
 	c.recordGetProcessesError(false)
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no process issue found", len(devs))
