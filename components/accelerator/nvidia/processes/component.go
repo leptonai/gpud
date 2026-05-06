@@ -22,8 +22,12 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
-// Name is the component name for NVIDIA GPU process monitoring.
-const Name = "accelerator-nvidia-processes"
+const (
+	// Name is the component name for NVIDIA GPU process monitoring.
+	Name = "accelerator-nvidia-processes"
+
+	getProcessesErrorConsecutiveThreshold = 5
+)
 
 var _ components.Component = &component{}
 
@@ -35,6 +39,9 @@ type component struct {
 
 	nvmlInstance     nvidianvml.Instance
 	getProcessesFunc func(uuid string, dev device.Device) (Processes, error)
+
+	getProcessesErrorMu    sync.Mutex
+	getProcessesErrorCount int
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -123,11 +130,13 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	if c.nvmlInstance == nil {
+		c.recordGetProcessesError(false)
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML instance is nil"
 		return cr
 	}
 	if !c.nvmlInstance.NVMLExists() {
+		c.recordGetProcessesError(false)
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML library is not loaded"
 		return cr
@@ -136,6 +145,7 @@ func (c *component) Check() components.CheckResult {
 	// This handles cases like "error getting device handle for index 'N': Unknown Error"
 	// which corresponds to nvidia-smi showing "Unable to determine the device handle for GPU".
 	if err := c.nvmlInstance.InitError(); err != nil {
+		c.recordGetProcessesError(false)
 		cr.health = apiv1.HealthStateTypeUnhealthy
 		cr.reason = fmt.Sprintf("NVML initialization error: %v", err)
 		cr.suggestedActions = &apiv1.SuggestedActions{
@@ -146,6 +156,7 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 	if c.nvmlInstance.ProductName() == "" {
+		c.recordGetProcessesError(false)
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr
@@ -156,10 +167,10 @@ func (c *component) Check() components.CheckResult {
 		procs, err := c.getProcessesFunc(uuid, dev)
 		if err != nil {
 			cr.err = err
-			cr.health = apiv1.HealthStateTypeUnhealthy
-			cr.reason = "error getting processes"
 
 			if errors.Is(err, nvmlerrors.ErrGPURequiresReset) {
+				c.recordGetProcessesError(false)
+				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = nvmlerrors.ErrGPURequiresReset.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
 					Description: nvmlerrors.ErrGPURequiresReset.Error(),
@@ -167,9 +178,13 @@ func (c *component) Check() components.CheckResult {
 						apiv1.RepairActionTypeRebootSystem,
 					},
 				}
+				log.Logger.Warnw(cr.reason, "uuid", uuid, "error", err)
+				return cr
 			}
 
 			if errors.Is(err, nvmlerrors.ErrGPULost) {
+				c.recordGetProcessesError(false)
+				cr.health = apiv1.HealthStateTypeUnhealthy
 				cr.reason = nvmlerrors.ErrGPULost.Error()
 				cr.suggestedActions = &apiv1.SuggestedActions{
 					Description: nvmlerrors.ErrGPULost.Error(),
@@ -177,9 +192,25 @@ func (c *component) Check() components.CheckResult {
 						apiv1.RepairActionTypeRebootSystem,
 					},
 				}
+				log.Logger.Warnw(cr.reason, "uuid", uuid, "error", err)
+				return cr
 			}
 
-			log.Logger.Warnw(cr.reason, "error", err)
+			consecutive := c.recordGetProcessesError(true)
+			if consecutive < getProcessesErrorConsecutiveThreshold {
+				cr.health = apiv1.HealthStateTypeHealthy
+				cr.reason = fmt.Sprintf(
+					"error getting processes (detected %d/%d consecutive checks)",
+					consecutive,
+					getProcessesErrorConsecutiveThreshold,
+				)
+				log.Logger.Warnw(cr.reason, "uuid", uuid, "error", err)
+				return cr
+			}
+
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("error getting processes (failed continuously for %d checks)", getProcessesErrorConsecutiveThreshold)
+			log.Logger.Warnw(cr.reason, "uuid", uuid, "error", err)
 			return cr
 		}
 
@@ -188,10 +219,24 @@ func (c *component) Check() components.CheckResult {
 		metricRunningProcesses.With(prometheus.Labels{"uuid": uuid}).Set(float64(len(procs.RunningProcesses)))
 	}
 
+	c.recordGetProcessesError(false)
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no process issue found", len(devs))
 
 	return cr
+}
+
+func (c *component) recordGetProcessesError(failed bool) int {
+	c.getProcessesErrorMu.Lock()
+	defer c.getProcessesErrorMu.Unlock()
+
+	if !failed {
+		c.getProcessesErrorCount = 0
+		return 0
+	}
+
+	c.getProcessesErrorCount++
+	return c.getProcessesErrorCount
 }
 
 var _ components.CheckResult = &checkResult{}

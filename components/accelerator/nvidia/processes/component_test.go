@@ -3,6 +3,7 @@ package processes
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -279,7 +280,21 @@ func TestCheckError(t *testing.T) {
 		return Processes{}, testErr
 	}
 
-	// Run Check
+	for i := 1; i < getProcessesErrorConsecutiveThreshold; i++ {
+		result := c.Check()
+
+		data, ok := result.(*checkResult)
+		require.True(t, ok)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+		assert.Equal(t, testErr, data.err)
+		assert.Equal(
+			t,
+			fmt.Sprintf("error getting processes (detected %d/%d consecutive checks)", i, getProcessesErrorConsecutiveThreshold),
+			data.reason,
+		)
+	}
+
+	// Run Check enough times to cross the consecutive failure threshold.
 	result := c.Check()
 
 	// Verify result is correct
@@ -287,6 +302,69 @@ func TestCheckError(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
 	assert.Equal(t, testErr, data.err)
+	assert.Equal(
+		t,
+		fmt.Sprintf("error getting processes (failed continuously for %d checks)", getProcessesErrorConsecutiveThreshold),
+		data.reason,
+	)
+}
+
+func TestCheckErrorCounterResetsAfterSuccess(t *testing.T) {
+	ctx := context.Background()
+
+	mockDev1 := createMockDevice("gpu-uuid-1", nil)
+	mockDevices := map[string]device.Device{
+		"gpu-uuid-1": mockDev1,
+	}
+	mockInstance := &mockNVMLInstance{
+		nvmlExists: true,
+		devicesFunc: func() map[string]device.Device {
+			return mockDevices
+		},
+	}
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:      ctx,
+		NVMLInstance: mockInstance,
+	}
+
+	comp, err := New(gpudInstance)
+	assert.NoError(t, err)
+
+	c := mustComponent(t, comp)
+
+	testErr := errors.New("test error")
+	shouldFail := true
+	c.getProcessesFunc = func(uuid string, _ device.Device) (Processes, error) {
+		if shouldFail {
+			return Processes{}, testErr
+		}
+		return Processes{UUID: uuid}, nil
+	}
+
+	for i := 1; i <= 2; i++ {
+		data := c.Check().(*checkResult)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+		assert.Equal(
+			t,
+			fmt.Sprintf("error getting processes (detected %d/%d consecutive checks)", i, getProcessesErrorConsecutiveThreshold),
+			data.reason,
+		)
+	}
+
+	shouldFail = false
+	data := c.Check().(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(t, "all 1 GPU(s) were checked, no process issue found", data.reason)
+
+	shouldFail = true
+	data = c.Check().(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Equal(
+		t,
+		fmt.Sprintf("error getting processes (detected 1/%d consecutive checks)", getProcessesErrorConsecutiveThreshold),
+		data.reason,
+	)
 }
 
 func TestLastHealthStates(t *testing.T) {
