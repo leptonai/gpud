@@ -90,12 +90,23 @@ func newTestProcess(command string, args ...string) (*testProcess, error) {
 		return nil, err
 	}
 
+	return p, nil
+}
+
+func waitForTestProcess(t *testing.T, p *testProcess) {
+	t.Helper()
+
 	go func() {
-		waitCh <- cmd.Wait()
-		close(waitCh)
+		p.waitCh <- p.cmd.Wait()
+		close(p.waitCh)
 	}()
 
-	return p, nil
+	select {
+	case err := <-p.Wait():
+		require.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		require.FailNow(t, "timeout waiting for command")
+	}
 }
 
 func TestReadAll(t *testing.T) {
@@ -138,6 +149,8 @@ func TestReadAll(t *testing.T) {
 	t.Run("basic echo command", func(t *testing.T) {
 		p, err := newTestProcess("echo", "hello world")
 		require.NoError(t, err)
+		defer waitForTestProcess(t, p)
+
 		output := ""
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
