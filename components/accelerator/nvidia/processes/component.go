@@ -211,6 +211,8 @@ func (c *component) Check() components.CheckResult {
 				genericErrUUID = uuid
 			}
 			log.Logger.Warnw("error getting processes", "uuid", uuid, "error", err)
+			// Keep scanning other GPUs so a transient query error on one GPU does
+			// not hide a later GPU lost/reset error in the same component check.
 			continue
 		}
 
@@ -221,6 +223,8 @@ func (c *component) Check() components.CheckResult {
 
 	if genericErr != nil {
 		cr.err = genericErr
+		// Count one generic process-query failure per complete component check,
+		// regardless of how many GPUs returned that generic error.
 		consecutive := c.recordGetProcessesError(true)
 		if consecutive < getProcessesErrorConsecutiveThreshold {
 			cr.health = apiv1.HealthStateTypeHealthy
