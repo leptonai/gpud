@@ -2064,6 +2064,36 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 			expectedReason:                    "ok",
 		},
 		{
+			name: "nvml with containerd v2 nvidia plugin path",
+			nvmlInstance: &mockNVMLInstance{
+				nvmlExists:  true,
+				productName: "Tesla V100",
+			},
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
+			},
+			pods: []PodSandbox{
+				{
+					Name:  "nvidia-container-toolkit-daemonset-v2",
+					State: "SANDBOX_READY",
+					Containers: []PodSandboxContainerStatus{
+						{
+							Name:      "nvidia-container-toolkit-ctr",
+							State:     "CONTAINER_RUNNING",
+							CreatedAt: time.Now().Add(-15 * time.Minute).UnixNano(),
+						},
+					},
+				},
+			},
+			getTimeNowFunc:                    time.Now,
+			containerToolkitCreationThreshold: 10 * time.Minute,
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "ok",
+		},
+		{
 			name: "nvml without nvidia config but container toolkit present and running long enough",
 			nvmlInstance: &mockNVMLInstance{
 				nvmlExists:  true,

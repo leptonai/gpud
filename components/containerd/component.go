@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -33,10 +35,18 @@ const (
 
 	socketMissingConsecutiveThreshold = 5
 
-	// Containerd config strings to check for NVIDIA runtime configuration
-	containerdConfigNvidiaDefaultRuntime = `default_runtime_name = "nvidia"`
-	containerdConfigNvidiaRuntimePlugin  = `plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia`
+	// Containerd config strings to check for NVIDIA runtime configuration.
+	// containerd 1.x uses the "io.containerd.grpc.v1.cri" plugin path; 2.x
+	// uses "io.containerd.cri.v1.runtime". Either is acceptable.
+	containerdConfigNvidiaDefaultRuntime  = `default_runtime_name = "nvidia"`
+	containerdConfigNvidiaRuntimePlugin   = `plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia`
+	containerdConfigNvidiaRuntimePluginV2 = `plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia`
 )
+
+// containerdConfigImportsRe matches `imports = [...]` directives in a
+// containerd config so any drop-in files (e.g. /etc/containerd/conf.d/*.toml
+// written by nvidia-container-toolkit-daemonset) can be inspected too.
+var containerdConfigImportsRe = regexp.MustCompile(`(?m)^\s*imports\s*=\s*\[([^\]]*)\]`)
 
 var _ components.Component = &component{}
 
@@ -359,13 +369,17 @@ func (c *component) Check() components.CheckResult {
 			// been running long enough
 			if elapsed > c.containerToolkitCreationThreshold {
 				config, err := c.getContainerdConfigFunc()
+				if err == nil {
+					config = appendImportedContainerdConfigs(config)
+				}
+				hasNvidiaPlugin := bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePlugin)) ||
+					bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePluginV2))
 				switch {
 				case err != nil:
 					reason := "error getting containerd config"
 					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
-				case !bytes.Contains(config, []byte(containerdConfigNvidiaDefaultRuntime)) ||
-					!bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePlugin)):
+				case !bytes.Contains(config, []byte(containerdConfigNvidiaDefaultRuntime)) || !hasNvidiaPlugin:
 					reason := fmt.Sprintf("nvidia-container-toolkit pod is running but %s is missing NVIDIA runtime configuration", defaultContainerdConfigPath)
 					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
@@ -493,6 +507,37 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
 	return apiv1.HealthStates{state}
+}
+
+// appendImportedContainerdConfigs returns config with the contents of any
+// files referenced by an "imports = [...]" directive appended. Errors
+// reading individual imports are ignored so the substring checks still
+// run against whatever could be read.
+func appendImportedContainerdConfigs(config []byte) []byte {
+	m := containerdConfigImportsRe.FindSubmatch(config)
+	if len(m) < 2 {
+		return config
+	}
+	out := config
+	for _, raw := range strings.Split(string(m[1]), ",") {
+		pattern := strings.Trim(strings.TrimSpace(raw), `"'`)
+		if pattern == "" {
+			continue
+		}
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			continue
+		}
+		for _, f := range matches {
+			b, err := os.ReadFile(f)
+			if err != nil {
+				continue
+			}
+			out = append(out, '\n')
+			out = append(out, b...)
+		}
+	}
+	return out
 }
 
 func danglingPodCount(containerdPods []PodSandbox, kubeletPods []componentkubelet.PodStatus) int {
