@@ -18,6 +18,7 @@ import (
 	"github.com/leptonai/gpud/components"
 	componentkubelet "github.com/leptonai/gpud/components/kubelet"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
@@ -299,13 +300,16 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		var danglingCount int
-		cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
-		_, kubeletPods, err := componentkubelet.ListPodsFromKubeletReadOnlyPort(cctx, componentkubelet.DefaultKubeletReadOnlyPort)
-		ccancel()
-		if err != nil {
-			log.Logger.Errorf("error listing pods from kubelet: %v", err)
-		} else {
-			danglingCount = danglingPodCount(cr.Pods, kubeletPods)
+		// skip dangling-pod check if kubelet read-only port is closed
+		if netutil.IsPortOpen(componentkubelet.DefaultKubeletReadOnlyPort) {
+			cctx, ccancel = context.WithTimeout(c.ctx, 30*time.Second)
+			_, kubeletPods, err := componentkubelet.ListPodsFromKubeletReadOnlyPort(cctx, componentkubelet.DefaultKubeletReadOnlyPort)
+			ccancel()
+			if err != nil {
+				log.Logger.Errorf("error listing pods from kubelet: %v", err)
+			} else {
+				danglingCount = danglingPodCount(cr.Pods, kubeletPods)
+			}
 		}
 		switch {
 		case danglingCount > DanglingUnhealthyThreshold:
