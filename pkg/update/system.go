@@ -23,8 +23,12 @@ func detectUbuntuVersion() string {
 		return ""
 	}
 	version := strings.TrimSpace(string(outputBytes))
-	if version == "22.04" || version == "24.04" {
+	if version == "22.04" {
 		return "ubuntu" + version
+	}
+	if version == "24.04" || version == "26.04" {
+		// Keep self-update artifact selection aligned with install.sh.
+		return "ubuntu24.04"
 	}
 	return ""
 }
