@@ -601,7 +601,7 @@ func (c *component) updateCurrentState() error {
 	events := mergeEvents(rebootEvents, localEvents)
 
 	c.mu.Lock()
-	c.currState = evolveHealthyState(events, c.devices, rebootThreshold.Threshold)
+	c.currState = evolveHealthyStateWithRebootThreshold(events, c.devices, rebootThreshold)
 	if rebootErr != "" {
 		c.currState.Error = fmt.Sprintf("%s\n%s", rebootErr, c.currState.Error)
 	}

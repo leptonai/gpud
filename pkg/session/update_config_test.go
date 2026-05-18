@@ -1157,6 +1157,9 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		// Create a real componentsxid.RebootThreshold structure
 		expectedThreshold := componentsxid.RebootThreshold{
 			Threshold: 5,
+			ThresholdOverrides: map[int]componentsxid.RebootThresholdOverride{
+				94: {RebootThreshold: 1000},
+			},
 		}
 
 		// Marshal it to JSON
@@ -1179,6 +1182,7 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 
 		assert.Empty(t, resp.Error)
 		assert.Equal(t, expectedThreshold.Threshold, actualThreshold.Threshold)
+		assert.Equal(t, expectedThreshold.ThresholdOverrides, actualThreshold.ThresholdOverrides)
 	})
 
 	t.Run("temperature with real structure", func(t *testing.T) {

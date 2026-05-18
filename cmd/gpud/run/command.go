@@ -142,6 +142,8 @@ func Command(cliContext *cli.Context) error {
 	nvlinkExpectedLinkStates := cliContext.String("nvlink-expected-link-states")
 	nfsCheckerConfigs := cliContext.String("nfs-checker-configs")
 	xidRebootThreshold := cliContext.Int("xid-reboot-threshold")
+	xidRebootThresholds := cliContext.String("xid-reboot-thresholds")
+	sxidRebootThresholds := cliContext.String("sxid-reboot-thresholds")
 	temperatureMarginThresholdCelsius := cliContext.Int("threshold-celsius-slowdown-margin")
 
 	if len(infinibandExpectedPortStates) > 0 {
@@ -174,15 +176,43 @@ func Command(cliContext *cli.Context) error {
 		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
 	}
 
+	xidRebootThresholdConfig := componentsxid.GetDefaultRebootThreshold()
+	xidRebootThresholdChanged := false
 	if cliContext.IsSet("xid-reboot-threshold") {
 		if xidRebootThreshold > 0 {
-			componentsxid.SetDefaultRebootThreshold(componentsxid.RebootThreshold{
-				Threshold: xidRebootThreshold,
-			})
-			log.Logger.Infow("set xid reboot threshold", "xidRebootThreshold", xidRebootThreshold)
+			xidRebootThresholdConfig.Threshold = xidRebootThreshold
+			xidRebootThresholdChanged = true
 		} else {
 			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)
 		}
+	}
+	if strings.TrimSpace(xidRebootThresholds) != "" {
+		overrides, err := parseXIDRebootThresholds(xidRebootThresholds)
+		if err != nil {
+			return err
+		}
+		xidRebootThresholdConfig.ThresholdOverrides = overrides
+		xidRebootThresholdChanged = true
+	}
+	if xidRebootThresholdChanged {
+		componentsxid.SetDefaultRebootThreshold(xidRebootThresholdConfig)
+		xidRebootThresholdConfig = componentsxid.GetDefaultRebootThreshold()
+		log.Logger.Infow(
+			"set xid reboot thresholds",
+			"xidRebootThreshold",
+			xidRebootThresholdConfig.Threshold,
+			"xidRebootThresholdOverrides",
+			xidRebootThresholdConfig.ThresholdOverrides,
+		)
+	}
+
+	if strings.TrimSpace(sxidRebootThresholds) != "" {
+		overrides, err := parseSXIDRebootThresholds(sxidRebootThresholds)
+		if err != nil {
+			return err
+		}
+		componentssxid.SetDefaultRebootThresholdOverrides(overrides)
+		log.Logger.Infow("set sxid reboot thresholds", "sxidRebootThresholdOverrides", overrides)
 	}
 
 	if eventsRetentionPeriod > 0 && !cliContext.IsSet("xid-lookback-period") {
@@ -436,6 +466,65 @@ func parseRetentionPeriods(cliContext *cli.Context) (metricsRetentionPeriod, eve
 	}
 
 	return metricsRetentionPeriod, eventsRetentionPeriod
+}
+
+type rebootThresholdOverrideJSON struct {
+	RebootThreshold int `json:"rebootThreshold"`
+}
+
+func parseXIDRebootThresholds(raw string) (map[int]componentsxid.RebootThresholdOverride, error) {
+	thresholds, err := parseRebootThresholds(raw, "xid reboot thresholds")
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make(map[int]componentsxid.RebootThresholdOverride, len(thresholds))
+	for xid, threshold := range thresholds {
+		ret[xid] = componentsxid.RebootThresholdOverride{
+			RebootThreshold: threshold.RebootThreshold,
+		}
+	}
+	return ret, nil
+}
+
+func parseSXIDRebootThresholds(raw string) (map[int]componentssxid.RebootThresholdOverride, error) {
+	thresholds, err := parseRebootThresholds(raw, "sxid reboot thresholds")
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make(map[int]componentssxid.RebootThresholdOverride, len(thresholds))
+	for sxid, threshold := range thresholds {
+		ret[sxid] = componentssxid.RebootThresholdOverride{
+			RebootThreshold: threshold.RebootThreshold,
+		}
+	}
+	return ret, nil
+}
+
+func parseRebootThresholds(raw string, name string) (map[int]rebootThresholdOverrideJSON, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+
+	var thresholds map[int]rebootThresholdOverrideJSON
+	if err := json.Unmarshal([]byte(raw), &thresholds); err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	if thresholds == nil {
+		return nil, fmt.Errorf("invalid %s: expected JSON object", name)
+	}
+
+	for id, threshold := range thresholds {
+		if id < 0 {
+			return nil, fmt.Errorf("invalid %s for %d: event ID must be non-negative", name, id)
+		}
+		if threshold.RebootThreshold <= 0 {
+			return nil, fmt.Errorf("invalid %s for %d: rebootThreshold must be positive", name, id)
+		}
+	}
+	return thresholds, nil
 }
 
 func parseInfinibandExcludeDevices(s string) []string {

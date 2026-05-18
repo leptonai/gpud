@@ -63,6 +63,8 @@ func newTestCLIContext(t *testing.T, values cliFlagValues) *cli.Context {
 	set.String("nvlink-expected-link-states", "", "")
 	set.String("nfs-checker-configs", "", "")
 	set.Int("xid-reboot-threshold", 0, "")
+	set.String("xid-reboot-thresholds", "", "")
+	set.String("sxid-reboot-thresholds", "", "")
 	set.Duration("xid-lookback-period", 0, "")
 	set.Duration("sxid-lookback-period", 0, "")
 	set.Int("threshold-celsius-slowdown-margin", 0, "")
@@ -272,6 +274,60 @@ func TestCommand_SetLookbackPeriods(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, newXidLookback, componentsxid.GetLookbackPeriod())
 		assert.Equal(t, newSxidLookback, componentssxid.GetLookbackPeriod())
+	})
+}
+
+func TestCommand_SetRebootThresholds(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalXidRebootThreshold := componentsxid.GetDefaultRebootThreshold()
+	originalSxidRebootThresholds := componentssxid.GetDefaultRebootThresholdOverrides()
+	t.Cleanup(func() {
+		componentsxid.SetDefaultRebootThreshold(originalXidRebootThreshold)
+		componentssxid.SetDefaultRebootThresholdOverrides(originalSxidRebootThresholds)
+	})
+
+	ctx := newTestCLIContext(t, cliFlagValues{
+		stringFlags: map[string]string{
+			"log-level":              "info",
+			"data-dir":               tmpDir,
+			"xid-reboot-thresholds":  `{"94":{"rebootThreshold":2000},"95":{"rebootThreshold":3}}`,
+			"sxid-reboot-thresholds": `{"11004":{"rebootThreshold":7}}`,
+		},
+		intFlags: map[string]int{
+			"xid-reboot-threshold": 6,
+		},
+	})
+
+	mockey.PatchConvey("Command sets xid and sxid reboot thresholds", t, func() {
+		mockey.Mock(gpudmanager.New).To(func(dataDir string) (*gpudmanager.Manager, error) {
+			return &gpudmanager.Manager{}, nil
+		}).Build()
+		mockey.Mock((*gpudmanager.Manager).Start).To(func(_ *gpudmanager.Manager, _ context.Context) error {
+			return nil
+		}).Build()
+		mockey.Mock(gpudserver.New).To(func(_ context.Context, _ log.AuditLogger, _ *config.Config, _ *gpudmanager.Manager) (*gpudserver.Server, error) {
+			return &gpudserver.Server{}, nil
+		}).Build()
+		mockey.Mock(gpudserver.HandleSignals).To(func(_ context.Context, _ context.CancelFunc, _ chan os.Signal, _ chan gpudserver.ServerStopper, _ func(context.Context) error) chan struct{} {
+			done := make(chan struct{})
+			close(done)
+			return done
+		}).Build()
+		mockey.Mock(pkgsystemd.SystemctlExists).To(func() bool {
+			return false
+		}).Build()
+
+		err := Command(ctx)
+		require.NoError(t, err)
+
+		xidRebootThreshold := componentsxid.GetDefaultRebootThreshold()
+		assert.Equal(t, 6, xidRebootThreshold.Threshold)
+		assert.Equal(t, 2000, xidRebootThreshold.ThresholdOverrides[94].RebootThreshold)
+		assert.Equal(t, 3, xidRebootThreshold.ThresholdOverrides[95].RebootThreshold)
+
+		sxidRebootThresholds := componentssxid.GetDefaultRebootThresholdOverrides()
+		assert.Equal(t, 7, sxidRebootThresholds[11004].RebootThreshold)
 	})
 }
 

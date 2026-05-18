@@ -82,6 +82,24 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
 
+	t.Run("custom sxid reboot threshold override prevents hardware inspection", func(t *testing.T) {
+		events := eventstore.Events{
+			createSXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			{Name: "reboot"},
+			createSXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			{Name: "reboot"},
+			createSXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+		}
+
+		state := evolveHealthyStateWithRebootThresholdOverrides(events, rebootThreshold, map[int]RebootThresholdOverride{
+			94: {RebootThreshold: 1000},
+		})
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
+		require.NotNil(t, state.SuggestedActions)
+		require.NotEmpty(t, state.SuggestedActions.RepairActions)
+		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
+	})
+
 	t.Run("EmptyEvents_ReturnsHealthy", func(t *testing.T) {
 		events := eventstore.Events{}
 		state := evolveHealthyState(events)

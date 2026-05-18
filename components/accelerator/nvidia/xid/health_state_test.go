@@ -121,19 +121,35 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 	})
 
 	t.Run("reboot multiple time cannot recover, should be unhealthy", func(t *testing.T) {
-		// XID 94 is EventTypeFatal in the catalog, so we use Fatal here.
+		// XID 95 is EventTypeFatal in the catalog, so we use Fatal here.
 		// In real usage, Match() returns the correct EventType from the catalog.
+		events := eventstore.Events{
+			createXidEvent(time.Time{}, 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			{Name: "reboot"},
+			createXidEvent(time.Time{}, 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			{Name: "reboot"},
+			createXidEvent(time.Time{}, 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+			createXidEvent(time.Time{}, 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
+		}
+		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
+		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
+	})
+
+	t.Run("xid 94 uses reboot threshold override", func(t *testing.T) {
 		events := eventstore.Events{
 			createXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
 			createXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
 			createXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
-			createXidEvent(time.Time{}, 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
 		}
+
 		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
+		require.NotNil(t, state.SuggestedActions)
+		require.NotEmpty(t, state.SuggestedActions.RepairActions)
+		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
 	})
 
 	// Tests for reboot recovery behavior based on SuggestedActionsByGPUd.

@@ -37,6 +37,10 @@ const rebootThreshold = 2
 // evolveHealthyState resolves the state of the SXID error component.
 // note: assume events are sorted by time in descending order
 func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
+	return evolveHealthyStateWithRebootThresholdOverrides(events, rebootThreshold, GetDefaultRebootThresholdOverrides())
+}
+
+func evolveHealthyStateWithRebootThresholdOverrides(events eventstore.Events, defaultRebootThreshold int, thresholdOverrides map[int]RebootThresholdOverride) (ret apiv1.HealthState) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
@@ -68,9 +72,10 @@ func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
 			lastSXidErr = &currSXidErr
 			if currSXidErr.SuggestedActionsByGPUd != nil && len(currSXidErr.SuggestedActionsByGPUd.RepairActions) > 0 {
 				if currSXidErr.SuggestedActionsByGPUd.RepairActions[0] == apiv1.RepairActionTypeRebootSystem {
+					effectiveRebootThreshold := rebootThresholdForSXID(currSXidErr.SXid, defaultRebootThreshold, thresholdOverrides)
 					if count, ok := sxidRebootMap[currSXidErr.SXid]; !ok {
 						sxidRebootMap[currSXidErr.SXid] = 0
-					} else if count >= rebootThreshold {
+					} else if count >= effectiveRebootThreshold {
 						currSXidErr.SuggestedActionsByGPUd.RepairActions[0] = apiv1.RepairActionTypeHardwareInspection
 					}
 				}
