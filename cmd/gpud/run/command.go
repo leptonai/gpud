@@ -142,8 +142,8 @@ func Command(cliContext *cli.Context) error {
 	nvlinkExpectedLinkStates := cliContext.String("nvlink-expected-link-states")
 	nfsCheckerConfigs := cliContext.String("nfs-checker-configs")
 	xidRebootThreshold := cliContext.Int("xid-reboot-threshold")
-	xidRebootThresholds := cliContext.String("xid-reboot-thresholds")
-	sxidRebootThresholds := cliContext.String("sxid-reboot-thresholds")
+	xidThresholds := cliContext.String("xid-thresholds")
+	sxidThresholds := cliContext.String("sxid-thresholds")
 	temperatureMarginThresholdCelsius := cliContext.Int("threshold-celsius-slowdown-margin")
 
 	if len(infinibandExpectedPortStates) > 0 {
@@ -176,43 +176,43 @@ func Command(cliContext *cli.Context) error {
 		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
 	}
 
-	xidRebootThresholdConfig := componentsxid.GetDefaultRebootThreshold()
-	xidRebootThresholdChanged := false
+	xidThresholdConfig := componentsxid.GetDefaultRebootThreshold()
+	xidThresholdsChanged := false
 	if cliContext.IsSet("xid-reboot-threshold") {
 		if xidRebootThreshold > 0 {
-			xidRebootThresholdConfig.Threshold = xidRebootThreshold
-			xidRebootThresholdChanged = true
+			xidThresholdConfig.Threshold = xidRebootThreshold
+			xidThresholdsChanged = true
 		} else {
 			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)
 		}
 	}
-	if strings.TrimSpace(xidRebootThresholds) != "" {
-		overrides, err := parseXIDRebootThresholds(xidRebootThresholds)
+	if strings.TrimSpace(xidThresholds) != "" {
+		overrides, err := parseXIDThresholds(xidThresholds)
 		if err != nil {
 			return err
 		}
-		xidRebootThresholdConfig.ThresholdOverrides = overrides
-		xidRebootThresholdChanged = true
+		xidThresholdConfig.ThresholdOverrides = overrides
+		xidThresholdsChanged = true
 	}
-	if xidRebootThresholdChanged {
-		componentsxid.SetDefaultRebootThreshold(xidRebootThresholdConfig)
-		xidRebootThresholdConfig = componentsxid.GetDefaultRebootThreshold()
+	if xidThresholdsChanged {
+		componentsxid.SetDefaultRebootThreshold(xidThresholdConfig)
+		xidThresholdConfig = componentsxid.GetDefaultRebootThreshold()
 		log.Logger.Infow(
-			"set xid reboot thresholds",
-			"xidRebootThreshold",
-			xidRebootThresholdConfig.Threshold,
-			"xidRebootThresholdOverrides",
-			xidRebootThresholdConfig.ThresholdOverrides,
+			"set xid thresholds",
+			"xidDefaultRebootThreshold",
+			xidThresholdConfig.Threshold,
+			"xidThresholdOverrides",
+			xidThresholdConfig.ThresholdOverrides,
 		)
 	}
 
-	if strings.TrimSpace(sxidRebootThresholds) != "" {
-		overrides, err := parseSXIDRebootThresholds(sxidRebootThresholds)
+	if strings.TrimSpace(sxidThresholds) != "" {
+		overrides, err := parseSXIDThresholds(sxidThresholds)
 		if err != nil {
 			return err
 		}
-		componentssxid.SetDefaultRebootThresholdOverrides(overrides)
-		log.Logger.Infow("set sxid reboot thresholds", "sxidRebootThresholdOverrides", overrides)
+		componentssxid.SetDefaultThresholdOverrides(overrides)
+		log.Logger.Infow("set sxid thresholds", "sxidThresholdOverrides", overrides)
 	}
 
 	if eventsRetentionPeriod > 0 && !cliContext.IsSet("xid-lookback-period") {
@@ -468,47 +468,47 @@ func parseRetentionPeriods(cliContext *cli.Context) (metricsRetentionPeriod, eve
 	return metricsRetentionPeriod, eventsRetentionPeriod
 }
 
-type rebootThresholdOverrideJSON struct {
+type thresholdOverrideJSON struct {
 	RebootThreshold int `json:"rebootThreshold"`
 }
 
-func parseXIDRebootThresholds(raw string) (map[int]componentsxid.RebootThresholdOverride, error) {
-	thresholds, err := parseRebootThresholds(raw, "xid reboot thresholds")
+func parseXIDThresholds(raw string) (map[int]componentsxid.ThresholdOverride, error) {
+	thresholds, err := parseThresholds(raw, "xid thresholds")
 	if err != nil {
 		return nil, err
 	}
 
-	ret := make(map[int]componentsxid.RebootThresholdOverride, len(thresholds))
+	ret := make(map[int]componentsxid.ThresholdOverride, len(thresholds))
 	for xid, threshold := range thresholds {
-		ret[xid] = componentsxid.RebootThresholdOverride{
+		ret[xid] = componentsxid.ThresholdOverride{
 			RebootThreshold: threshold.RebootThreshold,
 		}
 	}
 	return ret, nil
 }
 
-func parseSXIDRebootThresholds(raw string) (map[int]componentssxid.RebootThresholdOverride, error) {
-	thresholds, err := parseRebootThresholds(raw, "sxid reboot thresholds")
+func parseSXIDThresholds(raw string) (map[int]componentssxid.ThresholdOverride, error) {
+	thresholds, err := parseThresholds(raw, "sxid thresholds")
 	if err != nil {
 		return nil, err
 	}
 
-	ret := make(map[int]componentssxid.RebootThresholdOverride, len(thresholds))
+	ret := make(map[int]componentssxid.ThresholdOverride, len(thresholds))
 	for sxid, threshold := range thresholds {
-		ret[sxid] = componentssxid.RebootThresholdOverride{
+		ret[sxid] = componentssxid.ThresholdOverride{
 			RebootThreshold: threshold.RebootThreshold,
 		}
 	}
 	return ret, nil
 }
 
-func parseRebootThresholds(raw string, name string) (map[int]rebootThresholdOverrideJSON, error) {
+func parseThresholds(raw string, name string) (map[int]thresholdOverrideJSON, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil, nil
 	}
 
-	var thresholds map[int]rebootThresholdOverrideJSON
+	var thresholds map[int]thresholdOverrideJSON
 	if err := json.Unmarshal([]byte(raw), &thresholds); err != nil {
 		return nil, fmt.Errorf("invalid %s: %w", name, err)
 	}

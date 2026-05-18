@@ -33,7 +33,7 @@ func TestDefaultExpectedPortStates(t *testing.T) {
 func TestRebootThresholdForXID(t *testing.T) {
 	threshold := RebootThreshold{
 		Threshold: DefaultRebootThreshold,
-		ThresholdOverrides: map[int]RebootThresholdOverride{
+		ThresholdOverrides: map[int]ThresholdOverride{
 			94: {RebootThreshold: 1000},
 		},
 	}

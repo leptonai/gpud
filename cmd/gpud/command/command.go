@@ -254,12 +254,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Value: componentsxid.DefaultRebootThreshold,
 				},
 				&cli.StringFlag{
-					Name:  "xid-reboot-thresholds",
-					Usage: `set per-XID reboot thresholds in JSON, e.g. '{"94":{"rebootThreshold":1000}}'`,
+					Name:  "xid-thresholds",
+					Usage: `set per-XID thresholds in JSON, e.g. '{"94":{"rebootThreshold":1000}}'`,
 				},
 				&cli.StringFlag{
-					Name:  "sxid-reboot-thresholds",
-					Usage: `set per-SXID reboot thresholds in JSON, e.g. '{"11004":{"rebootThreshold":7}}'`,
+					Name:  "sxid-thresholds",
+					Usage: `set per-SXID thresholds in JSON, e.g. '{"11004":{"rebootThreshold":7}}'`,
 				},
 				&cli.DurationFlag{
 					Name:  "xid-lookback-period",

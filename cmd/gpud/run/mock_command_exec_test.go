@@ -63,8 +63,8 @@ func newTestCLIContext(t *testing.T, values cliFlagValues) *cli.Context {
 	set.String("nvlink-expected-link-states", "", "")
 	set.String("nfs-checker-configs", "", "")
 	set.Int("xid-reboot-threshold", 0, "")
-	set.String("xid-reboot-thresholds", "", "")
-	set.String("sxid-reboot-thresholds", "", "")
+	set.String("xid-thresholds", "", "")
+	set.String("sxid-thresholds", "", "")
 	set.Duration("xid-lookback-period", 0, "")
 	set.Duration("sxid-lookback-period", 0, "")
 	set.Int("threshold-celsius-slowdown-margin", 0, "")
@@ -277,29 +277,29 @@ func TestCommand_SetLookbackPeriods(t *testing.T) {
 	})
 }
 
-func TestCommand_SetRebootThresholds(t *testing.T) {
+func TestCommand_SetThresholds(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	originalXidRebootThreshold := componentsxid.GetDefaultRebootThreshold()
-	originalSxidRebootThresholds := componentssxid.GetDefaultRebootThresholdOverrides()
+	originalXidThresholdConfig := componentsxid.GetDefaultRebootThreshold()
+	originalSxidThresholds := componentssxid.GetDefaultThresholdOverrides()
 	t.Cleanup(func() {
-		componentsxid.SetDefaultRebootThreshold(originalXidRebootThreshold)
-		componentssxid.SetDefaultRebootThresholdOverrides(originalSxidRebootThresholds)
+		componentsxid.SetDefaultRebootThreshold(originalXidThresholdConfig)
+		componentssxid.SetDefaultThresholdOverrides(originalSxidThresholds)
 	})
 
 	ctx := newTestCLIContext(t, cliFlagValues{
 		stringFlags: map[string]string{
-			"log-level":              "info",
-			"data-dir":               tmpDir,
-			"xid-reboot-thresholds":  `{"94":{"rebootThreshold":2000},"95":{"rebootThreshold":3}}`,
-			"sxid-reboot-thresholds": `{"11004":{"rebootThreshold":7}}`,
+			"log-level":       "info",
+			"data-dir":        tmpDir,
+			"xid-thresholds":  `{"94":{"rebootThreshold":2000},"95":{"rebootThreshold":3}}`,
+			"sxid-thresholds": `{"11004":{"rebootThreshold":7}}`,
 		},
 		intFlags: map[string]int{
 			"xid-reboot-threshold": 6,
 		},
 	})
 
-	mockey.PatchConvey("Command sets xid and sxid reboot thresholds", t, func() {
+	mockey.PatchConvey("Command sets xid and sxid thresholds", t, func() {
 		mockey.Mock(gpudmanager.New).To(func(dataDir string) (*gpudmanager.Manager, error) {
 			return &gpudmanager.Manager{}, nil
 		}).Build()
@@ -321,13 +321,13 @@ func TestCommand_SetRebootThresholds(t *testing.T) {
 		err := Command(ctx)
 		require.NoError(t, err)
 
-		xidRebootThreshold := componentsxid.GetDefaultRebootThreshold()
-		assert.Equal(t, 6, xidRebootThreshold.Threshold)
-		assert.Equal(t, 2000, xidRebootThreshold.ThresholdOverrides[94].RebootThreshold)
-		assert.Equal(t, 3, xidRebootThreshold.ThresholdOverrides[95].RebootThreshold)
+		xidThresholdConfig := componentsxid.GetDefaultRebootThreshold()
+		assert.Equal(t, 6, xidThresholdConfig.Threshold)
+		assert.Equal(t, 2000, xidThresholdConfig.ThresholdOverrides[94].RebootThreshold)
+		assert.Equal(t, 3, xidThresholdConfig.ThresholdOverrides[95].RebootThreshold)
 
-		sxidRebootThresholds := componentssxid.GetDefaultRebootThresholdOverrides()
-		assert.Equal(t, 7, sxidRebootThresholds[11004].RebootThreshold)
+		sxidThresholds := componentssxid.GetDefaultThresholdOverrides()
+		assert.Equal(t, 7, sxidThresholds[11004].RebootThreshold)
 	})
 }
 

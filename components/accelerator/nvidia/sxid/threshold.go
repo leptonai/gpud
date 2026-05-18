@@ -6,8 +6,8 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-// RebootThresholdOverride configures the reboot threshold for one XID/SXID code.
-type RebootThresholdOverride struct {
+// ThresholdOverride configures threshold overrides for one SXID code.
+type ThresholdOverride struct {
 	RebootThreshold int `json:"rebootThreshold"`
 }
 
@@ -18,44 +18,44 @@ const (
 	// events that happen after a reboot-recoverable SXID, and if the same SXID is
 	// still asking for RebootSystem after this threshold, gpud treats repeated
 	// reboots as insufficient recovery and recommends hardware inspection.
-	// Operators can override individual SXIDs with --sxid-reboot-thresholds.
+	// Operators can override individual SXIDs with --sxid-thresholds.
 	DefaultRebootThreshold = 2
 )
 
 var (
-	defaultRebootThresholdOverridesMu sync.RWMutex
-	defaultRebootThresholdOverrides   = map[int]RebootThresholdOverride{}
+	defaultThresholdOverridesMu sync.RWMutex
+	defaultThresholdOverrides   = map[int]ThresholdOverride{}
 )
 
-// GetDefaultRebootThresholdOverrides returns the configured per-SXID reboot thresholds.
-func GetDefaultRebootThresholdOverrides() map[int]RebootThresholdOverride {
-	defaultRebootThresholdOverridesMu.RLock()
-	defer defaultRebootThresholdOverridesMu.RUnlock()
-	return cloneRebootThresholdOverrides(defaultRebootThresholdOverrides)
+// GetDefaultThresholdOverrides returns the configured per-SXID threshold overrides.
+func GetDefaultThresholdOverrides() map[int]ThresholdOverride {
+	defaultThresholdOverridesMu.RLock()
+	defer defaultThresholdOverridesMu.RUnlock()
+	return cloneThresholdOverrides(defaultThresholdOverrides)
 }
 
-// SetDefaultRebootThresholdOverrides updates the configured per-SXID reboot thresholds.
-func SetDefaultRebootThresholdOverrides(overrides map[int]RebootThresholdOverride) {
-	overrides = cloneRebootThresholdOverrides(overrides)
-	log.Logger.Infow("setting default sxid reboot threshold overrides", "thresholdOverrides", overrides)
+// SetDefaultThresholdOverrides updates the configured per-SXID threshold overrides.
+func SetDefaultThresholdOverrides(overrides map[int]ThresholdOverride) {
+	overrides = cloneThresholdOverrides(overrides)
+	log.Logger.Infow("setting default sxid threshold overrides", "thresholdOverrides", overrides)
 
-	defaultRebootThresholdOverridesMu.Lock()
-	defer defaultRebootThresholdOverridesMu.Unlock()
-	defaultRebootThresholdOverrides = overrides
+	defaultThresholdOverridesMu.Lock()
+	defer defaultThresholdOverridesMu.Unlock()
+	defaultThresholdOverrides = overrides
 }
 
-func cloneRebootThresholdOverrides(overrides map[int]RebootThresholdOverride) map[int]RebootThresholdOverride {
+func cloneThresholdOverrides(overrides map[int]ThresholdOverride) map[int]ThresholdOverride {
 	if overrides == nil {
 		return nil
 	}
-	ret := make(map[int]RebootThresholdOverride, len(overrides))
+	ret := make(map[int]ThresholdOverride, len(overrides))
 	for sxid, threshold := range overrides {
 		ret[sxid] = threshold
 	}
 	return ret
 }
 
-func rebootThresholdForSXID(sxid uint64, defaultRebootThreshold int, overrides map[int]RebootThresholdOverride) int {
+func rebootThresholdForSXID(sxid uint64, defaultRebootThreshold int, overrides map[int]ThresholdOverride) int {
 	sxidID, ok := intFromUint64(sxid)
 	if !ok {
 		return defaultRebootThreshold
