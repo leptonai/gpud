@@ -11,6 +11,17 @@ type RebootThresholdOverride struct {
 	RebootThreshold int `json:"rebootThreshold"`
 }
 
+const (
+	// DefaultRebootThreshold is the fallback number of reboot events gpud allows
+	// for an SXID before escalating from RebootSystem to HardwareInspection.
+	// During SXID health evaluation, gpud walks the event history, counts reboot
+	// events that happen after a reboot-recoverable SXID, and if the same SXID is
+	// still asking for RebootSystem after this threshold, gpud treats repeated
+	// reboots as insufficient recovery and recommends hardware inspection.
+	// Operators can override individual SXIDs with --sxid-reboot-thresholds.
+	DefaultRebootThreshold = 2
+)
+
 var (
 	defaultRebootThresholdOverridesMu sync.RWMutex
 	defaultRebootThresholdOverrides   = map[int]RebootThresholdOverride{}

@@ -23,6 +23,21 @@ type RebootThresholdOverride struct {
 	RebootThreshold int `json:"rebootThreshold"`
 }
 
+const (
+	// DefaultRebootThreshold is the fallback number of reboot events gpud allows
+	// for an XID before escalating from RebootSystem to HardwareInspection.
+	// During XID health evaluation, gpud walks the event history, counts reboot
+	// events that happen after a reboot-recoverable XID, and if the same XID is
+	// still asking for RebootSystem after this threshold, gpud treats repeated
+	// reboots as insufficient recovery and recommends hardware inspection.
+	// Operators can override this default globally with --xid-reboot-threshold
+	// and can override individual XIDs with --xid-reboot-thresholds or session
+	// updateConfig thresholdOverrides.
+	DefaultRebootThreshold = 2
+	// DefaultLookbackPeriod is the default lookback window for XID events.
+	DefaultLookbackPeriod = eventstore.DefaultRetention
+)
+
 var (
 	// XID 94 is application specific and does NOT warrant system reboot as a
 	// system-level repair signal: NVIDIA's XID catalog classifies it as a
@@ -43,13 +58,6 @@ var (
 
 	defaultLookbackPeriodMu sync.RWMutex
 	defaultLookbackPeriod   = DefaultLookbackPeriod
-)
-
-const (
-	// DefaultRebootThreshold is the default reboot threshold.
-	DefaultRebootThreshold = 2
-	// DefaultLookbackPeriod is the default lookback window for XID events.
-	DefaultLookbackPeriod = eventstore.DefaultRetention
 )
 
 // GetDefaultRebootThreshold returns the configured reboot threshold for XID recovery.

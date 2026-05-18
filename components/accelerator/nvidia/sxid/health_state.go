@@ -32,12 +32,10 @@ func translateToStateHealth(health int) apiv1.HealthStateType {
 	}
 }
 
-const rebootThreshold = 2
-
 // evolveHealthyState resolves the state of the SXID error component.
 // note: assume events are sorted by time in descending order
 func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
-	return evolveHealthyStateWithRebootThresholdOverrides(events, rebootThreshold, GetDefaultRebootThresholdOverrides())
+	return evolveHealthyStateWithRebootThresholdOverrides(events, DefaultRebootThreshold, GetDefaultRebootThresholdOverrides())
 }
 
 func evolveHealthyStateWithRebootThresholdOverrides(events eventstore.Events, defaultRebootThreshold int, thresholdOverrides map[int]RebootThresholdOverride) (ret apiv1.HealthState) {

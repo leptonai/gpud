@@ -91,7 +91,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 			createSXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 
-		state := evolveHealthyStateWithRebootThresholdOverrides(events, rebootThreshold, map[int]RebootThresholdOverride{
+		state := evolveHealthyStateWithRebootThresholdOverrides(events, DefaultRebootThreshold, map[int]RebootThresholdOverride{
 			94: {RebootThreshold: 1000},
 		})
 		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
