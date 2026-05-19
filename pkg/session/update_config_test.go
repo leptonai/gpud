@@ -94,7 +94,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -131,7 +131,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -168,7 +168,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Equal(t, 0, counts.Count)
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
-				assert.Equal(t, 10, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -206,7 +206,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				assert.Equal(t, int32(10), thresholds.CelsiusSlowdownMargin)
@@ -404,7 +404,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -442,7 +442,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior for unsupported components
-				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior for unsupported components
@@ -498,7 +498,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -540,7 +540,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -759,7 +759,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				xidCallCount++
 				// This gets called with default config due to fallback behavior
-				assert.Equal(t, componentsxid.DefaultRebootThreshold, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 		}
 
@@ -827,7 +827,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				xidCallCount++
-				assert.Equal(t, 10, threshold.Threshold)
+				assert.Empty(t, threshold.ThresholdOverrides)
 			},
 		}
 
@@ -1156,7 +1156,6 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 	t.Run("xid with real structure", func(t *testing.T) {
 		// Create a real componentsxid.Thresholds structure
 		expectedThresholds := componentsxid.Thresholds{
-			Threshold: 5,
 			ThresholdOverrides: map[int]componentsxid.ThresholdOverride{
 				94: {RebootThreshold: 1000},
 			},
@@ -1181,7 +1180,6 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		s.processUpdateConfig(configMap, resp)
 
 		assert.Empty(t, resp.Error)
-		assert.Equal(t, expectedThresholds.Threshold, actualThresholds.Threshold)
 		assert.Equal(t, expectedThresholds.ThresholdOverrides, actualThresholds.ThresholdOverrides)
 	})
 

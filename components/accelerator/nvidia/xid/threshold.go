@@ -10,10 +10,6 @@ import (
 
 // Thresholds configures the XID reboot threshold policy.
 type Thresholds struct {
-	// Threshold is the expected number of reboot events within the evaluation window.
-	// If not set, it defaults to 2.
-	Threshold int `json:"threshold"`
-
 	// ThresholdOverrides configures per-XID threshold overrides.
 	ThresholdOverrides map[int]ThresholdOverride `json:"thresholdOverrides,omitempty"`
 }
@@ -30,9 +26,9 @@ const (
 	// events that happen after a reboot-recoverable XID, and if the same XID is
 	// still asking for RebootSystem after this threshold, gpud treats repeated
 	// reboots as insufficient recovery and recommends hardware inspection.
-	// Operators can override this default globally with --xid-reboot-threshold
-	// and can override individual XIDs with --xid-thresholds or session
-	// updateConfig thresholdOverrides.
+	// Operators can override individual XIDs with --xid-thresholds or session
+	// updateConfig thresholdOverrides. The legacy --xid-reboot-threshold flag
+	// can still override this global fallback separately.
 	DefaultRebootThreshold = 2
 	// DefaultLookbackPeriod is the default lookback window for XID events.
 	DefaultLookbackPeriod = eventstore.DefaultRetention
@@ -52,13 +48,34 @@ var (
 
 	defaultThresholdsMu sync.RWMutex
 	defaultThresholds   = Thresholds{
-		Threshold:          DefaultRebootThreshold,
 		ThresholdOverrides: defaultThresholdOverrides,
 	}
+
+	defaultRebootThresholdMu sync.RWMutex
+	defaultRebootThreshold   = DefaultRebootThreshold
 
 	defaultLookbackPeriodMu sync.RWMutex
 	defaultLookbackPeriod   = DefaultLookbackPeriod
 )
+
+// GetDefaultRebootThreshold returns the configured global XID reboot threshold.
+func GetDefaultRebootThreshold() int {
+	defaultRebootThresholdMu.RLock()
+	defer defaultRebootThresholdMu.RUnlock()
+	return defaultRebootThreshold
+}
+
+// SetDefaultRebootThreshold updates the configured global XID reboot threshold.
+func SetDefaultRebootThreshold(threshold int) {
+	if threshold <= 0 {
+		threshold = DefaultRebootThreshold
+	}
+	log.Logger.Infow("setting default xid reboot threshold", "threshold", threshold)
+
+	defaultRebootThresholdMu.Lock()
+	defer defaultRebootThresholdMu.Unlock()
+	defaultRebootThreshold = threshold
+}
 
 // GetDefaultThresholds returns the configured threshold policy for XID recovery.
 func GetDefaultThresholds() Thresholds {
@@ -70,7 +87,7 @@ func GetDefaultThresholds() Thresholds {
 // SetDefaultThresholds updates the configured threshold policy for XID recovery.
 func SetDefaultThresholds(thresholds Thresholds) {
 	thresholds = normalizeThresholds(thresholds)
-	log.Logger.Infow("setting default xid thresholds", "threshold", thresholds.Threshold, "thresholdOverrides", thresholds.ThresholdOverrides)
+	log.Logger.Infow("setting default xid thresholds", "thresholdOverrides", thresholds.ThresholdOverrides)
 
 	defaultThresholdsMu.Lock()
 	defer defaultThresholdsMu.Unlock()
@@ -102,10 +119,10 @@ func cloneThresholdOverrides(overrides map[int]ThresholdOverride) map[int]Thresh
 	return ret
 }
 
-func rebootThresholdForXID(xid uint64, thresholds Thresholds) int {
+func rebootThresholdForXID(xid uint64, defaultRebootThreshold int, thresholds Thresholds) int {
 	xidID, ok := intFromUint64(xid)
 	if !ok {
-		return thresholds.Threshold
+		return defaultRebootThreshold
 	}
 
 	if thresholds.ThresholdOverrides == nil {
@@ -114,7 +131,7 @@ func rebootThresholdForXID(xid uint64, thresholds Thresholds) int {
 	if override, ok := thresholds.ThresholdOverrides[xidID]; ok && override.RebootThreshold > 0 {
 		return override.RebootThreshold
 	}
-	return thresholds.Threshold
+	return defaultRebootThreshold
 }
 
 // GetLookbackPeriod returns the XID event lookback window.

@@ -58,8 +58,9 @@ type component struct {
 	nvmlInstance nvidianvml.Instance
 	devices      map[string]device.Device
 
-	getTimeNowFunc   func() time.Time
-	getThresholdFunc func() Thresholds
+	getTimeNowFunc         func() time.Time
+	getRebootThresholdFunc func() int
+	getThresholdFunc       func() Thresholds
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
@@ -86,7 +87,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdFunc: GetDefaultThresholds,
+		getRebootThresholdFunc: GetDefaultRebootThreshold,
+		getThresholdFunc:       GetDefaultThresholds,
 
 		rebootEventStore: gpudInstance.RebootEventStore,
 		extraEventCh:     make(chan *eventstore.Event, 256),
@@ -584,7 +586,14 @@ func (c *component) updateCurrentState() error {
 	}
 
 	now := c.getTimeNowFunc()
-	thresholds := c.getThresholdFunc()
+	rebootThreshold := DefaultRebootThreshold
+	if c.getRebootThresholdFunc != nil {
+		rebootThreshold = c.getRebootThresholdFunc()
+	}
+	thresholds := GetDefaultThresholds()
+	if c.getThresholdFunc != nil {
+		thresholds = c.getThresholdFunc()
+	}
 
 	var rebootErr string
 	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, now.Add(-GetLookbackPeriod()))
@@ -601,7 +610,7 @@ func (c *component) updateCurrentState() error {
 	events := mergeEvents(rebootEvents, localEvents)
 
 	c.mu.Lock()
-	c.currState = evolveHealthyStateWithThresholds(events, c.devices, thresholds)
+	c.currState = evolveHealthyStateWithThresholds(events, c.devices, rebootThreshold, thresholds)
 	if rebootErr != "" {
 		c.currState.Error = fmt.Sprintf("%s\n%s", rebootErr, c.currState.Error)
 	}

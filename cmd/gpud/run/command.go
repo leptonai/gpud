@@ -176,31 +176,31 @@ func Command(cliContext *cli.Context) error {
 		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
 	}
 
-	xidThresholdConfig := componentsxid.GetDefaultThresholds()
 	xidThresholdsChanged := false
 	if cliContext.IsSet("xid-reboot-threshold") {
 		if xidRebootThreshold > 0 {
-			xidThresholdConfig.Threshold = xidRebootThreshold
+			componentsxid.SetDefaultRebootThreshold(xidRebootThreshold)
 			xidThresholdsChanged = true
 		} else {
 			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)
 		}
 	}
 	if strings.TrimSpace(xidThresholds) != "" {
+		xidThresholdConfig := componentsxid.GetDefaultThresholds()
 		overrides, err := parseXIDThresholds(xidThresholds)
 		if err != nil {
 			return err
 		}
 		xidThresholdConfig.ThresholdOverrides = overrides
+		componentsxid.SetDefaultThresholds(xidThresholdConfig)
 		xidThresholdsChanged = true
 	}
 	if xidThresholdsChanged {
-		componentsxid.SetDefaultThresholds(xidThresholdConfig)
-		xidThresholdConfig = componentsxid.GetDefaultThresholds()
+		xidThresholdConfig := componentsxid.GetDefaultThresholds()
 		log.Logger.Infow(
 			"set xid thresholds",
 			"xidDefaultRebootThreshold",
-			xidThresholdConfig.Threshold,
+			componentsxid.GetDefaultRebootThreshold(),
 			"xidThresholdOverrides",
 			xidThresholdConfig.ThresholdOverrides,
 		)
