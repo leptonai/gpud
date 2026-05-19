@@ -58,9 +58,8 @@ type component struct {
 	nvmlInstance nvidianvml.Instance
 	devices      map[string]device.Device
 
-	getTimeNowFunc         func() time.Time
-	getRebootThresholdFunc func() int
-	getThresholdFunc       func() Thresholds
+	getTimeNowFunc   func() time.Time
+	getThresholdFunc func() Thresholds
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
@@ -87,8 +86,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getRebootThresholdFunc: GetDefaultRebootThreshold,
-		getThresholdFunc:       GetDefaultThresholds,
+		getThresholdFunc: GetDefaultThresholds,
 
 		rebootEventStore: gpudInstance.RebootEventStore,
 		extraEventCh:     make(chan *eventstore.Event, 256),
@@ -586,10 +584,7 @@ func (c *component) updateCurrentState() error {
 	}
 
 	now := c.getTimeNowFunc()
-	rebootThreshold := DefaultRebootThreshold
-	if c.getRebootThresholdFunc != nil {
-		rebootThreshold = c.getRebootThresholdFunc()
-	}
+	rebootThreshold := GetDefaultRebootThreshold()
 	thresholds := GetDefaultThresholds()
 	if c.getThresholdFunc != nil {
 		thresholds = c.getThresholdFunc()

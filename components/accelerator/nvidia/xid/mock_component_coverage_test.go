@@ -273,8 +273,7 @@ func TestComponent_UpdateCurrentState_RebootErrorBranch_WithMockey(t *testing.T)
 				},
 			},
 		},
-		getTimeNowFunc:         func() time.Time { return now },
-		getRebootThresholdFunc: func() int { return 1 },
+		getTimeNowFunc: func() time.Time { return now },
 		getThresholdFunc: func() Thresholds {
 			return Thresholds{}
 		},
