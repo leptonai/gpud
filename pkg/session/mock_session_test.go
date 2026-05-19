@@ -1358,16 +1358,12 @@ func TestMockeyProcessUpdateConfig_GPUCounts(t *testing.T) {
 
 func TestMockeyProcessUpdateConfig_XIDConfig(t *testing.T) {
 	mockey.PatchConvey("processUpdateConfig handles valid XID config", t, func() {
-		var receivedRebootThreshold int
 		var receivedThresholds componentsxid.Thresholds
 		s := &Session{
 			setDefaultIbExpectedPortStatesFunc:     func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {},
 			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {},
 			setDefaultGPUCountsFunc:                func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {},
 			setDefaultNFSGroupConfigsFunc:          func(cfgs pkgnfschecker.Configs) {},
-			setDefaultXIDRebootThresholdFunc: func(threshold int) {
-				receivedRebootThreshold = threshold
-			},
 			setDefaultXIDThresholdsFunc: func(thresholds componentsxid.Thresholds) {
 				receivedThresholds = thresholds
 			},
@@ -1375,15 +1371,14 @@ func TestMockeyProcessUpdateConfig_XIDConfig(t *testing.T) {
 		}
 
 		configMap := map[string]string{
-			"accelerator-nvidia-error-xid": `{"threshold": 10}`,
+			"accelerator-nvidia-error-xid": `{"thresholdOverrides":{"94":{"rebootThreshold":1000}}}`,
 		}
 		resp := &Response{}
 
 		s.processUpdateConfig(configMap, resp)
 
 		assert.Empty(t, resp.Error)
-		assert.Equal(t, 10, receivedRebootThreshold)
-		assert.Empty(t, receivedThresholds.ThresholdOverrides)
+		assert.Equal(t, 1000, receivedThresholds.ThresholdOverrides[94].RebootThreshold)
 	})
 }
 

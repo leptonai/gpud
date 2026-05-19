@@ -195,7 +195,6 @@ type Session struct {
 	setDefaultNVLinkExpectedLinkStatesFunc func(states componentsnvidianvlink.ExpectedLinkStates)
 	setDefaultGPUCountsFunc                func(counts componentsnvidiagpucounts.ExpectedGPUCounts)
 	setDefaultNFSGroupConfigsFunc          func(cfgs pkgnfschecker.Configs)
-	setDefaultXIDRebootThresholdFunc       func(threshold int)
 	setDefaultXIDThresholdsFunc            func(thresholds componentsxid.Thresholds)
 	setDefaultTemperatureThresholdsFunc    func(threshold componentstemperature.Thresholds)
 
@@ -304,7 +303,6 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		setDefaultNVLinkExpectedLinkStatesFunc: componentsnvidianvlink.SetDefaultExpectedLinkStates,
 		setDefaultGPUCountsFunc:                componentsnvidiagpucounts.SetDefaultExpectedGPUCounts,
 		setDefaultNFSGroupConfigsFunc:          componentsnfs.SetDefaultConfigs,
-		setDefaultXIDRebootThresholdFunc:       componentsxid.SetDefaultRebootThreshold,
 		setDefaultXIDThresholdsFunc:            componentsxid.SetDefaultThresholds,
 		setDefaultTemperatureThresholdsFunc:    componentstemperature.SetDefaultMarginThreshold,
 

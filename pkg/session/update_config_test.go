@@ -152,7 +152,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		{
 			name: "valid xid config",
 			configMap: map[string]string{
-				"accelerator-nvidia-error-xid": `{"threshold": 10}`,
+				"accelerator-nvidia-error-xid": `{"thresholdOverrides":{"94":{"rebootThreshold":1000}}}`,
 			},
 			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				// This gets called with empty config due to fallback behavior
@@ -168,7 +168,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Equal(t, 0, counts.Count)
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Equal(t, 1000, threshold.ThresholdOverrides[94].RebootThreshold)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -290,7 +290,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		{
 			name: "invalid xid config - malformed JSON",
 			configMap: map[string]string{
-				"accelerator-nvidia-error-xid": `{"threshold":}`,
+				"accelerator-nvidia-error-xid": `{"thresholdOverrides":}`,
 			},
 			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for xid config")
@@ -827,7 +827,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				xidCallCount++
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Equal(t, 1000, threshold.ThresholdOverrides[94].RebootThreshold)
 			},
 		}
 
@@ -835,7 +835,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			"accelerator-nvidia-infiniband": `{"at_least_ports": 4, "at_least_rate": 200}`,
 			"nfs":                           `[{"volume_path": "` + tempDir + `", "file_contents": "multi-content", "ttl_to_delete": "10m", "num_expected_files": 5}]`,
 			"accelerator-nvidia-gpu-counts": `{"count": 16}`,
-			"accelerator-nvidia-error-xid":  `{"threshold": 10}`,
+			"accelerator-nvidia-error-xid":  `{"thresholdOverrides":{"94":{"rebootThreshold":1000}}}`,
 		}
 
 		resp := &Response{}
@@ -947,7 +947,7 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 		{
 			name:          "xid - invalid field type",
 			componentName: "accelerator-nvidia-error-xid",
-			configValue:   `{"threshold": "invalid"}`,
+			configValue:   `{"thresholdOverrides": "invalid"}`,
 			expectedError: "cannot unmarshal string into Go struct field",
 		},
 	}

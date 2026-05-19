@@ -16,13 +16,6 @@ import (
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
 
-type xidUpdateConfig struct {
-	// Threshold is kept for backward compatibility with legacy XID updateConfig
-	// payloads. New per-XID overrides live under ThresholdOverrides.
-	Threshold          *int                                    `json:"threshold,omitempty"`
-	ThresholdOverrides map[int]componentsxid.ThresholdOverride `json:"thresholdOverrides,omitempty"`
-}
-
 func (s *Session) processUpdateConfig(configMap map[string]string, resp *Response) {
 	if len(configMap) == 0 {
 		return
@@ -71,23 +64,14 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 
 		case componentsxid.Name:
 			setComponents[componentName] = struct{}{}
-			var updateCfg xidUpdateConfig
+			var updateCfg componentsxid.Thresholds
 			if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
 				log.Logger.Warnw("failed to unmarshal xid config", "error", err)
 				resp.Error = err.Error()
 				return
 			}
-			if s.setDefaultXIDRebootThresholdFunc != nil {
-				if updateCfg.Threshold != nil {
-					s.setDefaultXIDRebootThresholdFunc(*updateCfg.Threshold)
-				} else {
-					s.setDefaultXIDRebootThresholdFunc(componentsxid.DefaultRebootThreshold)
-				}
-			}
 			if s.setDefaultXIDThresholdsFunc != nil {
-				s.setDefaultXIDThresholdsFunc(componentsxid.Thresholds{
-					ThresholdOverrides: updateCfg.ThresholdOverrides,
-				})
+				s.setDefaultXIDThresholdsFunc(updateCfg)
 			}
 
 		case componentstemperature.Name:
@@ -148,14 +132,9 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 		log.Logger.Infow("falling back to default empty nfs config")
 		s.setDefaultNFSGroupConfigsFunc(pkgnfschecker.Configs{})
 	}
-	if _, ok := setComponents[componentsxid.Name]; !ok {
+	if _, ok := setComponents[componentsxid.Name]; !ok && s.setDefaultXIDThresholdsFunc != nil {
 		log.Logger.Infow("falling back to default xid config")
-		if s.setDefaultXIDRebootThresholdFunc != nil {
-			s.setDefaultXIDRebootThresholdFunc(componentsxid.DefaultRebootThreshold)
-		}
-		if s.setDefaultXIDThresholdsFunc != nil {
-			s.setDefaultXIDThresholdsFunc(componentsxid.Thresholds{})
-		}
+		s.setDefaultXIDThresholdsFunc(componentsxid.Thresholds{})
 	}
 	if _, ok := setComponents[componentstemperature.Name]; !ok && s.setDefaultTemperatureThresholdsFunc != nil {
 		log.Logger.Infow("falling back to default temperature config")
