@@ -6,20 +6,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDefaultThresholdOverrides(t *testing.T) {
-	original := GetDefaultThresholdOverrides()
+func TestDefaultThresholds(t *testing.T) {
+	original := GetDefaultThresholds()
 	t.Cleanup(func() {
-		SetDefaultThresholdOverrides(original)
+		SetDefaultThresholds(original)
 	})
 
-	overrides := map[int]ThresholdOverride{
-		11004: {RebootThreshold: 7},
+	thresholds := Thresholds{
+		ThresholdOverrides: map[int]ThresholdOverride{
+			11004: {RebootThreshold: 7},
+		},
 	}
-	SetDefaultThresholdOverrides(overrides)
+	SetDefaultThresholds(thresholds)
 
-	updated := GetDefaultThresholdOverrides()
-	assert.Equal(t, 7, updated[11004].RebootThreshold)
+	updated := GetDefaultThresholds()
+	assert.Equal(t, 7, updated.ThresholdOverrides[11004].RebootThreshold)
 
-	updated[11004] = ThresholdOverride{RebootThreshold: 2}
-	assert.Equal(t, 7, GetDefaultThresholdOverrides()[11004].RebootThreshold)
+	updated.ThresholdOverrides[11004] = ThresholdOverride{RebootThreshold: 2}
+	assert.Equal(t, 7, GetDefaultThresholds().ThresholdOverrides[11004].RebootThreshold)
 }

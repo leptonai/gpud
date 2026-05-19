@@ -282,11 +282,11 @@ func TestCommand_SetThresholds(t *testing.T) {
 
 	originalXidRebootThreshold := componentsxid.GetDefaultRebootThreshold()
 	originalXidThresholds := componentsxid.GetDefaultThresholds()
-	originalSxidThresholds := componentssxid.GetDefaultThresholdOverrides()
+	originalSxidThresholds := componentssxid.GetDefaultThresholds()
 	t.Cleanup(func() {
 		componentsxid.SetDefaultRebootThreshold(originalXidRebootThreshold)
 		componentsxid.SetDefaultThresholds(originalXidThresholds)
-		componentssxid.SetDefaultThresholdOverrides(originalSxidThresholds)
+		componentssxid.SetDefaultThresholds(originalSxidThresholds)
 	})
 
 	ctx := newTestCLIContext(t, cliFlagValues{
@@ -328,8 +328,8 @@ func TestCommand_SetThresholds(t *testing.T) {
 		assert.Equal(t, 2000, xidThresholdConfig.ThresholdOverrides[94].RebootThreshold)
 		assert.Equal(t, 3, xidThresholdConfig.ThresholdOverrides[95].RebootThreshold)
 
-		sxidThresholds := componentssxid.GetDefaultThresholdOverrides()
-		assert.Equal(t, 7, sxidThresholds[11004].RebootThreshold)
+		sxidThresholds := componentssxid.GetDefaultThresholds()
+		assert.Equal(t, 7, sxidThresholds.ThresholdOverrides[11004].RebootThreshold)
 	})
 }
 

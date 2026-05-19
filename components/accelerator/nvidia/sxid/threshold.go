@@ -6,6 +6,12 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
+// Thresholds configures the SXID reboot threshold policy.
+type Thresholds struct {
+	// ThresholdOverrides configures per-SXID threshold overrides.
+	ThresholdOverrides map[int]ThresholdOverride `json:"thresholdOverrides,omitempty"`
+}
+
 // ThresholdOverride configures threshold overrides for one SXID code.
 type ThresholdOverride struct {
 	RebootThreshold int `json:"rebootThreshold"`
@@ -23,25 +29,35 @@ const (
 )
 
 var (
-	defaultThresholdOverridesMu sync.RWMutex
-	defaultThresholdOverrides   = map[int]ThresholdOverride{}
+	defaultThresholdsMu sync.RWMutex
+	defaultThresholds   = Thresholds{}
 )
 
-// GetDefaultThresholdOverrides returns the configured per-SXID threshold overrides.
-func GetDefaultThresholdOverrides() map[int]ThresholdOverride {
-	defaultThresholdOverridesMu.RLock()
-	defer defaultThresholdOverridesMu.RUnlock()
-	return cloneThresholdOverrides(defaultThresholdOverrides)
+// GetDefaultThresholds returns the configured threshold policy for SXID recovery.
+func GetDefaultThresholds() Thresholds {
+	defaultThresholdsMu.RLock()
+	defer defaultThresholdsMu.RUnlock()
+	return cloneThresholds(defaultThresholds)
 }
 
-// SetDefaultThresholdOverrides updates the configured per-SXID threshold overrides.
-func SetDefaultThresholdOverrides(overrides map[int]ThresholdOverride) {
-	overrides = cloneThresholdOverrides(overrides)
-	log.Logger.Infow("setting default sxid threshold overrides", "thresholdOverrides", overrides)
+// SetDefaultThresholds updates the configured threshold policy for SXID recovery.
+func SetDefaultThresholds(thresholds Thresholds) {
+	thresholds = normalizeThresholds(thresholds)
+	log.Logger.Infow("setting default sxid thresholds", "thresholdOverrides", thresholds.ThresholdOverrides)
 
-	defaultThresholdOverridesMu.Lock()
-	defer defaultThresholdOverridesMu.Unlock()
-	defaultThresholdOverrides = overrides
+	defaultThresholdsMu.Lock()
+	defer defaultThresholdsMu.Unlock()
+	defaultThresholds = thresholds
+}
+
+func normalizeThresholds(thresholds Thresholds) Thresholds {
+	thresholds.ThresholdOverrides = cloneThresholdOverrides(thresholds.ThresholdOverrides)
+	return thresholds
+}
+
+func cloneThresholds(thresholds Thresholds) Thresholds {
+	thresholds.ThresholdOverrides = cloneThresholdOverrides(thresholds.ThresholdOverrides)
+	return thresholds
 }
 
 func cloneThresholdOverrides(overrides map[int]ThresholdOverride) map[int]ThresholdOverride {
@@ -55,13 +71,13 @@ func cloneThresholdOverrides(overrides map[int]ThresholdOverride) map[int]Thresh
 	return ret
 }
 
-func rebootThresholdForSXID(sxid uint64, defaultRebootThreshold int, overrides map[int]ThresholdOverride) int {
+func rebootThresholdForSXID(sxid uint64, defaultRebootThreshold int, thresholds Thresholds) int {
 	sxidID, ok := intFromUint64(sxid)
 	if !ok {
 		return defaultRebootThreshold
 	}
 
-	if override, ok := overrides[sxidID]; ok && override.RebootThreshold > 0 {
+	if override, ok := thresholds.ThresholdOverrides[sxidID]; ok && override.RebootThreshold > 0 {
 		return override.RebootThreshold
 	}
 	return defaultRebootThreshold

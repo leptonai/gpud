@@ -186,13 +186,11 @@ func Command(cliContext *cli.Context) error {
 		}
 	}
 	if strings.TrimSpace(xidThresholds) != "" {
-		xidThresholdConfig := componentsxid.GetDefaultThresholds()
-		overrides, err := parseXIDThresholds(xidThresholds)
+		thresholds, err := parseXIDThresholds(xidThresholds)
 		if err != nil {
 			return err
 		}
-		xidThresholdConfig.ThresholdOverrides = overrides
-		componentsxid.SetDefaultThresholds(xidThresholdConfig)
+		componentsxid.SetDefaultThresholds(thresholds)
 		xidThresholdsChanged = true
 	}
 	if xidThresholdsChanged {
@@ -207,12 +205,12 @@ func Command(cliContext *cli.Context) error {
 	}
 
 	if strings.TrimSpace(sxidThresholds) != "" {
-		overrides, err := parseSXIDThresholds(sxidThresholds)
+		thresholds, err := parseSXIDThresholds(sxidThresholds)
 		if err != nil {
 			return err
 		}
-		componentssxid.SetDefaultThresholdOverrides(overrides)
-		log.Logger.Infow("set sxid thresholds", "sxidThresholdOverrides", overrides)
+		componentssxid.SetDefaultThresholds(thresholds)
+		log.Logger.Infow("set sxid thresholds", "sxidThresholdOverrides", thresholds.ThresholdOverrides)
 	}
 
 	if eventsRetentionPeriod > 0 && !cliContext.IsSet("xid-lookback-period") {
@@ -472,10 +470,10 @@ type thresholdOverrideJSON struct {
 	RebootThreshold int `json:"rebootThreshold"`
 }
 
-func parseXIDThresholds(raw string) (map[int]componentsxid.ThresholdOverride, error) {
+func parseXIDThresholds(raw string) (componentsxid.Thresholds, error) {
 	thresholds, err := parseThresholds(raw, "xid thresholds")
 	if err != nil {
-		return nil, err
+		return componentsxid.Thresholds{}, err
 	}
 
 	ret := make(map[int]componentsxid.ThresholdOverride, len(thresholds))
@@ -484,13 +482,13 @@ func parseXIDThresholds(raw string) (map[int]componentsxid.ThresholdOverride, er
 			RebootThreshold: threshold.RebootThreshold,
 		}
 	}
-	return ret, nil
+	return componentsxid.Thresholds{ThresholdOverrides: ret}, nil
 }
 
-func parseSXIDThresholds(raw string) (map[int]componentssxid.ThresholdOverride, error) {
+func parseSXIDThresholds(raw string) (componentssxid.Thresholds, error) {
 	thresholds, err := parseThresholds(raw, "sxid thresholds")
 	if err != nil {
-		return nil, err
+		return componentssxid.Thresholds{}, err
 	}
 
 	ret := make(map[int]componentssxid.ThresholdOverride, len(thresholds))
@@ -499,7 +497,7 @@ func parseSXIDThresholds(raw string) (map[int]componentssxid.ThresholdOverride, 
 			RebootThreshold: threshold.RebootThreshold,
 		}
 	}
-	return ret, nil
+	return componentssxid.Thresholds{ThresholdOverrides: ret}, nil
 }
 
 func parseThresholds(raw string, name string) (map[int]thresholdOverrideJSON, error) {

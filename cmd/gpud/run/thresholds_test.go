@@ -10,11 +10,11 @@ import (
 func TestParseThresholds(t *testing.T) {
 	xidThresholds, err := parseXIDThresholds(`{"94":{"rebootThreshold":1000}}`)
 	require.NoError(t, err)
-	assert.Equal(t, 1000, xidThresholds[94].RebootThreshold)
+	assert.Equal(t, 1000, xidThresholds.ThresholdOverrides[94].RebootThreshold)
 
 	sxidThresholds, err := parseSXIDThresholds(`{"11004":{"rebootThreshold":7}}`)
 	require.NoError(t, err)
-	assert.Equal(t, 7, sxidThresholds[11004].RebootThreshold)
+	assert.Equal(t, 7, sxidThresholds.ThresholdOverrides[11004].RebootThreshold)
 
 	_, err = parseXIDThresholds(`{"94":{"rebootThreshold":0}}`)
 	require.Error(t, err)

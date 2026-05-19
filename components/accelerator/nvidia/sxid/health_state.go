@@ -35,13 +35,14 @@ func translateToStateHealth(health int) apiv1.HealthStateType {
 // evolveHealthyState resolves the state of the SXID error component.
 // note: assume events are sorted by time in descending order
 func evolveHealthyState(events eventstore.Events) (ret apiv1.HealthState) {
-	return evolveHealthyStateWithThresholdOverrides(events, DefaultRebootThreshold, GetDefaultThresholdOverrides())
+	return evolveHealthyStateWithThresholds(events, DefaultRebootThreshold, GetDefaultThresholds())
 }
 
-func evolveHealthyStateWithThresholdOverrides(events eventstore.Events, defaultRebootThreshold int, thresholdOverrides map[int]ThresholdOverride) (ret apiv1.HealthState) {
+func evolveHealthyStateWithThresholds(events eventstore.Events, defaultRebootThreshold int, thresholds Thresholds) (ret apiv1.HealthState) {
 	defer func() {
 		log.Logger.Debugf("EvolveHealthyState: %v", ret)
 	}()
+	thresholds = normalizeThresholds(thresholds)
 	var lastSuggestedAction *apiv1.SuggestedActions
 	var lastSXidErr *sxidErrorEventDetail
 	lastHealth := healthStateHealthy
@@ -70,7 +71,7 @@ func evolveHealthyStateWithThresholdOverrides(events eventstore.Events, defaultR
 			lastSXidErr = &currSXidErr
 			if currSXidErr.SuggestedActionsByGPUd != nil && len(currSXidErr.SuggestedActionsByGPUd.RepairActions) > 0 {
 				if currSXidErr.SuggestedActionsByGPUd.RepairActions[0] == apiv1.RepairActionTypeRebootSystem {
-					effectiveRebootThreshold := rebootThresholdForSXID(currSXidErr.SXid, defaultRebootThreshold, thresholdOverrides)
+					effectiveRebootThreshold := rebootThresholdForSXID(currSXidErr.SXid, defaultRebootThreshold, thresholds)
 					if count, ok := sxidRebootMap[currSXidErr.SXid]; !ok {
 						sxidRebootMap[currSXidErr.SXid] = 0
 					} else if count >= effectiveRebootThreshold {
