@@ -386,7 +386,7 @@ func TestXIDComponent_States(t *testing.T) {
 		wantState []apiv1.HealthState
 	}{
 		{
-			// XID 31 has EventTypeWarning in catalog, XID 94 has EventTypeFatal.
+			// XID 31 has EventTypeWarning in catalog, XID 95 has EventTypeFatal.
 			// In real usage, Match() returns the correct EventType from the catalog.
 			name: "xid events with correct event types from catalog",
 			events: eventstore.Events{
@@ -394,14 +394,14 @@ func TestXIDComponent_States(t *testing.T) {
 				createXidEvent(time.Now().Add(-5*24*time.Hour), 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
 				// XID 31 is Warning -> stays Healthy
 				createXidEvent(startTime, 31, apiv1.EventTypeWarning, apiv1.RepairActionTypeCheckUserAppAndGPU),
-				// XID 94 is Fatal -> Unhealthy
-				createXidEvent(startTime.Add(5*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+				// XID 95 is Fatal -> Unhealthy
+				createXidEvent(startTime.Add(5*time.Minute), 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 				{Name: "reboot", Time: startTime.Add(10 * time.Minute)},
-				// XID 94 is Fatal -> Unhealthy
-				createXidEvent(startTime.Add(15*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+				// XID 95 is Fatal -> Unhealthy
+				createXidEvent(startTime.Add(15*time.Minute), 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 				{Name: "reboot", Time: startTime.Add(20 * time.Minute)},
-				// XID 94 is Fatal -> Unhealthy (3rd occurrence, HardwareInspection)
-				createXidEvent(startTime.Add(25*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+				// XID 95 is Fatal -> Unhealthy (3rd occurrence, HardwareInspection)
+				createXidEvent(startTime.Add(25*time.Minute), 95, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			},
 			wantState: []apiv1.HealthState{
 				{Health: apiv1.HealthStateTypeHealthy, SuggestedActions: &apiv1.SuggestedActions{RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeCheckUserAppAndGPU}}},

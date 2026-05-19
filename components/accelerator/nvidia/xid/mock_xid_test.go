@@ -521,23 +521,31 @@ func TestGetDetail_WithMockey(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestRebootThreshold_WithMockey tests the reboot threshold functions.
-func TestRebootThreshold_WithMockey(t *testing.T) {
-	mockey.PatchConvey("RebootThreshold functions", t, func() {
+// TestThresholds_WithMockey tests the threshold configuration functions.
+func TestThresholds_WithMockey(t *testing.T) {
+	mockey.PatchConvey("Thresholds functions", t, func() {
 		// Get default
-		threshold := GetDefaultRebootThreshold()
-		assert.Equal(t, DefaultRebootThreshold, threshold.Threshold)
+		thresholds := GetDefaultThresholds()
+		assert.Equal(t, DefaultRebootThreshold, GetDefaultRebootThreshold())
+		assert.Equal(t, 1000, thresholds.Overrides[94].RebootThreshold)
 
-		// Set new threshold
-		newThreshold := RebootThreshold{Threshold: 5}
-		SetDefaultRebootThreshold(newThreshold)
+		// Set new global threshold separately from per-XID overrides.
+		SetDefaultRebootThreshold(5)
+		assert.Equal(t, 5, GetDefaultRebootThreshold())
 
-		// Verify it changed
-		threshold = GetDefaultRebootThreshold()
-		assert.Equal(t, 5, threshold.Threshold)
+		// Set new overrides.
+		newThresholds := Thresholds{
+			Overrides: map[int]ThresholdOverride{
+				95: {RebootThreshold: 3},
+			},
+		}
+		SetDefaultThresholds(newThresholds)
+		thresholds = GetDefaultThresholds()
+		assert.Equal(t, 3, thresholds.Overrides[95].RebootThreshold)
 
 		// Reset to default
-		SetDefaultRebootThreshold(RebootThreshold{Threshold: DefaultRebootThreshold})
+		SetDefaultRebootThreshold(DefaultRebootThreshold)
+		SetDefaultThresholds(Thresholds{})
 	})
 }
 

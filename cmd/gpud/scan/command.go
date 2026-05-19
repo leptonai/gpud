@@ -142,9 +142,7 @@ func cmdScan(
 
 	if xidRebootThresholdIsSet {
 		if xidRebootThreshold > 0 {
-			componentsxid.SetDefaultRebootThreshold(componentsxid.RebootThreshold{
-				Threshold: xidRebootThreshold,
-			})
+			componentsxid.SetDefaultRebootThreshold(xidRebootThreshold)
 			log.Logger.Infow("set xid reboot threshold", "xidRebootThreshold", xidRebootThreshold)
 		} else {
 			log.Logger.Warnw("ignoring xid reboot threshold override, value must be positive", "xidRebootThreshold", xidRebootThreshold)

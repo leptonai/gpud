@@ -59,7 +59,7 @@ type component struct {
 	devices      map[string]device.Device
 
 	getTimeNowFunc   func() time.Time
-	getThresholdFunc func() RebootThreshold
+	getThresholdFunc func() Thresholds
 
 	rebootEventStore pkghost.RebootEventStore
 	eventBucket      eventstore.Bucket
@@ -86,7 +86,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		getThresholdFunc: GetDefaultRebootThreshold,
+		getThresholdFunc: GetDefaultThresholds,
 
 		rebootEventStore: gpudInstance.RebootEventStore,
 		extraEventCh:     make(chan *eventstore.Event, 256),
@@ -584,7 +584,11 @@ func (c *component) updateCurrentState() error {
 	}
 
 	now := c.getTimeNowFunc()
-	rebootThreshold := c.getThresholdFunc()
+	rebootThreshold := GetDefaultRebootThreshold()
+	thresholds := GetDefaultThresholds()
+	if c.getThresholdFunc != nil {
+		thresholds = c.getThresholdFunc()
+	}
 
 	var rebootErr string
 	rebootEvents, err := c.rebootEventStore.GetRebootEvents(c.ctx, now.Add(-GetLookbackPeriod()))
@@ -601,7 +605,7 @@ func (c *component) updateCurrentState() error {
 	events := mergeEvents(rebootEvents, localEvents)
 
 	c.mu.Lock()
-	c.currState = evolveHealthyState(events, c.devices, rebootThreshold.Threshold)
+	c.currState = evolveHealthyStateWithThresholds(events, c.devices, rebootThreshold, thresholds)
 	if rebootErr != "" {
 		c.currState.Error = fmt.Sprintf("%s\n%s", rebootErr, c.currState.Error)
 	}
