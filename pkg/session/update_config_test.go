@@ -94,7 +94,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Empty(t, threshold.Overrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -131,7 +131,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Empty(t, threshold.Overrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -152,7 +152,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		{
 			name: "valid xid config",
 			configMap: map[string]string{
-				"accelerator-nvidia-error-xid": `{"thresholdOverrides":{"94":{"rebootThreshold":1000}}}`,
+				"accelerator-nvidia-error-xid": `{"overrides":{"94":{"rebootThreshold":1000}}}`,
 			},
 			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				// This gets called with empty config due to fallback behavior
@@ -168,7 +168,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Equal(t, 0, counts.Count)
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
-				assert.Equal(t, 1000, threshold.ThresholdOverrides[94].RebootThreshold)
+				assert.Equal(t, 1000, threshold.Overrides[94].RebootThreshold)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -206,7 +206,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Empty(t, threshold.Overrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				assert.Equal(t, int32(10), thresholds.CelsiusSlowdownMargin)
@@ -290,7 +290,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		{
 			name: "invalid xid config - malformed JSON",
 			configMap: map[string]string{
-				"accelerator-nvidia-error-xid": `{"thresholdOverrides":}`,
+				"accelerator-nvidia-error-xid": `{"overrides":}`,
 			},
 			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for xid config")
@@ -404,7 +404,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Empty(t, threshold.Overrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -442,7 +442,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior for unsupported components
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Empty(t, threshold.Overrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior for unsupported components
@@ -498,7 +498,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Empty(t, threshold.Overrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -540,7 +540,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				// This gets called with default config due to fallback behavior
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Empty(t, threshold.Overrides)
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				// This gets called with default config due to fallback behavior
@@ -759,7 +759,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				xidCallCount++
 				// This gets called with default config due to fallback behavior
-				assert.Empty(t, threshold.ThresholdOverrides)
+				assert.Empty(t, threshold.Overrides)
 			},
 		}
 
@@ -827,7 +827,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			},
 			setDefaultXIDThresholdsFunc: func(threshold componentsxid.Thresholds) {
 				xidCallCount++
-				assert.Equal(t, 1000, threshold.ThresholdOverrides[94].RebootThreshold)
+				assert.Equal(t, 1000, threshold.Overrides[94].RebootThreshold)
 			},
 		}
 
@@ -835,7 +835,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			"accelerator-nvidia-infiniband": `{"at_least_ports": 4, "at_least_rate": 200}`,
 			"nfs":                           `[{"volume_path": "` + tempDir + `", "file_contents": "multi-content", "ttl_to_delete": "10m", "num_expected_files": 5}]`,
 			"accelerator-nvidia-gpu-counts": `{"count": 16}`,
-			"accelerator-nvidia-error-xid":  `{"thresholdOverrides":{"94":{"rebootThreshold":1000}}}`,
+			"accelerator-nvidia-error-xid":  `{"overrides":{"94":{"rebootThreshold":1000}}}`,
 		}
 
 		resp := &Response{}
@@ -947,7 +947,7 @@ func TestProcessUpdateConfig_JSONUnmarshalEdgeCases(t *testing.T) {
 		{
 			name:          "xid - invalid field type",
 			componentName: "accelerator-nvidia-error-xid",
-			configValue:   `{"thresholdOverrides": "invalid"}`,
+			configValue:   `{"overrides": "invalid"}`,
 			expectedError: "cannot unmarshal string into Go struct field",
 		},
 	}
@@ -1156,7 +1156,7 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 	t.Run("xid with real structure", func(t *testing.T) {
 		// Create a real componentsxid.Thresholds structure
 		expectedThresholds := componentsxid.Thresholds{
-			ThresholdOverrides: map[int]componentsxid.ThresholdOverride{
+			Overrides: map[int]componentsxid.ThresholdOverride{
 				94: {RebootThreshold: 1000},
 			},
 		}
@@ -1180,7 +1180,7 @@ func TestProcessUpdateConfig_RealConfigStructures(t *testing.T) {
 		s.processUpdateConfig(configMap, resp)
 
 		assert.Empty(t, resp.Error)
-		assert.Equal(t, expectedThresholds.ThresholdOverrides, actualThresholds.ThresholdOverrides)
+		assert.Equal(t, expectedThresholds.Overrides, actualThresholds.Overrides)
 	})
 
 	t.Run("temperature with real structure", func(t *testing.T) {

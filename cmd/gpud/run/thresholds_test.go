@@ -8,17 +8,21 @@ import (
 )
 
 func TestParseThresholds(t *testing.T) {
-	xidThresholds, err := parseXIDThresholds(`{"94":{"rebootThreshold":1000}}`)
+	xidThresholds, err := parseXIDThresholds(`{"overrides":{"94":{"rebootThreshold":1000}}}`)
 	require.NoError(t, err)
-	assert.Equal(t, 1000, xidThresholds.ThresholdOverrides[94].RebootThreshold)
+	assert.Equal(t, 1000, xidThresholds.Overrides[94].RebootThreshold)
 
-	sxidThresholds, err := parseSXIDThresholds(`{"11004":{"rebootThreshold":7}}`)
+	sxidThresholds, err := parseSXIDThresholds(`{"overrides":{"11004":{"rebootThreshold":7}}}`)
 	require.NoError(t, err)
-	assert.Equal(t, 7, sxidThresholds.ThresholdOverrides[11004].RebootThreshold)
+	assert.Equal(t, 7, sxidThresholds.Overrides[11004].RebootThreshold)
 
-	_, err = parseXIDThresholds(`{"94":{"rebootThreshold":0}}`)
+	_, err = parseXIDThresholds(`{"overrides":{"94":{"rebootThreshold":0}}}`)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "rebootThreshold must be positive")
+
+	_, err = parseXIDThresholds(`{"94":{"rebootThreshold":1000}}`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown field "94"`)
 
 	_, err = parseSXIDThresholds(`{not-valid-json}`)
 	require.Error(t, err)

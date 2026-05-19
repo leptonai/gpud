@@ -92,7 +92,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		}
 
 		state := evolveHealthyStateWithThresholds(events, DefaultRebootThreshold, Thresholds{
-			ThresholdOverrides: map[int]ThresholdOverride{
+			Overrides: map[int]ThresholdOverride{
 				94: {RebootThreshold: 1000},
 			},
 		})

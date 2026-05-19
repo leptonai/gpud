@@ -293,8 +293,8 @@ func TestCommand_SetThresholds(t *testing.T) {
 		stringFlags: map[string]string{
 			"log-level":       "info",
 			"data-dir":        tmpDir,
-			"xid-thresholds":  `{"94":{"rebootThreshold":2000},"95":{"rebootThreshold":3}}`,
-			"sxid-thresholds": `{"11004":{"rebootThreshold":7}}`,
+			"xid-thresholds":  `{"overrides":{"94":{"rebootThreshold":2000},"95":{"rebootThreshold":3}}}`,
+			"sxid-thresholds": `{"overrides":{"11004":{"rebootThreshold":7}}}`,
 		},
 		intFlags: map[string]int{
 			"xid-reboot-threshold": 6,
@@ -325,11 +325,11 @@ func TestCommand_SetThresholds(t *testing.T) {
 
 		xidThresholdConfig := componentsxid.GetDefaultThresholds()
 		assert.Equal(t, 6, componentsxid.GetDefaultRebootThreshold())
-		assert.Equal(t, 2000, xidThresholdConfig.ThresholdOverrides[94].RebootThreshold)
-		assert.Equal(t, 3, xidThresholdConfig.ThresholdOverrides[95].RebootThreshold)
+		assert.Equal(t, 2000, xidThresholdConfig.Overrides[94].RebootThreshold)
+		assert.Equal(t, 3, xidThresholdConfig.Overrides[95].RebootThreshold)
 
 		sxidThresholds := componentssxid.GetDefaultThresholds()
-		assert.Equal(t, 7, sxidThresholds.ThresholdOverrides[11004].RebootThreshold)
+		assert.Equal(t, 7, sxidThresholds.Overrides[11004].RebootThreshold)
 	})
 }
 

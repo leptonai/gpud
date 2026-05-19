@@ -199,8 +199,8 @@ func Command(cliContext *cli.Context) error {
 			"set xid thresholds",
 			"xidDefaultRebootThreshold",
 			componentsxid.GetDefaultRebootThreshold(),
-			"xidThresholdOverrides",
-			xidThresholdConfig.ThresholdOverrides,
+			"xidOverrides",
+			xidThresholdConfig.Overrides,
 		)
 	}
 
@@ -210,7 +210,7 @@ func Command(cliContext *cli.Context) error {
 			return err
 		}
 		componentssxid.SetDefaultThresholds(thresholds)
-		log.Logger.Infow("set sxid thresholds", "sxidThresholdOverrides", thresholds.ThresholdOverrides)
+		log.Logger.Infow("set sxid thresholds", "sxidOverrides", thresholds.Overrides)
 	}
 
 	if eventsRetentionPeriod > 0 && !cliContext.IsSet("xid-lookback-period") {
@@ -470,6 +470,10 @@ type thresholdOverrideJSON struct {
 	RebootThreshold int `json:"rebootThreshold"`
 }
 
+type thresholdsJSON struct {
+	Overrides map[int]thresholdOverrideJSON `json:"overrides"`
+}
+
 func parseXIDThresholds(raw string) (componentsxid.Thresholds, error) {
 	thresholds, err := parseThresholds(raw, "xid thresholds")
 	if err != nil {
@@ -482,7 +486,7 @@ func parseXIDThresholds(raw string) (componentsxid.Thresholds, error) {
 			RebootThreshold: threshold.RebootThreshold,
 		}
 	}
-	return componentsxid.Thresholds{ThresholdOverrides: ret}, nil
+	return componentsxid.Thresholds{Overrides: ret}, nil
 }
 
 func parseSXIDThresholds(raw string) (componentssxid.Thresholds, error) {
@@ -497,7 +501,7 @@ func parseSXIDThresholds(raw string) (componentssxid.Thresholds, error) {
 			RebootThreshold: threshold.RebootThreshold,
 		}
 	}
-	return componentssxid.Thresholds{ThresholdOverrides: ret}, nil
+	return componentssxid.Thresholds{Overrides: ret}, nil
 }
 
 func parseThresholds(raw string, name string) (map[int]thresholdOverrideJSON, error) {
@@ -506,15 +510,25 @@ func parseThresholds(raw string, name string) (map[int]thresholdOverrideJSON, er
 		return nil, nil
 	}
 
-	var thresholds map[int]thresholdOverrideJSON
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &fields); err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	if fields == nil {
+		return nil, fmt.Errorf("invalid %s: expected JSON object", name)
+	}
+	for field := range fields {
+		if field != "overrides" {
+			return nil, fmt.Errorf("invalid %s: unknown field %q", name, field)
+		}
+	}
+
+	var thresholds thresholdsJSON
 	if err := json.Unmarshal([]byte(raw), &thresholds); err != nil {
 		return nil, fmt.Errorf("invalid %s: %w", name, err)
 	}
-	if thresholds == nil {
-		return nil, fmt.Errorf("invalid %s: expected JSON object", name)
-	}
 
-	for id, threshold := range thresholds {
+	for id, threshold := range thresholds.Overrides {
 		if id < 0 {
 			return nil, fmt.Errorf("invalid %s for %d: event ID must be non-negative", name, id)
 		}
@@ -522,7 +536,7 @@ func parseThresholds(raw string, name string) (map[int]thresholdOverrideJSON, er
 			return nil, fmt.Errorf("invalid %s for %d: rebootThreshold must be positive", name, id)
 		}
 	}
-	return thresholds, nil
+	return thresholds.Overrides, nil
 }
 
 func parseInfinibandExcludeDevices(s string) []string {

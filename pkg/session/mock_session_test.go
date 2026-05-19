@@ -1371,14 +1371,14 @@ func TestMockeyProcessUpdateConfig_XIDConfig(t *testing.T) {
 		}
 
 		configMap := map[string]string{
-			"accelerator-nvidia-error-xid": `{"thresholdOverrides":{"94":{"rebootThreshold":1000}}}`,
+			"accelerator-nvidia-error-xid": `{"overrides":{"94":{"rebootThreshold":1000}}}`,
 		}
 		resp := &Response{}
 
 		s.processUpdateConfig(configMap, resp)
 
 		assert.Empty(t, resp.Error)
-		assert.Equal(t, 1000, receivedThresholds.ThresholdOverrides[94].RebootThreshold)
+		assert.Equal(t, 1000, receivedThresholds.Overrides[94].RebootThreshold)
 	})
 }
 

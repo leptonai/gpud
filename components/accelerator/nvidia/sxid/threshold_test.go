@@ -16,15 +16,15 @@ func TestDefaultThresholds(t *testing.T) {
 	assert.Equal(t, 2, rebootThresholdForSXID(11005, DefaultRebootThreshold, Thresholds{}))
 
 	thresholds := Thresholds{
-		ThresholdOverrides: map[int]ThresholdOverride{
+		Overrides: map[int]ThresholdOverride{
 			11004: {RebootThreshold: 7},
 		},
 	}
 	SetDefaultThresholds(thresholds)
 
 	updated := GetDefaultThresholds()
-	assert.Equal(t, 7, updated.ThresholdOverrides[11004].RebootThreshold)
+	assert.Equal(t, 7, updated.Overrides[11004].RebootThreshold)
 
-	updated.ThresholdOverrides[11004] = ThresholdOverride{RebootThreshold: 2}
-	assert.Equal(t, 7, GetDefaultThresholds().ThresholdOverrides[11004].RebootThreshold)
+	updated.Overrides[11004] = ThresholdOverride{RebootThreshold: 2}
+	assert.Equal(t, 7, GetDefaultThresholds().Overrides[11004].RebootThreshold)
 }

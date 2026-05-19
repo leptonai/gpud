@@ -8,8 +8,8 @@ import (
 
 // Thresholds configures the SXID reboot threshold policy.
 type Thresholds struct {
-	// ThresholdOverrides configures per-SXID threshold overrides.
-	ThresholdOverrides map[int]ThresholdOverride `json:"thresholdOverrides,omitempty"`
+	// Overrides configures per-SXID threshold overrides.
+	Overrides map[int]ThresholdOverride `json:"overrides,omitempty"`
 }
 
 // ThresholdOverride configures threshold overrides for one SXID code.
@@ -43,7 +43,7 @@ func GetDefaultThresholds() Thresholds {
 // SetDefaultThresholds updates the configured threshold policy for SXID recovery.
 func SetDefaultThresholds(thresholds Thresholds) {
 	thresholds = normalizeThresholds(thresholds)
-	log.Logger.Infow("setting default sxid thresholds", "thresholdOverrides", thresholds.ThresholdOverrides)
+	log.Logger.Infow("setting default sxid thresholds", "overrides", thresholds.Overrides)
 
 	defaultThresholdsMu.Lock()
 	defer defaultThresholdsMu.Unlock()
@@ -51,16 +51,16 @@ func SetDefaultThresholds(thresholds Thresholds) {
 }
 
 func normalizeThresholds(thresholds Thresholds) Thresholds {
-	thresholds.ThresholdOverrides = cloneThresholdOverrides(thresholds.ThresholdOverrides)
+	thresholds.Overrides = cloneOverrides(thresholds.Overrides)
 	return thresholds
 }
 
 func cloneThresholds(thresholds Thresholds) Thresholds {
-	thresholds.ThresholdOverrides = cloneThresholdOverrides(thresholds.ThresholdOverrides)
+	thresholds.Overrides = cloneOverrides(thresholds.Overrides)
 	return thresholds
 }
 
-func cloneThresholdOverrides(overrides map[int]ThresholdOverride) map[int]ThresholdOverride {
+func cloneOverrides(overrides map[int]ThresholdOverride) map[int]ThresholdOverride {
 	if overrides == nil {
 		return nil
 	}
@@ -77,7 +77,7 @@ func rebootThresholdForSXID(sxid uint64, defaultRebootThreshold int, thresholds 
 		return defaultRebootThreshold
 	}
 
-	if override, ok := thresholds.ThresholdOverrides[sxidID]; ok && override.RebootThreshold > 0 {
+	if override, ok := thresholds.Overrides[sxidID]; ok && override.RebootThreshold > 0 {
 		return override.RebootThreshold
 	}
 	return defaultRebootThreshold
