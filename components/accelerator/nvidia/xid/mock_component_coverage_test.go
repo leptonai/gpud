@@ -274,8 +274,8 @@ func TestComponent_UpdateCurrentState_RebootErrorBranch_WithMockey(t *testing.T)
 			},
 		},
 		getTimeNowFunc: func() time.Time { return now },
-		getThresholdFunc: func() RebootThreshold {
-			return RebootThreshold{Threshold: 1}
+		getThresholdFunc: func() Thresholds {
+			return Thresholds{}
 		},
 		devices: map[string]device.Device{},
 	}

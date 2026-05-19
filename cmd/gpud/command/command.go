@@ -253,6 +253,14 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: fmt.Sprintf("set the allowed reboot attempts for XID errors before escalation (defaults to %d)", componentsxid.DefaultRebootThreshold),
 					Value: componentsxid.DefaultRebootThreshold,
 				},
+				&cli.StringFlag{
+					Name:  "xid-thresholds",
+					Usage: `set per-XID thresholds in JSON, e.g. '{"overrides":{"94":{"rebootThreshold":1000}}}'`,
+				},
+				&cli.StringFlag{
+					Name:  "sxid-thresholds",
+					Usage: `set per-SXID thresholds in JSON, e.g. '{"overrides":{"11004":{"rebootThreshold":7}}}'`,
+				},
 				&cli.DurationFlag{
 					Name:  "xid-lookback-period",
 					Usage: "set the lookback period for XID errors",

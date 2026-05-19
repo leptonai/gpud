@@ -1297,7 +1297,7 @@ func TestMockeyProcessUpdateConfig_InfinibandConfig(t *testing.T) {
 			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {},
 			setDefaultGPUCountsFunc:                func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {},
 			setDefaultNFSGroupConfigsFunc:          func(cfgs pkgnfschecker.Configs) {},
-			setDefaultXIDRebootThresholdFunc:       func(threshold componentsxid.RebootThreshold) {},
+			setDefaultXIDThresholdsFunc:            func(threshold componentsxid.Thresholds) {},
 			setDefaultTemperatureThresholdsFunc:    func(thresholds componentstemperature.Thresholds) {},
 		}
 
@@ -1340,7 +1340,7 @@ func TestMockeyProcessUpdateConfig_GPUCounts(t *testing.T) {
 				receivedCounts = counts
 			},
 			setDefaultNFSGroupConfigsFunc:       func(cfgs pkgnfschecker.Configs) {},
-			setDefaultXIDRebootThresholdFunc:    func(threshold componentsxid.RebootThreshold) {},
+			setDefaultXIDThresholdsFunc:         func(threshold componentsxid.Thresholds) {},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {},
 		}
 
@@ -1358,27 +1358,27 @@ func TestMockeyProcessUpdateConfig_GPUCounts(t *testing.T) {
 
 func TestMockeyProcessUpdateConfig_XIDConfig(t *testing.T) {
 	mockey.PatchConvey("processUpdateConfig handles valid XID config", t, func() {
-		var receivedThreshold componentsxid.RebootThreshold
+		var receivedThresholds componentsxid.Thresholds
 		s := &Session{
 			setDefaultIbExpectedPortStatesFunc:     func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {},
 			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {},
 			setDefaultGPUCountsFunc:                func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {},
 			setDefaultNFSGroupConfigsFunc:          func(cfgs pkgnfschecker.Configs) {},
-			setDefaultXIDRebootThresholdFunc: func(threshold componentsxid.RebootThreshold) {
-				receivedThreshold = threshold
+			setDefaultXIDThresholdsFunc: func(thresholds componentsxid.Thresholds) {
+				receivedThresholds = thresholds
 			},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {},
 		}
 
 		configMap := map[string]string{
-			"accelerator-nvidia-error-xid": `{"threshold": 10}`,
+			"accelerator-nvidia-error-xid": `{"overrides":{"94":{"rebootThreshold":1000}}}`,
 		}
 		resp := &Response{}
 
 		s.processUpdateConfig(configMap, resp)
 
 		assert.Empty(t, resp.Error)
-		assert.Equal(t, 10, receivedThreshold.Threshold)
+		assert.Equal(t, 1000, receivedThresholds.Overrides[94].RebootThreshold)
 	})
 }
 
@@ -1390,7 +1390,7 @@ func TestMockeyProcessUpdateConfig_TemperatureConfig(t *testing.T) {
 			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {},
 			setDefaultGPUCountsFunc:                func(counts componentsnvidiagpucounts.ExpectedGPUCounts) {},
 			setDefaultNFSGroupConfigsFunc:          func(cfgs pkgnfschecker.Configs) {},
-			setDefaultXIDRebootThresholdFunc:       func(threshold componentsxid.RebootThreshold) {},
+			setDefaultXIDThresholdsFunc:            func(threshold componentsxid.Thresholds) {},
 			setDefaultTemperatureThresholdsFunc: func(thresholds componentstemperature.Thresholds) {
 				receivedThresholds = thresholds
 			},
@@ -1415,7 +1415,7 @@ func TestMockeyProcessUpdateConfig_NilFuncs(t *testing.T) {
 			setDefaultNVLinkExpectedLinkStatesFunc: nil,
 			setDefaultGPUCountsFunc:                nil,
 			setDefaultNFSGroupConfigsFunc:          nil,
-			setDefaultXIDRebootThresholdFunc:       nil,
+			setDefaultXIDThresholdsFunc:            nil,
 			setDefaultTemperatureThresholdsFunc:    nil,
 		}
 
