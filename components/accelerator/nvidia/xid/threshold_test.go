@@ -7,31 +7,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDefaultExpectedPortStates(t *testing.T) {
+func TestDefaultThresholds(t *testing.T) {
 	// Save original value and restore it after the test to avoid polluting other tests
-	original := GetDefaultRebootThreshold()
+	original := GetDefaultThresholds()
 	t.Cleanup(func() {
-		SetDefaultRebootThreshold(original)
+		SetDefaultThresholds(original)
 	})
 
 	// Test default values
-	defaultRebootThreshold := GetDefaultRebootThreshold()
-	assert.Equal(t, DefaultRebootThreshold, defaultRebootThreshold.Threshold)
-	assert.Equal(t, 1000, defaultRebootThreshold.ThresholdOverrides[94].RebootThreshold)
+	defaultThresholds := GetDefaultThresholds()
+	assert.Equal(t, DefaultRebootThreshold, defaultThresholds.Threshold)
+	assert.Equal(t, 1000, defaultThresholds.ThresholdOverrides[94].RebootThreshold)
 
 	// Test setting new values
-	newRebootThreshold := RebootThreshold{
+	newThresholds := Thresholds{
 		Threshold: 4,
 	}
-	SetDefaultRebootThreshold(newRebootThreshold)
+	SetDefaultThresholds(newThresholds)
 
-	updatedRebootThreshold := GetDefaultRebootThreshold()
-	assert.Equal(t, newRebootThreshold.Threshold, updatedRebootThreshold.Threshold)
-	assert.Equal(t, 1000, updatedRebootThreshold.ThresholdOverrides[94].RebootThreshold)
+	updatedThresholds := GetDefaultThresholds()
+	assert.Equal(t, newThresholds.Threshold, updatedThresholds.Threshold)
+	assert.Equal(t, 1000, updatedThresholds.ThresholdOverrides[94].RebootThreshold)
 }
 
 func TestRebootThresholdForXID(t *testing.T) {
-	threshold := RebootThreshold{
+	threshold := Thresholds{
 		Threshold: DefaultRebootThreshold,
 		ThresholdOverrides: map[int]ThresholdOverride{
 			94: {RebootThreshold: 1000},

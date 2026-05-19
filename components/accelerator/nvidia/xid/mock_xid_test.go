@@ -521,23 +521,23 @@ func TestGetDetail_WithMockey(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestRebootThreshold_WithMockey tests the reboot threshold functions.
-func TestRebootThreshold_WithMockey(t *testing.T) {
-	mockey.PatchConvey("RebootThreshold functions", t, func() {
+// TestThresholds_WithMockey tests the threshold configuration functions.
+func TestThresholds_WithMockey(t *testing.T) {
+	mockey.PatchConvey("Thresholds functions", t, func() {
 		// Get default
-		threshold := GetDefaultRebootThreshold()
+		threshold := GetDefaultThresholds()
 		assert.Equal(t, DefaultRebootThreshold, threshold.Threshold)
 
 		// Set new threshold
-		newThreshold := RebootThreshold{Threshold: 5}
-		SetDefaultRebootThreshold(newThreshold)
+		newThreshold := Thresholds{Threshold: 5}
+		SetDefaultThresholds(newThreshold)
 
 		// Verify it changed
-		threshold = GetDefaultRebootThreshold()
+		threshold = GetDefaultThresholds()
 		assert.Equal(t, 5, threshold.Threshold)
 
 		// Reset to default
-		SetDefaultRebootThreshold(RebootThreshold{Threshold: DefaultRebootThreshold})
+		SetDefaultThresholds(Thresholds{Threshold: DefaultRebootThreshold})
 	})
 }
 

@@ -8,8 +8,8 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-// RebootThreshold configures the expected reboot threshold.
-type RebootThreshold struct {
+// Thresholds configures the XID reboot threshold policy.
+type Thresholds struct {
 	// Threshold is the expected number of reboot events within the evaluation window.
 	// If not set, it defaults to 2.
 	Threshold int `json:"threshold"`
@@ -50,8 +50,8 @@ var (
 		94: {RebootThreshold: 1000},
 	}
 
-	defaultRebootThresholdMu sync.RWMutex
-	defaultRebootThreshold   = RebootThreshold{
+	defaultThresholdsMu sync.RWMutex
+	defaultThresholds   = Thresholds{
 		Threshold:          DefaultRebootThreshold,
 		ThresholdOverrides: defaultThresholdOverrides,
 	}
@@ -60,35 +60,35 @@ var (
 	defaultLookbackPeriod   = DefaultLookbackPeriod
 )
 
-// GetDefaultRebootThreshold returns the configured reboot threshold for XID recovery.
-func GetDefaultRebootThreshold() RebootThreshold {
-	defaultRebootThresholdMu.RLock()
-	defer defaultRebootThresholdMu.RUnlock()
-	return cloneRebootThreshold(defaultRebootThreshold)
+// GetDefaultThresholds returns the configured threshold policy for XID recovery.
+func GetDefaultThresholds() Thresholds {
+	defaultThresholdsMu.RLock()
+	defer defaultThresholdsMu.RUnlock()
+	return cloneThresholds(defaultThresholds)
 }
 
-// SetDefaultRebootThreshold updates the configured reboot threshold for XID recovery.
-func SetDefaultRebootThreshold(threshold RebootThreshold) {
-	threshold = normalizeRebootThreshold(threshold)
-	log.Logger.Infow("setting default reboot threshold", "threshold", threshold.Threshold, "thresholdOverrides", threshold.ThresholdOverrides)
+// SetDefaultThresholds updates the configured threshold policy for XID recovery.
+func SetDefaultThresholds(thresholds Thresholds) {
+	thresholds = normalizeThresholds(thresholds)
+	log.Logger.Infow("setting default xid thresholds", "threshold", thresholds.Threshold, "thresholdOverrides", thresholds.ThresholdOverrides)
 
-	defaultRebootThresholdMu.Lock()
-	defer defaultRebootThresholdMu.Unlock()
-	defaultRebootThreshold = threshold
+	defaultThresholdsMu.Lock()
+	defer defaultThresholdsMu.Unlock()
+	defaultThresholds = thresholds
 }
 
-func normalizeRebootThreshold(threshold RebootThreshold) RebootThreshold {
+func normalizeThresholds(thresholds Thresholds) Thresholds {
 	thresholdOverrides := cloneThresholdOverrides(defaultThresholdOverrides)
-	for xid, override := range threshold.ThresholdOverrides {
+	for xid, override := range thresholds.ThresholdOverrides {
 		thresholdOverrides[xid] = override
 	}
-	threshold.ThresholdOverrides = thresholdOverrides
-	return threshold
+	thresholds.ThresholdOverrides = thresholdOverrides
+	return thresholds
 }
 
-func cloneRebootThreshold(threshold RebootThreshold) RebootThreshold {
-	threshold.ThresholdOverrides = cloneThresholdOverrides(threshold.ThresholdOverrides)
-	return threshold
+func cloneThresholds(thresholds Thresholds) Thresholds {
+	thresholds.ThresholdOverrides = cloneThresholdOverrides(thresholds.ThresholdOverrides)
+	return thresholds
 }
 
 func cloneThresholdOverrides(overrides map[int]ThresholdOverride) map[int]ThresholdOverride {
@@ -102,19 +102,19 @@ func cloneThresholdOverrides(overrides map[int]ThresholdOverride) map[int]Thresh
 	return ret
 }
 
-func rebootThresholdForXID(xid uint64, threshold RebootThreshold) int {
+func rebootThresholdForXID(xid uint64, thresholds Thresholds) int {
 	xidID, ok := intFromUint64(xid)
 	if !ok {
-		return threshold.Threshold
+		return thresholds.Threshold
 	}
 
-	if threshold.ThresholdOverrides == nil {
-		threshold.ThresholdOverrides = defaultThresholdOverrides
+	if thresholds.ThresholdOverrides == nil {
+		thresholds.ThresholdOverrides = defaultThresholdOverrides
 	}
-	if override, ok := threshold.ThresholdOverrides[xidID]; ok && override.RebootThreshold > 0 {
+	if override, ok := thresholds.ThresholdOverrides[xidID]; ok && override.RebootThreshold > 0 {
 		return override.RebootThreshold
 	}
-	return threshold.Threshold
+	return thresholds.Threshold
 }
 
 // GetLookbackPeriod returns the XID event lookback window.

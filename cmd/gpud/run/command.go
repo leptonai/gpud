@@ -176,7 +176,7 @@ func Command(cliContext *cli.Context) error {
 		log.Logger.Infow("set nfs checker group configs", "groupConfigs", groupConfigs)
 	}
 
-	xidThresholdConfig := componentsxid.GetDefaultRebootThreshold()
+	xidThresholdConfig := componentsxid.GetDefaultThresholds()
 	xidThresholdsChanged := false
 	if cliContext.IsSet("xid-reboot-threshold") {
 		if xidRebootThreshold > 0 {
@@ -195,8 +195,8 @@ func Command(cliContext *cli.Context) error {
 		xidThresholdsChanged = true
 	}
 	if xidThresholdsChanged {
-		componentsxid.SetDefaultRebootThreshold(xidThresholdConfig)
-		xidThresholdConfig = componentsxid.GetDefaultRebootThreshold()
+		componentsxid.SetDefaultThresholds(xidThresholdConfig)
+		xidThresholdConfig = componentsxid.GetDefaultThresholds()
 		log.Logger.Infow(
 			"set xid thresholds",
 			"xidDefaultRebootThreshold",

@@ -64,14 +64,14 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 
 		case componentsxid.Name:
 			setComponents[componentName] = struct{}{}
-			var updateCfg componentsxid.RebootThreshold
+			var updateCfg componentsxid.Thresholds
 			if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
 				log.Logger.Warnw("failed to unmarshal xid config", "error", err)
 				resp.Error = err.Error()
 				return
 			}
-			if s.setDefaultXIDRebootThresholdFunc != nil {
-				s.setDefaultXIDRebootThresholdFunc(updateCfg)
+			if s.setDefaultXIDThresholdsFunc != nil {
+				s.setDefaultXIDThresholdsFunc(updateCfg)
 			}
 
 		case componentstemperature.Name:
@@ -132,9 +132,9 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 		log.Logger.Infow("falling back to default empty nfs config")
 		s.setDefaultNFSGroupConfigsFunc(pkgnfschecker.Configs{})
 	}
-	if _, ok := setComponents[componentsxid.Name]; !ok && s.setDefaultXIDRebootThresholdFunc != nil {
+	if _, ok := setComponents[componentsxid.Name]; !ok && s.setDefaultXIDThresholdsFunc != nil {
 		log.Logger.Infow("falling back to default xid config")
-		s.setDefaultXIDRebootThresholdFunc(componentsxid.RebootThreshold{Threshold: componentsxid.DefaultRebootThreshold})
+		s.setDefaultXIDThresholdsFunc(componentsxid.Thresholds{Threshold: componentsxid.DefaultRebootThreshold})
 	}
 	if _, ok := setComponents[componentstemperature.Name]; !ok && s.setDefaultTemperatureThresholdsFunc != nil {
 		log.Logger.Infow("falling back to default temperature config")

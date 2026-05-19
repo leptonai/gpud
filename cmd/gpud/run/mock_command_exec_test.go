@@ -280,10 +280,10 @@ func TestCommand_SetLookbackPeriods(t *testing.T) {
 func TestCommand_SetThresholds(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	originalXidThresholdConfig := componentsxid.GetDefaultRebootThreshold()
+	originalXidThresholdConfig := componentsxid.GetDefaultThresholds()
 	originalSxidThresholds := componentssxid.GetDefaultThresholdOverrides()
 	t.Cleanup(func() {
-		componentsxid.SetDefaultRebootThreshold(originalXidThresholdConfig)
+		componentsxid.SetDefaultThresholds(originalXidThresholdConfig)
 		componentssxid.SetDefaultThresholdOverrides(originalSxidThresholds)
 	})
 
@@ -321,7 +321,7 @@ func TestCommand_SetThresholds(t *testing.T) {
 		err := Command(ctx)
 		require.NoError(t, err)
 
-		xidThresholdConfig := componentsxid.GetDefaultRebootThreshold()
+		xidThresholdConfig := componentsxid.GetDefaultThresholds()
 		assert.Equal(t, 6, xidThresholdConfig.Threshold)
 		assert.Equal(t, 2000, xidThresholdConfig.ThresholdOverrides[94].RebootThreshold)
 		assert.Equal(t, 3, xidThresholdConfig.ThresholdOverrides[95].RebootThreshold)
