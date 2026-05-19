@@ -17,6 +17,7 @@ func TestDefaultThresholds(t *testing.T) {
 	})
 
 	// Test default values
+	assert.Equal(t, 2, DefaultRebootThreshold)
 	assert.Equal(t, DefaultRebootThreshold, GetDefaultRebootThreshold())
 	defaultThresholds := GetDefaultThresholds()
 	assert.Equal(t, 1000, defaultThresholds.ThresholdOverrides[94].RebootThreshold)
@@ -24,6 +25,8 @@ func TestDefaultThresholds(t *testing.T) {
 	// Test setting a global reboot threshold separately from per-XID overrides.
 	SetDefaultRebootThreshold(4)
 	assert.Equal(t, 4, GetDefaultRebootThreshold())
+	SetDefaultRebootThreshold(0)
+	assert.Equal(t, 2, GetDefaultRebootThreshold())
 
 	// Test setting new override values.
 	newThresholds := Thresholds{
@@ -46,7 +49,7 @@ func TestRebootThresholdForXID(t *testing.T) {
 	}
 
 	assert.Equal(t, 1000, rebootThresholdForXID(94, DefaultRebootThreshold, threshold))
-	assert.Equal(t, DefaultRebootThreshold, rebootThresholdForXID(95, DefaultRebootThreshold, threshold))
+	assert.Equal(t, 2, rebootThresholdForXID(95, DefaultRebootThreshold, threshold))
 }
 
 func TestDefaultLookbackPeriod(t *testing.T) {
