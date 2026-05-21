@@ -17,9 +17,11 @@ type mockDetector struct {
 	provider      string
 	publicIP      string
 	privateIP     string
+	region        string
 	provErr       error
 	publicErr     error
 	privateErr    error
+	regionErr     error
 	vmEnv         string
 	vmEnvErr      error
 	instanceID    string
@@ -50,6 +52,10 @@ func (m *mockDetector) PrivateIPv4(ctx context.Context) (string, error) {
 	return m.privateIP, m.privateErr
 }
 
+func (m *mockDetector) Region(ctx context.Context) (string, error) {
+	return m.region, m.regionErr
+}
+
 func (m *mockDetector) VMEnvironment(ctx context.Context) (string, error) {
 	return m.vmEnv, m.vmEnvErr
 }
@@ -76,6 +82,7 @@ func TestDetect_Success(t *testing.T) {
 			provider:   "aws",
 			publicIP:   "1.2.3.4",
 			privateIP:  "10.0.1.100",
+			region:     "us-east-1",
 			vmEnv:      "AWS",
 			instanceID: "i-abc",
 		},
@@ -87,6 +94,7 @@ func TestDetect_Success(t *testing.T) {
 		assert.Equal(t, "aws", info.Provider)
 		assert.Equal(t, "1.2.3.4", info.PublicIP)
 		assert.Equal(t, "10.0.1.100", info.PrivateIP)
+		assert.Equal(t, "us-east-1", info.Region)
 		assert.Equal(t, "AWS", info.VMEnvironment)
 		assert.Equal(t, "i-abc", info.InstanceID)
 	})

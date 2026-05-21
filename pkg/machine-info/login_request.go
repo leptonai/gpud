@@ -2,6 +2,7 @@ package machineinfo
 
 import (
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -45,17 +46,20 @@ func createLoginRequest(
 	donec := make(chan struct{})
 	defer close(donec)
 
-	// deciding machine location can take awhile
-	// depending on the network latency
-	// run async
-	machineLocationCh := make(chan *apiv1.MachineLocation, 1)
-	go func() {
-		select {
-		case <-donec:
-			return
-		case machineLocationCh <- getMachineLocationFunc():
-		}
-	}()
+	var machineLocationCh <-chan *apiv1.MachineLocation
+	startMachineLocationLookup := func() {
+		// Deciding machine location can take awhile depending on network latency,
+		// so keep the DERP fallback asynchronous while the rest of login is built.
+		ch := make(chan *apiv1.MachineLocation, 1)
+		machineLocationCh = ch
+		go func() {
+			select {
+			case <-donec:
+				return
+			case ch <- getMachineLocationFunc():
+			}
+		}()
+	}
 
 	req := &apiv1.LoginRequest{
 		Token:     token,
@@ -80,6 +84,10 @@ func createLoginRequest(
 
 	req.Provider = detectedProvider.Provider
 	req.ProviderInstanceID = detectedProvider.InstanceID
+	providerLocation := getProviderLocation(detectedProvider)
+	if providerLocation == nil {
+		startMachineLocationLookup()
+	}
 
 	// we always prioritize the provider's public IP and private IP
 	// even if the local network interface has a private IP
@@ -138,7 +146,22 @@ func createLoginRequest(
 		req.Resources["nvidia.com/gpu"] = gpuCnt
 	}
 
-	req.Location = <-machineLocationCh
+	if providerLocation != nil {
+		req.Location = providerLocation
+	} else if machineLocationCh != nil {
+		req.Location = <-machineLocationCh
+	}
 
 	return req, nil
+}
+
+func getProviderLocation(providerInfo *providers.Info) *apiv1.MachineLocation {
+	if providerInfo == nil {
+		return nil
+	}
+	region := strings.TrimSpace(providerInfo.Region)
+	if region == "" {
+		return nil
+	}
+	return &apiv1.MachineLocation{Region: region}
 }

@@ -21,6 +21,9 @@ type Detector interface {
 	// PrivateIPv4 returns a non-empty string and no error,
 	// if a private IPv4 is successfully detected.
 	PrivateIPv4(context.Context) (string, error)
+	// Region returns a non-empty provider-specific region and no error,
+	// if a region is successfully detected.
+	Region(context.Context) (string, error)
 	// VMEnvironment returns a non-empty string and no error,
 	// if a VM environment is successfully detected.
 	// e.g., "azEnvironment" as "AZUREPUBLICCLOUD" for Azure.

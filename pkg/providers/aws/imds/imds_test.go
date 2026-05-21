@@ -317,6 +317,121 @@ func TestFetchAvailabilityZone(t *testing.T) {
 	}
 }
 
+func TestFetchRegion(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockHandler    func(w http.ResponseWriter, r *http.Request)
+		expectedRegion string
+		expectedError  string
+	}{
+		{
+			name: "successful region fetch",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodPut:
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("test-token"))
+					require.NoError(t, err)
+				case http.MethodGet:
+					require.Equal(t, "test-token", r.Header.Get(headerToken))
+					require.Contains(t, r.URL.Path, "/placement/region")
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("us-east-1"))
+					require.NoError(t, err)
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
+				}
+			},
+			expectedRegion: "us-east-1",
+		},
+		{
+			name: "fallback to availability zone",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodPut:
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("test-token"))
+					require.NoError(t, err)
+				case http.MethodGet:
+					require.Equal(t, "test-token", r.Header.Get(headerToken))
+					if strings.Contains(r.URL.Path, "/placement/region") {
+						w.WriteHeader(http.StatusNotFound)
+						return
+					}
+					require.Contains(t, r.URL.Path, "/placement/availability-zone")
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("us-east-1a"))
+					require.NoError(t, err)
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
+				}
+			},
+			expectedRegion: "us-east-1",
+		},
+		{
+			name: "fallback derives parent region from local zone",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodPut:
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("test-token"))
+					require.NoError(t, err)
+				case http.MethodGet:
+					require.Equal(t, "test-token", r.Header.Get(headerToken))
+					if strings.Contains(r.URL.Path, "/placement/region") {
+						w.WriteHeader(http.StatusNotFound)
+						return
+					}
+					require.Contains(t, r.URL.Path, "/placement/availability-zone")
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("us-west-2-lax-1a"))
+					require.NoError(t, err)
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
+				}
+			},
+			expectedRegion: "us-west-2",
+		},
+		{
+			name: "region and availability zone fail",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodPut:
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte("test-token"))
+					require.NoError(t, err)
+				case http.MethodGet:
+					w.WriteHeader(http.StatusNotFound)
+				default:
+					t.Fatalf("Unexpected request: %s %s", r.Method, r.URL.Path)
+				}
+			},
+			expectedError: "failed to fetch availability zone fallback",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			server := httptest.NewServer(http.HandlerFunc(tc.mockHandler))
+			defer server.Close()
+
+			region, err := fetchRegion(ctx, server.URL, server.URL)
+
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedRegion, region)
+		})
+	}
+}
+
 // TestFetchAvailabilityZonePublic tests the public API function
 func TestFetchAvailabilityZonePublic(t *testing.T) {
 	// Create a common handler for both token and metadata requests

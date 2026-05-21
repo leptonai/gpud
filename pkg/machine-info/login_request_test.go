@@ -1141,3 +1141,42 @@ func TestCreateLoginRequest_NscaleUsesLatencyLocationWithoutMetadataOverride(t *
 	assert.Equal(t, "eu-west-1", req.Location.Region)
 	assert.Equal(t, "eu-west-1a", req.Location.Zone)
 }
+
+func TestCreateLoginRequest_ProviderRegionOverridesLatencyLocation(t *testing.T) {
+	getMachineInfoFunc := func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+		return &apiv1.MachineInfo{
+			CPUInfo:    &apiv1.MachineCPUInfo{LogicalCores: 4},
+			MemoryInfo: &apiv1.MachineMemoryInfo{TotalBytes: 16 * 1024 * 1024 * 1024},
+			NICInfo:    &apiv1.MachineNICInfo{},
+		}, nil
+	}
+	getProviderFunc := func(ip string) *providers.Info {
+		return &providers.Info{
+			Provider:   "aws",
+			PublicIP:   ip,
+			PrivateIP:  "172.31.0.10",
+			Region:     "us-east-1",
+			InstanceID: "i-00001923",
+		}
+	}
+
+	req, err := createLoginRequest(
+		"token",
+		"machine-id",
+		"",
+		"1",
+		&mockNvmlInstance{},
+		func() (string, error) { return "54.123.45.67", nil },
+		func() *apiv1.MachineLocation { return &apiv1.MachineLocation{Region: "us-west-2", Zone: "us-west-2a"} },
+		getMachineInfoFunc,
+		getProviderFunc,
+		func() (string, error) { return "100Gi", nil },
+		func(nvidianvml.Instance) (string, error) { return "1", nil },
+	)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, req)
+	assert.NotNil(t, req.Location)
+	assert.Equal(t, "us-east-1", req.Location.Region)
+	assert.Empty(t, req.Location.Zone)
+}

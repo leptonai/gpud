@@ -25,6 +25,13 @@ func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, Name, provider)
 
+		mockey.Mock(imds.FetchRegion).To(func(ctx context.Context) (string, error) {
+			return "us-west-2", nil
+		}).Build()
+		region, err := detector.Region(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "us-west-2", region)
+
 		zone, err := detectProvider(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, Name, zone)
