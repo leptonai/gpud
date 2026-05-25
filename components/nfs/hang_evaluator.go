@@ -138,3 +138,15 @@ func nfsServerFromEventMessage(message string) string {
 	}
 	return ""
 }
+
+// nfsEventsOnOrAfter returns events whose timestamps are on or after since,
+// matching eventstore.EvaluateSuggestedActions' treatment of equal timestamps.
+func nfsEventsOnOrAfter(events eventstore.Events, since time.Time) eventstore.Events {
+	filtered := make(eventstore.Events, 0, len(events))
+	for _, ev := range events {
+		if !ev.Time.Before(since) {
+			filtered = append(filtered, ev)
+		}
+	}
+	return filtered
+}

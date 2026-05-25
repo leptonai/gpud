@@ -1600,6 +1600,33 @@ func TestCheckKmsgHangAfterReboot(t *testing.T) {
 	assert.Equal(t, "no nfs group configs found", cr.reason)
 }
 
+func TestCheckKmsgHangAfterRebootWithNewFailure(t *testing.T) {
+	now := time.Now().UTC()
+	bucket := &nfsMockEventBucket{
+		events: eventstore.Events{
+			{Name: eventNFSLockReclaimFailed, Time: now.Add(-5 * time.Hour), Message: messageNFSLockReclaimFailed},
+			{Name: eventNFSLockReclaimFailed, Time: now.Add(-1 * time.Hour), Message: messageNFSLockReclaimFailed},
+		},
+	}
+	reboot := &nfsMockRebootEventStore{
+		events: eventstore.Events{
+			{Name: "reboot", Time: now.Add(-3 * time.Hour), Message: "intermediate boot"},
+		},
+	}
+
+	c := newKmsgComponent(bucket, reboot)
+	defer func() { _ = c.Close() }()
+
+	result := c.Check()
+	cr := mustCheckResult(t, result)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "1 lock reclaim failures")
+	require.NotNil(t, cr.suggestedActions)
+	require.Len(t, cr.suggestedActions.RepairActions, 1)
+	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
+}
+
 // TestCheckNilRebootEventStore: rebootEventStore == nil must be tolerated.
 // With no reboot history, EvaluateSuggestedActions still suggests a reboot.
 func TestCheckNilRebootEventStore(t *testing.T) {

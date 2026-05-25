@@ -261,18 +261,23 @@ func (c *component) Check() components.CheckResult {
 					sort.Slice(rebootEvents, func(i, j int) bool {
 						return rebootEvents[i].Time.Before(rebootEvents[j].Time)
 					})
+					if len(rebootEvents) > 0 {
+						hangEvents, hangReason = collectNFSHangEvents(nfsEventsOnOrAfter(evs, rebootEvents[0].Time))
+					}
 				}
-				sa := eventstore.EvaluateSuggestedActions(rebootEvents, hangEvents, 2)
-				if sa != nil {
-					sa.Description = "NFS hang requires immediate reboot; drain may hang on NFS volumes"
-					cr.health = apiv1.HealthStateTypeUnhealthy
-					cr.reason = hangReason
-					cr.suggestedActions = sa
-					return cr
+				if len(hangEvents) > 0 {
+					sa := eventstore.EvaluateSuggestedActions(rebootEvents, hangEvents, 2)
+					if sa != nil {
+						sa.Description = "NFS hang requires immediate reboot; drain may hang on NFS volumes"
+						cr.health = apiv1.HealthStateTypeUnhealthy
+						cr.reason = hangReason
+						cr.suggestedActions = sa
+						return cr
+					}
 				}
-				// sa == nil → a reboot was already observed after the
-				// hang event; fall through to the prober to verify the
-				// mount is currently healthy.
+				// No unresolved post-reboot hang evidence, or sa == nil
+				// because reboot history already resolved the hang; fall
+				// through to the prober for live verification.
 			}
 		}
 	}
