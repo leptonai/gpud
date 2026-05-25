@@ -53,7 +53,7 @@ func TestCollectNFSHangEvents(t *testing.T) {
 			wantReasonContains: []string{"1 NFS server not-responding events"},
 		},
 		{
-			name: "not_responding cancelled by later ok → 0 hang",
+			name: "not_responding canceled by later ok → 0 hang",
 			events: eventstore.Events{
 				// Descending order, as Bucket.Get would return.
 				mk(eventNFSServerOK, now.Add(-30*time.Minute)),
