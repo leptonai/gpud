@@ -4,16 +4,24 @@ import (
 	"context"
 )
 
-var _ Detector = &detector{}
+var (
+	_ Detector       = &detector{}
+	_ Detector       = &regionDetector{}
+	_ RegionDetector = &regionDetector{}
+)
 
 type detector struct {
 	providerName           string
 	detectProviderFunc     func(ctx context.Context) (string, error)
 	fetchPublicIPv4Func    func(ctx context.Context) (string, error)
 	fetchPrivateIPv4Func   func(ctx context.Context) (string, error)
-	fetchRegionFunc        func(ctx context.Context) (string, error)
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error)
 	fetchInstanceIDFunc    func(ctx context.Context) (string, error)
+}
+
+type regionDetector struct {
+	*detector
+	fetchRegionFunc func(ctx context.Context) (string, error)
 }
 
 func New(
@@ -24,7 +32,7 @@ func New(
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error),
 	fetchInstanceIDFunc func(ctx context.Context) (string, error),
 ) Detector {
-	return NewWithRegion(name, detectProviderFunc, fetchPublicIPv4Func, fetchPrivateIPv4Func, nil, fetchVMEnvironmentFunc, fetchInstanceIDFunc)
+	return newDetector(name, detectProviderFunc, fetchPublicIPv4Func, fetchPrivateIPv4Func, fetchVMEnvironmentFunc, fetchInstanceIDFunc)
 }
 
 func NewWithRegion(
@@ -36,12 +44,25 @@ func NewWithRegion(
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error),
 	fetchInstanceIDFunc func(ctx context.Context) (string, error),
 ) Detector {
+	return &regionDetector{
+		detector:        newDetector(name, detectProviderFunc, fetchPublicIPv4Func, fetchPrivateIPv4Func, fetchVMEnvironmentFunc, fetchInstanceIDFunc),
+		fetchRegionFunc: fetchRegionFunc,
+	}
+}
+
+func newDetector(
+	name string,
+	detectProviderFunc func(ctx context.Context) (string, error),
+	fetchPublicIPv4Func func(ctx context.Context) (string, error),
+	fetchPrivateIPv4Func func(ctx context.Context) (string, error),
+	fetchVMEnvironmentFunc func(ctx context.Context) (string, error),
+	fetchInstanceIDFunc func(ctx context.Context) (string, error),
+) *detector {
 	return &detector{
 		providerName:           name,
 		detectProviderFunc:     detectProviderFunc,
 		fetchPublicIPv4Func:    fetchPublicIPv4Func,
 		fetchPrivateIPv4Func:   fetchPrivateIPv4Func,
-		fetchRegionFunc:        fetchRegionFunc,
 		fetchVMEnvironmentFunc: fetchVMEnvironmentFunc,
 		fetchInstanceIDFunc:    fetchInstanceIDFunc,
 	}
@@ -79,7 +100,7 @@ func (d *detector) PrivateIPv4(ctx context.Context) (string, error) {
 	return "", nil
 }
 
-func (d *detector) Region(ctx context.Context) (string, error) {
+func (d *regionDetector) Region(ctx context.Context) (string, error) {
 	if d.fetchRegionFunc != nil {
 		return d.fetchRegionFunc(ctx)
 	}

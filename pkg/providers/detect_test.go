@@ -230,9 +230,10 @@ func TestNew(t *testing.T) {
 
 	// Check that detector is properly initialized
 	assert.NotNil(t, d)
+	_, hasRegion := d.(RegionDetector)
+	assert.False(t, hasRegion, "New() should not advertise optional region lookup")
 
-	// We can't directly assert the type of 'd' to a private '*detector' struct from another file.
-	// Instead, we check its behavior through the Detector interface.
+	// Check behavior through the Detector interface.
 	assert.Equal(t, testName, d.Name(), "Name() should return the name passed to New")
 
 	// Verify that the functions are being used by calling the methods
