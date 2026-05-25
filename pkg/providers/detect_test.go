@@ -125,6 +125,52 @@ func TestDetector_PublicIPv4(t *testing.T) {
 	}
 }
 
+func TestDetector_Region(t *testing.T) {
+	const testProviderName = "test-provider-for-region"
+	tests := []struct {
+		name            string
+		fetchRegionFunc func(ctx context.Context) (string, error)
+		expectedResult  string
+		expectedError   error
+	}{
+		{
+			name: "successful region fetch",
+			fetchRegionFunc: func(ctx context.Context) (string, error) {
+				return "us-east-1", nil
+			},
+			expectedResult: "us-east-1",
+		},
+		{
+			name: "region fetch error",
+			fetchRegionFunc: func(ctx context.Context) (string, error) {
+				return "", errors.New("region fetch failed")
+			},
+			expectedError: errors.New("region fetch failed"),
+		},
+		{
+			name:           "nil fetch function",
+			expectedResult: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			d := NewWithRegion(testProviderName, nil, nil, nil, tc.fetchRegionFunc, nil, nil)
+			regionDetector, ok := d.(RegionDetector)
+			assert.True(t, ok)
+
+			result, err := regionDetector.Region(context.Background())
+
+			if tc.expectedError != nil {
+				assert.EqualError(t, err, tc.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.expectedResult, result)
+		})
+	}
+}
+
 func TestDetector_VMEnvironment(t *testing.T) {
 	const testProviderName = "test-provider-for-vm-env"
 	tests := []struct {
@@ -184,9 +230,10 @@ func TestNew(t *testing.T) {
 
 	// Check that detector is properly initialized
 	assert.NotNil(t, d)
+	_, hasRegion := d.(RegionDetector)
+	assert.False(t, hasRegion, "New() should not advertise optional region lookup")
 
-	// We can't directly assert the type of 'd' to a private '*detector' struct from another file.
-	// Instead, we check its behavior through the Detector interface.
+	// Check behavior through the Detector interface.
 	assert.Equal(t, testName, d.Name(), "Name() should return the name passed to New")
 
 	// Verify that the functions are being used by calling the methods

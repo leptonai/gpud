@@ -128,6 +128,77 @@ func fetchAvailabilityZone(ctx context.Context, tokenURL string, metadataURL str
 	return fetchMetadataByPath(ctx, tokenURL, metadataURL+"/placement/availability-zone")
 }
 
+// FetchRegion fetches the EC2 instance region using IMDSv2.
+// ref. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html#instancedata-data-categories
+// e.g., curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region
+func FetchRegion(ctx context.Context) (string, error) {
+	return fetchRegion(ctx, imdsTokenURL, imdsMetadataURL)
+}
+
+// fetchRegion retrieves EC2 instance region from IMDSv2, falling back to the
+// availability zone when the explicit region metadata category is unavailable.
+func fetchRegion(ctx context.Context, tokenURL string, metadataURL string) (string, error) {
+	region, regionErr := fetchMetadataByPath(ctx, tokenURL, metadataURL+"/placement/region")
+	if regionErr == nil {
+		return region, nil
+	}
+
+	az, azErr := fetchAvailabilityZone(ctx, tokenURL, metadataURL)
+	if azErr != nil {
+		return "", fmt.Errorf("failed to fetch region: %v; failed to fetch availability zone fallback: %w", regionErr, azErr)
+	}
+	region = regionFromAvailabilityZone(az)
+	if region == "" {
+		return "", fmt.Errorf("failed to derive region from availability zone %q", az)
+	}
+	return region, nil
+}
+
+func regionFromAvailabilityZone(az string) string {
+	az = strings.TrimSpace(az)
+	if az == "" {
+		return ""
+	}
+
+	base := strings.TrimRightFunc(az, func(r rune) bool {
+		return r >= 'a' && r <= 'z'
+	})
+	parts := strings.Split(base, "-")
+	if len(parts) < 3 || !isNumeric(parts[len(parts)-1]) {
+		return ""
+	}
+
+	regionParts := 3
+	if len(parts) >= 4 && isExtendedAWSPartition(parts[1]) {
+		regionParts = 4
+	}
+	if len(parts) < regionParts {
+		return ""
+	}
+	return strings.Join(parts[:regionParts], "-")
+}
+
+func isExtendedAWSPartition(part string) bool {
+	switch part {
+	case "gov", "iso", "isob", "isoe", "isof":
+		return true
+	default:
+		return false
+	}
+}
+
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // FetchPublicIPv4 fetches EC2 instance public IPv4 using IMDSv2.
 // ref. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html#instancedata-data-categories
 // e.g., curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4

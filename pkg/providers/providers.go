@@ -29,6 +29,13 @@ type Detector interface {
 	InstanceID(ctx context.Context) (string, error)
 }
 
+// RegionDetector is implemented by detectors that can report a provider-specific region.
+type RegionDetector interface {
+	// Region returns a non-empty provider-specific region and no error,
+	// if a region is successfully detected.
+	Region(context.Context) (string, error)
+}
+
 // Info defines a provider info data.
 type Info struct {
 	Provider      string `json:"provider"`

@@ -36,6 +36,20 @@ func TestFetchAvailabilityZone_Public_WithMockey(t *testing.T) {
 	})
 }
 
+func TestFetchRegion_Public_WithMockey(t *testing.T) {
+	mockey.PatchConvey("FetchRegion forwards default URLs", t, func() {
+		mockey.Mock(fetchRegion).To(func(ctx context.Context, tokenURL string, metadataURL string) (string, error) {
+			require.Equal(t, imdsTokenURL, tokenURL)
+			require.Equal(t, imdsMetadataURL, metadataURL)
+			return "us-east-1", nil
+		}).Build()
+
+		got, err := FetchRegion(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "us-east-1", got)
+	})
+}
+
 func TestFetchPublicIPv4_Public_WithMockey(t *testing.T) {
 	mockey.PatchConvey("FetchPublicIPv4 forwards default URLs", t, func() {
 		mockey.Mock(fetchPublicIPv4).To(func(ctx context.Context, tokenURL string, metadataURL string) (string, error) {
