@@ -1622,6 +1622,26 @@ func TestCheckNilRebootEventStore(t *testing.T) {
 	})
 }
 
+func TestCheckKmsgHangRebootStoreError(t *testing.T) {
+	now := time.Now().UTC()
+	rebootErr := errors.New("reboot store unavailable")
+	bucket := &nfsMockEventBucket{
+		events: eventstore.Events{
+			{Name: eventNFSLockReclaimFailed, Time: now.Add(-30 * time.Minute), Message: messageNFSLockReclaimFailed},
+		},
+	}
+	c := newKmsgComponent(bucket, &nfsMockRebootEventStore{err: rebootErr})
+	defer func() { _ = c.Close() }()
+
+	result := c.Check()
+	cr := mustCheckResult(t, result)
+
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.ErrorIs(t, cr.err, rebootErr)
+	assert.Equal(t, "failed to get reboot events", cr.reason)
+	assert.Nil(t, cr.suggestedActions)
+}
+
 // TestCheckSkipsProberWhenHangDetected: when a hang is detected the prober
 // path must not run. Use a getGroupConfigsFunc that panics if invoked.
 func TestCheckSkipsProberWhenHangDetected(t *testing.T) {

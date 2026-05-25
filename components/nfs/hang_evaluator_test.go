@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
@@ -154,4 +155,32 @@ func TestCollectNFSHangEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCollectNFSHangEventsServerOKIsPerServerAndPerCycle(t *testing.T) {
+	now := time.Now()
+	mk := func(name string, ts time.Time, message string) eventstore.Event {
+		return eventstore.Event{
+			Component: "nfs",
+			Time:      ts,
+			Name:      name,
+			Type:      "Warning",
+			Message:   message,
+		}
+	}
+
+	hang, reason := collectNFSHangEvents(eventstore.Events{
+		// A later OK from server-b must not cancel server-a.
+		mk(eventNFSServerOK, now.Add(-10*time.Minute), messageNFSServerOK+": server-b"),
+		// This is the currently unresolved server-a event.
+		mk(eventNFSServerNotResponding, now.Add(-20*time.Minute), messageNFSServerNotResponding+": server-a"),
+		// This older OK resolves only earlier server-a failures.
+		mk(eventNFSServerOK, now.Add(-30*time.Minute), messageNFSServerOK+": server-a"),
+		// This stale server-a event should not be carried into suggested actions.
+		mk(eventNFSServerNotResponding, now.Add(-40*time.Minute), messageNFSServerNotResponding+": server-a"),
+	})
+
+	require.Len(t, hang, 1)
+	assert.Equal(t, messageNFSServerNotResponding+": server-a", hang[0].Message)
+	assert.Contains(t, reason, "1 NFS server not-responding events")
 }

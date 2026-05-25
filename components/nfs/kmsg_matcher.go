@@ -8,7 +8,7 @@ const (
 	// e.g.,
 	// nfs: server 7.247.192.16 not responding, timed out
 	eventNFSServerNotResponding   = "nfs_server_not_responding"
-	regexNFSServerNotResponding   = `nfs: server [^ ]+ not responding`
+	regexNFSServerNotResponding   = `nfs: server ([^ ]+) not responding`
 	messageNFSServerNotResponding = "NFS server not responding"
 
 	// Recovery signal, paired with eventNFSServerNotResponding to cancel out
@@ -16,7 +16,7 @@ const (
 	// e.g.,
 	// nfs: server 7.247.192.16 OK
 	eventNFSServerOK   = "nfs_server_ok"
-	regexNFSServerOK   = `nfs: server [^ ]+ OK`
+	regexNFSServerOK   = `nfs: server ([^ ]+) OK`
 	messageNFSServerOK = "NFS server recovered"
 
 	// Rule B: NFS lock state manager failed to reclaim state from server.
@@ -78,7 +78,7 @@ func HasNFSWritebackHang(line string) bool {
 func Match(line string) (eventName string, message string) {
 	for _, m := range getMatches() {
 		if m.check(line) {
-			return m.eventName, m.message
+			return m.eventName, m.getMessage(line)
 		}
 	}
 	return "", ""
@@ -89,13 +89,45 @@ type match struct {
 	eventName string
 	regex     string
 	message   string
+	messageFn func(string) string
 }
 
 func getMatches() []match {
 	return []match{
-		{check: HasNFSServerNotResponding, eventName: eventNFSServerNotResponding, regex: regexNFSServerNotResponding, message: messageNFSServerNotResponding},
-		{check: HasNFSServerOK, eventName: eventNFSServerOK, regex: regexNFSServerOK, message: messageNFSServerOK},
+		{
+			check:     HasNFSServerNotResponding,
+			eventName: eventNFSServerNotResponding,
+			regex:     regexNFSServerNotResponding,
+			message:   messageNFSServerNotResponding,
+			messageFn: func(line string) string {
+				return messageWithNFSServer(messageNFSServerNotResponding, line, compiledNFSServerNotResponding)
+			},
+		},
+		{
+			check:     HasNFSServerOK,
+			eventName: eventNFSServerOK,
+			regex:     regexNFSServerOK,
+			message:   messageNFSServerOK,
+			messageFn: func(line string) string {
+				return messageWithNFSServer(messageNFSServerOK, line, compiledNFSServerOK)
+			},
+		},
 		{check: HasNFSLockReclaimFailed, eventName: eventNFSLockReclaimFailed, regex: regexNFSLockReclaimFailed, message: messageNFSLockReclaimFailed},
 		{check: HasNFSWritebackHang, eventName: eventNFSWritebackHang, regex: regexNFSWritebackHang, message: messageNFSWritebackHang},
 	}
+}
+
+func (m match) getMessage(line string) string {
+	if m.messageFn != nil {
+		return m.messageFn(line)
+	}
+	return m.message
+}
+
+func messageWithNFSServer(baseMessage string, line string, re *regexp.Regexp) string {
+	matches := re.FindStringSubmatch(line)
+	if len(matches) < 2 {
+		return baseMessage
+	}
+	return baseMessage + ": " + matches[1]
 }

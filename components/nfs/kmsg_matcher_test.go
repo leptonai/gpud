@@ -18,19 +18,19 @@ func TestMatch(t *testing.T) {
 			name:          "server not responding, timed out",
 			line:          "nfs: server 7.247.192.16 not responding, timed out",
 			wantEventName: eventNFSServerNotResponding,
-			wantMessage:   messageNFSServerNotResponding,
+			wantMessage:   messageNFSServerNotResponding + ": 7.247.192.16",
 		},
 		{
 			name:          "server not responding, still trying",
 			line:          "nfs: server nfs-prod-01.example.com not responding, still trying",
 			wantEventName: eventNFSServerNotResponding,
-			wantMessage:   messageNFSServerNotResponding,
+			wantMessage:   messageNFSServerNotResponding + ": nfs-prod-01.example.com",
 		},
 		{
 			name:          "server not responding with kernel timestamp prefix",
 			line:          "kernel: nfs: server 10.0.0.5 not responding, timed out",
 			wantEventName: eventNFSServerNotResponding,
-			wantMessage:   messageNFSServerNotResponding,
+			wantMessage:   messageNFSServerNotResponding + ": 10.0.0.5",
 		},
 
 		// ── Rule A pair: server OK ──
@@ -38,13 +38,13 @@ func TestMatch(t *testing.T) {
 			name:          "server OK",
 			line:          "nfs: server 7.247.192.16 OK",
 			wantEventName: eventNFSServerOK,
-			wantMessage:   messageNFSServerOK,
+			wantMessage:   messageNFSServerOK + ": 7.247.192.16",
 		},
 		{
 			name:          "server OK with hostname",
 			line:          "nfs: server nfs-prod-01.example.com OK",
 			wantEventName: eventNFSServerOK,
-			wantMessage:   messageNFSServerOK,
+			wantMessage:   messageNFSServerOK + ": nfs-prod-01.example.com",
 		},
 
 		// ── Rule B: lock reclaim failed ──

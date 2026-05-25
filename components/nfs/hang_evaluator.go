@@ -14,8 +14,8 @@ import (
 //
 // Rules:
 //   - nfs_lock_reclaim_failed: any single occurrence counts.
-//   - nfs_server_not_responding: counts only when no later nfs_server_ok
-//     cancels it out (compare the latest of each kind).
+//   - nfs_server_not_responding: counts per server only when it happened after
+//     that server's latest nfs_server_ok.
 //   - nfs_writeback_hang: counts only when there are ≥ 2 occurrences in the
 //     input window.
 //
@@ -28,10 +28,9 @@ import (
 // so the caller can decide whether to fall back to the prober.
 func collectNFSHangEvents(events eventstore.Events) (hang eventstore.Events, reason string) {
 	var (
-		lockReclaim   eventstore.Events
-		notResponding eventstore.Events
-		ok            eventstore.Events
-		writeback     eventstore.Events
+		lockReclaim    eventstore.Events
+		serverResponse = make(map[string]*nfsServerResponseEvents)
+		writeback      eventstore.Events
 	)
 
 	for _, ev := range events {
@@ -39,9 +38,11 @@ func collectNFSHangEvents(events eventstore.Events) (hang eventstore.Events, rea
 		case eventNFSLockReclaimFailed:
 			lockReclaim = append(lockReclaim, ev)
 		case eventNFSServerNotResponding:
-			notResponding = append(notResponding, ev)
+			response := getNFSServerResponseEvents(serverResponse, ev)
+			response.notResponding = append(response.notResponding, ev)
 		case eventNFSServerOK:
-			ok = append(ok, ev)
+			response := getNFSServerResponseEvents(serverResponse, ev)
+			response.ok = append(response.ok, ev)
 		case eventNFSWritebackHang:
 			writeback = append(writeback, ev)
 		}
@@ -55,21 +56,32 @@ func collectNFSHangEvents(events eventstore.Events) (hang eventstore.Events, rea
 		reasonParts = append(reasonParts, fmt.Sprintf("%d lock reclaim failures", len(lockReclaim)))
 	}
 
-	// Rule A: server not responding — only counts if not cancelled by a
-	// later "OK". Compare the latest of each.
-	if len(notResponding) > 0 {
-		latestNR := latestTime(notResponding)
-		cancelled := false
-		if len(ok) > 0 {
-			latestOK := latestTime(ok)
-			if latestOK.After(latestNR) {
-				cancelled = true
+	// Rule A: server not responding — evaluate each server independently and
+	// keep only events that happened after that server's latest "OK".
+	notRespondingCount := 0
+	for _, response := range serverResponse {
+		if len(response.notResponding) == 0 {
+			continue
+		}
+
+		unresolved := response.notResponding
+		if len(response.ok) > 0 {
+			latestOK := latestTime(response.ok)
+			unresolved = nil
+			for _, ev := range response.notResponding {
+				if ev.Time.After(latestOK) {
+					unresolved = append(unresolved, ev)
+				}
 			}
 		}
-		if !cancelled {
-			hang = append(hang, notResponding...)
-			reasonParts = append(reasonParts, fmt.Sprintf("%d NFS server not-responding events", len(notResponding)))
+
+		if len(unresolved) > 0 {
+			hang = append(hang, unresolved...)
+			notRespondingCount += len(unresolved)
 		}
+	}
+	if notRespondingCount > 0 {
+		reasonParts = append(reasonParts, fmt.Sprintf("%d NFS server not-responding events", notRespondingCount))
 	}
 
 	// Rule C: writeback stack hints — require ≥ 2 occurrences.
@@ -100,4 +112,29 @@ func latestTime(events eventstore.Events) time.Time {
 		}
 	}
 	return t
+}
+
+type nfsServerResponseEvents struct {
+	notResponding eventstore.Events
+	ok            eventstore.Events
+}
+
+func getNFSServerResponseEvents(responses map[string]*nfsServerResponseEvents, ev eventstore.Event) *nfsServerResponseEvents {
+	server := nfsServerFromEventMessage(ev.Message)
+	if responses[server] == nil {
+		responses[server] = &nfsServerResponseEvents{}
+	}
+	return responses[server]
+}
+
+func nfsServerFromEventMessage(message string) string {
+	for _, prefix := range []string{
+		messageNFSServerNotResponding + ": ",
+		messageNFSServerOK + ": ",
+	} {
+		if server := strings.TrimPrefix(message, prefix); server != message {
+			return server
+		}
+	}
+	return ""
 }

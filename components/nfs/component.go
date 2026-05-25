@@ -246,7 +246,15 @@ func (c *component) Check() components.CheckResult {
 			if len(hangEvents) > 0 {
 				var rebootEvents eventstore.Events
 				if c.rebootEventStore != nil {
-					rebootEvents, _ = c.rebootEventStore.GetRebootEvents(c.ctx, cr.ts.Add(-c.lookbackPeriod))
+					var err error
+					rebootEvents, err = c.rebootEventStore.GetRebootEvents(c.ctx, cr.ts.Add(-c.lookbackPeriod))
+					if err != nil {
+						cr.err = err
+						cr.health = apiv1.HealthStateTypeUnhealthy
+						cr.reason = "failed to get reboot events"
+						log.Logger.Warnw(cr.reason, "error", cr.err)
+						return cr
+					}
 					// GetRebootEvents returns events in DESCENDING order
 					// (latest first), but EvaluateSuggestedActions expects
 					// ASCENDING order (oldest first) — see design doc §9 U2.
