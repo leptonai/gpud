@@ -1160,6 +1160,7 @@ func TestCreateLoginRequest_ProviderRegionOverridesLatencyLocation(t *testing.T)
 		}
 	}
 
+	machineLocationCalled := false
 	req, err := createLoginRequest(
 		"token",
 		"machine-id",
@@ -1167,7 +1168,10 @@ func TestCreateLoginRequest_ProviderRegionOverridesLatencyLocation(t *testing.T)
 		"1",
 		&mockNvmlInstance{},
 		func() (string, error) { return "54.123.45.67", nil },
-		func() *apiv1.MachineLocation { return &apiv1.MachineLocation{Region: "us-west-2", Zone: "us-west-2a"} },
+		func() *apiv1.MachineLocation {
+			machineLocationCalled = true
+			return &apiv1.MachineLocation{Region: "us-west-2", Zone: "us-west-2a"}
+		},
 		getMachineInfoFunc,
 		getProviderFunc,
 		func() (string, error) { return "100Gi", nil },
@@ -1179,4 +1183,36 @@ func TestCreateLoginRequest_ProviderRegionOverridesLatencyLocation(t *testing.T)
 	assert.NotNil(t, req.Location)
 	assert.Equal(t, "us-east-1", req.Location.Region)
 	assert.Empty(t, req.Location.Zone)
+	assert.False(t, machineLocationCalled)
+}
+
+func TestGetProviderLocation(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider *providers.Info
+		want     *apiv1.MachineLocation
+	}{
+		{
+			name: "nil provider",
+		},
+		{
+			name:     "empty region",
+			provider: &providers.Info{Provider: "aws"},
+		},
+		{
+			name:     "whitespace region",
+			provider: &providers.Info{Provider: "aws", Region: "  "},
+		},
+		{
+			name:     "trims region",
+			provider: &providers.Info{Provider: "aws", Region: " us-east-1 "},
+			want:     &apiv1.MachineLocation{Region: "us-east-1"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, getProviderLocation(tc.provider))
+		})
+	}
 }

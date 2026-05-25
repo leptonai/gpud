@@ -432,6 +432,56 @@ func TestFetchRegion(t *testing.T) {
 	}
 }
 
+func TestRegionFromAvailabilityZone(t *testing.T) {
+	tests := []struct {
+		name     string
+		az       string
+		expected string
+	}{
+		{
+			name:     "standard availability zone",
+			az:       "us-east-1a",
+			expected: "us-east-1",
+		},
+		{
+			name:     "local zone",
+			az:       "us-west-2-lax-1a",
+			expected: "us-west-2",
+		},
+		{
+			name:     "wavelength zone",
+			az:       "us-east-1-wl1-bos-wlz-1",
+			expected: "us-east-1",
+		},
+		{
+			name:     "govcloud availability zone",
+			az:       "us-gov-west-1a",
+			expected: "us-gov-west-1",
+		},
+		{
+			name:     "iso availability zone",
+			az:       "us-iso-east-1a",
+			expected: "us-iso-east-1",
+		},
+		{
+			name:     "empty availability zone",
+			az:       "",
+			expected: "",
+		},
+		{
+			name:     "unrecognized format",
+			az:       "not-a-zone",
+			expected: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, regionFromAvailabilityZone(tc.az))
+		})
+	}
+}
+
 // TestFetchAvailabilityZonePublic tests the public API function
 func TestFetchAvailabilityZonePublic(t *testing.T) {
 	// Create a common handler for both token and metadata requests

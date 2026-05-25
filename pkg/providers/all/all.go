@@ -70,11 +70,13 @@ func Detect(ctx context.Context) (*pkgproviders.Info, error) {
 		log.Logger.Infow("successfully detected private IP", "provider", detector.Name(), "privateIP", privateIP)
 	}
 
-	region, err := detector.Region(ctx)
-	if err != nil {
-		log.Logger.Warnw("failed to get region", "provider", detector.Name(), "error", err)
-	} else {
-		info.Region = region
+	if regionDetector, ok := detector.(pkgproviders.RegionDetector); ok {
+		region, err := regionDetector.Region(ctx)
+		if err != nil {
+			log.Logger.Warnw("failed to get region", "provider", detector.Name(), "error", err)
+		} else {
+			info.Region = region
+		}
 	}
 
 	vmEnvironment, err := detector.VMEnvironment(ctx)

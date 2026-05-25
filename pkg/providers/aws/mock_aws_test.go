@@ -8,6 +8,7 @@ import (
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/require"
 
+	"github.com/leptonai/gpud/pkg/providers"
 	"github.com/leptonai/gpud/pkg/providers/aws/imds"
 )
 
@@ -28,7 +29,9 @@ func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 		mockey.Mock(imds.FetchRegion).To(func(ctx context.Context) (string, error) {
 			return "us-west-2", nil
 		}).Build()
-		region, err := detector.Region(context.Background())
+		regionDetector, ok := detector.(providers.RegionDetector)
+		require.True(t, ok)
+		region, err := regionDetector.Region(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, "us-west-2", region)
 

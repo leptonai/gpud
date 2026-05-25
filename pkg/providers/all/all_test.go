@@ -29,7 +29,20 @@ type mockDetector struct {
 	delay         time.Duration
 }
 
+type legacyDetector struct {
+	name       string
+	provider   string
+	publicIP   string
+	privateIP  string
+	vmEnv      string
+	instanceID string
+}
+
 func (m *mockDetector) Name() string {
+	return m.name
+}
+
+func (m *legacyDetector) Name() string {
 	return m.name
 }
 
@@ -44,12 +57,24 @@ func (m *mockDetector) Provider(ctx context.Context) (string, error) {
 	return m.provider, m.provErr
 }
 
+func (m *legacyDetector) Provider(ctx context.Context) (string, error) {
+	return m.provider, nil
+}
+
 func (m *mockDetector) PublicIPv4(ctx context.Context) (string, error) {
 	return m.publicIP, m.publicErr
 }
 
+func (m *legacyDetector) PublicIPv4(ctx context.Context) (string, error) {
+	return m.publicIP, nil
+}
+
 func (m *mockDetector) PrivateIPv4(ctx context.Context) (string, error) {
 	return m.privateIP, m.privateErr
+}
+
+func (m *legacyDetector) PrivateIPv4(ctx context.Context) (string, error) {
+	return m.privateIP, nil
 }
 
 func (m *mockDetector) Region(ctx context.Context) (string, error) {
@@ -60,8 +85,16 @@ func (m *mockDetector) VMEnvironment(ctx context.Context) (string, error) {
 	return m.vmEnv, m.vmEnvErr
 }
 
+func (m *legacyDetector) VMEnvironment(ctx context.Context) (string, error) {
+	return m.vmEnv, nil
+}
+
 func (m *mockDetector) InstanceID(ctx context.Context) (string, error) {
 	return m.instanceID, m.instanceIDErr
+}
+
+func (m *legacyDetector) InstanceID(ctx context.Context) (string, error) {
+	return m.instanceID, nil
 }
 
 // withTemporaryDetectors runs the provided function with a temporary replacement for All
@@ -95,6 +128,55 @@ func TestDetect_Success(t *testing.T) {
 		assert.Equal(t, "1.2.3.4", info.PublicIP)
 		assert.Equal(t, "10.0.1.100", info.PrivateIP)
 		assert.Equal(t, "us-east-1", info.Region)
+		assert.Equal(t, "AWS", info.VMEnvironment)
+		assert.Equal(t, "i-abc", info.InstanceID)
+	})
+}
+
+func TestDetect_SuccessWithoutRegionDetector(t *testing.T) {
+	testDetectors := []providers.Detector{
+		&legacyDetector{
+			name:       "legacy",
+			provider:   "legacy",
+			publicIP:   "1.2.3.4",
+			privateIP:  "10.0.1.100",
+			vmEnv:      "LEGACY",
+			instanceID: "i-legacy",
+		},
+	}
+
+	withTemporaryDetectors(testDetectors, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, "legacy", info.Provider)
+		assert.Equal(t, "1.2.3.4", info.PublicIP)
+		assert.Equal(t, "10.0.1.100", info.PrivateIP)
+		assert.Empty(t, info.Region)
+		assert.Equal(t, "LEGACY", info.VMEnvironment)
+		assert.Equal(t, "i-legacy", info.InstanceID)
+	})
+}
+
+func TestDetect_RegionError(t *testing.T) {
+	testDetectors := []providers.Detector{
+		&mockDetector{
+			name:       "aws",
+			provider:   "aws",
+			publicIP:   "1.2.3.4",
+			privateIP:  "10.0.1.100",
+			regionErr:  errors.New("region error"),
+			vmEnv:      "AWS",
+			instanceID: "i-abc",
+		},
+	}
+
+	withTemporaryDetectors(testDetectors, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, "aws", info.Provider)
+		assert.Equal(t, "1.2.3.4", info.PublicIP)
+		assert.Equal(t, "10.0.1.100", info.PrivateIP)
+		assert.Empty(t, info.Region)
 		assert.Equal(t, "AWS", info.VMEnvironment)
 		assert.Equal(t, "i-abc", info.InstanceID)
 	})
