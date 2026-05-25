@@ -6,6 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +19,9 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/disk"
+	"github.com/leptonai/gpud/pkg/eventstore"
+	pkghost "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
@@ -23,7 +29,16 @@ import (
 // Name is the name of the NFS component.
 const Name = "nfs"
 
+// defaultLookbackPeriod is how far back to query kmsg and reboot history when
+// evaluating NFS hang suggested actions. Bounded by eventstore.DefaultRetention
+// (3 days) — querying further yields no events (design doc §9 U3).
+const defaultLookbackPeriod = 3 * 24 * time.Hour
+
 var _ components.Component = &component{}
+
+type kmsgSyncerCloser interface {
+	Close()
+}
 
 type component struct {
 	ctx    context.Context
@@ -42,12 +57,42 @@ type component struct {
 	checkChecker          func(ctx context.Context, checker pkgnfschecker.Checker) pkgnfschecker.CheckResult
 	cleanChecker          func(checker pkgnfschecker.Checker) error
 
+	// eventBucket stores NFS-related kmsg events for the kmsg-based hang
+	// detection path. Nil when no EventStore is configured (e.g., in unit
+	// tests that exercise only the prober path).
+	eventBucket eventstore.Bucket
+	// kmsgSyncer streams kernel messages into eventBucket; only created when
+	// running as root on Linux.
+	kmsgSyncer kmsgSyncerCloser
+	// rebootEventStore is consulted to decide between REBOOT_SYSTEM and
+	// HARDWARE_INSPECTION when an NFS hang is detected. May be nil.
+	rebootEventStore pkghost.RebootEventStore
+	// lookbackPeriod controls how far back we query events when evaluating
+	// suggested actions.
+	lookbackPeriod time.Duration
+
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
 
 // New creates the NFS component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	return newComponent(gpudInstance, runtime.GOOS, os.Geteuid(), kmsg.NewSyncer)
+}
+
+// newComponent is the testable constructor. It accepts the runtime OS, the
+// effective UID, and a kmsg syncer factory so tests can exercise the
+// EventStore wiring without privileged kernel access.
+func newComponent(
+	gpudInstance *components.GPUdInstance,
+	goos string,
+	euid int,
+	newKmsgSyncerFunc func(ctx context.Context, matchFunc kmsg.MatchFunc, eventBucket eventstore.Bucket, opts ...kmsg.OpOption) (*kmsg.Syncer, error),
+) (components.Component, error) {
+	if newKmsgSyncerFunc == nil {
+		newKmsgSyncerFunc = kmsg.NewSyncer
+	}
+
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
 		ctx:    cctx,
@@ -73,6 +118,35 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cleanChecker: func(checker pkgnfschecker.Checker) error {
 			return checker.Clean()
 		},
+
+		rebootEventStore: gpudInstance.RebootEventStore,
+		lookbackPeriod:   defaultLookbackPeriod,
+	}
+
+	if gpudInstance.EventStore != nil {
+		bucket, err := gpudInstance.EventStore.Bucket(Name)
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+		c.eventBucket = bucket
+
+		// Only sync kmsg on Linux as root — /dev/kmsg is privileged.
+		if goos == "linux" && euid == 0 {
+			syncer, err := newKmsgSyncerFunc(
+				cctx,
+				Match,
+				c.eventBucket,
+				// Coalesce repeated kmsg lines (e.g., bursty writeback stacks)
+				// within a 5-minute window to keep the event store bounded.
+				kmsg.WithCacheKeyTruncateSeconds(300),
+			)
+			if err != nil {
+				ccancel()
+				return nil, err
+			}
+			c.kmsgSyncer = syncer
+		}
 	}
 
 	return c, nil
@@ -96,13 +170,15 @@ func (c *component) Start() error {
 		defer ticker.Stop()
 
 		for {
+			// Run an initial check immediately so the first health state is
+			// available without waiting one tick interval.
+			_ = c.Check()
+
 			select {
 			case <-c.ctx.Done():
 				return
 			case <-ticker.C:
 			}
-
-			_ = c.Check()
 		}
 	}()
 	return nil
@@ -115,14 +191,28 @@ func (c *component) LastHealthStates() apiv1.HealthStates {
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
-	return nil, nil
+func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
+	evs, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return evs.Events(), nil
 }
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
 
 	return nil
 }
@@ -139,6 +229,58 @@ func (c *component) Check() components.CheckResult {
 		c.lastCheckResult = cr
 		c.lastMu.Unlock()
 	}()
+
+	// kmsg-based NFS hang detection takes priority over the prober: when the
+	// kernel has already reported writeback hangs / lock-reclaim failures /
+	// unresponsive servers, a probe-issued open()/write() may itself hang
+	// forever, so we surface the suggested action and skip the prober for
+	// this tick. If a reboot has already been observed after the hang
+	// events, EvaluateSuggestedActions returns nil and we fall through to
+	// the prober for live verification (design doc §3.6).
+	if c.eventBucket != nil {
+		evs, err := c.eventBucket.Get(c.ctx, cr.ts.Add(-c.lookbackPeriod))
+		if err != nil {
+			log.Logger.Warnw("failed to query nfs event bucket", "error", err)
+		} else {
+			hangEvents, hangReason := collectNFSHangEvents(evs)
+			if len(hangEvents) > 0 {
+				var rebootEvents eventstore.Events
+				if c.rebootEventStore != nil {
+					var err error
+					rebootEvents, err = c.rebootEventStore.GetRebootEvents(c.ctx, cr.ts.Add(-c.lookbackPeriod))
+					if err != nil {
+						cr.err = err
+						cr.health = apiv1.HealthStateTypeUnhealthy
+						cr.reason = "failed to get reboot events"
+						log.Logger.Warnw(cr.reason, "error", cr.err)
+						return cr
+					}
+					// GetRebootEvents returns events in DESCENDING order
+					// (latest first), but EvaluateSuggestedActions expects
+					// ASCENDING order (oldest first) — see design doc §9 U2.
+					sort.Slice(rebootEvents, func(i, j int) bool {
+						return rebootEvents[i].Time.Before(rebootEvents[j].Time)
+					})
+					if len(rebootEvents) > 0 {
+						hangEvents, hangReason = collectNFSHangEvents(nfsEventsOnOrAfter(evs, rebootEvents[0].Time))
+					}
+				}
+				if len(hangEvents) > 0 {
+					sa := eventstore.EvaluateSuggestedActions(rebootEvents, hangEvents, 2)
+					if sa != nil {
+						sa.Description = "NFS hang requires immediate reboot; drain may hang on NFS volumes"
+						cr.health = apiv1.HealthStateTypeUnhealthy
+						cr.reason = hangReason
+						cr.suggestedActions = sa
+						return cr
+					}
+				}
+				// No unresolved post-reboot hang evidence, or sa == nil
+				// because reboot history already resolved the hang; fall
+				// through to the prober for live verification.
+			}
+		}
+	}
 
 	groupConfigs := c.getGroupConfigsFunc()
 	if len(groupConfigs) == 0 {
@@ -275,6 +417,10 @@ type checkResult struct {
 
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
+	// suggestedActions is populated when the kmsg-based hang detection
+	// determines the system needs a reboot or hardware inspection. It is a
+	// pointer so the JSON encoder elides it when unset.
+	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
 }
@@ -339,12 +485,13 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:      metav1.NewTime(cr.ts),
-		Component: Name,
-		Name:      Name,
-		Reason:    cr.reason,
-		Error:     cr.getError(),
-		Health:    cr.health,
+		Time:             metav1.NewTime(cr.ts),
+		Component:        Name,
+		Name:             Name,
+		Reason:           cr.reason,
+		Error:            cr.getError(),
+		Health:           cr.health,
+		SuggestedActions: cr.suggestedActions,
 	}
 
 	return apiv1.HealthStates{state}
