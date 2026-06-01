@@ -139,6 +139,7 @@ func Command(cliContext *cli.Context) error {
 	components := cliContext.String("components")
 
 	infinibandExpectedPortStates := cliContext.String("infiniband-expected-port-states")
+	infinibandFlapStickyWindow := cliContext.Duration("infiniband-flap-sticky-window")
 	nvlinkExpectedLinkStates := cliContext.String("nvlink-expected-link-states")
 	nfsCheckerConfigs := cliContext.String("nfs-checker-configs")
 	xidRebootThreshold := cliContext.Int("xid-reboot-threshold")
@@ -154,6 +155,11 @@ func Command(cliContext *cli.Context) error {
 		componentsinfiniband.SetDefaultExpectedPortStates(expectedPortStates)
 
 		log.Logger.Infow("set infiniband expected port states", "infinibandExpectedPortStates", infinibandExpectedPortStates)
+	}
+
+	if infinibandFlapStickyWindow > 0 {
+		componentsinfiniband.SetDefaultFlapStickyWindow(infinibandFlapStickyWindow)
+		log.Logger.Infow("set infiniband flap sticky window", "infinibandFlapStickyWindow", infinibandFlapStickyWindow)
 	}
 
 	if len(nvlinkExpectedLinkStates) > 0 {
