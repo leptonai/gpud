@@ -31,10 +31,10 @@ func sevenActiveOneDown() infinibandclass.Devices {
 	})
 }
 
-func newFlapTestComponent(mockStore *mockIBPortsStoreForStickyDrop, flapStickyWindow time.Duration, now *time.Time) *component {
+func newFlapTestComponent(mockStore *mockIBPortsStoreForStickyDrop, flapAutoClearWindow time.Duration, now *time.Time) *component {
 	return &component{
 		ctx:              context.Background(),
-		flapStickyWindow: flapStickyWindow,
+		flapAutoClearWindow: flapAutoClearWindow,
 		ibPortsStore:     mockStore,
 		nvmlInstance:     &mockNVMLInstance{exists: true, productName: "Test GPU"},
 		getTimeNowFunc: func() time.Time {
@@ -46,10 +46,10 @@ func newFlapTestComponent(mockStore *mockIBPortsStoreForStickyDrop, flapStickyWi
 	}
 }
 
-// TestFlapStickyWindowDisabledIsAlwaysSticky verifies the default behavior
-// (flapStickyWindow <= 0): a flap stays surfaced even after the port has been
+// TestFlapAutoClearWindowDisabledIsAlwaysSticky verifies the default behavior
+// (flapAutoClearWindow <= 0): a flap stays surfaced even after the port has been
 // stably ACTIVE, until an operator runs set-healthy.
-func TestFlapStickyWindowDisabledIsAlwaysSticky(t *testing.T) {
+func TestFlapAutoClearWindowDisabledIsAlwaysSticky(t *testing.T) {
 	now := time.Now().UTC()
 	mockStore := &mockIBPortsStoreForStickyDrop{
 		events: []infinibandstore.Event{
@@ -72,10 +72,10 @@ func TestFlapStickyWindowDisabledIsAlwaysSticky(t *testing.T) {
 	assert.Contains(t, cr.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_1")
 }
 
-// TestFlapStickyWindowOptInRecovers verifies that with the opt-in window set, a
+// TestFlapAutoClearWindowOptInRecovers verifies that with the opt-in window set, a
 // flapping port that becomes stably ACTIVE clears once the recovery window
 // elapses — symmetric with the drop sticky window.
-func TestFlapStickyWindowOptInRecovers(t *testing.T) {
+func TestFlapAutoClearWindowOptInRecovers(t *testing.T) {
 	now := time.Now().UTC()
 	mockStore := &mockIBPortsStoreForStickyDrop{
 		events: []infinibandstore.Event{
@@ -116,9 +116,9 @@ func TestFlapStickyWindowOptInRecovers(t *testing.T) {
 	assert.Contains(t, cr.reason, "no infiniband port issue")
 }
 
-// TestFlapStickyWindowOptInStaysStickyWhileFlapping verifies a port that keeps
+// TestFlapAutoClearWindowOptInStaysStickyWhileFlapping verifies a port that keeps
 // dipping below threshold never clears: each dip resets the recovery timer.
-func TestFlapStickyWindowOptInStaysStickyWhileFlapping(t *testing.T) {
+func TestFlapAutoClearWindowOptInStaysStickyWhileFlapping(t *testing.T) {
 	now := time.Now().UTC()
 	mockStore := &mockIBPortsStoreForStickyDrop{
 		events: []infinibandstore.Event{

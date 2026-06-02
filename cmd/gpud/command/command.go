@@ -241,8 +241,8 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "set the infiniband expected port states in JSON (leave empty for default, useful for testing)",
 				},
 				&cli.DurationFlag{
-					Name:  "infiniband-flap-sticky-window",
-					Usage: "opt-in recovery window for InfiniBand port flaps (e.g. 10m), analogous to the built-in drop sticky window; 0 (default) keeps flaps sticky until 'gpud set-healthy'",
+					Name:  "infiniband-flap-auto-clear-window",
+					Usage: "opt-in recovery window for InfiniBand port flaps (e.g. 10m), analogous to the built-in drop sticky window; 0 (default) keeps flaps surfaced until 'gpud set-healthy'",
 					Value: 0,
 				},
 				&cli.StringFlag{

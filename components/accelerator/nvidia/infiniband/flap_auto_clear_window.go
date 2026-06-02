@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	defaultFlapStickyWindowMu sync.RWMutex
+	defaultFlapAutoClearWindowMu sync.RWMutex
 
-	// defaultFlapStickyWindowValue is the opt-in recovery window applied to IB
+	// defaultFlapAutoClearWindowValue is the opt-in recovery window applied to IB
 	// port flap events. When set to a positive duration, a flapping port that
 	// has since been stably recovered (thresholds passing) for longer than the
 	// window stops being surfaced, so the node can auto-recover without manual
@@ -22,23 +22,23 @@ var (
 	// a 10m window out of the box, whereas flaps default to 0, which preserves the
 	// historical behavior of staying surfaced (Unhealthy) until an operator runs
 	// `gpud set-healthy`. Operators opt into drop-like auto-recovery by setting a
-	// positive window via --infiniband-flap-sticky-window.
-	defaultFlapStickyWindowValue = defaultFlapStickyWindow
+	// positive window via --infiniband-flap-auto-clear-window.
+	defaultFlapAutoClearWindowValue = defaultFlapAutoClearWindow
 )
 
-// GetDefaultFlapStickyWindow returns the current IB port flap sticky window.
-func GetDefaultFlapStickyWindow() time.Duration {
-	defaultFlapStickyWindowMu.RLock()
-	defer defaultFlapStickyWindowMu.RUnlock()
-	return defaultFlapStickyWindowValue
+// GetDefaultFlapAutoClearWindow returns the current IB port flap auto-clear window.
+func GetDefaultFlapAutoClearWindow() time.Duration {
+	defaultFlapAutoClearWindowMu.RLock()
+	defer defaultFlapAutoClearWindowMu.RUnlock()
+	return defaultFlapAutoClearWindowValue
 }
 
-// SetDefaultFlapStickyWindow configures the IB port flap sticky window.
+// SetDefaultFlapAutoClearWindow configures the IB port flap auto-clear window.
 // A value <= 0 keeps the historical "flaps are sticky until set-healthy" behavior.
-func SetDefaultFlapStickyWindow(window time.Duration) {
-	log.Logger.Infow("setting default infiniband flap sticky window", "window", window)
+func SetDefaultFlapAutoClearWindow(window time.Duration) {
+	log.Logger.Infow("setting default infiniband flap auto-clear window", "window", window)
 
-	defaultFlapStickyWindowMu.Lock()
-	defer defaultFlapStickyWindowMu.Unlock()
-	defaultFlapStickyWindowValue = window
+	defaultFlapAutoClearWindowMu.Lock()
+	defer defaultFlapAutoClearWindowMu.Unlock()
+	defaultFlapAutoClearWindowValue = window
 }
