@@ -16,7 +16,7 @@ var (
 	// window stops being surfaced, so the node can auto-recover without manual
 	// intervention.
 	//
-	// This is the flap analogue of the drop sticky window (defaultDropStickyWindow):
+	// This is the flap analog of the drop sticky window (defaultDropStickyWindow):
 	// both keep the component Unhealthy for a stabilization period after the ports
 	// recover, then clear automatically. The difference is the default — drops use
 	// a 10m window out of the box, whereas flaps default to 0, which preserves the
