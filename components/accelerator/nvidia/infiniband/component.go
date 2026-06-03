@@ -115,9 +115,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkInterval:    defaultCheckInterval,
-		requestTimeout:   defaultRequestTimeout,
-		dropStickyWindow: defaultDropStickyWindow,
+		checkInterval:       defaultCheckInterval,
+		requestTimeout:      defaultRequestTimeout,
+		dropStickyWindow:    defaultDropStickyWindow,
 		flapAutoClearWindow: GetDefaultFlapAutoClearWindow(),
 
 		nvmlInstance:   gpudInstance.NVMLInstance,
@@ -621,8 +621,9 @@ func (c *component) Check() components.CheckResult {
 					// stably-recovered port auto-clears instead of needing manual
 					// set-healthy.
 					//
-					// We intentionally do NOT key off the flap event's timestamp
-					// (unlike the drop "Condition 2" recency check):
+					// On the normal in-memory path, we intentionally do NOT key off
+					// the flap event's timestamp (unlike the drop "Condition 2"
+					// recency check):
 					// the store stamps a flap at the snapshot where it first
 					// breached the flap-count threshold, which for a continuously
 					// flapping port stays old — so "flap age > window" would wrongly
@@ -631,6 +632,11 @@ func (c *component) Check() components.CheckResult {
 					// below thresholds, which resets that timer, so it stays surfaced;
 					// only a port that has been stably ACTIVE for longer than the
 					// window clears.
+					//
+					// After a gpud restart, thresholdRecoveryTime starts empty even
+					// though LastEvents still returns persisted flap events. In that
+					// startup/bootstrap case, use the event timestamp only to keep a
+					// recent recovered flap visible until the configured window elapses.
 					nowFlap := c.getTimeNowFunc()
 					flapThresholdsFailing := cr.thresholdsFailing
 
@@ -641,8 +647,12 @@ func (c *component) Check() components.CheckResult {
 
 					flapWithinAutoClearWindow := false
 					flapTimeSinceRecovery := time.Duration(0)
-					if recoveryTime != nil && flapPortRecovered {
-						flapTimeSinceRecovery = max(0, nowFlap.Sub(*recoveryTime))
+					if flapPortRecovered {
+						if recoveryTime != nil {
+							flapTimeSinceRecovery = max(0, nowFlap.Sub(*recoveryTime))
+						} else {
+							flapTimeSinceRecovery = max(0, nowFlap.Sub(event.Time))
+						}
 						flapWithinAutoClearWindow = flapTimeSinceRecovery < c.flapAutoClearWindow
 					}
 

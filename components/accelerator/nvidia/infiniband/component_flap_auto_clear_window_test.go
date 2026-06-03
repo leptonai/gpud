@@ -33,10 +33,10 @@ func sevenActiveOneDown() infinibandclass.Devices {
 
 func newFlapTestComponent(mockStore *mockIBPortsStoreForStickyDrop, flapAutoClearWindow time.Duration, now *time.Time) *component {
 	return &component{
-		ctx:              context.Background(),
+		ctx:                 context.Background(),
 		flapAutoClearWindow: flapAutoClearWindow,
-		ibPortsStore:     mockStore,
-		nvmlInstance:     &mockNVMLInstance{exists: true, productName: "Test GPU"},
+		ibPortsStore:        mockStore,
+		nvmlInstance:        &mockNVMLInstance{exists: true, productName: "Test GPU"},
 		getTimeNowFunc: func() time.Time {
 			return *now
 		},
@@ -113,6 +113,57 @@ func TestFlapAutoClearWindowOptInRecovers(t *testing.T) {
 	cr = requireCheckResult(t, c.Check())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
 		"after the recovery window elapses with stable ports, the flap must clear")
+	assert.Contains(t, cr.reason, "no infiniband port issue")
+}
+
+// TestFlapAutoClearWindowOptInSurfacesRecentFlapAfterRestart verifies that a
+// recent persisted flap is still surfaced after gpud restarts and loses its
+// in-memory recovery timer.
+func TestFlapAutoClearWindowOptInSurfacesRecentFlapAfterRestart(t *testing.T) {
+	now := time.Now().UTC()
+	mockStore := &mockIBPortsStoreForStickyDrop{
+		events: []infinibandstore.Event{
+			{
+				Time:        now.Add(-1 * time.Minute),
+				Port:        types.IBPort{Device: "mlx5_7", Port: uint(1)},
+				EventType:   infinibandstore.EventTypeIbPortFlap,
+				EventReason: "mlx5_7 port 1 flapping",
+			},
+		},
+	}
+	c := newFlapTestComponent(mockStore, 10*time.Minute, &now)
+	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		return createHealthyDevices(8, 400), nil
+	}
+
+	cr := requireCheckResult(t, c.Check())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health,
+		"a recent persisted flap must remain visible after restart even before an in-memory recovery transition")
+	assert.Contains(t, cr.reason, "device(s) flapping between ACTIVE<>DOWN: mlx5_7")
+}
+
+// TestFlapAutoClearWindowOptInClearsOldRecoveredFlapAfterRestart verifies that
+// the restart bootstrap fallback does not make all recovered flaps sticky again.
+func TestFlapAutoClearWindowOptInClearsOldRecoveredFlapAfterRestart(t *testing.T) {
+	now := time.Now().UTC()
+	mockStore := &mockIBPortsStoreForStickyDrop{
+		events: []infinibandstore.Event{
+			{
+				Time:        now.Add(-1 * time.Hour),
+				Port:        types.IBPort{Device: "mlx5_7", Port: uint(1)},
+				EventType:   infinibandstore.EventTypeIbPortFlap,
+				EventReason: "mlx5_7 port 1 flapping",
+			},
+		},
+	}
+	c := newFlapTestComponent(mockStore, 10*time.Minute, &now)
+	c.getClassDevicesFunc = func(_ map[string]struct{}) (infinibandclass.Devices, error) {
+		return createHealthyDevices(8, 400), nil
+	}
+
+	cr := requireCheckResult(t, c.Check())
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health,
+		"an old recovered flap should still auto-clear after restart")
 	assert.Contains(t, cr.reason, "no infiniband port issue")
 }
 
