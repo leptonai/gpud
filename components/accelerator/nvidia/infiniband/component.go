@@ -57,6 +57,12 @@ const (
 	// giving operators time to observe and investigate, similar to how flaps work.
 	// This creates consistency: both flaps and drops suggest inspection that persists.
 	defaultDropStickyWindow = 10 * time.Minute
+
+	// defaultFlapAutoClearWindow is the default recovery window for IB port flap
+	// events. Zero preserves the historical behavior where a flap stays surfaced
+	// (Unhealthy) until an operator runs `gpud set-healthy`. It is overridable via
+	// --infiniband-flap-auto-clear-window (see flap_auto_clear_window.go).
+	defaultFlapAutoClearWindow = 0 * time.Minute
 )
 
 var _ components.Component = &component{}
@@ -72,6 +78,12 @@ type component struct {
 	// the component should remain unhealthy even if thresholds recover.
 	// This provides a stabilization period for operators to observe issues.
 	dropStickyWindow time.Duration
+
+	// flapAutoClearWindow, when > 0, applies the same drop-style recovery window to
+	// IB port flap events: a stably-recovered port (thresholds passing for longer
+	// than the window) stops being surfaced and the node can auto-recover instead
+	// of requiring `gpud set-healthy`. Zero keeps flaps sticky (historical default).
+	flapAutoClearWindow time.Duration
 
 	nvmlInstance   nvidianvml.Instance
 	toolOverwrites pkgconfigcommon.ToolOverwrites
@@ -103,9 +115,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkInterval:    defaultCheckInterval,
-		requestTimeout:   defaultRequestTimeout,
-		dropStickyWindow: defaultDropStickyWindow,
+		checkInterval:       defaultCheckInterval,
+		requestTimeout:      defaultRequestTimeout,
+		dropStickyWindow:    defaultDropStickyWindow,
+		flapAutoClearWindow: GetDefaultFlapAutoClearWindow(),
 
 		nvmlInstance:   gpudInstance.NVMLInstance,
 		toolOverwrites: gpudInstance.NVIDIAToolOverwrites,
@@ -582,9 +595,79 @@ func (c *component) Check() components.CheckResult {
 					}
 
 				case infinibandstore.EventTypeIbPortFlap:
-					// Always process flap events
-					log.Logger.Warnw(event.EventReason)
-					ibFlapDevs = append(ibFlapDevs, event.Port.Device)
+					// RELATIONSHIP TO DROP EVENTS:
+					// Drops and flaps now share the same "stabilization window after
+					// recovery" idea (see dropStickyWindow / Conditions 1-3 above):
+					// once the underlying ports come back, the event keeps the
+					// component Unhealthy for a window so operators can observe it,
+					// then clears automatically if the ports stay healthy.
+					//
+					// The one deliberate difference is the DEFAULT:
+					//   - Drops are sticky by default (defaultDropStickyWindow = 10m),
+					//     so a transient drop self-clears ~10m after recovery.
+					//   - Flaps default to flapAutoClearWindow == 0, i.e. NOT a window but
+					//     "always surfaced until `gpud set-healthy`", preserving the
+					//     historical "a flapping link must be acknowledged" behavior.
+					//     Operators opt into drop-like auto-recovery via
+					//     --infiniband-flap-auto-clear-window.
+					if c.flapAutoClearWindow <= 0 {
+						log.Logger.Warnw(event.EventReason)
+						ibFlapDevs = append(ibFlapDevs, event.Port.Device)
+						break
+					}
+
+					// OPT-IN (--infiniband-flap-auto-clear-window > 0): apply the same
+					// recovery-window logic as drops (Condition 3 above) so a
+					// stably-recovered port auto-clears instead of needing manual
+					// set-healthy.
+					//
+					// On the normal in-memory path, we intentionally do NOT key off
+					// the flap event's timestamp (unlike the drop "Condition 2"
+					// recency check):
+					// the store stamps a flap at the snapshot where it first
+					// breached the flap-count threshold, which for a continuously
+					// flapping port stays old — so "flap age > window" would wrongly
+					// clear a port that is still flapping. Instead we reuse
+					// thresholdRecoveryTime: a port that keeps flapping keeps dipping
+					// below thresholds, which resets that timer, so it stays surfaced;
+					// only a port that has been stably ACTIVE for longer than the
+					// window clears.
+					//
+					// After a gpud restart, thresholdRecoveryTime starts empty even
+					// though LastEvents still returns persisted flap events. In that
+					// startup/bootstrap case, use the event timestamp only to keep a
+					// recent recovered flap visible until the configured window elapses.
+					nowFlap := c.getTimeNowFunc()
+					flapThresholdsFailing := cr.thresholdsFailing
+
+					flapPortRecovered := false
+					if state, ok := currentPortStates[portKey{device: event.Port.Device, port: event.Port.Port}]; ok {
+						flapPortRecovered = strings.EqualFold(state, "ACTIVE") || strings.EqualFold(state, "UP")
+					}
+
+					flapWithinAutoClearWindow := false
+					flapTimeSinceRecovery := time.Duration(0)
+					if flapPortRecovered {
+						if recoveryTime != nil {
+							flapTimeSinceRecovery = max(0, nowFlap.Sub(*recoveryTime))
+						} else {
+							flapTimeSinceRecovery = max(0, nowFlap.Sub(event.Time))
+						}
+						flapWithinAutoClearWindow = flapTimeSinceRecovery < c.flapAutoClearWindow
+					}
+
+					// Surface the flap if thresholds are currently failing (port still
+					// down/flapping) or the port has only recently recovered.
+					if flapThresholdsFailing || flapWithinAutoClearWindow {
+						log.Logger.Warnw(event.EventReason,
+							"thresholdsFailing", flapThresholdsFailing,
+							"withinAutoClearWindow", flapWithinAutoClearWindow,
+							"timeSinceRecovery", flapTimeSinceRecovery,
+							"flapAutoClearWindow", c.flapAutoClearWindow,
+							"recoveryTimeTracked", recoveryTime != nil,
+							"portRecovered", flapPortRecovered)
+						ibFlapDevs = append(ibFlapDevs, event.Port.Device)
+					}
 
 				default:
 					log.Logger.Warnw("unknown ib event type", "event", event)
