@@ -46,6 +46,17 @@ func newFlapTestComponent(mockStore *mockIBPortsStoreForStickyDrop, flapAutoClea
 	}
 }
 
+func TestDefaultFlapAutoClearWindowAccessors(t *testing.T) {
+	oldWindow := GetDefaultFlapAutoClearWindow()
+	t.Cleanup(func() {
+		SetDefaultFlapAutoClearWindow(oldWindow)
+	})
+
+	window := 7 * time.Minute
+	SetDefaultFlapAutoClearWindow(window)
+	assert.Equal(t, window, GetDefaultFlapAutoClearWindow())
+}
+
 // TestFlapAutoClearWindowDisabledIsAlwaysSticky verifies the default behavior
 // (flapAutoClearWindow <= 0): a flap stays surfaced even after the port has been
 // stably ACTIVE, until an operator runs set-healthy.
