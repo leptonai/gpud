@@ -144,12 +144,31 @@ main() {
   fi
 
   if [ "$OS_NAME" = "ubuntu" ]; then
+    # Ubuntu artifact compatibility:
+    # GPUd uses github.com/mattn/go-sqlite3 with CGO enabled, but does not build
+    # with the "libsqlite3" build tag. That means go-sqlite3 compiles its bundled
+    # SQLite amalgamation into the gpud binary instead of dynamically linking
+    # against Ubuntu's /usr/lib/.../libsqlite3.so. The distro-specific runtime
+    # compatibility risk is therefore the C runtime ABI, not the host SQLite
+    # package version.
+    #
+    # glibc preserves runtime backward compatibility for older linked symbols:
+    # a binary built against an older glibc baseline can run on newer Ubuntu
+    # releases, while the reverse is not guaranteed. The Ubuntu 24.04 artifact
+    # is safe for Ubuntu 26.04 because it does not require Ubuntu 26.04-only
+    # glibc symbols or any Ubuntu-provided SQLite shared library. Keep 22.04 on
+    # its own artifact, and map newer supported LTS releases to the newest
+    # existing Ubuntu artifact until we intentionally raise the glibc baseline or
+    # add a real distro-specific dynamic dependency.
     case "$OS_VERSION" in
-      22.04|24.04)
+      22.04)
         OS_DISTRO="_${OS_NAME}${OS_VERSION}"
         ;;
+      24.04|26.04)
+        OS_DISTRO="_${OS_NAME}24.04"
+        ;;
       *)
-        echo "GPUd $APP_VERSION supports Ubuntu 22.04 and 24.04. Current version $OS_VERSION is not supported."
+        echo "GPUd $APP_VERSION supports Ubuntu 22.04, 24.04, and 26.04. Current version $OS_VERSION is not supported."
         exit 1
         ;;
     esac
