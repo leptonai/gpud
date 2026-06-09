@@ -217,6 +217,11 @@ type Session struct {
 	faultInjector       pkgfaultinjector.Injector
 	skipUpdateConfig    bool
 
+	diagnosticMu             sync.Mutex
+	diagnosticRunning        bool
+	diagnosticProcessRunner  process.Runner
+	diagnosticExecutablePath string
+
 	lastPackageTimestampMu sync.RWMutex
 	lastPackageTimestamp   time.Time
 
@@ -306,10 +311,11 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		setDefaultXIDThresholdsFunc:            componentsxid.SetDefaultThresholds,
 		setDefaultTemperatureThresholdsFunc:    componentstemperature.SetDefaultMarginThreshold,
 
-		nvmlInstance:       op.nvmlInstance,
-		metricsStore:       op.metricsStore,
-		componentsRegistry: op.componentsRegistry,
-		processRunner:      process.NewExclusiveRunner(),
+		nvmlInstance:            op.nvmlInstance,
+		metricsStore:            op.metricsStore,
+		componentsRegistry:      op.componentsRegistry,
+		processRunner:           process.NewExclusiveRunner(),
+		diagnosticProcessRunner: process.NewExclusiveRunner(),
 
 		components: cps,
 
@@ -364,8 +370,12 @@ func (s *Session) drainReaderChannel() {
 }
 
 func createHTTPClient(jar *cookiejar.Jar) *http.Client {
+	var cookieJar http.CookieJar
+	if jar != nil {
+		cookieJar = jar
+	}
 	return &http.Client{
-		Jar: jar,
+		Jar: cookieJar,
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{

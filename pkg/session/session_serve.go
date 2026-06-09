@@ -33,6 +33,7 @@ type Request struct {
 
 	Bootstrap          *BootstrapRequest         `json:"bootstrap,omitempty"`
 	InjectFaultRequest *pkgfaultinjector.Request `json:"inject_fault_request,omitempty"`
+	Diagnostic         *DiagnosticRequest        `json:"diagnostic,omitempty"`
 
 	// ComponentName is the name of the component to query or deregister.
 	ComponentName string `json:"component_name,omitempty"`
@@ -65,7 +66,8 @@ type Response struct {
 	Events  apiv1.GPUdComponentEvents       `json:"events,omitempty"`
 	Metrics apiv1.GPUdComponentMetrics      `json:"metrics,omitempty"`
 
-	Bootstrap *BootstrapResponse `json:"bootstrap,omitempty"`
+	Bootstrap  *BootstrapResponse          `json:"bootstrap,omitempty"`
+	Diagnostic *DiagnosticAcceptedResponse `json:"diagnostic,omitempty"`
 
 	PackageStatus []apiv1.PackageStatus `json:"package_status,omitempty"`
 
@@ -88,6 +90,19 @@ type BootstrapRequest struct {
 type BootstrapResponse struct {
 	Output   string `json:"output,omitempty"`
 	ExitCode int32  `json:"exit_code,omitempty"`
+}
+
+type DiagnosticRequest struct {
+	ReportID       string `json:"report_id"`
+	Type           string `json:"type"`
+	TimeoutSeconds int64  `json:"timeout_seconds,omitempty"`
+	MaxSizeBytes   int64  `json:"max_size_bytes,omitempty"`
+	ChunkSizeBytes int64  `json:"chunk_size_bytes,omitempty"`
+}
+
+type DiagnosticAcceptedResponse struct {
+	Accepted bool   `json:"accepted"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 func (s *Session) serve() {
