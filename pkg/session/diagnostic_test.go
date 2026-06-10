@@ -223,8 +223,18 @@ func TestProcessDiagnosticRejectsConcurrentDiagnostic(t *testing.T) {
 
 func TestRunDiagnosticDoesNotUploadSyntheticSuccessWhenReportMissing(t *testing.T) {
 	uploadc := make(chan struct{}, 1)
+	failurec := make(chan diagnosticFailureRequest, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		uploadc <- struct{}{}
+		switch r.URL.Path {
+		case "/api/v1/diagnostics/diag_1/report":
+			uploadc <- struct{}{}
+		case "/api/v1/diagnostics/diag_1/failure":
+			var req diagnosticFailureRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			failurec <- req
+		default:
+			t.Errorf("unexpected diagnostic request path: %s", r.URL.Path)
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -242,6 +252,105 @@ func TestRunDiagnosticDoesNotUploadSyntheticSuccessWhenReportMissing(t *testing.
 		t.Fatal("missing report should not upload synthetic success artifact")
 	default:
 	}
+	select {
+	case failure := <-failurec:
+		assert.Equal(t, diagnosticFailureCommandFailed, failure.Reason)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for diagnostic failure notification")
+	}
+	runner.AssertExpectations(t)
+	assert.False(t, session.diagnosticRunning)
+}
+
+func TestRunDiagnosticNotifiesFailureOnTimeout(t *testing.T) {
+	type failure struct {
+		req             diagnosticFailureRequest
+		auth            string
+		machineID       string
+		legacyMachineID string
+		origin          string
+		contentType     string
+	}
+	failures := make(chan failure, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "/api/v1/diagnostics/diag_1/failure", r.URL.Path)
+		var req diagnosticFailureRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		failures <- failure{
+			req:             req,
+			auth:            r.Header.Get("Authorization"),
+			machineID:       r.Header.Get("X-GPUD-Machine-ID"),
+			legacyMachineID: r.Header.Get("machine_id"),
+			origin:          r.Header.Get("Origin"),
+			contentType:     r.Header.Get("Content-Type"),
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	runner := new(mockProcessRunner)
+	runner.On("RunUntilCompletion", mock.Anything, mock.Anything).Return([]byte("timed out"), 124, context.DeadlineExceeded)
+
+	session := diagnosticTestSession(t, runner)
+	session.epControlPlane = server.URL
+	require.True(t, session.beginDiagnostic())
+	session.runDiagnostic(DiagnosticRequest{ReportID: "diag_1", Type: diagnosticTypeNvidiaBugReport, TimeoutSeconds: 1})
+
+	var got failure
+	select {
+	case got = <-failures:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for diagnostic failure notification")
+	}
+	assert.Equal(t, diagnosticFailureTimeout, got.req.Reason)
+	assert.Equal(t, "Bearer test-token", got.auth)
+	assert.Equal(t, "test-machine", got.machineID)
+	assert.Equal(t, "test-machine", got.legacyMachineID)
+	assert.Equal(t, "127.0.0.1", got.origin)
+	assert.Equal(t, diagnosticFailureContentType, got.contentType)
+	runner.AssertExpectations(t)
+	assert.False(t, session.diagnosticRunning)
+}
+
+func TestRunDiagnosticNotifiesFailureAfterUploadFailure(t *testing.T) {
+	failures := make(chan diagnosticFailureRequest, 1)
+	var uploadAttempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/diagnostics/diag_1/report":
+			uploadAttempts.Add(1)
+			http.Error(w, "bad upload", http.StatusForbidden)
+		case "/api/v1/diagnostics/diag_1/failure":
+			var req diagnosticFailureRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			failures <- req
+			w.WriteHeader(http.StatusOK)
+		default:
+			t.Errorf("unexpected diagnostic request path: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	runner := new(mockProcessRunner)
+	runner.On("RunUntilCompletion", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		reportPath := extractReportPathFromScript(t, args.String(1))
+		require.NoError(t, os.WriteFile(reportPath, []byte("bug-report"), 0600))
+	}).Return([]byte("created\n"), 0, nil)
+
+	session := diagnosticTestSession(t, runner)
+	session.epControlPlane = server.URL
+	require.True(t, session.beginDiagnostic())
+	session.runDiagnostic(DiagnosticRequest{ReportID: "diag_1", Type: diagnosticTypeNvidiaBugReport})
+
+	select {
+	case failure := <-failures:
+		assert.Equal(t, diagnosticFailureUploadFailed, failure.Reason)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for diagnostic failure notification")
+	}
+	assert.Equal(t, int32(1), uploadAttempts.Load())
 	runner.AssertExpectations(t)
 	assert.False(t, session.diagnosticRunning)
 }

@@ -1,10 +1,12 @@
 package session
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,8 +28,19 @@ const (
 	defaultDiagnosticTimeout       = 10 * time.Minute
 	defaultDiagnosticUploadTimeout = 10 * time.Minute
 	diagnosticReportContentType    = "application/gzip"
+	diagnosticFailureContentType   = "application/json"
 	diagnosticSHA256Header         = "X-GPUD-Diagnostic-SHA256"
+
+	diagnosticFailureTimeout       = "diagnostic_timeout"
+	diagnosticFailureCommandFailed = "diagnostic_command_failed"
+	diagnosticFailureReportMissing = "diagnostic_report_missing"
+	diagnosticFailureGzipFailed    = "diagnostic_gzip_failed"
+	diagnosticFailureUploadFailed  = "diagnostic_upload_failed"
 )
+
+type diagnosticFailureRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
 
 // processDiagnostic accepts a fixed diagnostic request and starts the
 // collection/upload workflow in the background. It only returns a short
@@ -108,7 +121,7 @@ func (s *Session) runDiagnostic(req DiagnosticRequest) {
 	}()
 
 	reportPath := filepath.Join(workDir, "report.log.gz")
-	output, exitCode, runErr := s.runNvidiaBugReport(req, workDir, reportPath)
+	output, exitCode, runErr, failureReason := s.runNvidiaBugReport(req, workDir, reportPath)
 	if runErr != nil {
 		log.Logger.Warnw(
 			"nvidia diagnostic command failed",
@@ -123,20 +136,32 @@ func (s *Session) runDiagnostic(req DiagnosticRequest) {
 			log.Logger.Warnw("failed to stat diagnostic report", "reportID", req.ReportID, "error", err)
 		}
 		log.Logger.Errorw("diagnostic report was not produced", "reportID", req.ReportID, "exitCode", exitCode, "error", runErr, "outputBytes", len(output))
+		if failureReason == "" {
+			failureReason = diagnosticFailureReportMissing
+		}
+		if err := s.notifyDiagnosticFailureWithRetry(req, failureReason); err != nil {
+			log.Logger.Errorw("failed to notify diagnostic failure", "reportID", req.ReportID, "reason", failureReason, "error", err)
+		}
 		return
 	}
 
 	if err := ensureGzipReport(reportPath); err != nil {
 		log.Logger.Errorw("failed to gzip diagnostic report", "reportID", req.ReportID, "error", err)
+		if notifyErr := s.notifyDiagnosticFailureWithRetry(req, diagnosticFailureGzipFailed); notifyErr != nil {
+			log.Logger.Errorw("failed to notify diagnostic failure", "reportID", req.ReportID, "reason", diagnosticFailureGzipFailed, "error", notifyErr)
+		}
 		return
 	}
 
 	if err := s.uploadDiagnosticReportWithRetry(req, reportPath); err != nil {
 		log.Logger.Errorw("failed to upload diagnostic report", "reportID", req.ReportID, "error", err)
+		if notifyErr := s.notifyDiagnosticFailureWithRetry(req, diagnosticFailureUploadFailed); notifyErr != nil {
+			log.Logger.Errorw("failed to notify diagnostic failure", "reportID", req.ReportID, "reason", diagnosticFailureUploadFailed, "error", notifyErr)
+		}
 	}
 }
 
-func (s *Session) runNvidiaBugReport(req DiagnosticRequest, workDir, reportPath string) ([]byte, int32, error) {
+func (s *Session) runNvidiaBugReport(req DiagnosticRequest, workDir, reportPath string) ([]byte, int32, error, string) {
 	timeout := defaultDiagnosticTimeout
 	if req.TimeoutSeconds > 0 {
 		timeout = time.Duration(req.TimeoutSeconds) * time.Second
@@ -144,7 +169,15 @@ func (s *Session) runNvidiaBugReport(req DiagnosticRequest, workDir, reportPath 
 	ctx, cancel := context.WithTimeout(sessionContext(s.ctx), timeout)
 	defer cancel()
 
-	return s.diagnosticRunner().RunUntilCompletion(ctx, nvidiaBugReportScript(s.diagnosticExecutable(), workDir, reportPath))
+	output, exitCode, err := s.diagnosticRunner().RunUntilCompletion(ctx, nvidiaBugReportScript(s.diagnosticExecutable(), workDir, reportPath))
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded), errors.Is(err, context.DeadlineExceeded):
+		return output, exitCode, err, diagnosticFailureTimeout
+	case err != nil:
+		return output, exitCode, err, diagnosticFailureCommandFailed
+	default:
+		return output, exitCode, nil, ""
+	}
 }
 
 func nvidiaBugReportScript(executablePath, workDir, reportPath string) string {
@@ -311,6 +344,67 @@ func (s *Session) uploadDiagnosticReportWithRetry(req DiagnosticRequest, reportP
 			return err
 		}
 		log.Logger.Warnw("diagnostic upload attempt failed", "reportID", req.ReportID, "attempt", attempt+1, "error", err)
+	}
+	return lastErr
+}
+
+func (s *Session) notifyDiagnosticFailure(req DiagnosticRequest, reason string) error {
+	origin, err := controlPlaneOrigin(s.epControlPlane)
+	if err != nil {
+		return err
+	}
+	body, err := json.Marshal(diagnosticFailureRequest{Reason: reason})
+	if err != nil {
+		return fmt.Errorf("failed to marshal diagnostic failure request: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(sessionContext(s.ctx), defaultDiagnosticUploadTimeout)
+	defer cancel()
+
+	failureURL := strings.TrimRight(s.epControlPlane, "/") + "/api/v1/diagnostics/" + url.PathEscape(req.ReportID) + "/failure"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, failureURL, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create diagnostic failure request: %w", err)
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+s.getToken())
+	httpReq.Header.Set("X-GPUD-Machine-ID", s.machineID)
+	httpReq.Header.Set("machine_id", s.machineID)
+	httpReq.Header.Set("Origin", origin)
+	httpReq.Header.Set(httputil.RequestHeaderContentType, diagnosticFailureContentType)
+
+	resp, err := createHTTPClient(nil).Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("failed to notify diagnostic failure: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return &diagnosticUploadHTTPError{statusCode: resp.StatusCode, body: strings.TrimSpace(string(body))}
+	}
+	return nil
+}
+
+func (s *Session) notifyDiagnosticFailureWithRetry(req DiagnosticRequest, reason string) error {
+	var lastErr error
+	backoffs := []time.Duration{0, time.Second, 5 * time.Second}
+	for attempt, backoff := range backoffs {
+		if backoff > 0 {
+			s.sleep(backoff)
+		}
+		err := s.notifyDiagnosticFailure(req, reason)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+
+		var httpErr *diagnosticUploadHTTPError
+		if errors.As(err, &httpErr) && !httpErr.retryable() {
+			return err
+		}
+		log.Logger.Warnw("diagnostic failure notification attempt failed", "reportID", req.ReportID, "reason", reason, "attempt", attempt+1, "error", err)
 	}
 	return lastErr
 }
