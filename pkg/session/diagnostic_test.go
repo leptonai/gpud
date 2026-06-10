@@ -31,14 +31,14 @@ func TestDiagnosticRequestResponseJSON(t *testing.T) {
 			ReportID:       "diag_1",
 			Type:           diagnosticTypeNvidiaBugReport,
 			TimeoutSeconds: 600,
-			MaxSizeBytes:   128 << 20,
-			ChunkSizeBytes: 1 << 20,
 		},
 	}
 	raw, err := json.Marshal(payload)
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"method":"diagnostic"`)
 	assert.Contains(t, string(raw), `"type":"nvidia_bug_report"`)
+	assert.NotContains(t, string(raw), `"max_size_bytes"`)
+	assert.NotContains(t, string(raw), `"chunk_size_bytes"`)
 
 	var decoded Request
 	require.NoError(t, json.Unmarshal(raw, &decoded))

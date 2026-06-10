@@ -96,8 +96,6 @@ type DiagnosticRequest struct {
 	ReportID       string `json:"report_id"`
 	Type           string `json:"type"`
 	TimeoutSeconds int64  `json:"timeout_seconds,omitempty"`
-	MaxSizeBytes   int64  `json:"max_size_bytes,omitempty"`
-	ChunkSizeBytes int64  `json:"chunk_size_bytes,omitempty"`
 }
 
 type DiagnosticAcceptedResponse struct {
