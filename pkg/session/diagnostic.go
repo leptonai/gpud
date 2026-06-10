@@ -247,6 +247,10 @@ func (s *Session) uploadDiagnosticReport(req DiagnosticRequest, reportPath strin
 	if err != nil {
 		return fmt.Errorf("failed to calculate diagnostic report sha256: %w", err)
 	}
+	origin, err := controlPlaneOrigin(s.epControlPlane)
+	if err != nil {
+		return err
+	}
 
 	file, err := os.Open(reportPath)
 	if err != nil {
@@ -267,6 +271,7 @@ func (s *Session) uploadDiagnosticReport(req DiagnosticRequest, reportPath strin
 	httpReq.Header.Set("Authorization", "Bearer "+s.getToken())
 	httpReq.Header.Set("X-GPUD-Machine-ID", s.machineID)
 	httpReq.Header.Set("machine_id", s.machineID)
+	httpReq.Header.Set("Origin", origin)
 	httpReq.Header.Set(httputil.RequestHeaderContentType, diagnosticReportContentType)
 	httpReq.Header.Set(diagnosticSHA256Header, sha)
 	if st, err := file.Stat(); err == nil {

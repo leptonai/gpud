@@ -140,6 +140,7 @@ func TestProcessDiagnosticAcceptsAndRunsInBackground(t *testing.T) {
 		sha             string
 		machineID       string
 		legacyMachineID string
+		origin          string
 	}
 	uploads := make(chan upload, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -152,6 +153,7 @@ func TestProcessDiagnosticAcceptsAndRunsInBackground(t *testing.T) {
 			sha:             r.Header.Get(diagnosticSHA256Header),
 			machineID:       r.Header.Get("X-GPUD-Machine-ID"),
 			legacyMachineID: r.Header.Get("machine_id"),
+			origin:          r.Header.Get("Origin"),
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -190,6 +192,7 @@ func TestProcessDiagnosticAcceptsAndRunsInBackground(t *testing.T) {
 	assert.Equal(t, "Bearer test-token", got.auth)
 	assert.Equal(t, "test-machine", got.machineID)
 	assert.Equal(t, "test-machine", got.legacyMachineID)
+	assert.Equal(t, "127.0.0.1", got.origin)
 	expectedSHA := sha256.Sum256(got.body)
 	assert.Equal(t, hex.EncodeToString(expectedSHA[:]), got.sha)
 	reader, err := gzip.NewReader(bytes.NewReader(got.body))
