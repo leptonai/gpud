@@ -88,6 +88,22 @@ func extractZoneFromPath(zonePath string) string {
 	return parts[len(parts)-1]
 }
 
+// FetchRegion fetches the Google Cloud instance region using IMDS.
+//
+// GCP IMDS does not expose a dedicated region key; it only exposes the zone
+// (e.g. "us-east5-c"). The full zone string is returned so the login request
+// reflects the precise instance location instead of falling back to the DERP
+// latency-based region.
+func FetchRegion(ctx context.Context) (string, error) {
+	return fetchRegion(ctx, imdsMetadataURL)
+}
+
+// fetchRegion retrieves the Google Cloud instance region from the specified
+// path using IMDS, returning the full zone string.
+func fetchRegion(ctx context.Context, metadataURL string) (string, error) {
+	return fetchAvailabilityZone(ctx, metadataURL)
+}
+
 // FetchPublicIPv4 fetches Google Cloud instance public IPv4 using IMDS.
 func FetchPublicIPv4(ctx context.Context) (string, error) {
 	return fetchPublicIPv4(ctx, imdsMetadataURL)
