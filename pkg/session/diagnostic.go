@@ -121,7 +121,7 @@ func (s *Session) runDiagnostic(req DiagnosticRequest) {
 	}()
 
 	reportPath := filepath.Join(workDir, "report.log.gz")
-	output, exitCode, runErr, failureReason := s.runNvidiaBugReport(req, workDir, reportPath)
+	output, exitCode, failureReason, runErr := s.runNvidiaBugReport(req, workDir, reportPath)
 	if runErr != nil {
 		log.Logger.Warnw(
 			"nvidia diagnostic command failed",
@@ -161,7 +161,7 @@ func (s *Session) runDiagnostic(req DiagnosticRequest) {
 	}
 }
 
-func (s *Session) runNvidiaBugReport(req DiagnosticRequest, workDir, reportPath string) ([]byte, int32, error, string) {
+func (s *Session) runNvidiaBugReport(req DiagnosticRequest, workDir, reportPath string) ([]byte, int32, string, error) {
 	timeout := defaultDiagnosticTimeout
 	if req.TimeoutSeconds > 0 {
 		timeout = time.Duration(req.TimeoutSeconds) * time.Second
@@ -172,11 +172,11 @@ func (s *Session) runNvidiaBugReport(req DiagnosticRequest, workDir, reportPath 
 	output, exitCode, err := s.diagnosticRunner().RunUntilCompletion(ctx, nvidiaBugReportScript(s.diagnosticExecutable(), workDir, reportPath))
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded), errors.Is(err, context.DeadlineExceeded):
-		return output, exitCode, err, diagnosticFailureTimeout
+		return output, exitCode, diagnosticFailureTimeout, err
 	case err != nil:
-		return output, exitCode, err, diagnosticFailureCommandFailed
+		return output, exitCode, diagnosticFailureCommandFailed, err
 	default:
-		return output, exitCode, nil, ""
+		return output, exitCode, "", nil
 	}
 }
 
