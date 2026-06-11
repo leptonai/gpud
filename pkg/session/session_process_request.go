@@ -93,6 +93,9 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 	case "injectFault":
 		s.processInjectFault(payload, response)
 
+	case "diagnostic":
+		s.processDiagnostic(payload, response)
+
 		// TODO: deprecate "triggerComponentCheck" after control plane supports "triggerComponent"
 	case "triggerComponent",
 		"triggerComponentCheck":

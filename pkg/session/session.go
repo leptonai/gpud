@@ -217,6 +217,11 @@ type Session struct {
 	faultInjector       pkgfaultinjector.Injector
 	skipUpdateConfig    bool
 
+	diagnosticMu             sync.Mutex
+	diagnosticRunning        bool
+	diagnosticProcessRunner  process.Runner
+	diagnosticExecutablePath string
+
 	lastPackageTimestampMu sync.RWMutex
 	lastPackageTimestamp   time.Time
 
@@ -306,10 +311,11 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		setDefaultXIDThresholdsFunc:            componentsxid.SetDefaultThresholds,
 		setDefaultTemperatureThresholdsFunc:    componentstemperature.SetDefaultMarginThreshold,
 
-		nvmlInstance:       op.nvmlInstance,
-		metricsStore:       op.metricsStore,
-		componentsRegistry: op.componentsRegistry,
-		processRunner:      process.NewExclusiveRunner(),
+		nvmlInstance:            op.nvmlInstance,
+		metricsStore:            op.metricsStore,
+		componentsRegistry:      op.componentsRegistry,
+		processRunner:           process.NewExclusiveRunner(),
+		diagnosticProcessRunner: process.NewExclusiveRunner(),
 
 		components: cps,
 
@@ -364,8 +370,12 @@ func (s *Session) drainReaderChannel() {
 }
 
 func createHTTPClient(jar *cookiejar.Jar) *http.Client {
+	var cookieJar http.CookieJar
+	if jar != nil {
+		cookieJar = jar
+	}
 	return &http.Client{
-		Jar: jar,
+		Jar: cookieJar,
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
@@ -383,13 +393,9 @@ func createHTTPClient(jar *cookiejar.Jar) *http.Client {
 }
 
 func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessionType, token string, body io.Reader) (*http.Request, error) {
-	u, err := url.Parse(epControlPlane)
+	origin, err := controlPlaneOrigin(epControlPlane)
 	if err != nil {
 		return nil, err
-	}
-	host := u.Hostname()
-	if host == "" {
-		return nil, fmt.Errorf("no host in epControlPlane")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", epControlPlane+"/api/v1/session", body)
@@ -399,7 +405,7 @@ func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessio
 	req.Header.Set("X-GPUD-Machine-ID", machineID)
 	req.Header.Set("X-GPUD-Session-Type", sessionType)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	req.Header.Set("Origin", host)
+	req.Header.Set("Origin", origin)
 
 	// Depreciated headers
 	req.Header.Set("machine_id", machineID)
@@ -407,6 +413,18 @@ func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessio
 	req.Header.Set("token", token)
 
 	return req, nil
+}
+
+func controlPlaneOrigin(epControlPlane string) (string, error) {
+	u, err := url.Parse(epControlPlane)
+	if err != nil {
+		return "", err
+	}
+	host := u.Hostname()
+	if host == "" {
+		return "", fmt.Errorf("no host in epControlPlane")
+	}
+	return host, nil
 }
 
 func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {

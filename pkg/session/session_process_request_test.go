@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	componentsnvidianvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
@@ -230,6 +231,29 @@ func TestSession_processRequest(t *testing.T) {
 
 		// Let the goroutine finish
 		time.Sleep(10 * time.Millisecond)
+	})
+
+	t.Run("diagnostic method is handled synchronously", func(t *testing.T) {
+		session := createMockSession(nil)
+		session.epControlPlane = "http://example.com"
+		session.token = "token"
+
+		response := &Response{}
+		restartExitCode := -1
+
+		handledAsync := session.processRequest(context.Background(), "test-req-diagnostic", Request{
+			Method: "diagnostic",
+			Diagnostic: &DiagnosticRequest{
+				ReportID: "diag_1",
+				Type:     "shell",
+			},
+		}, response, &restartExitCode)
+
+		assert.False(t, handledAsync, "diagnostic accepted/rejected response should be sent synchronously")
+		require.NotNil(t, response.Diagnostic)
+		assert.False(t, response.Diagnostic.Accepted)
+		assert.Equal(t, "unsupported_diagnostic_type", response.Diagnostic.Reason)
+		assert.Equal(t, -1, restartExitCode)
 	})
 
 	t.Run("deregisterComponent method", func(t *testing.T) {
