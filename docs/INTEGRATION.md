@@ -39,9 +39,8 @@ types. The current Lepton-managed type is:
 nvidia_bug_report -> /usr/bin/nvidia-bug-report.sh
 ```
 
-The session request carries `report_id`, `type`, `timeout_seconds`,
-`max_size_bytes`, and `chunk_size_bytes`; it does not carry user-provided
-commands, arguments, scripts, or environment variables.
+The session request carries `report_id`, `type`, and `timeout_seconds`; it does
+not carry user-provided commands, arguments, scripts, or environment variables.
 
 GPUd runs the fixed diagnostic asynchronously after accepting the request. The
 default execution timeout is 10 minutes. If the script exceeds the timeout,
