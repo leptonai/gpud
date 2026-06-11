@@ -143,6 +143,57 @@ func TestFetchAvailabilityZone(t *testing.T) {
 	}
 }
 
+func TestFetchRegion(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockHandler    func(w http.ResponseWriter, r *http.Request)
+		expectedRegion string
+		expectedError  string
+	}{
+		{
+			name: "successful region fetch returns full zone",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodGet, r.Method)
+				require.Equal(t, metadataFlavorGoogle, r.Header.Get(headerMetadataFlavor))
+				require.True(t, strings.HasSuffix(r.URL.Path, "/instance/zone"), "Path should end with /instance/zone")
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write([]byte("projects/980931390107/zones/us-east5-a"))
+				require.NoError(t, err)
+			},
+			expectedRegion: "us-east5-a",
+		},
+		{
+			name: "region fetch failure",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				_, err := w.Write([]byte("Not found"))
+				require.NoError(t, err)
+			},
+			expectedError: "failed to fetch metadata: received status code 404",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			server := httptest.NewServer(http.HandlerFunc(tc.mockHandler))
+			defer server.Close()
+
+			region, err := fetchRegion(ctx, server.URL)
+
+			if tc.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedError)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedRegion, region)
+			}
+		})
+	}
+}
+
 func TestFetchPublicIPv4(t *testing.T) {
 	tests := []struct {
 		name          string

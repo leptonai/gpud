@@ -8,6 +8,7 @@ import (
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/require"
 
+	"github.com/leptonai/gpud/pkg/providers"
 	"github.com/leptonai/gpud/pkg/providers/gcp/imds"
 )
 
@@ -28,6 +29,24 @@ func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 		zone, err := detectProvider(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, Name, zone)
+	})
+}
+
+func TestNewImplementsRegionDetector_WithMockey(t *testing.T) {
+	mockey.PatchConvey("New returns a RegionDetector reporting the zone-based region", t, func() {
+		mockey.Mock(imds.FetchRegion).To(func(ctx context.Context) (string, error) {
+			return "us-east5-a", nil
+		}).Build()
+
+		detector := New()
+		require.NotNil(t, detector)
+
+		regionDetector, ok := detector.(providers.RegionDetector)
+		require.True(t, ok, "gcp detector should implement providers.RegionDetector")
+
+		region, err := regionDetector.Region(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "us-east5-a", region)
 	})
 }
 
