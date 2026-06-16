@@ -72,7 +72,7 @@ func CreateLoggerWithConfig(config *zap.Config) *gpudLogger {
 		config = DefaultLoggerConfig()
 	}
 
-	l, err := config.Build()
+	l, err := config.Build(zap.AddCallerSkip(1))
 	if err != nil {
 		panic(err)
 	}
