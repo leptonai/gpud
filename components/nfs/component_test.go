@@ -78,6 +78,28 @@ func TestNewComponent(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNewComponentDefaultFunctionFields(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	comp, err := newComponent(&components.GPUdInstance{
+		RootCtx:   ctx,
+		MachineID: "test-machine",
+	}, "darwin", os.Geteuid(), nil)
+	require.NoError(t, err)
+	defer func() {
+		_ = comp.Close()
+	}()
+
+	c := comp.(*component)
+	assert.WithinDuration(t, time.Now().UTC(), c.getTimeNowFunc(), time.Second)
+
+	checker := &mockChecker{}
+	require.NoError(t, c.writeChecker(ctx, checker))
+	assert.Equal(t, pkgnfschecker.CheckResult{}, c.checkChecker(ctx, checker))
+	require.NoError(t, c.cleanChecker(checker))
+}
+
 func TestComponentName(t *testing.T) {
 	c := &component{}
 	assert.Equal(t, Name, c.Name())
@@ -526,6 +548,46 @@ func TestCheckWithWriteError(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
 	assert.Contains(t, result.Summary(), "failed to write to nfs checker")
 	assert.NotNil(t, cr.err)
+}
+
+func TestCheckWithCleanError(t *testing.T) {
+	tmpDir := t.TempDir()
+	cleanErr := errors.New("clean failed")
+
+	c := createTestComponent()
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{
+			{
+				VolumePath:   tmpDir,
+				FileContents: "test content",
+			},
+		}
+	}
+	c.findMntTargetDevice = func(_ string) (string, string, error) {
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(_ string) bool {
+		return true
+	}
+	c.newChecker = func(context.Context, *pkgnfschecker.MemberConfig) (pkgnfschecker.Checker, error) {
+		return &mockChecker{}, nil
+	}
+	c.writeChecker = func(context.Context, pkgnfschecker.Checker) error {
+		return nil
+	}
+	c.checkChecker = func(context.Context, pkgnfschecker.Checker) pkgnfschecker.CheckResult {
+		return pkgnfschecker.CheckResult{Dir: tmpDir, Message: "ok"}
+	}
+	c.cleanChecker = func(pkgnfschecker.Checker) error {
+		return cleanErr
+	}
+
+	result := c.Check()
+	cr := mustCheckResult(t, result)
+
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "failed to clean nfs checker")
+	assert.ErrorIs(t, cr.err, cleanErr)
 }
 
 func TestCheckWithMultipleMemberConfigs(t *testing.T) {
@@ -1409,9 +1471,11 @@ func (m *mockChecker) Clean() error {
 // used to drive the kmsg path. It returns events in DESCENDING order by Time
 // to match the real bucket contract.
 type nfsMockEventBucket struct {
-	mu     sync.Mutex
-	events eventstore.Events
-	getErr error
+	mu              sync.Mutex
+	events          eventstore.Events
+	getErr          error
+	purgeErr        error
+	lastPurgeBefore int64
 }
 
 func (m *nfsMockEventBucket) Name() string { return "nfs-test-bucket" }
@@ -1467,8 +1531,27 @@ func (m *nfsMockEventBucket) Latest(_ context.Context) (*eventstore.Event, error
 	return &latest, nil
 }
 
-func (m *nfsMockEventBucket) Purge(_ context.Context, _ int64) (int, error) { return 0, nil }
-func (m *nfsMockEventBucket) Close()                                        {}
+func (m *nfsMockEventBucket) Purge(_ context.Context, beforeTimestamp int64) (int, error) {
+	if m.purgeErr != nil {
+		return 0, m.purgeErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.lastPurgeBefore = beforeTimestamp
+	kept := make(eventstore.Events, 0, len(m.events))
+	purged := 0
+	for _, ev := range m.events {
+		if ev.Time.Unix() < beforeTimestamp {
+			purged++
+			continue
+		}
+		kept = append(kept, ev)
+	}
+	m.events = kept
+	return purged, nil
+}
+func (m *nfsMockEventBucket) Close() {}
 
 // nfsMockRebootEventStore implements pkghost.RebootEventStore for tests.
 type nfsMockRebootEventStore struct {
@@ -1539,15 +1622,16 @@ func TestCheckKmsgHangDetectionUnhealthy(t *testing.T) {
 	assert.Contains(t, cr.suggestedActions.Description, "drain may hang")
 }
 
-// TestCheckKmsgHangWithRebootLoop (R3-1): two hang events interleaved with two
-// reboots → HARDWARE_INSPECTION because reboots have not resolved the issue.
+// TestCheckKmsgHangWithRebootLoop (R3-1): after two reboots, a qualifying
+// post-latest-reboot writeback hang still escalates to HARDWARE_INSPECTION.
 func TestCheckKmsgHangWithRebootLoop(t *testing.T) {
 	now := time.Now().UTC()
-	// Hang at T-5h and T-2h.
+	// Hang before the latest reboot, then two writeback hints after it.
 	bucket := &nfsMockEventBucket{
 		events: eventstore.Events{
 			{Name: eventNFSWritebackHang, Time: now.Add(-5 * time.Hour), Message: messageNFSWritebackHang},
 			{Name: eventNFSWritebackHang, Time: now.Add(-2 * time.Hour), Message: messageNFSWritebackHang},
+			{Name: eventNFSWritebackHang, Time: now.Add(-90 * time.Minute), Message: messageNFSWritebackHang},
 		},
 	}
 	// Reboots at T-6h and T-3h. Note: GetRebootEvents will return them DESC;
@@ -1597,6 +1681,58 @@ func TestCheckKmsgHangAfterReboot(t *testing.T) {
 	// Reboot happened AFTER the hang → fall through to prober (no configs).
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
 	assert.Nil(t, cr.suggestedActions, "suggestedActions must be nil after the hang is resolved by a reboot")
+	assert.Equal(t, "no nfs group configs found", cr.reason)
+}
+
+func TestCheckKmsgHangBeforeLatestRebootClears(t *testing.T) {
+	now := time.Now().UTC()
+	bucket := &nfsMockEventBucket{
+		events: eventstore.Events{
+			{Name: eventNFSServerNotResponding, Time: now.Add(-4 * time.Hour), Message: messageNFSServerNotResponding + ": 10.0.0.10"},
+			{Name: eventNFSServerNotResponding, Time: now.Add(-3 * time.Hour), Message: messageNFSServerNotResponding + ": 10.0.0.10"},
+		},
+	}
+	reboot := &nfsMockRebootEventStore{
+		events: eventstore.Events{
+			{Name: "reboot", Time: now.Add(-23 * time.Hour), Message: "older boot"},
+			{Name: "reboot", Time: now.Add(-1 * time.Hour), Message: "latest boot"},
+		},
+	}
+
+	c := newKmsgComponent(bucket, reboot)
+	defer func() { _ = c.Close() }()
+
+	result := c.Check()
+	cr := mustCheckResult(t, result)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Nil(t, cr.suggestedActions, "latest reboot should clear stale pre-reboot NFS hang events")
+	assert.Equal(t, "no nfs group configs found", cr.reason)
+}
+
+func TestCheckKmsgSingleWritebackAfterLatestRebootDoesNotUseStalePreRebootHint(t *testing.T) {
+	now := time.Now().UTC()
+	bucket := &nfsMockEventBucket{
+		events: eventstore.Events{
+			{Name: eventNFSWritebackHang, Time: now.Add(-5 * time.Hour), Message: messageNFSWritebackHang},
+			{Name: eventNFSWritebackHang, Time: now.Add(-30 * time.Minute), Message: messageNFSWritebackHang},
+		},
+	}
+	reboot := &nfsMockRebootEventStore{
+		events: eventstore.Events{
+			{Name: "reboot", Time: now.Add(-6 * time.Hour), Message: "older boot"},
+			{Name: "reboot", Time: now.Add(-1 * time.Hour), Message: "latest boot"},
+		},
+	}
+
+	c := newKmsgComponent(bucket, reboot)
+	defer func() { _ = c.Close() }()
+
+	result := c.Check()
+	cr := mustCheckResult(t, result)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Nil(t, cr.suggestedActions, "a stale pre-reboot writeback hint must not combine with one post-reboot hint")
 	assert.Equal(t, "no nfs group configs found", cr.reason)
 }
 
@@ -1667,6 +1803,36 @@ func TestCheckKmsgHangRebootStoreError(t *testing.T) {
 	assert.ErrorIs(t, cr.err, rebootErr)
 	assert.Equal(t, "failed to get reboot events", cr.reason)
 	assert.Nil(t, cr.suggestedActions)
+}
+
+func TestSetHealthyPurgesNFSEventsThroughCurrentSecond(t *testing.T) {
+	now := time.Date(2026, 6, 17, 11, 30, 42, 500_000_000, time.UTC)
+	bucket := &nfsMockEventBucket{
+		events: eventstore.Events{
+			{Name: eventNFSServerNotResponding, Time: time.Unix(now.Unix(), 0).UTC(), Message: messageNFSServerNotResponding + ": 10.0.0.10"},
+		},
+	}
+	c := newKmsgComponent(bucket, &nfsMockRebootEventStore{})
+	c.getTimeNowFunc = func() time.Time { return now }
+	defer func() { _ = c.Close() }()
+
+	err := c.SetHealthy()
+	require.NoError(t, err)
+	assert.Equal(t, now.Unix()+1, bucket.lastPurgeBefore)
+
+	evs, err := bucket.Get(context.Background(), time.Time{})
+	require.NoError(t, err)
+	assert.Empty(t, evs)
+}
+
+func TestSetHealthyReturnsPurgeError(t *testing.T) {
+	purgeErr := errors.New("purge failed")
+	bucket := &nfsMockEventBucket{purgeErr: purgeErr}
+	c := newKmsgComponent(bucket, &nfsMockRebootEventStore{})
+	defer func() { _ = c.Close() }()
+
+	err := c.SetHealthy()
+	assert.ErrorIs(t, err, purgeErr)
 }
 
 // TestCheckSkipsProberWhenHangDetected: when a hang is detected the prober

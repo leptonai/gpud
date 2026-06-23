@@ -49,6 +49,7 @@ type component struct {
 	getGroupConfigsFunc func() pkgnfschecker.Configs
 	findMntTargetDevice func(dir string) (string, string, error)
 	isNFSFSType         func(fsType string) bool
+	getTimeNowFunc      func() time.Time
 
 	// Function fields for testable NFS operations
 	validateMemberConfigs func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error
@@ -103,6 +104,7 @@ func newComponent(
 		getGroupConfigsFunc: GetDefaultConfigs,
 		findMntTargetDevice: disk.FindMntTargetDevice,
 		isNFSFSType:         disk.DefaultNFSFsTypeFunc,
+		getTimeNowFunc:      func() time.Time { return time.Now().UTC() },
 
 		// Initialize NFS operation function fields with real implementations
 		validateMemberConfigs: func(ctx context.Context, configs pkgnfschecker.MemberConfigs) error {
@@ -262,7 +264,16 @@ func (c *component) Check() components.CheckResult {
 						return rebootEvents[i].Time.Before(rebootEvents[j].Time)
 					})
 					if len(rebootEvents) > 0 {
-						hangEvents, hangReason = collectNFSHangEvents(nfsEventsOnOrAfter(evs, rebootEvents[0].Time))
+						oldestRebootTime := rebootEvents[0].Time
+						latestRebootTime := rebootEvents[len(rebootEvents)-1].Time
+						postLatestRebootHangEvents, postLatestRebootHangReason := collectNFSHangEvents(nfsEventsOnOrAfter(evs, latestRebootTime))
+						if len(postLatestRebootHangEvents) == 0 {
+							hangEvents = nil
+							hangReason = ""
+						} else {
+							hangEvents = nfsEventsOnOrAfter(hangEvents, oldestRebootTime)
+							hangReason = postLatestRebootHangReason
+						}
 					}
 				}
 				if len(hangEvents) > 0 {
