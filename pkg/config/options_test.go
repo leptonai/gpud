@@ -187,6 +187,34 @@ func TestWithDBInMemory(t *testing.T) {
 	}
 }
 
+func TestWithRebootCommands(t *testing.T) {
+	tests := []struct {
+		name     string
+		command  string
+		expected string
+	}{
+		{
+			name:     "empty reboot command",
+			command:  "",
+			expected: "",
+		},
+		{
+			name:     "custom reboot command",
+			command:  "nsenter --target 1 --mount -- /usr/bin/systemctl reboot",
+			expected: "nsenter --target 1 --mount -- /usr/bin/systemctl reboot",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := &Op{}
+			option := WithRebootCommands(tt.command)
+			option(op)
+			assert.Equal(t, tt.expected, op.RebootCommands)
+		})
+	}
+}
+
 func TestWithDataDir(t *testing.T) {
 	tests := []struct {
 		name     string

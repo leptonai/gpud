@@ -90,6 +90,7 @@ type Server struct {
 
 	enableAutoUpdate        bool
 	autoUpdateExitCode      int
+	rebootCommands          string
 	skipSessionUpdateConfig bool
 
 	pluginSpecsFile string
@@ -247,6 +248,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 
 		enableAutoUpdate:        config.EnableAutoUpdate,
 		autoUpdateExitCode:      config.AutoUpdateExitCode,
+		rebootCommands:          config.RebootCommands,
 		skipSessionUpdateConfig: config.SkipSessionUpdateConfig,
 
 		pluginSpecsFile: config.PluginSpecsFile,
@@ -599,6 +601,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+			session.WithRebootCommands(s.rebootCommands),
 			session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
 			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithDataDir(s.dataDir),
@@ -663,6 +666,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
+				session.WithRebootCommands(s.rebootCommands),
 				session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
 				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithDataDir(s.dataDir),

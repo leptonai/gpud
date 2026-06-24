@@ -104,6 +104,15 @@ func TestMockeyOpOption_WithAutoUpdateExitCode(t *testing.T) {
 	})
 }
 
+func TestMockeyOpOption_WithRebootCommands(t *testing.T) {
+	mockey.PatchConvey("WithRebootCommands sets reboot commands on Op", t, func() {
+		op := &Op{}
+		opt := WithRebootCommands("echo reboot")
+		opt(op)
+		assert.Equal(t, "echo reboot", op.rebootCommands)
+	})
+}
+
 func TestMockeyOpOption_WithDataDir(t *testing.T) {
 	mockey.PatchConvey("WithDataDir sets data directory on Op", t, func() {
 		op := &Op{}

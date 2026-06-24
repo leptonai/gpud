@@ -44,6 +44,8 @@ spec:
       # Consumers should reach GPUd via each node's IP/port (e.g. https://<node-ip>:15132).
       hostNetwork: true
       # Required for the driver to inspect processes on the host (e.g. via /proc).
+      # Also required by the chart-default reboot command: nsenter targets host PID 1
+      # so gpud can request a node reboot from inside the container.
       hostPID: true
       restartPolicy: Always
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
@@ -221,6 +223,8 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           # Privileged access is required for hardware inspection and low-level system access.
+          # The default rebootCommands script also needs the privileges to enter host namespaces
+          # and ask the host init system to reboot the node.
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           command:
@@ -295,14 +299,29 @@ spec:
               set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
 
               # Log the command for debugging, then exec to replace shell with gpud.
+              # Keep the multi-line reboot script out of the startup log; gpud logs it
+              # when a reboot request actually schedules and executes it.
+              start_log_args="$*"
+
+              # The chart default sets a host-namespace reboot script. Users can
+              # set gpud.rebootCommands="" to preserve gpud's built-in sudo reboot path.
+              if [ -n "${GPUD_REBOOT_COMMANDS:-}" ]; then
+                start_log_args="$start_log_args --reboot-commands=<set>"
+                set -- "$@" --reboot-commands="$GPUD_REBOOT_COMMANDS"
+              fi
+
               # Using exec ensures gpud receives signals directly (important for graceful shutdown).
-              echo "Starting: /usr/local/bin/gpud $*"
+              echo "Starting: /usr/local/bin/gpud $start_log_args"
               exec /usr/local/bin/gpud "$@"
 {{- end }}
 
           env:
             - name: GPUD_NO_USAGE_STATS
               value: {{ not .Values.gpud.telemetry.enabled | quote }}
+            {{- if .Values.gpud.rebootCommands }}
+            - name: GPUD_REBOOT_COMMANDS
+              value: {{ .Values.gpud.rebootCommands | quote }}
+            {{- end }}
 
           {{- if .Values.service.enabled }}
           ports:

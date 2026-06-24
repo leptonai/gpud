@@ -4,9 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
+	"time"
 
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/process"
+)
+
+const (
+	rebootDelaySeconds = 10
+	rebootDelay        = rebootDelaySeconds * time.Second
 )
 
 // processRequest handles all request processing logic
@@ -17,7 +25,7 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 	switch payload.Method {
 	case "reboot":
 		// To inform the control plane that the reboot request has been processed, reboot after 10 seconds.
-		err := pkghost.Reboot(s.ctx, pkghost.WithDelaySeconds(10))
+		err := s.runRebootCommands(s.ctx)
 		if err != nil {
 			log.Logger.Warnw("failed to trigger reboot machine", "error", err)
 			response.Error = err.Error()
@@ -137,6 +145,100 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 	}
 
 	return false // Request is handled synchronously
+}
+
+func (s *Session) configureRebootCommands(commands string) {
+	rebootCommands := strings.TrimSpace(commands)
+	s.rebootCommands = rebootCommands
+	if rebootCommands == "" {
+		s.runRebootCommandsFunc = defaultRebootCommands
+		return
+	}
+
+	s.runRebootCommandsFunc = func(ctx context.Context) error {
+		return s.triggerConfiguredRebootCommands(ctx, rebootCommands, rebootDelay)
+	}
+}
+
+func (s *Session) runRebootCommands(ctx context.Context) error {
+	if s.runRebootCommandsFunc == nil {
+		s.configureRebootCommands(s.rebootCommands)
+	}
+	return s.runRebootCommandsFunc(ctx)
+}
+
+func defaultRebootCommands(ctx context.Context) error {
+	return pkghost.Reboot(ctx, pkghost.WithDelaySeconds(rebootDelaySeconds))
+}
+
+func (s *Session) triggerConfiguredRebootCommands(ctx context.Context, commands string, delay time.Duration) error {
+	if delay <= 0 {
+		log.Logger.Infow("executing configured reboot commands", "commands", commands)
+		return runConfiguredRebootCommands(ctx, commands)
+	}
+
+	timeAfter := s.timeAfterFunc
+	if timeAfter == nil {
+		timeAfter = time.After
+	}
+
+	go func() {
+		select {
+		case <-timeAfter(delay):
+			log.Logger.Infow(
+				"delay expired, executing configured reboot commands",
+				"delaySeconds", int(delay.Seconds()),
+				"commands", commands,
+			)
+		case <-ctx.Done():
+			log.Logger.Warnw("context done, aborting configured reboot commands", "commands", commands)
+			return
+		}
+
+		if err := runConfiguredRebootCommands(ctx, commands); err != nil {
+			log.Logger.Warnw("configured reboot commands failed", "commands", commands, "error", err)
+			return
+		}
+
+		// This normally should not print if the reboot command successfully takes the host down.
+		log.Logger.Infow("configured reboot commands completed", "commands", commands)
+	}()
+
+	log.Logger.Infow(
+		"triggering configured reboot commands after delay",
+		"delaySeconds", int(delay.Seconds()),
+		"commands", commands,
+	)
+	return nil
+}
+
+func runConfiguredRebootCommands(ctx context.Context, commands string) error {
+	proc, err := process.New(
+		process.WithBashScriptContentsToRun(commands),
+		process.WithRunBashInline(),
+	)
+	if err != nil {
+		return err
+	}
+
+	if err := proc.Start(ctx); err != nil {
+		return err
+	}
+	defer func() {
+		if err := proc.Close(ctx); err != nil {
+			log.Logger.Warnw("failed to close configured reboot commands", "error", err)
+		}
+	}()
+
+	return process.Read(
+		ctx,
+		proc,
+		process.WithReadStdout(),
+		process.WithReadStderr(),
+		process.WithProcessLine(func(line string) {
+			log.Logger.Infow("configured reboot commands output", "line", line)
+		}),
+	)
 }
 
 // processRequestAsync runs entirely in a background goroutine.

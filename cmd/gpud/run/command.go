@@ -129,6 +129,7 @@ func Command(cliContext *cli.Context) error {
 
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
+	rebootCommands := cliContext.String("reboot-commands")
 	versionFile := cliContext.String("version-file")
 	versionFileSet := cliContext.IsSet("version-file")
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
@@ -337,6 +338,7 @@ func Command(cliContext *cli.Context) error {
 
 	cfg.EnableAutoUpdate = enableAutoUpdate
 	cfg.AutoUpdateExitCode = autoUpdateExitCode
+	cfg.RebootCommands = rebootCommands
 	if !versionFileSet {
 		versionFile = config.VersionFilePath(cfg.DataDir)
 	}
