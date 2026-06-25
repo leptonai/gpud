@@ -667,3 +667,9 @@ func TestRunConfiguredRebootCommandsReturnsStartError(t *testing.T) {
 
 	require.Error(t, err)
 }
+
+func TestRunConfiguredRebootCommandsReturnsExitError(t *testing.T) {
+	err := runConfiguredRebootCommands(context.Background(), "echo configured-reboot-failed; exit 7")
+
+	require.Error(t, err)
+}

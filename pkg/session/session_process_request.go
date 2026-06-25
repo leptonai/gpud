@@ -235,6 +235,7 @@ func runConfiguredRebootCommands(ctx context.Context, commands string) error {
 		proc,
 		process.WithReadStdout(),
 		process.WithReadStderr(),
+		process.WithWaitForCmd(),
 		process.WithProcessLine(func(line string) {
 			log.Logger.Infow("configured reboot commands output", "line", line)
 		}),
