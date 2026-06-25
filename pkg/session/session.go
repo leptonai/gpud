@@ -43,6 +43,7 @@ type Op struct {
 	pipeInterval        time.Duration
 	enableAutoUpdate    bool
 	autoUpdateExitCode  int
+	rebootCommands      string
 	skipUpdateConfig    bool
 	componentsRegistry  components.Registry
 	dataDir             string
@@ -98,6 +99,14 @@ func WithPipeInterval(t time.Duration) OpOption {
 func WithEnableAutoUpdate(enableAutoUpdate bool) OpOption {
 	return func(op *Op) {
 		op.enableAutoUpdate = enableAutoUpdate
+	}
+}
+
+// WithRebootCommands configures the bash script to run for session reboot requests.
+// Empty keeps the built-in host reboot path.
+func WithRebootCommands(commands string) OpOption {
+	return func(op *Op) {
+		op.rebootCommands = commands
 	}
 }
 
@@ -212,6 +221,7 @@ type Session struct {
 
 	enableAutoUpdate   bool
 	autoUpdateExitCode int
+	rebootCommands     string
 
 	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
 	faultInjector       pkgfaultinjector.Injector
@@ -247,6 +257,10 @@ type Session struct {
 	// checkServerHealthFunc checks server health
 	// In production: s.checkServerHealth, in tests: can be mocked
 	checkServerHealthFunc func(ctx context.Context, jar *cookiejar.Jar, token string) error
+
+	// runRebootCommandsFunc runs the configured reboot script.
+	// In production: defaultRebootCommands or configured reboot script runner, in tests: can be mocked.
+	runRebootCommandsFunc func(ctx context.Context) error
 }
 
 type closeOnce struct {
@@ -325,6 +339,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 
 		enableAutoUpdate:   op.enableAutoUpdate,
 		autoUpdateExitCode: op.autoUpdateExitCode,
+		rebootCommands:     op.rebootCommands,
 	}
 
 	s.timeAfterFunc = time.After
@@ -333,6 +348,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 	s.startReaderFunc = s.startReader
 	s.startWriterFunc = s.startWriter
 	s.checkServerHealthFunc = s.checkServerHealth
+	s.configureRebootCommands(op.rebootCommands)
 
 	s.reader = make(chan Body, 20)
 	s.writer = make(chan Body, 20)

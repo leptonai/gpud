@@ -58,6 +58,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		},
 		FailureInjector: options.FailureInjector,
 		DBInMemory:      options.DBInMemory,
+		RebootCommands:  options.RebootCommands,
 
 		SessionToken:     options.SessionToken,
 		SessionMachineID: options.SessionMachineID,

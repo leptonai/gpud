@@ -49,6 +49,10 @@ type Config struct {
 	// Set -1 to disable the auto update by exit code.
 	AutoUpdateExitCode int `json:"auto_update_exit_code"`
 
+	// RebootCommands is a bash script to run when the control plane sends a reboot session request.
+	// Empty preserves the built-in "sudo reboot" path.
+	RebootCommands string `json:"reboot_commands,omitempty"`
+
 	// VersionFile is the file that contains the target version.
 	// If empty, the version file is not used.
 	VersionFile string `json:"version_file"`

@@ -36,6 +36,31 @@ gpud:
   # set -1 to disable exit code
   autoUpdateExitCode: -1
 
+  # Bash script passed to "gpud run --reboot-commands".
+  # Empty keeps gpud's built-in reboot behavior, which runs "sudo reboot" after
+  # a 10-second delay. The Helm chart sets this by default because gpud runs
+  # inside a container here; asking the container to reboot itself is not enough.
+  #
+  # The script enters the host namespaces and host root through PID 1 before
+  # calling systemd/reboot, so the reboot request targets the node, not the
+  # container. This depends on the pod settings below:
+  # - hostPID=true lets nsenter target the host's PID 1.
+  # - securityContext.privileged=true grants the namespace and reboot capabilities.
+  # - securityContext.runAsUser=0 runs gpud and nsenter as root.
+  rebootCommands: |
+    set -o errexit
+    set -o nounset
+
+    if command -v nsenter >/dev/null 2>&1; then
+      if nsenter --target 1 --mount --uts --ipc --net --pid --cgroup --root --wd=/ -- /usr/bin/systemctl reboot; then
+        exit 0
+      fi
+      nsenter --target 1 --mount --uts --ipc --net --pid --cgroup --root --wd=/ -- /sbin/reboot
+      exit 0
+    fi
+
+    sudo reboot
+
   # Mount /dev/mem for deep hardware inspection and memory diagnostics (e.g., PCIe config space).
   # Defaults to false for maximum compatibility across platforms (addresses issue #1144).
   # Set to true if you need deep memory inspection and your environment supports /dev/mem.
@@ -111,8 +136,15 @@ updateStrategy:
 # Container-level security context.
 securityContext:
   # WARNING: This chart requires privileged access to the host node.
+  # The default rebootCommands script enters the host namespaces with nsenter and must
+  # have CAP_SYS_ADMIN/CAP_SYS_BOOT, which privileged mode provides.
   privileged: true
+  # Required so gpud can use the built-in reboot path when rebootCommands is empty
+  # and so the chart default rebootCommands script can enter host namespaces as root.
   runAsUser: 0
+  # Keep this explicit because the chart intentionally runs host-level tooling.
+  # Setting this false can break nsenter-based reboot commands.
+  allowPrivilegeEscalation: true
 
 # Pod-level security context.
 podSecurityContext: {}

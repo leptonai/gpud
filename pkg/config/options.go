@@ -14,6 +14,10 @@ type Op struct {
 	DataDir    string
 	DBInMemory bool
 
+	// RebootCommands is an optional bash script used for control-plane reboot requests.
+	// Empty keeps the default host reboot implementation.
+	RebootCommands string
+
 	// SessionToken is the session token for db-in-memory mode.
 	// When DBInMemory is true and this is set, the server will seed
 	// this token into the in-memory database.
@@ -87,6 +91,14 @@ func WithDataDir(dataDir string) OpOption {
 func WithDBInMemory(b bool) OpOption {
 	return func(op *Op) {
 		op.DBInMemory = b
+	}
+}
+
+// WithRebootCommands sets the bash script to run for control-plane reboot requests.
+// Empty keeps the default host reboot implementation.
+func WithRebootCommands(commands string) OpOption {
+	return func(op *Op) {
+		op.RebootCommands = commands
 	}
 }
 

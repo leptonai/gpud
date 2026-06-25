@@ -2,6 +2,9 @@ package session
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -38,6 +41,35 @@ func TestSession_processRequest(t *testing.T) {
 		// When not running as root, we expect an error
 		if response.Error != "" {
 			assert.Contains(t, response.Error, "sudo/root", "Expected permission error when not running as root")
+		}
+	})
+
+	t.Run("reboot method uses selected reboot function", func(t *testing.T) {
+		called := make(chan struct{}, 1)
+		session := &Session{
+			ctx: context.Background(),
+			runRebootCommandsFunc: func(context.Context) error {
+				called <- struct{}{}
+				return nil
+			},
+		}
+		response := &Response{}
+		restartExitCode := -1
+
+		payload := Request{
+			Method: "reboot",
+		}
+
+		handledAsync := session.processRequest(context.Background(), "test-req", payload, response, &restartExitCode)
+
+		assert.False(t, handledAsync, "reboot should be handled synchronously")
+		assert.Equal(t, -1, restartExitCode, "restart exit code should not change")
+		assert.Empty(t, response.Error)
+
+		select {
+		case <-called:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for selected reboot function")
 		}
 	})
 
@@ -489,4 +521,155 @@ func TestSession_sendResponse(t *testing.T) {
 			// No response might be sent if marshal actually fails
 		}
 	})
+}
+
+func TestSession_configureRebootCommands(t *testing.T) {
+	t.Run("empty command uses default reboot runner", func(t *testing.T) {
+		session := &Session{}
+		session.configureRebootCommands("")
+
+		assert.Empty(t, session.rebootCommands)
+		assert.NotNil(t, session.runRebootCommandsFunc)
+	})
+
+	t.Run("non-empty command trims and installs configured runner", func(t *testing.T) {
+		session := &Session{}
+		session.configureRebootCommands("  echo configured-reboot  ")
+
+		assert.Equal(t, "echo configured-reboot", session.rebootCommands)
+		assert.NotNil(t, session.runRebootCommandsFunc)
+	})
+}
+
+func TestSession_runRebootCommandsWithConfiguredCommands(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "lazy-configured-reboot")
+	script := fmt.Sprintf("printf lazy-configured-reboot > %q", outputPath)
+	session := &Session{
+		ctx:            context.Background(),
+		rebootCommands: script,
+		timeAfterFunc: func(time.Duration) <-chan time.Time {
+			ch := make(chan time.Time, 1)
+			ch <- time.Now()
+			return ch
+		},
+	}
+
+	require.NoError(t, session.runRebootCommands(context.Background()))
+
+	require.Eventually(t, func() bool {
+		got, err := os.ReadFile(outputPath)
+		return err == nil && string(got) == "lazy-configured-reboot"
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestSession_triggerConfiguredRebootCommands(t *testing.T) {
+	t.Run("immediate execution returns command errors", func(t *testing.T) {
+		session := &Session{}
+
+		err := session.triggerConfiguredRebootCommands(context.Background(), "", 0)
+
+		require.Error(t, err)
+	})
+
+	t.Run("delayed execution runs after timer", func(t *testing.T) {
+		outputPath := filepath.Join(t.TempDir(), "delayed-configured-reboot")
+		script := fmt.Sprintf("printf delayed-configured-reboot > %q", outputPath)
+		session := &Session{
+			timeAfterFunc: func(time.Duration) <-chan time.Time {
+				ch := make(chan time.Time, 1)
+				ch <- time.Now()
+				return ch
+			},
+		}
+
+		require.NoError(t, session.triggerConfiguredRebootCommands(context.Background(), script, time.Second))
+
+		require.Eventually(t, func() bool {
+			got, err := os.ReadFile(outputPath)
+			return err == nil && string(got) == "delayed-configured-reboot"
+		}, time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("delayed execution uses default timer", func(t *testing.T) {
+		outputPath := filepath.Join(t.TempDir(), "default-timer-configured-reboot")
+		script := fmt.Sprintf("printf default-timer-configured-reboot > %q", outputPath)
+		session := &Session{}
+
+		require.NoError(t, session.triggerConfiguredRebootCommands(context.Background(), script, time.Millisecond))
+
+		require.Eventually(t, func() bool {
+			got, err := os.ReadFile(outputPath)
+			return err == nil && string(got) == "default-timer-configured-reboot"
+		}, time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("delayed execution runs script body before nonzero exit", func(t *testing.T) {
+		outputPath := filepath.Join(t.TempDir(), "delayed-configured-reboot-failure")
+		script := fmt.Sprintf("printf delayed-configured-reboot-failure > %q; exit 7", outputPath)
+		session := &Session{
+			timeAfterFunc: func(time.Duration) <-chan time.Time {
+				ch := make(chan time.Time, 1)
+				ch <- time.Now()
+				return ch
+			},
+		}
+
+		require.NoError(t, session.triggerConfiguredRebootCommands(context.Background(), script, time.Second))
+
+		require.Eventually(t, func() bool {
+			got, err := os.ReadFile(outputPath)
+			return err == nil && string(got) == "delayed-configured-reboot-failure"
+		}, time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("delayed execution logs runner errors", func(t *testing.T) {
+		session := &Session{
+			timeAfterFunc: func(time.Duration) <-chan time.Time {
+				ch := make(chan time.Time, 1)
+				ch <- time.Now()
+				return ch
+			},
+		}
+
+		require.NoError(t, session.triggerConfiguredRebootCommands(context.Background(), "", time.Second))
+		time.Sleep(10 * time.Millisecond)
+	})
+
+	t.Run("context cancellation aborts delayed execution", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		session := &Session{
+			timeAfterFunc: func(time.Duration) <-chan time.Time {
+				return make(chan time.Time)
+			},
+		}
+
+		require.NoError(t, session.triggerConfiguredRebootCommands(ctx, "echo should-not-run", time.Second))
+	})
+}
+
+func TestRunConfiguredRebootCommands(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "configured-reboot")
+	script := fmt.Sprintf("echo configured-reboot; printf configured-reboot > %q", outputPath)
+
+	require.NoError(t, runConfiguredRebootCommands(context.Background(), script))
+
+	got, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+	assert.Equal(t, "configured-reboot", string(got))
+}
+
+func TestRunConfiguredRebootCommandsReturnsStartError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := runConfiguredRebootCommands(ctx, "sleep 1")
+
+	require.Error(t, err)
+}
+
+func TestRunConfiguredRebootCommandsReturnsExitError(t *testing.T) {
+	err := runConfiguredRebootCommands(context.Background(), "echo configured-reboot-failed; exit 7")
+
+	require.Error(t, err)
 }

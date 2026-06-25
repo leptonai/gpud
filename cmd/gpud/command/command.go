@@ -200,6 +200,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "specifies the exit code to exit with when auto updating (set -1 to disable exit code)",
 				},
 				cli.StringFlag{
+					Name:  "reboot-commands",
+					Usage: "bash script to run when the control plane sends a reboot request (leave empty to use the built-in sudo reboot behavior)",
+					Value: "",
+				},
+				cli.StringFlag{
 					Name:  "version-file",
 					Usage: "specifies the version file to use for auto update (leave empty to disable auto update)",
 					Value: pkgupdate.DefaultVersionFile,

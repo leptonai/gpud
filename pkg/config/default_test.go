@@ -27,6 +27,7 @@ func TestDefaultConfig(t *testing.T) {
 		assert.False(t, cfg.Pprof)
 		assert.True(t, cfg.EnableAutoUpdate)
 		assert.NotEmpty(t, cfg.DataDir)
+		assert.Empty(t, cfg.RebootCommands)
 
 		// We can't reliably test State path since it depends on environment
 		assert.NotEmpty(t, cfg.State, "State path should be set")
@@ -53,6 +54,15 @@ func TestDefaultConfig(t *testing.T) {
 
 		_, err = os.Stat(customDir)
 		assert.NoError(t, err)
+	})
+
+	t.Run("with reboot command", func(t *testing.T) {
+		rebootCommands := "echo reboot"
+
+		cfg, err := DefaultConfig(ctx, WithRebootCommands(rebootCommands))
+		require.NoError(t, err)
+
+		assert.Equal(t, rebootCommands, cfg.RebootCommands)
 	})
 }
 
