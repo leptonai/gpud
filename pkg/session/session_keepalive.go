@@ -3,10 +3,7 @@ package session
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/http"
 	"net/http/cookiejar"
-	"strings"
 	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -81,8 +78,8 @@ func (s *Session) keepAlive() {
 				// "failed to validate token" when the token is invalid.
 				var httpErr *healthCheckHTTPError
 				if errors.As(err, &httpErr) {
-					if httpErr.statusCode == http.StatusForbidden || httpErr.statusCode == http.StatusUnauthorized || strings.Contains(httpErr.body, "failed to validate token") {
-						s.persistLoginStatus(ctx, false, fmt.Sprintf("HTTP %d: %s", httpErr.statusCode, httpErr.body))
+					if message, ok := loginFailureStatusMessage(httpErr.statusCode, httpErr.body); ok {
+						s.persistLoginStatus(ctx, false, message)
 					}
 				}
 

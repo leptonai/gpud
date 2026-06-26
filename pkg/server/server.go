@@ -640,16 +640,21 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			return
 		}
 		buffer := make([]byte, 1024)
+		pipeToken := ""
 		if n, err := pipe.Read(buffer); err != nil {
 			log.Logger.Errorf("error reading pipe: %v", err)
 		} else {
-			userToken = string(buffer[:n])
+			pipeToken = string(buffer[:n])
 		}
 
 		if err := pipe.Close(); err != nil {
 			log.Logger.Errorf("error closing pipe: %v", err)
 		}
-		if userToken != "" {
+		if pipeToken != "" {
+			// WHY: userToken may still hold the startup DB token; after a FIFO
+			// read error, recreating the session with that stale value would
+			// hide the actual failed token handoff.
+			userToken = pipeToken
 			token.mu.Lock()
 			token.userToken = userToken
 			token.mu.Unlock()
