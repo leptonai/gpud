@@ -549,6 +549,19 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsAndMismatchedOverrid
 	})
 }
 
+func TestReconcileMachineID_OverwriteDeleteMetadataError(t *testing.T) {
+	mockey.PatchConvey("machine id overwrite reports metadata cleanup failure", t, func() {
+		mockey.Mock(pkgmetadata.DeleteAllMetadata).To(func(context.Context, *sql.DB) error {
+			return errors.New("metadata cleanup failed")
+		}).Build()
+
+		machineID, err := reconcileMachineID(context.Background(), &sql.DB{}, "stale-machine-id", "new-machine-id", true)
+		require.Error(t, err)
+		assert.Equal(t, "stale-machine-id", machineID)
+		assert.ErrorContains(t, err, "failed to clear persisted login identity for machine-id overwrite")
+	})
+}
+
 // TestLogin_MachineIDOverwriteChecksInWithRequestedMachineID verifies the --machine-id-overwrite path:
 // when the supplied machine ID differs from the persisted one, gpud clears the stale
 // login identity and checks in using the requested machine ID. This is the
