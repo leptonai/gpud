@@ -47,7 +47,7 @@ gpud:
     name: ""
     key: "TOKEN"
 
-  # Allow a node to re-register when its machine identity changes.
+  # Allow a node to check in when its machine identity changes.
   #
   # gpud persists its machine id + session token in /var/lib/gpud (a node-scoped
   # hostPath that survives reboots). In the DaemonSet pattern a node can be
@@ -55,10 +55,10 @@ gpud:
   # machine-id label) while the OLD identity is still persisted on disk. With this
   # enabled, gpud passes "gpud run --machine-id-overwrite": when the machine-id
   # label differs from the persisted one, it discards the stale login identity
-  # (machine id + session token) and re-registers as the new machine. Reboot/health
-  # state is preserved.
+  # (machine id + session token) and checks in with the requested machine. Reboot/
+  # health state is preserved.
   #
-  # Defaults to true because that re-enroll-on-rejoin behavior is what the
+  # Defaults to true because that re-check-in-on-rejoin behavior is what the
   # container/DaemonSet pattern wants, and it trusts the platform-managed
   # machine-id node label as the source of truth. Set to false to keep gpud's
   # strict guard (fail instead of retarget) -- appropriate when machine identity
@@ -69,12 +69,12 @@ gpud:
   #
   # gpud caches its session token in /var/lib/gpud and normally takes a "skip
   # login" fast path on restart when a machine id is already persisted, reusing
-  # that cached token. The control plane re-issues the (workspace-scoped) session
-  # token on every successful login, so with this enabled gpud passes
+  # that cached token. The control plane returns the current workspace-scoped
+  # session token on every successful login, so with this enabled gpud passes
   # "gpud run --refresh-session-token" to always re-login and re-fetch a current
   # token instead of trusting the cached one. This prevents a stale cached token
-  # (e.g. after a server-side session reset for BYOK machines, or a workspace
-  # token rotation) from breaking session keepalive, at the cost of one extra
+  # (e.g. after a workspace token rotation) from breaking session keepalive, at
+  # the cost of one extra
   # login round-trip per start.
   #
   # Defaults to true for the container/DaemonSet pattern (pods restart often and

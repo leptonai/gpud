@@ -40,6 +40,8 @@ func newMockeyCLIContext(t *testing.T, args []string) *cli.Context {
 	_ = flags.String("token", "", "")
 	_ = flags.String("endpoint", "", "")
 	_ = flags.String("machine-id", "", "")
+	_ = flags.Bool("machine-id-overwrite", false, "")
+	_ = flags.Bool("refresh-session-token", false, "")
 	_ = flags.String("node-group", "", "")
 	_ = flags.String("node-labels", "", "")
 	_ = flags.String("gpu-count", "", "")
@@ -179,6 +181,8 @@ func TestCommand_WithAllFlags(t *testing.T) {
 			"--token", "test-token",
 			"--endpoint", "https://api.example.com",
 			"--machine-id", "machine-123",
+			"--machine-id-overwrite",
+			"--refresh-session-token",
 			"--node-group", "gpu-nodes",
 			"--node-labels", `{"team":"ml","rack":"r42"}`,
 			"--gpu-count", "8",
@@ -193,6 +197,8 @@ func TestCommand_WithAllFlags(t *testing.T) {
 		assert.Equal(t, "test-token", loginCfgCapture.Token)
 		assert.Equal(t, "https://api.example.com", loginCfgCapture.Endpoint)
 		assert.Equal(t, "machine-123", loginCfgCapture.MachineID)
+		assert.True(t, loginCfgCapture.MachineIDOverwrite)
+		assert.True(t, loginCfgCapture.RefreshSessionToken)
 		assert.Equal(t, "gpu-nodes", loginCfgCapture.NodeGroup)
 		assert.Equal(t, map[string]string{"team": "ml", "rack": "r42"}, loginCfgCapture.NodeLabels)
 		assert.Equal(t, "8", loginCfgCapture.GPUCount)

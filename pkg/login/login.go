@@ -32,27 +32,27 @@ type LoginConfig struct {
 	NodeGroup string // optional
 
 	// MachineIDOverwrite, when true, allows an explicitly-supplied MachineID that
-	// differs from the locally-persisted one to REPLACE it: the persisted login
+	// differs from the locally-persisted one to replace it: the persisted login
 	// identity (machine ID + session token, in the metadata table) is discarded
-	// and a fresh login registers the new machine. Health/system state (reboot
-	// history, events) in other tables is preserved.
+	// and the next login checks in using the supplied MachineID. Health/system
+	// state (reboot history, events) in other tables is preserved.
 	//
 	// When false (the default), a differing MachineID is rejected with an error
 	// instead of silently retargeting the node. This is the safe default for
 	// host/systemd installs; the container/DaemonSet pattern sets it true so a
-	// node re-enrolled with a new machine object re-registers automatically.
+	// node re-enrolled with a new machine object checks in automatically.
 	MachineIDOverwrite bool
 
 	// RefreshSessionToken, when true, forces a fresh login on every start even
 	// when a machine ID is already persisted -- instead of taking the "skip login"
 	// fast path and reusing the persisted session token.
 	//
-	// The control plane returns the (workspace-scoped) session token on every
-	// successful login, so re-login reliably re-fetches a current token. This keeps
-	// the persisted token from going stale (e.g. after a server-side session reset
-	// for BYOK machines, or a workspace token rotation) at the cost of one extra
-	// login round-trip per start. The container/DaemonSet pattern sets it true; the
-	// default (false) preserves the skip-login optimization for host/systemd installs.
+	// The control plane looks up the current workspace-scoped session token on
+	// every successful login, so re-login persists the token currently served by
+	// the control plane. This handles workspace token rotation at the cost of one
+	// extra login round-trip per start. The container/DaemonSet pattern sets it
+	// true; the default (false) preserves the skip-login optimization for
+	// host/systemd installs.
 	RefreshSessionToken bool
 
 	DataDir string
@@ -104,14 +104,15 @@ type LoginConfig struct {
 //   - ID Generation Error: "failed to generate id"
 //   - Machine Creation Error: "failed to add machine"
 //   - Login Finalization Error: "failed to login, please try again"
+//
 // reconcileMachineID reconciles an explicitly-supplied machine ID against the
 // one already persisted in the local state DB, returning the machine ID that
 // the rest of the login flow should treat as "previous".
 //
 // In the container/DaemonSet pattern, /var/lib/gpud is a node-scoped hostPath
 // that outlives the machine object: when a node is deleted from its node group
-// and rejoined, it binds a NEW machine object (new requestedMachineID, e.g. from
-// the node label) while the OLD machine ID is still persisted on disk. Without
+// and rejoined, it receives a new requestedMachineID (for the new machine object,
+// e.g. from the node label) while the OLD machine ID is still persisted on disk. Without
 // this check, gpud would "skip login" on the stale ID and run under a mismatched
 // identity (the persisted session token belongs to the old machine) -- so the
 // node never joins.
@@ -123,9 +124,9 @@ type LoginConfig struct {
 //   - Supplied ID differs and overwrite=false -> fail loudly rather than
 //     silently retarget the persisted identity.
 //   - Supplied ID differs and overwrite=true  -> discard the persisted login
-//     identity (metadata table only) and return "" so the caller performs a
-//     fresh registration as the new machine. Reboot/event history lives in
-//     separate tables and is intentionally NOT touched.
+//     identity (metadata table only) and return "" so the caller checks in with
+//     the requested machine ID. Reboot/event history lives in separate tables
+//     and is intentionally NOT touched.
 func reconcileMachineID(ctx context.Context, dbRW *sql.DB, prevMachineID, requestedMachineID string, overwrite bool) (string, error) {
 	if prevMachineID == "" || requestedMachineID == "" || requestedMachineID == prevMachineID {
 		return prevMachineID, nil
@@ -135,13 +136,13 @@ func reconcileMachineID(ctx context.Context, dbRW *sql.DB, prevMachineID, reques
 		return prevMachineID, fmt.Errorf(
 			"persisted machine ID %q differs from requested machine ID %q; "+
 				"pass --machine-id-overwrite to discard the persisted login identity and "+
-				"re-register as the new machine (use this only if you intend to change the machine identity)",
+				"check in with the requested machine (use this only if you intend to change the machine identity)",
 			prevMachineID, requestedMachineID,
 		)
 	}
 
 	// Loud, auditable: we are dropping a previously-registered identity.
-	log.Logger.Warnw("!!! MACHINE ID OVERWRITE !!! discarding persisted login identity and re-registering as a NEW machine",
+	log.Logger.Warnw("!!! MACHINE ID OVERWRITE !!! discarding persisted login identity and checking in with requested machine ID",
 		"persistedMachineID", prevMachineID,
 		"requestedMachineID", requestedMachineID,
 	)
@@ -235,9 +236,9 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 		}
 		if shouldRefreshLogin || cfg.RefreshSessionToken {
 			reloginExistingMachine = true
-			// The control plane re-issues the session token on every successful login,
-			// so re-running login here re-fetches a current token (and/or refreshes node
-			// labels) instead of reusing a possibly-stale persisted one.
+			// The control plane returns its current session token on every successful
+			// login, so re-running login here re-fetches that token (and/or refreshes
+			// node labels) instead of reusing a possibly-stale persisted one.
 			log.Logger.Infow("re-running login for already-assigned machine",
 				"machineID", prevMachineID,
 				"nodeLabelsChanged", shouldRefreshLogin,

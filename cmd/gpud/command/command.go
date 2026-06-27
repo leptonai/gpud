@@ -103,14 +103,14 @@ nohup sudo gpud run &>> <your log file path> &
 				cli.BoolFlag{
 					Name:   "machine-id-overwrite",
 					Hidden: true,
-					Usage:  "(optional) when --machine-id differs from the persisted machine id, discard the persisted login identity (machine id + session token) and re-register as the NEW machine instead of failing. Health/system state (reboot history, events) is preserved. Use for the container/DaemonSet pattern where a node can be deleted from its node group and rejoined with a new machine object.",
+					Usage:  "(optional) when --machine-id differs from the persisted machine id, discard the persisted login identity (machine id + session token) and check in with the requested machine instead of failing. Health/system state (reboot history, events) is preserved. Use for the container/DaemonSet pattern where a node can be deleted from its node group and rejoined with a new machine object.",
 				},
 				// TODO: once validated in production, make session-token refresh the default
 				// behavior (always re-login on start) and remove this flag.
 				cli.BoolFlag{
 					Name:   "refresh-session-token",
 					Hidden: true,
-					Usage:  "(optional) on every start, re-run login to re-fetch the session token from the control plane instead of reusing the persisted one (skips the 'machine id already assigned' fast path). Use for the container/DaemonSet pattern so a restarted node always gets a current session token; the persisted token can otherwise go stale after a server-side session reset or a workspace token rotation.",
+					Usage:  "(optional) on every start, re-run login to re-fetch the current session token from the control plane instead of reusing the persisted one (skips the 'machine id already assigned' fast path). Use for the container/DaemonSet pattern after a workspace token rotation.",
 				},
 				cli.StringFlag{
 					Name:  "node-group",
@@ -183,14 +183,14 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.BoolFlag{
 					Name:   "machine-id-overwrite",
 					Hidden: true,
-					Usage:  "(optional) when --machine-id differs from the persisted machine id, discard the persisted login identity (machine id + session token) and re-register as the NEW machine instead of failing. Health/system state (reboot history, events) is preserved. Use for the container/DaemonSet pattern where a node can be deleted from its node group and rejoined with a new machine object.",
+					Usage:  "(optional) when --machine-id differs from the persisted machine id, discard the persisted login identity (machine id + session token) and check in with the requested machine instead of failing. Health/system state (reboot history, events) is preserved. Use for the container/DaemonSet pattern where a node can be deleted from its node group and rejoined with a new machine object.",
 				},
 				// TODO: once validated in production, make session-token refresh the default
 				// behavior (always re-login on start) and remove this flag.
 				&cli.BoolFlag{
 					Name:   "refresh-session-token",
 					Hidden: true,
-					Usage:  "(optional) on every start, re-run login to re-fetch the session token from the control plane instead of reusing the persisted one (skips the 'machine id already assigned' fast path). Use for the container/DaemonSet pattern so a restarted node always gets a current session token; the persisted token can otherwise go stale after a server-side session reset or a workspace token rotation.",
+					Usage:  "(optional) on every start, re-run login to re-fetch the current session token from the control plane instead of reusing the persisted one (skips the 'machine id already assigned' fast path). Use for the container/DaemonSet pattern after a workspace token rotation.",
 				},
 				&cli.StringFlag{
 					Name:   "token",

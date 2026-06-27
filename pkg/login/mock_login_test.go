@@ -549,13 +549,13 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsAndMismatchedOverrid
 	})
 }
 
-// TestLogin_MachineIDOverwriteReRegisters verifies the --machine-id-overwrite path:
+// TestLogin_MachineIDOverwriteChecksInWithRequestedMachineID verifies the --machine-id-overwrite path:
 // when the supplied machine ID differs from the persisted one, gpud clears the stale
-// login identity and performs a fresh registration as the new machine. This is the
-// container/DaemonSet recovery path for a node that rejoined with a new machine object
-// while /var/lib/gpud still held the old identity.
-func TestLogin_MachineIDOverwriteReRegisters(t *testing.T) {
-	mockey.PatchConvey("machine id overwrite clears stale identity and re-registers", t, func() {
+// login identity and checks in using the requested machine ID. This is the
+// container/DaemonSet recovery path for a node that rejoined with a new machine
+// object while /var/lib/gpud still held the old identity.
+func TestLogin_MachineIDOverwriteChecksInWithRequestedMachineID(t *testing.T) {
+	mockey.PatchConvey("machine id overwrite clears stale identity and checks in with requested machine", t, func() {
 		mockDB := &sql.DB{}
 		deleteAllCalled := false
 		requestSent := false
@@ -600,9 +600,9 @@ func TestLogin_MachineIDOverwriteReRegisters(t *testing.T) {
 			return nil
 		}).Build()
 
+		var receivedMachineID string
 		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, machineID, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
-			// fresh registration must NOT carry the stale machine ID
-			assert.NotEqual(t, "stale-machine-id", machineID)
+			receivedMachineID = machineID
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
@@ -639,6 +639,7 @@ func TestLogin_MachineIDOverwriteReRegisters(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, deleteAllCalled, "stale identity should be cleared")
 		assert.True(t, requestSent, "a fresh login request should be sent")
+		assert.Equal(t, "new-machine-id", receivedMachineID, "the login request must use the requested machine ID, not the stale one")
 		assert.True(t, newMachineIDPersisted, "the new machine ID should be persisted")
 	})
 }
