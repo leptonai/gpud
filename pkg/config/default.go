@@ -60,6 +60,12 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		DBInMemory:      options.DBInMemory,
 		RebootCommands:  options.RebootCommands,
 
+		FindmntCommands:       options.FindmntCommands,
+		LsblkCommands:         options.LsblkCommands,
+		BlockdevUsageCommands: options.BlockdevUsageCommands,
+
+		ContainerdServiceActiveCommands: options.ContainerdServiceActiveCommands,
+
 		SessionToken:     options.SessionToken,
 		SessionMachineID: options.SessionMachineID,
 		SessionEndpoint:  options.SessionEndpoint,

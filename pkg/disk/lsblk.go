@@ -63,10 +63,25 @@ type BlockDevice struct {
 // Receives device path. If device is empty string, info about all devices will be collected
 // Returns slice of BlockDevice structs or error if something went wrong
 func GetBlockDevicesWithLsblk(ctx context.Context, opts ...OpOption) (BlockDevices, error) {
+	op := &Op{}
+	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+
+	// Empty lsblkCommand/findmntCommand preserve the legacy behavior: locate the
+	// binaries on PATH and run them directly in the current namespace. The
+	// closures below are byte-for-byte equivalent to passing getLsblkBinPathAndVersion
+	// and FindMnt directly when both overrides are empty.
 	return getBlockDevicesWithLsblk(ctx, getBlockDevicesDeps{
-		getLsblkBinPathAndVersion: getLsblkBinPathAndVersion,
-		executeLsblkCommand:       executeLsblkCommand,
-		findMnt:                   FindMnt,
+		getLsblkBinPathAndVersion: func(ctx context.Context) (string, string, error) {
+			return getLsblkBinPathAndVersionWithCommand(ctx, op.lsblkCommand)
+		},
+		executeLsblkCommand: executeLsblkCommand,
+		// Thread the findmnt override so the fstype back-fill (used when lsblk
+		// omits fstype) also runs in the configured (e.g. host) mount namespace.
+		findMnt: func(ctx context.Context, target string) (*FindMntOutput, error) {
+			return FindMntWithCommand(ctx, target, op.findmntCommand)
+		},
 	}, opts...)
 }
 
@@ -189,9 +204,21 @@ func executeLsblkCommand(ctx context.Context, lsblkBin string, flags string) ([]
 
 // getLsblkBinPathAndVersion returns the "lsblk" executable path and the output of "lsblk --version".
 func getLsblkBinPathAndVersion(ctx context.Context) (string, string, error) {
-	lsblkBin, err := file.LocateExecutable("lsblk")
-	if err != nil {
-		return "", "", err
+	return getLsblkBinPathAndVersionWithCommand(ctx, "")
+}
+
+// getLsblkBinPathAndVersionWithCommand is like getLsblkBinPathAndVersion but uses
+// the given command override as the lsblk invocation prefix instead of locating
+// "lsblk" on PATH. An empty command falls back to locating "lsblk", so it is
+// byte-for-byte identical to getLsblkBinPathAndVersion in that case.
+func getLsblkBinPathAndVersionWithCommand(ctx context.Context, command string) (string, string, error) {
+	lsblkBin := command
+	if lsblkBin == "" {
+		var err error
+		lsblkBin, err = file.LocateExecutable("lsblk")
+		if err != nil {
+			return "", "", err
+		}
 	}
 
 	p, err := process.New(

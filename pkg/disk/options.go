@@ -11,6 +11,28 @@ type Op struct {
 	matchFuncMountPoint MatchFunc
 	skipUsage           bool
 	statTimeout         time.Duration
+
+	// findmntCommand overrides how the "findmnt" binary is invoked.
+	// Empty preserves the default behavior of locating "findmnt" on PATH and
+	// running it directly in the current namespace. When set, it is used as the
+	// command prefix (e.g. "nsenter --target 1 --mount -- findmnt") and gpud
+	// appends the flags it controls (--target, --json, --df).
+	findmntCommand string
+
+	// lsblkCommand overrides how the "lsblk" binary is invoked.
+	// Empty preserves the default behavior of locating "lsblk" on PATH and
+	// running it directly in the current namespace. When set, it is used as the
+	// command prefix (e.g. "nsenter --target 1 --mount -- lsblk") and gpud
+	// appends the flags it controls.
+	lsblkCommand string
+
+	// blockdevUsageCommand overrides how block device usage/partitions are
+	// collected. Empty preserves the default behavior of enumerating mounts via
+	// gopsutil (/proc/self/mountinfo) and measuring usage via the statfs syscall.
+	// When set, it is used as the command prefix (e.g.
+	// "nsenter --target 1 --mount -- df") and gpud appends the flags it controls
+	// (-T -B1 -P) to collect partitions and usage from its output.
+	blockdevUsageCommand string
 }
 
 type MatchFunc func(fs string) bool
@@ -76,6 +98,40 @@ func WithSkipUsage() OpOption {
 func WithStatTimeout(timeout time.Duration) OpOption {
 	return func(op *Op) {
 		op.statTimeout = timeout
+	}
+}
+
+// WithFindmntCommand overrides how the "findmnt" binary is invoked.
+// Empty (the default) preserves the legacy behavior of locating "findmnt" on
+// PATH and running it directly. When set, the value is used as the command
+// prefix (e.g. "nsenter --target 1 --mount -- findmnt") so the command can run
+// in the host mount namespace; gpud still appends the flags it controls.
+func WithFindmntCommand(command string) OpOption {
+	return func(op *Op) {
+		op.findmntCommand = command
+	}
+}
+
+// WithLsblkCommand overrides how the "lsblk" binary is invoked.
+// Empty (the default) preserves the legacy behavior of locating "lsblk" on PATH
+// and running it directly. When set, the value is used as the command prefix
+// (e.g. "nsenter --target 1 --mount -- lsblk") so the command can run in the
+// host mount namespace; gpud still appends the flags it controls.
+func WithLsblkCommand(command string) OpOption {
+	return func(op *Op) {
+		op.lsblkCommand = command
+	}
+}
+
+// WithBlockdevUsageCommand overrides how block device partitions and usage are
+// collected. Empty (the default) preserves the legacy behavior of enumerating
+// mounts via gopsutil and measuring usage via the statfs syscall. When set, the
+// value is used as the command prefix (e.g. "nsenter --target 1 --mount -- df")
+// so the measurement can run in the host mount namespace; gpud appends the flags
+// it controls (-T -B1 -P) and parses the output.
+func WithBlockdevUsageCommand(command string) OpOption {
+	return func(op *Op) {
+		op.blockdevUsageCommand = command
 	}
 }
 

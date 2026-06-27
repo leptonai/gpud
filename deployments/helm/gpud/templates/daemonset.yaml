@@ -149,6 +149,26 @@ spec:
           hostPath:
             path: /var/lib/kubelet
             type: DirectoryOrCreate
+
+        {{- if .Values.gpud.mountContainerd }}
+        # Host containerd runtime directory (holds containerd.sock).
+        # Required by: components/containerd (stat the socket and reach the CRI
+        # endpoint at unix:///run/containerd/containerd.sock).
+        # DirectoryOrCreate so the pod still starts on nodes without containerd.
+        # Disable via gpud.mountContainerd=false on nodes without containerd.
+        - name: host-run-containerd
+          hostPath:
+            path: /run/containerd
+            type: DirectoryOrCreate
+
+        # Host containerd config directory (holds config.toml).
+        # Required by: components/containerd (read /etc/containerd/config.toml to
+        # verify the NVIDIA runtime is configured). Mounted read-only.
+        - name: host-etc-containerd
+          hostPath:
+            path: /etc/containerd
+            type: DirectoryOrCreate
+        {{- end }}
       {{- if .Values.extraVolumes }}
       {{- toYaml .Values.extraVolumes | nindent 8 }}
       {{- end }}
@@ -175,6 +195,11 @@ spec:
           # Needs a shell-capable image; distroless kubectl images lack /bin/sh so the script would fail.
           image: "{{ .Values.nodeLabelExporter.image.repository }}:{{ .Values.nodeLabelExporter.image.tag }}"
           imagePullPolicy: {{ .Values.nodeLabelExporter.image.pullPolicy }}
+          # Run as root: the label file is written to the root-owned /var/lib/gpud
+          # hostPath (gpud runs as root and owns it). The kubectl image otherwise
+          # defaults to a non-root UID and cannot write there.
+          securityContext:
+            runAsUser: 0
           command:
             - /bin/sh
             - -ec
@@ -287,7 +312,21 @@ spec:
                 set -- "$@" --endpoint="$ENDPOINT"
               fi
 
-              # Token and machine-id are only added if present (from node labels)
+              # A token Secret (gpud.tokenSecret) is injected as GPUD_TOKEN and
+              # takes priority over any token node label. This supports clusters
+              # that store the gpud session token in a Secret rather than a label.
+              if [ -n "${GPUD_TOKEN:-}" ]; then
+                TOKEN="$GPUD_TOKEN"
+              fi
+
+              # Token vs machine-id are intentionally sourced differently:
+              #   --token: a SHARED, cluster/node-group enrollment credential
+              #     ("may I join?"). Every node uses the same token (from the
+              #     gpud.tokenSecret Secret, or a token label). It does NOT
+              #     identify the machine.
+              #   --machine-id: the UNIQUE per-node identity ("who am I?"), read
+              #     from each node's machine-id label. Passing it keeps the node
+              #     registered as the SAME machine across restarts/replacement.
               if [ -n "$TOKEN" ]; then
                 set -- "$@" --token="$TOKEN"
               fi
@@ -310,6 +349,27 @@ spec:
                 set -- "$@" --reboot-commands="$GPUD_REBOOT_COMMANDS"
               fi
 
+              # The chart default wraps the disk component's host tools with
+              # nsenter so they read the node's disks instead of the container's
+              # overlay. Users can set the corresponding gpud.*Commands value to
+              # "" to preserve gpud's built-in in-namespace behavior.
+              if [ -n "${GPUD_FINDMNT_COMMANDS:-}" ]; then
+                start_log_args="$start_log_args --findmnt-commands=<set>"
+                set -- "$@" --findmnt-commands="$GPUD_FINDMNT_COMMANDS"
+              fi
+              if [ -n "${GPUD_LSBLK_COMMANDS:-}" ]; then
+                start_log_args="$start_log_args --lsblk-commands=<set>"
+                set -- "$@" --lsblk-commands="$GPUD_LSBLK_COMMANDS"
+              fi
+              if [ -n "${GPUD_BLOCKDEV_USAGE_COMMANDS:-}" ]; then
+                start_log_args="$start_log_args --blockdev-usage-commands=<set>"
+                set -- "$@" --blockdev-usage-commands="$GPUD_BLOCKDEV_USAGE_COMMANDS"
+              fi
+              if [ -n "${GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS:-}" ]; then
+                start_log_args="$start_log_args --containerd-service-active-commands=<set>"
+                set -- "$@" --containerd-service-active-commands="$GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS"
+              fi
+
               # Using exec ensures gpud receives signals directly (important for graceful shutdown).
               echo "Starting: /usr/local/bin/gpud $start_log_args"
               exec /usr/local/bin/gpud "$@"
@@ -318,9 +378,34 @@ spec:
           env:
             - name: GPUD_NO_USAGE_STATS
               value: {{ not .Values.gpud.telemetry.enabled | quote }}
+            {{- if .Values.gpud.tokenSecret.name }}
+            # Session token sourced from an existing Secret (takes priority over a
+            # token node label). Consumed by the startup script as $GPUD_TOKEN.
+            - name: GPUD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gpud.tokenSecret.name | quote }}
+                  key: {{ .Values.gpud.tokenSecret.key | quote }}
+            {{- end }}
             {{- if .Values.gpud.rebootCommands }}
             - name: GPUD_REBOOT_COMMANDS
               value: {{ .Values.gpud.rebootCommands | quote }}
+            {{- end }}
+            {{- if .Values.gpud.findmntCommands }}
+            - name: GPUD_FINDMNT_COMMANDS
+              value: {{ .Values.gpud.findmntCommands | quote }}
+            {{- end }}
+            {{- if .Values.gpud.lsblkCommands }}
+            - name: GPUD_LSBLK_COMMANDS
+              value: {{ .Values.gpud.lsblkCommands | quote }}
+            {{- end }}
+            {{- if .Values.gpud.blockdevUsageCommands }}
+            - name: GPUD_BLOCKDEV_USAGE_COMMANDS
+              value: {{ .Values.gpud.blockdevUsageCommands | quote }}
+            {{- end }}
+            {{- if .Values.gpud.containerdServiceActiveCommands }}
+            - name: GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS
+              value: {{ .Values.gpud.containerdServiceActiveCommands | quote }}
             {{- end }}
 
           {{- if .Values.service.enabled }}
@@ -397,6 +482,20 @@ spec:
             - name: host-kubelet-vol
               mountPath: /var/lib/kubelet
               readOnly: true
+
+            {{- if .Values.gpud.mountContainerd }}
+            # Host containerd socket directory for containerd monitoring.
+            # Mounted at the same path gpud expects (/run/containerd/containerd.sock).
+            # Not read-only: connecting to the CRI unix socket requires write access.
+            - name: host-run-containerd
+              mountPath: /run/containerd
+
+            # Host containerd config for the NVIDIA-runtime check (read-only).
+            # Mounted at the same path gpud reads (/etc/containerd/config.toml).
+            - name: host-etc-containerd
+              mountPath: /etc/containerd
+              readOnly: true
+            {{- end }}
           {{- if .Values.extraVolumeMounts }}
           {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
           {{- end }}
@@ -409,6 +508,11 @@ spec:
           # Needs a shell-capable image; distroless kubectl images lack /bin/sh so the looped script would fail.
           image: "{{ .Values.nodeLabelExporter.image.repository }}:{{ .Values.nodeLabelExporter.image.tag }}"
           imagePullPolicy: {{ .Values.nodeLabelExporter.image.pullPolicy }}
+          # Run as root: the label file is written to the root-owned /var/lib/gpud
+          # hostPath (gpud runs as root and owns it). The kubectl image otherwise
+          # defaults to a non-root UID and cannot write there.
+          securityContext:
+            runAsUser: 0
           command:
             - /bin/sh
             - -ec

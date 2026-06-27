@@ -4,6 +4,8 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseFindMntOutput(t *testing.T) {
@@ -66,4 +68,9 @@ func TestExtractMntSources(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFindMntCommand(t *testing.T) {
+	got := findMntCommand("/usr/bin/findmnt", "/")
+	assert.Equal(t, "/usr/bin/findmnt --target / --json --df", got)
 }

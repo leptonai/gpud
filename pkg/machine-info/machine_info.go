@@ -4,6 +4,7 @@ package machineinfo
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
 	"sort"
@@ -105,6 +106,19 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 	return info, nil
 }
 
+// uint64ToInt64Capped converts a uint64 to int64, capping at math.MaxInt64.
+// A bare int64(v) conversion wraps values above math.MaxInt64 to negative
+// numbers; capping keeps disk sizes/usage non-negative and monotonic. Real disk
+// sizes never legitimately exceed ~9.2 EB, so the cap is a safety bound rather
+// than an expected case. (Also satisfies CodeQL's incorrect-integer-conversion
+// check by bounding the value before the conversion.)
+func uint64ToInt64Capped(v uint64) int64 {
+	if v > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(v)
+}
+
 // GetSystemResourceRootVolumeTotal returns the system root disk resource of the machine
 // for the total disk size, using the type defined in "corev1.ResourceName"
 // in https://pkg.go.dev/k8s.io/api/core/v1#ResourceName.
@@ -119,7 +133,7 @@ func GetSystemResourceRootVolumeTotal() (string, error) {
 		return "", fmt.Errorf("failed to get disk usage: %w", err)
 	}
 
-	qty := resource.NewQuantity(int64(usage.TotalBytes), resource.DecimalSI)
+	qty := resource.NewQuantity(uint64ToInt64Capped(usage.TotalBytes), resource.DecimalSI)
 	return qty.String(), nil
 }
 
@@ -432,8 +446,8 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 		rs = append(rs, apiv1.MachineDiskDevice{
 			Name:       bd.Name,
 			Type:       bd.Type,
-			Size:       int64(bd.Size),
-			Used:       int64(bd.FSUsed),
+			Size:       uint64ToInt64Capped(bd.Size),
+			Used:       uint64ToInt64Capped(bd.FSUsed),
 			Rota:       bd.Rota,
 			Serial:     bd.Serial,
 			WWN:        bd.WWN,
@@ -468,8 +482,8 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 				FSType:     part.Fstype,
 			}
 			if part.Usage != nil {
-				dev.Size = int64(part.Usage.TotalBytes)
-				dev.Used = int64(part.Usage.UsedBytes)
+				dev.Size = uint64ToInt64Capped(part.Usage.TotalBytes)
+				dev.Used = uint64ToInt64Capped(part.Usage.UsedBytes)
 			}
 			rs = append(rs, dev)
 		}

@@ -21,3 +21,6 @@
 .idea/
 *.tmproj
 .vscode/
+
+# Private values overlay -- internal only
+values-nvcr.yaml

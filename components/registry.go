@@ -43,6 +43,33 @@ type GPUdInstance struct {
 	MountPoints  []string
 	MountTargets []string
 
+	// FindmntCommands overrides how the disk component invokes "findmnt".
+	// Empty (the default) preserves the legacy behavior of locating "findmnt" on
+	// PATH and running it in the current namespace. When set (e.g.
+	// "nsenter --target 1 --mount -- findmnt"), the command runs in the host
+	// mount namespace so it reports the host's mounts instead of the container's.
+	FindmntCommands string
+
+	// LsblkCommands overrides how the disk component invokes "lsblk".
+	// Empty (the default) preserves the legacy behavior. When set (e.g.
+	// "nsenter --target 1 --mount -- lsblk"), the command runs in the host mount
+	// namespace.
+	LsblkCommands string
+
+	// BlockdevUsageCommands overrides how the disk component collects partition
+	// usage. Empty (the default) preserves the legacy behavior of enumerating
+	// mounts via gopsutil and measuring usage via the statfs syscall. When set
+	// (e.g. "nsenter --target 1 --mount -- df"), partitions and usage are read
+	// from that command's output in the host mount namespace.
+	BlockdevUsageCommands string
+
+	// ContainerdServiceActiveCommands overrides how the containerd component
+	// checks whether the containerd service is active. Empty (the default)
+	// preserves the legacy in-namespace systemd.IsActive behavior. When set (e.g.
+	// "nsenter --target 1 --mount -- systemctl is-active containerd"), the command
+	// runs against the host's service manager; exit code 0 means active.
+	ContainerdServiceActiveCommands string
+
 	FailureInjector *FailureInjector
 }
 

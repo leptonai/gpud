@@ -137,6 +137,17 @@ RUN echo "# APT Package Sources" > /apt-sources/APT_SOURCES.txt && \
 FROM nvidia/cuda:${CUDA_VERSION}-runtime-${OS_NAME}${OS_VERSION}
 WORKDIR /
 
+# OCI image metadata. Mirrors the Helm chart's Chart.yaml/README so registries
+# (e.g. nvcr.io) surface the same description, source, and license for the image.
+# ref. https://github.com/opencontainers/image-spec/blob/main/annotations.md
+LABEL org.opencontainers.image.title="gpud" \
+      org.opencontainers.image.description="GPUd automates monitoring, diagnostics, and issue identification for GPUs" \
+      org.opencontainers.image.source="https://github.com/leptonai/gpud" \
+      org.opencontainers.image.url="https://github.com/leptonai/gpud" \
+      org.opencontainers.image.documentation="https://github.com/leptonai/gpud" \
+      org.opencontainers.image.vendor="leptonai" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
 # Install required runtime dependencies not included in the NVIDIA CUDA runtime image.
 # NOTE: gnupg is installed temporarily for Docker GPG key verification, then purged
 # to address CVE-2025-68973 (out-of-bounds write in GnuPG armor_filter before 2.4.9)
@@ -161,6 +172,9 @@ RUN apt-get update && \
   # Remove gnupg and related packages to address CVE-2025-68973
   # These are only needed for GPG key verification during build, not at runtime
   apt-get purge -y --auto-remove gnupg gnupg-l10n gnupg-utils gpg gpg-agent gpg-wks-client gpg-wks-server gpgconf gpgsm dirmngr && \
+  # util-linux provides findmnt, which the disk component shells out to.
+  command -v findmnt >/dev/null && \
+  findmnt --version >/dev/null && \
   rm -rf /var/lib/apt/lists/*
 
 # Copy the gpud binary

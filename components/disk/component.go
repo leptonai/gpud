@@ -141,17 +141,26 @@ func newComponent(
 		getExt4PartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			timeoutCtx, cancel := context.WithTimeout(ctx, getPartitionsTimeout)
 			defer cancel()
-			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultExt4FsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
+			// WithBlockdevUsageCommand is empty by default (legacy gopsutil + statfs
+			// path); when configured it runs the override (e.g. nsenter df) so usage
+			// is read from the host mount namespace. The getPartitionsTimeout context
+			// bounds the command, so a hung filesystem cannot block indefinitely.
+			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultExt4FsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc), disk.WithBlockdevUsageCommand(gpudInstance.BlockdevUsageCommands))
 		},
 		getNFSPartitionsFunc: func(ctx context.Context) (disk.Partitions, error) {
 			// statfs on nfs can incur network I/O or impact disk I/O performance
 			// do not track usage for nfs partitions
 			timeoutCtx, cancel := context.WithTimeout(ctx, getPartitionsTimeout)
 			defer cancel()
-			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc))
+			return disk.GetPartitions(timeoutCtx, disk.WithFstype(disk.DefaultNFSFsTypeFunc), disk.WithMountPoint(disk.DefaultMountPointFunc), disk.WithBlockdevUsageCommand(gpudInstance.BlockdevUsageCommands))
 		},
 
-		findMntFunc: disk.FindMnt,
+		// findMntFunc defaults to the legacy in-namespace findmnt when
+		// FindmntCommands is empty (FindMntWithCommand(ctx, target, "") == FindMnt),
+		// and runs the override (e.g. nsenter findmnt) when configured.
+		findMntFunc: func(ctx context.Context, target string) (*disk.FindMntOutput, error) {
+			return disk.FindMntWithCommand(ctx, target, gpudInstance.FindmntCommands)
+		},
 
 		// Initialize file operation function field with real implementation
 		statWithTimeoutFunc: pkgfile.StatWithTimeout,
@@ -167,11 +176,17 @@ func newComponent(
 		c.getBlockDevicesFunc = func(ctx context.Context) (disk.BlockDevices, error) {
 			timeoutCtx, cancel := context.WithTimeout(ctx, getBlockDevicesTimeout)
 			defer cancel()
+			// WithLsblkCommand/WithFindmntCommand are empty by default (legacy
+			// in-namespace lsblk + findmnt back-fill); when configured they run the
+			// overrides (e.g. nsenter lsblk/findmnt) so block devices and fstypes
+			// are read from the host mount namespace.
 			return disk.GetBlockDevicesWithLsblk(
 				timeoutCtx,
 				disk.WithFstype(disk.DefaultFsTypeFunc),
 				disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
 				disk.WithMountPoint(disk.DefaultMountPointFunc),
+				disk.WithLsblkCommand(gpudInstance.LsblkCommands),
+				disk.WithFindmntCommand(gpudInstance.FindmntCommands),
 			)
 		}
 	}
@@ -576,12 +591,17 @@ func (c *component) Check() components.CheckResult {
 		// e.g.,
 		// "unexpected end of JSON input"
 		prevFailed := false
-		for range 5 {
+		findMntSucceeded := false
+		for attempt := range 5 {
 			cctx, ccancel := context.WithTimeout(c.ctx, time.Minute)
 			mntOut, err := c.findMntFunc(cctx, target)
 			ccancel()
 			if err != nil {
-				log.Logger.Errorw("failed to find mnt", "error", err)
+				// findmnt is occasionally flaky and returns empty output, which
+				// parses as "unexpected end of JSON input". This is transient, so
+				// warn and retry; only a fully-exhausted retry budget (handled
+				// after the loop) is a real error.
+				log.Logger.Warnw("failed to find mnt, will retry", "target", target, "attempt", attempt+1, "error", err)
 
 				select {
 				case <-c.ctx.Done():
@@ -600,9 +620,13 @@ func (c *component) Check() components.CheckResult {
 			}
 			cr.MountTargetUsages[target] = *mntOut
 			if prevFailed {
-				log.Logger.Infow("successfully ran findmnt after retries")
+				log.Logger.Infow("successfully ran findmnt after retries", "target", target)
 			}
+			findMntSucceeded = true
 			break
+		}
+		if !findMntSucceeded {
+			log.Logger.Errorw("failed to find mnt after retries", "target", target)
 		}
 	}
 

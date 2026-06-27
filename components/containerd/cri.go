@@ -249,6 +249,27 @@ func CheckContainerdRunning(ctx context.Context) bool {
 	return false
 }
 
+// CheckServiceActiveWithCommand runs the given command and reports whether the
+// containerd service is active based on its exit code (0 = active). It overrides
+// the default in-namespace systemd.IsActive check, e.g. by wrapping
+// "systemctl is-active containerd" with nsenter so the check queries the host's
+// service manager from inside a container. A non-zero exit means "not active"
+// (not an error); only a failure to execute the command itself returns an error.
+func CheckServiceActiveWithCommand(ctx context.Context, command string) (bool, error) {
+	// #nosec G204 -- command is an operator-provided override (same trust model as reboot-commands).
+	out, err := exec.CommandContext(ctx, "bash", "-c", command).CombinedOutput()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			log.Logger.Debugw("containerd service-active command reported inactive",
+				"command", command, "exitCode", exitErr.ExitCode(), "output", string(out))
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to run containerd service-active command %q: %w", command, err)
+	}
+	return true, nil
+}
+
 // GetVersion gets the version of the containerd runtime.
 func GetVersion(ctx context.Context, endpoint string) (string, error) {
 	conn, err := connect(ctx, endpoint)

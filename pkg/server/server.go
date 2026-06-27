@@ -305,6 +305,12 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		MountPoints:  []string{"/"},
 		MountTargets: []string{"/var/lib/kubelet"},
 
+		FindmntCommands:       config.FindmntCommands,
+		LsblkCommands:         config.LsblkCommands,
+		BlockdevUsageCommands: config.BlockdevUsageCommands,
+
+		ContainerdServiceActiveCommands: config.ContainerdServiceActiveCommands,
+
 		FailureInjector: config.FailureInjector,
 	}
 	if s.gpudInstance.MachineID == "" {

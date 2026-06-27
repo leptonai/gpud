@@ -3,6 +3,7 @@ package machineinfo
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
 	"strconv"
@@ -510,4 +511,25 @@ func TestGetMachineDiskInfo_FilterProviderSpecificPaths(t *testing.T) {
 	}
 
 	t.Logf("Verified %d block devices have no provider-specific mount points", len(info.BlockDevices))
+}
+
+func TestUint64ToInt64Capped(t *testing.T) {
+	tests := []struct {
+		name string
+		in   uint64
+		want int64
+	}{
+		{"zero", 0, 0},
+		{"small", 1024, 1024},
+		{"max int64", math.MaxInt64, math.MaxInt64},
+		{"max int64 plus one is capped", uint64(math.MaxInt64) + 1, math.MaxInt64},
+		{"max uint64 is capped", math.MaxUint64, math.MaxInt64},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := uint64ToInt64Capped(tt.in)
+			assert.Equal(t, tt.want, got)
+			assert.GreaterOrEqual(t, got, int64(0), "result must never be negative")
+		})
+	}
 }

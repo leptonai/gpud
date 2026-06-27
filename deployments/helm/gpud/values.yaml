@@ -29,12 +29,37 @@ gpud:
   # The endpoint for the control plane.
   endpoint: "gpud-manager-prod01.dgxc-lepton.nvidia.com"
 
+  # Optional: read the gpud session token from an existing Secret instead of a
+  # node label. When name is set, the token is injected as the TOKEN env via
+  # secretKeyRef and takes priority over any token node label. Leave name empty
+  # to rely on the node label (nodeLabelExporter) or no token.
+  #
+  # TOKEN MODEL: this is a SHARED, cluster/node-group-level enrollment credential.
+  # Every gpud pod in the DaemonSet reads the SAME Secret, so all machines
+  # authenticate to the control plane with the SAME token. Machines are NOT told
+  # apart by the token -- they are distinguished by their unique per-node
+  # machine ID (see nodeLabelExporter.labelKeys.machineId below). In short:
+  #   - token      = "may I join this workspace?"  (shared across all nodes)
+  #   - machine ID = "which machine am I?"         (unique per node)
+  # For per-machine tokens instead (e.g. to revoke a single node), leave this
+  # empty and put a distinct token in each node's label via nodeLabelExporter.
+  tokenSecret:
+    name: ""
+    key: "TOKEN"
+
   # Enable auto update of gpud.
   enableAutoUpdate: false
 
   # The exit code to use when auto-updating.
   # set -1 to disable exit code
   autoUpdateExitCode: -1
+
+  # --- Host command overrides ---
+  # The settings in this block (rebootCommands and the disk findmntCommands /
+  # lsblkCommands / blockdevUsageCommands) wrap host tools with nsenter so they
+  # run in the host's namespaces instead of the container's. They share the same
+  # requirements: hostPID=true, securityContext.privileged=true, runAsUser=0.
+  # Set any of them to "" to fall back to gpud's built-in in-namespace behavior.
 
   # Bash script passed to "gpud run --reboot-commands".
   # Empty keeps gpud's built-in reboot behavior, which runs "sudo reboot" after
@@ -61,6 +86,47 @@ gpud:
 
     sudo reboot
 
+  # Command prefixes the disk component uses to inspect the host's disks.
+  #
+  # gpud runs inside a container here, so "findmnt"/"lsblk"/statfs executed in the
+  # container's mount namespace report the container's overlay rootfs instead of
+  # the node's real filesystems (e.g. the root disk and any data disks). The chart
+  # therefore wraps these tools with "nsenter --target 1 --mount --" by default so
+  # they run in the host's mount namespace and report the node's disks. gpud
+  # appends the flags it controls (e.g. findmnt --target ... --json --df).
+  #
+  # This depends on the same pod settings as rebootCommands above:
+  # - hostPID=true lets nsenter target the host's PID 1.
+  # - securityContext.privileged=true grants the namespace-entering capability.
+  # - securityContext.runAsUser=0 runs gpud and nsenter as root.
+  #
+  # Set any of these to "" to disable the override and use gpud's built-in
+  # in-namespace behavior (appropriate for non-privileged or bare-metal setups).
+  findmntCommands: "nsenter --target 1 --mount -- findmnt"
+  lsblkCommands: "nsenter --target 1 --mount -- lsblk"
+  blockdevUsageCommands: "nsenter --target 1 --mount -- df"
+
+  # Command used by the containerd component to check whether the containerd
+  # service is active. gpud runs inside a container here, so the container's own
+  # systemd does not manage containerd; the chart wraps "systemctl is-active
+  # containerd" with nsenter so the check queries the host's service manager
+  # (exit code 0 means active). Requires the host containerd mounts below
+  # (mountContainerd) plus the same hostPID/privileged settings as above.
+  # Set to "" to use gpud's built-in in-namespace systemd check.
+  containerdServiceActiveCommands: "nsenter --target 1 --mount -- systemctl is-active containerd"
+
+  # Mount the host containerd directories so the containerd component can monitor
+  # the node's containerd when gpud runs inside a container:
+  #   - /run/containerd (read-write): stat the socket and reach the CRI endpoint
+  #     at unix:///run/containerd/containerd.sock.
+  #   - /etc/containerd (read-only): read config.toml to verify the NVIDIA runtime
+  #     is configured. Without this, gpud sees only the container image's stub
+  #     config and falsely reports the NVIDIA runtime as missing.
+  # Both use hostPath type DirectoryOrCreate, so the pod still starts on nodes
+  # without containerd (the component then reports containerd as not installed).
+  # Set to false on nodes that do not run containerd (e.g. docker/cri-o only).
+  mountContainerd: true
+
   # Mount /dev/mem for deep hardware inspection and memory diagnostics (e.g., PCIe config space).
   # Defaults to false for maximum compatibility across platforms (addresses issue #1144).
   # Set to true if you need deep memory inspection and your environment supports /dev/mem.
@@ -86,6 +152,9 @@ gpud:
   mountHostProc: true
 
   # Override the default command for the gpud container.
+  # If set, the chart's default startup wrapper is bypassed; include any gpud
+  # flags you still need there, including --reboot-commands and the disk
+  # --findmnt-commands/--lsblk-commands/--blockdev-usage-commands when applicable.
   commandOverride: []
 
 # Reference to one or more secrets to be used for pulling images from private registries.
@@ -206,13 +275,26 @@ nodeLabelExporter:
   image:
     # Use a shell-capable kubectl image. Distroless kubectl images (registry.k8s.io/kubectl)
     # do not include /bin/sh, but our init/sidecar scripts rely on a POSIX shell.
-    # Hosted on public ECR to avoid Docker Hub rate limits.
-    repository: public.ecr.aws/bitnami/kubectl
-    tag: v1.34.0
+    # NOTE: Bitnami removed their public ECR mirror (public.ecr.aws/bitnami) in 2025,
+    # so we use the Docker Hub bitnami/kubectl image. Override if you mirror it
+    # elsewhere or hit Docker Hub rate limits.
+    repository: docker.io/bitnami/kubectl
+    tag: latest
     pullPolicy: IfNotPresent
   # File written on the host (via the shared /var/lib/gpud volume).
   outputFile: /var/lib/gpud/node-labels.env
   # Label keys to look for in the node labels.
+  # For BYOK worker clusters, set machineId to the label that stores the
+  # platform machine ID (for example, lepton.ai/machine-id) so gpud rejoins
+  # with the same machine ID even if the host /etc/machine-id changes.
+  #
+  # machineId is the UNIQUE per-node identity ("which machine am I?"): each node
+  # carries its own value, and passing it to "gpud run --machine-id" is what
+  # keeps a node registered as the SAME machine across pod restarts, DaemonSet
+  # replacement, or node reimage. (The token, by contrast, is shared across all
+  # nodes -- see gpud.tokenSecret. token = "may I join?", machineId = "who am I?".)
+  # endpoint/token here are optional label-based alternatives to gpud.endpoint and
+  # gpud.tokenSecret; leave them unmatched to use those values instead.
   labelKeys:
     endpoint: gpud.dgxc.lepton.ai/endpoint
     token: gpud.dgxc.lepton.ai/token

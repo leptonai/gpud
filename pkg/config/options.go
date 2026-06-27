@@ -18,6 +18,23 @@ type Op struct {
 	// Empty keeps the default host reboot implementation.
 	RebootCommands string
 
+	// FindmntCommands optionally overrides how the disk component invokes "findmnt".
+	// Empty keeps the legacy in-namespace behavior.
+	FindmntCommands string
+
+	// LsblkCommands optionally overrides how the disk component invokes "lsblk".
+	// Empty keeps the legacy in-namespace behavior.
+	LsblkCommands string
+
+	// BlockdevUsageCommands optionally overrides how the disk component collects
+	// partition usage. Empty keeps the legacy gopsutil + statfs behavior.
+	BlockdevUsageCommands string
+
+	// ContainerdServiceActiveCommands optionally overrides how the containerd
+	// component checks whether the containerd service is active. Empty keeps the
+	// legacy in-namespace systemd.IsActive behavior.
+	ContainerdServiceActiveCommands string
+
 	// SessionToken is the session token for db-in-memory mode.
 	// When DBInMemory is true and this is set, the server will seed
 	// this token into the in-memory database.
@@ -99,6 +116,39 @@ func WithDBInMemory(b bool) OpOption {
 func WithRebootCommands(commands string) OpOption {
 	return func(op *Op) {
 		op.RebootCommands = commands
+	}
+}
+
+// WithFindmntCommands overrides how the disk component invokes "findmnt".
+// Empty keeps the legacy in-namespace behavior.
+func WithFindmntCommands(commands string) OpOption {
+	return func(op *Op) {
+		op.FindmntCommands = commands
+	}
+}
+
+// WithLsblkCommands overrides how the disk component invokes "lsblk".
+// Empty keeps the legacy in-namespace behavior.
+func WithLsblkCommands(commands string) OpOption {
+	return func(op *Op) {
+		op.LsblkCommands = commands
+	}
+}
+
+// WithBlockdevUsageCommands overrides how the disk component collects partition
+// usage. Empty keeps the legacy gopsutil + statfs behavior.
+func WithBlockdevUsageCommands(commands string) OpOption {
+	return func(op *Op) {
+		op.BlockdevUsageCommands = commands
+	}
+}
+
+// WithContainerdServiceActiveCommands overrides how the containerd component
+// checks whether the containerd service is active. Empty keeps the legacy
+// in-namespace systemd.IsActive behavior.
+func WithContainerdServiceActiveCommands(commands string) OpOption {
+	return func(op *Op) {
+		op.ContainerdServiceActiveCommands = commands
 	}
 }
 

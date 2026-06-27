@@ -109,7 +109,16 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		checkDependencyInstalledFunc: checkContainerdInstalled,
 		checkSocketExistsFunc:        checkSocketExistsFunc,
 		checkContainerdRunningFunc:   CheckContainerdRunning,
-		checkServiceActiveFunc: func(_ context.Context) (bool, error) {
+		// checkServiceActiveFunc defaults to the in-namespace systemd.IsActive
+		// check. When ContainerdServiceActiveCommands is set (e.g. wrapping
+		// "systemctl is-active containerd" with nsenter), the check runs against
+		// the host's service manager instead -- required when gpud runs inside a
+		// container, where the container's own systemd does not manage containerd.
+		// Empty preserves the legacy behavior byte-for-byte.
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			if gpudInstance.ContainerdServiceActiveCommands != "" {
+				return CheckServiceActiveWithCommand(ctx, gpudInstance.ContainerdServiceActiveCommands)
+			}
 			return systemd.IsActive("containerd")
 		},
 		getContainerdUptimeFunc: func() (*time.Duration, error) {
