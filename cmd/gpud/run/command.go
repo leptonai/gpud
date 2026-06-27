@@ -80,6 +80,8 @@ func Command(cliContext *cli.Context) error {
 	controlPlaneLoginRegistrationToken := cliContext.String("token")
 
 	machineIDForOverride := cliContext.String("machine-id")
+	machineIDOverwrite := cliContext.Bool("machine-id-overwrite")
+	refreshSessionToken := cliContext.Bool("refresh-session-token")
 
 	// Note: login.Login() ALWAYS writes to the persistent state file (via dataDir),
 	// regardless of --db-in-memory flag. The login package doesn't know about in-memory mode.
@@ -92,10 +94,12 @@ func Command(cliContext *cli.Context) error {
 		defer loginCancel()
 
 		loginCfg := login.LoginConfig{
-			Token:     controlPlaneLoginRegistrationToken,
-			Endpoint:  controlPlaneEndpoint,
-			MachineID: machineIDForOverride,
-			DataDir:   dataDir,
+			Token:               controlPlaneLoginRegistrationToken,
+			Endpoint:            controlPlaneEndpoint,
+			MachineID:           machineIDForOverride,
+			MachineIDOverwrite:  machineIDOverwrite,
+			RefreshSessionToken: refreshSessionToken,
+			DataDir:             dataDir,
 
 			GPUCount: gpuCountStr,
 		}
@@ -399,10 +403,27 @@ func Command(cliContext *cli.Context) error {
 		// NOT the registration token
 
 		if machineIDForOverride != "" {
-			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyMachineID, machineIDForOverride); err != nil {
-				return fmt.Errorf("failed to set machine-id metadata: %w", err)
+			// Mirror login.Login's reconciliation for the override path (e.g. when
+			// login was skipped or not performed): only REPLACE a differing persisted
+			// machine id when --machine-id-overwrite is set; otherwise fail rather
+			// than silently retarget the node. (When login.Login already re-registered
+			// as the new machine, the persisted id matches here and this is a no-op.)
+			prevMachineID, rerr := pkgmetadata.ReadMetadata(mctx, dbRW, pkgmetadata.MetadataKeyMachineID)
+			if rerr != nil {
+				return fmt.Errorf("failed to read persisted machine-id: %w", rerr)
 			}
-			log.Logger.Infow("overriding machine id from flag", "machineID", machineIDForOverride)
+			if prevMachineID != "" && prevMachineID != machineIDForOverride && !machineIDOverwrite {
+				return fmt.Errorf("persisted machine ID %q differs from --machine-id %q; pass --machine-id-overwrite to replace it", prevMachineID, machineIDForOverride)
+			}
+			if prevMachineID != machineIDForOverride {
+				if prevMachineID != "" {
+					log.Logger.Warnw("!!! MACHINE ID OVERWRITE !!! replacing persisted machine id from flag", "old", prevMachineID, "new", machineIDForOverride)
+				}
+				if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyMachineID, machineIDForOverride); err != nil {
+					return fmt.Errorf("failed to set machine-id metadata: %w", err)
+				}
+				log.Logger.Infow("overriding machine id from flag", "machineID", machineIDForOverride)
+			}
 		}
 	}
 

@@ -382,6 +382,98 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsRelogsIn(t *testing.
 	})
 }
 
+// TestLogin_RefreshSessionTokenRelogsIn verifies that RefreshSessionToken forces a
+// fresh login even when a machine id is already persisted and node labels are
+// unchanged -- bypassing the "skip login" fast path so the session token is always
+// re-fetched from the control plane. Contrast with TestLogin_MachineIDAlreadyAssigned,
+// which skips login (never reaches SendRequest) under the same conditions.
+func TestLogin_RefreshSessionTokenRelogsIn(t *testing.T) {
+	mockey.PatchConvey("refresh session token forces relogin for already-assigned machine", t, func() {
+		mockDB := &sql.DB{}
+		requestSent := false
+		tokenPersisted := ""
+
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
+			return "/tmp/test", nil
+		}).Build()
+
+		mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
+			return mockDB, nil
+		}).Build()
+
+		mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(sessionstates.CreateTable).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		// a machine id is already persisted...
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+			return "existing-machine-id", nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.ReadMetadata).To(func(context.Context, *sql.DB, string) (string, error) {
+			return "", nil
+		}).Build()
+
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return nvidianvml.NewNoOp(), nil
+		}).Build()
+
+		mockey.Mock((nvidianvml.Instance).Shutdown).To(func() error {
+			return nil
+		}).Build()
+
+		var receivedMachineID string
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, machineID, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+			receivedMachineID = machineID
+			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
+		}).Build()
+
+		mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+			requestSent = true
+			return &apiv1.LoginResponse{MachineID: "existing-machine-id", Token: "fresh-session-token"}, nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.SetMetadata).To(func(_ context.Context, _ *sql.DB, key, value string) error {
+			if key == pkgmetadata.MetadataKeyToken {
+				tokenPersisted = value
+			}
+			return nil
+		}).Build()
+
+		mockey.Mock(config.FifoFilePath).To(func(string) string {
+			return "/tmp/test/fifo"
+		}).Build()
+
+		mockey.Mock(serverRunning).To(func() bool {
+			return false
+		}).Build()
+
+		ctx := context.Background()
+		// no NodeLabels and no differing machine id: without RefreshSessionToken this
+		// would take the skip-login fast path and never re-login.
+		cfg := LoginConfig{
+			Token:               "test-token",
+			Endpoint:            "https://example.com",
+			DataDir:             "/tmp/test",
+			RefreshSessionToken: true,
+		}
+
+		err := Login(ctx, cfg)
+		require.NoError(t, err)
+		assert.True(t, requestSent, "refresh-session-token should force a fresh login request")
+		assert.Equal(t, "existing-machine-id", receivedMachineID, "relogin must reuse the persisted machine id")
+		assert.Equal(t, "fresh-session-token", tokenPersisted, "the re-fetched session token should be persisted")
+	})
+}
+
 func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsAndMismatchedOverrideFails(t *testing.T) {
 	mockey.PatchConvey("machine id already assigned with changed node labels and mismatched override", t, func() {
 		mockDB := &sql.DB{}
@@ -446,10 +538,108 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsAndMismatchedOverrid
 
 		err := Login(ctx, cfg)
 		require.Error(t, err)
-		assert.EqualError(t, err, `stored machine ID "existing-machine-id" does not match requested machine ID "different-machine-id"`)
+		// reconcileMachineID now catches the mismatch before the relogin/refresh fork,
+		// failing with an actionable message that points at the --machine-id-overwrite
+		// escape hatch (instead of silently skipping login on the stale persisted ID).
+		assert.Contains(t, err.Error(), `persisted machine ID "existing-machine-id" differs from requested machine ID "different-machine-id"`)
+		assert.Contains(t, err.Error(), "--machine-id-overwrite")
 		assert.False(t, nvmlCreated)
 		assert.False(t, loginRequestCreated)
 		assert.False(t, requestSent)
+	})
+}
+
+// TestLogin_MachineIDOverwriteReRegisters verifies the --machine-id-overwrite path:
+// when the supplied machine ID differs from the persisted one, gpud clears the stale
+// login identity and performs a fresh registration as the new machine. This is the
+// container/DaemonSet recovery path for a node that rejoined with a new machine object
+// while /var/lib/gpud still held the old identity.
+func TestLogin_MachineIDOverwriteReRegisters(t *testing.T) {
+	mockey.PatchConvey("machine id overwrite clears stale identity and re-registers", t, func() {
+		mockDB := &sql.DB{}
+		deleteAllCalled := false
+		requestSent := false
+		newMachineIDPersisted := false
+
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
+			return "/tmp/test", nil
+		}).Build()
+
+		mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
+			return mockDB, nil
+		}).Build()
+
+		mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		mockey.Mock(sessionstates.CreateTable).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+
+		// stale identity is persisted on disk
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+			return "stale-machine-id", nil
+		}).Build()
+
+		// the overwrite path clears the whole persisted login identity
+		mockey.Mock(pkgmetadata.DeleteAllMetadata).To(func(context.Context, *sql.DB) error {
+			deleteAllCalled = true
+			return nil
+		}).Build()
+
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return nvidianvml.NewNoOp(), nil
+		}).Build()
+
+		mockey.Mock((nvidianvml.Instance).Shutdown).To(func() error {
+			return nil
+		}).Build()
+
+		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, machineID, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+			// fresh registration must NOT carry the stale machine ID
+			assert.NotEqual(t, "stale-machine-id", machineID)
+			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
+		}).Build()
+
+		mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+			requestSent = true
+			return &apiv1.LoginResponse{MachineID: "new-machine-id", Token: "new-session-token"}, nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.SetMetadata).To(func(_ context.Context, _ *sql.DB, key, value string) error {
+			if key == pkgmetadata.MetadataKeyMachineID && value == "new-machine-id" {
+				newMachineIDPersisted = true
+			}
+			return nil
+		}).Build()
+
+		mockey.Mock(config.FifoFilePath).To(func(_ string) string {
+			return "/tmp/test/fifo"
+		}).Build()
+
+		mockey.Mock(serverRunning).To(func() bool {
+			return false
+		}).Build()
+
+		ctx := context.Background()
+		cfg := LoginConfig{
+			Token:              "test-token",
+			Endpoint:           "https://example.com",
+			DataDir:            "/tmp/test",
+			MachineID:          "new-machine-id",
+			MachineIDOverwrite: true,
+		}
+
+		err := Login(ctx, cfg)
+		require.NoError(t, err)
+		assert.True(t, deleteAllCalled, "stale identity should be cleared")
+		assert.True(t, requestSent, "a fresh login request should be sent")
+		assert.True(t, newMachineIDPersisted, "the new machine ID should be persisted")
 	})
 }
 

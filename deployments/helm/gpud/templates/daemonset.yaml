@@ -334,6 +334,22 @@ spec:
                 set -- "$@" --machine-id="$MID"
               fi
 
+              # When the node's machine-id label changes (the node was deleted from
+              # its node group and rejoined, binding a NEW machine object), the
+              # persisted /var/lib/gpud identity is stale. --machine-id-overwrite
+              # tells gpud to discard that stale identity and re-register as the new
+              # machine instead of failing. Reboot/health state is preserved.
+              if [ "${GPUD_MACHINE_ID_OVERWRITE:-}" = "true" ]; then
+                set -- "$@" --machine-id-overwrite
+              fi
+
+              # Pods restart often; the cached /var/lib/gpud session token can be stale
+              # (server-side session reset, workspace token rotation). --refresh-session-token
+              # forces a fresh login on start so we always re-fetch a current token.
+              if [ "${GPUD_REFRESH_SESSION_TOKEN:-}" = "true" ]; then
+                set -- "$@" --refresh-session-token
+              fi
+
               set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
               set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
 
@@ -386,6 +402,18 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.gpud.tokenSecret.name | quote }}
                   key: {{ .Values.gpud.tokenSecret.key | quote }}
+            {{- end }}
+            {{- if .Values.gpud.machineIdOverwrite }}
+            # Allow a changed machine-id label to re-register the node (see the
+            # startup script). Consumed as $GPUD_MACHINE_ID_OVERWRITE.
+            - name: GPUD_MACHINE_ID_OVERWRITE
+              value: "true"
+            {{- end }}
+            {{- if .Values.gpud.refreshSessionToken }}
+            # Always re-fetch the session token on start (see the startup script).
+            # Consumed as $GPUD_REFRESH_SESSION_TOKEN.
+            - name: GPUD_REFRESH_SESSION_TOKEN
+              value: "true"
             {{- end }}
             {{- if .Values.gpud.rebootCommands }}
             - name: GPUD_REBOOT_COMMANDS
