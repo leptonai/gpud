@@ -42,3 +42,6 @@ custom-gcl
 
 /gpud
 
+
+# Private helm values overlay (nvcr.io image + pull secret) -- internal only
+deployments/helm/gpud/values-nvcr.yaml

@@ -802,3 +802,22 @@ func TestIsErrUnimplemented(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckServiceActiveWithCommand(t *testing.T) {
+	ctx := context.Background()
+
+	// exit code 0 => active
+	active, err := CheckServiceActiveWithCommand(ctx, "true")
+	require.NoError(t, err)
+	assert.True(t, active, "expected active=true for exit-0 command")
+
+	// emulates "systemctl is-active containerd" returning active
+	active, err = CheckServiceActiveWithCommand(ctx, "echo active")
+	require.NoError(t, err)
+	assert.True(t, active, "expected active=true for 'echo active'")
+
+	// non-zero exit => inactive, but NOT an error (mirrors systemctl exit 3)
+	active, err = CheckServiceActiveWithCommand(ctx, "false")
+	require.NoError(t, err, "non-zero exit should not be an error")
+	assert.False(t, active, "expected active=false for exit-non-zero command")
+}

@@ -15,14 +15,38 @@ import (
 )
 
 // Runs "findmnt --target [TARGET] --json --df" and parses the output.
+//
+// FindMnt locates "findmnt" on PATH and runs it in the current (e.g. container)
+// mount namespace. Inside a container the root is typically an overlay (a pseudo
+// filesystem that --df filters out), so on its own this reports the container's
+// view. Use FindMntWithCommand to override the invocation (e.g. wrap with
+// "nsenter --target 1 --mount -- findmnt") so it reports the host's real mounts.
 func FindMnt(ctx context.Context, target string) (*FindMntOutput, error) {
-	findmntPath, err := file.LocateExecutable("findmnt")
-	if err != nil {
-		return nil, err
+	return FindMntWithCommand(ctx, target, "")
+}
+
+// FindMntWithCommand behaves like FindMnt but uses the given command override as
+// the findmnt invocation prefix instead of locating "findmnt" on PATH.
+//
+// An empty command falls back to the default behavior (locate "findmnt"), so
+// FindMntWithCommand(ctx, target, "") is byte-for-byte identical to
+// FindMnt(ctx, target). gpud always appends the flags it controls
+// (--target, --json, --df).
+func FindMntWithCommand(ctx context.Context, target string, command string) (*FindMntOutput, error) {
+	// Empty command preserves the legacy behavior: locate "findmnt" on PATH and
+	// run it directly. A non-empty override is used verbatim as the command
+	// prefix (gpud still appends the flags it controls below).
+	findmntCmd := command
+	if findmntCmd == "" {
+		findmntPath, err := file.LocateExecutable("findmnt")
+		if err != nil {
+			return nil, err
+		}
+		findmntCmd = findmntPath
 	}
 
 	p, err := process.New(
-		process.WithCommand(fmt.Sprintf("%s --target %s --json --df", findmntPath, target)),
+		process.WithCommand(findMntCommand(findmntCmd, target)),
 		process.WithRunAsBashScript(),
 		process.WithRunBashInline(),
 	)
@@ -59,6 +83,10 @@ func FindMnt(ctx context.Context, target string) (*FindMntOutput, error) {
 	}
 	out.Target = target
 	return out, nil
+}
+
+func findMntCommand(findmntPath, target string) string {
+	return fmt.Sprintf("%s --target %s --json --df", findmntPath, target)
 }
 
 // Represents the output of the command

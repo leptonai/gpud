@@ -38,6 +38,185 @@ helm install my-gpud <YOUR_REPO_NAME>/gpud \
   --namespace gpud -f my-values.yaml
 ```
 
+### Reboot Support Inside DaemonSet Pods
+
+The chart passes `gpud.rebootCommands` to `gpud run --reboot-commands`. By
+default, it uses `nsenter` to enter the host namespaces through PID 1 and ask
+the host init system to reboot the node. This is the path needed when GPUd runs
+inside a privileged DaemonSet pod rather than directly as a host systemd
+service.
+
+The default reboot path depends on these chart defaults:
+
+- `hostPID: true`
+- `securityContext.privileged: true`
+- `securityContext.runAsUser: 0`
+- `securityContext.allowPrivilegeEscalation: true`
+
+Use a values file for multi-line reboot commands:
+
+```yaml
+gpud:
+  rebootCommands: |
+    set -o errexit
+    set -o nounset
+
+    if command -v nsenter >/dev/null 2>&1; then
+      if nsenter --target 1 --mount --uts --ipc --net --pid --cgroup --root --wd=/ -- /usr/bin/systemctl reboot; then
+        exit 0
+      fi
+      nsenter --target 1 --mount --uts --ipc --net --pid --cgroup --root --wd=/ -- /sbin/reboot
+      exit 0
+    fi
+
+    sudo reboot
+```
+
+Set `gpud.rebootCommands: ""` to keep GPUd's built-in reboot behavior instead.
+If `gpud.commandOverride` is set, the default startup wrapper is bypassed, so
+include `--reboot-commands` in the override when node reboot support is needed.
+
+### Disk Inspection Inside DaemonSet Pods
+
+The disk component shells out to `findmnt` and `lsblk` and measures filesystem
+usage via `statfs`. Run from inside a container, these report the container's
+overlay rootfs instead of the node's real disks (the root disk and any data
+disks). The chart therefore wraps each of them with `nsenter --target 1 --mount`
+by default so they run in the host's mount namespace:
+
+```yaml
+gpud:
+  findmntCommands: "nsenter --target 1 --mount -- findmnt"
+  lsblkCommands: "nsenter --target 1 --mount -- lsblk"
+  blockdevUsageCommands: "nsenter --target 1 --mount -- df"
+```
+
+These map to `gpud run --findmnt-commands`, `--lsblk-commands`, and
+`--blockdev-usage-commands`. The value is the invocation prefix; GPUd appends the
+flags it controls (for example `findmnt --target ... --json --df`, or
+`df -T -B1 -P`). They depend on the same chart defaults as `rebootCommands`
+(`hostPID: true`, `securityContext.privileged: true`, `runAsUser: 0`).
+
+Set any of these to `""` to keep GPUd's built-in in-namespace behavior, which is
+appropriate when GPUd runs directly on the host (e.g. as a systemd service) or in
+a non-privileged pod. As with reboot, if `gpud.commandOverride` is set the
+default startup wrapper is bypassed, so include these flags in the override when
+host disk inspection is needed.
+
+### Containerd Monitoring Inside DaemonSet Pods
+
+The containerd component checks the host's containerd socket and CRI endpoint,
+reads `/etc/containerd/config.toml` to verify the NVIDIA runtime is configured,
+and checks whether the containerd systemd service is active. Run from inside a
+container, the socket/config are not visible and the systemd check only sees the
+container's own service manager. The chart addresses both:
+
+```yaml
+gpud:
+  # Bind-mount the host's containerd dirs (default true):
+  #   /run/containerd (read-write)  -> socket + CRI endpoint
+  #   /etc/containerd (read-only)   -> config.toml NVIDIA-runtime check
+  # Both use hostPath DirectoryOrCreate, so the pod still starts without containerd.
+  mountContainerd: true
+
+  # Check whether the host's containerd service is active (exit code 0 = active),
+  # mapped to "gpud run --containerd-service-active-commands".
+  containerdServiceActiveCommands: "nsenter --target 1 --mount -- systemctl is-active containerd"
+```
+
+Set `gpud.mountContainerd: false` and `gpud.containerdServiceActiveCommands: ""`
+on nodes that do not run containerd (e.g. docker or cri-o only).
+
+### Session Token from a Secret
+
+By default the chart reads the session token from a node label (via
+`nodeLabelExporter`). To read it from an existing Kubernetes Secret instead, set
+`gpud.tokenSecret`; the token is injected as the `TOKEN` env via `secretKeyRef`
+and takes priority over any token label:
+
+```yaml
+gpud:
+  tokenSecret:
+    name: gpud-token   # existing Secret in the release namespace
+    key: TOKEN
+```
+
+### BYOK Worker Cluster Example
+
+For a BYOK worker cluster using a private NVCR image, create the image pull
+secret and the gpud session-token secret in the release namespace:
+
+```bash
+source ~/nvapi.sh
+NAMESPACE=default
+
+# Image pull secret for the private NGC image.
+kubectl create secret docker-registry nvcr-staging-pull \
+  --docker-server=nvcr.io \
+  --docker-username='$oauthtoken' \
+  --docker-password="$NVAPI_KEY" \
+  --namespace "$NAMESPACE"
+
+# gpud session token (read by gpud.tokenSecret below).
+kubectl create secret generic gpud-token \
+  --from-literal=TOKEN="<YOUR_GPUD_SESSION_TOKEN>" \
+  --namespace "$NAMESPACE"
+```
+
+Then install or upgrade with a values file like this (a full BYOK overlay):
+
+```yaml
+image:
+  repository: nvcr.io/nvstaging/dgx-cloud-lepton/gpud
+  tag: 0.12.2   # no "v" prefix from 0.12.2 onward
+
+imagePullSecrets:
+  - name: nvcr-staging-pull
+
+gpud:
+  endpoint: gpud-manager-dev02.dev02.dgxc-lepton-dev.nvidia.com
+  # Session token from the gpud-token Secret created above.
+  tokenSecret:
+    name: gpud-token
+    key: TOKEN
+  # The node also exposes /dev/mem on this platform.
+  mountHostDevMem: true
+  # reboot / disk (findmnt,lsblk,df) / containerd command overrides and the
+  # containerd socket+config mounts are chart defaults (nsenter wrappers).
+
+# Pass the per-node platform machine ID from the node label to
+# "gpud run --machine-id", so GPUd rejoins as the SAME machine after a pod
+# replacement, node reboot, or reimage (even if /etc/machine-id changes).
+nodeLabelExporter:
+  enabled: true
+  labelKeys:
+    machineId: lepton.ai/machine-id
+
+# Schedule only on the intended GPU worker nodes.
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node.lepton.ai/dedicated-node-group-id
+              operator: Exists
+            - key: lepton.ai/machine-id
+              operator: Exists
+```
+
+Install or upgrade with that values file in the same namespace:
+
+```bash
+helm upgrade --install gpud <YOUR_REPO_NAME>/gpud \
+  --namespace "$NAMESPACE" \
+  -f byok-values.yaml
+```
+
+This makes a `helm install` a drop-in replacement for a hand-written GPUd
+DaemonSet: the machine ID is preserved (node label + the persisted
+`/var/lib/gpud` hostPath), the token comes from the Secret, and the disk and
+containerd components report the node's real state via the nsenter wrappers.
+
 ## Uninstalling the Chart
 
 To uninstall the `my-gpud` release:

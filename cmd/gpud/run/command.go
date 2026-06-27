@@ -130,6 +130,10 @@ func Command(cliContext *cli.Context) error {
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
 	rebootCommands := cliContext.String("reboot-commands")
+	findmntCommands := cliContext.String("findmnt-commands")
+	lsblkCommands := cliContext.String("lsblk-commands")
+	blockdevUsageCommands := cliContext.String("blockdev-usage-commands")
+	containerdServiceActiveCommands := cliContext.String("containerd-service-active-commands")
 	versionFile := cliContext.String("version-file")
 	versionFileSet := cliContext.IsSet("version-file")
 	pluginSpecsFile := cliContext.String("plugin-specs-file")
@@ -339,6 +343,10 @@ func Command(cliContext *cli.Context) error {
 	cfg.EnableAutoUpdate = enableAutoUpdate
 	cfg.AutoUpdateExitCode = autoUpdateExitCode
 	cfg.RebootCommands = rebootCommands
+	cfg.FindmntCommands = findmntCommands
+	cfg.LsblkCommands = lsblkCommands
+	cfg.BlockdevUsageCommands = blockdevUsageCommands
+	cfg.ContainerdServiceActiveCommands = containerdServiceActiveCommands
 	if !versionFileSet {
 		versionFile = config.VersionFilePath(cfg.DataDir)
 	}

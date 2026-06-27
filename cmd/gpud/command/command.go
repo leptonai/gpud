@@ -205,6 +205,26 @@ sudo rm /etc/systemd/system/gpud.service
 					Value: "",
 				},
 				cli.StringFlag{
+					Name:  "findmnt-commands",
+					Usage: "command prefix used to invoke findmnt for the disk component (e.g. 'nsenter --target 1 --mount -- findmnt' to read host mounts from inside a container); leave empty to locate and run findmnt directly",
+					Value: "",
+				},
+				cli.StringFlag{
+					Name:  "lsblk-commands",
+					Usage: "command prefix used to invoke lsblk for the disk component (e.g. 'nsenter --target 1 --mount -- lsblk' to read host block devices from inside a container); leave empty to locate and run lsblk directly",
+					Value: "",
+				},
+				cli.StringFlag{
+					Name:  "blockdev-usage-commands",
+					Usage: "command prefix used to collect block device usage for the disk component (e.g. 'nsenter --target 1 --mount -- df' to read host disk usage from inside a container); leave empty to use the built-in gopsutil/statfs behavior",
+					Value: "",
+				},
+				cli.StringFlag{
+					Name:  "containerd-service-active-commands",
+					Usage: "command used to check whether the containerd service is active (e.g. 'nsenter --target 1 --mount -- systemctl is-active containerd' to query the host service manager from inside a container; exit code 0 means active); leave empty to use the built-in systemd check",
+					Value: "",
+				},
+				cli.StringFlag{
 					Name:  "version-file",
 					Usage: "specifies the version file to use for auto update (leave empty to disable auto update)",
 					Value: pkgupdate.DefaultVersionFile,
