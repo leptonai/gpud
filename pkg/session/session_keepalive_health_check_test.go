@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -103,8 +105,8 @@ func TestKeepAliveHealthCheck403PersistsFailure(t *testing.T) {
 
 // TestKeepAliveHealthCheck500TokenValidationPersistsFailure verifies that when
 // checkServerHealth returns an HTTP 500 error with "failed to validate token" body,
-// the keepAlive loop persists the failure to session_states. The control plane may
-// return 500 instead of 403 for auth failures (server-side bug).
+// the keepAlive loop persists an authentication failure to session_states. The
+// control plane may return 500 instead of 401/403 for auth failures (server-side bug).
 func TestKeepAliveHealthCheck500TokenValidationPersistsFailure(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -172,8 +174,111 @@ func TestKeepAliveHealthCheck500TokenValidationPersistsFailure(t *testing.T) {
 	require.NotNil(t, state, "Expected session state to be persisted for 500 with token validation failure")
 
 	assert.False(t, state.Success, "Session state should indicate failure")
-	assert.Contains(t, state.Message, "HTTP 500")
+	assert.Contains(t, state.Message, "HTTP 401")
+	assert.Contains(t, state.Message, "InvalidToken")
 	assert.Contains(t, state.Message, "failed to validate token")
+	assert.NotContains(t, state.Message, "HTTP 500")
+	assert.NotContains(t, state.Message, "InternalFailure")
+}
+
+func TestStartReader500TokenValidationPersistsAuthenticationFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	stateFile := tmpDir + "/gpud.state"
+	dbSetup, err := sqlite.Open(stateFile)
+	require.NoError(t, err)
+	require.NoError(t, sessionstates.CreateTable(context.Background(), dbSetup))
+	require.NoError(t, dbSetup.Close())
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "read", r.Header.Get("X-GPUD-Session-Type"))
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"code":"InternalFailure","message":"failed to validate token"}`))
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	s := &Session{
+		ctx:            ctx,
+		dataDir:        tmpDir,
+		epControlPlane: server.URL,
+		machineID:      "machine-id",
+		token:          "bad-token",
+		closer:         &closeOnce{closer: make(chan any)},
+	}
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+
+	readerExit := make(chan any)
+	s.startReader(ctx, readerExit, jar)
+
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	require.NoError(t, err)
+	defer func() { _ = dbRO.Close() }()
+
+	state, err := sessionstates.ReadLast(context.Background(), dbRO)
+	require.NoError(t, err)
+	require.NotNil(t, state, "Expected session state to be persisted for reader auth failure")
+
+	assert.False(t, state.Success)
+	assert.Contains(t, state.Message, "HTTP 401")
+	assert.Contains(t, state.Message, "InvalidToken")
+	assert.Contains(t, state.Message, "failed to validate token")
+	assert.NotContains(t, state.Message, "HTTP 500")
+	assert.NotContains(t, state.Message, "InternalFailure")
+}
+
+func TestLoginFailureStatusMessage(t *testing.T) {
+	t.Run("preserves forbidden auth failure", func(t *testing.T) {
+		message, ok := loginFailureStatusMessage(http.StatusForbidden, `{"code":"Unauthorized","message":"failed to validate token"}`)
+		require.True(t, ok)
+		assert.Contains(t, message, "HTTP 403")
+		assert.Contains(t, message, "Unauthorized")
+		assert.Contains(t, message, "failed to validate token")
+	})
+
+	t.Run("normalizes internal failure token validation body", func(t *testing.T) {
+		message, ok := loginFailureStatusMessage(http.StatusInternalServerError, `{"code":"InternalFailure","message":"failed to validate token"}`)
+		require.True(t, ok)
+		assert.Contains(t, message, "HTTP 401")
+		assert.Contains(t, message, "InvalidToken")
+		assert.Contains(t, message, "failed to validate token")
+		assert.NotContains(t, message, "InternalFailure")
+	})
+
+	t.Run("normalizes non-json token validation body", func(t *testing.T) {
+		message, ok := loginFailureStatusMessage(http.StatusInternalServerError, "failed to validate token")
+		require.True(t, ok)
+		assert.Equal(t, `HTTP 401: {"code":"InvalidToken","message":"failed to validate token"}`, message)
+	})
+
+	t.Run("adds missing message when normalizing json body", func(t *testing.T) {
+		message, ok := loginFailureStatusMessage(http.StatusInternalServerError, `{"code":"InternalFailure","detail":"failed to validate token"}`)
+		require.True(t, ok)
+		assert.Contains(t, message, "HTTP 401")
+		assert.Contains(t, message, "InvalidToken")
+		assert.Contains(t, message, `"message":"failed to validate token"`)
+		assert.Contains(t, message, `"detail":"failed to validate token"`)
+	})
+
+	t.Run("does not persist unrelated internal failure", func(t *testing.T) {
+		_, ok := loginFailureStatusMessage(http.StatusInternalServerError, `{"code":"InternalFailure","message":"database unavailable"}`)
+		assert.False(t, ok)
+	})
+
+	t.Run("does not persist unrelated status", func(t *testing.T) {
+		_, ok := loginFailureStatusMessage(http.StatusTeapot, `{"code":"Teapot","message":"failed to validate token"}`)
+		assert.False(t, ok)
+	})
+
+	t.Run("truncates long messages", func(t *testing.T) {
+		body := `{"code":"InternalFailure","message":"failed to validate token ` + strings.Repeat("x", 600) + `"}`
+		message, ok := loginFailureStatusMessage(http.StatusInternalServerError, body)
+		require.True(t, ok)
+		assert.Len(t, message, 500)
+		assert.Contains(t, message, "HTTP 401")
+	})
 }
 
 // TestKeepAliveHealthCheckNon403DoesNotPersist verifies that non-403 health check

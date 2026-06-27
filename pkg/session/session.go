@@ -543,17 +543,9 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	if resp.StatusCode != http.StatusOK {
 		log.Logger.Warnw("session reader: request resp not ok -- retrying", "status", resp.Status, "statusCode", resp.StatusCode)
 
-		// Persist authentication-related failures to session_states so "gpud status" surfaces them.
-		// The server returns 401/403 for auth errors, but may also return 500 with
-		// "failed to validate token" when the token is invalid (server-side bug).
 		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusInternalServerError {
 			bodyBytes, _ := io.ReadAll(resp.Body)
-			body := string(bodyBytes)
-			if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized || strings.Contains(body, "failed to validate token") {
-				message := fmt.Sprintf("HTTP %d: %s", resp.StatusCode, body)
-				if len(message) > 500 {
-					message = message[:500]
-				}
+			if message, ok := loginFailureStatusMessage(resp.StatusCode, string(bodyBytes)); ok {
 				s.persistLoginStatus(ctx, false, message)
 			}
 		}
@@ -578,6 +570,48 @@ type healthCheckHTTPError struct {
 
 func (e *healthCheckHTTPError) Error() string {
 	return fmt.Sprintf("server health check failed: HTTP %d: %s", e.statusCode, e.body)
+}
+
+const tokenValidationFailureMessage = "failed to validate token"
+
+func loginFailureStatusMessage(statusCode int, body string) (string, bool) {
+	switch statusCode {
+	case http.StatusForbidden, http.StatusUnauthorized:
+	case http.StatusInternalServerError:
+		if !strings.Contains(body, tokenValidationFailureMessage) {
+			return "", false
+		}
+
+		// WHY: some gpud-manager deployments wrap invalid-token validation as
+		// HTTP 500/InternalFailure. `gpud status` is operator-facing, so report
+		// the authentication cause instead of making a bad token look like a
+		// control-plane outage.
+		statusCode = http.StatusUnauthorized
+		body = invalidTokenStatusBody(body)
+	default:
+		return "", false
+	}
+
+	message := fmt.Sprintf("HTTP %d: %s", statusCode, body)
+	if len(message) > 500 {
+		message = message[:500]
+	}
+	return message, true
+}
+
+func invalidTokenStatusBody(body string) string {
+	payload := make(map[string]any)
+	if err := json.Unmarshal([]byte(body), &payload); err == nil {
+		payload["code"] = "InvalidToken"
+		if _, ok := payload["message"]; !ok {
+			payload["message"] = tokenValidationFailureMessage
+		}
+		if normalized, err := json.Marshal(payload); err == nil {
+			return string(normalized)
+		}
+	}
+
+	return `{"code":"InvalidToken","message":"failed to validate token"}`
 }
 
 func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar, token string) error {

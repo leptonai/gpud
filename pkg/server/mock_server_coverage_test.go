@@ -297,6 +297,55 @@ func TestUpdateToken_PipeReadAndSessionRecreateBranches_WithMockey(t *testing.T)
 	})
 }
 
+func TestUpdateToken_PipeReadErrorDoesNotReuseInitialToken(t *testing.T) {
+	mockey.PatchConvey("updateToken does not recreate a session from a stale token after pipe read error", t, func() {
+		s := &Server{
+			machineID:         "machine-1",
+			epLocalGPUdServer: "https://local",
+			epControlPlane:    "https://control",
+			fifoPath:          "/tmp/gpud-fifo-test",
+			gpudInstance:      &components.GPUdInstance{},
+		}
+		userToken := &UserToken{}
+
+		_, w, err := os.Pipe()
+		require.NoError(t, err)
+		require.NoError(t, w.Close())
+
+		mockey.Mock(pkgmetadata.ReadToken).To(func(_ context.Context, _ *sql.DB) (string, error) {
+			return "db-token", nil
+		}).Build()
+		mockey.Mock(os.Stat).To(func(_ string) (os.FileInfo, error) {
+			return nil, os.ErrNotExist
+		}).Build()
+		mockey.Mock(syscall.Mkfifo).To(func(_ string, _ uint32) error {
+			return nil
+		}).Build()
+
+		openCalls := 0
+		mockey.Mock(os.OpenFile).To(func(_ string, _ int, _ os.FileMode) (*os.File, error) {
+			openCalls++
+			if openCalls == 1 {
+				return w, nil
+			}
+			return nil, errors.New("open failed")
+		}).Build()
+
+		var tokens []string
+		mockey.Mock(pkgsession.NewSession).To(func(_ context.Context, _, _, token string, _ ...pkgsession.OpOption) (*pkgsession.Session, error) {
+			tokens = append(tokens, token)
+			return nil, errors.New("session create failed")
+		}).Build()
+
+		mockey.Mock(time.Sleep).To(func(_ time.Duration) {}).Build()
+
+		s.updateToken(context.Background(), nil, userToken)
+
+		require.Len(t, tokens, 1)
+		assert.Equal(t, "db-token", tokens[0])
+	})
+}
+
 func TestUpdateToken_PipeReadErrorAndStatErrorBranches_WithMockey(t *testing.T) {
 	t.Run("pipe read error", func(t *testing.T) {
 		mockey.PatchConvey("updateToken handles pipe read error path", t, func() {
