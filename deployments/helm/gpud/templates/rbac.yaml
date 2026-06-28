@@ -8,7 +8,9 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get", "list", "watch"]
+    # node-label-init performs only "kubectl get node $NODE_NAME" before gpud
+    # starts; list/watch were needed by the removed polling sidecar.
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

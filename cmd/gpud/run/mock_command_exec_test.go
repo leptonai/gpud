@@ -46,6 +46,8 @@ func newTestCLIContext(t *testing.T, values cliFlagValues) *cli.Context {
 	set.String("endpoint", "", "")
 	set.String("token", "", "")
 	set.String("machine-id", "", "")
+	set.Bool("machine-id-overwrite", false, "")
+	set.Bool("refresh-session-token", false, "")
 	set.String("listen-address", "", "")
 	set.Bool("pprof", false, "")
 	set.Duration("metrics-retention-period", 0, "")
@@ -127,6 +129,8 @@ func TestCommand_SuccessPath(t *testing.T) {
 			"gpu-product-name": "H100-SXM",
 		},
 		boolFlags: map[string]bool{
+			"machine-id-overwrite":          true,
+			"refresh-session-token":         true,
 			"pprof":                         true,
 			"enable-auto-update":            true,
 			"skip-session-update-config":    true,
@@ -147,7 +151,9 @@ func TestCommand_SuccessPath(t *testing.T) {
 	mockey.PatchConvey("Command success path", t, func() {
 		var receivedCfg *config.Config
 
+		var receivedLoginCfg login.LoginConfig
 		mockey.Mock(login.Login).To(func(ctx context.Context, cfg login.LoginConfig) error {
+			receivedLoginCfg = cfg
 			return nil
 		}).Build()
 		mockey.Mock(recordLoginSuccessState).To(func(ctx context.Context, dataDir string) error {
@@ -178,6 +184,8 @@ func TestCommand_SuccessPath(t *testing.T) {
 		err := Command(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, receivedCfg)
+		assert.True(t, receivedLoginCfg.MachineIDOverwrite)
+		assert.True(t, receivedLoginCfg.RefreshSessionToken)
 		assert.Equal(t, 5*time.Minute, receivedCfg.MetricsRetentionPeriod.Duration)
 		assert.Equal(t, 14*24*time.Hour, receivedCfg.EventsRetentionPeriod.Duration)
 	})

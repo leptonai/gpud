@@ -69,11 +69,13 @@ func Command(cliContext *cli.Context) (retErr error) {
 		defer loginCancel()
 
 		loginCfg := login.LoginConfig{
-			Token:     token,
-			Endpoint:  cliContext.String("endpoint"),
-			MachineID: cliContext.String("machine-id"),
-			NodeGroup: cliContext.String("node-group"),
-			DataDir:   dataDir,
+			Token:               token,
+			Endpoint:            cliContext.String("endpoint"),
+			MachineID:           cliContext.String("machine-id"),
+			MachineIDOverwrite:  cliContext.Bool("machine-id-overwrite"),
+			RefreshSessionToken: cliContext.Bool("refresh-session-token"),
+			NodeGroup:           cliContext.String("node-group"),
+			DataDir:             dataDir,
 
 			GPUCount:   gpuCountStr,
 			NodeLabels: nodeLabels,

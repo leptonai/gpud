@@ -80,6 +80,9 @@ func Command(cliContext *cli.Context) error {
 	controlPlaneLoginRegistrationToken := cliContext.String("token")
 
 	machineIDForOverride := cliContext.String("machine-id")
+	shouldOverwriteMachineID := cliContext.Bool("machine-id-overwrite")
+	refreshSessionToken := cliContext.Bool("refresh-session-token")
+	controlPlaneLoginSucceeded := false
 
 	// Note: login.Login() ALWAYS writes to the persistent state file (via dataDir),
 	// regardless of --db-in-memory flag. The login package doesn't know about in-memory mode.
@@ -92,10 +95,12 @@ func Command(cliContext *cli.Context) error {
 		defer loginCancel()
 
 		loginCfg := login.LoginConfig{
-			Token:     controlPlaneLoginRegistrationToken,
-			Endpoint:  controlPlaneEndpoint,
-			MachineID: machineIDForOverride,
-			DataDir:   dataDir,
+			Token:               controlPlaneLoginRegistrationToken,
+			Endpoint:            controlPlaneEndpoint,
+			MachineID:           machineIDForOverride,
+			MachineIDOverwrite:  shouldOverwriteMachineID,
+			RefreshSessionToken: refreshSessionToken,
+			DataDir:             dataDir,
 
 			GPUCount: gpuCountStr,
 		}
@@ -104,6 +109,7 @@ func Command(cliContext *cli.Context) error {
 		if lerr := login.Login(loginCtx, loginCfg); lerr != nil {
 			return lerr
 		}
+		controlPlaneLoginSucceeded = true
 		log.Logger.Infow("successfully logged in in gpud run")
 
 		if err := recordLoginSuccessState(loginCtx, dataDir); err != nil {
@@ -375,34 +381,8 @@ func Command(cliContext *cli.Context) error {
 		mctx, mcancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer mcancel()
 
-		dbRW, err := pkgsqlite.Open(cfg.State)
-		if err != nil {
-			return fmt.Errorf("failed to open state for metadata overrides: %w", err)
-		}
-		defer func() {
-			_ = dbRW.Close()
-		}()
-
-		if err := pkgmetadata.CreateTableMetadata(mctx, dbRW); err != nil {
-			return fmt.Errorf("failed to ensure metadata table: %w", err)
-		}
-
-		if controlPlaneEndpoint != "" {
-			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyEndpoint, controlPlaneEndpoint); err != nil {
-				return fmt.Errorf("failed to set endpoint metadata: %w", err)
-			}
-			log.Logger.Infow("overriding endpoint from flag", "endpoint", controlPlaneEndpoint)
-		}
-
-		// DO NOT overwrite "pkgmetadata.MetadataKeyToken"
-		// because successful login operation will persist the session token in the metadata
-		// NOT the registration token
-
-		if machineIDForOverride != "" {
-			if err := pkgmetadata.SetMetadata(mctx, dbRW, pkgmetadata.MetadataKeyMachineID, machineIDForOverride); err != nil {
-				return fmt.Errorf("failed to set machine-id metadata: %w", err)
-			}
-			log.Logger.Infow("overriding machine id from flag", "machineID", machineIDForOverride)
+		if err := persistMetadataOverrides(mctx, cfg.State, controlPlaneEndpoint, machineIDForOverride, shouldOverwriteMachineID, controlPlaneLoginSucceeded); err != nil {
+			return err
 		}
 	}
 
@@ -453,6 +433,66 @@ func Command(cliContext *cli.Context) error {
 	log.Logger.Infow("successfully booted", "tookSeconds", time.Since(start).Seconds())
 	<-done
 
+	return nil
+}
+
+func validateMachineIDOverride(prevMachineID, requestedMachineID string, overwrite, controlPlaneLoginSucceeded bool) error {
+	if prevMachineID == "" || prevMachineID == requestedMachineID {
+		return nil
+	}
+	if !overwrite {
+		return fmt.Errorf("persisted machine ID %q differs from --machine-id %q; pass --machine-id-overwrite to replace it", prevMachineID, requestedMachineID)
+	}
+	if !controlPlaneLoginSucceeded {
+		return fmt.Errorf("cannot overwrite persisted machine ID %q with --machine-id %q without a successful control-plane login; pass --token so gpud can check in to the requested machine", prevMachineID, requestedMachineID)
+	}
+	return nil
+}
+
+func persistMetadataOverrides(ctx context.Context, stateFile, controlPlaneEndpoint, machineIDForOverride string, machineIDOverwrite, controlPlaneLoginSucceeded bool) error {
+	dbRW, err := pkgsqlite.Open(stateFile)
+	if err != nil {
+		return fmt.Errorf("failed to open state for metadata overrides: %w", err)
+	}
+	defer func() {
+		_ = dbRW.Close()
+	}()
+
+	if err := pkgmetadata.CreateTableMetadata(ctx, dbRW); err != nil {
+		return fmt.Errorf("failed to ensure metadata table: %w", err)
+	}
+
+	if controlPlaneEndpoint != "" {
+		if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyEndpoint, controlPlaneEndpoint); err != nil {
+			return fmt.Errorf("failed to set endpoint metadata: %w", err)
+		}
+		log.Logger.Infow("overriding endpoint from flag", "endpoint", controlPlaneEndpoint)
+	}
+
+	if machineIDForOverride == "" {
+		return nil
+	}
+
+	prevMachineID, err := pkgmetadata.ReadMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineID)
+	if err != nil {
+		return fmt.Errorf("failed to read persisted machine-id: %w", err)
+	}
+	if err := validateMachineIDOverride(prevMachineID, machineIDForOverride, machineIDOverwrite, controlPlaneLoginSucceeded); err != nil {
+		return err
+	}
+
+	// A successful control-plane login persists the machine ID returned by the
+	// control plane. Do not overwrite that authoritative result with the CLI
+	// value. The no-login path keeps the historical behavior of recording an
+	// initial machine-id override locally.
+	if prevMachineID == machineIDForOverride || controlPlaneLoginSucceeded {
+		return nil
+	}
+
+	if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineID, machineIDForOverride); err != nil {
+		return fmt.Errorf("failed to set machine-id metadata: %w", err)
+	}
+	log.Logger.Infow("overriding machine id from flag", "machineID", machineIDForOverride)
 	return nil
 }
 

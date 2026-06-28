@@ -47,6 +47,42 @@ gpud:
     name: ""
     key: "TOKEN"
 
+  # Allow a node to check in when its machine identity changes.
+  #
+  # gpud persists its machine id + session token in /var/lib/gpud (a node-scoped
+  # hostPath that survives reboots). In the DaemonSet pattern a node can be
+  # deleted from its node group and rejoined, binding a NEW machine object (new
+  # machine-id label) while the OLD identity is still persisted on disk. With this
+  # enabled, gpud passes "gpud run --machine-id-overwrite": when the machine-id
+  # label differs from the persisted one, it discards the stale login identity
+  # (machine id + session token) and checks in with the requested machine. Reboot/
+  # health state is preserved.
+  #
+  # Defaults to true because that re-check-in-on-rejoin behavior is what the
+  # container/DaemonSet pattern wants, and it trusts the platform-managed
+  # machine-id node label as the source of truth. Set to false to keep gpud's
+  # strict guard (fail instead of retarget) -- appropriate when machine identity
+  # must never change without manually clearing /var/lib/gpud.
+  machineIdOverwrite: true
+
+  # Re-fetch the session token from the control plane on every start.
+  #
+  # gpud caches its session token in /var/lib/gpud and normally takes a "skip
+  # login" fast path on restart when a machine id is already persisted, reusing
+  # that cached token. The control plane returns the current workspace-scoped
+  # session token on every successful login, so with this enabled gpud passes
+  # "gpud run --refresh-session-token" to always re-login and re-fetch a current
+  # token instead of trusting the cached one. This prevents a stale cached token
+  # (e.g. after a workspace token rotation) from breaking session keepalive, at
+  # the cost of one extra
+  # login round-trip per start.
+  #
+  # Defaults to true for the container/DaemonSet pattern (pods restart often and
+  # should always come up with a fresh token). Set to false to keep the
+  # skip-login optimization. TODO: make always-refresh the default gpud behavior
+  # and retire this toggle once validated in production.
+  refreshSessionToken: true
+
   # Enable auto update of gpud.
   enableAutoUpdate: false
 
@@ -264,17 +300,21 @@ extraVolumes: []
 # Extra volume mounts for the pod.
 extraVolumeMounts: []
 
-# Helper sidecar that syncs Kubernetes node labels into a host-mounted file
-# for consumption by gpud or other host-level processes.
+# Optional, init-only Kubernetes node-label reader for gpud configuration.
 nodeLabelExporter:
-  # OPTIONAL: Enable to read Kubernetes node labels for gpud configuration.
-  # When enabled, creates an init container and sidecar that fetch node labels
-  # and write them to a file for gpud to read endpoint/token/machine-id values.
-  # Requires RBAC permissions - set nodeLabelExporter.rbac.create=true
+  # When enabled, creates an init container that fetches node labels before gpud
+  # starts and writes them to a file for endpoint/token/machine-id configuration.
+  # WHY no sidecar: gpud reads this file only while constructing its startup
+  # arguments, so a sidecar updating it later cannot reload the running process.
+  # A successful label read is intentionally a startup prerequisite when enabled:
+  # the init container retries until it has written a fresh, complete snapshot.
+  # When disabled, no label init container is rendered, gpud starts normally,
+  # and any stale host-mounted node-labels.env from an earlier release is ignored.
+  # Requires RBAC permissions - set nodeLabelExporter.rbac.create=true.
   enabled: false
   image:
     # Use a shell-capable kubectl image. Distroless kubectl images (registry.k8s.io/kubectl)
-    # do not include /bin/sh, but our init/sidecar scripts rely on a POSIX shell.
+    # do not include /bin/sh, but the init script relies on a POSIX shell.
     # NOTE: Bitnami removed their public ECR mirror (public.ecr.aws/bitnami) in 2025,
     # so we use the Docker Hub bitnami/kubectl image. Override if you mirror it
     # elsewhere or hit Docker Hub rate limits.
@@ -299,9 +339,7 @@ nodeLabelExporter:
     endpoint: gpud.dgxc.lepton.ai/endpoint
     token: gpud.dgxc.lepton.ai/token
     machineId: gpud.dgxc.lepton.ai/machine-id
-  # Interval in seconds between syncs.
-  updateIntervalSeconds: 60
-  # Extra environment variables for the exporter container.
+  # Extra environment variables for the node-label init container.
   extraEnv: []
   rbac:
     create: true
