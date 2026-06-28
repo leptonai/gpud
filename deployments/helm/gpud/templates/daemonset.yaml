@@ -117,7 +117,7 @@ spec:
         {{- end }}
 
         # GPUd's persistent data directory for state, cache, and configuration
-        # Used for storing GPUd runtime data, labels from nodeLabelExporter, etc.
+        # Used for storing GPUd runtime data and labels fetched by node-label-init.
         - name: lib-gpud
           hostPath:
             path: /var/lib/gpud
@@ -180,15 +180,18 @@ spec:
       # --- Containers ---
       # --- OPTIONAL: Init Containers ---
       # This section is entirely OPTIONAL and only renders when:
-      # 1. nodeLabelExporter.enabled=true (for Kubernetes node label reading), OR
+      # 1. nodeLabelExporter.enabled=true (for init-only Kubernetes node-label reading), OR
       # 2. Custom initContainers are specified in values.yaml
-      # By default, nodeLabelExporter.enabled=false, so no init containers are created.
+      # By default, nodeLabelExporter.enabled=false, so no label init container is created.
       {{- if or .Values.nodeLabelExporter.enabled .Values.initContainers }}
       initContainers:
         {{- if .Values.nodeLabelExporter.enabled }}
         # OPTIONAL: Node Label Reader Init Container
-        # This init container fetches Kubernetes node labels ONCE before gpud starts.
-        # It writes labels to a file that gpud reads for endpoint/token/machine-id configuration.
+        # WHY init instead of a polling sidecar: gpud reads this file only while
+        # building its startup command, so updates after exec cannot reconfigure
+        # the running process. Fetching once before startup is therefore sufficient.
+        # This init container retries until it atomically writes fresh node labels,
+        # preventing gpud from starting with a missing or stale machine identity.
         # Enable with: nodeLabelExporter.enabled=true
         # Requires RBAC: nodeLabelExporter.rbac.create=true (creates ClusterRole for node read access)
         - name: node-label-init
@@ -214,17 +217,24 @@ spec:
               tmp_file="${OUTPUT_FILE}.tmp"
               mkdir -p "$(dirname "${OUTPUT_FILE}")"
 
-              # Fetch node labels once before main container starts
-              # Safe implementation: uses atomic move to prevent partial reads by consumers.
-              if kubectl get node "${NODE_NAME}" \
-                -o go-template='{{`{{range $k,$v := .metadata.labels}}{{printf "%s=%s\n" $k $v}}{{end}}`}}' \
-                > "${tmp_file}"; then
-                mv "${tmp_file}" "${OUTPUT_FILE}"
-                echo "Successfully wrote node labels to ${OUTPUT_FILE}"
-              else
-                echo "Warning: Failed to fetch node labels, file will be created by sidecar"
+              # gpud consumes this file once at startup. Retry here rather than
+              # relying on a sidecar: a sidecar could update the file later, but
+              # cannot make the already-running gpud process reload it.
+              while true; do
+                if kubectl get node "${NODE_NAME}" \
+                  -o go-template='{{`{{range $k,$v := .metadata.labels}}{{printf "%s=%s\n" $k $v}}{{end}}`}}' \
+                  > "${tmp_file}"; then
+                  # Atomic move prevents the main container from ever reading a
+                  # partially written label file.
+                  mv "${tmp_file}" "${OUTPUT_FILE}"
+                  echo "Successfully wrote node labels to ${OUTPUT_FILE}"
+                  break
+                fi
+
                 rm -f "${tmp_file}"
-              fi
+                echo "Waiting to fetch node labels for ${NODE_NAME}; retrying in 5 seconds"
+                sleep 5
+              done
           env:
             - name: NODE_NAME
               valueFrom:
@@ -232,6 +242,9 @@ spec:
                   fieldPath: spec.nodeName
             - name: OUTPUT_FILE
               value: {{ .Values.nodeLabelExporter.outputFile | quote }}
+          {{- with .Values.nodeLabelExporter.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: lib-gpud
               mountPath: /var/lib/gpud
@@ -271,8 +284,8 @@ spec:
               if ( set -o pipefail ) 2>/dev/null; then set -o pipefail; fi
 
               # --- OPTIONAL: Read configuration from Kubernetes node labels ---
-              # If nodeLabelExporter sidecar is enabled, it writes node labels to this file.
-              # This allows dynamic configuration of endpoint/token/machine-id from K8s labels.
+              # When nodeLabelExporter is enabled, node-label-init writes node labels to this file.
+              # This supplies endpoint/token/machine-id configuration for this gpud start.
               LABEL_FILE="{{ .Values.nodeLabelExporter.outputFile }}"
 
               # Label keys can be overridden via environment variables (useful for testing)
@@ -527,59 +540,3 @@ spec:
           {{- if .Values.extraVolumeMounts }}
           {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
           {{- end }}
-        {{- if .Values.nodeLabelExporter.enabled }}
-        # OPTIONAL: Node Label Exporter Sidecar
-        # This sidecar periodically syncs Kubernetes node labels to a file for gpud consumption.
-        # Runs alongside the main gpud container and updates labels at the configured interval.
-        # Enable with: nodeLabelExporter.enabled=true
-        - name: node-label-exporter
-          # Needs a shell-capable image; distroless kubectl images lack /bin/sh so the looped script would fail.
-          image: "{{ .Values.nodeLabelExporter.image.repository }}:{{ .Values.nodeLabelExporter.image.tag }}"
-          imagePullPolicy: {{ .Values.nodeLabelExporter.image.pullPolicy }}
-          # Run as root: the label file is written to the root-owned /var/lib/gpud
-          # hostPath (gpud runs as root and owns it). The kubectl image otherwise
-          # defaults to a non-root UID and cannot write there.
-          securityContext:
-            runAsUser: 0
-          command:
-            - /bin/sh
-            - -ec
-            - |
-              set -o errexit
-              set -o nounset
-              # pipefail not supported in dash (Ubuntu's /bin/sh).
-              # POSIX special builtins (like `set`) cause the shell to exit on failure
-              # even in `|| true` constructs. A subshell safely isolates the test.
-              if ( set -o pipefail ) 2>/dev/null; then set -o pipefail; fi
-
-              tmp_file="${OUTPUT_FILE}.tmp"
-              mkdir -p "$(dirname "${OUTPUT_FILE}")"
-
-              while true; do
-                if kubectl get node "${NODE_NAME}" \
-                  -o go-template='{{`{{range $k,$v := .metadata.labels}}{{printf "%s=%s\n" $k $v}}{{end}}`}}' \
-                  > "${tmp_file}"; then
-                  mv "${tmp_file}" "${OUTPUT_FILE}"
-                else
-                  rm -f "${tmp_file}"
-                fi
-                sleep "${UPDATE_INTERVAL}"
-              done
-          env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-            - name: OUTPUT_FILE
-              value: {{ .Values.nodeLabelExporter.outputFile | quote }}
-            - name: UPDATE_INTERVAL
-              value: {{ int .Values.nodeLabelExporter.updateIntervalSeconds | quote }}
-          {{- with .Values.nodeLabelExporter.extraEnv }}
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          volumeMounts:
-            - name: lib-gpud
-              mountPath: /var/lib/gpud
-          resources:
-            {{- toYaml .Values.nodeLabelExporter.resources | nindent 12 }}
-        {{- end }}

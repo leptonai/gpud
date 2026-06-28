@@ -129,10 +129,10 @@ on nodes that do not run containerd (e.g. docker or cri-o only).
 
 ### Session Token from a Secret
 
-By default the chart reads the session token from a node label (via
-`nodeLabelExporter`). To read it from an existing Kubernetes Secret instead, set
-`gpud.tokenSecret`; the token is injected as the `TOKEN` env via `secretKeyRef`
-and takes priority over any token label:
+When `nodeLabelExporter.enabled=true`, the chart's init container can read the
+session token from a node label. To read it from an existing Kubernetes Secret
+instead, set `gpud.tokenSecret`; the token is injected as the `TOKEN` env via
+`secretKeyRef` and takes priority over any token label:
 
 ```yaml
 gpud:
@@ -187,6 +187,8 @@ gpud:
 # Pass the per-node platform machine ID from the node label to
 # "gpud run --machine-id", so GPUd rejoins as the SAME machine after a pod
 # replacement, node reboot, or reimage (even if /etc/machine-id changes).
+# This is intentionally init-only: gpud reads the file once at startup, so a
+# sidecar update could not reconfigure the already-running process.
 nodeLabelExporter:
   enabled: true
   labelKeys:

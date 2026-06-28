@@ -300,17 +300,20 @@ extraVolumes: []
 # Extra volume mounts for the pod.
 extraVolumeMounts: []
 
-# Helper sidecar that syncs Kubernetes node labels into a host-mounted file
-# for consumption by gpud or other host-level processes.
+# Optional, init-only Kubernetes node-label reader for gpud configuration.
 nodeLabelExporter:
-  # OPTIONAL: Enable to read Kubernetes node labels for gpud configuration.
-  # When enabled, creates an init container and sidecar that fetch node labels
-  # and write them to a file for gpud to read endpoint/token/machine-id values.
-  # Requires RBAC permissions - set nodeLabelExporter.rbac.create=true
+  # When enabled, creates an init container that fetches node labels before gpud
+  # starts and writes them to a file for endpoint/token/machine-id configuration.
+  # WHY no sidecar: gpud reads this file only while constructing its startup
+  # arguments, so a sidecar updating it later cannot reload the running process.
+  # A successful label read is intentionally a startup prerequisite when enabled:
+  # the init container retries until it has written a fresh, complete snapshot.
+  # When disabled, no label init container is rendered and gpud starts normally.
+  # Requires RBAC permissions - set nodeLabelExporter.rbac.create=true.
   enabled: false
   image:
     # Use a shell-capable kubectl image. Distroless kubectl images (registry.k8s.io/kubectl)
-    # do not include /bin/sh, but our init/sidecar scripts rely on a POSIX shell.
+    # do not include /bin/sh, but the init script relies on a POSIX shell.
     # NOTE: Bitnami removed their public ECR mirror (public.ecr.aws/bitnami) in 2025,
     # so we use the Docker Hub bitnami/kubectl image. Override if you mirror it
     # elsewhere or hit Docker Hub rate limits.
@@ -335,9 +338,7 @@ nodeLabelExporter:
     endpoint: gpud.dgxc.lepton.ai/endpoint
     token: gpud.dgxc.lepton.ai/token
     machineId: gpud.dgxc.lepton.ai/machine-id
-  # Interval in seconds between syncs.
-  updateIntervalSeconds: 60
-  # Extra environment variables for the exporter container.
+  # Extra environment variables for the node-label init container.
   extraEnv: []
   rbac:
     create: true
