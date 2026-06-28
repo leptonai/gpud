@@ -80,7 +80,7 @@ func Command(cliContext *cli.Context) error {
 	controlPlaneLoginRegistrationToken := cliContext.String("token")
 
 	machineIDForOverride := cliContext.String("machine-id")
-	machineIDOverwrite := cliContext.Bool("machine-id-overwrite")
+	shouldOverwriteMachineID := cliContext.Bool("machine-id-overwrite")
 	refreshSessionToken := cliContext.Bool("refresh-session-token")
 	controlPlaneLoginSucceeded := false
 
@@ -98,7 +98,7 @@ func Command(cliContext *cli.Context) error {
 			Token:               controlPlaneLoginRegistrationToken,
 			Endpoint:            controlPlaneEndpoint,
 			MachineID:           machineIDForOverride,
-			MachineIDOverwrite:  machineIDOverwrite,
+			MachineIDOverwrite:  shouldOverwriteMachineID,
 			RefreshSessionToken: refreshSessionToken,
 			DataDir:             dataDir,
 
@@ -381,7 +381,7 @@ func Command(cliContext *cli.Context) error {
 		mctx, mcancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer mcancel()
 
-		if err := persistMetadataOverrides(mctx, cfg.State, controlPlaneEndpoint, machineIDForOverride, machineIDOverwrite, controlPlaneLoginSucceeded); err != nil {
+		if err := persistMetadataOverrides(mctx, cfg.State, controlPlaneEndpoint, machineIDForOverride, shouldOverwriteMachineID, controlPlaneLoginSucceeded); err != nil {
 			return err
 		}
 	}
