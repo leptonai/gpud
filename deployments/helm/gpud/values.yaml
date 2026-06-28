@@ -308,7 +308,8 @@ nodeLabelExporter:
   # arguments, so a sidecar updating it later cannot reload the running process.
   # A successful label read is intentionally a startup prerequisite when enabled:
   # the init container retries until it has written a fresh, complete snapshot.
-  # When disabled, no label init container is rendered and gpud starts normally.
+  # When disabled, no label init container is rendered, gpud starts normally,
+  # and any stale host-mounted node-labels.env from an earlier release is ignored.
   # Requires RBAC permissions - set nodeLabelExporter.rbac.create=true.
   enabled: false
   image:

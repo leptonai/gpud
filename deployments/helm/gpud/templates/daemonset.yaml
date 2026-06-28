@@ -287,6 +287,7 @@ spec:
               # When nodeLabelExporter is enabled, node-label-init writes node labels to this file.
               # This supplies endpoint/token/machine-id configuration for this gpud start.
               LABEL_FILE="{{ .Values.nodeLabelExporter.outputFile }}"
+              NODE_LABEL_EXPORTER_ENABLED="{{ .Values.nodeLabelExporter.enabled }}"
 
               # Label keys can be overridden via environment variables (useful for testing)
               EP_LABEL_KEY="${GPUD_ENDPOINT_LABEL_KEY:-{{ .Values.nodeLabelExporter.labelKeys.endpoint }}}"
@@ -298,7 +299,11 @@ spec:
               TOKEN=""
               MID=""
 
-              if [ -f "$LABEL_FILE" ]; then
+              # /var/lib/gpud is a hostPath and can retain node-labels.env from a
+              # previous chart release. Honor that file only when this feature is
+              # enabled, so disabling nodeLabelExporter means no stale label can
+              # silently override the configured endpoint, token, or machine ID.
+              if [ "$NODE_LABEL_EXPORTER_ENABLED" = "true" ] && [ -f "$LABEL_FILE" ]; then
                 # Parse label file using awk with index() for EXACT string matching:
                 # - index($0, key"=") == 1: Line must START with "key=" (prevents partial matches)
                 # - substr($0, length(key)+2): Extract everything AFTER the "=" sign
