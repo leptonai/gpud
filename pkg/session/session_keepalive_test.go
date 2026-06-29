@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/http/cookiejar"
 	"sync"
 	"sync/atomic"
@@ -12,7 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestKeepAliveReconnectionDelay verifies that keepAlive waits 3 seconds before reconnecting
+// TestKeepAliveReconnectionDelay verifies that keepAlive uses startup jitter and
+// reconnect backoff between connection attempts.
 func TestKeepAliveReconnectionDelay(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -28,63 +30,143 @@ func TestKeepAliveReconnectionDelay(t *testing.T) {
 		return nil
 	}
 
-	// Track when timeAfter is called
-	var timeAfterCalled int32
+	s.jitterFunc = func(max time.Duration) time.Duration {
+		return max
+	}
+
+	var durationsMu sync.Mutex
+	var durations []time.Duration
 	s.timeAfterFunc = func(d time.Duration) <-chan time.Time {
-		atomic.AddInt32(&timeAfterCalled, 1)
-		assert.Equal(t, 3*time.Second, d, "Expected 3 second delay")
+		durationsMu.Lock()
+		durations = append(durations, d)
+		durationsMu.Unlock()
+
 		ch := make(chan time.Time, 1)
-		ch <- time.Now() // Return immediately for testing
+		ch <- time.Now()
 		return ch
 	}
 
-	// Mock sleep to avoid delays in test
 	var sleepCalled int32
 	s.timeSleepFunc = func(d time.Duration) {
 		atomic.AddInt32(&sleepCalled, 1)
-		assert.Equal(t, 100*time.Millisecond, d, "Expected 100ms cleanup sleep")
+		assert.Equal(t, cleanupDrainDelay, d, "Expected cleanup drain delay")
 	}
 
-	// Track reader/writer starts
 	var readerStarts int32
 	var writerStarts int32
 
-	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
-		atomic.AddInt32(&readerStarts, 1)
-		// Simulate immediate exit to trigger reconnection
+	s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
+		if atomic.AddInt32(&readerStarts, 1) >= 3 {
+			cancel()
+		}
 		close(readerExit)
 	}
 
-	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+	s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		atomic.AddInt32(&writerStarts, 1)
-		// Simulate exit after reader
 		go func() {
 			<-ctx.Done()
-			close(writerExit)
+			sendReconnectSignal(writerExit, reconnectSignal{side: reconnectSideWriter, err: ctx.Err()})
 		}()
 	}
 
-	// Run keepAlive in background
-	go s.keepAlive()
+	done := make(chan struct{})
+	go func() {
+		s.keepAlive()
+		close(done)
+	}()
 
-	// Give it time to run through at least 2 connection attempts
-	time.Sleep(200 * time.Millisecond)
-	cancel()
-	time.Sleep(50 * time.Millisecond)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("keepAlive did not exit in time")
+	}
 
-	// Verify reconnection delay was used (called for second connection attempt)
-	assert.GreaterOrEqual(t, atomic.LoadInt32(&timeAfterCalled), int32(1),
-		"timeAfter should be called for reconnection delay")
-
-	// Verify cleanup sleep was called
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&sleepCalled), int32(1),
 		"Sleep should be called for cleanup")
 
-	// Verify reader and writer were started
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&readerStarts), int32(1),
 		"Reader should be started at least once")
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&writerStarts), int32(1),
 		"Writer should be started at least once")
+
+	durationsMu.Lock()
+	gotDurations := append([]time.Duration(nil), durations...)
+	durationsMu.Unlock()
+	if assert.GreaterOrEqual(t, len(gotDurations), 2, "startup jitter and reconnect backoff should both wait") {
+		assert.Equal(t, startupJitterMax, gotDurations[0])
+		assert.Equal(t, reconnectInitialBackoff, gotDurations[1])
+	}
+}
+
+func TestKeepAliveReaderRetryAfterControlsReconnectDelay(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := &Session{
+		ctx:    ctx,
+		reader: make(chan Body, 20),
+		writer: make(chan Body, 20),
+	}
+
+	s.checkServerHealthFunc = func(ctx context.Context, jar *cookiejar.Jar, token string) error {
+		return nil
+	}
+	s.jitterFunc = func(max time.Duration) time.Duration {
+		switch max {
+		case startupJitterMax:
+			return 0
+		case retryAfterJitterMax:
+			return 2 * time.Second
+		default:
+			return time.Second
+		}
+	}
+	s.timeSleepFunc = func(d time.Duration) {}
+
+	delayCh := make(chan time.Duration, 1)
+	s.timeAfterFunc = func(d time.Duration) <-chan time.Time {
+		delayCh <- d
+		cancel()
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
+	s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
+		sendReconnectSignal(readerExit, reconnectSignal{
+			side:       reconnectSideReader,
+			statusCode: http.StatusServiceUnavailable,
+			retryAfter: 20 * time.Second,
+			reason:     "control plane busy",
+		})
+	}
+	s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
+		go func() {
+			<-ctx.Done()
+			sendReconnectSignal(writerExit, reconnectSignal{side: reconnectSideWriter, err: ctx.Err()})
+		}()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		s.keepAlive()
+		close(done)
+	}()
+
+	select {
+	case delay := <-delayCh:
+		assert.Equal(t, 22*time.Second, delay)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for reconnect delay")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("keepAlive did not exit in time")
+	}
 }
 
 // TestKeepAliveChannelDraining verifies that stale messages are drained
@@ -155,7 +237,7 @@ func TestKeepAliveDeadlockPrevention(t *testing.T) {
 			var mu sync.Mutex
 			var firstCall int32
 
-			s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+			s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
 				// Only track the first call
 				if atomic.AddInt32(&firstCall, 1) > 2 {
 					close(readerExit)
@@ -194,7 +276,7 @@ func TestKeepAliveDeadlockPrevention(t *testing.T) {
 				}()
 			}
 
-			s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+			s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
 				// Only track the first call
 				if atomic.LoadInt32(&firstCall) > 2 {
 					close(writerExit)
@@ -288,7 +370,7 @@ func TestKeepAliveNoRapidReconnection(t *testing.T) {
 	}
 	s.timeSleepFunc = func(d time.Duration) {}
 
-	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+	s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		current := atomic.AddInt32(&activeReaders, 1)
 		// Track max concurrent readers
 		for {
@@ -306,7 +388,7 @@ func TestKeepAliveNoRapidReconnection(t *testing.T) {
 		}()
 	}
 
-	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+	s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		current := atomic.AddInt32(&activeWriters, 1)
 		// Track max concurrent writers
 		for {

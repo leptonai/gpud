@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"net/http/cookiejar"
-	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
 )
 
 func (s *Session) keepAlive() {
-	// Start the initial connection immediately
-	firstConnection := true
+	backoff := reconnectBackoff{}
+	if !s.waitReconnectDelay(s.ctx, s.jitter(startupJitterMax)) {
+		return
+	}
 
 	for {
 		select {
@@ -19,29 +20,6 @@ func (s *Session) keepAlive() {
 			log.Logger.Debug("session keep alive: closing keep alive")
 			return
 		default:
-			// CRITICAL: Reconnection delay to prevent race conditions
-			//
-			// Without this delay, rapid connection failures would create multiple
-			// overlapping reader/writer goroutines that all write to the same channels,
-			// causing "reader channel full" errors and making GPUd unresponsive.
-			//
-			// The 3-second delay ensures:
-			// - Previous connections have time to fully clean up
-			// - We don't overwhelm the control plane with rapid reconnection attempts
-			// - Only one set of reader/writer goroutines exists at a time
-			if !firstConnection {
-				select {
-				case <-s.ctx.Done():
-					return
-				case <-s.timeAfterFunc(3 * time.Second):
-					log.Logger.Debug("session keep alive: attempting reconnection after delay")
-				}
-			}
-			firstConnection = false
-
-			readerExit := make(chan any)
-			writerExit := make(chan any)
-
 			// CLEANUP: Ensure previous connections are fully terminated
 			//
 			// This cleanup is essential to prevent the "reader channel full" bug:
@@ -55,7 +33,7 @@ func (s *Session) keepAlive() {
 				s.closer.Close()
 
 				// Give old goroutines time to detect closer signal and exit
-				s.timeSleepFunc(100 * time.Millisecond)
+				s.sleep(cleanupDrainDelay)
 
 				// Drain any stale messages left in the reader channel
 				s.drainReaderChannel()
@@ -78,14 +56,28 @@ func (s *Session) keepAlive() {
 				// "failed to validate token" when the token is invalid.
 				var httpErr *healthCheckHTTPError
 				if errors.As(err, &httpErr) {
-					if message, ok := loginFailureStatusMessage(httpErr.statusCode, httpErr.body); ok {
-						s.persistLoginStatus(ctx, false, message)
+					sig := classifyHealthCheckError(httpErr)
+					if sig.authFailure {
+						s.persistLoginStatus(ctx, false, sig.reason)
 					}
 				}
 
 				cancel()
+				if s.ctx.Err() != nil {
+					return
+				}
+				sig := classifyHealthCheckError(err)
+				delay := backoff.nextDelay(s, sig)
+				log.Logger.Debugw("session keep alive: attempting reconnection after delay", "delay", delay.String(), "reason", sig.reason, "retryAfter", sig.retryAfter.String())
+				if !s.waitReconnectDelay(s.ctx, delay) {
+					return
+				}
 				continue
 			}
+
+			readerExit := make(chan reconnectSignal, 1)
+			writerExit := make(chan reconnectSignal, 1)
+			connectionStartedAt := s.now()
 
 			go s.startReaderFunc(ctx, readerExit, jar)
 			go s.startWriterFunc(ctx, writerExit, jar)
@@ -107,17 +99,32 @@ func (s *Session) keepAlive() {
 			// - No deadlock: We handle both possible exit orders
 			// - Clean shutdown: Both goroutines exit before we create new ones
 			// - No goroutine leaks: Context cancellation ensures termination
+			var firstExit reconnectSignal
+			var secondExit reconnectSignal
 			select {
-			case <-readerExit:
+			case firstExit = <-readerExit:
 				log.Logger.Debug("session reader: reader exited first")
-				cancel()     // Signal writer to exit
-				<-writerExit // Wait for writer cleanup
+				cancel()                  // Signal writer to exit
+				secondExit = <-writerExit // Wait for writer cleanup
 				log.Logger.Debug("session writer: writer exited after cancellation")
-			case <-writerExit:
+			case firstExit = <-writerExit:
 				log.Logger.Debug("session writer: writer exited first")
-				cancel()     // Signal reader to exit
-				<-readerExit // Wait for reader cleanup
+				cancel()                  // Signal reader to exit
+				secondExit = <-readerExit // Wait for reader cleanup
 				log.Logger.Debug("session reader: reader exited after cancellation")
+			}
+			if s.ctx.Err() != nil {
+				return
+			}
+
+			if s.now().Sub(connectionStartedAt) >= reconnectStableWindow {
+				backoff.reset()
+			}
+			sig := chooseReconnectSignal(firstExit, secondExit)
+			delay := backoff.nextDelay(s, sig)
+			log.Logger.Debugw("session keep alive: attempting reconnection after delay", "delay", delay.String(), "reason", sig.reason, "retryAfter", sig.retryAfter.String())
+			if !s.waitReconnectDelay(s.ctx, delay) {
+				return
 			}
 		}
 	}

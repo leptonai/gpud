@@ -69,10 +69,10 @@ func TestKeepAliveHealthCheck403PersistsFailure(t *testing.T) {
 	s.timeSleepFunc = func(d time.Duration) {}
 
 	// These should never be called since health check fails before reader/writer start
-	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+	s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		t.Fatal("startReader should not be called when health check fails")
 	}
-	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+	s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		t.Fatal("startWriter should not be called when health check fails")
 	}
 
@@ -146,10 +146,10 @@ func TestKeepAliveHealthCheck500TokenValidationPersistsFailure(t *testing.T) {
 		return ch
 	}
 	s.timeSleepFunc = func(d time.Duration) {}
-	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+	s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		t.Fatal("startReader should not be called when health check fails")
 	}
-	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+	s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		t.Fatal("startWriter should not be called when health check fails")
 	}
 
@@ -210,7 +210,7 @@ func TestStartReader500TokenValidationPersistsAuthenticationFailure(t *testing.T
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	readerExit := make(chan any)
+	readerExit := make(chan reconnectSignal, 1)
 	s.startReader(ctx, readerExit, jar)
 
 	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
@@ -323,10 +323,10 @@ func TestKeepAliveHealthCheckNon403DoesNotPersist(t *testing.T) {
 		return ch
 	}
 	s.timeSleepFunc = func(d time.Duration) {}
-	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+	s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		t.Fatal("startReader should not be called when health check fails")
 	}
-	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+	s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		t.Fatal("startWriter should not be called when health check fails")
 	}
 
@@ -390,10 +390,10 @@ func TestKeepAliveHealthCheckNetworkErrorDoesNotPersist(t *testing.T) {
 		return ch
 	}
 	s.timeSleepFunc = func(d time.Duration) {}
-	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+	s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		t.Fatal("startReader should not be called when health check fails")
 	}
-	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+	s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		t.Fatal("startWriter should not be called when health check fails")
 	}
 

@@ -246,13 +246,21 @@ type Session struct {
 	// In production: time.Sleep, in tests: can be mocked to skip sleep
 	timeSleepFunc func(d time.Duration)
 
+	// nowFunc returns the current time.
+	// In production: time.Now, in tests: can be mocked for deterministic backoff.
+	nowFunc func() time.Time
+
+	// jitterFunc returns a delay in [0, max) for reconnect spreading.
+	// In production: random jitter, in tests: can be mocked for deterministic backoff.
+	jitterFunc func(max time.Duration) time.Duration
+
 	// startReaderFunc starts a reader connection
 	// In production: s.startReader, in tests: can be mocked
-	startReaderFunc func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar)
+	startReaderFunc func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar)
 
 	// startWriterFunc starts a writer connection
 	// In production: s.startWriter, in tests: can be mocked
-	startWriterFunc func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar)
+	startWriterFunc func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar)
 
 	// checkServerHealthFunc checks server health
 	// In production: s.checkServerHealth, in tests: can be mocked
@@ -344,6 +352,8 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 
 	s.timeAfterFunc = time.After
 	s.timeSleepFunc = time.Sleep
+	s.nowFunc = time.Now
+	s.jitterFunc = defaultJitter
 
 	s.startReaderFunc = s.startReader
 	s.startWriterFunc = s.startWriter
@@ -443,20 +453,22 @@ func controlPlaneOrigin(epControlPlane string) (string, error) {
 	return host, nil
 }
 
-func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+func (s *Session) startWriter(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
+	sig := reconnectSignal{side: reconnectSideWriter}
 	pipeFinishCh := make(chan any)
 	goroutineCloseCh := make(chan any)
 	defer func() {
 		close(goroutineCloseCh)
 		s.closer.Close()
 		<-pipeFinishCh
-		close(writerExit)
+		sendReconnectSignal(writerExit, sig)
 	}()
 	reader, writer := io.Pipe()
 	go s.handleWriterPipe(writer, goroutineCloseCh, pipeFinishCh)
 
 	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "write", s.token, reader)
 	if err != nil {
+		sig.err = err
 		log.Logger.Warnw("session writer: error creating request", "error", err)
 		return
 	}
@@ -464,9 +476,29 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan any, jar *coo
 	client := createHTTPClient(jar)
 	resp, err := client.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			sig.err = ctx.Err()
+		} else {
+			sig.err = err
+		}
 		log.Logger.Warnw("session writer: error making request", "error", err)
 		return
 	}
+
+	if resp.StatusCode != http.StatusOK {
+		sig = classifySessionHTTPResponse(reconnectSideWriter, resp, s.now())
+		log.Logger.Warnw(
+			"session writer: request resp not ok -- retrying",
+			"status", resp.Status,
+			"statusCode", resp.StatusCode,
+			"retryAfter", sig.retryAfter.String(),
+			"reason", sig.reason,
+		)
+		return
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	serverID := resp.Header.Get("X-GPUD-Server-ID")
 	log.Logger.Infow("session writer: http closed", "status", resp.Status, "statusCode", resp.StatusCode, "serverID", serverID)
@@ -515,18 +547,20 @@ func (s *Session) writeBodyToPipe(writer *io.PipeWriter, body Body) error {
 	return nil
 }
 
-func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+func (s *Session) startReader(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
+	sig := reconnectSignal{side: reconnectSideReader}
 	goroutineCloseCh := make(chan any)
 	pipeFinishCh := make(chan any)
 	defer func() {
 		close(goroutineCloseCh)
 		s.closer.Close()
 		<-pipeFinishCh
-		close(readerExit)
+		sendReconnectSignal(readerExit, sig)
 	}()
 
 	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "read", s.token, nil)
 	if err != nil {
+		sig.err = err
 		log.Logger.Debugw("session reader: error creating request", "error", err)
 		close(pipeFinishCh)
 		return
@@ -535,19 +569,29 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	client := createHTTPClient(jar)
 	resp, err := client.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			sig.err = ctx.Err()
+		} else {
+			sig.err = err
+		}
 		log.Logger.Warnw("session reader: error making request -- retrying", "error", err)
 		close(pipeFinishCh)
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Logger.Warnw("session reader: request resp not ok -- retrying", "status", resp.Status, "statusCode", resp.StatusCode)
-
-		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusInternalServerError {
-			bodyBytes, _ := io.ReadAll(resp.Body)
-			if message, ok := loginFailureStatusMessage(resp.StatusCode, string(bodyBytes)); ok {
-				s.persistLoginStatus(ctx, false, message)
-			}
+		status := resp.Status
+		statusCode := resp.StatusCode
+		sig = classifySessionHTTPResponse(reconnectSideReader, resp, s.now())
+		log.Logger.Warnw(
+			"session reader: request resp not ok -- retrying",
+			"status", status,
+			"statusCode", statusCode,
+			"retryAfter", sig.retryAfter.String(),
+			"reason", sig.reason,
+		)
+		if sig.authFailure {
+			s.persistLoginStatus(ctx, false, sig.reason)
 		}
 
 		close(pipeFinishCh)
@@ -558,6 +602,9 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 	log.Logger.Infow("session reader got X-GPUD-Server-ID", "serverID", serverID)
 
 	s.processReaderResponse(resp, goroutineCloseCh, pipeFinishCh)
+	if ctx.Err() != nil {
+		sig.err = ctx.Err()
+	}
 }
 
 // healthCheckHTTPError is returned by checkServerHealth when the control plane
@@ -566,6 +613,7 @@ func (s *Session) startReader(ctx context.Context, readerExit chan any, jar *coo
 type healthCheckHTTPError struct {
 	statusCode int
 	body       string
+	retryAfter time.Duration
 }
 
 func (e *healthCheckHTTPError) Error() string {
@@ -639,18 +687,21 @@ func (s *Session) checkServerHealth(ctx context.Context, jar *cookiejar.Jar, tok
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		body := string(bodyBytes)
+		body := readLimitedResponseBody(resp, sessionErrorBodyReadLimit)
 		if len(body) > 500 {
 			body = body[:500]
 		}
-		return &healthCheckHTTPError{statusCode: resp.StatusCode, body: body}
+		return &healthCheckHTTPError{
+			statusCode: resp.StatusCode,
+			body:       body,
+			retryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), s.now()),
+		}
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	return nil
 }
 
