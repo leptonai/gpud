@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgsqlite "github.com/leptonai/gpud/pkg/sqlite"
@@ -172,6 +173,65 @@ func TestProcessUpdateToken(t *testing.T) {
 				t.Errorf("expected in-memory token %q, got %q", tt.expectedToken, actualToken)
 			}
 		})
+	}
+}
+
+func TestProcessUpdateTokenReconnectUsesJitteredDelay(t *testing.T) {
+	ctx := context.Background()
+
+	dbRW, dbRO, cleanup := pkgsqlite.OpenTestDB(t)
+	defer cleanup()
+
+	if err := pkgmetadata.CreateTableMetadata(ctx, dbRW); err != nil {
+		t.Fatalf("failed to create metadata table: %v", err)
+	}
+	if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyToken, "old-token"); err != nil {
+		t.Fatalf("failed to set initial token: %v", err)
+	}
+
+	delayCh := make(chan time.Duration, 1)
+	s := &Session{
+		ctx:    ctx,
+		token:  "old-token",
+		dbRW:   dbRW,
+		dbRO:   dbRO,
+		closer: &closeOnce{closer: make(chan any)},
+		checkServerHealthFunc: func(ctx context.Context, jar *cookiejar.Jar, token string) error {
+			return nil
+		},
+		jitterFunc: func(max time.Duration) time.Duration {
+			if max != tokenReconnectJitterMax-tokenReconnectJitterMin {
+				t.Errorf("jitter max = %s, want %s", max, tokenReconnectJitterMax-tokenReconnectJitterMin)
+			}
+			return 7 * time.Second
+		},
+		timeAfterFunc: func(d time.Duration) <-chan time.Time {
+			delayCh <- d
+			ch := make(chan time.Time, 1)
+			ch <- time.Now()
+			return ch
+		},
+	}
+
+	response := &Response{}
+	s.processUpdateToken(Request{Token: "new-token"}, response)
+	if response.Error != "" {
+		t.Fatalf("unexpected error: %s", response.Error)
+	}
+
+	select {
+	case delay := <-delayCh:
+		if delay != 9*time.Second {
+			t.Fatalf("delay = %s, want 9s", delay)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for reconnect delay")
+	}
+
+	select {
+	case <-s.closer.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for session closer")
 	}
 }
 

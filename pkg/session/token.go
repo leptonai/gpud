@@ -57,11 +57,15 @@ func (s *Session) processUpdateToken(payload Request, response *Response) {
 	log.Logger.Infow("token updated successfully in database and memory")
 
 	// Immediately close the current session to force reconnection with the new token
-	log.Logger.Infow("closing current session to immediately reconnect with new token")
+	delay := tokenReconnectJitterMin + s.jitter(tokenReconnectJitterMax-tokenReconnectJitterMin)
+	log.Logger.Infow("closing current session to reconnect with new token after delay", "delay", delay.String())
 	go func() {
-		// Give some time for the response to be sent back to control plane
-		time.Sleep(2 * time.Second)
-		s.closer.Close()
+		if !s.waitReconnectDelay(s.ctx, delay) {
+			return
+		}
+		if s.closer != nil {
+			s.closer.Close()
+		}
 	}()
 }
 

@@ -189,6 +189,12 @@ func TestStartWriterAndReader(t *testing.T) {
 
 	// Initialize testable functions with controlled implementations to make
 	// goroutine lifecycles deterministic during the test.
+	s.jitterFunc = func(max time.Duration) time.Duration {
+		if max == startupJitterMax {
+			return 0
+		}
+		return max
+	}
 	s.timeAfterFunc = func(d time.Duration) <-chan time.Time {
 		// Block reconnection attempts after the first session so we can
 		// explicitly control shutdown ordering in the test.
@@ -199,17 +205,17 @@ func TestStartWriterAndReader(t *testing.T) {
 	originalStartWriter := s.startWriter
 
 	var exitMu sync.Mutex
-	var readerExitChans []<-chan any
-	var writerExitChans []<-chan any
+	var readerExitChans []<-chan reconnectSignal
+	var writerExitChans []<-chan reconnectSignal
 
-	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+	s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		exitMu.Lock()
 		readerExitChans = append(readerExitChans, readerExit)
 		exitMu.Unlock()
 		originalStartReader(ctx, readerExit, jar)
 	}
 
-	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+	s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		exitMu.Lock()
 		writerExitChans = append(writerExitChans, writerExit)
 		exitMu.Unlock()
@@ -290,7 +296,7 @@ func TestStartWriterAndReader(t *testing.T) {
 	// Signal active session goroutines to exit and wait for them to finish
 	s.closer.Close()
 
-	waitForExit := func(chans []<-chan any, name string) {
+	waitForExit := func(chans []<-chan reconnectSignal, name string) {
 		t.Helper()
 		for idx, ch := range chans {
 			select {
@@ -302,8 +308,8 @@ func TestStartWriterAndReader(t *testing.T) {
 	}
 
 	exitMu.Lock()
-	readerChans := append([]<-chan any(nil), readerExitChans...)
-	writerChans := append([]<-chan any(nil), writerExitChans...)
+	readerChans := append([]<-chan reconnectSignal(nil), readerExitChans...)
+	writerChans := append([]<-chan reconnectSignal(nil), writerExitChans...)
 	exitMu.Unlock()
 
 	if len(readerChans) == 0 {
@@ -405,7 +411,7 @@ func TestReaderWriterServerError(t *testing.T) {
 	localCtx, localCancel := context.WithCancel(context.Background()) // create local context for each session
 	defer localCancel()
 	// start reader
-	readerExit := make(chan any)
+	readerExit := make(chan reconnectSignal, 1)
 	jar, _ := cookiejar.New(nil)
 	go s.startReader(localCtx, readerExit, jar)
 
@@ -415,7 +421,7 @@ func TestReaderWriterServerError(t *testing.T) {
 		t.Error("reader timeout")
 	}
 	// start writer
-	writerExit := make(chan any)
+	writerExit := make(chan reconnectSignal, 1)
 	go s.startWriter(localCtx, writerExit, jar)
 
 	select {
@@ -738,17 +744,17 @@ func TestSessionKeepAlive(t *testing.T) {
 	originalStartWriter := s.startWriter
 
 	var exitMu sync.Mutex
-	var readerExitChans []<-chan any
-	var writerExitChans []<-chan any
+	var readerExitChans []<-chan reconnectSignal
+	var writerExitChans []<-chan reconnectSignal
 
-	s.startReaderFunc = func(ctx context.Context, readerExit chan any, jar *cookiejar.Jar) {
+	s.startReaderFunc = func(ctx context.Context, readerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		exitMu.Lock()
 		readerExitChans = append(readerExitChans, readerExit)
 		exitMu.Unlock()
 		originalStartReader(ctx, readerExit, jar)
 	}
 
-	s.startWriterFunc = func(ctx context.Context, writerExit chan any, jar *cookiejar.Jar) {
+	s.startWriterFunc = func(ctx context.Context, writerExit chan reconnectSignal, jar *cookiejar.Jar) {
 		exitMu.Lock()
 		writerExitChans = append(writerExitChans, writerExit)
 		exitMu.Unlock()
@@ -775,7 +781,7 @@ func TestSessionKeepAlive(t *testing.T) {
 	s.closer.Close()
 
 	// Wait for all goroutines to exit
-	waitForExit := func(chans []<-chan any, name string) {
+	waitForExit := func(chans []<-chan reconnectSignal, name string) {
 		t.Helper()
 		for idx, ch := range chans {
 			select {
@@ -787,8 +793,8 @@ func TestSessionKeepAlive(t *testing.T) {
 	}
 
 	exitMu.Lock()
-	readerChans := append([]<-chan any(nil), readerExitChans...)
-	writerChans := append([]<-chan any(nil), writerExitChans...)
+	readerChans := append([]<-chan reconnectSignal(nil), readerExitChans...)
+	writerChans := append([]<-chan reconnectSignal(nil), writerExitChans...)
 	exitMu.Unlock()
 
 	// Only wait if goroutines were started (they may not start if server health check fails)
