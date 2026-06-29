@@ -735,6 +735,12 @@ func TestSessionKeepAlive(t *testing.T) {
 	}
 
 	// Initialize testable functions with controlled implementations to prevent race conditions
+	s.jitterFunc = func(max time.Duration) time.Duration {
+		if max == startupJitterMax {
+			return 0
+		}
+		return max
+	}
 	s.timeAfterFunc = func(d time.Duration) <-chan time.Time {
 		// Block reconnection attempts to control shutdown
 		return make(chan time.Time)
@@ -797,13 +803,10 @@ func TestSessionKeepAlive(t *testing.T) {
 	writerChans := append([]<-chan reconnectSignal(nil), writerExitChans...)
 	exitMu.Unlock()
 
-	// Only wait if goroutines were started (they may not start if server health check fails)
-	if len(readerChans) > 0 {
-		waitForExit(readerChans, "reader")
-	}
-	if len(writerChans) > 0 {
-		waitForExit(writerChans, "writer")
-	}
+	require.NotEmpty(t, readerChans, "reader goroutine should start")
+	require.NotEmpty(t, writerChans, "writer goroutine should start")
+	waitForExit(readerChans, "reader")
+	waitForExit(writerChans, "writer")
 
 	// Give a bit of time for any pending operations
 	time.Sleep(100 * time.Millisecond)

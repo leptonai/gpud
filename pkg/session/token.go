@@ -11,7 +11,7 @@ import (
 )
 
 // processUpdateToken updates the session token in the database with the new token from the control plane.
-// It validates the new token before updating, and immediately reconnects the session with the new token.
+// It validates the new token before updating, then schedules the current session to reconnect with the new token.
 func (s *Session) processUpdateToken(payload Request, response *Response) {
 	if payload.Token == "" {
 		response.Error = "token cannot be empty"
@@ -56,9 +56,9 @@ func (s *Session) processUpdateToken(payload Request, response *Response) {
 
 	log.Logger.Infow("token updated successfully in database and memory")
 
-	// Immediately close the current session to force reconnection with the new token
+	// Schedule the current session to close after jitter so it reconnects with the new token.
 	delay := tokenReconnectJitterMin + s.jitter(tokenReconnectJitterMax-tokenReconnectJitterMin)
-	log.Logger.Infow("closing current session to reconnect with new token after delay", "delay", delay.String())
+	log.Logger.Infow("scheduling current session reconnect with new token", "delay", delay.String())
 	go func() {
 		if !s.waitReconnectDelay(s.ctx, delay) {
 			return
