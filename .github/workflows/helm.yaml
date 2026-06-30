@@ -1,0 +1,29 @@
+name: Helm chart release
+
+"on":
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Release chart
+        uses: helm/chart-releaser-action@v1.6.0
+        with:
+          charts_dir: deployments/helm
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
