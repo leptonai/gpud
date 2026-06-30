@@ -21,9 +21,31 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
-      - name: Release chart
-        uses: helm/chart-releaser-action@v1.6.0
-        with:
-          charts_dir: deployments/helm
-        env:
-          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish chart
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          chart=deployments/helm/gpud
+          pages_dir="$RUNNER_TEMP/gh-pages"
+          name="$(awk '$1 == "name:" { print $2; exit }' "$chart/Chart.yaml")"
+          version="$(awk '$1 == "version:" { print $2; exit }' "$chart/Chart.yaml")"
+          package="$pages_dir/$name-$version.tgz"
+
+          git fetch origin gh-pages:refs/remotes/origin/gh-pages
+          git worktree add --detach "$pages_dir" origin/gh-pages
+
+          if [[ ! -f "$package" || ! -f "$pages_dir/index.yaml" ]]; then
+            if [[ ! -f "$package" ]]; then
+              helm package "$chart" --destination "$pages_dir"
+            fi
+            helm repo index "$pages_dir" --url https://leptonai.github.io/gpud
+          fi
+
+          cd "$pages_dir"
+          git add index.yaml "$name-$version.tgz"
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Publish $name-$version"
+          git push origin HEAD:gh-pages
