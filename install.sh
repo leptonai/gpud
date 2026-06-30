@@ -121,6 +121,8 @@ main() {
     # e.g., https://pkg.gpud.dev/unstable_latest.txt
     APP_VERSION=$(curl -fsSL https://pkg.gpud.dev/"$TRACK"_latest.txt)
   fi
+  # Git release artifacts are v-prefixed; accept either input spelling.
+  APP_VERSION="v${APP_VERSION#v}"
 
   if ! type lsb_release >/dev/null 2>&1; then
     # Try /etc/os-release first

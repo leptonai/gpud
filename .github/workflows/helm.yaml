@@ -1,71 +1,29 @@
-name: 'helm'
+name: Helm chart release
 
-on:
+"on":
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 permissions:
-  id-token: write
-  packages: write
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
+  contents: write
 
 jobs:
-  run:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - name: "checkout"
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: setup
+      - name: Configure Git
         run: |
-          wget https://github.com/helm/chart-testing/releases/download/v3.14.0/chart-testing_3.14.0_linux_amd64.tar.gz -O ct.tar.gz
-          tar -xzf ct.tar.gz
-          sudo mv ct /usr/local/bin/ct
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
-          wget https://get.helm.sh/helm-v3.19.2-linux-amd64.tar.gz -O helm.tar.gz
-          tar -xzf helm.tar.gz
-          sudo mv linux-amd64/helm /usr/local/bin/helm
-
-      - name: Install lint dependencies
-        run: |
-          python3 -m pip install --user --upgrade yamale yamllint
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-
-      - name: Run chart-testing
-        run: |
-          TARGET_BRANCH="${{ github.event.repository.default_branch }}"
-          if [ -z "$TARGET_BRANCH" ]; then
-            TARGET_BRANCH="main"
-          fi
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
-          fi
-          ct lint --debug --all --config ./.github/configs/ct-lint.yaml \
-            --lint-conf ./.github/configs/lintconf.yaml \
-            --target-branch "$TARGET_BRANCH"
-
-      - name: Run kubeconform
-        run: |
-          helm plugin install https://github.com/melmorabity/helm-kubeconform
-          # Validate the Helm chart manifests with kubeconform.
-          # Pass the chart path explicitly; the plugin errors if given the literal string "chart".
-          helm kubeconform deployments/helm/gpud --verbose --summary --strict --exit-on-error
-
-      - name: release
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          CHART_NAME="$(grep -e "^name:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
-          CHART_VERSION="$(grep -e "^version:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
-          CHART_REGISTRY="oci://ghcr.io/chart"
-          echo '${{ secrets.GITHUB_TOKEN }}' | helm registry login -u '${{ github.actor }}' --password-stdin 'ghcr.io'
-          helm package deployments/helm/gpud
-          echo "Pushing helm chart ${CHART_NAME}-${CHART_VERSION}.tgz to ${CHART_REGISTRY}"
-          helm push "${CHART_NAME}-${CHART_VERSION}.tgz" "${CHART_REGISTRY}"
+      - name: Release chart
+        uses: helm/chart-releaser-action@v1.6.0
+        with:
+          charts_dir: deployments/helm
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
