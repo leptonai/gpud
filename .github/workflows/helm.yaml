@@ -64,7 +64,7 @@ jobs:
         run: |
           CHART_NAME="$(grep -e "^name:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
           CHART_VERSION="$(grep -e "^version:" deployments/helm/gpud/Chart.yaml | awk '{print $2}')"
-          CHART_REGISTRY="oci://ghcr.io/chart"
+          CHART_REGISTRY="oci://ghcr.io/leptonai"
           echo '${{ secrets.GITHUB_TOKEN }}' | helm registry login -u '${{ github.actor }}' --password-stdin 'ghcr.io'
           helm package deployments/helm/gpud
           echo "Pushing helm chart ${CHART_NAME}-${CHART_VERSION}.tgz to ${CHART_REGISTRY}"
