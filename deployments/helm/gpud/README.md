@@ -11,10 +11,33 @@ GPUd is a lightweight, high-performance daemon that monitors GPU resources. This
 
 ## Installing the Chart
 
+Add the GPUd chart repository:
+
+```bash
+helm repo add gpud https://leptonai.github.io/gpud
+helm repo update
+```
+
+### Migrating from the OCI chart registry
+
+GitHub Container Registry no longer hosts GPUd charts. Replace an OCI install
+such as `oci://ghcr.io/leptonai/gpud` with the `gpud/gpud` chart after adding
+the repository above:
+
+```bash
+helm upgrade --install my-gpud gpud/gpud \
+  --version 0.12.5 \
+  --create-namespace \
+  --namespace gpud
+```
+
+The container image remains independently configurable through
+`image.repository` and `image.tag`.
+
 To install the chart with the release name `my-gpud`:
 
 ```bash
-helm install my-gpud <YOUR_REPO_NAME>/gpud \
+helm install my-gpud gpud/gpud \
   --create-namespace \
   --namespace gpud
 ```
@@ -24,7 +47,7 @@ helm install my-gpud <YOUR_REPO_NAME>/gpud \
 To install with a specific image tag and disable telemetry:
 
 ```bash
-helm install my-gpud <YOUR_REPO_NAME>/gpud \
+helm install my-gpud gpud/gpud \
   --create-namespace \
   --namespace gpud \
   --set image.tag="<MY_IMAGE_TAG>" \
@@ -34,7 +57,7 @@ helm install my-gpud <YOUR_REPO_NAME>/gpud \
 You can also provide a custom `values.yaml` file:
 
 ```bash
-helm install my-gpud <YOUR_REPO_NAME>/gpud \
+helm install my-gpud gpud/gpud \
   --namespace gpud -f my-values.yaml
 ```
 
