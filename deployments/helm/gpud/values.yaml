@@ -29,10 +29,11 @@ gpud:
   # The endpoint for the control plane.
   endpoint: "gpud-manager-prod01.dgxc-lepton.nvidia.com"
 
-  # Optional: read the gpud session token from an existing Secret instead of a
-  # node label. When name is set, the token is injected as the TOKEN env via
-  # secretKeyRef and takes priority over any token node label. Leave name empty
-  # to rely on the node label (nodeLabelExporter) or no token.
+  # Optional: read the gpud session token from a Secret instead of a node label.
+  # Set create=true and value to have this chart create the Secret, or leave
+  # create=false to reference an existing Secret. When name is set, the token is
+  # injected as the TOKEN env via secretKeyRef and takes priority over any token
+  # node label. Leave name empty to rely on the node label or no token.
   #
   # TOKEN MODEL: this is a SHARED, cluster/node-group-level enrollment credential.
   # Every gpud pod in the DaemonSet reads the SAME Secret, so all machines
@@ -44,8 +45,10 @@ gpud:
   # For per-machine tokens instead (e.g. to revoke a single node), leave this
   # empty and put a distinct token in each node's label via nodeLabelExporter.
   tokenSecret:
+    create: false
     name: ""
     key: "TOKEN"
+    value: ""
 
   # Allow a node to check in when its machine identity changes.
   #
