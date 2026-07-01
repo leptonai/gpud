@@ -202,7 +202,7 @@ Then install or upgrade with a values file like this (a full BYOK overlay):
 ```yaml
 image:
   repository: nvcr.io/nvstaging/dgx-cloud-lepton/gpud
-  tag: 0.12.5   # no "v" prefix from 0.12.2 onward
+  tag: 0.12.6   # no "v" prefix from 0.12.2 onward
 
 imagePullSecrets:
   - name: nvcr-staging-pull
