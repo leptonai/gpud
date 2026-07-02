@@ -2,8 +2,19 @@ apiVersion: v1
 entries:
   gpud:
   - apiVersion: v2
+    appVersion: 0.12.6
+    created: "2026-07-02T02:02:00.86296983Z"
+    description: GPUd Helm chart for Kubernetes
+    digest: 8a46898437623b7dc96c841246f850b44e2e0207191b994482ece9f4fbfa3627
+    icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
+    name: gpud
+    type: application
+    urls:
+    - https://leptonai.github.io/gpud/gpud-0.12.6.tgz
+    version: 0.12.6
+  - apiVersion: v2
     appVersion: 0.12.5
-    created: "2026-06-30T09:34:38.011104285Z"
+    created: "2026-07-02T02:02:00.862060852Z"
     description: GPUd Helm chart for Kubernetes
     digest: 6fefa5103f929d7138c0c7a4bcdb75d3663c3c92361bda5e7b76eba6102b84be
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -12,4 +23,4 @@ entries:
     urls:
     - https://leptonai.github.io/gpud/gpud-0.12.5.tgz
     version: 0.12.5
-generated: "2026-06-30T09:34:38.005825692Z"
+generated: "2026-07-02T02:02:00.860751175Z"
