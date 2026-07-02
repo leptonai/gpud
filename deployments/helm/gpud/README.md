@@ -26,7 +26,7 @@ the repository above:
 
 ```bash
 helm upgrade --install my-gpud gpud/gpud \
-  --version 0.12.5 \
+  --version 0.12.6 \
   --create-namespace \
   --namespace gpud
 ```
@@ -164,10 +164,25 @@ gpud:
     key: TOKEN
 ```
 
+To have the Helm release create and own that Secret, also set `create` and
+`value`:
+
+```yaml
+gpud:
+  tokenSecret:
+    create: true
+    name: gpud-token
+    key: TOKEN
+    value: "<YOUR_GPUD_SESSION_TOKEN>"
+```
+
+The token is stored in Helm values and release state when `value` is used.
+Restrict access to both.
+
 ### BYOK Worker Cluster Example
 
 For a BYOK worker cluster using a private NVCR image, create the image pull
-secret and the gpud session-token secret in the release namespace:
+secret in the release namespace:
 
 ```bash
 source ~/nvapi.sh
@@ -180,10 +195,6 @@ kubectl create secret docker-registry nvcr-staging-pull \
   --docker-password="$NVAPI_KEY" \
   --namespace "$NAMESPACE"
 
-# gpud session token (read by gpud.tokenSecret below).
-kubectl create secret generic gpud-token \
-  --from-literal=TOKEN="<YOUR_GPUD_SESSION_TOKEN>" \
-  --namespace "$NAMESPACE"
 ```
 
 Then install or upgrade with a values file like this (a full BYOK overlay):
@@ -191,17 +202,19 @@ Then install or upgrade with a values file like this (a full BYOK overlay):
 ```yaml
 image:
   repository: nvcr.io/nvstaging/dgx-cloud-lepton/gpud
-  tag: 0.12.5   # no "v" prefix from 0.12.2 onward
+  tag: 0.12.6   # no "v" prefix from 0.12.2 onward
 
 imagePullSecrets:
   - name: nvcr-staging-pull
 
 gpud:
   endpoint: gpud-manager-dev02.dev02.dgxc-lepton-dev.nvidia.com
-  # Session token from the gpud-token Secret created above.
+  # Create and use the gpud-token Secret as part of this Helm release.
   tokenSecret:
+    create: true
     name: gpud-token
     key: TOKEN
+    value: "<YOUR_GPUD_SESSION_TOKEN>"
   # The node also exposes /dev/mem on this platform.
   mountHostDevMem: true
   # reboot / disk (findmnt,lsblk,df) / containerd command overrides and the
