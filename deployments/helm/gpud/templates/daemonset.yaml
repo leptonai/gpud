@@ -117,11 +117,20 @@ spec:
         {{- end }}
 
         # GPUd's persistent data directory for state, cache, and configuration
-        # Used for storing GPUd runtime data and labels fetched by node-label-init.
         - name: lib-gpud
           hostPath:
             path: /var/lib/gpud
             type: DirectoryOrCreate
+
+        {{- if .Values.nodeLabelExporter.enabled }}
+        # Pod-scoped scratch space for the node-label snapshot that
+        # node-label-init hands to gpud. An emptyDir rather than the
+        # /var/lib/gpud hostPath: gpud reads the file once at startup, so it
+        # has no reason to persist on the host, and a fresh volume per pod
+        # means no stale label file from a previous release can leak in.
+        - name: node-labels
+          emptyDir: {}
+        {{- end }}
 
         # Machine ID for unique node identification
         # Required by: pkg/host/machine_id.go (reads machine-id for node identification)
@@ -198,11 +207,9 @@ spec:
           # Needs a shell-capable image; distroless kubectl images lack /bin/sh so the script would fail.
           image: "{{ .Values.nodeLabelExporter.image.repository }}:{{ .Values.nodeLabelExporter.image.tag }}"
           imagePullPolicy: {{ .Values.nodeLabelExporter.image.pullPolicy }}
-          # Run as root: the label file is written to the root-owned /var/lib/gpud
-          # hostPath (gpud runs as root and owns it). The kubectl image otherwise
-          # defaults to a non-root UID and cannot write there.
-          securityContext:
-            runAsUser: 0
+          # No securityContext: the label file goes to a kubelet-created
+          # (world-writable) emptyDir, so the kubectl image's default non-root
+          # UID can write it. Nothing here touches the host.
           command:
             - /bin/sh
             - -ec
@@ -246,10 +253,12 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - name: lib-gpud
-              mountPath: /var/lib/gpud
+            - name: node-labels
+              mountPath: {{ dir .Values.nodeLabelExporter.outputFile }}
+          {{- with .Values.nodeLabelExporter.resources }}
           resources:
-            {{- toYaml .Values.nodeLabelExporter.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         {{- end }}
         {{- with .Values.initContainers }}
         {{- toYaml . | nindent 8 }}
@@ -299,9 +308,10 @@ spec:
               TOKEN=""
               MID=""
 
-              # /var/lib/gpud is a hostPath and can retain node-labels.env from a
-              # previous chart release. Honor that file only when this feature is
-              # enabled, so disabling nodeLabelExporter means no stale label can
+              # The label file lives on a pod-scoped emptyDir, so it cannot be
+              # stale by construction. Keep the enabled guard anyway: if
+              # outputFile is overridden to a host-persisted path, disabling
+              # nodeLabelExporter must still mean no leftover label file can
               # silently override the configured endpoint, token, or machine ID.
               if [ "$NODE_LABEL_EXPORTER_ENABLED" = "true" ] && [ -f "$LABEL_FILE" ]; then
                 # Parse label file using awk with index() for EXACT string matching:
@@ -467,8 +477,12 @@ spec:
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           # No readinessProbe is defined
+          {{- with .Values.resources }}
+          # Omitted entirely when values sets "resources: null", so the
+          # DaemonSet consumes none of the node's allocatable resources.
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 
           volumeMounts:
             # System logs - GPUd writes logs here and monitors system logs
@@ -509,6 +523,14 @@ spec:
             # GPUd data directory for runtime state and configuration
             - name: lib-gpud
               mountPath: /var/lib/gpud
+
+            {{- if .Values.nodeLabelExporter.enabled }}
+            # Node-label snapshot written by node-label-init; the startup
+            # script reads endpoint/token/machine-id from it once.
+            - name: node-labels
+              mountPath: {{ dir .Values.nodeLabelExporter.outputFile }}
+              readOnly: true
+            {{- end }}
 
             # Machine ID for unique node identification (read-only)
             - name: host-machine-id
