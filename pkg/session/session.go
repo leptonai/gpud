@@ -226,6 +226,7 @@ type Session struct {
 	savePluginSpecsFunc func(context.Context, pkgcustomplugins.Specs) (bool, error)
 	faultInjector       pkgfaultinjector.Injector
 	skipUpdateConfig    bool
+	kapMTLSManager      kapMTLSManager
 
 	diagnosticMu             sync.Mutex
 	diagnosticRunning        bool
@@ -755,7 +756,7 @@ func (s *Session) tryWriteToReader(content Body) bool {
 		log.WithMachineID(s.machineID),
 		log.WithStage("RequestReceived"),
 		log.WithRequestURI(s.epControlPlane+"/api/v1/session"),
-		log.WithData(string(content.Data)),
+		log.WithData(auditSessionRequestData(content.Data)),
 	)
 
 	select {
