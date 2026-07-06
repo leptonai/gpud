@@ -253,6 +253,10 @@ func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, crede
 		if _, err := m.runSystemctl(ctx, "restart", AgentService); err != nil {
 			return m.rollbackActivation(ctx, appliedID, generation.releaseID, method, previous.serial, err)
 		}
+		if !m.waitAgentCertificateSerial(ctx, generation.activation.serial) {
+			activationErr := fmt.Errorf("KAP mTLS agent did not load certificate serial %s for generation %s after restart", generation.activation.serial, generation.releaseID)
+			return m.rollbackActivation(ctx, appliedID, generation.releaseID, method, previous.serial, activationErr)
+		}
 		if !m.waitAgentReady(ctx) {
 			activationErr := fmt.Errorf("KAP mTLS agent did not become ready after loading generation %s", generation.releaseID)
 			return m.rollbackActivation(ctx, appliedID, generation.releaseID, method, previous.serial, activationErr)
@@ -943,6 +947,8 @@ func (m *Manager) rollbackActivation(
 	} else {
 		if _, err := m.runSystemctl(rollbackCtx, "restart", AgentService); err != nil {
 			rollbackErr = fmt.Errorf("restart KAP mTLS agent after rollback: %w", err)
+		} else if !m.waitAgentCertificateSerial(rollbackCtx, previousSerial) {
+			rollbackErr = fmt.Errorf("KAP mTLS agent did not restore certificate serial %s", previousSerial)
 		} else if !m.waitAgentReady(rollbackCtx) {
 			rollbackErr = fmt.Errorf("rollback generation %s did not become ready", previousAppliedID)
 		}

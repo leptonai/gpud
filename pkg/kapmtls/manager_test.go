@@ -472,6 +472,96 @@ func TestManagerDoesNotApplyGenerationWhenGatewayHandshakeFails(t *testing.T) {
 	assert.Equal(t, 1, countCall(runner.calls, "systemctl", "restart", AgentService))
 }
 
+func TestManagerConfirmsRestartedSerialBeforeGatewayPreflight(t *testing.T) {
+	now := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
+	paths := testPaths(t)
+	writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+	installTestAgent(t, paths)
+	manager := newTestManager(paths, &fakeRunner{state: "active"}, now)
+	ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ready.Close()
+	manager.readyURL = ready.URL
+	var observedSerials []string
+	manager.certificateSerialVerifier = func(_ context.Context, serial string) bool {
+		observedSerials = append(observedSerials, serial)
+		return true
+	}
+	manager.gatewayVerifier = func(context.Context, Credentials) error {
+		if len(observedSerials) == 0 {
+			return errors.New("gateway preflight ran before restart serial confirmation")
+		}
+		return nil
+	}
+	credentials := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(5*24*time.Hour))
+
+	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-a", credentials))
+	assert.Equal(t, []string{"1"}, observedSerials)
+}
+
+func TestManagerRejectsRestartWhenNewSerialIsNotLoaded(t *testing.T) {
+	now := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
+	paths := testPaths(t)
+	writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+	installTestAgent(t, paths)
+	manager := newTestManager(paths, &fakeRunner{state: "active"}, now)
+	ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ready.Close()
+	manager.readyURL = ready.URL
+	manager.certificateSerialVerifier = func(context.Context, string) bool { return false }
+	var gatewayCalls atomic.Int32
+	manager.gatewayVerifier = func(context.Context, Credentials) error {
+		gatewayCalls.Add(1)
+		return nil
+	}
+	credentials := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(5*24*time.Hour))
+
+	err := manager.UpdateCredentials(context.Background(), "machine-a", credentials)
+	require.ErrorContains(t, err, "did not load certificate serial 1")
+	assert.Zero(t, gatewayCalls.Load())
+	_, currentErr := manager.currentReleaseID()
+	require.ErrorIs(t, currentErr, os.ErrNotExist)
+	pending, markerErr := manager.markerExists(ActivationPendingMarkerName)
+	require.NoError(t, markerErr)
+	assert.False(t, pending)
+}
+
+func TestManagerKeepsActivationPendingWhenRestartRollbackSerialIsWrong(t *testing.T) {
+	now := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
+	paths := testPaths(t)
+	writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+	installTestAgent(t, paths)
+	manager := newTestManager(paths, &fakeRunner{state: "active"}, now)
+	ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ready.Close()
+	manager.readyURL = ready.URL
+	first := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(5*24*time.Hour))
+	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-a", first))
+	firstID, err := manager.currentReleaseID()
+	require.NoError(t, err)
+	manager.certificateSerialVerifier = func(_ context.Context, serial string) bool {
+		return serial == "2"
+	}
+	manager.gatewayVerifier = func(context.Context, Credentials) error {
+		return errors.New("gateway unavailable")
+	}
+	changedGateway := testCredentials(t, "worker-a", "machine-a", 2, now.Add(-time.Minute), now.Add(5*24*time.Hour))
+
+	err = manager.UpdateCredentials(context.Background(), "machine-a", changedGateway)
+	require.ErrorContains(t, err, "did not restore certificate serial 1")
+	currentID, currentErr := manager.currentReleaseID()
+	require.NoError(t, currentErr)
+	assert.Equal(t, firstID, currentID)
+	pending, markerErr := manager.markerExists(ActivationPendingMarkerName)
+	require.NoError(t, markerErr)
+	assert.True(t, pending)
+}
+
 func TestManagerRestoresAppliedGenerationWhenRotationGatewayHandshakeFails(t *testing.T) {
 	now := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
 	paths := testPaths(t)
