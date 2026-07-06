@@ -229,6 +229,13 @@ nodeLabelExporter:
   enabled: true
   labelKeys:
     machineId: lepton.ai/machine-id
+  resources: null
+
+# GPU workloads on these nodes request whole nodes, so the DaemonSet should
+# consume none of the node's allocatable resources. null (not {}) deletes the
+# chart's default requests/limits; the pod runs as BestEffort and its
+# system-node-critical priority still keeps it scheduled first, evicted last.
+resources: null
 
 # Schedule only on the intended GPU worker nodes.
 affinity:

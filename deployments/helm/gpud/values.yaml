@@ -258,14 +258,29 @@ securityContext:
 podSecurityContext: {}
   # fsGroup: 2000
 
-# Resource requests and limits for the container.
+# Resource requests and limits for the gpud container. The defaults below are
+# sane out of the box — end users do not need to set anything here.
+#
+# Sizing basis: gpud measured at a stable ~20m CPU / ~130Mi memory on a GPU
+# worker node. Requests are ~2x that steady state, so the kubelet never ranks
+# the pod as exceeding its requests, while still reserving little of the node.
+# The limits cap a misbehaving daemon (8x memory headroom before OOM) without
+# risking kills in normal operation.
+#
+# Any request is subtracted from the node's allocatable resources, which
+# matters where GPU workloads request whole nodes. To make this DaemonSet
+# consume NO allocatable resources, set this to null — NOT {}: an empty map
+# merges with and keeps these defaults, while null deletes them:
+#   resources: null
+# The pod then runs as BestEffort QoS; priorityClassName system-node-critical
+# still keeps it scheduled first and evicted last under node pressure.
 resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
   limits:
     cpu: 1
     memory: 1Gi
-  requests:
-    cpu: 10m
-    memory: 10Mi
 
 # How long to wait in seconds for the pod to shut down gracefully.
 terminationGracePeriodSeconds: 10
@@ -324,8 +339,13 @@ nodeLabelExporter:
     repository: docker.io/bitnami/kubectl
     tag: latest
     pullPolicy: IfNotPresent
-  # File written on the host (via the shared /var/lib/gpud volume).
-  outputFile: /var/lib/gpud/node-labels.env
+  # Path of the label file handed from the init container to gpud. Its parent
+  # directory is a pod-scoped emptyDir mounted in both containers: gpud reads
+  # the file only once at startup, so nothing needs to persist on the host,
+  # and a fresh volume per pod means no stale file from a previous release.
+  # Keep it OUTSIDE paths the gpud container already mounts (e.g.
+  # /var/lib/gpud), or the two mounts would collide.
+  outputFile: /run/gpud-node-labels/node-labels.env
   # Label keys to look for in the node labels.
   # For BYOK worker clusters, set machineId to the label that stores the
   # platform machine ID (for example, lepton.ai/machine-id) so gpud rejoins
@@ -346,13 +366,16 @@ nodeLabelExporter:
   extraEnv: []
   rbac:
     create: true
+  # Sized for a one-shot "kubectl get node". These requests sit below the
+  # gpud container's, so they do not raise the pod's effective request.
+  # As with the top-level resources, set to null (not {}) to remove them.
   resources:
-    limits:
-      cpu: 50m
-      memory: 64Mi
     requests:
       cpu: 5m
       memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
 
 # [Init containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/) to add to the pod definition.
 initContainers: []
