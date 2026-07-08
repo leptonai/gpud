@@ -2265,6 +2265,14 @@ func TestAdditionalStateAndWrapperBranches(t *testing.T) {
 		require.ErrorContains(t, err, "validate active KAP mTLS credentials")
 	})
 
+	t.Run("invalid applied release", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths}
+		require.NoError(t, manager.writeMarker(AppliedMarkerName, strings.Repeat("a", 64)))
+		err := manager.UpdateCredentials(context.Background(), "machine-a", credentials)
+		require.ErrorContains(t, err, "read applied KAP mTLS certificate")
+	})
+
 	t.Run("applied release missing gateway CA", func(t *testing.T) {
 		paths := testPaths(t)
 		releaseID := strings.Repeat("a", 64)
@@ -2283,6 +2291,49 @@ func TestAdditionalStateAndWrapperBranches(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, ReleasesDirectoryName), []byte("file"), 0600))
 		err := (&Manager{paths: paths}).commitAppliedGeneration(strings.Repeat("a", 64), "")
 		require.ErrorContains(t, err, "list KAP mTLS releases")
+	})
+
+	t.Run("commit marker cleanup error", func(t *testing.T) {
+		paths := testPaths(t)
+		pendingPath := filepath.Join(paths.StateDir, ActivationPendingMarkerName)
+		require.NoError(t, os.MkdirAll(pendingPath, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(pendingPath, "child"), nil, 0600))
+		err := (&Manager{paths: paths}).commitAppliedGeneration(strings.Repeat("a", 64), "")
+		require.ErrorContains(t, err, "remove KAP mTLS activation-pending marker")
+	})
+
+	t.Run("invalid current release ID propagates", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.Symlink(filepath.Join(ReleasesDirectoryName, "bad"), filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		manager := &Manager{paths: paths}
+		_, err := manager.currentReleaseID()
+		require.ErrorContains(t, err, "release ID fingerprint")
+		require.ErrorContains(t, manager.removeCurrentGeneration("bad"), "release ID fingerprint")
+		require.ErrorContains(t, manager.removeInactiveRelease("bad"), "release ID fingerprint")
+	})
+
+	t.Run("default version path", func(t *testing.T) {
+		paths := testPaths(t)
+		paths.AgentVersionFile = ""
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, "version"), []byte("v1.2.3\n"), 0600))
+		version, err := (&Manager{paths: paths}).agentVersion()
+		require.NoError(t, err)
+		assert.Equal(t, "v1.2.3", version)
+	})
+
+	t.Run("embedded kubeconfig credential errors", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "kubeconfig")
+		content := "users:\n- name: kubelet\n  user:\n    client-certificate-data: '%%%'\n    client-key-data: a2V5\n"
+		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+		_, _, err := readKubeconfigClientCredentials(path)
+		require.ErrorContains(t, err, "decode kubelet kubeconfig client-certificate-data")
+
+		content = "users:\n- name: kubelet\n  user:\n    client-certificate-data: Y2VydA==\n    client-key-data: '%%%'\n"
+		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+		_, _, err = readKubeconfigClientCredentials(path)
+		require.ErrorContains(t, err, "decode kubelet kubeconfig client-key-data")
 	})
 
 	for _, marker := range []string{AppliedMarkerName, ActivationPendingMarkerName} {
