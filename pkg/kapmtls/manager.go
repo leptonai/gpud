@@ -1282,7 +1282,8 @@ func verifyCandidateGatewayTLS(
 	if err := innerConnection.HandshakeContext(ctx); err != nil {
 		return fmt.Errorf("kubelet inner TLS handshake through staged agent gateway connection: %w", err)
 	}
-	return innerConnection.Close()
+	_ = innerConnection.Close()
+	return nil
 }
 
 func (m *Manager) verifyGateway(ctx context.Context, credentials Credentials) error {
@@ -1319,7 +1320,8 @@ func verifyLocalAgentTLS(ctx context.Context, endpoint, serverName string, certi
 	if err != nil {
 		return err
 	}
-	return connection.Close()
+	_ = connection.Close()
+	return nil
 }
 
 func (m *Manager) agentVersion() (string, error) {
