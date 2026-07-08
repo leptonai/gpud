@@ -36,9 +36,17 @@ type runnerCall struct {
 	args    []string
 }
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
 type fakeRunner struct {
 	calls              []runnerCall
 	state              string
+	failAgentEnable    int
+	failAgentDisable   int
 	failAgentReload    int
 	failAgentRestart   int
 	failKubeletRestart int
@@ -62,6 +70,14 @@ func (r *fakeRunner) Run(_ context.Context, command string, args ...string) ([]b
 	if len(args) == 4 && args[0] == "kill" && args[1] == "-s" && args[2] == "HUP" && args[3] == AgentService && r.failAgentReload > 0 {
 		r.failAgentReload--
 		return []byte("reload failed"), errors.New("exit status 1")
+	}
+	if len(args) == 2 && args[0] == "enable" && args[1] == AgentService && r.failAgentEnable > 0 {
+		r.failAgentEnable--
+		return []byte("enable failed"), errors.New("exit status 1")
+	}
+	if len(args) == 3 && args[0] == "disable" && args[1] == "--now" && args[2] == AgentService && r.failAgentDisable > 0 {
+		r.failAgentDisable--
+		return []byte("disable failed"), errors.New("exit status 1")
 	}
 	if len(args) == 2 && args[0] == "restart" && args[1] == AgentService {
 		if r.failAgentRestart > 0 {
@@ -1399,6 +1415,840 @@ func testRenewedCredentials(
 	renewed.ServerName = previous.ServerName
 	renewed.GatewayCAFingerprint = previous.GatewayCAFingerprint
 	return renewed
+}
+
+func TestValidateCredentialsRejectsMalformedInputs(t *testing.T) {
+	now := time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC)
+	valid := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(time.Hour))
+	tests := []struct {
+		name   string
+		mutate func(*Credentials)
+		want   string
+	}{
+		{name: "missing pair", mutate: func(c *Credentials) { c.CertificatePEM = nil }, want: "certificate and private key are required"},
+		{name: "bad endpoint", mutate: func(c *Credentials) { c.GatewayEndpoint = "kap.example.test" }, want: "must be a host on port"},
+		{name: "bad host", mutate: func(c *Credentials) { c.GatewayEndpoint = "kap@example.test:8443" }, want: "invalid host"},
+		{name: "server mismatch", mutate: func(c *Credentials) { c.ServerName = "other.example.test" }, want: "does not match gateway host"},
+		{name: "bad pair", mutate: func(c *Credentials) { c.PrivateKeyPEM = []byte("bad") }, want: "parse KAP mTLS certificate and private key"},
+		{name: "bad client fingerprint case", mutate: func(c *Credentials) { c.ClientCAFingerprint = strings.Repeat("A", 64) }, want: "lowercase hexadecimal"},
+		{name: "bad client fingerprint hex", mutate: func(c *Credentials) { c.ClientCAFingerprint = strings.Repeat("g", 64) }, want: "lowercase hexadecimal"},
+		{name: "empty gateway bundle", mutate: func(c *Credentials) { c.GatewayCAPEM = nil }, want: "certificate bundle is empty"},
+		{name: "bad gateway PEM", mutate: func(c *Credentials) { c.GatewayCAPEM = []byte("bad") }, want: "invalid PEM data"},
+		{name: "unexpected gateway PEM", mutate: func(c *Credentials) {
+			c.GatewayCAPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("bad")})
+		}, want: "unexpected PEM block"},
+		{name: "non CA gateway", mutate: func(c *Credentials) { c.GatewayCAPEM = c.CertificatePEM }, want: "is not a CA"},
+		{name: "bad gateway fingerprint", mutate: func(c *Credentials) { c.GatewayCAFingerprint = "bad" }, want: "lowercase hexadecimal"},
+		{name: "gateway fingerprint mismatch", mutate: func(c *Credentials) { c.GatewayCAFingerprint = strings.Repeat("b", 64) }, want: "does not match gateway CA PEM"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			credentials := valid
+			tt.mutate(&credentials)
+			_, err := validateCredentials("machine-a", credentials, now, true)
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+
+	leafTests := []struct {
+		name   string
+		mutate func(*x509.Certificate)
+		want   string
+	}{
+		{name: "not yet valid", mutate: func(c *x509.Certificate) { c.NotBefore = now.Add(time.Minute) }, want: "not currently valid"},
+		{name: "expired", mutate: func(c *x509.Certificate) { c.NotAfter = now.Add(-time.Minute) }, want: "not currently valid"},
+		{name: "no client auth", mutate: func(c *x509.Certificate) { c.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth} }, want: "not valid for client authentication"},
+		{name: "bad organization", mutate: func(c *x509.Certificate) { c.Subject.Organization = []string{"other"} }, want: "invalid organization"},
+		{name: "no URI", mutate: func(c *x509.Certificate) { c.URIs = nil }, want: "exactly one SPIFFE URI"},
+		{name: "multiple URIs", mutate: func(c *x509.Certificate) { c.URIs = append(c.URIs, c.URIs[0]) }, want: "exactly one SPIFFE URI"},
+		{name: "bad URI", mutate: func(c *x509.Certificate) {
+			c.URIs[0], _ = url.Parse("https://lepton/workercluster/worker-a/machine/machine-a")
+		}, want: "invalid SPIFFE identity"},
+		{name: "wrong machine", mutate: func(c *x509.Certificate) {
+			c.URIs[0], _ = url.Parse("spiffe://lepton/workercluster/worker-a/machine/machine-b")
+		}, want: "invalid SPIFFE identity"},
+		{name: "bad common name", mutate: func(c *x509.Certificate) { c.Subject.CommonName = "workercluster:other" }, want: "common name does not match"},
+	}
+	for _, tt := range leafTests {
+		t.Run(tt.name, func(t *testing.T) {
+			credentials := testCredentialsWithLeaf(t, now, tt.mutate)
+			_, err := validateCredentials("machine-a", credentials, now, true)
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+}
+
+func TestKubeconfigAndEnvironmentHelpers(t *testing.T) {
+	directory := t.TempDir()
+	kubeconfig := filepath.Join(directory, "kubeconfig")
+	caPEM := testCAPEM(t, "kubeconfig-ca")
+
+	for _, tt := range []struct {
+		name string
+		data string
+		want string
+	}{
+		{name: "bad yaml", data: "clusters: [", want: "parse kubelet kubeconfig"},
+		{name: "no clusters", data: "kind: Config\n", want: "has no clusters"},
+		{name: "invalid named cluster", data: "clusters:\n- name: kubernetes\n  cluster: invalid\n", want: "cluster \"kubernetes\" is invalid"},
+		{name: "missing named cluster", data: "clusters:\n- name: one\n  cluster: {}\n- name: two\n  cluster: {}\n", want: "cluster \"kubernetes\" was not found"},
+	} {
+		t.Run("parse "+tt.name, func(t *testing.T) {
+			_, _, err := parseKubeconfig([]byte(tt.data))
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+
+	document, cluster, err := parseKubeconfig([]byte("clusters:\n- name: custom\n  cluster:\n    server: https://kap.example.test\n"))
+	require.NoError(t, err)
+	require.NotNil(t, document)
+	assert.Equal(t, "https://kap.example.test", cluster["server"])
+
+	_, err = decodeKubeconfigData(map[string]any{}, "certificate-authority-data")
+	require.ErrorContains(t, err, "has no certificate-authority-data")
+	_, err = decodeKubeconfigData(map[string]any{"certificate-authority-data": "%%%"}, "certificate-authority-data")
+	require.ErrorContains(t, err, "decode kubelet kubeconfig")
+	decoded, err := decodeKubeconfigData(map[string]any{"certificate-authority-data": base64.StdEncoding.EncodeToString(caPEM)}, "certificate-authority-data")
+	require.NoError(t, err)
+	assert.Equal(t, caPEM, decoded)
+
+	_, _, err = readKubeconfigClientCredentials(filepath.Join(directory, "missing"))
+	require.ErrorContains(t, err, "read kubelet kubeconfig")
+	require.NoError(t, os.WriteFile(kubeconfig, []byte("users: ["), 0600))
+	_, _, err = readKubeconfigClientCredentials(kubeconfig)
+	require.ErrorContains(t, err, "parse kubelet kubeconfig")
+	require.NoError(t, os.WriteFile(kubeconfig, []byte("kind: Config\n"), 0600))
+	_, _, err = readKubeconfigClientCredentials(kubeconfig)
+	require.ErrorContains(t, err, "has no users")
+	require.NoError(t, os.WriteFile(kubeconfig, []byte("users:\n- name: one\n  user: {}\n- name: two\n  user: {}\n"), 0600))
+	_, _, err = readKubeconfigClientCredentials(kubeconfig)
+	require.ErrorContains(t, err, "user \"kubelet\" was not found")
+
+	authInfo := map[string]any{"client-certificate-data": "%%%"}
+	_, err = readKubeconfigCredentialData(kubeconfig, authInfo, "client-certificate-data", "client-certificate")
+	require.ErrorContains(t, err, "decode kubelet kubeconfig")
+	_, err = readKubeconfigCredentialData(kubeconfig, map[string]any{}, "client-certificate-data", "client-certificate")
+	require.ErrorContains(t, err, "has no client-certificate-data or client-certificate")
+	credentialPath := filepath.Join(directory, "client.crt")
+	require.NoError(t, os.WriteFile(credentialPath, []byte("certificate"), 0600))
+	credential, err := readKubeconfigCredentialData(kubeconfig, map[string]any{"client-certificate": "client.crt"}, "client-certificate-data", "client-certificate")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("certificate"), credential)
+	_, err = readKubeconfigCredentialData(kubeconfig, map[string]any{"client-certificate": "missing.crt"}, "client-certificate-data", "client-certificate")
+	require.ErrorContains(t, err, "read kubelet kubeconfig client-certificate")
+
+	environmentPath := filepath.Join(directory, "agent.env")
+	_, err = readAgentEnvironment(filepath.Join(directory, "missing.env"))
+	require.ErrorContains(t, err, "read KAP mTLS agent environment")
+	require.NoError(t, os.WriteFile(environmentPath, []byte("invalid\n"), 0600))
+	_, err = readAgentEnvironment(environmentPath)
+	require.ErrorContains(t, err, "invalid KAP mTLS agent environment line")
+	require.NoError(t, os.WriteFile(environmentPath, []byte("KAP_MTLS_GATEWAY_ENDPOINT=kap.example.test:8443\n"), 0600))
+	_, err = readAgentEnvironment(environmentPath)
+	require.ErrorContains(t, err, "environment is incomplete")
+	environment := agentEnvironment{
+		gatewayEndpoint:      "kap.example.test:8443",
+		serverName:           "kap.example.test",
+		clientCAFingerprint:  strings.Repeat("a", 64),
+		gatewayCAFingerprint: strings.Repeat("b", 64),
+	}
+	require.NoError(t, os.WriteFile(environmentPath, append([]byte("# generated\n\n"), marshalAgentEnvironment(environment)...), 0600))
+	gotEnvironment, err := readAgentEnvironment(environmentPath)
+	require.NoError(t, err)
+	assert.Equal(t, environment, gotEnvironment)
+}
+
+func TestDurableStateHelpers(t *testing.T) {
+	t.Run("release matching", func(t *testing.T) {
+		directory := t.TempDir()
+		credentials := Credentials{CertificatePEM: []byte("cert"), PrivateKeyPEM: []byte("key"), GatewayCAPEM: []byte("ca")}
+		environment := []byte("env")
+		exists, err := releaseMatches(filepath.Join(directory, "missing"), credentials, environment)
+		require.NoError(t, err)
+		assert.False(t, exists)
+		filePath := filepath.Join(directory, "file")
+		require.NoError(t, os.WriteFile(filePath, nil, 0600))
+		_, err = releaseMatches(filePath, credentials, environment)
+		require.ErrorContains(t, err, "is not a directory")
+		releaseDir := filepath.Join(directory, "release")
+		require.NoError(t, os.Mkdir(releaseDir, 0700))
+		_, err = releaseMatches(releaseDir, credentials, environment)
+		require.ErrorContains(t, err, "read existing KAP mTLS release file")
+		for name, data := range map[string][]byte{
+			ClientCertificateFileName: credentials.CertificatePEM,
+			ClientPrivateKeyFileName:  credentials.PrivateKeyPEM,
+			GatewayCAFileName:         credentials.GatewayCAPEM,
+			AgentEnvironmentFileName:  environment,
+		} {
+			require.NoError(t, os.WriteFile(filepath.Join(releaseDir, name), data, 0600))
+		}
+		exists, err = releaseMatches(releaseDir, credentials, environment)
+		require.NoError(t, err)
+		assert.True(t, exists)
+		require.NoError(t, os.WriteFile(filepath.Join(releaseDir, ClientCertificateFileName), []byte("other"), 0600))
+		_, err = releaseMatches(releaseDir, credentials, environment)
+		require.ErrorContains(t, err, "does not match its generation ID")
+	})
+
+	t.Run("symlink and markers", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths}
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ReleasesDirectoryName), 0700))
+		releaseID := strings.Repeat("a", 64)
+		require.NoError(t, os.Mkdir(filepath.Join(paths.StateDir, ReleasesDirectoryName, releaseID), 0700))
+		require.Error(t, manager.swapCurrentSymlink("bad"))
+		require.NoError(t, manager.swapCurrentSymlink(releaseID))
+		require.NoError(t, manager.swapCurrentSymlink(releaseID))
+		current, err := manager.currentReleaseID()
+		require.NoError(t, err)
+		assert.Equal(t, releaseID, current)
+		require.NoError(t, os.Remove(filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName), nil, 0600))
+		require.ErrorContains(t, manager.swapCurrentSymlink(releaseID), "not a symlink")
+		require.NoError(t, os.Remove(filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		require.NoError(t, os.Symlink("invalid-target", filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		_, err = manager.currentReleaseID()
+		require.Error(t, err)
+
+		exists, err := manager.markerExists("marker")
+		require.NoError(t, err)
+		assert.False(t, exists)
+		value, err := manager.readMarker("marker")
+		require.NoError(t, err)
+		assert.Empty(t, value)
+		require.NoError(t, manager.writeMarker("marker", "value"))
+		exists, err = manager.markerExists("marker")
+		require.NoError(t, err)
+		assert.True(t, exists)
+		value, err = manager.readMarker("marker")
+		require.NoError(t, err)
+		assert.Equal(t, "value", value)
+		require.NoError(t, manager.clearMarker("marker"))
+		require.NoError(t, manager.clearMarker("marker"))
+	})
+
+	t.Run("generation cleanup", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths}
+		releasesDir := filepath.Join(paths.StateDir, ReleasesDirectoryName)
+		require.NoError(t, os.MkdirAll(releasesDir, 0700))
+		currentID := strings.Repeat("a", 64)
+		previousID := strings.Repeat("b", 64)
+		orphanID := strings.Repeat("c", 64)
+		for _, id := range []string{currentID, previousID, orphanID} {
+			require.NoError(t, os.Mkdir(filepath.Join(releasesDir, id), 0700))
+		}
+		require.NoError(t, manager.garbageCollectReleases(currentID, previousID))
+		assert.DirExists(t, filepath.Join(releasesDir, currentID))
+		assert.DirExists(t, filepath.Join(releasesDir, previousID))
+		assert.NoDirExists(t, filepath.Join(releasesDir, orphanID))
+		require.NoError(t, manager.removeInactiveRelease(""))
+		require.NoError(t, manager.writeMarker(AppliedMarkerName, previousID))
+		require.NoError(t, manager.removeInactiveRelease(previousID))
+		require.NoError(t, os.MkdirAll(filepath.Join(releasesDir, orphanID), 0700))
+		require.NoError(t, manager.removeInactiveRelease(orphanID))
+		assert.NoDirExists(t, filepath.Join(releasesDir, orphanID))
+	})
+}
+
+func TestManagerValidationAndProbeErrors(t *testing.T) {
+	caPEM := testCAPEM(t, "kubeconfig-ca")
+	for _, tt := range []struct {
+		name   string
+		config Config
+		want   string
+	}{
+		{name: "invalid URL", config: Config{Server: "://", CertificateAuthorityData: caPEM}, want: "invalid kubeconfig server"},
+		{name: "invalid CA", config: Config{Server: "https://kap.example.test", CertificateAuthorityData: []byte("bad")}, want: "invalid kubeconfig certificate authority data"},
+		{name: "enabled remote", config: Config{Enabled: true, Server: "https://kap.example.test", CertificateAuthorityData: caPEM, TLSServerName: "kap.example.test"}, want: "enabled KAP mTLS server"},
+		{name: "enabled without server name", config: Config{Enabled: true, Server: LocalEndpoint, CertificateAuthorityData: caPEM}, want: "requires a TLS server name"},
+		{name: "disabled loopback", config: Config{Server: LocalEndpoint, CertificateAuthorityData: caPEM}, want: "requires a remote server"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.ErrorContains(t, validateConfig(tt.config), tt.want)
+		})
+	}
+	require.NoError(t, validateConfig(Config{Server: "https://kap.example.test", CertificateAuthorityData: caPEM}))
+	require.NoError(t, validateConfig(Config{Enabled: true, Server: LocalEndpoint, TLSServerName: "kap.example.test", CertificateAuthorityData: caPEM}))
+
+	manager := &Manager{httpClient: http.DefaultClient}
+	manager.readyURL = "://"
+	assert.False(t, manager.probeAgentReady(context.Background()))
+	manager.metricsURL = "://"
+	assert.False(t, manager.probeAgentCertificateSerial(context.Background(), "1"))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/ready" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = w.Write([]byte("not prometheus"))
+	}))
+	defer server.Close()
+	manager.readyURL = server.URL + "/ready"
+	assert.False(t, manager.probeAgentReady(context.Background()))
+	manager.metricsURL = server.URL + "/metrics"
+	assert.False(t, manager.probeAgentCertificateSerial(context.Background(), "1"))
+}
+
+func TestManagerConstructionAndStatusErrors(t *testing.T) {
+	directory := t.TempDir()
+	paths := DefaultPaths(directory)
+	assert.Equal(t, filepath.Join(directory, "kap-mtls"), paths.StateDir)
+	assert.Equal(t, DefaultKubeconfigPath, paths.Kubeconfig)
+	assert.Equal(t, DefaultAgentBinaryPath, paths.AgentBinary)
+	assert.Equal(t, DefaultAgentUnitPath, paths.AgentUnitFile)
+	assert.Equal(t, filepath.Join(directory, "kap-mtls", "version"), paths.AgentVersionFile)
+	manager := NewManager(paths)
+	require.NotNil(t, manager.runner)
+	require.NotNil(t, manager.httpClient)
+	require.NotNil(t, manager.now)
+	output, err := (execRunner{}).Run(context.Background(), "/bin/sh", "-c", "printf ok")
+	require.NoError(t, err)
+	assert.Equal(t, "ok", string(output))
+
+	t.Run("bad kubeconfig", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.WriteFile(paths.Kubeconfig, []byte("clusters: ["), 0600))
+		_, err := (&Manager{paths: paths, runner: &fakeRunner{}}).Status(context.Background(), "machine-a")
+		require.ErrorContains(t, err, "parse kubelet kubeconfig")
+	})
+	t.Run("pending marker stat error", func(t *testing.T) {
+		paths := testPaths(t)
+		writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		require.NoError(t, os.WriteFile(paths.StateDir, []byte("not a directory"), 0600))
+		_, err := (&Manager{paths: paths, runner: &fakeRunner{}}).Status(context.Background(), "machine-a")
+		require.ErrorContains(t, err, "inspect KAP mTLS kubeconfig-pending marker")
+	})
+	t.Run("disabled marker stat error", func(t *testing.T) {
+		paths := testPaths(t)
+		writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.Symlink("disabled", filepath.Join(paths.StateDir, DisabledMarkerName)))
+		_, err := (&Manager{paths: paths, runner: &fakeRunner{}}).Status(context.Background(), "machine-a")
+		require.ErrorContains(t, err, "inspect KAP mTLS disabled marker")
+	})
+	t.Run("systemd error", func(t *testing.T) {
+		paths := testPaths(t)
+		writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		installTestAgent(t, paths)
+		_, err := (&Manager{paths: paths, runner: &fakeRunner{state: "unexpected"}}).Status(context.Background(), "machine-a")
+		require.ErrorContains(t, err, "systemctl is-active")
+	})
+	t.Run("version read error", func(t *testing.T) {
+		paths := testPaths(t)
+		writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		require.NoError(t, os.MkdirAll(paths.AgentVersionFile, 0700))
+		_, err := (&Manager{paths: paths, runner: &fakeRunner{}}).Status(context.Background(), "machine-a")
+		require.ErrorContains(t, err, "read KAP mTLS agent version")
+	})
+}
+
+func TestManagerConfigureRejectsUnsafeTransitions(t *testing.T) {
+	now := time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC)
+	t.Run("credentials absent", func(t *testing.T) {
+		paths := testPaths(t)
+		caPEM := writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		manager := newTestManager(paths, &fakeRunner{state: "active"}, now)
+		err := manager.Configure(context.Background(), Config{Enabled: true, Server: LocalEndpoint, TLSServerName: "kap.example.test", CertificateAuthorityData: caPEM})
+		require.ErrorContains(t, err, "credentials are not installed")
+	})
+
+	setup := func(t *testing.T) (*Manager, Paths, *fakeRunner, Credentials, Config) {
+		t.Helper()
+		paths := testPaths(t)
+		credentials := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(time.Hour))
+		writeTestKubeconfigWithClientData(t, paths.Kubeconfig, "https://kap.example.test", "", credentials.GatewayCAPEM, credentials.CertificatePEM, credentials.PrivateKeyPEM)
+		runner := &fakeRunner{state: "active"}
+		manager := newTestManager(paths, runner, now)
+		generation, err := manager.stageCredentials("machine-a", credentials)
+		require.NoError(t, err)
+		require.NoError(t, manager.swapCurrentSymlink(generation.releaseID))
+		config := Config{Enabled: true, Server: LocalEndpoint, TLSServerName: credentials.ServerName, CertificateAuthorityData: credentials.GatewayCAPEM}
+		return manager, paths, runner, credentials, config
+	}
+
+	t.Run("expired credentials", func(t *testing.T) {
+		manager, _, _, _, config := setup(t)
+		manager.now = func() time.Time { return now.Add(2 * time.Hour) }
+		require.ErrorContains(t, manager.Configure(context.Background(), config), "credentials are expired")
+	})
+	t.Run("server name mismatch", func(t *testing.T) {
+		manager, _, _, _, config := setup(t)
+		config.TLSServerName = "other.example.test"
+		require.ErrorContains(t, manager.Configure(context.Background(), config), "does not match installed credentials")
+	})
+	t.Run("CA fingerprint mismatch", func(t *testing.T) {
+		manager, _, _, _, config := setup(t)
+		config.CertificateAuthorityData = testCAPEM(t, "other-ca")
+		require.ErrorContains(t, manager.Configure(context.Background(), config), "does not match installed gateway CA fingerprint")
+	})
+	t.Run("agent absent", func(t *testing.T) {
+		manager, _, _, _, config := setup(t)
+		require.ErrorContains(t, manager.Configure(context.Background(), config), "agent is not installed")
+	})
+	t.Run("agent inactive", func(t *testing.T) {
+		manager, paths, runner, _, config := setup(t)
+		installTestAgent(t, paths)
+		runner.state = "inactive"
+		require.ErrorContains(t, manager.Configure(context.Background(), config), "agent is not ready")
+	})
+	t.Run("agent readiness incomplete", func(t *testing.T) {
+		manager, paths, _, _, config := setup(t)
+		installTestAgent(t, paths)
+		require.ErrorContains(t, manager.Configure(context.Background(), config), "agent is not ready")
+	})
+	t.Run("missing kubeconfig", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := newTestManager(paths, &fakeRunner{}, now)
+		err := manager.Configure(context.Background(), Config{Server: "https://kap.example.test", CertificateAuthorityData: testCAPEM(t, "ca")})
+		require.ErrorContains(t, err, "read kubelet kubeconfig")
+	})
+}
+
+func TestCredentialAndReleaseInspectionErrors(t *testing.T) {
+	now := time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC)
+	releaseID := strings.Repeat("a", 64)
+	t.Run("current is not symlink", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName), nil, 0600))
+		_, err := (&Manager{paths: paths}).inspectCredentials("machine-a")
+		require.ErrorContains(t, err, "read KAP mTLS current symlink")
+	})
+	for _, tt := range []struct {
+		name  string
+		files map[string][]byte
+		want  string
+	}{
+		{name: "missing certificate", files: map[string][]byte{}, want: "read active KAP mTLS certificate"},
+		{name: "missing key", files: map[string][]byte{ClientCertificateFileName: []byte("cert")}, want: "read active KAP mTLS private key"},
+		{name: "missing gateway CA", files: map[string][]byte{ClientCertificateFileName: []byte("cert"), ClientPrivateKeyFileName: []byte("key")}, want: "read active KAP mTLS gateway CA"},
+		{name: "missing environment", files: map[string][]byte{ClientCertificateFileName: []byte("cert"), ClientPrivateKeyFileName: []byte("key"), GatewayCAFileName: []byte("ca")}, want: "read KAP mTLS agent environment"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			paths := testPaths(t)
+			releaseDir := filepath.Join(paths.StateDir, ReleasesDirectoryName, releaseID)
+			require.NoError(t, os.MkdirAll(releaseDir, 0700))
+			for name, data := range tt.files {
+				require.NoError(t, os.WriteFile(filepath.Join(releaseDir, name), data, 0600))
+			}
+			require.NoError(t, os.Symlink(filepath.Join(ReleasesDirectoryName, releaseID), filepath.Join(paths.StateDir, CurrentSymlinkName)))
+			_, err := (&Manager{paths: paths, now: func() time.Time { return now }}).inspectCredentials("machine-a")
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+
+	t.Run("release ID does not match contents", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths, now: func() time.Time { return now }}
+		credentials := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(time.Hour))
+		generation, err := manager.stageCredentials("machine-a", credentials)
+		require.NoError(t, err)
+		wrongID := strings.Repeat("b", 64)
+		require.NoError(t, os.Rename(
+			filepath.Join(paths.StateDir, ReleasesDirectoryName, generation.releaseID),
+			filepath.Join(paths.StateDir, ReleasesDirectoryName, wrongID),
+		))
+		require.NoError(t, os.Symlink(filepath.Join(ReleasesDirectoryName, wrongID), filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		_, err = manager.inspectCredentials("machine-a")
+		require.ErrorContains(t, err, "release ID does not match its contents")
+	})
+
+	for _, tt := range []struct {
+		name string
+		cert []byte
+		env  []byte
+		ca   []byte
+		want string
+	}{
+		{name: "missing certificate", want: "read applied KAP mTLS certificate"},
+		{name: "bad certificate PEM", cert: []byte("bad"), want: "parse applied KAP mTLS certificate PEM"},
+		{name: "bad certificate DER", cert: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("bad")}), want: "parse applied KAP mTLS certificate"},
+		{name: "missing environment", cert: testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(time.Hour)).CertificatePEM, want: "read KAP mTLS agent environment"},
+	} {
+		t.Run("activation "+tt.name, func(t *testing.T) {
+			paths := testPaths(t)
+			releaseDir := filepath.Join(paths.StateDir, ReleasesDirectoryName, releaseID)
+			require.NoError(t, os.MkdirAll(releaseDir, 0700))
+			if tt.cert != nil {
+				require.NoError(t, os.WriteFile(filepath.Join(releaseDir, ClientCertificateFileName), tt.cert, 0600))
+			}
+			_, err := (&Manager{paths: paths}).inspectReleaseActivation(releaseID)
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
+	_, err := (&Manager{}).inspectReleaseActivation("bad")
+	require.Error(t, err)
+}
+
+func TestStateCleanupAndTLSFailures(t *testing.T) {
+	t.Run("file and marker errors", func(t *testing.T) {
+		directory := t.TempDir()
+		path := filepath.Join(directory, "synced")
+		require.NoError(t, writeSyncedFile(path, []byte("data"), 0600))
+		require.ErrorContains(t, writeSyncedFile(path, []byte("data"), 0600), "create")
+		manager := &Manager{paths: Paths{StateDir: directory}}
+		require.NoError(t, os.Mkdir(filepath.Join(directory, "marker"), 0700))
+		_, err := manager.readMarker("marker")
+		require.ErrorContains(t, err, "read KAP mTLS marker marker")
+		require.NoError(t, os.WriteFile(filepath.Join(directory, "marker", "child"), nil, 0600))
+		require.ErrorContains(t, manager.clearMarker("marker"), "remove KAP mTLS marker marker")
+	})
+
+	t.Run("current generation removal", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths}
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ReleasesDirectoryName), 0700))
+		require.NoError(t, manager.removeCurrentGeneration(strings.Repeat("a", 64)))
+		currentID := strings.Repeat("b", 64)
+		require.NoError(t, os.Symlink(filepath.Join(ReleasesDirectoryName, currentID), filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		require.ErrorContains(t, manager.removeCurrentGeneration(strings.Repeat("a", 64)), "expected failed generation")
+		require.NoError(t, manager.removeCurrentGeneration(currentID))
+		assert.NoFileExists(t, filepath.Join(paths.StateDir, CurrentSymlinkName))
+	})
+
+	t.Run("cleanup missing and corrupt stores", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths}
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, manager.cleanupOrphanedReleases())
+		require.NoError(t, manager.garbageCollectReleases(strings.Repeat("a", 64), ""))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, ReleasesDirectoryName), []byte("file"), 0600))
+		require.ErrorContains(t, manager.cleanupOrphanedReleases(), "list KAP mTLS releases")
+		require.ErrorContains(t, manager.garbageCollectReleases(strings.Repeat("a", 64), ""), "list KAP mTLS releases")
+	})
+
+	credentials := testCredentials(t, "worker-a", "machine-a", 1, time.Now().Add(-time.Minute), time.Now().Add(time.Hour))
+	err := verifyCandidateGatewayTLS(context.Background(), "127.0.0.1:1", "kap.example.test", []byte("bad"), credentials.PrivateKeyPEM, credentials.GatewayCAPEM, credentials.CertificatePEM, credentials.PrivateKeyPEM)
+	require.ErrorContains(t, err, "parse staged agent client certificate")
+	err = verifyCandidateGatewayTLS(context.Background(), "127.0.0.1:1", "kap.example.test", credentials.CertificatePEM, credentials.PrivateKeyPEM, credentials.GatewayCAPEM, []byte("bad"), credentials.PrivateKeyPEM)
+	require.ErrorContains(t, err, "parse kubelet client certificate")
+	err = verifyCandidateGatewayTLS(context.Background(), "127.0.0.1:1", "kap.example.test", credentials.CertificatePEM, credentials.PrivateKeyPEM, []byte("bad"), credentials.CertificatePEM, credentials.PrivateKeyPEM)
+	require.ErrorContains(t, err, "parse gateway CA bundle")
+	err = verifyCandidateGatewayTLS(context.Background(), "127.0.0.1:1", "kap.example.test", credentials.CertificatePEM, credentials.PrivateKeyPEM, credentials.GatewayCAPEM, credentials.CertificatePEM, credentials.PrivateKeyPEM)
+	require.Error(t, err)
+	err = verifyLocalAgentTLS(context.Background(), "127.0.0.1:1", "kap.example.test", []byte("bad"), credentials.PrivateKeyPEM, credentials.GatewayCAPEM)
+	require.ErrorContains(t, err, "parse client certificate")
+	err = verifyLocalAgentTLS(context.Background(), "127.0.0.1:1", "kap.example.test", credentials.CertificatePEM, credentials.PrivateKeyPEM, []byte("bad"))
+	require.ErrorContains(t, err, "parse gateway CA bundle")
+	err = verifyLocalAgentTLS(context.Background(), "127.0.0.1:1", "kap.example.test", credentials.CertificatePEM, credentials.PrivateKeyPEM, credentials.GatewayCAPEM)
+	require.Error(t, err)
+}
+
+func TestRemainingDurabilityAndProbeBranches(t *testing.T) {
+	now := time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC)
+	credentials := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(time.Hour))
+
+	t.Run("stage failures", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths, now: func() time.Time { return now }}
+		_, err := manager.stageCredentials("machine-a", Credentials{})
+		require.Error(t, err)
+		require.NoError(t, os.WriteFile(paths.StateDir, []byte("file"), 0600))
+		_, err = manager.stageCredentials("machine-a", credentials)
+		require.ErrorContains(t, err, "create KAP mTLS state directory")
+
+		paths = testPaths(t)
+		manager.paths = paths
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, ReleasesDirectoryName), []byte("file"), 0600))
+		_, err = manager.stageCredentials("machine-a", credentials)
+		require.Error(t, err)
+
+		paths = testPaths(t)
+		manager.paths = paths
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.Symlink("invalid", filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		_, err = manager.stageCredentials("machine-a", credentials)
+		require.Error(t, err)
+	})
+
+	t.Run("update control failures", func(t *testing.T) {
+		paths := testPaths(t)
+		writeTestKubeconfigWithClientData(t, paths.Kubeconfig, "https://kap.example.test", "", credentials.GatewayCAPEM, credentials.CertificatePEM, credentials.PrivateKeyPEM)
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, AppliedMarkerName), 0700))
+		manager := newTestManager(paths, &fakeRunner{}, now)
+		require.ErrorContains(t, manager.UpdateCredentials(context.Background(), "machine-a", credentials), "read KAP mTLS applied marker")
+
+		paths = testPaths(t)
+		writeTestKubeconfigWithClientData(t, paths.Kubeconfig, "https://kap.example.test", "", credentials.GatewayCAPEM, credentials.CertificatePEM, credentials.PrivateKeyPEM)
+		installTestAgent(t, paths)
+		runner := &fakeRunner{state: "unexpected"}
+		manager = newTestManager(paths, runner, now)
+		require.ErrorContains(t, manager.UpdateCredentials(context.Background(), "machine-a", credentials), "systemctl is-active")
+
+		paths = testPaths(t)
+		writeTestKubeconfigWithClientData(t, paths.Kubeconfig, "https://kap.example.test", "", credentials.GatewayCAPEM, credentials.CertificatePEM, credentials.PrivateKeyPEM)
+		installTestAgent(t, paths)
+		runner = &fakeRunner{state: "inactive", failAgentEnable: 1}
+		manager = newTestManager(paths, runner, now)
+		require.ErrorContains(t, manager.UpdateCredentials(context.Background(), "machine-a", credentials), "enable failed")
+	})
+
+	t.Run("disable control failures", func(t *testing.T) {
+		paths := testPaths(t)
+		caPEM := writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		installTestAgent(t, paths)
+		runner := &fakeRunner{state: "active", failAgentDisable: 1}
+		manager := newTestManager(paths, runner, now)
+		err := manager.Configure(context.Background(), Config{Server: "https://kap.example.test", CertificateAuthorityData: caPEM})
+		require.ErrorContains(t, err, "disable failed")
+
+		paths = testPaths(t)
+		caPEM = writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ActivationPendingMarkerName), 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, ActivationPendingMarkerName, "child"), nil, 0600))
+		manager = newTestManager(paths, &fakeRunner{}, now)
+		err = manager.Configure(context.Background(), Config{Server: "https://kap.example.test", CertificateAuthorityData: caPEM})
+		require.ErrorContains(t, err, "remove KAP mTLS activation-pending marker")
+	})
+
+	t.Run("kubelet restore failures", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(paths.Kubeconfig, 0700))
+		manager := newTestManager(paths, &fakeRunner{}, now)
+		err := manager.handleKubeletRestartFailure(context.Background(), []byte("original"), 0600, true, errors.New("restart"))
+		require.ErrorContains(t, err, "restore previous kubeconfig")
+
+		paths = testPaths(t)
+		require.NoError(t, os.WriteFile(paths.Kubeconfig, []byte("current"), 0600))
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, KubeconfigPendingMarkerName), 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, KubeconfigPendingMarkerName, "child"), nil, 0600))
+		manager = newTestManager(paths, &fakeRunner{}, now)
+		err = manager.handleKubeletRestartFailure(context.Background(), []byte("original"), 0600, true, errors.New("restart"))
+		require.ErrorContains(t, err, "clear pending marker")
+	})
+
+	t.Run("commit and cleanup failures", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths}
+		require.NoError(t, os.WriteFile(paths.StateDir, []byte("file"), 0600))
+		require.Error(t, manager.commitAppliedGeneration(strings.Repeat("a", 64), ""))
+
+		paths = testPaths(t)
+		manager.paths = paths
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.Symlink("invalid", filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		err := manager.discardStagedGeneration(strings.Repeat("a", 64), errors.New("activation"))
+		require.ErrorContains(t, err, "discard staged generation")
+	})
+
+	t.Run("kubeconfig inspection errors", func(t *testing.T) {
+		directory := t.TempDir()
+		_, _, _, err := inspectKubeconfig(filepath.Join(directory, "missing"))
+		require.ErrorContains(t, err, "read kubelet kubeconfig")
+		path := filepath.Join(directory, "kubeconfig")
+		require.NoError(t, os.WriteFile(path, []byte("clusters:\n- name: kubernetes\n  cluster: {}\n"), 0600))
+		_, _, _, err = inspectKubeconfig(path)
+		require.ErrorContains(t, err, "cluster has no server")
+		require.NoError(t, os.WriteFile(path, []byte("clusters:\n- name: kubernetes\n  cluster:\n    server: https://kap.example.test\n"), 0600))
+		_, _, _, err = inspectKubeconfig(path)
+		require.ErrorContains(t, err, "has no certificate-authority-data")
+		require.NoError(t, os.WriteFile(path, []byte("clusters:\n- name: kubernetes\n  cluster:\n    server: https://kap.example.test\n    certificate-authority-data: YmFk\n"), 0600))
+		_, _, _, err = inspectKubeconfig(path)
+		require.ErrorContains(t, err, "parse kubelet kubeconfig certificate authority data")
+		_, _, _, _, err = prepareKubeconfig(filepath.Join(directory, "missing"), Config{})
+		require.ErrorContains(t, err, "read kubelet kubeconfig")
+		require.NoError(t, os.WriteFile(path, []byte("clusters: ["), 0600))
+		_, _, _, _, err = prepareKubeconfig(path, Config{})
+		require.ErrorContains(t, err, "parse kubelet kubeconfig")
+	})
+
+	t.Run("single user fallback", func(t *testing.T) {
+		directory := t.TempDir()
+		path := filepath.Join(directory, "kubeconfig")
+		content := fmt.Sprintf("users:\n- name: custom\n  user:\n    client-certificate-data: %s\n    client-key-data: %s\n", base64.StdEncoding.EncodeToString([]byte("cert")), base64.StdEncoding.EncodeToString([]byte("key")))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0600))
+		certificate, key, err := readKubeconfigClientCredentials(path)
+		require.NoError(t, err)
+		assert.Equal(t, []byte("cert"), certificate)
+		assert.Equal(t, []byte("key"), key)
+	})
+
+	t.Run("metrics variants", func(t *testing.T) {
+		responses := []string{
+			"# TYPE other gauge\nother 1\n",
+			"# TYPE kaproxy_mtls_agent_cert_info gauge\nkaproxy_mtls_agent_cert_info{serial=\"1\"} 0\n",
+			"# TYPE kaproxy_mtls_agent_cert_info gauge\nkaproxy_mtls_agent_cert_info{serial=\"2\"} 1\n",
+		}
+		for _, body := range responses {
+			body := body
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(body)) }))
+			manager := &Manager{metricsURL: server.URL, httpClient: server.Client()}
+			assert.False(t, manager.probeAgentCertificateSerial(context.Background(), "1"))
+			server.Close()
+		}
+	})
+
+	t.Run("sync directory open error", func(t *testing.T) {
+		require.ErrorContains(t, syncDirectory(filepath.Join(t.TempDir(), "missing")), "open directory")
+	})
+}
+
+func TestConfigureDurableApplyFailures(t *testing.T) {
+	now := time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC)
+	caPEM := testCAPEM(t, "kubeconfig-ca")
+	t.Run("invalid config", func(t *testing.T) {
+		manager := &Manager{}
+		require.Error(t, manager.Configure(context.Background(), Config{}))
+	})
+	t.Run("credential inspection error", func(t *testing.T) {
+		paths := testPaths(t)
+		writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName), nil, 0600))
+		manager := newTestManager(paths, &fakeRunner{}, now)
+		err := manager.Configure(context.Background(), Config{Enabled: true, Server: LocalEndpoint, TLSServerName: "kap.example.test", CertificateAuthorityData: caPEM})
+		require.ErrorContains(t, err, "read KAP mTLS current symlink")
+	})
+	t.Run("service inspection error", func(t *testing.T) {
+		paths := testPaths(t)
+		credentials := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(time.Hour))
+		writeTestKubeconfigWithClientData(t, paths.Kubeconfig, "https://kap.example.test", "", credentials.GatewayCAPEM, credentials.CertificatePEM, credentials.PrivateKeyPEM)
+		installTestAgent(t, paths)
+		manager := newTestManager(paths, &fakeRunner{state: "unexpected"}, now)
+		generation, err := manager.stageCredentials("machine-a", credentials)
+		require.NoError(t, err)
+		require.NoError(t, manager.swapCurrentSymlink(generation.releaseID))
+		err = manager.Configure(context.Background(), Config{Enabled: true, Server: LocalEndpoint, TLSServerName: credentials.ServerName, CertificateAuthorityData: credentials.GatewayCAPEM})
+		require.ErrorContains(t, err, "systemctl is-active")
+	})
+	t.Run("pending marker stat error", func(t *testing.T) {
+		paths := testPaths(t)
+		writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		require.NoError(t, os.WriteFile(paths.StateDir, []byte("file"), 0600))
+		manager := newTestManager(paths, &fakeRunner{}, now)
+		err := manager.Configure(context.Background(), Config{Server: "https://kap.example.test", CertificateAuthorityData: caPEM})
+		require.ErrorContains(t, err, "inspect KAP mTLS kubeconfig-pending marker")
+	})
+	t.Run("pending marker write error", func(t *testing.T) {
+		paths := testPaths(t)
+		writeTestKubeconfig(t, paths.Kubeconfig, "https://old.example.test", "")
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, KubeconfigPendingMarkerName), 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, KubeconfigPendingMarkerName, "child"), nil, 0600))
+		manager := newTestManager(paths, &fakeRunner{}, now)
+		err := manager.Configure(context.Background(), Config{Server: "https://kap.example.test", CertificateAuthorityData: caPEM})
+		require.Error(t, err)
+	})
+	t.Run("pending marker clear error", func(t *testing.T) {
+		paths := testPaths(t)
+		ca := writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, KubeconfigPendingMarkerName), 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, KubeconfigPendingMarkerName, "child"), nil, 0600))
+		manager := newTestManager(paths, &fakeRunner{}, now)
+		err := manager.Configure(context.Background(), Config{Server: "https://kap.example.test", CertificateAuthorityData: ca})
+		require.Error(t, err)
+	})
+	t.Run("disabled marker write error", func(t *testing.T) {
+		paths := testPaths(t)
+		ca := writeTestKubeconfig(t, paths.Kubeconfig, "https://kap.example.test", "")
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, DisabledMarkerName), 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, DisabledMarkerName, "child"), nil, 0600))
+		manager := newTestManager(paths, &fakeRunner{}, now)
+		err := manager.Configure(context.Background(), Config{Server: "https://kap.example.test", CertificateAuthorityData: ca})
+		require.Error(t, err)
+	})
+}
+
+func TestRollbackActivationFailureDetails(t *testing.T) {
+	activationErr := errors.New("activation failed")
+	releaseID := strings.Repeat("a", 64)
+	t.Run("initial current mismatch", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.Symlink(filepath.Join(ReleasesDirectoryName, strings.Repeat("b", 64)), filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		manager := &Manager{paths: paths}
+		err := manager.rollbackActivation(context.Background(), "", releaseID, activationRestart, "1", activationErr)
+		require.ErrorContains(t, err, "remove failed initial generation")
+	})
+	t.Run("initial cleanup failure", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ReleasesDirectoryName, releaseID), 0700))
+		require.NoError(t, os.Symlink(filepath.Join(ReleasesDirectoryName, releaseID), filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		require.NoError(t, os.Mkdir(filepath.Join(paths.StateDir, AppliedMarkerName), 0700))
+		manager := &Manager{paths: paths}
+		err := manager.rollbackActivation(context.Background(), "", releaseID, activationRestart, "1", activationErr)
+		require.ErrorContains(t, err, "clean failed initial generation")
+	})
+	t.Run("initial pending clear failure", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ReleasesDirectoryName, releaseID), 0700))
+		require.NoError(t, os.Symlink(filepath.Join(ReleasesDirectoryName, releaseID), filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		require.NoError(t, os.Mkdir(filepath.Join(paths.StateDir, ActivationPendingMarkerName), 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, ActivationPendingMarkerName, "child"), nil, 0600))
+		manager := &Manager{paths: paths}
+		err := manager.rollbackActivation(context.Background(), "", releaseID, activationRestart, "1", activationErr)
+		require.ErrorContains(t, err, "clear activation pending after initial rollback")
+	})
+	t.Run("previous current is invalid", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName), nil, 0600))
+		manager := &Manager{paths: paths}
+		err := manager.rollbackActivation(context.Background(), releaseID, strings.Repeat("b", 64), activationRestart, "1", activationErr)
+		require.ErrorContains(t, err, "rollback current")
+	})
+	t.Run("reload rollback fails", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ReleasesDirectoryName, releaseID), 0700))
+		manager := &Manager{paths: paths, runner: &fakeRunner{failAgentReload: 1}}
+		err := manager.rollbackActivation(context.Background(), releaseID, strings.Repeat("b", 64), activationReload, "1", activationErr)
+		require.ErrorContains(t, err, "reload KAP mTLS agent after rollback")
+	})
+	t.Run("restart rollback fails", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ReleasesDirectoryName, releaseID), 0700))
+		manager := &Manager{paths: paths, runner: &fakeRunner{failAgentRestart: 1}}
+		err := manager.rollbackActivation(context.Background(), releaseID, strings.Repeat("b", 64), activationRestart, "1", activationErr)
+		require.ErrorContains(t, err, "restart KAP mTLS agent after rollback")
+	})
+}
+
+func TestAgentReadyEarlyExitsAndDefaults(t *testing.T) {
+	manager := &Manager{
+		httpClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			assert.Equal(t, AgentMetricsURL, request.URL.String())
+			return nil, errors.New("connection refused")
+		})},
+	}
+	assert.False(t, manager.agentReady(context.Background(), ""))
+	assert.False(t, manager.agentReady(context.Background(), strings.Repeat("a", 64)))
+	assert.False(t, manager.probeAgentCertificateSerial(context.Background(), "1"))
+	paths := testPaths(t)
+	manager.paths = paths
+	version, err := manager.agentVersion()
+	require.NoError(t, err)
+	assert.Empty(t, version)
+}
+
+func testCredentialsWithLeaf(t *testing.T, now time.Time, mutate func(*x509.Certificate)) Credentials {
+	t.Helper()
+	credentials := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(time.Hour))
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	spiffeURI, err := url.Parse("spiffe://lepton/workercluster/worker-a/machine/machine-a")
+	require.NoError(t, err)
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName:   "workercluster:worker-a",
+			Organization: []string{clientOrganization},
+		},
+		NotBefore:   now.Add(-time.Minute),
+		NotAfter:    now.Add(time.Hour),
+		KeyUsage:    x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		URIs:        []*url.URL{spiffeURI},
+	}
+	mutate(template)
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(t, err)
+	credentials.CertificatePEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	credentials.PrivateKeyPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
+	return credentials
 }
 
 func assertCall(t *testing.T, calls []runnerCall, command string, args ...string) {
