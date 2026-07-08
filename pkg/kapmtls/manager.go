@@ -85,6 +85,7 @@ type Status struct {
 	CertificateNotAfter     time.Time
 	AgentInstalled          bool
 	AgentActive             bool
+	AgentDisabled           bool
 	AgentReady              bool
 	AgentVersion            string
 	GatewayEndpoint         string
@@ -164,6 +165,10 @@ func (m *Manager) Status(ctx context.Context, machineID string) (*Status, error)
 	if err != nil {
 		return nil, err
 	}
+	agentDisabled, err := m.markerExists(DisabledMarkerName)
+	if err != nil {
+		return nil, err
+	}
 	agentInstalled := m.agentInstalled()
 	agentActive := false
 	agentReady := false
@@ -186,6 +191,7 @@ func (m *Manager) Status(ctx context.Context, machineID string) (*Status, error)
 		CertificateNotAfter:     credentials.notAfter,
 		AgentInstalled:          agentInstalled,
 		AgentActive:             agentActive,
+		AgentDisabled:           agentDisabled,
 		AgentReady:              agentReady,
 		AgentVersion:            agentVersion,
 		GatewayEndpoint:         credentials.gatewayEndpoint,
@@ -218,11 +224,11 @@ func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, crede
 	if err := m.verifyCandidateGateway(ctx, credentials); err != nil {
 		return m.discardStagedGeneration(generation.releaseID, fmt.Errorf("verify staged KAP mTLS generation %s: %w", generation.releaseID, err))
 	}
-	if err := m.clearDisabledMarker(); err != nil {
-		return err
-	}
 	if !m.agentInstalled() {
-		return m.swapCurrentSymlink(generation.releaseID)
+		if err := m.swapCurrentSymlink(generation.releaseID); err != nil {
+			return err
+		}
+		return m.clearDisabledMarker()
 	}
 	if err := m.writeMarker(ActivationPendingMarkerName, generation.releaseID); err != nil {
 		return err
@@ -266,7 +272,10 @@ func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, crede
 		activationErr := fmt.Errorf("verify KAP mTLS gateway for generation %s: %w", generation.releaseID, err)
 		return m.rollbackActivation(ctx, appliedID, generation.releaseID, method, previous.serial, activationErr)
 	}
-	return m.commitAppliedGeneration(generation.releaseID, appliedID)
+	if err := m.commitAppliedGeneration(generation.releaseID, appliedID); err != nil {
+		return err
+	}
+	return m.clearDisabledMarker()
 }
 
 func (m *Manager) Configure(ctx context.Context, config Config) error {

@@ -112,6 +112,7 @@ type KAPMTLSStatus struct {
 	CertificateNotAfter     time.Time `json:"certificate_not_after,omitempty"`
 	AgentInstalled          bool      `json:"agent_installed"`
 	AgentActive             bool      `json:"agent_active"`
+	AgentDisabled           bool      `json:"agent_disabled"`
 	AgentReady              bool      `json:"agent_ready"`
 	AgentVersion            string    `json:"agent_version,omitempty"`
 	GatewayEndpoint         string    `json:"gateway_endpoint,omitempty"`

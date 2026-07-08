@@ -37,6 +37,7 @@ func (s *Session) processKAPMTLSStatus(ctx context.Context, response *Response) 
 		CertificateNotAfter:     status.CertificateNotAfter,
 		AgentInstalled:          status.AgentInstalled,
 		AgentActive:             status.AgentActive,
+		AgentDisabled:           status.AgentDisabled,
 		AgentReady:              status.AgentReady,
 		AgentVersion:            status.AgentVersion,
 		GatewayEndpoint:         status.GatewayEndpoint,

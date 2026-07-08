@@ -53,6 +53,7 @@ func TestKAPMTLSSessionCommands(t *testing.T) {
 		CertificateNotAfter:     now,
 		AgentInstalled:          true,
 		AgentActive:             true,
+		AgentDisabled:           true,
 		AgentReady:              true,
 		AgentVersion:            "v0.3.7",
 		ClientCAFingerprint:     "client-fingerprint",
@@ -69,6 +70,7 @@ func TestKAPMTLSSessionCommands(t *testing.T) {
 	require.NotNil(t, statusResponse.KAPMTLSStatus)
 	assert.Equal(t, "machine-a", manager.machineID)
 	assert.Equal(t, "abc", statusResponse.KAPMTLSStatus.CertificateSerial)
+	assert.True(t, statusResponse.KAPMTLSStatus.AgentDisabled)
 	assert.True(t, statusResponse.KAPMTLSStatus.AgentReady)
 	assert.Equal(t, "v0.3.7", statusResponse.KAPMTLSStatus.AgentVersion)
 	assert.Equal(t, "kubeconfig-ca-fingerprint", statusResponse.KAPMTLSStatus.KubeconfigCAFingerprint)

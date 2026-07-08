@@ -235,6 +235,9 @@ func TestManagerConfiguresAndDisablesKubeletOnlyWhenAgentReady(t *testing.T) {
 		CertificateAuthorityData: originalCA,
 	}))
 	assert.FileExists(t, filepath.Join(paths.StateDir, DisabledMarkerName))
+	status, err := manager.Status(context.Background(), "machine-a")
+	require.NoError(t, err)
+	assert.True(t, status.AgentDisabled)
 	assertCall(t, runner.calls, "systemctl", "disable", "--now", AgentService)
 	server, tlsServerName, caFingerprint, err = inspectKubeconfig(paths.Kubeconfig)
 	require.NoError(t, err)
@@ -242,8 +245,15 @@ func TestManagerConfiguresAndDisablesKubeletOnlyWhenAgentReady(t *testing.T) {
 	assert.Empty(t, tlsServerName)
 	assert.Equal(t, fingerprintForPEM(t, originalCA), caFingerprint)
 
+	runner.failAgentRestart = 1
+	require.ErrorContains(t, manager.UpdateCredentials(context.Background(), "machine-a", credentials), "restart failed")
+	assert.FileExists(t, filepath.Join(paths.StateDir, DisabledMarkerName))
+
 	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-a", credentials))
 	assert.NoFileExists(t, filepath.Join(paths.StateDir, DisabledMarkerName))
+	status, err = manager.Status(context.Background(), "machine-a")
+	require.NoError(t, err)
+	assert.False(t, status.AgentDisabled)
 	assertCall(t, runner.calls, "systemctl", "restart", AgentService)
 }
 
