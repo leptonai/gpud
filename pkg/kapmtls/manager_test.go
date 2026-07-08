@@ -42,6 +42,12 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
+type commandRunnerFunc func(context.Context, string, ...string) ([]byte, error)
+
+func (f commandRunnerFunc) Run(ctx context.Context, command string, args ...string) ([]byte, error) {
+	return f(ctx, command, args...)
+}
+
 type fakeRunner struct {
 	calls              []runnerCall
 	state              string
@@ -2220,6 +2226,148 @@ func TestAgentReadyEarlyExitsAndDefaults(t *testing.T) {
 	version, err := manager.agentVersion()
 	require.NoError(t, err)
 	assert.Empty(t, version)
+}
+
+func TestAdditionalStateAndWrapperBranches(t *testing.T) {
+	now := time.Date(2026, 7, 8, 0, 0, 0, 0, time.UTC)
+	credentials := testCredentials(t, "worker-a", "machine-a", 1, now.Add(-time.Minute), now.Add(time.Hour))
+
+	t.Run("unknown successful systemd state", func(t *testing.T) {
+		manager := &Manager{runner: commandRunnerFunc(func(context.Context, string, ...string) ([]byte, error) {
+			return []byte("mystery\n"), nil
+		})}
+		active, err := manager.serviceActive(context.Background(), AgentService)
+		require.NoError(t, err)
+		assert.False(t, active)
+	})
+
+	t.Run("invalid certificate DER", func(t *testing.T) {
+		_, err := parseCertificateBundle(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("bad")}))
+		require.Error(t, err)
+	})
+
+	t.Run("release stat error", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "loop")
+		require.NoError(t, os.Symlink("loop", path))
+		_, err := releaseMatches(path, Credentials{}, nil)
+		require.ErrorContains(t, err, "inspect KAP mTLS release")
+	})
+
+	t.Run("active credential validation error", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths, now: func() time.Time { return now }}
+		generation, err := manager.stageCredentials("machine-a", credentials)
+		require.NoError(t, err)
+		require.NoError(t, manager.swapCurrentSymlink(generation.releaseID))
+		environmentPath := filepath.Join(paths.StateDir, CurrentSymlinkName, AgentEnvironmentFileName)
+		require.NoError(t, os.WriteFile(environmentPath, []byte("KAP_MTLS_GATEWAY_ENDPOINT=bad\nKAP_MTLS_SERVER_NAME=bad\nKAP_MTLS_CLIENT_CA_FINGERPRINT="+strings.Repeat("a", 64)+"\nKAP_MTLS_GATEWAY_CA_FINGERPRINT="+credentials.GatewayCAFingerprint+"\n"), 0600))
+		_, err = manager.inspectCredentials("machine-a")
+		require.ErrorContains(t, err, "validate active KAP mTLS credentials")
+	})
+
+	t.Run("applied release missing gateway CA", func(t *testing.T) {
+		paths := testPaths(t)
+		releaseID := strings.Repeat("a", 64)
+		releaseDir := filepath.Join(paths.StateDir, ReleasesDirectoryName, releaseID)
+		require.NoError(t, os.MkdirAll(releaseDir, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(releaseDir, ClientCertificateFileName), credentials.CertificatePEM, 0600))
+		environment := agentEnvironment{gatewayEndpoint: credentials.GatewayEndpoint, serverName: credentials.ServerName, clientCAFingerprint: credentials.ClientCAFingerprint, gatewayCAFingerprint: credentials.GatewayCAFingerprint}
+		require.NoError(t, os.WriteFile(filepath.Join(releaseDir, AgentEnvironmentFileName), marshalAgentEnvironment(environment), 0600))
+		_, err := (&Manager{paths: paths}).inspectReleaseActivation(releaseID)
+		require.ErrorContains(t, err, "read applied KAP mTLS gateway CA")
+	})
+
+	t.Run("commit garbage collection error", func(t *testing.T) {
+		paths := testPaths(t)
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, ReleasesDirectoryName), []byte("file"), 0600))
+		err := (&Manager{paths: paths}).commitAppliedGeneration(strings.Repeat("a", 64), "")
+		require.ErrorContains(t, err, "list KAP mTLS releases")
+	})
+
+	for _, marker := range []string{AppliedMarkerName, ActivationPendingMarkerName} {
+		t.Run("cleanup unreadable "+marker, func(t *testing.T) {
+			paths := testPaths(t)
+			require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ReleasesDirectoryName), 0700))
+			require.NoError(t, os.Mkdir(filepath.Join(paths.StateDir, marker), 0700))
+			err := (&Manager{paths: paths}).cleanupOrphanedReleases()
+			require.Error(t, err)
+		})
+	}
+
+	t.Run("agent readiness state mismatches", func(t *testing.T) {
+		paths := testPaths(t)
+		manager := &Manager{paths: paths}
+		require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
+		currentID := strings.Repeat("a", 64)
+		require.NoError(t, os.Symlink(filepath.Join(ReleasesDirectoryName, currentID), filepath.Join(paths.StateDir, CurrentSymlinkName)))
+		assert.False(t, manager.agentReady(context.Background(), strings.Repeat("b", 64)))
+		require.NoError(t, os.Mkdir(filepath.Join(paths.StateDir, AppliedMarkerName), 0700))
+		assert.False(t, manager.agentReady(context.Background(), currentID))
+		require.NoError(t, os.Remove(filepath.Join(paths.StateDir, AppliedMarkerName)))
+		require.NoError(t, manager.writeMarker(AppliedMarkerName, currentID))
+		assert.False(t, manager.agentReady(context.Background(), currentID))
+	})
+
+	t.Run("default readiness URL", func(t *testing.T) {
+		manager := &Manager{httpClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			assert.Equal(t, AgentReadyURL, request.URL.String())
+			return &http.Response{StatusCode: http.StatusServiceUnavailable, Body: http.NoBody}, nil
+		})}}
+		assert.False(t, manager.probeAgentReady(context.Background()))
+	})
+
+	t.Run("default metrics client and non-success response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("not ready"))
+		}))
+		defer server.Close()
+		manager := &Manager{metricsURL: server.URL}
+		assert.False(t, manager.probeAgentCertificateSerial(context.Background(), "1"))
+	})
+
+	t.Run("gateway wrappers propagate kubeconfig errors", func(t *testing.T) {
+		manager := &Manager{paths: Paths{Kubeconfig: filepath.Join(t.TempDir(), "missing")}}
+		require.Error(t, manager.verifyCandidateGateway(context.Background(), credentials))
+		require.Error(t, manager.verifyGateway(context.Background(), credentials))
+	})
+
+	t.Run("atomic write path failures", func(t *testing.T) {
+		directory := t.TempDir()
+		parentFile := filepath.Join(directory, "parent")
+		require.NoError(t, os.WriteFile(parentFile, []byte("file"), 0600))
+		require.ErrorContains(t, atomicWriteFile(filepath.Join(parentFile, "child"), []byte("data"), 0600), "create directory")
+		targetDirectory := filepath.Join(directory, "target")
+		require.NoError(t, os.Mkdir(targetDirectory, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(targetDirectory, "child"), nil, 0600))
+		require.ErrorContains(t, atomicWriteFile(targetDirectory, []byte("data"), 0600), "replace")
+	})
+
+	t.Run("rollback cleanup failures", func(t *testing.T) {
+		ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+		defer ready.Close()
+		previousID := strings.Repeat("a", 64)
+		failedID := strings.Repeat("b", 64)
+		for _, pendingFailure := range []bool{false, true} {
+			paths := testPaths(t)
+			require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ReleasesDirectoryName, previousID), 0700))
+			require.NoError(t, os.MkdirAll(filepath.Join(paths.StateDir, ReleasesDirectoryName, failedID), 0700))
+			manager := &Manager{paths: paths, runner: &fakeRunner{}, readyURL: ready.URL, certificateSerialVerifier: func(context.Context, string) bool { return true }}
+			if pendingFailure {
+				require.NoError(t, os.Mkdir(filepath.Join(paths.StateDir, ActivationPendingMarkerName), 0700))
+				require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, ActivationPendingMarkerName, "child"), nil, 0600))
+			} else {
+				require.NoError(t, os.Mkdir(filepath.Join(paths.StateDir, AppliedMarkerName), 0700))
+			}
+			err := manager.rollbackActivation(context.Background(), previousID, failedID, activationRestart, "1", errors.New("activation"))
+			if pendingFailure {
+				require.ErrorContains(t, err, "clear activation pending")
+			} else {
+				require.ErrorContains(t, err, "cleanup failed generation")
+			}
+		}
+	})
 }
 
 func testCredentialsWithLeaf(t *testing.T, now time.Time, mutate func(*x509.Certificate)) Credentials {

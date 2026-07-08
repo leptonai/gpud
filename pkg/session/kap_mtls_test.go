@@ -112,7 +112,8 @@ func TestKAPMTLSSessionCommands(t *testing.T) {
 }
 
 func TestKAPMTLSSessionCommandErrors(t *testing.T) {
-	session := &Session{kapMTLSManager: &fakeKAPMTLSManager{err: errors.New("manager failed")}}
+	manager := &fakeKAPMTLSManager{err: errors.New("manager failed")}
+	session := &Session{kapMTLSManager: manager}
 	restartExitCode := -1
 
 	response := &Response{}
@@ -126,6 +127,35 @@ func TestKAPMTLSSessionCommandErrors(t *testing.T) {
 	response = &Response{}
 	session.processRequest(context.Background(), "config", Request{Method: "configureKAPMTLS"}, response, &restartExitCode)
 	assert.Equal(t, "KAP mTLS config is required", response.Error)
+
+	response = &Response{}
+	session.processRequest(context.Background(), "credentials", Request{Method: "updateKAPMTLSCredentials", KAPMTLSCredentials: &KAPMTLSCredentialsRequest{}}, response, &restartExitCode)
+	assert.Equal(t, "manager failed", response.Error)
+
+	response = &Response{}
+	session.processRequest(context.Background(), "config", Request{Method: "configureKAPMTLS", KAPMTLSConfig: &KAPMTLSConfigRequest{}}, response, &restartExitCode)
+	assert.Equal(t, "manager failed", response.Error)
+}
+
+func TestKAPMTLSManagerInitializationAndAuditEdges(t *testing.T) {
+	session := &Session{dataDir: t.TempDir()}
+	manager := session.getKAPMTLSManager()
+	require.NotNil(t, manager)
+	assert.Same(t, manager, session.getKAPMTLSManager())
+
+	invalid := auditSessionRequestData([]byte("{"))
+	assert.Contains(t, invalid, "invalid session request")
+	nested := map[string]any{
+		"kap_mtls_credentials": "invalid",
+		"children": []any{map[string]any{
+			"kap_mtls_credentials": map[string]any{"private_key_pem": "secret", "gateway_endpoint": "kap.example.test:8443"},
+		}},
+	}
+	redactSessionCredentials(nested)
+	assert.Equal(t, "<redacted>", nested["kap_mtls_credentials"])
+	children := nested["children"].([]any)
+	credentials := children[0].(map[string]any)["kap_mtls_credentials"].(map[string]any)
+	assert.Equal(t, "<redacted>", credentials["private_key_pem"])
 }
 
 func TestAuditSessionRequestDataRedactsCredentials(t *testing.T) {
