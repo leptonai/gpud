@@ -252,11 +252,19 @@ definitions:
     properties:
       boardID:
         type: integer
+      busID:
+        description: |-
+          BusID is the GPU bus ID from the nvml API.
+           e.g., "0000:0f:00.0"
+        type: string
       minorID:
         type: string
       sn:
         type: string
       uuid:
+        description: |-
+          UUID is the GPU UUID from the nvml API.
+          e.g., "GPU-46a3bbe2-3e87-3dde-b464-a03eba0c21d7"
         type: string
     type: object
   github_com_leptonai_gpud_api_v1.MachineInfo:
@@ -317,6 +325,10 @@ definitions:
         type: string
       systemUUID:
         description: SystemUUID comes from https://github.com/google/cadvisor/blob/master/utils/sysfs/sysfs.go#L442
+        type: string
+      tailscaleVersion:
+        description: TailscaleVersion represents the version of the tailscale client
+          binary (e.g. 1.76.6).
         type: string
       uptime:
         description: Uptime represents when the machine up
@@ -558,8 +570,6 @@ definitions:
         description: |-
           Timeout is the timeout for the script execution.
           If zero, it uses the default timeout (1-minute).
-      type:
-        type: string
     type: object
   github_com_leptonai_gpud_pkg_custom-plugins.Step:
     properties:
@@ -628,6 +638,21 @@ definitions:
       version:
         type: string
     type: object
+  pkg_server.SetHealthyStatesResponse:
+    properties:
+      code:
+        type: integer
+      failed:
+        additionalProperties:
+          type: string
+        type: object
+      message:
+        type: string
+      successful:
+        items:
+          type: string
+        type: array
+    type: object
   v1.Duration:
     properties:
       time.Duration:
@@ -640,6 +665,7 @@ definitions:
         - 1000000000
         - 60000000000
         - 3600000000000
+        format: int64
         type: integer
         x-enum-varnames:
         - minDuration
@@ -963,6 +989,39 @@ paths:
             additionalProperties: true
             type: object
       summary: Get component events
+      tags:
+      - components
+  /v1/health-states/set-healthy:
+    post:
+      consumes:
+      - application/json
+      description: Sets specified components to healthy state if they implement the
+        HealthSettable interface. If no components specified, attempts to set all
+        components to healthy.
+      operationId: setHealthyStates
+      parameters:
+      - description: Comma-separated list of component names to set healthy (if empty,
+          sets all components)
+        in: query
+        name: components
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Components successfully set to healthy state
+          schema:
+            $ref: '#/definitions/pkg_server.SetHealthyStatesResponse'
+        "400":
+          description: Bad request - component does not support setting healthy state
+            or failed to parse components
+          schema:
+            $ref: '#/definitions/pkg_server.SetHealthyStatesResponse'
+        "404":
+          description: Component not found
+          schema:
+            $ref: '#/definitions/pkg_server.SetHealthyStatesResponse'
+      summary: Set components to healthy state
       tags:
       - components
   /v1/info:
