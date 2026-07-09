@@ -148,9 +148,6 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 
 	case "updateKAPMTLSCredentials":
 		s.processUpdateKAPMTLSCredentials(ctx, payload, response)
-
-	case "configureKAPMTLS":
-		s.processConfigureKAPMTLS(ctx, payload, response)
 	}
 
 	return false // Request is handled synchronously

@@ -22,9 +22,7 @@ type fakeKAPMTLSManager struct {
 	err               error
 	machineID         string
 	credentials       pkgkapmtls.Credentials
-	config            pkgkapmtls.Config
 	credentialsCalled bool
-	configureCalled   bool
 }
 
 func (m *fakeKAPMTLSManager) Status(_ context.Context, machineID string) (*pkgkapmtls.Status, error) {
@@ -39,28 +37,18 @@ func (m *fakeKAPMTLSManager) UpdateCredentials(_ context.Context, machineID stri
 	return m.err
 }
 
-func (m *fakeKAPMTLSManager) Configure(_ context.Context, config pkgkapmtls.Config) error {
-	m.config = config
-	m.configureCalled = true
-	return m.err
-}
-
 func TestKAPMTLSSessionCommands(t *testing.T) {
 	now := time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC)
 	manager := &fakeKAPMTLSManager{status: &pkgkapmtls.Status{
-		CredentialsInstalled:    true,
-		CertificateSerial:       "abc",
-		CertificateNotAfter:     now,
-		AgentInstalled:          true,
-		AgentActive:             true,
-		AgentDisabled:           true,
-		AgentReady:              true,
-		AgentVersion:            "v0.3.7",
-		ClientCAFingerprint:     "client-fingerprint",
-		GatewayCAFingerprint:    "gateway-fingerprint",
-		KubeconfigServer:        pkgkapmtls.LocalEndpoint,
-		KubeconfigCAFingerprint: "kubeconfig-ca-fingerprint",
-		KubeconfigPending:       true,
+		CredentialsInstalled: true,
+		CertificateSerial:    "abc",
+		CertificateNotAfter:  now,
+		AgentInstalled:       true,
+		AgentActive:          true,
+		AgentReady:           true,
+		AgentVersion:         "v0.3.7",
+		ClientCAFingerprint:  "client-fingerprint",
+		GatewayCAFingerprint: "gateway-fingerprint",
 	}}
 	session := &Session{machineID: "machine-a", kapMTLSManager: manager}
 	restartExitCode := -1
@@ -70,11 +58,8 @@ func TestKAPMTLSSessionCommands(t *testing.T) {
 	require.NotNil(t, statusResponse.KAPMTLSStatus)
 	assert.Equal(t, "machine-a", manager.machineID)
 	assert.Equal(t, "abc", statusResponse.KAPMTLSStatus.CertificateSerial)
-	assert.True(t, statusResponse.KAPMTLSStatus.AgentDisabled)
 	assert.True(t, statusResponse.KAPMTLSStatus.AgentReady)
 	assert.Equal(t, "v0.3.7", statusResponse.KAPMTLSStatus.AgentVersion)
-	assert.Equal(t, "kubeconfig-ca-fingerprint", statusResponse.KAPMTLSStatus.KubeconfigCAFingerprint)
-	assert.True(t, statusResponse.KAPMTLSStatus.KubeconfigPending)
 
 	credentialsResponse := &Response{}
 	session.processRequest(context.Background(), "credentials", Request{
@@ -94,21 +79,6 @@ func TestKAPMTLSSessionCommands(t *testing.T) {
 	assert.Equal(t, []byte("private-key"), manager.credentials.PrivateKeyPEM)
 	assert.Equal(t, []byte("gateway-ca"), manager.credentials.GatewayCAPEM)
 	assert.Equal(t, "client-fingerprint", manager.credentials.ClientCAFingerprint)
-
-	configResponse := &Response{}
-	session.processRequest(context.Background(), "config", Request{
-		Method: "configureKAPMTLS",
-		KAPMTLSConfig: &KAPMTLSConfigRequest{
-			Enabled:                  true,
-			Server:                   pkgkapmtls.LocalEndpoint,
-			TLSServerName:            "kap.example.test",
-			CertificateAuthorityData: []byte("kubeconfig-ca"),
-		},
-	}, configResponse, &restartExitCode)
-	assert.Empty(t, configResponse.Error)
-	assert.True(t, manager.configureCalled)
-	assert.Equal(t, pkgkapmtls.LocalEndpoint, manager.config.Server)
-	assert.Equal(t, []byte("kubeconfig-ca"), manager.config.CertificateAuthorityData)
 }
 
 func TestKAPMTLSSessionCommandErrors(t *testing.T) {
@@ -125,15 +95,7 @@ func TestKAPMTLSSessionCommandErrors(t *testing.T) {
 	assert.Equal(t, "KAP mTLS credentials are required", response.Error)
 
 	response = &Response{}
-	session.processRequest(context.Background(), "config", Request{Method: "configureKAPMTLS"}, response, &restartExitCode)
-	assert.Equal(t, "KAP mTLS config is required", response.Error)
-
-	response = &Response{}
 	session.processRequest(context.Background(), "credentials", Request{Method: "updateKAPMTLSCredentials", KAPMTLSCredentials: &KAPMTLSCredentialsRequest{}}, response, &restartExitCode)
-	assert.Equal(t, "manager failed", response.Error)
-
-	response = &Response{}
-	session.processRequest(context.Background(), "config", Request{Method: "configureKAPMTLS", KAPMTLSConfig: &KAPMTLSConfigRequest{}}, response, &restartExitCode)
 	assert.Equal(t, "manager failed", response.Error)
 }
 
@@ -212,20 +174,4 @@ func TestKAPMTLSWireTypesRoundTrip(t *testing.T) {
 	assert.Equal(t, request.KAPMTLSCredentials.PrivateKeyPEM, decoded.KAPMTLSCredentials.PrivateKeyPEM)
 	assert.Equal(t, request.KAPMTLSCredentials.GatewayCAPEM, decoded.KAPMTLSCredentials.GatewayCAPEM)
 	assert.Equal(t, request.KAPMTLSCredentials.GatewayCAFingerprint, decoded.KAPMTLSCredentials.GatewayCAFingerprint)
-
-	configRequest := Request{
-		Method: "configureKAPMTLS",
-		KAPMTLSConfig: &KAPMTLSConfigRequest{
-			Enabled:                  true,
-			Server:                   pkgkapmtls.LocalEndpoint,
-			TLSServerName:            "kap.example.test",
-			CertificateAuthorityData: []byte("kubeconfig-ca"),
-		},
-	}
-	data, err = json.Marshal(configRequest)
-	require.NoError(t, err)
-	decoded = Request{}
-	require.NoError(t, json.Unmarshal(data, &decoded))
-	require.NotNil(t, decoded.KAPMTLSConfig)
-	assert.Equal(t, configRequest.KAPMTLSConfig.CertificateAuthorityData, decoded.KAPMTLSConfig.CertificateAuthorityData)
 }

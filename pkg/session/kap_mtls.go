@@ -15,7 +15,6 @@ import (
 type kapMTLSManager interface {
 	Status(context.Context, string) (*pkgkapmtls.Status, error)
 	UpdateCredentials(context.Context, string, pkgkapmtls.Credentials) error
-	Configure(context.Context, pkgkapmtls.Config) error
 }
 
 func (s *Session) getKAPMTLSManager() kapMTLSManager {
@@ -32,22 +31,17 @@ func (s *Session) processKAPMTLSStatus(ctx context.Context, response *Response) 
 		return
 	}
 	response.KAPMTLSStatus = &KAPMTLSStatus{
-		CredentialsInstalled:    status.CredentialsInstalled,
-		CertificateSerial:       status.CertificateSerial,
-		CertificateNotAfter:     status.CertificateNotAfter,
-		AgentInstalled:          status.AgentInstalled,
-		AgentActive:             status.AgentActive,
-		AgentDisabled:           status.AgentDisabled,
-		AgentReady:              status.AgentReady,
-		AgentVersion:            status.AgentVersion,
-		GatewayEndpoint:         status.GatewayEndpoint,
-		ServerName:              status.ServerName,
-		ClientCAFingerprint:     status.ClientCAFingerprint,
-		GatewayCAFingerprint:    status.GatewayCAFingerprint,
-		KubeconfigServer:        status.KubeconfigServer,
-		KubeconfigTLSServerName: status.KubeconfigTLSServerName,
-		KubeconfigCAFingerprint: status.KubeconfigCAFingerprint,
-		KubeconfigPending:       status.KubeconfigPending,
+		CredentialsInstalled: status.CredentialsInstalled,
+		CertificateSerial:    status.CertificateSerial,
+		CertificateNotAfter:  status.CertificateNotAfter,
+		AgentInstalled:       status.AgentInstalled,
+		AgentActive:          status.AgentActive,
+		AgentReady:           status.AgentReady,
+		AgentVersion:         status.AgentVersion,
+		GatewayEndpoint:      status.GatewayEndpoint,
+		ServerName:           status.ServerName,
+		ClientCAFingerprint:  status.ClientCAFingerprint,
+		GatewayCAFingerprint: status.GatewayCAFingerprint,
 	}
 }
 
@@ -65,22 +59,6 @@ func (s *Session) processUpdateKAPMTLSCredentials(ctx context.Context, request R
 		ServerName:           credentials.ServerName,
 		ClientCAFingerprint:  credentials.ClientCAFingerprint,
 		GatewayCAFingerprint: credentials.GatewayCAFingerprint,
-	}); err != nil {
-		response.Error = err.Error()
-	}
-}
-
-func (s *Session) processConfigureKAPMTLS(ctx context.Context, request Request, response *Response) {
-	if request.KAPMTLSConfig == nil {
-		response.Error = "KAP mTLS config is required"
-		return
-	}
-	config := request.KAPMTLSConfig
-	if err := s.getKAPMTLSManager().Configure(ctx, pkgkapmtls.Config{
-		Enabled:                  config.Enabled,
-		Server:                   config.Server,
-		TLSServerName:            config.TLSServerName,
-		CertificateAuthorityData: config.CertificateAuthorityData,
 	}); err != nil {
 		response.Error = err.Error()
 	}

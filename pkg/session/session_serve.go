@@ -52,10 +52,6 @@ type Request struct {
 	// KAPMTLSCredentials carries short-lived client credentials for the
 	// node-local KAP mTLS agent. The private key must never be logged.
 	KAPMTLSCredentials *KAPMTLSCredentialsRequest `json:"kap_mtls_credentials,omitempty"`
-
-	// KAPMTLSConfig controls kubelet cutover to, or rollback from, the local
-	// KAP mTLS agent.
-	KAPMTLSConfig *KAPMTLSConfigRequest `json:"kap_mtls_config,omitempty"`
 }
 
 // Response is the response from GPUd to the control plane.
@@ -99,30 +95,18 @@ type KAPMTLSCredentialsRequest struct {
 	GatewayCAFingerprint string `json:"gateway_ca_fingerprint"`
 }
 
-type KAPMTLSConfigRequest struct {
-	Enabled                  bool   `json:"enabled"`
-	Server                   string `json:"server"`
-	TLSServerName            string `json:"tls_server_name,omitempty"`
-	CertificateAuthorityData []byte `json:"certificate_authority_data"`
-}
-
 type KAPMTLSStatus struct {
-	CredentialsInstalled    bool      `json:"credentials_installed"`
-	CertificateSerial       string    `json:"certificate_serial,omitempty"`
-	CertificateNotAfter     time.Time `json:"certificate_not_after,omitempty"`
-	AgentInstalled          bool      `json:"agent_installed"`
-	AgentActive             bool      `json:"agent_active"`
-	AgentDisabled           bool      `json:"agent_disabled"`
-	AgentReady              bool      `json:"agent_ready"`
-	AgentVersion            string    `json:"agent_version,omitempty"`
-	GatewayEndpoint         string    `json:"gateway_endpoint,omitempty"`
-	ServerName              string    `json:"server_name,omitempty"`
-	ClientCAFingerprint     string    `json:"client_ca_fingerprint,omitempty"`
-	GatewayCAFingerprint    string    `json:"gateway_ca_fingerprint,omitempty"`
-	KubeconfigServer        string    `json:"kubeconfig_server,omitempty"`
-	KubeconfigTLSServerName string    `json:"kubeconfig_tls_server_name,omitempty"`
-	KubeconfigCAFingerprint string    `json:"kubeconfig_ca_fingerprint,omitempty"`
-	KubeconfigPending       bool      `json:"kubeconfig_pending"`
+	CredentialsInstalled bool      `json:"credentials_installed"`
+	CertificateSerial    string    `json:"certificate_serial,omitempty"`
+	CertificateNotAfter  time.Time `json:"certificate_not_after,omitempty"`
+	AgentInstalled       bool      `json:"agent_installed"`
+	AgentActive          bool      `json:"agent_active"`
+	AgentReady           bool      `json:"agent_ready"`
+	AgentVersion         string    `json:"agent_version,omitempty"`
+	GatewayEndpoint      string    `json:"gateway_endpoint,omitempty"`
+	ServerName           string    `json:"server_name,omitempty"`
+	ClientCAFingerprint  string    `json:"client_ca_fingerprint,omitempty"`
+	GatewayCAFingerprint string    `json:"gateway_ca_fingerprint,omitempty"`
 }
 
 type BootstrapRequest struct {
