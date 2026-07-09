@@ -656,7 +656,7 @@ func (m *Manager) probeReady(ctx context.Context) bool {
 	if err != nil {
 		return false
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	return response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
 }
 
@@ -665,7 +665,7 @@ func syncDirectory(path string) error {
 	if err != nil {
 		return fmt.Errorf("open directory %s: %w", path, err)
 	}
-	defer directory.Close()
+	defer func() { _ = directory.Close() }()
 	if err := directory.Sync(); err != nil {
 		return fmt.Errorf("sync directory %s: %w", path, err)
 	}
