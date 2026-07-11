@@ -4,9 +4,8 @@ import (
 	"context"
 	"strings"
 
-	dockerapitypes "github.com/docker/docker/api/types"
-	dockerapitypescontainer "github.com/docker/docker/api/types/container"
-	dockerclient "github.com/docker/docker/client"
+	dockerapitypescontainer "github.com/moby/moby/api/types/container"
+	dockerclient "github.com/moby/moby/client"
 
 	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
@@ -16,7 +15,7 @@ import (
 // If docker daemon is not running, fails with:
 // "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"
 func ListContainers(ctx context.Context) ([]DockerContainer, error) {
-	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv)
+	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, err
 	}
@@ -26,16 +25,16 @@ func ListContainers(ctx context.Context) ([]DockerContainer, error) {
 		}
 	}()
 
-	cs, err := cli.ContainerList(ctx, dockerapitypescontainer.ListOptions{
+	result, err := cli.ContainerList(ctx, dockerclient.ContainerListOptions{
 		All: true,
 	})
 	if err != nil {
 		return nil, err
 	}
-	log.Logger.Debugw("listed containers", "containers", len(cs))
+	log.Logger.Debugw("listed containers", "containers", len(result.Items))
 
-	containers := make([]DockerContainer, 0, len(cs))
-	for _, c := range cs {
+	containers := make([]DockerContainer, 0, len(result.Items))
+	for _, c := range result.Items {
 		containers = append(containers, convertToDockerContainer(c))
 	}
 	return containers, nil
@@ -46,13 +45,13 @@ const (
 	podNamespaceLabel = "io.kubernetes.pod.namespace"
 )
 
-func convertToDockerContainer(resp dockerapitypes.Container) DockerContainer {
+func convertToDockerContainer(resp dockerapitypescontainer.Summary) DockerContainer {
 	ret := DockerContainer{
 		ID:           resp.ID,
 		Name:         strings.Join(resp.Names, ","),
 		Image:        resp.Image,
 		CreatedAt:    resp.Created,
-		State:        resp.State,
+		State:        string(resp.State),
 		PodName:      "",
 		PodNamespace: "",
 	}
@@ -79,7 +78,7 @@ func CheckDockerInstalled() bool {
 // If not run, fails with:
 // "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"
 func CheckDockerRunning(ctx context.Context) bool {
-	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv)
+	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
 	if err != nil {
 		return false
 	}
@@ -89,7 +88,7 @@ func CheckDockerRunning(ctx context.Context) bool {
 		}
 	}()
 
-	_, err = cli.Ping(ctx)
+	_, err = cli.Ping(ctx, dockerclient.PingOptions{})
 	return err == nil
 }
 

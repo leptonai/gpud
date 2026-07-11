@@ -4,12 +4,35 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
-	docker_types "github.com/docker/docker/api/types"
+	docker_types "github.com/moby/moby/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDockerClientNegotiatesOlderAPI(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/_ping":
+			w.Header().Set("API-Version", "1.42")
+		case "/v1.42/containers/json":
+			_, _ = w.Write([]byte(`[{"Id":"test-id","Names":["/test"],"Image":"test","Created":1,"State":"running","Labels":{}}]`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("DOCKER_HOST", srv.URL)
+
+	assert.True(t, CheckDockerRunning(context.Background()))
+	containers, err := ListContainers(context.Background())
+	require.NoError(t, err)
+	require.Len(t, containers, 1)
+	assert.Equal(t, "test-id", containers[0].ID)
+}
 
 func Test_checkDockerInstalled(t *testing.T) {
 	t.Logf("%v", CheckDockerInstalled())
@@ -84,12 +107,12 @@ func TestDockerContainer_JSON(t *testing.T) {
 func TestConvertToDockerContainer(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    docker_types.Container
+		input    docker_types.Summary
 		expected DockerContainer
 	}{
 		{
 			name: "Basic container without Kubernetes labels",
-			input: docker_types.Container{
+			input: docker_types.Summary{
 				ID:      "test-id",
 				Names:   []string{"test-name"},
 				Image:   "test-image",
@@ -109,7 +132,7 @@ func TestConvertToDockerContainer(t *testing.T) {
 		},
 		{
 			name: "Container with Kubernetes labels",
-			input: docker_types.Container{
+			input: docker_types.Summary{
 				ID:      "k8s-id",
 				Names:   []string{"k8s-name"},
 				Image:   "k8s-image",
@@ -132,7 +155,7 @@ func TestConvertToDockerContainer(t *testing.T) {
 		},
 		{
 			name: "Container with multiple names",
-			input: docker_types.Container{
+			input: docker_types.Summary{
 				ID:      "multi-id",
 				Names:   []string{"name1", "name2", "name3"},
 				Image:   "multi-image",

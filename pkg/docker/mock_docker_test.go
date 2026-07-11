@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	dockerapitypes "github.com/docker/docker/api/types"
-	dockerapitypescontainer "github.com/docker/docker/api/types/container"
-	dockerclient "github.com/docker/docker/client"
+	dockerapitypescontainer "github.com/moby/moby/api/types/container"
+	dockerclient "github.com/moby/moby/client"
 
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
@@ -76,8 +75,8 @@ func TestListContainers_ContainerListError(t *testing.T) {
 			return mockClient, nil
 		}).Build()
 
-		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerapitypescontainer.ListOptions) ([]dockerapitypes.Container, error) {
-			return nil, errors.New("cannot connect to docker daemon")
+		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerclient.ContainerListOptions) (dockerclient.ContainerListResult, error) {
+			return dockerclient.ContainerListResult{}, errors.New("cannot connect to docker daemon")
 		}).Build()
 
 		mockey.Mock((*dockerclient.Client).Close).Return(nil).Build()
@@ -97,8 +96,8 @@ func TestListContainers_Success(t *testing.T) {
 			return mockClient, nil
 		}).Build()
 
-		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerapitypescontainer.ListOptions) ([]dockerapitypes.Container, error) {
-			return []dockerapitypes.Container{
+		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerclient.ContainerListOptions) (dockerclient.ContainerListResult, error) {
+			return dockerclient.ContainerListResult{Items: []dockerapitypescontainer.Summary{
 				{
 					ID:      "abc123",
 					Names:   []string{"/test-container"},
@@ -118,7 +117,7 @@ func TestListContainers_Success(t *testing.T) {
 					State:   "exited",
 					Labels:  map[string]string{},
 				},
-			}, nil
+			}}, nil
 		}).Build()
 
 		mockey.Mock((*dockerclient.Client).Close).Return(nil).Build()
@@ -148,8 +147,8 @@ func TestListContainers_EmptyList(t *testing.T) {
 			return mockClient, nil
 		}).Build()
 
-		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerapitypescontainer.ListOptions) ([]dockerapitypes.Container, error) {
-			return []dockerapitypes.Container{}, nil
+		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerclient.ContainerListOptions) (dockerclient.ContainerListResult, error) {
+			return dockerclient.ContainerListResult{}, nil
 		}).Build()
 
 		mockey.Mock((*dockerclient.Client).Close).Return(nil).Build()
@@ -168,8 +167,8 @@ func TestListContainers_CloseError(t *testing.T) {
 			return mockClient, nil
 		}).Build()
 
-		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerapitypescontainer.ListOptions) ([]dockerapitypes.Container, error) {
-			return []dockerapitypes.Container{}, nil
+		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerclient.ContainerListOptions) (dockerclient.ContainerListResult, error) {
+			return dockerclient.ContainerListResult{}, nil
 		}).Build()
 
 		mockey.Mock((*dockerclient.Client).Close).To(func() error {
@@ -192,8 +191,8 @@ func TestCheckDockerRunning_Success(t *testing.T) {
 			return mockClient, nil
 		}).Build()
 
-		mockey.Mock((*dockerclient.Client).Ping).To(func(ctx context.Context) (dockerapitypes.Ping, error) {
-			return dockerapitypes.Ping{}, nil
+		mockey.Mock((*dockerclient.Client).Ping).To(func(ctx context.Context, options dockerclient.PingOptions) (dockerclient.PingResult, error) {
+			return dockerclient.PingResult{}, nil
 		}).Build()
 
 		mockey.Mock((*dockerclient.Client).Close).Return(nil).Build()
@@ -211,8 +210,8 @@ func TestCheckDockerRunning_PingError(t *testing.T) {
 			return mockClient, nil
 		}).Build()
 
-		mockey.Mock((*dockerclient.Client).Ping).To(func(ctx context.Context) (dockerapitypes.Ping, error) {
-			return dockerapitypes.Ping{}, errors.New("connection refused")
+		mockey.Mock((*dockerclient.Client).Ping).To(func(ctx context.Context, options dockerclient.PingOptions) (dockerclient.PingResult, error) {
+			return dockerclient.PingResult{}, errors.New("connection refused")
 		}).Build()
 
 		mockey.Mock((*dockerclient.Client).Close).Return(nil).Build()
@@ -230,8 +229,8 @@ func TestCheckDockerRunning_CloseError(t *testing.T) {
 			return mockClient, nil
 		}).Build()
 
-		mockey.Mock((*dockerclient.Client).Ping).To(func(ctx context.Context) (dockerapitypes.Ping, error) {
-			return dockerapitypes.Ping{}, nil
+		mockey.Mock((*dockerclient.Client).Ping).To(func(ctx context.Context, options dockerclient.PingOptions) (dockerclient.PingResult, error) {
+			return dockerclient.PingResult{}, nil
 		}).Build()
 
 		mockey.Mock((*dockerclient.Client).Close).To(func() error {
@@ -247,7 +246,7 @@ func TestCheckDockerRunning_CloseError(t *testing.T) {
 
 func TestConvertToDockerContainer_OnlyPodName(t *testing.T) {
 	mockey.PatchConvey("convertToDockerContainer with only pod name label", t, func() {
-		resp := dockerapitypes.Container{
+		resp := dockerapitypescontainer.Summary{
 			ID:    "partial-labels",
 			Names: []string{"/partial"},
 			Image: "test:latest",
@@ -265,7 +264,7 @@ func TestConvertToDockerContainer_OnlyPodName(t *testing.T) {
 
 func TestConvertToDockerContainer_OnlyPodNamespace(t *testing.T) {
 	mockey.PatchConvey("convertToDockerContainer with only pod namespace label", t, func() {
-		resp := dockerapitypes.Container{
+		resp := dockerapitypescontainer.Summary{
 			ID:    "ns-only",
 			Names: []string{"/ns-container"},
 			Image: "test:latest",
@@ -283,7 +282,7 @@ func TestConvertToDockerContainer_OnlyPodNamespace(t *testing.T) {
 
 func TestConvertToDockerContainer_NoLabels(t *testing.T) {
 	mockey.PatchConvey("convertToDockerContainer with nil labels", t, func() {
-		resp := dockerapitypes.Container{
+		resp := dockerapitypescontainer.Summary{
 			ID:     "no-labels",
 			Names:  []string{"/simple"},
 			Image:  "nginx",
@@ -301,7 +300,7 @@ func TestConvertToDockerContainer_NoLabels(t *testing.T) {
 
 func TestConvertToDockerContainer_MultipleNames(t *testing.T) {
 	mockey.PatchConvey("convertToDockerContainer joins multiple names", t, func() {
-		resp := dockerapitypes.Container{
+		resp := dockerapitypescontainer.Summary{
 			ID:    "multi-name",
 			Names: []string{"/name1", "/name2", "/name3"},
 			Image: "test:latest",
@@ -315,7 +314,7 @@ func TestConvertToDockerContainer_MultipleNames(t *testing.T) {
 
 func TestConvertToDockerContainer_EmptyNames(t *testing.T) {
 	mockey.PatchConvey("convertToDockerContainer with no names", t, func() {
-		resp := dockerapitypes.Container{
+		resp := dockerapitypescontainer.Summary{
 			ID:    "no-name",
 			Names: []string{},
 			Image: "test:latest",
@@ -375,8 +374,8 @@ func TestListContainers_ContextCanceled(t *testing.T) {
 			return mockClient, nil
 		}).Build()
 
-		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerapitypescontainer.ListOptions) ([]dockerapitypes.Container, error) {
-			return nil, ctx.Err()
+		mockey.Mock((*dockerclient.Client).ContainerList).To(func(ctx context.Context, options dockerclient.ContainerListOptions) (dockerclient.ContainerListResult, error) {
+			return dockerclient.ContainerListResult{}, ctx.Err()
 		}).Build()
 
 		mockey.Mock((*dockerclient.Client).Close).Return(nil).Build()
