@@ -23,6 +23,12 @@ type fakeKAPMTLSManager struct {
 	machineID         string
 	credentials       pkgkapmtls.Credentials
 	credentialsCalled bool
+	activateCalled    bool
+}
+
+func (m *fakeKAPMTLSManager) Activate(_ context.Context) error {
+	m.activateCalled = true
+	return m.err
 }
 
 func (m *fakeKAPMTLSManager) Status(_ context.Context, machineID string) (*pkgkapmtls.Status, error) {
@@ -79,6 +85,11 @@ func TestKAPMTLSSessionCommands(t *testing.T) {
 	assert.Equal(t, []byte("private-key"), manager.credentials.PrivateKeyPEM)
 	assert.Equal(t, []byte("gateway-ca"), manager.credentials.GatewayCAPEM)
 	assert.Equal(t, "client-fingerprint", manager.credentials.ClientCAFingerprint)
+
+	activateResponse := &Response{}
+	session.processRequest(context.Background(), "activate", Request{Method: "activateKAPMTLS"}, activateResponse, &restartExitCode)
+	assert.Empty(t, activateResponse.Error)
+	assert.True(t, manager.activateCalled)
 }
 
 func TestKAPMTLSSessionCommandErrors(t *testing.T) {
@@ -96,6 +107,10 @@ func TestKAPMTLSSessionCommandErrors(t *testing.T) {
 
 	response = &Response{}
 	session.processRequest(context.Background(), "credentials", Request{Method: "updateKAPMTLSCredentials", KAPMTLSCredentials: &KAPMTLSCredentialsRequest{}}, response, &restartExitCode)
+	assert.Equal(t, "manager failed", response.Error)
+
+	response = &Response{}
+	session.processRequest(context.Background(), "activate", Request{Method: "activateKAPMTLS"}, response, &restartExitCode)
 	assert.Equal(t, "manager failed", response.Error)
 }
 

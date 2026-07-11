@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -130,14 +131,80 @@ func TestUpdateCredentialsRejectsGatewayFingerprintMismatch(t *testing.T) {
 	require.ErrorContains(t, err, "does not match")
 }
 
-func TestUpdateCredentialsLeavesCommittedGenerationForSystemdRetry(t *testing.T) {
+func TestUpdateCredentialsRollsBackFailedActivation(t *testing.T) {
+	manager, runner, paths := newTestManager(t)
+	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
+	previousTarget, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
+	require.NoError(t, err)
+	runner.restartErr = errors.New("systemd unavailable")
+
+	err = manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2))
+	require.ErrorContains(t, err, "restart KAP mTLS agent")
+	currentTarget, readErr := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
+	require.NoError(t, readErr)
+	assert.Equal(t, previousTarget, currentTarget)
+
+	status, statusErr := manager.Status(context.Background(), "machine-1")
+	require.NoError(t, statusErr)
+	assert.Equal(t, "1", status.CertificateSerial)
+}
+
+func TestUpdateCredentialsRemovesFailedInitialSelection(t *testing.T) {
 	manager, runner, paths := newTestManager(t)
 	runner.restartErr = errors.New("systemd unavailable")
 
 	err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
 	require.ErrorContains(t, err, "restart KAP mTLS agent")
 	_, statErr := os.Lstat(filepath.Join(paths.StateDir, CurrentSymlinkName))
-	require.NoError(t, statErr, "the validated generation remains selected for the next reconcile")
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
+func TestActivateRestartsCurrentCredentials(t *testing.T) {
+	manager, runner, _ := newTestManager(t)
+	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
+	runner.calls = nil
+
+	require.NoError(t, manager.Activate(context.Background()))
+	assert.Equal(t, []string{
+		"systemctl enable " + AgentService,
+		"systemctl restart " + AgentService,
+	}, runner.calls)
+}
+
+func TestConcurrentManagersKeepCurrentRelease(t *testing.T) {
+	managerA, _, paths := newTestManager(t)
+	managerB := NewManager(paths)
+	managerB.runner = &fakeRunner{}
+	managerB.httpClient = managerA.httpClient
+	managerB.readyURL = managerA.readyURL
+	managerB.now = managerA.now
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	credentials := map[int64]Credentials{
+		1: newTestCredentials(t, "worker-1", "machine-1", 1),
+		2: newTestCredentials(t, "worker-1", "machine-1", 2),
+	}
+	for serial, manager := range map[int64]*Manager{1: managerA, 2: managerB} {
+		wg.Add(1)
+		go func(serial int64, manager *Manager) {
+			defer wg.Done()
+			errs <- manager.UpdateCredentials(context.Background(), "machine-1", credentials[serial])
+		}(serial, manager)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	target, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(paths.StateDir, target))
+	require.NoError(t, err)
+	entries, err := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
+	require.NoError(t, err)
+	assert.Len(t, entries, 1)
 }
 
 func TestStatusTreatsCorruptGenerationAsMissing(t *testing.T) {

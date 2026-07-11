@@ -20,7 +20,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -31,9 +33,9 @@ const (
 	AgentService    = "kaproxy-mtls-agent.service"
 	AgentReadyURL   = "http://127.0.0.1:8440/readyz"
 	agentVersion    = "version"
-	gatewayPort     = "8443"
 	readyTimeout    = 2 * time.Second
 	retryInterval   = 250 * time.Millisecond
+	rollbackTimeout = 30 * time.Second
 	sha256HexLength = sha256.Size * 2
 
 	ReleasesDirectoryName     = "releases"
@@ -106,7 +108,10 @@ type Manager struct {
 	httpClient *http.Client
 	readyURL   string
 	now        func() time.Time
+	updateMu   *sync.Mutex
 }
+
+var stateDirectoryLocks sync.Map
 
 func NewManager(paths Paths) *Manager {
 	return &Manager{
@@ -115,10 +120,20 @@ func NewManager(paths Paths) *Manager {
 		httpClient: &http.Client{Timeout: readyTimeout},
 		readyURL:   AgentReadyURL,
 		now:        time.Now,
+		updateMu:   lockForStateDirectory(paths.StateDir),
 	}
 }
 
+func lockForStateDirectory(stateDir string) *sync.Mutex {
+	key := filepath.Clean(stateDir)
+	lock, _ := stateDirectoryLocks.LoadOrStore(key, &sync.Mutex{})
+	return lock.(*sync.Mutex)
+}
+
 func (m *Manager) Status(ctx context.Context, machineID string) (*Status, error) {
+	m.updateMu.Lock()
+	defer m.updateMu.Unlock()
+
 	credentials, err := m.inspectCredentials(machineID)
 	if err != nil {
 		// A missing, partial, or corrupt generation is recoverable. Reporting it as
@@ -159,8 +174,15 @@ func (m *Manager) Status(ctx context.Context, machineID string) (*Status, error)
 // rotation is intentionally simpler than coordinating hot reload and rollback:
 // agent startup validates the selected cert/key before readiness can succeed.
 func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, credentials Credentials) error {
+	m.updateMu.Lock()
+	defer m.updateMu.Unlock()
+
 	if !m.agentInstalled() {
 		return fmt.Errorf("KAP mTLS agent is not installed")
+	}
+	previousReleaseID, hadPreviousRelease, err := m.currentRelease()
+	if err != nil {
+		return err
 	}
 	releaseID, err := m.stageCredentials(machineID, credentials)
 	if err != nil {
@@ -168,6 +190,34 @@ func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, crede
 	}
 	if err := m.swapCurrentSymlink(releaseID); err != nil {
 		return err
+	}
+	if _, err := m.runSystemctl(ctx, "enable", AgentService); err != nil {
+		return m.rollbackActivation(ctx, previousReleaseID, hadPreviousRelease, fmt.Errorf("enable KAP mTLS agent: %w", err))
+	}
+	if _, err := m.runSystemctl(ctx, "restart", AgentService); err != nil {
+		return m.rollbackActivation(ctx, previousReleaseID, hadPreviousRelease, fmt.Errorf("restart KAP mTLS agent: %w", err))
+	}
+	if !m.waitReady(ctx) {
+		return m.rollbackActivation(ctx, previousReleaseID, hadPreviousRelease, fmt.Errorf("KAP mTLS agent did not become ready"))
+	}
+	currentReleaseID, err := m.currentReleaseID()
+	if err != nil {
+		return err
+	}
+	return m.removeInactiveReleases(currentReleaseID)
+}
+
+// Activate restarts the agent against the already selected credential release.
+// It does not stage or rotate private key material.
+func (m *Manager) Activate(ctx context.Context) error {
+	m.updateMu.Lock()
+	defer m.updateMu.Unlock()
+
+	if !m.agentInstalled() {
+		return fmt.Errorf("KAP mTLS agent is not installed")
+	}
+	if _, err := m.currentReleaseID(); err != nil {
+		return fmt.Errorf("KAP mTLS credentials are not installed: %w", err)
 	}
 	if _, err := m.runSystemctl(ctx, "enable", AgentService); err != nil {
 		return fmt.Errorf("enable KAP mTLS agent: %w", err)
@@ -178,7 +228,40 @@ func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, crede
 	if !m.waitReady(ctx) {
 		return fmt.Errorf("KAP mTLS agent did not become ready")
 	}
-	return m.removeInactiveReleases(releaseID)
+	return nil
+}
+
+func (m *Manager) currentRelease() (string, bool, error) {
+	releaseID, err := m.currentReleaseID()
+	if errors.Is(err, os.ErrNotExist) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return releaseID, true, nil
+}
+
+func (m *Manager) rollbackActivation(ctx context.Context, previousReleaseID string, hadPreviousRelease bool, activationErr error) error {
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackTimeout)
+	defer cancel()
+	if hadPreviousRelease {
+		if err := m.swapCurrentSymlink(previousReleaseID); err != nil {
+			return errors.Join(activationErr, fmt.Errorf("restore previous KAP mTLS credentials: %w", err))
+		}
+		if _, err := m.runSystemctl(rollbackCtx, "restart", AgentService); err != nil {
+			return errors.Join(activationErr, fmt.Errorf("restart KAP mTLS agent with previous credentials: %w", err))
+		}
+		return activationErr
+	}
+	currentPath := filepath.Join(m.paths.StateDir, CurrentSymlinkName)
+	if err := os.Remove(currentPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return errors.Join(activationErr, fmt.Errorf("remove failed KAP mTLS credential selection: %w", err))
+	}
+	if err := syncDirectory(m.paths.StateDir); err != nil {
+		return errors.Join(activationErr, err)
+	}
+	return activationErr
 }
 
 type credentialStatus struct {
@@ -312,8 +395,12 @@ func validateCredentials(machineID string, credentials Credentials, now time.Tim
 		return validatedCredentials{}, fmt.Errorf("KAP mTLS certificate and private key are required")
 	}
 	host, port, err := net.SplitHostPort(credentials.GatewayEndpoint)
-	if err != nil || host == "" || port != gatewayPort {
-		return validatedCredentials{}, fmt.Errorf("KAP mTLS gateway endpoint %q must be a host on port %s", credentials.GatewayEndpoint, gatewayPort)
+	if err != nil || host == "" {
+		return validatedCredentials{}, fmt.Errorf("KAP mTLS gateway endpoint %q must be a host and port", credentials.GatewayEndpoint)
+	}
+	portNumber, err := strconv.ParseUint(port, 10, 16)
+	if err != nil || portNumber == 0 {
+		return validatedCredentials{}, fmt.Errorf("KAP mTLS gateway endpoint %q has an invalid port", credentials.GatewayEndpoint)
 	}
 	if strings.ContainsAny(host, "\r\n\t =/@?#") {
 		return validatedCredentials{}, fmt.Errorf("KAP mTLS gateway endpoint %q has an invalid host", credentials.GatewayEndpoint)

@@ -100,6 +100,20 @@ func TestNewSession(t *testing.T) {
 	}
 }
 
+func TestCreateSessionRequestIncludesMachineProof(t *testing.T) {
+	req, err := createSessionRequestWithProof(
+		context.Background(),
+		"https://control.example.com",
+		"machine-1",
+		"read",
+		"token",
+		"machine-proof",
+		nil,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "machine-proof", req.Header.Get("X-GPUD-Machine-Proof"))
+}
+
 func TestStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 

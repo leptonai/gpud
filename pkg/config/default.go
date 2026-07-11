@@ -66,9 +66,10 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 
 		ContainerdServiceActiveCommands: options.ContainerdServiceActiveCommands,
 
-		SessionToken:     options.SessionToken,
-		SessionMachineID: options.SessionMachineID,
-		SessionEndpoint:  options.SessionEndpoint,
+		SessionToken:        options.SessionToken,
+		SessionMachineID:    options.SessionMachineID,
+		SessionMachineProof: options.SessionMachineProof,
+		SessionEndpoint:     options.SessionEndpoint,
 	}
 
 	if cfg.State == "" {

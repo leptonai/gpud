@@ -40,6 +40,7 @@ import (
 type Op struct {
 	auditLogger         log.AuditLogger
 	machineID           string
+	machineProof        string
 	pipeInterval        time.Duration
 	enableAutoUpdate    bool
 	autoUpdateExitCode  int
@@ -87,6 +88,13 @@ func WithAuditLogger(auditLogger log.AuditLogger) OpOption {
 func WithMachineID(machineID string) OpOption {
 	return func(op *Op) {
 		op.machineID = machineID
+	}
+}
+
+// WithMachineProof sets the per-machine proof returned by control-plane login.
+func WithMachineProof(machineProof string) OpOption {
+	return func(op *Op) {
+		op.machineProof = machineProof
 	}
 }
 
@@ -183,7 +191,8 @@ type Session struct {
 
 	auditLogger log.AuditLogger
 
-	machineID string
+	machineID    string
+	machineProof string
 
 	// epLocalGPUdServer is the endpoint of the local GPUd server
 	epLocalGPUdServer string
@@ -316,10 +325,11 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		epLocalGPUdServer: epLocalGPUdServer,
 		epControlPlane:    epControlPlane,
 
-		machineID:  op.machineID,
-		token:      token,
-		dataDir:    dataDir,
-		dbInMemory: op.dbInMemory,
+		machineID:    op.machineID,
+		machineProof: op.machineProof,
+		token:        token,
+		dataDir:      dataDir,
+		dbInMemory:   op.dbInMemory,
 
 		tokenMu: sync.RWMutex{},
 		dbRW:    op.dbRW,
@@ -420,6 +430,10 @@ func createHTTPClient(jar *cookiejar.Jar) *http.Client {
 }
 
 func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessionType, token string, body io.Reader) (*http.Request, error) {
+	return createSessionRequestWithProof(ctx, epControlPlane, machineID, sessionType, token, "", body)
+}
+
+func createSessionRequestWithProof(ctx context.Context, epControlPlane, machineID, sessionType, token, machineProof string, body io.Reader) (*http.Request, error) {
 	origin, err := controlPlaneOrigin(epControlPlane)
 	if err != nil {
 		return nil, err
@@ -432,6 +446,9 @@ func createSessionRequest(ctx context.Context, epControlPlane, machineID, sessio
 	req.Header.Set("X-GPUD-Machine-ID", machineID)
 	req.Header.Set("X-GPUD-Session-Type", sessionType)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	if machineProof != "" {
+		req.Header.Set("X-GPUD-Machine-Proof", machineProof)
+	}
 	req.Header.Set("Origin", origin)
 
 	// Depreciated headers
@@ -467,7 +484,7 @@ func (s *Session) startWriter(ctx context.Context, writerExit chan reconnectSign
 	reader, writer := io.Pipe()
 	go s.handleWriterPipe(writer, goroutineCloseCh, pipeFinishCh)
 
-	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "write", s.token, reader)
+	req, err := createSessionRequestWithProof(ctx, s.epControlPlane, s.machineID, "write", s.token, s.machineProof, reader)
 	if err != nil {
 		sig.err = err
 		log.Logger.Warnw("session writer: error creating request", "error", err)
@@ -559,7 +576,7 @@ func (s *Session) startReader(ctx context.Context, readerExit chan reconnectSign
 		sendReconnectSignal(readerExit, sig)
 	}()
 
-	req, err := createSessionRequest(ctx, s.epControlPlane, s.machineID, "read", s.token, nil)
+	req, err := createSessionRequestWithProof(ctx, s.epControlPlane, s.machineID, "read", s.token, s.machineProof, nil)
 	if err != nil {
 		sig.err = err
 		log.Logger.Debugw("session reader: error creating request", "error", err)

@@ -15,6 +15,13 @@ import (
 type kapMTLSManager interface {
 	Status(context.Context, string) (*pkgkapmtls.Status, error)
 	UpdateCredentials(context.Context, string, pkgkapmtls.Credentials) error
+	Activate(context.Context) error
+}
+
+func (s *Session) processActivateKAPMTLS(ctx context.Context, response *Response) {
+	if err := s.getKAPMTLSManager().Activate(ctx); err != nil {
+		response.Error = err.Error()
+	}
 }
 
 func (s *Session) getKAPMTLSManager() kapMTLSManager {

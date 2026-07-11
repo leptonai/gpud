@@ -37,6 +37,10 @@ const (
 	// used for session authentication.
 	MetadataKeyToken = "token"
 
+	// MetadataKeyMachineProof is the per-machine proof returned by login and
+	// presented on session connections. Its value is secret and must not be logged.
+	MetadataKeyMachineProof = "machine_proof"
+
 	MetadataKeyEndpoint  = "endpoint"
 	MetadataKeyPublicIP  = "public_ip"
 	MetadataKeyPrivateIP = "private_ip"

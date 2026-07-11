@@ -357,6 +357,12 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	}
 	log.Logger.Debugw("successfully recorded session token")
 
+	if loginResp.MachineProof != "" {
+		if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineProof, loginResp.MachineProof); err != nil {
+			return fmt.Errorf("failed to record machine proof: %w", err)
+		}
+	}
+
 	log.Logger.Debugw("recording public IP")
 	if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyPublicIP, req.Network.PublicIP); err != nil {
 		return fmt.Errorf("failed to record public IP: %w", err)
