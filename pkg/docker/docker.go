@@ -15,7 +15,7 @@ import (
 // If docker daemon is not running, fails with:
 // "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"
 func ListContainers(ctx context.Context) ([]DockerContainer, error) {
-	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
+	cli, err := dockerclient.New(dockerclient.FromEnv)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func CheckDockerInstalled() bool {
 // If not run, fails with:
 // "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"
 func CheckDockerRunning(ctx context.Context) bool {
-	cli, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
+	cli, err := dockerclient.New(dockerclient.FromEnv)
 	if err != nil {
 		return false
 	}

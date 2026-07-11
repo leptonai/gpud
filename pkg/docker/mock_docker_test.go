@@ -43,7 +43,7 @@ func TestCheckDockerInstalled_NotFound(t *testing.T) {
 
 func TestCheckDockerRunning_ClientCreationError(t *testing.T) {
 	mockey.PatchConvey("docker client creation fails", t, func() {
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return nil, errors.New("cannot create client")
 		}).Build()
 
@@ -56,7 +56,7 @@ func TestCheckDockerRunning_ClientCreationError(t *testing.T) {
 
 func TestListContainers_ClientCreationError(t *testing.T) {
 	mockey.PatchConvey("ListContainers client creation fails", t, func() {
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return nil, errors.New("cannot create client")
 		}).Build()
 
@@ -71,7 +71,7 @@ func TestListContainers_ContainerListError(t *testing.T) {
 	mockey.PatchConvey("ListContainers list fails", t, func() {
 		mockClient := &dockerclient.Client{}
 
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return mockClient, nil
 		}).Build()
 
@@ -92,7 +92,7 @@ func TestListContainers_Success(t *testing.T) {
 	mockey.PatchConvey("ListContainers success", t, func() {
 		mockClient := &dockerclient.Client{}
 
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return mockClient, nil
 		}).Build()
 
@@ -143,7 +143,7 @@ func TestListContainers_EmptyList(t *testing.T) {
 	mockey.PatchConvey("ListContainers returns empty list", t, func() {
 		mockClient := &dockerclient.Client{}
 
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return mockClient, nil
 		}).Build()
 
@@ -163,7 +163,7 @@ func TestListContainers_CloseError(t *testing.T) {
 	mockey.PatchConvey("ListContainers with client close error", t, func() {
 		mockClient := &dockerclient.Client{}
 
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return mockClient, nil
 		}).Build()
 
@@ -187,7 +187,7 @@ func TestCheckDockerRunning_Success(t *testing.T) {
 	mockey.PatchConvey("docker running success", t, func() {
 		mockClient := &dockerclient.Client{}
 
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return mockClient, nil
 		}).Build()
 
@@ -206,7 +206,7 @@ func TestCheckDockerRunning_PingError(t *testing.T) {
 	mockey.PatchConvey("docker ping fails", t, func() {
 		mockClient := &dockerclient.Client{}
 
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return mockClient, nil
 		}).Build()
 
@@ -225,7 +225,7 @@ func TestCheckDockerRunning_CloseError(t *testing.T) {
 	mockey.PatchConvey("docker running close error", t, func() {
 		mockClient := &dockerclient.Client{}
 
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return mockClient, nil
 		}).Build()
 
@@ -370,7 +370,7 @@ func TestListContainers_ContextCanceled(t *testing.T) {
 	mockey.PatchConvey("ListContainers with canceled context", t, func() {
 		mockClient := &dockerclient.Client{}
 
-		mockey.Mock(dockerclient.NewClientWithOpts).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
+		mockey.Mock(dockerclient.New).To(func(ops ...dockerclient.Opt) (*dockerclient.Client, error) {
 			return mockClient, nil
 		}).Build()
 
