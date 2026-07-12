@@ -526,6 +526,35 @@ func TestInspectCredentialsReportsIncompleteRelease(t *testing.T) {
 }
 
 func TestReleaseAndRollbackErrorBoundaries(t *testing.T) {
+	t.Run("update reports current selection failure after readiness", func(t *testing.T) {
+		manager, _, paths := newTestManager(t)
+		removeErr := make(chan error, 1)
+		readyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			select {
+			case removeErr <- os.Remove(filepath.Join(paths.StateDir, CurrentSymlinkName)):
+			default:
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(readyServer.Close)
+		manager.readyURL = readyServer.URL
+
+		err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
+		require.NoError(t, <-removeErr)
+		require.ErrorContains(t, err, "read KAP mTLS current symlink")
+	})
+
+	t.Run("update reports current symlink swap failure", func(t *testing.T) {
+		manager, _, paths := newTestManager(t)
+		manager.now = func() time.Time {
+			require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName), []byte("regular"), 0600))
+			return testNow
+		}
+
+		err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
+		require.ErrorContains(t, err, "current path is not a symlink")
+	})
+
 	t.Run("update rejects invalid current selection", func(t *testing.T) {
 		manager, _, paths := newTestManager(t)
 		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName), []byte("regular"), 0600))
@@ -550,12 +579,45 @@ func TestReleaseAndRollbackErrorBoundaries(t *testing.T) {
 		require.ErrorContains(t, err, "create KAP mTLS releases directory")
 	})
 
+	t.Run("releases directory is not writable", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root bypasses directory write permissions")
+		}
+		manager, _, paths := newTestManager(t)
+		releasesDir := filepath.Join(paths.StateDir, ReleasesDirectoryName)
+		require.NoError(t, os.Mkdir(releasesDir, 0500))
+		t.Cleanup(func() { _ = os.Chmod(releasesDir, 0700) })
+
+		_, err := manager.stageCredentials("machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
+		require.ErrorContains(t, err, "create pending KAP mTLS release")
+	})
+
 	t.Run("release is missing a file", func(t *testing.T) {
 		root := t.TempDir()
 		releaseDir := filepath.Join(root, "release")
 		require.NoError(t, os.Mkdir(releaseDir, 0700))
 		_, err := releaseMatches(releaseDir, newTestCredentials(t, "worker-1", "machine-1", 1), []byte("env"))
 		require.ErrorContains(t, err, "read existing KAP mTLS release file")
+	})
+
+	t.Run("stage reports an invalid existing release", func(t *testing.T) {
+		manager, _, paths := newTestManager(t)
+		credentials := newTestCredentials(t, "worker-1", "machine-1", 1)
+		validated, err := validateCredentials("machine-1", credentials, testNow, true)
+		require.NoError(t, err)
+		releasesDir := filepath.Join(paths.StateDir, ReleasesDirectoryName)
+		require.NoError(t, os.MkdirAll(releasesDir, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(releasesDir, validated.releaseID), []byte("file"), 0600))
+
+		_, err = manager.stageCredentials("machine-1", credentials)
+		require.ErrorContains(t, err, "is not a directory")
+	})
+
+	t.Run("release inspection reports filesystem errors", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "loop")
+		require.NoError(t, os.Symlink("loop", path))
+		_, err := releaseMatches(path, Credentials{}, nil)
+		require.ErrorContains(t, err, "inspect KAP mTLS release")
 	})
 
 	t.Run("temporary symlink path is occupied", func(t *testing.T) {
@@ -566,6 +628,18 @@ func TestReleaseAndRollbackErrorBoundaries(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(tempPath, "child"), []byte("data"), 0600))
 		err := manager.swapCurrentSymlink(releaseID)
 		require.ErrorContains(t, err, "create KAP mTLS current symlink")
+	})
+
+	t.Run("current symlink cannot be inspected", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root bypasses directory search permissions")
+		}
+		manager, _, paths := newTestManager(t)
+		require.NoError(t, os.Chmod(paths.StateDir, 0000))
+		t.Cleanup(func() { _ = os.Chmod(paths.StateDir, 0700) })
+
+		err := manager.swapCurrentSymlink(strings.Repeat("a", sha256HexLength))
+		require.ErrorContains(t, err, "inspect KAP mTLS current symlink")
 	})
 
 	t.Run("current target has invalid release ID", func(t *testing.T) {
@@ -581,6 +655,21 @@ func TestReleaseAndRollbackErrorBoundaries(t *testing.T) {
 		require.ErrorContains(t, err, "read KAP mTLS releases")
 	})
 
+	t.Run("cleanup reports removal failure", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root bypasses directory write permissions")
+		}
+		manager, _, paths := newTestManager(t)
+		releasesDir := filepath.Join(paths.StateDir, ReleasesDirectoryName)
+		require.NoError(t, os.Mkdir(releasesDir, 0700))
+		require.NoError(t, os.WriteFile(filepath.Join(releasesDir, "inactive"), []byte("data"), 0600))
+		require.NoError(t, os.Chmod(releasesDir, 0500))
+		t.Cleanup(func() { _ = os.Chmod(releasesDir, 0700) })
+
+		err := manager.removeInactiveReleases("current")
+		require.ErrorContains(t, err, "remove inactive KAP mTLS release")
+	})
+
 	t.Run("rollback cannot restore invalid previous release", func(t *testing.T) {
 		manager, _, _ := newTestManager(t)
 		err := manager.rollbackActivation(context.Background(), "invalid", true, errors.New("activation failed"))
@@ -594,6 +683,38 @@ func TestReleaseAndRollbackErrorBoundaries(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(currentPath, "child"), []byte("data"), 0600))
 		err := manager.rollbackActivation(context.Background(), "", false, errors.New("activation failed"))
 		require.ErrorContains(t, err, "remove failed KAP mTLS credential selection")
+	})
+
+	t.Run("rollback reports previous service restart failure", func(t *testing.T) {
+		manager, runner, _ := newTestManager(t)
+		require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
+		runner.restartFailures = 2
+
+		err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2))
+		require.ErrorContains(t, err, "restart KAP mTLS agent with previous credentials")
+	})
+
+	t.Run("rollback reports state directory sync failure", func(t *testing.T) {
+		manager := NewManager(Paths{StateDir: filepath.Join(t.TempDir(), "missing")})
+		err := manager.rollbackActivation(context.Background(), "", false, errors.New("activation failed"))
+		require.ErrorContains(t, err, "open directory")
+	})
+
+	t.Run("credential inspection reports filesystem errors", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root bypasses directory search permissions")
+		}
+		manager, _, paths := newTestManager(t)
+		require.NoError(t, os.Chmod(paths.StateDir, 0000))
+		t.Cleanup(func() { _ = os.Chmod(paths.StateDir, 0700) })
+
+		_, err := manager.inspectCredentials("machine-1")
+		require.ErrorContains(t, err, "inspect active KAP mTLS credentials")
+	})
+
+	t.Run("directory sync reports sync errors", func(t *testing.T) {
+		err := syncDirectory(os.DevNull)
+		require.ErrorContains(t, err, "sync directory")
 	})
 }
 

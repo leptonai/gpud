@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/bytedance/mockey"
@@ -50,6 +51,27 @@ func TestReadSessionCredentialsFromPersistentFile(t *testing.T) {
 	gotMachineProof, err := readMachineProofFromPersistentFile(ctx, tmpDir)
 	require.NoError(t, err)
 	assert.Equal(t, "machine-proof", gotMachineProof)
+}
+
+func TestReadMachineProofFromPersistentFileErrors(t *testing.T) {
+	t.Run("resolve data directory", func(t *testing.T) {
+		parentFile := filepath.Join(t.TempDir(), "file")
+		require.NoError(t, os.WriteFile(parentFile, []byte("data"), 0600))
+
+		_, err := readMachineProofFromPersistentFile(context.Background(), filepath.Join(parentFile, "child"))
+		require.ErrorContains(t, err, "failed to resolve data dir")
+	})
+
+	t.Run("open state file", func(t *testing.T) {
+		mockey.PatchConvey("open state file error", t, func() {
+			mockey.Mock(pkgsqlite.Open).To(func(string, ...pkgsqlite.OpOption) (*sql.DB, error) {
+				return nil, errors.New("open failed")
+			}).Build()
+
+			_, err := readMachineProofFromPersistentFile(context.Background(), t.TempDir())
+			require.ErrorContains(t, err, "failed to open state file")
+		})
+	})
 }
 
 func TestReadSessionCredentialsFromPersistentFile_StateFileNotFound(t *testing.T) {
