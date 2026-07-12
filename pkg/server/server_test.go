@@ -94,16 +94,37 @@ func TestNew_DBInMemory_SeedsSessionCredentialsBeforeAddressValidation(t *testin
 		MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
 		Components:             []string{"-disable-all"},
 
-		DBInMemory:       true,
-		SessionToken:     "session-token",
-		SessionMachineID: "assigned-machine-id",
-		SessionEndpoint:  "https://api.example.com",
+		DBInMemory:          true,
+		SessionToken:        "session-token",
+		SessionMachineID:    "assigned-machine-id",
+		SessionMachineProof: "machine-proof",
+		SessionEndpoint:     "https://api.example.com",
 	}
 
 	s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
 	require.Nil(t, s)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create local GPUd server endpoint")
+}
+
+func TestReadMachineProof(t *testing.T) {
+	ctx := context.Background()
+	assert.Empty(t, (&Server{}).readMachineProof(ctx))
+
+	stateFile := filepath.Join(t.TempDir(), "state.db")
+	dbRW, err := sqlite.Open(stateFile)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = dbRW.Close() })
+	require.NoError(t, pkgmetadata.CreateTableMetadata(ctx, dbRW))
+	require.NoError(t, pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineProof, "machine-proof"))
+
+	dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+	require.NoError(t, err)
+	s := &Server{dbRO: dbRO}
+	assert.Equal(t, "machine-proof", s.readMachineProof(ctx))
+
+	require.NoError(t, dbRO.Close())
+	assert.Empty(t, s.readMachineProof(ctx))
 }
 
 func TestGenerateSelfSignedCert(t *testing.T) {

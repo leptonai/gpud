@@ -82,8 +82,9 @@ func TestNewSession(t *testing.T) {
 
 	endpoint := "test-endpoint.com"
 	machineID := "test-machine-id"
+	machineProof := "test-machine-proof"
 
-	session, err := NewSession(ctx, "", endpoint, "", WithMachineID(machineID), WithPipeInterval(time.Second), WithEnableAutoUpdate(true), WithComponentsRegistry(components.NewRegistry(nil)))
+	session, err := NewSession(ctx, "", endpoint, "", WithMachineID(machineID), WithMachineProof(machineProof), WithPipeInterval(time.Second), WithEnableAutoUpdate(true), WithComponentsRegistry(components.NewRegistry(nil)))
 	if err != nil {
 		t.Fatalf("error creating session: %v", err)
 	}
@@ -97,6 +98,9 @@ func TestNewSession(t *testing.T) {
 	}
 	if session.machineID != machineID {
 		t.Errorf("expected machineID %s, got %s", machineID, session.machineID)
+	}
+	if session.machineProof != machineProof {
+		t.Errorf("expected machineProof %s, got %s", machineProof, session.machineProof)
 	}
 }
 

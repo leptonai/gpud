@@ -260,15 +260,22 @@ func TestGetSessionCredentialsOptions_AllCredentialsPresent(t *testing.T) {
 		}).Build()
 
 		mockey.Mock(pkgmetadata.ReadMetadata).To(func(ctx context.Context, db *sql.DB, key string) (string, error) {
-			if key == pkgmetadata.MetadataKeyEndpoint {
+			switch key {
+			case pkgmetadata.MetadataKeyEndpoint:
 				return "https://stored.endpoint.com", nil
+			case pkgmetadata.MetadataKeyMachineProof:
+				return "machine-proof", nil
 			}
 			return "", nil
 		}).Build()
 
 		opts := getSessionCredentialsOptions(true, tmpDir, "")
 		assert.NotEmpty(t, opts)
-		assert.Len(t, opts, 3) // token, machine ID, endpoint
+		assert.Len(t, opts, 4) // token, machine ID, endpoint, machine proof
+
+		op := &config.Op{}
+		require.NoError(t, op.ApplyOpts(opts))
+		assert.Equal(t, "machine-proof", op.SessionMachineProof)
 	})
 }
 

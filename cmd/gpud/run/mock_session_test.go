@@ -38,6 +38,7 @@ func TestReadSessionCredentialsFromPersistentFile(t *testing.T) {
 	require.NoError(t, pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyToken, "session-token"))
 	require.NoError(t, pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineID, "assigned-machine-id"))
 	require.NoError(t, pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyEndpoint, "gpud-manager.example.com"))
+	require.NoError(t, pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineProof, "machine-proof"))
 
 	gotToken, gotMachineID, gotEndpoint, err := readSessionCredentialsFromPersistentFile(ctx, tmpDir)
 	require.NoError(t, err)
@@ -45,6 +46,10 @@ func TestReadSessionCredentialsFromPersistentFile(t *testing.T) {
 	assert.Equal(t, "session-token", gotToken)
 	assert.Equal(t, "assigned-machine-id", gotMachineID)
 	assert.Equal(t, "gpud-manager.example.com", gotEndpoint)
+
+	gotMachineProof, err := readMachineProofFromPersistentFile(ctx, tmpDir)
+	require.NoError(t, err)
+	assert.Equal(t, "machine-proof", gotMachineProof)
 }
 
 func TestReadSessionCredentialsFromPersistentFile_StateFileNotFound(t *testing.T) {
