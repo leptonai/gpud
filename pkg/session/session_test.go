@@ -134,7 +134,7 @@ func TestSessionClientRejectsRedirects(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := createHTTPClient(nil).Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusFound, resp.StatusCode)
 	select {
 	case <-received:
