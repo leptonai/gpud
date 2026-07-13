@@ -413,6 +413,10 @@ func createHTTPClient(jar *cookiejar.Jar) *http.Client {
 	}
 	return &http.Client{
 		Jar: cookieJar,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			// Session headers carry bearer credentials; never forward them to a redirect target.
+			return http.ErrUseLastResponse
+		},
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{

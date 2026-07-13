@@ -118,6 +118,31 @@ func TestCreateSessionRequestIncludesMachineProof(t *testing.T) {
 	assert.Equal(t, "machine-proof", req.Header.Get("X-GPUD-Machine-Proof"))
 }
 
+func TestSessionClientRejectsRedirects(t *testing.T) {
+	received := make(chan struct{}, 1)
+	sink := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		received <- struct{}{}
+	}))
+	defer sink.Close()
+
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, strings.Replace(sink.URL, "127.0.0.1", "localhost", 1), http.StatusFound)
+	}))
+	defer origin.Close()
+
+	req, err := createSessionRequestWithProof(context.Background(), origin.URL, "machine-1", "read", "token", "machine-proof", nil)
+	require.NoError(t, err)
+	resp, err := createHTTPClient(nil).Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusFound, resp.StatusCode)
+	select {
+	case <-received:
+		t.Fatal("session client forwarded credentials to redirect target")
+	default:
+	}
+}
+
 func TestStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 

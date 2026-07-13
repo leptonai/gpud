@@ -441,12 +441,14 @@ func TestCommand_JSONOutput(t *testing.T) {
 		stateFile := filepath.Join(dataDir, "gpud.state")
 
 		rawToken := "nvapi-stg-1234567890abcdef"
+		machineProof := "machine-proof-secret"
 		evTime := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
 		evMessage := "test reboot event"
 
 		createMetadataDB(t, stateFile, map[string]string{
-			pkgmetadata.MetadataKeyMachineID: "machine-1",
-			pkgmetadata.MetadataKeyToken:     rawToken,
+			pkgmetadata.MetadataKeyMachineID:    "machine-1",
+			pkgmetadata.MetadataKeyToken:        rawToken,
+			pkgmetadata.MetadataKeyMachineProof: machineProof,
 		})
 		insertRebootEvent(t, stateFile, evTime, evMessage)
 
@@ -475,10 +477,44 @@ func TestCommand_JSONOutput(t *testing.T) {
 		require.NotNil(t, out.Metadata)
 		assert.Equal(t, "machine-1", out.Metadata[pkgmetadata.MetadataKeyMachineID])
 		assert.Equal(t, pkgmetadata.MaskToken(rawToken), out.Metadata[pkgmetadata.MetadataKeyToken])
+		assert.Equal(t, "<redacted>", out.Metadata[pkgmetadata.MetadataKeyMachineProof])
+		assert.NotContains(t, stdout, machineProof)
 		require.Len(t, out.RebootHistory, 1)
 		assert.Equal(t, evTime.Format(time.RFC3339), out.RebootHistory[0].TimeUTC)
 		assert.Equal(t, evMessage, out.RebootHistory[0].Message)
 		assert.NotContains(t, stdout, "Reboot History:")
+	})
+}
+
+func TestCommand_JSONOutputRedactsUpdatedMachineProof(t *testing.T) {
+	mockey.PatchConvey("json output redacts updated machine proof", t, func() {
+		mockey.Mock(osutil.RequireRoot).To(func() error { return nil }).Build()
+
+		dataDir := t.TempDir()
+		stateFile := filepath.Join(dataDir, "gpud.state")
+		createMetadataDB(t, stateFile, map[string]string{})
+
+		cliContext := newCLIContext(t, []string{
+			"--data-dir", dataDir,
+			"--set-key", pkgmetadata.MetadataKeyMachineProof,
+			"--set-value", "machine-proof-secret",
+			"--output-format", "json",
+		})
+		stdout, stderr := captureOutput(t, func() { require.NoError(t, Command(cliContext)) })
+		assert.Empty(t, stderr)
+		assert.NotContains(t, stdout, "machine-proof-secret")
+
+		var out metadataJSONOutput
+		require.NoError(t, json.Unmarshal([]byte(stdout), &out))
+		require.NotNil(t, out.Updated)
+		assert.Equal(t, "<redacted>", out.Updated.Value)
+
+		dbRO, err := sqlite.Open(stateFile, sqlite.WithReadOnly(true))
+		require.NoError(t, err)
+		defer func() { _ = dbRO.Close() }()
+		stored, err := pkgmetadata.ReadMetadata(context.Background(), dbRO, pkgmetadata.MetadataKeyMachineProof)
+		require.NoError(t, err)
+		assert.Equal(t, "machine-proof-secret", stored)
 	})
 }
 
