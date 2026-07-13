@@ -45,6 +45,9 @@ type Op struct {
 	// this machine ID into the in-memory database.
 	SessionMachineID string
 
+	// SessionMachineProof is the per-machine proof for db-in-memory mode.
+	SessionMachineProof string
+
 	// SessionEndpoint is the control plane endpoint for db-in-memory mode.
 	// When DBInMemory is true and this is set, the server will seed
 	// this endpoint into the in-memory database.
@@ -167,6 +170,13 @@ func WithSessionToken(token string) OpOption {
 func WithSessionMachineID(machineID string) OpOption {
 	return func(op *Op) {
 		op.SessionMachineID = machineID
+	}
+}
+
+// WithSessionMachineProof sets the per-machine proof for db-in-memory mode.
+func WithSessionMachineProof(machineProof string) OpOption {
+	return func(op *Op) {
+		op.SessionMachineProof = machineProof
 	}
 }
 

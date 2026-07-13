@@ -70,6 +70,9 @@ type LoginResponse struct {
 	// Token is the token used to report data from the machine.
 	Token string `json:"token,omitempty"`
 
+	// MachineProof binds privileged session commands to this machine identity.
+	MachineProof string `json:"machineProof,omitempty"`
+
 	// ValidationResults is the validation results for the login request.
 	// The validation results are done by the control plane.
 	ValidationResults []ValidationResult `json:"validationResults,omitempty"`

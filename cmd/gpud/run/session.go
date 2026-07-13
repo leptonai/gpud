@@ -95,6 +95,20 @@ func readSessionCredentialsFromPersistentFile(ctx context.Context, dataDir strin
 	return sessionToken, assignedMachineID, endpoint, nil
 }
 
+func readMachineProofFromPersistentFile(ctx context.Context, dataDir string) (string, error) {
+	resolvedDataDir, err := config.ResolveDataDir(dataDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve data dir: %w", err)
+	}
+	stateFile := config.StateFilePath(resolvedDataDir)
+	dbRO, err := pkgsqlite.Open(stateFile, pkgsqlite.WithReadOnly(true))
+	if err != nil {
+		return "", fmt.Errorf("failed to open state file: %w", err)
+	}
+	defer func() { _ = dbRO.Close() }()
+	return pkgmetadata.ReadMetadata(ctx, dbRO, pkgmetadata.MetadataKeyMachineProof)
+}
+
 func getSessionCredentialsOptions(dbInMemory bool, dataDir string, controlPlaneEndpoint string) []config.OpOption {
 	// When --db-in-memory is enabled, read session credentials from the persistent state file
 	// and pass them to the config so the server can seed them into the in-memory database.
@@ -144,11 +158,18 @@ func getSessionCredentialsOptions(dbInMemory bool, dataDir string, controlPlaneE
 			"machineID", assignedMachineID,
 			"endpoint", endpoint,
 		)
-		return []config.OpOption{
+		options := []config.OpOption{
 			config.WithSessionToken(sessionToken),
 			config.WithSessionMachineID(assignedMachineID),
 			config.WithSessionEndpoint(endpoint),
 		}
+		machineProof, proofErr := readMachineProofFromPersistentFile(readCtx, dataDir)
+		if proofErr != nil {
+			log.Logger.Warnw("failed to read machine proof from persistent state", "error", proofErr)
+		} else if machineProof != "" {
+			options = append(options, config.WithSessionMachineProof(machineProof))
+		}
+		return options
 	}
 
 	// Credentials were read but are incomplete - this may indicate a partial state

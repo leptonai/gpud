@@ -82,8 +82,9 @@ func TestNewSession(t *testing.T) {
 
 	endpoint := "test-endpoint.com"
 	machineID := "test-machine-id"
+	machineProof := "test-machine-proof"
 
-	session, err := NewSession(ctx, "", endpoint, "", WithMachineID(machineID), WithPipeInterval(time.Second), WithEnableAutoUpdate(true), WithComponentsRegistry(components.NewRegistry(nil)))
+	session, err := NewSession(ctx, "", endpoint, "", WithMachineID(machineID), WithMachineProof(machineProof), WithPipeInterval(time.Second), WithEnableAutoUpdate(true), WithComponentsRegistry(components.NewRegistry(nil)))
 	if err != nil {
 		t.Fatalf("error creating session: %v", err)
 	}
@@ -97,6 +98,48 @@ func TestNewSession(t *testing.T) {
 	}
 	if session.machineID != machineID {
 		t.Errorf("expected machineID %s, got %s", machineID, session.machineID)
+	}
+	if session.machineProof != machineProof {
+		t.Errorf("expected machineProof %s, got %s", machineProof, session.machineProof)
+	}
+}
+
+func TestCreateSessionRequestIncludesMachineProof(t *testing.T) {
+	req, err := createSessionRequestWithProof(
+		context.Background(),
+		"https://control.example.com",
+		"machine-1",
+		"read",
+		"token",
+		"machine-proof",
+		nil,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "machine-proof", req.Header.Get("X-GPUD-Machine-Proof"))
+}
+
+func TestSessionClientRejectsRedirects(t *testing.T) {
+	received := make(chan struct{}, 1)
+	sink := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		received <- struct{}{}
+	}))
+	defer sink.Close()
+
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, strings.Replace(sink.URL, "127.0.0.1", "localhost", 1), http.StatusFound)
+	}))
+	defer origin.Close()
+
+	req, err := createSessionRequestWithProof(context.Background(), origin.URL, "machine-1", "read", "token", "machine-proof", nil)
+	require.NoError(t, err)
+	resp, err := createHTTPClient(nil).Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	assert.Equal(t, http.StatusFound, resp.StatusCode)
+	select {
+	case <-received:
+		t.Fatal("session client forwarded credentials to redirect target")
+	default:
 	}
 }
 

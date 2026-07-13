@@ -260,15 +260,53 @@ func TestGetSessionCredentialsOptions_AllCredentialsPresent(t *testing.T) {
 		}).Build()
 
 		mockey.Mock(pkgmetadata.ReadMetadata).To(func(ctx context.Context, db *sql.DB, key string) (string, error) {
-			if key == pkgmetadata.MetadataKeyEndpoint {
+			switch key {
+			case pkgmetadata.MetadataKeyEndpoint:
 				return "https://stored.endpoint.com", nil
+			case pkgmetadata.MetadataKeyMachineProof:
+				return "machine-proof", nil
 			}
 			return "", nil
 		}).Build()
 
 		opts := getSessionCredentialsOptions(true, tmpDir, "")
 		assert.NotEmpty(t, opts)
-		assert.Len(t, opts, 3) // token, machine ID, endpoint
+		assert.Len(t, opts, 4) // token, machine ID, endpoint, machine proof
+
+		op := &config.Op{}
+		require.NoError(t, op.ApplyOpts(opts))
+		assert.Equal(t, "machine-proof", op.SessionMachineProof)
+	})
+}
+
+func TestGetSessionCredentialsOptions_MachineProofReadError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	mockey.PatchConvey("getSessionCredentialsOptions machine proof read error", t, func() {
+		createTestStateFile(t, tmpDir)
+
+		mockey.Mock(config.ResolveDataDir).To(func(string) (string, error) {
+			return tmpDir, nil
+		}).Build()
+		mockey.Mock(pkgsqlite.Open).To(func(string, ...pkgsqlite.OpOption) (*sql.DB, error) {
+			return &sql.DB{}, nil
+		}).Build()
+		mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error { return nil }).Build()
+		mockey.Mock(pkgmetadata.ReadToken).To(func(context.Context, *sql.DB) (string, error) {
+			return "session-token", nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+			return "machine-id-123", nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
+			if key == pkgmetadata.MetadataKeyEndpoint {
+				return "https://stored.endpoint.com", nil
+			}
+			return "", errors.New("machine proof unavailable")
+		}).Build()
+
+		opts := getSessionCredentialsOptions(true, tmpDir, "")
+		require.Len(t, opts, 3)
 	})
 }
 

@@ -38,6 +38,18 @@ type metadataJSONOutput struct {
 	Updated       *metadataUpdatedEntry `json:"updated,omitempty"`
 }
 
+func maskMetadataValue(key, value string) string {
+	switch key {
+	case pkgmetadata.MetadataKeyToken:
+		return pkgmetadata.MaskToken(value)
+	case pkgmetadata.MetadataKeyMachineProof:
+		// Machine proof authorizes privileged session commands, so reveal none of it.
+		return "<redacted>"
+	default:
+		return value
+	}
+}
+
 func Command(cliContext *cli.Context) error {
 	outputFormat, err := gpudcommon.ParseOutputFormat(cliContext.String("output-format"))
 	if err != nil {
@@ -92,9 +104,7 @@ func Command(cliContext *cli.Context) error {
 
 	maskedMetadata := make(map[string]string, len(metadata))
 	for k, v := range metadata {
-		if k == pkgmetadata.MetadataKeyToken {
-			v = pkgmetadata.MaskToken(v)
-		}
+		v = maskMetadataValue(k, v)
 		maskedMetadata[k] = v
 		if outputFormat == gpudcommon.OutputFormatPlain {
 			fmt.Printf("%s: %s\n", k, v)
@@ -129,13 +139,14 @@ func Command(cliContext *cli.Context) error {
 		}()
 		log.Logger.Debugw("successfully opened state file for writing")
 
-		log.Logger.Debugw("setting metadata", "key", setKey, "value", setValue)
+		maskedSetValue := maskMetadataValue(setKey, setValue)
+		log.Logger.Debugw("setting metadata", "key", setKey, "value", maskedSetValue)
 		if err := pkgmetadata.SetMetadata(rootCtx, dbRW, setKey, setValue); err != nil {
 			return wrapErr("failed_to_update_metadata", fmt.Errorf("failed to update metadata: %w", err))
 		}
 		log.Logger.Debugw("successfully updated metadata")
 
-		updated = &metadataUpdatedEntry{Key: setKey, Value: setValue}
+		updated = &metadataUpdatedEntry{Key: setKey, Value: maskedSetValue}
 		if outputFormat == gpudcommon.OutputFormatPlain {
 			fmt.Printf("%s successfully updated metadata\n", cmdcommon.CheckMark)
 		}

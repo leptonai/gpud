@@ -142,6 +142,15 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 
 	case "getToken":
 		s.processGetToken(response)
+
+	case "kapMTLSStatus":
+		s.processKAPMTLSStatus(ctx, response)
+
+	case "updateKAPMTLSCredentials":
+		s.processUpdateKAPMTLSCredentials(ctx, payload, response)
+
+	case "activateKAPMTLS":
+		s.processActivateKAPMTLS(ctx, response)
 	}
 
 	return false // Request is handled synchronously

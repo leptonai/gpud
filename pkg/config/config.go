@@ -119,6 +119,9 @@ type Config struct {
 	// This allows gpud up to pass the assigned machine ID from login to gpud run.
 	SessionMachineID string `json:"-"`
 
+	// SessionMachineProof is the per-machine proof returned by login.
+	SessionMachineProof string `json:"-"`
+
 	// SessionEndpoint is the control plane endpoint.
 	// Used when DBInMemory is true and session credentials are passed via CLI flags.
 	// This allows gpud up to pass the endpoint from login to gpud run.

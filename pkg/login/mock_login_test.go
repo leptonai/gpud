@@ -977,6 +977,7 @@ func TestLogin_Success(t *testing.T) {
 	mockey.PatchConvey("successful login", t, func() {
 		mockDB := &sql.DB{}
 		mockNVML := nvidianvml.NewNoOp()
+		machineProofPersisted := false
 
 		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
 			return "/tmp/test", nil
@@ -1021,12 +1022,17 @@ func TestLogin_Success(t *testing.T) {
 
 		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
-				MachineID: "machine-123",
-				Token:     "session-token",
+				MachineID:    "machine-123",
+				Token:        "session-token",
+				MachineProof: "machine-proof",
 			}, nil
 		}).Build()
 
 		mockey.Mock(pkgmetadata.SetMetadata).To(func(ctx context.Context, db *sql.DB, key, value string) error {
+			if key == pkgmetadata.MetadataKeyMachineProof {
+				assert.Equal(t, "machine-proof", value)
+				machineProofPersisted = true
+			}
 			return nil
 		}).Build()
 
@@ -1047,6 +1053,7 @@ func TestLogin_Success(t *testing.T) {
 
 		err := Login(ctx, cfg)
 		require.NoError(t, err)
+		assert.True(t, machineProofPersisted)
 	})
 }
 

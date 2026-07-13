@@ -192,6 +192,11 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyEndpoint, config.SessionEndpoint); err != nil {
 			return nil, fmt.Errorf("failed to seed endpoint: %w", err)
 		}
+		if config.SessionMachineProof != "" {
+			if err := pkgmetadata.SetMetadata(ctx, dbRW, pkgmetadata.MetadataKeyMachineProof, config.SessionMachineProof); err != nil {
+				return nil, fmt.Errorf("failed to seed machine proof: %w", err)
+			}
+		}
 	}
 
 	eventsRetentionPeriod := config.EventsRetentionPeriod.Duration
@@ -596,6 +601,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 	}
 
 	if userToken != "" {
+		machineProof := s.readMachineProof(ctx)
 		var err error
 		s.session, err = session.NewSession(
 			ctx,
@@ -604,6 +610,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			userToken,
 			session.WithAuditLogger(s.auditLogger),
 			session.WithMachineID(machineID),
+			session.WithMachineProof(machineProof),
 			session.WithPipeInterval(3*time.Second),
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -667,6 +674,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			if s.session != nil {
 				s.session.Stop()
 			}
+			machineProof := s.readMachineProof(ctx)
 			s.session, err = session.NewSession(
 				ctx,
 				s.epLocalGPUdServer,
@@ -674,6 +682,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				userToken,
 				session.WithAuditLogger(s.auditLogger),
 				session.WithMachineID(machineID),
+				session.WithMachineProof(machineProof),
 				session.WithPipeInterval(3*time.Second),
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
@@ -697,6 +706,18 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 
 		time.Sleep(time.Second)
 	}
+}
+
+func (s *Server) readMachineProof(ctx context.Context) string {
+	if s.dbRO == nil {
+		return ""
+	}
+	machineProof, err := pkgmetadata.ReadMetadata(ctx, s.dbRO, pkgmetadata.MetadataKeyMachineProof)
+	if err != nil {
+		log.Logger.Warnw("failed to read machine proof", "error", err)
+		return ""
+	}
+	return machineProof
 }
 
 func WriteToken(token string, fifoFile string) error {

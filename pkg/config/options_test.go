@@ -147,6 +147,7 @@ func TestDBInMemoryWithSessionCredentials(t *testing.T) {
 		WithDBInMemory(true),
 		WithSessionToken("session-token-from-login-response"),
 		WithSessionMachineID("assigned-machine-id-from-login-response"),
+		WithSessionMachineProof("machine-proof-from-login-response"),
 		WithSessionEndpoint("https://api.example.com"),
 	}
 
@@ -156,6 +157,7 @@ func TestDBInMemoryWithSessionCredentials(t *testing.T) {
 	assert.True(t, op.DBInMemory)
 	assert.Equal(t, "session-token-from-login-response", op.SessionToken)
 	assert.Equal(t, "assigned-machine-id-from-login-response", op.SessionMachineID)
+	assert.Equal(t, "machine-proof-from-login-response", op.SessionMachineProof)
 	assert.Equal(t, "https://api.example.com", op.SessionEndpoint)
 }
 

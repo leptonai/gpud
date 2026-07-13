@@ -48,6 +48,10 @@ type Request struct {
 
 	// Token is the new token to update on the agent side.
 	Token string `json:"token,omitempty"`
+
+	// KAPMTLSCredentials carries short-lived client credentials for the
+	// node-local KAP mTLS agent. The private key must never be logged.
+	KAPMTLSCredentials *KAPMTLSCredentialsRequest `json:"kap_mtls_credentials,omitempty"`
 }
 
 // Response is the response from GPUd to the control plane.
@@ -76,6 +80,33 @@ type Response struct {
 
 	// Token is the current token value from the agent.
 	Token string `json:"token,omitempty"`
+
+	// KAPMTLSStatus contains only non-secret credential and process metadata.
+	KAPMTLSStatus *KAPMTLSStatus `json:"kap_mtls_status,omitempty"`
+}
+
+type KAPMTLSCredentialsRequest struct {
+	CertificatePEM       []byte `json:"certificate_pem"`
+	PrivateKeyPEM        []byte `json:"private_key_pem"`
+	GatewayCAPEM         []byte `json:"gateway_ca_pem"`
+	GatewayEndpoint      string `json:"gateway_endpoint"`
+	ServerName           string `json:"server_name"`
+	ClientCAFingerprint  string `json:"client_ca_fingerprint"`
+	GatewayCAFingerprint string `json:"gateway_ca_fingerprint"`
+}
+
+type KAPMTLSStatus struct {
+	CredentialsInstalled bool      `json:"credentials_installed"`
+	CertificateSerial    string    `json:"certificate_serial,omitempty"`
+	CertificateNotAfter  time.Time `json:"certificate_not_after,omitempty"`
+	AgentInstalled       bool      `json:"agent_installed"`
+	AgentActive          bool      `json:"agent_active"`
+	AgentReady           bool      `json:"agent_ready"`
+	AgentVersion         string    `json:"agent_version,omitempty"`
+	GatewayEndpoint      string    `json:"gateway_endpoint,omitempty"`
+	ServerName           string    `json:"server_name,omitempty"`
+	ClientCAFingerprint  string    `json:"client_ca_fingerprint,omitempty"`
+	GatewayCAFingerprint string    `json:"gateway_ca_fingerprint,omitempty"`
 }
 
 type BootstrapRequest struct {
@@ -118,7 +149,7 @@ func (s *Session) serve() {
 			log.WithStage("RequestDecoded"),
 			log.WithRequestURI(s.epControlPlane+"/api/v1/session"),
 			log.WithVerb(payload.Method),
-			log.WithData(payload),
+			log.WithData(auditSessionRequestData(body.Data)),
 		)
 
 		restartExitCode := -1
