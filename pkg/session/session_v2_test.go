@@ -8,13 +8,17 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
+	"strings"
 	"testing"
 	"time"
 
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	sessionv2 "github.com/leptonai/gpud/pkg/session/v2"
 )
@@ -29,6 +33,12 @@ type recordingSessionV2ClientStream struct {
 	sent *sessionv2.AgentEnvelope
 }
 
+type scriptedSessionV2ClientStream struct {
+	grpc.ClientStream
+	send func(*sessionv2.AgentEnvelope) error
+	recv func() (*sessionv2.ManagerEnvelope, error)
+}
+
 func (s *recordingSessionV2ClientStream) Send(envelope *sessionv2.AgentEnvelope) error {
 	s.sent = envelope
 	return nil
@@ -36,6 +46,14 @@ func (s *recordingSessionV2ClientStream) Send(envelope *sessionv2.AgentEnvelope)
 
 func (s *recordingSessionV2ClientStream) Recv() (*sessionv2.ManagerEnvelope, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (s *scriptedSessionV2ClientStream) Send(envelope *sessionv2.AgentEnvelope) error {
+	return s.send(envelope)
+}
+
+func (s *scriptedSessionV2ClientStream) Recv() (*sessionv2.ManagerEnvelope, error) {
+	return s.recv()
 }
 
 func (s testSessionV2Server) Connect(stream sessionv2.SessionService_ConnectServer) error {
@@ -156,6 +174,335 @@ func TestClassifyV2ErrorMarksUnsupportedForAutoFallback(t *testing.T) {
 	}
 }
 
+func TestClassifyV2Error(t *testing.T) {
+	retryStatus, err := status.New(codes.Unavailable, "retry later").WithDetails(&errdetails.RetryInfo{
+		RetryDelay: durationpb.New(3 * time.Second),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name        string
+		err         error
+		statusCode  int
+		authFailure bool
+		retryAfter  time.Duration
+	}{
+		{name: "nil"},
+		{name: "plain", err: errors.New("plain")},
+		{name: "resource exhausted", err: status.Error(codes.ResourceExhausted, "full"), statusCode: http.StatusTooManyRequests},
+		{name: "unavailable with retry", err: retryStatus.Err(), statusCode: http.StatusServiceUnavailable, retryAfter: 3 * time.Second},
+		{name: "unauthenticated", err: status.Error(codes.Unauthenticated, "bad token"), statusCode: http.StatusUnauthorized, authFailure: true},
+		{name: "permission denied", err: status.Error(codes.PermissionDenied, "wrong owner"), statusCode: http.StatusForbidden, authFailure: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sig := classifyV2Error(tt.err)
+			if sig.side != reconnectSideSingle || sig.statusCode != tt.statusCode || sig.authFailure != tt.authFailure || sig.retryAfter != tt.retryAfter {
+				t.Fatalf("classifyV2Error(%v) = %+v", tt.err, sig)
+			}
+			if tt.err != nil && sig.reason == "" {
+				t.Fatal("classified error is missing a reason")
+			}
+		})
+	}
+}
+
+func TestKeepAliveV2RetriesAndFallsBack(t *testing.T) {
+	t.Run("retry exits when reconnect wait is canceled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		endpoint := startTestSessionV2Server(t, func(sessionv2.SessionService_ConnectServer) error {
+			return status.Error(codes.Unavailable, "try again")
+		})
+		nowCalls := 0
+		s := &Session{
+			ctx:            ctx,
+			epControlPlane: endpoint,
+			reader:         make(chan Body, 1),
+			writer:         make(chan Body, 1),
+			jitterFunc: func(max time.Duration) time.Duration {
+				if max == startupJitterMax {
+					return 0
+				}
+				return time.Millisecond
+			},
+			timeAfterFunc: func(time.Duration) <-chan time.Time {
+				cancel()
+				return make(chan time.Time)
+			},
+			nowFunc: func() time.Time {
+				nowCalls++
+				if nowCalls == 1 {
+					return time.Unix(0, 0)
+				}
+				return time.Unix(0, 0).Add(reconnectStableWindow)
+			},
+		}
+		s.keepAliveV2(false)
+		if ctx.Err() == nil {
+			t.Fatal("reconnect wait did not cancel the session context")
+		}
+	})
+
+	t.Run("auto falls back only on unimplemented", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		endpoint := startTestSessionV2Server(t, func(sessionv2.SessionService_ConnectServer) error {
+			return status.Error(codes.Unimplemented, "v2 unavailable")
+		})
+		s := &Session{
+			ctx:            ctx,
+			epControlPlane: endpoint,
+			reader:         make(chan Body, 1),
+			writer:         make(chan Body, 1),
+			jitterFunc:     func(time.Duration) time.Duration { return 0 },
+			checkServerHealthFunc: func(context.Context, *cookiejar.Jar, string) error {
+				cancel()
+				return errors.New("stop legacy fallback")
+			},
+		}
+		s.keepAliveV2(true)
+	})
+}
+
+func TestKeepAliveSelectsV2Protocols(t *testing.T) {
+	for _, protocol := range []Protocol{ProtocolV2, ProtocolAuto} {
+		t.Run(string(protocol), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			s := &Session{ctx: ctx, protocol: protocol}
+			s.keepAlive()
+		})
+	}
+}
+
+func TestRunV2ConnectionRejectsInvalidManagerMessages(t *testing.T) {
+	tests := []struct {
+		name       string
+		first      *sessionv2.ManagerEnvelope
+		followup   *sessionv2.ManagerEnvelope
+		reader     chan Body
+		statusCode int
+		reason     string
+	}{
+		{name: "invalid hello acknowledgement", first: &sessionv2.ManagerEnvelope{}, reason: "invalid v2 hello acknowledgement"},
+		{name: "missing command id", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Command{Command: &sessionv2.Command{}}}, reason: "invalid v2 command"},
+		{name: "full command queue", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Command{Command: &sessionv2.Command{RequestId: "r1"}}}, reader: make(chan Body), statusCode: http.StatusTooManyRequests, reason: "agent command queue is full"},
+		{name: "drain notice", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_DrainNotice{DrainNotice: &sessionv2.DrainNotice{ReconnectAfterMillis: 250}}}, statusCode: http.StatusServiceUnavailable, reason: "manager draining"},
+		{name: "unexpected message", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{ProtocolRevision: sessionv2.ProtocolRevision}}}, reason: "unexpected v2 manager message"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			endpoint := startTestSessionV2Server(t, func(stream sessionv2.SessionService_ConnectServer) error {
+				if _, err := stream.Recv(); err != nil {
+					return err
+				}
+				first := tt.first
+				if first == nil {
+					first = &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{
+						ProtocolRevision: sessionv2.ProtocolRevision,
+					}}}
+				}
+				if err := stream.Send(first); err != nil {
+					return err
+				}
+				if tt.followup != nil {
+					if err := stream.Send(tt.followup); err != nil {
+						return err
+					}
+				}
+				<-stream.Context().Done()
+				return stream.Context().Err()
+			})
+			reader := tt.reader
+			if reader == nil {
+				reader = make(chan Body, 1)
+			}
+			s := &Session{epControlPlane: endpoint, reader: reader, writer: make(chan Body, 1)}
+			sig := s.runV2Connection(ctx)
+			if sig.statusCode != tt.statusCode || sig.reason != tt.reason {
+				t.Fatalf("runV2Connection() = %+v", sig)
+			}
+			if tt.name == "drain notice" && sig.retryAfter != 250*time.Millisecond {
+				t.Fatalf("retryAfter = %s", sig.retryAfter)
+			}
+		})
+	}
+}
+
+func TestRunV2ConnectionReturnsTransportFailures(t *testing.T) {
+	t.Run("invalid endpoint", func(t *testing.T) {
+		s := &Session{epControlPlane: "%", reader: make(chan Body, 1), writer: make(chan Body, 1)}
+		sig := s.runV2Connection(context.Background())
+		if sig.reason == "" || sig.err == nil {
+			t.Fatalf("runV2Connection() = %+v", sig)
+		}
+	})
+
+	t.Run("closed response queue", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		endpoint := startTestSessionV2Server(t, func(stream sessionv2.SessionService_ConnectServer) error {
+			if _, err := stream.Recv(); err != nil {
+				return err
+			}
+			if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{
+				ProtocolRevision:         sessionv2.ProtocolRevision,
+				HeartbeatIntervalSeconds: 60,
+			}}}); err != nil {
+				return err
+			}
+			<-stream.Context().Done()
+			return stream.Context().Err()
+		})
+		writer := make(chan Body)
+		close(writer)
+		s := &Session{epControlPlane: endpoint, reader: make(chan Body, 1), writer: writer}
+		sig := s.runV2Connection(ctx)
+		if sig.reason != "session response queue closed" {
+			t.Fatalf("runV2Connection() = %+v", sig)
+		}
+	})
+
+	t.Run("heartbeat watchdog", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		endpoint := startTestSessionV2Server(t, func(stream sessionv2.SessionService_ConnectServer) error {
+			if _, err := stream.Recv(); err != nil {
+				return err
+			}
+			if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{
+				ProtocolRevision:         sessionv2.ProtocolRevision,
+				HeartbeatIntervalSeconds: 1,
+			}}}); err != nil {
+				return err
+			}
+			for {
+				if _, err := stream.Recv(); err != nil {
+					return err
+				}
+			}
+		})
+		s := &Session{epControlPlane: endpoint, reader: make(chan Body, 1), writer: make(chan Body, 1)}
+		sig := s.runV2Connection(ctx)
+		if !strings.Contains(sig.reason, "heartbeat acknowledgement") {
+			t.Fatalf("runV2Connection() = %+v", sig)
+		}
+	})
+}
+
+func TestSendV2Messages(t *testing.T) {
+	t.Run("canceled context", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		s := &Session{writer: make(chan Body)}
+		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return nil }}
+		if err := s.sendV2Messages(ctx, stream, time.Hour, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+
+	t.Run("closed response queue", func(t *testing.T) {
+		writer := make(chan Body)
+		close(writer)
+		s := &Session{writer: writer}
+		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return nil }}
+		if err := s.sendV2Messages(context.Background(), stream, time.Hour, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); err == nil {
+			t.Fatal("closed response queue did not fail")
+		}
+	})
+
+	t.Run("command result is sent", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		s := &Session{writer: make(chan Body, 1)}
+		s.writer <- Body{ReqID: "r1", Data: []byte(`{}`)}
+		stream := &scriptedSessionV2ClientStream{send: func(envelope *sessionv2.AgentEnvelope) error {
+			if envelope.GetCommandResult().GetRequestId() != "r1" {
+				t.Fatalf("unexpected envelope: %v", envelope)
+			}
+			cancel()
+			return nil
+		}}
+		if err := s.sendV2Messages(ctx, stream, time.Hour, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+
+	t.Run("command result send error", func(t *testing.T) {
+		wantErr := errors.New("send failed")
+		s := &Session{writer: make(chan Body, 1)}
+		s.writer <- Body{ReqID: "r1"}
+		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return wantErr }}
+		if err := s.sendV2Messages(context.Background(), stream, time.Hour, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); !errors.Is(err, wantErr) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+
+	t.Run("heartbeat is sent", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		s := &Session{writer: make(chan Body)}
+		heartbeats := make(chan uint64, 1)
+		stream := &scriptedSessionV2ClientStream{send: func(envelope *sessionv2.AgentEnvelope) error {
+			if envelope.GetHeartbeat().GetSequence() != 1 {
+				t.Fatalf("unexpected envelope: %v", envelope)
+			}
+			cancel()
+			return nil
+		}}
+		if err := s.sendV2Messages(ctx, stream, time.Millisecond, sessionv2.DefaultMaxMessageBytes, heartbeats); !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v", err)
+		}
+		if sequence := <-heartbeats; sequence != 1 {
+			t.Fatalf("sequence = %d", sequence)
+		}
+	})
+
+	t.Run("heartbeat send error", func(t *testing.T) {
+		wantErr := errors.New("heartbeat send failed")
+		s := &Session{writer: make(chan Body)}
+		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return wantErr }}
+		if err := s.sendV2Messages(context.Background(), stream, time.Millisecond, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); !errors.Is(err, wantErr) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+}
+
+func TestMonitorV2HeartbeatAcknowledgementAndCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	sent := make(chan uint64, 1)
+	acks := make(chan uint64, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- monitorV2Heartbeat(ctx, time.Second, sent, acks)
+	}()
+	sent <- 1
+	time.Sleep(10 * time.Millisecond)
+	acks <- 1
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestNewV2ClientConn(t *testing.T) {
+	for _, endpoint := range []string{"http://127.0.0.1", "https://gpud-gateway.example.com"} {
+		conn, err := newV2ClientConn(endpoint)
+		if err != nil {
+			t.Fatalf("newV2ClientConn(%q) error = %v", endpoint, err)
+		}
+		_ = conn.Close()
+	}
+	for _, endpoint := range []string{"%", "ftp://gpud-gateway.example.com:21"} {
+		if conn, err := newV2ClientConn(endpoint); err == nil {
+			_ = conn.Close()
+			t.Fatalf("newV2ClientConn(%q) succeeded", endpoint)
+		}
+	}
+}
+
 func TestReceiveFirstManagerV2MessageTimesOut(t *testing.T) {
 	endpoint := startTestSessionV2Server(t, func(stream sessionv2.SessionService_ConnectServer) error {
 		if _, err := stream.Recv(); err != nil {
@@ -246,6 +593,8 @@ func TestParseV2EndpointAddsDefaultPort(t *testing.T) {
 		{name: "userinfo", endpoint: "https://user@gpud-gateway.example.com", wantErr: true},
 		{name: "base path", endpoint: "https://gpud-gateway.example.com/base", wantErr: true},
 		{name: "query", endpoint: "https://gpud-gateway.example.com?x=1", wantErr: true},
+		{name: "fragment", endpoint: "https://gpud-gateway.example.com#fragment", wantErr: true},
+		{name: "unsupported scheme", endpoint: "ftp://gpud-gateway.example.com", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

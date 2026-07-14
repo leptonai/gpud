@@ -3,7 +3,10 @@
 
 package session
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestParseProtocol(t *testing.T) {
 	tests := []struct {
@@ -27,5 +30,19 @@ func TestParseProtocol(t *testing.T) {
 				t.Fatalf("parseProtocol(%q) = %q, want %q", tt.value, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestWithProtocol(t *testing.T) {
+	op := &Op{}
+	WithProtocol("v2")(op)
+	if op.protocol != ProtocolV2 {
+		t.Fatalf("protocol = %q, want %q", op.protocol, ProtocolV2)
+	}
+}
+
+func TestNewSessionRejectsInvalidProtocol(t *testing.T) {
+	if _, err := NewSession(context.Background(), "", "", "", WithProtocol("future")); err == nil {
+		t.Fatal("NewSession accepted an unsupported protocol")
 	}
 }

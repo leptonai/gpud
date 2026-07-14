@@ -89,6 +89,12 @@ func TestWriteEnvFileRejectsInvalidSessionProtocol(t *testing.T) {
 	require.ErrorIs(t, statErr, os.ErrNotExist)
 }
 
+func TestWriteEnvFileRejectsMultipleSessionProtocols(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gpud.env")
+	err := writeEnvFile(path, "", "", false, "v1", "v2")
+	require.ErrorContains(t, err, "expected at most one session protocol")
+}
+
 func TestProcessEnvFileLines(t *testing.T) {
 	t.Run("file without FLAGS", func(t *testing.T) {
 		// Create a temporary directory for testing
