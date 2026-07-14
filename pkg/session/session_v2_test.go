@@ -210,6 +210,28 @@ func TestClassifyV2Error(t *testing.T) {
 }
 
 func TestKeepAliveV2RetriesAndFallsBack(t *testing.T) {
+	t.Run("context cancellation during connection stops retries", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		endpoint := startTestSessionV2Server(t, func(stream sessionv2.SessionService_ConnectServer) error {
+			if _, err := stream.Recv(); err != nil {
+				return err
+			}
+			cancel()
+			return status.Error(codes.Unavailable, "connection canceled")
+		})
+		s := &Session{
+			ctx:            ctx,
+			epControlPlane: endpoint,
+			reader:         make(chan Body, 1),
+			writer:         make(chan Body, 1),
+			jitterFunc:     func(time.Duration) time.Duration { return 0 },
+		}
+		s.keepAliveV2(false)
+		if !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatalf("context error = %v", ctx.Err())
+		}
+	})
+
 	t.Run("retry exits when reconnect wait is canceled", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		endpoint := startTestSessionV2Server(t, func(sessionv2.SessionService_ConnectServer) error {
