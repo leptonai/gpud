@@ -36,10 +36,9 @@ func Test_detailFromNVLinkInfo_StatusSpecific(t *testing.T) {
 	detailFatal, ok := detailFromNVLinkInfo(infoFatal)
 	require.True(t, ok)
 	assert.Equal(t, apiv1.EventTypeFatal, detailFatal.EventType)
-	// Suggested action comes from go-health, independent of the NVLink rule.
+	// Suggested action should come from the rule (RESET_GPU -> RebootSystem)
 	require.NotNil(t, detailFatal.SuggestedActionsByGPUd)
-	assert.Equal(t, "workflow_nvlink5_err", detailFatal.SuggestedActionsByGPUd.Description)
-	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, detailFatal.SuggestedActionsByGPUd.RepairActions)
+	assert.Contains(t, detailFatal.SuggestedActionsByGPUd.RepairActions, apiv1.RepairActionTypeRebootSystem)
 
 	// Unknown errorStatus should fall back to base/subcode detail (warning)
 	infoUnknown := &ExtractedInfo{

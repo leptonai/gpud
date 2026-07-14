@@ -520,7 +520,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		{
 			name: "nvlink config",
 			configMap: map[string]string{
-				"accelerator-nvidia-nvlink": `{"max_inactive_nvlinks": 8}`,
+				"accelerator-nvidia-nvlink": `{"at_least_gpus_with_all_links_feature_enabled": 8}`,
 			},
 			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				// This gets called with empty config due to fallback behavior
@@ -528,7 +528,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 				assert.Equal(t, 0, states.AtLeastRate)
 			},
 			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
-				assert.Equal(t, 8, states.MaxInactiveNVLinks)
+				assert.Equal(t, 8, states.AtLeastGPUsWithAllLinksFeatureEnabled)
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				// This gets called with empty config due to fallback behavior
@@ -563,7 +563,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 		{
 			name: "invalid nvlink config - malformed JSON",
 			configMap: map[string]string{
-				"accelerator-nvidia-nvlink": `{"max_inactive_nvlinks":}`,
+				"accelerator-nvidia-nvlink": `{"at_least_gpus_with_all_links_feature_enabled":}`,
 			},
 			setDefaultIbExpectedPortStatesFunc: func(states componentsnvidiainfinibanditypes.ExpectedPortStates) {
 				t.Error("setDefaultIbExpectedPortStatesFunc should not be called for nvlink config")
@@ -742,7 +742,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
 				nvlinkCallCount++
 				// This gets called with empty config due to fallback behavior
-				assert.Equal(t, 0, states.MaxInactiveNVLinks)
+				assert.Equal(t, 0, states.AtLeastGPUsWithAllLinksFeatureEnabled)
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				nfsCallCount++
@@ -812,7 +812,7 @@ func TestProcessUpdateConfig(t *testing.T) {
 			setDefaultNVLinkExpectedLinkStatesFunc: func(states componentsnvidianvlink.ExpectedLinkStates) {
 				nvlinkCallCount++
 				// This gets called with empty config due to fallback behavior
-				assert.Equal(t, 0, states.MaxInactiveNVLinks)
+				assert.Equal(t, 0, states.AtLeastGPUsWithAllLinksFeatureEnabled)
 			},
 			setDefaultNFSGroupConfigsFunc: func(cfgs pkgnfschecker.Configs) {
 				nfsCallCount++

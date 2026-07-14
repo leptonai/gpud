@@ -48,7 +48,7 @@ func (m *mockNVMLInstance) GetMemoryErrorManagementCapabilities() nvidiaproduct.
 }
 
 func (m *mockNVMLInstance) ProductName() string {
-	return "NVIDIA H100"
+	return "NVIDIA Test GPU"
 }
 
 func (m *mockNVMLInstance) Architecture() string {
@@ -200,15 +200,6 @@ func TestTags(t *testing.T) {
 	assert.Len(t, tags, 4, "Component should return exactly 4 tags")
 }
 
-func TestGoHealthArchitecture(t *testing.T) {
-	assert.Equal(t, "GB300", goHealthArchitecture("NVIDIA GB300", "blackwell"))
-	assert.Equal(t, "GB200", goHealthArchitecture("NVIDIA-Graphics-Device", "blackwell"))
-	assert.Equal(t, "H200", goHealthArchitecture("NVIDIA H200", "hopper"))
-	assert.Equal(t, "H100", goHealthArchitecture("NVIDIA H100", "hopper"))
-	assert.Equal(t, "A100", goHealthArchitecture("NVIDIA A100", "ampere"))
-	assert.Equal(t, "unknown", goHealthArchitecture("NVIDIA GH200", "hopper"))
-}
-
 func TestCheckOnce_Success(t *testing.T) {
 	ctx := context.Background()
 
@@ -318,7 +309,7 @@ func TestCheckOnce_NoDevices(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "no devices should not fail this component")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
 	assert.Equal(t, "all 0 GPU(s) were checked, no nvlink issue found", lastCheckResult.reason)
 	assert.Empty(t, lastCheckResult.NVLinks)
 }
@@ -819,7 +810,7 @@ func TestCheck_MetricsGeneration(t *testing.T) {
 	component.lastMu.RUnlock()
 
 	require.NotNil(t, lastCheckResult, "lastCheckResult should not be nil")
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, lastCheckResult.health, "inactive links should be unhealthy")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, lastCheckResult.health, "data should be marked healthy")
 	assert.Len(t, lastCheckResult.NVLinks, 1)
 
 	// The actual metrics are set using prometheus counters which we can't directly test here
@@ -965,7 +956,7 @@ func TestCheck_ThresholdViolationInactive(t *testing.T) {
 		return nvLink, nil
 	}))
 	component.getThresholdsFunc = func() ExpectedLinkStates {
-		return ExpectedLinkStates{MaxInactiveNVLinks: 0}
+		return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 1}
 	}
 
 	result := component.Check()
@@ -974,14 +965,11 @@ func TestCheck_ThresholdViolationInactive(t *testing.T) {
 
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, []string{uuid}, cr.InactiveNVLinkUUIDs)
-	assert.Contains(t, cr.reason, "1 inactive NVLinks")
+	assert.Contains(t, cr.reason, "threshold violated")
 	assert.Contains(t, cr.reason, uuid)
-	require.NotNil(t, cr.suggestedActions)
-	assert.Equal(t, "retest_hardware", cr.suggestedActions.Description)
-	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, cr.suggestedActions.RepairActions)
 }
 
-func TestCheck_UnsupportedSingleGPUDoesNotTriggerSelectedChecks(t *testing.T) {
+func TestCheck_ThresholdViolationUnsupported(t *testing.T) {
 	ctx := context.Background()
 	uuid := "gpu-uuid-unsupported"
 	mockDeviceObj := &mock.Device{
@@ -1006,20 +994,21 @@ func TestCheck_UnsupportedSingleGPUDoesNotTriggerSelectedChecks(t *testing.T) {
 		return nvLink, nil
 	}))
 	component.getThresholdsFunc = func() ExpectedLinkStates {
-		return ExpectedLinkStates{MaxInactiveNVLinks: 0}
+		return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 1}
 	}
 
 	result := component.Check()
 	cr, ok := result.(*checkResult)
 	require.True(t, ok)
 
-	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Equal(t, []string{uuid}, cr.UnsupportedNVLinkUUIDs)
-	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", cr.reason)
+	assert.Contains(t, cr.reason, "threshold violated")
+	assert.Contains(t, cr.reason, uuid)
 	assert.Empty(t, cr.InactiveNVLinkUUIDs)
 }
 
-func TestCheck_GoHealthThresholdOverrideSatisfied(t *testing.T) {
+func TestCheck_ThresholdSatisfied(t *testing.T) {
 	ctx := context.Background()
 	uuid := "gpu-uuid-healthy"
 	mockDeviceObj := &mock.Device{
@@ -1039,7 +1028,7 @@ func TestCheck_GoHealthThresholdOverrideSatisfied(t *testing.T) {
 		UUID:      uuid,
 		Supported: true,
 		States: []NVLinkState{
-			{FeatureEnabled: false},
+			{FeatureEnabled: true},
 		},
 	}
 
@@ -1047,7 +1036,7 @@ func TestCheck_GoHealthThresholdOverrideSatisfied(t *testing.T) {
 		return nvLink, nil
 	}))
 	component.getThresholdsFunc = func() ExpectedLinkStates {
-		return ExpectedLinkStates{MaxInactiveNVLinks: 1}
+		return ExpectedLinkStates{AtLeastGPUsWithAllLinksFeatureEnabled: 1}
 	}
 
 	result := component.Check()
@@ -1055,8 +1044,8 @@ func TestCheck_GoHealthThresholdOverrideSatisfied(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Equal(t, "all 1 GPU(s) were checked, no nvlink issue found", cr.reason)
-	assert.Equal(t, []string{uuid}, cr.InactiveNVLinkUUIDs)
+	assert.Contains(t, cr.reason, "threshold satisfied")
+	assert.Empty(t, cr.InactiveNVLinkUUIDs)
 	assert.Empty(t, cr.UnsupportedNVLinkUUIDs)
 }
 
@@ -1095,9 +1084,7 @@ func TestCheck_ImplicitFailureWhenMultiGPUSystemHasNoActiveNVLink(t *testing.T) 
 	assert.True(t, cr.SystemExpectedNVLink)
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
 	assert.Len(t, cr.UnsupportedNVLinkUUIDs, 2)
-	assert.Contains(t, cr.reason, "NVLink state unavailable")
-	require.NotNil(t, cr.suggestedActions)
-	assert.Equal(t, "check_collection", cr.suggestedActions.Description)
+	assert.Contains(t, cr.reason, "no GPUs report active nvlink links")
 }
 
 func TestCheck_ImplicitFailureWhenMultiGPUSystemHasNoPeerNVLinkP2PConnectivity(t *testing.T) {
@@ -1145,10 +1132,9 @@ func TestCheck_ImplicitFailureWhenMultiGPUSystemHasNoPeerNVLinkP2PConnectivity(t
 	assert.Equal(t, 0, cr.PeerNVLinkOKPairCount)
 	assert.Equal(t, []string{p2pStatusNotSupported}, cr.PeerNVLinkObservedStatusCodes)
 	assert.Empty(t, cr.PeerNVLinkOKGPUUUIDs)
-	assert.Contains(t, cr.reason, "1 peer GPUs unreachable over NVLink P2P")
-	require.NotNil(t, cr.suggestedActions)
-	assert.Equal(t, "contact_support", cr.suggestedActions.Description)
-	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, cr.suggestedActions.RepairActions)
+	assert.Contains(t, cr.reason, "no GPU pairs report NVLink P2P connectivity")
+	assert.Contains(t, cr.reason, "peer nvlink p2p statuses=NS")
+	assert.Nil(t, cr.suggestedActions)
 	assert.Contains(t, cr.String(), "NVLINK P2P OK")
 }
 
@@ -1200,7 +1186,7 @@ func TestCheck_PeerNVLinkP2POKKeepsHealthyWithoutThreshold(t *testing.T) {
 	assert.Equal(t, "all 2 GPU(s) were checked, no nvlink issue found", cr.reason)
 }
 
-func TestCheck_PartialPeerNVLinkP2PCoverageIsUnhealthy(t *testing.T) {
+func TestCheck_PartialPeerNVLinkP2PCoverageDoesNotTriggerImplicitFailure(t *testing.T) {
 	ctx := context.Background()
 
 	devs := map[string]device.Device{
@@ -1245,15 +1231,14 @@ func TestCheck_PartialPeerNVLinkP2PCoverageIsUnhealthy(t *testing.T) {
 	require.True(t, ok)
 
 	assert.True(t, cr.SystemExpectedNVLink)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Contains(t, cr.reason, "measurement unavailable: mock p2p probe failure")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "all 3 GPU(s) were checked, no nvlink issue found", cr.reason)
 	assert.Equal(t, 1, cr.PeerNVLinkProbePairCount)
 	assert.Equal(t, 3, cr.PeerNVLinkExpectedPairCount)
 	assert.Equal(t, 0, cr.PeerNVLinkOKPairCount)
 	assert.Equal(t, []string{p2pStatusNotSupported}, cr.PeerNVLinkObservedStatusCodes)
 	assert.Empty(t, cr.PeerNVLinkOKGPUUUIDs)
-	require.NotNil(t, cr.suggestedActions)
-	assert.Equal(t, "check_collection", cr.suggestedActions.Description)
+	assert.Nil(t, cr.suggestedActions)
 }
 
 func TestCheck_MultiGPUWithoutExpectedNVLinkStillSkipsByDefault(t *testing.T) {
@@ -1394,7 +1379,7 @@ func TestCheck_SingleGPUSystemDoesNotExpectNVLinkByDefault(t *testing.T) {
 	assert.Equal(t, []string{"gpu-uuid-0"}, cr.UnsupportedNVLinkUUIDs)
 }
 
-func TestCheck_PartialActiveNVLinkUsesGoHealthPolicy(t *testing.T) {
+func TestCheck_PartialActiveNVLinkWithoutThresholdRemainsHealthy(t *testing.T) {
 	ctx := context.Background()
 
 	devs := map[string]device.Device{
@@ -1443,12 +1428,10 @@ func TestCheck_PartialActiveNVLinkUsesGoHealthPolicy(t *testing.T) {
 	require.True(t, ok)
 
 	assert.True(t, cr.SystemExpectedNVLink)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Contains(t, cr.reason, "GPU gpu-uuid-1: 1 inactive NVLinks")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Equal(t, "all 2 GPU(s) were checked, no nvlink issue found", cr.reason)
 	assert.Equal(t, []string{"gpu-uuid-0"}, cr.ActiveNVLinkUUIDs)
 	assert.Equal(t, []string{"gpu-uuid-1"}, cr.InactiveNVLinkUUIDs)
-	require.NotNil(t, cr.suggestedActions)
-	assert.Equal(t, "retest_hardware", cr.suggestedActions.Description)
 }
 
 // TestCheck_A100SXM4_8GPU_AllLinksActive_AllP2POK simulates a real 8-GPU
