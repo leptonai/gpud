@@ -116,7 +116,7 @@ func TestCommand_SuccessPath(t *testing.T) {
 			"infiniband-exclude-devices":             "mlx5_0, mlx5_1",
 			"components":                             "nvidia,xid",
 			"infiniband-expected-port-states":        `{"at_least_ports":2,"at_least_rate":100}`,
-			"nvlink-expected-link-states":            `{"at_least_gpus_with_all_links_feature_enabled":1}`,
+			"nvlink-expected-link-states":            `{"max_inactive_nvlinks":1}`,
 			"nfs-checker-configs":                    `[{"volume_path":"/tmp","dir_name":".gpud-nfs","file_contents":"ok"}]`,
 			"gpu-uuids-with-row-remapping-pending":   "GPU-AAA,GPU-BBB",
 			"gpu-uuids-with-row-remapping-failed":    "GPU-CCC",
@@ -199,7 +199,7 @@ func TestCommand_NoToken_SystemctlMissing(t *testing.T) {
 			"log-level":                       "debug",
 			"data-dir":                        tmpDir,
 			"infiniband-expected-port-states": `{"at_least_ports":1,"at_least_rate":50}`,
-			"nvlink-expected-link-states":     `{"at_least_gpus_with_all_links_feature_enabled":0}`,
+			"nvlink-expected-link-states":     `{"max_inactive_nvlinks":0}`,
 			"nfs-checker-configs":             `[]`,
 		},
 		boolFlags: map[string]bool{

@@ -6,24 +6,15 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-// ExpectedLinkStates defines the minimum healthy NVLink state across GPUs.
+// ExpectedLinkStates configures the adjustable go-health NVLink thresholds.
 type ExpectedLinkStates struct {
-	// AtLeastGPUsWithAllLinksFeatureEnabled is the expected/minimum number of GPUs with all links feature enabled.
-	// This is useful to detect the following scenarios:
-	// - DeviceGetNvLinkState() returns SUCCESS (not ERROR_NOT_SUPPORTED)
-	// - Each link returns state != FEATURE_ENABLED (they're FEATURE_DISABLED or inactive)
-	// - Thus, safe to assume that NVLink is supported (no NOT_SUPPORTED error)
-	// - But ALL links are inactive/disabled
-	// - (e.g., nvidia-smi returns "Unable to retrieve NVLink information as all links are inActive")
-	// e.g., if set to 8 and one GPU has some nvlinks feature disabled, it will be considered as unhealthy.
-	AtLeastGPUsWithAllLinksFeatureEnabled int `json:"at_least_gpus_with_all_links_feature_enabled"`
+	MaxInactiveNVLinks   int `json:"max_inactive_nvlinks"`
+	MaxUnhealthyP2PPeers int `json:"max_unhealthy_p2p_peers"`
 }
 
 var (
 	defaultExpectedLinkStatesMu sync.RWMutex
-	defaultExpectedLinkStates   = ExpectedLinkStates{
-		AtLeastGPUsWithAllLinksFeatureEnabled: 0,
-	}
+	defaultExpectedLinkStates   ExpectedLinkStates
 )
 
 // GetDefaultExpectedLinkStates returns the process-wide default NVLink thresholds.
@@ -35,23 +26,18 @@ func GetDefaultExpectedLinkStates() ExpectedLinkStates {
 
 // SetDefaultExpectedLinkStates updates the process-wide default NVLink thresholds.
 func SetDefaultExpectedLinkStates(states ExpectedLinkStates) {
-	// Validate and sanitize negative values
-	if states.AtLeastGPUsWithAllLinksFeatureEnabled < 0 {
-		log.Logger.Warnw("invalid negative threshold, treating as 0",
-			"at_least_gpus_with_all_links_feature_enabled", states.AtLeastGPUsWithAllLinksFeatureEnabled)
-		states.AtLeastGPUsWithAllLinksFeatureEnabled = 0
+	if states.MaxInactiveNVLinks < 0 {
+		log.Logger.Warnw("invalid negative threshold, treating as 0", "max_inactive_nvlinks", states.MaxInactiveNVLinks)
+		states.MaxInactiveNVLinks = 0
+	}
+	if states.MaxUnhealthyP2PPeers < 0 {
+		log.Logger.Warnw("invalid negative threshold, treating as 0", "max_unhealthy_p2p_peers", states.MaxUnhealthyP2PPeers)
+		states.MaxUnhealthyP2PPeers = 0
 	}
 
-	log.Logger.Infow("setting default expected link states", "at_least_gpus_with_all_links_feature_enabled", states.AtLeastGPUsWithAllLinksFeatureEnabled)
+	log.Logger.Infow("setting default expected link states", "thresholds", states)
 
 	defaultExpectedLinkStatesMu.Lock()
 	defer defaultExpectedLinkStatesMu.Unlock()
 	defaultExpectedLinkStates = states
-}
-
-// IsZero returns true if the expected link states are not set.
-// Treats non-positive values as unset to prevent malformed configs
-// from silently disabling NVLink health checks.
-func (s ExpectedLinkStates) IsZero() bool {
-	return s.AtLeastGPUsWithAllLinksFeatureEnabled <= 0
 }

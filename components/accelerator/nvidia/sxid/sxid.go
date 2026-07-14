@@ -29,6 +29,8 @@ type Detail struct {
 }
 
 // GetDetail returns the SXID detail for the given ID.
+// go-health-validation does not support SXID measurements or checks yet, so
+// GPUD's local SXID catalog remains authoritative for classification.
 func GetDetail(id int) (*Detail, bool) {
 	e, ok := details[id]
 	return &e, ok

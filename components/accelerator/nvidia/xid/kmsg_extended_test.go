@@ -465,40 +465,39 @@ func TestGetDetailWithSubCode(t *testing.T) {
 
 func TestMatchNVLinkExamples(t *testing.T) {
 	tests := []struct {
-		name           string
-		logLine        string
-		expectedSub    int
-		expectedDesc   string
-		expectedEvent  apiv1.EventType
-		expectedAction []apiv1.RepairActionType
+		name          string
+		logLine       string
+		expectedSub   int
+		expectedDesc  string
+		expectedEvent apiv1.EventType
 	}{
-		{"Log1 NETIR_BER_EVENT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_BER_EVENT Nonfatal XC0 i0 Link 03 (0x00086226 0x00000001 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR_BER_EVENT", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}},
-		{"Log2 RLW_RXPIPE", "NVRM: Xid (PCI:0018:01:00): 145, pid=876767, name=ray::WorkerDict, RLW_RXPIPE Nonfatal XC0 i0 Link 13 (0x0409a0c2 0x00000008 0x00000001 0x00000000 0x00100000 0x00000004)", 0, "RLW_RXPIPE", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}},
-		{"Log3 RLW_RXPIPE", "NVRM: Xid (PCI:0019:01:00): 145, pid=876766, name=ray::WorkerDict, RLW_RXPIPE Nonfatal XC0 i0 Link 12 (0x040980c2 0x00000008 0x00000001 0x00000000 0x00100000 0x00000004)", 0, "RLW_RXPIPE", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}},
-		{"Log4 NETIR_BER_EVENT", "NVRM: Xid (PCI:0008:01:00): 149, NETIR_BER_EVENT Nonfatal XC0 i0 Link 01 (0x00082226 0x00000001 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR_BER_EVENT", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}},
-		{"Log5 RLW_SRC_TRACK", "NVRM: Xid (PCI:0019:01:00): 145, RLW_SRC_TRACK Nonfatal XC1 i0 Link 12 (0x040988e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}},
-		{"Log6 NETIR Fatal", "NVRM: Xid (PCI:0019:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
-		{"Log7 RLW_SRC_TRACK", "NVRM: Xid (PCI:0008:01:00): 145, RLW_SRC_TRACK Nonfatal XC1 i0 Link 12 (0x040988e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}},
-		{"Log8 RLW_SRC_TRACK", "NVRM: Xid (PCI:0008:01:00): 145, pid=11436, name=cache_mgr_main, RLW_SRC_TRACK Nonfatal XC1 i0 Link 03 (0x040868e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}},
-		{"Log9 RLW_SRC_TRACK", "NVRM: Xid (PCI:0018:01:00): 145, pid=922932, name=acctg, RLW_SRC_TRACK Nonfatal XC1 i0 Link 03 (0x040868e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}},
-		{"Log10 RLW_SRC_TRACK", "NVRM: Xid (PCI:0008:01:00): 145, RLW_SRC_TRACK Nonfatal XC1 i0 Link 16 (0x040a08e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}},
-		{"Log11 NETIR Fatal", "NVRM: Xid (PCI:0008:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
-		{"Log12 NETIR_LINK_EVT", "NVRM: Xid (PCI:0008:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 08 (0x004505c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
-		{"Log13 NETIR Fatal", "NVRM: Xid (PCI:0018:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
-		{"Log14 NETIR_LINK_EVT", "NVRM: Xid (PCI:0008:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 08 (0x004505c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
-		{"Log15 NETIR_LINK_EVT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 09 (0x004525c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
-		{"Log16 NETIR Fatal", "NVRM: Xid (PCI:0019:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
-		{"Log17 NETIR Fatal", "NVRM: Xid (PCI:0018:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
-		{"Log18 NETIR_LINK_EVT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 09 (0x004525c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
-		{"Log19 NETIR_LINK_EVT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 09 (0x004525c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}},
+		{"Log1 NETIR_BER_EVENT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_BER_EVENT Nonfatal XC0 i0 Link 03 (0x00086226 0x00000001 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR_BER_EVENT", apiv1.EventTypeWarning},
+		{"Log2 RLW_RXPIPE", "NVRM: Xid (PCI:0018:01:00): 145, pid=876767, name=ray::WorkerDict, RLW_RXPIPE Nonfatal XC0 i0 Link 13 (0x0409a0c2 0x00000008 0x00000001 0x00000000 0x00100000 0x00000004)", 0, "RLW_RXPIPE", apiv1.EventTypeWarning},
+		{"Log3 RLW_RXPIPE", "NVRM: Xid (PCI:0019:01:00): 145, pid=876766, name=ray::WorkerDict, RLW_RXPIPE Nonfatal XC0 i0 Link 12 (0x040980c2 0x00000008 0x00000001 0x00000000 0x00100000 0x00000004)", 0, "RLW_RXPIPE", apiv1.EventTypeWarning},
+		{"Log4 NETIR_BER_EVENT", "NVRM: Xid (PCI:0008:01:00): 149, NETIR_BER_EVENT Nonfatal XC0 i0 Link 01 (0x00082226 0x00000001 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR_BER_EVENT", apiv1.EventTypeWarning},
+		{"Log5 RLW_SRC_TRACK", "NVRM: Xid (PCI:0019:01:00): 145, RLW_SRC_TRACK Nonfatal XC1 i0 Link 12 (0x040988e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning},
+		{"Log6 NETIR Fatal", "NVRM: Xid (PCI:0019:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal},
+		{"Log7 RLW_SRC_TRACK", "NVRM: Xid (PCI:0008:01:00): 145, RLW_SRC_TRACK Nonfatal XC1 i0 Link 12 (0x040988e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning},
+		{"Log8 RLW_SRC_TRACK", "NVRM: Xid (PCI:0008:01:00): 145, pid=11436, name=cache_mgr_main, RLW_SRC_TRACK Nonfatal XC1 i0 Link 03 (0x040868e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning},
+		{"Log9 RLW_SRC_TRACK", "NVRM: Xid (PCI:0018:01:00): 145, pid=922932, name=acctg, RLW_SRC_TRACK Nonfatal XC1 i0 Link 03 (0x040868e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning},
+		{"Log10 RLW_SRC_TRACK", "NVRM: Xid (PCI:0008:01:00): 145, RLW_SRC_TRACK Nonfatal XC1 i0 Link 16 (0x040a08e2 0x00000008 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "RLW_SRC_TRACK", apiv1.EventTypeWarning},
+		{"Log11 NETIR Fatal", "NVRM: Xid (PCI:0008:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal},
+		{"Log12 NETIR_LINK_EVT", "NVRM: Xid (PCI:0008:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 08 (0x004505c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal},
+		{"Log13 NETIR Fatal", "NVRM: Xid (PCI:0018:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal},
+		{"Log14 NETIR_LINK_EVT", "NVRM: Xid (PCI:0008:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 08 (0x004505c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal},
+		{"Log15 NETIR_LINK_EVT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 09 (0x004525c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal},
+		{"Log16 NETIR Fatal", "NVRM: Xid (PCI:0019:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal},
+		{"Log17 NETIR Fatal", "NVRM: Xid (PCI:0018:01:00): 149, NETIR Fatal XC0 i0 Link -1 (0x000fe406 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 0, "NETIR", apiv1.EventTypeFatal},
+		{"Log18 NETIR_LINK_EVT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 09 (0x004525c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal},
+		{"Log19 NETIR_LINK_EVT", "NVRM: Xid (PCI:0018:01:00): 149, NETIR_LINK_EVT Fatal XC0 i0 Link 09 (0x004525c6 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000)", 4, "NETIR_LINK_EVT", apiv1.EventTypeFatal},
 
 		// Test cases for RLW_CTRL and RLW_REMAP - verifies distinguishable subcode names
-		{"Log20 RLW_CTRL", "NVRM: Xid (PCI:0000:04:00): 145, RLW_CTRL Nonfatal XC0 i0 Link 00 (0x00000003 0x80000000 0x00000000 0x00000000)", 0, "RLW_CTRL", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeIgnoreNoActionRequired}},
-		{"Log21 RLW_REMAP", "NVRM: Xid (PCI:0000:04:00): 145, RLW_REMAP Nonfatal XC0 i0 Link 00 (0x00000004 0x00000001 0x00000000 0x00000000)", 0, "RLW_REMAP", apiv1.EventTypeWarning, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}},
+		{"Log20 RLW_CTRL", "NVRM: Xid (PCI:0000:04:00): 145, RLW_CTRL Nonfatal XC0 i0 Link 00 (0x00000003 0x80000000 0x00000000 0x00000000)", 0, "RLW_CTRL", apiv1.EventTypeWarning},
+		{"Log21 RLW_REMAP", "NVRM: Xid (PCI:0000:04:00): 145, RLW_REMAP Nonfatal XC0 i0 Link 00 (0x00000004 0x00000001 0x00000000 0x00000000)", 0, "RLW_REMAP", apiv1.EventTypeWarning},
 
 		// Test cases for XID 144 (SAW Error) - verifies different SAW subcodes are distinguishable
-		{"Log22 SAW_MVB", "NVRM: Xid (PCI:0000:04:00): 144, SAW_MVB Nonfatal XC0 i0 Link 00 (0x00000003 0x80000000 0x00000000 0x00000000)", 0, "SAW_MVB", apiv1.EventTypeWarning, nil},
-		{"Log23 SAW_EGR", "NVRM: Xid (PCI:0000:04:00): 144, SAW_EGR Nonfatal XC0 i0 Link 00 (0x00000004 0x00000001 0x00000000 0x00000000)", 0, "SAW_EGR", apiv1.EventTypeWarning, nil},
+		{"Log22 SAW_MVB", "NVRM: Xid (PCI:0000:04:00): 144, SAW_MVB Nonfatal XC0 i0 Link 00 (0x00000003 0x80000000 0x00000000 0x00000000)", 0, "SAW_MVB", apiv1.EventTypeWarning},
+		{"Log23 SAW_EGR", "NVRM: Xid (PCI:0000:04:00): 144, SAW_EGR Nonfatal XC0 i0 Link 00 (0x00000004 0x00000001 0x00000000 0x00000000)", 0, "SAW_EGR", apiv1.EventTypeWarning},
 	}
 
 	for _, tc := range tests {
@@ -510,13 +509,9 @@ func TestMatchNVLinkExamples(t *testing.T) {
 					assert.Equal(t, tc.expectedSub, xidErr.Detail.SubCode)
 					assert.Equal(t, tc.expectedDesc, xidErr.Detail.SubCodeDescription)
 					assert.Equal(t, tc.expectedEvent, xidErr.Detail.EventType)
-					if tc.expectedAction != nil {
-						if assert.NotNil(t, xidErr.Detail.SuggestedActionsByGPUd) {
-							for _, act := range tc.expectedAction {
-								assert.Contains(t, xidErr.Detail.SuggestedActionsByGPUd.RepairActions, act)
-							}
-						}
-					}
+					require.NotNil(t, xidErr.Detail.SuggestedActionsByGPUd)
+					assert.Equal(t, "workflow_nvlink5_err", xidErr.Detail.SuggestedActionsByGPUd.Description)
+					assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection}, xidErr.Detail.SuggestedActionsByGPUd.RepairActions)
 				}
 			}
 		})

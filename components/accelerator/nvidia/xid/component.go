@@ -20,6 +20,9 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	healthcatalog "tbd/go-health-validation/catalog"
+	"tbd/go-health-validation/catalog/health"
+	healthxid "tbd/go-health-validation/catalog/xid"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -50,6 +53,77 @@ const (
 )
 
 var _ components.Component = &component{}
+
+var (
+	goHealthCatalog = healthcatalog.New(healthcatalog.WithExecutionContext(health.OperatorInfra))
+	goHealthCache   sync.Map
+)
+
+type goHealthResult struct {
+	eventType         apiv1.EventType
+	recommendedAction health.RecommendedAction
+}
+
+func evaluateGoHealth(code int) goHealthResult {
+	if cached, ok := goHealthCache.Load(code); ok {
+		return cached.(goHealthResult)
+	}
+
+	verdict, err := goHealthCatalog.EvaluateAll(healthxid.XidMeasurement{
+		XidCounts:  map[int64]int64{int64(code): 1},
+		Since:      "event",
+		EventCount: 1,
+	})
+	if err != nil {
+		log.Logger.Warnw("failed to evaluate XID with go-health-validation", "xid", code, "error", err)
+		return goHealthResult{eventType: apiv1.EventTypeUnknown}
+	}
+
+	result := goHealthResult{recommendedAction: verdict.RecommendedAction}
+	switch verdict.OverallSeverity {
+	case health.Critical:
+		result.eventType = apiv1.EventTypeFatal
+	case health.Warning:
+		result.eventType = apiv1.EventTypeWarning
+	case health.Info:
+		result.eventType = apiv1.EventTypeInfo
+	default:
+		// Codes not represented by go-health remain Unknown. Do not fall back to
+		// gpud's former table or the live and replay paths can disagree.
+		result.eventType = apiv1.EventTypeUnknown
+	}
+	goHealthCache.Store(code, result)
+	return result
+}
+
+func suggestedActionsFromGoHealth(action health.RecommendedAction) *apiv1.SuggestedActions {
+	if action.IsZero() {
+		return nil
+	}
+
+	var repairAction apiv1.RepairActionType
+	switch {
+	case action.OperationalState == health.OperationalMonitor,
+		action.DiagnosticAction == health.DiagnosticActionXid154:
+		repairAction = apiv1.RepairActionTypeIgnoreNoActionRequired
+	case action.DiagnosticAction == health.DiagnosticActionReboot,
+		action.DiagnosticAction == health.DiagnosticActionResetGPU,
+		action.DiagnosticAction == health.DiagnosticActionRestartBM:
+		repairAction = apiv1.RepairActionTypeRebootSystem
+	case action.DiagnosticAction == health.DiagnosticActionRestartApp,
+		action.DiagnosticAction == health.DiagnosticActionRestartVM,
+		action.DiagnosticAction == health.DiagnosticActionCheckUVM,
+		action.DiagnosticAction == health.DiagnosticActionWorkflowXid45:
+		repairAction = apiv1.RepairActionTypeCheckUserAppAndGPU
+	default:
+		repairAction = apiv1.RepairActionTypeHardwareInspection
+	}
+
+	return &apiv1.SuggestedActions{
+		Description:   action.DiagnosticAction.String(),
+		RepairActions: []apiv1.RepairActionType{repairAction},
+	}
+}
 
 type component struct {
 	ctx    context.Context
@@ -276,7 +350,6 @@ func (c *component) Check() components.CheckResult {
 		if xidErr == nil {
 			continue
 		}
-
 		// row remapping pending/failure (Xid 63/64)
 		// can also be detected by NVML API (vs. kmsg scanning)
 		// thus we discard Xid 63/64 in favor of row remapping checks
@@ -470,7 +543,6 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				log.Logger.Debugw("not xid event, skip", "kmsg", message)
 				continue
 			}
-
 			// row remapping pending/failure (Xid 63/64)
 			// can also be detected by NVML API (vs. kmsg scanning)
 			// thus we discard Xid 63/64 in favor of row remapping checks
@@ -527,7 +599,8 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 					EventKeyDeviceUUID: xidErr.DeviceUUID,
 				},
 			}
-			// IMPORTANT: Set event.Type from Match() result to preserve precise unit-based severity.
+			// IMPORTANT: Set event.Type from the effective classification. For NVLink,
+			// Match() preserves the precise unit-based severity.
 			//
 			// Background: Match() calls lookupNVLinkRule() which correctly matches rules by
 			// (Xid, Unit, ErrorStatus, IntrinfoPattern) for precise severity determination.
@@ -540,10 +613,8 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			//   - XID 145 RLW_SRC_TRACK, ErrorStatus 0x00000001 → "Fatal"
 			//   Both have SubCode=0, so they merge to "Fatal" (maxEventType escalates).
 			//
-			// Fix: By setting event.Type here, addEventDetails() will preserve it (see
-			// health_state.go:228-229) instead of overwriting with the incorrectly merged value.
-			//
-			// See also: health_state.go addEventDetails() comment at lines 224-229.
+			// Fix: By setting event.Type here, addEventDetails() preserves that precise
+			// NVLink classification instead of using the incorrectly merged value.
 			if xidErr.Detail != nil && xidErr.Detail.EventType != "" {
 				event.Type = string(xidErr.Detail.EventType)
 			}

@@ -575,6 +575,32 @@ func TestCheck(t *testing.T) {
 		assert.Equal(t, 31, data.FoundErrors[0].Xid)
 	})
 
+	t.Run("with go-health critical XID", func(t *testing.T) {
+		mockedNVML := createMockNVMLInstance()
+		gpudInstance := &components.GPUdInstance{
+			RootCtx:      ctx,
+			NVMLInstance: mockedNVML,
+		}
+
+		comp, err := New(gpudInstance)
+		assert.NoError(t, err)
+
+		c := mustComponent(t, comp)
+		c.readAllKmsg = func(_ context.Context) ([]kmsg.Message, error) {
+			return []kmsg.Message{{
+				Timestamp: metav1.NewTime(time.Now()),
+				Message:   "NVRM: Xid (PCI:0000:01:00): 54, pid=XXX",
+			}}, nil
+		}
+
+		result := comp.Check()
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+		data := mustCheckResult(t, result)
+		require.Len(t, data.FoundErrors, 1)
+		require.NotNil(t, data.FoundErrors[0].Detail)
+		assert.Equal(t, apiv1.EventTypeFatal, data.FoundErrors[0].Detail.EventType)
+	})
+
 	t.Run("with fallen-off-bus fallback format without explicit Xid", func(t *testing.T) {
 		mockedNVML := createMockNVMLInstance()
 		gpudInstance := &components.GPUdInstance{
@@ -860,13 +886,13 @@ func TestUpdateCurrentState(t *testing.T) {
 	assert.Len(t, initialStates, 1)
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, initialStates[0].Health, "Initial state should be healthy")
 
-	// XID 94 has EventTypeFatal in the catalog. In real usage, Match() returns
-	// the correct EventType from the catalog when parsing kmsg.
-	fatalTime := time.Now().Add(-5 * time.Minute)
+	// go-health classifies XID 94 as Warning, even when a persisted legacy event
+	// carries gpud's former Fatal classification.
+	xid94Time := time.Now().Add(-5 * time.Minute)
 	xid94Event := eventstore.Event{
-		Time: fatalTime,
+		Time: xid94Time,
 		Name: EventNameErrorXid,
-		Type: string(apiv1.EventTypeFatal), // XID 94 is Fatal in catalog
+		Type: string(apiv1.EventTypeFatal),
 		ExtraInfo: map[string]string{
 			EventKeyErrorXidData: "94",
 			EventKeyDeviceUUID:   "GPU-12345678-1234-5678-1234-567812345678",
@@ -879,16 +905,17 @@ func TestUpdateCurrentState(t *testing.T) {
 	err = c.eventBucket.Insert(ctx, xid94Event)
 	assert.NoError(t, err)
 
-	// Update state based on the fatal event
+	// Update state based on the go-health warning event.
 	err = c.updateCurrentState()
 	assert.NoError(t, err)
 
-	// Check that the state was updated to unhealthy (XID 94 is fatal in catalog)
-	fatalStates := comp.LastHealthStates()
-	assert.Len(t, fatalStates, 1)
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, fatalStates[0].Health, "State should be unhealthy after XID 94 event")
-	assert.NotNil(t, fatalStates[0].SuggestedActions, "Should have suggested actions")
-	assert.Contains(t, fatalStates[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+	// The persisted event is reclassified through the same go-health policy used
+	// by the on-demand Check path.
+	xid94States := comp.LastHealthStates()
+	assert.Len(t, xid94States, 1)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, xid94States[0].Health, "State should be healthy after go-health warning XID 94 event")
+	assert.NotNil(t, xid94States[0].SuggestedActions, "Should have suggested actions")
+	assert.Contains(t, xid94States[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeCheckUserAppAndGPU)
 
 	// Now test with XID 79 (GPU has fallen off the bus) which should recommend reboot
 	xid79Time := time.Now().Add(-4 * time.Minute)

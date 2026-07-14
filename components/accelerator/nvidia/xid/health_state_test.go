@@ -54,6 +54,35 @@ func mustIntFromUint64(t *testing.T, v uint64) int {
 	return ret
 }
 
+func TestGetDetailUsesGoHealth(t *testing.T) {
+	tests := []struct {
+		name            string
+		xid             uint64
+		wantType        apiv1.EventType
+		wantAction      apiv1.RepairActionType
+		wantDescription string
+	}{
+		{name: "critical", xid: 54, wantType: apiv1.EventTypeFatal, wantAction: apiv1.RepairActionTypeHardwareInspection, wantDescription: "check_mechanicals"},
+		{name: "warning", xid: 94, wantType: apiv1.EventTypeWarning, wantAction: apiv1.RepairActionTypeCheckUserAppAndGPU, wantDescription: "restart_app"},
+		{name: "info", xid: 154, wantType: apiv1.EventTypeInfo, wantAction: apiv1.RepairActionTypeIgnoreNoActionRequired, wantDescription: "xid_154"},
+		{name: "not represented", xid: 9, wantType: apiv1.EventTypeUnknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			detail, ok := GetDetail(mustIntFromUint64(t, tt.xid))
+			require.True(t, ok)
+			assert.Equal(t, tt.wantType, detail.EventType)
+			if tt.wantAction == "" {
+				assert.Nil(t, detail.SuggestedActionsByGPUd)
+				return
+			}
+			require.NotNil(t, detail.SuggestedActionsByGPUd)
+			assert.Equal(t, tt.wantDescription, detail.SuggestedActionsByGPUd.Description)
+			assert.Equal(t, []apiv1.RepairActionType{tt.wantAction}, detail.SuggestedActionsByGPUd.RepairActions)
+		})
+	}
+}
+
 // createXidEventWithNilSuggestedActions creates an XID event with SuggestedActionsByGPUd=nil.
 // This simulates XIDs that don't have suggested actions defined in the catalog.
 func createXidEventWithNilSuggestedActions(eventTime time.Time, xid uint64, eventType apiv1.EventType) eventstore.Event {
@@ -84,14 +113,12 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 
 	mockDevice := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:9b:00.0")
 
-	t.Run("fatal xid 123", func(t *testing.T) {
-		// XID 123 is EventTypeFatal in the catalog, so we use Fatal here.
-		// In real usage, Match() returns the correct EventType from the catalog.
+	t.Run("xid 123 not represented by go-health", func(t *testing.T) {
 		events := eventstore.Events{
 			createXidEvent(time.Time{}, 123, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 		}
 		state := evolveHealthyState(events, map[string]device.Device{"GPU-b850f46d-d5ea-c752-ddf3-c4453e44d3f7": mockDevice}, DefaultRebootThreshold)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		// XID 123 (SPI_PMU_RPC_WRITE_FAIL) has mnemonic, expect it in reason
 		assert.Contains(t, state.Reason, "XID 123")
 		assert.Contains(t, state.Reason, "GPU PCI:0000:9b:00")
@@ -136,7 +163,7 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, state.SuggestedActions.RepairActions[0])
 	})
 
-	t.Run("xid 94 uses reboot threshold override", func(t *testing.T) {
+	t.Run("xid 94 uses go-health action", func(t *testing.T) {
 		events := eventstore.Events{
 			createXidEvent(time.Time{}, 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
 			{Name: "reboot"},
@@ -146,10 +173,10 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		}
 
 		state := evolveHealthyState(events, nil, DefaultRebootThreshold)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 		require.NotNil(t, state.SuggestedActions)
 		require.NotEmpty(t, state.SuggestedActions.RepairActions)
-		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
+		assert.Equal(t, apiv1.RepairActionTypeCheckUserAppAndGPU, state.SuggestedActions.RepairActions[0])
 	})
 
 	// Tests for reboot recovery behavior based on SuggestedActionsByGPUd.
@@ -243,8 +270,8 @@ func TestStateUpdateBasedOnEvents(t *testing.T) {
 		state := evolveHealthyState(merged, nil, DefaultRebootThreshold)
 		require.NotNil(t, state.SuggestedActions)
 		require.NotEmpty(t, state.SuggestedActions.RepairActions)
-		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, state.SuggestedActions.RepairActions[0])
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
+		assert.Equal(t, apiv1.RepairActionTypeCheckUserAppAndGPU, state.SuggestedActions.RepairActions[0])
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
 	})
 
 	t.Run("invalid xid", func(t *testing.T) {
@@ -858,11 +885,11 @@ func Test_HealthStateReason_evolveHealthyState_Integration(t *testing.T) {
 			},
 		},
 		{
-			name: "Standard XID 94 fatal event",
+			name: "Standard XID 94 go-health warning event",
 			events: eventstore.Events{
-				createXidEvent(time.Now(), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+				createXidEvent(time.Now(), 94, apiv1.EventTypeWarning, apiv1.RepairActionTypeRebootSystem),
 			},
-			expectedHealth: apiv1.HealthStateTypeUnhealthy,
+			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedContains: []string{
 				"XID 94",
 				"ROBUST_CHANNEL_CONTAINED_ERROR",
@@ -872,7 +899,7 @@ func Test_HealthStateReason_evolveHealthyState_Integration(t *testing.T) {
 			name: "Recovered after reboot",
 			events: eventstore.Events{
 				{Name: "reboot", Time: time.Now()},
-				createXidEvent(time.Now().Add(-1*time.Minute), 94, apiv1.EventTypeFatal, apiv1.RepairActionTypeRebootSystem),
+				createXidEvent(time.Now().Add(-1*time.Minute), 94, apiv1.EventTypeWarning, apiv1.RepairActionTypeRebootSystem),
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedContains: []string{
@@ -1240,23 +1267,13 @@ func Test_ComponentEventCreation_SetsEventType(t *testing.T) {
 }
 
 // Test_NVLink_NonExtendedFormat_RebootRecovery verifies that NVLink XIDs (144-150)
-// with non-extended format messages (like "Placeholder message") are correctly
-// cleared on reboot because the base catalog entries have SuggestedActionsByGPUd.
-//
-// This test addresses the bug where XID 149 with message format like:
-//
-//	NVRM: Xid (PCI:0008:06:00): 149, Placeholder message
-//
-// was NOT being cleared after reboot because:
-// 1. The message doesn't match RegexNVRMXidExtended (no intrinfo/errorstatus)
-// 2. Match() falls back to GetDetail(149) which returned nil SuggestedActionsByGPUd
-// 3. evolveHealthyState() requires SuggestedActionsByGPUd to clear on reboot
-func Test_NVLink_NonExtendedFormat_RebootRecovery(t *testing.T) {
+// Non-extended NVLink messages use the same go-health action as decoded ones.
+func Test_NVLink_NonExtendedFormat_UsesGoHealthAction(t *testing.T) {
 	// Test all NVLink XIDs (144-150) with non-extended format
 	nvlinkXIDs := []int{144, 145, 146, 147, 148, 149, 150}
 
 	for _, xid := range nvlinkXIDs {
-		t.Run(fmt.Sprintf("XID_%d_clears_on_reboot", xid), func(t *testing.T) {
+		t.Run(fmt.Sprintf("XID_%d", xid), func(t *testing.T) {
 			// Simulate a non-extended format message (like "Placeholder message")
 			// This doesn't match RegexNVRMXidExtended, so Match() uses GetDetail()
 			nonExtendedLine := fmt.Sprintf("NVRM: Xid (PCI:0008:06:00): %d, Placeholder message", xid)
@@ -1266,14 +1283,15 @@ func Test_NVLink_NonExtendedFormat_RebootRecovery(t *testing.T) {
 			require.NotNil(t, xidErr, "Match should return non-nil for XID %d", xid)
 			require.NotNil(t, xidErr.Detail, "Detail should be populated")
 
-			// Verify SuggestedActionsByGPUd is set (this is the fix)
+			// go-health owns the action even when no subcode/status is available.
 			require.NotNil(t, xidErr.Detail.SuggestedActionsByGPUd,
-				"XID %d base entry should have SuggestedActionsByGPUd for reboot recovery", xid)
+				"XID %d base entry should have SuggestedActionsByGPUd", xid)
 			require.NotEmpty(t, xidErr.Detail.SuggestedActionsByGPUd.RepairActions)
-			assert.Equal(t, apiv1.RepairActionTypeRebootSystem,
+			assert.Equal(t, "workflow_nvlink5_err", xidErr.Detail.SuggestedActionsByGPUd.Description)
+			assert.Equal(t, apiv1.RepairActionTypeHardwareInspection,
 				xidErr.Detail.SuggestedActionsByGPUd.RepairActions[0])
 
-			// Create event and verify reboot clears it
+			// Persist and replay the event through the normal reducer path.
 			xidPayload := xidErrorEventDetail{
 				DeviceUUID:             xidErr.DeviceUUID,
 				Xid:                    mustUint64FromInt(t, xidErr.Xid),
@@ -1292,9 +1310,8 @@ func Test_NVLink_NonExtendedFormat_RebootRecovery(t *testing.T) {
 			}
 
 			state := evolveHealthyState(events, nil, DefaultRebootThreshold)
-			assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health,
-				"XID %d should be cleared after reboot, but got health=%s", xid, state.Health)
-			assert.Equal(t, "XIDComponent is healthy", state.Reason)
+			assert.Equal(t, apiv1.HealthStateTypeHealthy, state.Health)
+			assert.Contains(t, state.Reason, fmt.Sprintf("XID %d", xid))
 		})
 	}
 }

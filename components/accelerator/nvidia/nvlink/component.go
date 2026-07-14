@@ -8,12 +8,16 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	healthcatalog "tbd/go-health-validation/catalog"
+	"tbd/go-health-validation/catalog/health"
+	healthnvlink "tbd/go-health-validation/catalog/nvlink"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
@@ -27,6 +31,82 @@ import (
 const Name = "accelerator-nvidia-nvlink"
 
 var _ components.Component = &component{}
+
+func goHealthArchitecture(productName, architecture string) string {
+	name := strings.ToUpper(productName)
+	switch {
+	case strings.Contains(name, "GH200"):
+		return "unknown"
+	case strings.Contains(name, "GB300"):
+		return "GB300"
+	case strings.Contains(name, "GB200"):
+		return "GB200"
+	case strings.Contains(name, "H200"):
+		return "H200"
+	case strings.Contains(name, "H100"):
+		return "H100"
+	case strings.Contains(name, "A100"):
+		return "A100"
+	}
+
+	switch strings.ToLower(architecture) {
+	case "blackwell":
+		return "GB200"
+	case "hopper":
+		return "H100"
+	case "ampere":
+		return "A100"
+	default:
+		return "unknown"
+	}
+}
+
+func applyGoHealth(cr *checkResult, architecture string, measurements ...health.Measurement) error {
+	activeCheck := healthnvlink.NVLinkActive()
+	p2pCheck := healthnvlink.NVLinkP2P()
+	thresholds := ExpectedLinkStates{}
+	if cr.ExpectedLinkStates != nil {
+		thresholds = *cr.ExpectedLinkStates
+	}
+
+	cat := healthcatalog.NewEmpty(
+		healthcatalog.WithArchitecture(architecture),
+		healthcatalog.WithExecutionContext(health.OperatorInfra),
+		healthcatalog.WithOverrides(healthcatalog.NewOverrideSet(
+			healthcatalog.Override{CheckID: activeCheck.ID, ThresholdName: "max_inactive_nvlinks", Value: int64(thresholds.MaxInactiveNVLinks)},
+			healthcatalog.Override{CheckID: p2pCheck.ID, ThresholdName: "max_unhealthy_p2p_peers", Value: int64(thresholds.MaxUnhealthyP2PPeers)},
+		)),
+	)
+	cat.MustRegister(activeCheck)
+	cat.MustRegister(p2pCheck)
+
+	verdict, err := cat.EvaluateAll(measurements...)
+	if err != nil {
+		return err
+	}
+
+	switch verdict.OverallSeverity {
+	case health.Pass, health.Info, health.Warning:
+		cr.health = apiv1.HealthStateTypeHealthy
+	default:
+		cr.health = apiv1.HealthStateTypeUnhealthy
+	}
+
+	var messages []string
+	for _, result := range verdict.CheckResults {
+		messages = append(messages, result.Messages...)
+	}
+	if len(messages) > 0 {
+		cr.reason = strings.Join(messages, " ")
+	}
+	if !verdict.RecommendedAction.IsZero() {
+		cr.suggestedActions = &apiv1.SuggestedActions{
+			Description:   verdict.RecommendedAction.DiagnosticAction.String(),
+			RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeHardwareInspection},
+		}
+	}
+	return nil
+}
 
 type component struct {
 	ctx    context.Context
@@ -162,25 +242,8 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	devs := c.nvmlInstance.Devices()
-	// Only expect NVLink by default on multi-GPU hosts that advertise NVIDIA
-	// fabric support. This keeps 1-GPU machines safe: for a single GPU,
-	// `nvidia-smi topo -p2p n` legitimately shows only the self entry:
-	//
-	//   $ nvidia-smi topo -p2p n
-	//        GPU0
-	//   GPU0 X
-	//
-	// On a healthy 2-GPU NVLink-capable host, peer entries should be `OK`:
-	//
-	//   $ nvidia-smi topo -p2p n
-	//        GPU0 GPU1
-	//   GPU0 X    OK
-	//   GPU1 OK   X
-	//
-	// This flag is intentionally conservative: it only enables the fallback for
-	// the obvious "zero GPUs have active NVLink" case. If some GPUs are active
-	// and some are not, operators must still configure ExpectedLinkStates to make
-	// partial degradation fail health checks.
+	// Retain the existing inventory signal for component output. go-health owns
+	// the active-link and P2P health policy below.
 	cr.SystemExpectedNVLink = len(devs) > 1 && (c.nvmlInstance.FabricManagerSupported() || c.nvmlInstance.FabricStateSupported())
 	sortedUUIDs := make([]string, 0, len(devs))
 	for uuid := range devs {
@@ -188,6 +251,8 @@ func (c *component) Check() components.CheckResult {
 	}
 	sort.Strings(sortedUUIDs)
 
+	peerNVLinkUnhealthyCounts := make(map[string]int64)
+	peerNVLinkErrors := make(map[string][]error)
 	if c.getPeerNVLinkP2PStatusFn != nil && len(sortedUUIDs) > 1 {
 		peerNVLinkOKGPUUUIDs := make(map[string]struct{})
 		peerNVLinkObservedStatusCodes := make(map[string]struct{})
@@ -206,6 +271,8 @@ func (c *component) Check() components.CheckResult {
 
 				statusCode, err := c.getPeerNVLinkP2PStatusFn(devs[uuid], devs[peerUUID])
 				if err != nil {
+					peerNVLinkErrors[uuid] = append(peerNVLinkErrors[uuid], err)
+					peerNVLinkErrors[peerUUID] = append(peerNVLinkErrors[peerUUID], err)
 					log.Logger.Debugw(
 						"failed to get nvlink peer-to-peer status",
 						"uuid", uuid,
@@ -221,6 +288,9 @@ func (c *component) Check() components.CheckResult {
 					cr.PeerNVLinkOKPairCount++
 					peerNVLinkOKGPUUUIDs[uuid] = struct{}{}
 					peerNVLinkOKGPUUUIDs[peerUUID] = struct{}{}
+				} else {
+					peerNVLinkUnhealthyCounts[uuid]++
+					peerNVLinkUnhealthyCounts[peerUUID]++
 				}
 			}
 		}
@@ -305,8 +375,32 @@ func (c *component) Check() components.CheckResult {
 
 	cr.health = apiv1.HealthStateTypeHealthy
 	cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no nvlink issue found", len(devs))
-
-	evaluateHealthStateWithThresholds(cr)
+	measurements := make([]health.Measurement, 0, len(cr.NVLinks))
+	for _, nvLink := range cr.NVLinks {
+		var inactive int64
+		for _, state := range nvLink.States {
+			if !state.FeatureEnabled {
+				inactive++
+			}
+		}
+		measurement := healthnvlink.NVLinkMeasurement{
+			GPUID:                 nvLink.UUID,
+			InactiveCount:         inactive,
+			UnhealthyP2PPeerCount: peerNVLinkUnhealthyCounts[nvLink.UUID],
+		}
+		if cr.SystemExpectedNVLink && len(cr.PeerNVLinkOKGPUUUIDs) == 0 && (!nvLink.Supported || len(nvLink.States) == 0) {
+			measurement.AddError(fmt.Errorf("NVLink state unavailable for GPU %s", nvLink.UUID), healthnvlink.SignalInactiveCount)
+		}
+		for _, err := range peerNVLinkErrors[nvLink.UUID] {
+			measurement.AddError(err, healthnvlink.SignalUnhealthyP2PPeerCount)
+		}
+		measurements = append(measurements, measurement)
+	}
+	if err := applyGoHealth(cr, goHealthArchitecture(c.nvmlInstance.ProductName(), c.nvmlInstance.Architecture()), measurements...); err != nil {
+		cr.err = err
+		cr.health = apiv1.HealthStateTypeUnhealthy
+		cr.reason = "error evaluating nvlink health with go-health-validation"
+	}
 
 	return cr
 }
@@ -330,8 +424,7 @@ type checkResult struct {
 	// UnsupportedNVLinkUUIDs lists GPUs that do not support NVLink at hardware/firmware level
 	UnsupportedNVLinkUUIDs []string `json:"unsupported_nvlink_uuids,omitempty"`
 
-	// ExpectedLinkStates defines the threshold for how many GPUs must have active NVLink
-	// Used by evaluateHealthStateWithThresholds to determine if the system is healthy
+	// ExpectedLinkStates contains the adjustable go-health NVLink thresholds.
 	ExpectedLinkStates *ExpectedLinkStates `json:"expected_link_states,omitempty"`
 
 	// PeerNVLinkProbePairCount is the number of GPU peer pairs where NVML returned
@@ -353,10 +446,8 @@ type checkResult struct {
 	// observed across probed GPU pairs (e.g. OK, NS, TNS).
 	PeerNVLinkObservedStatusCodes []string `json:"peer_nvlink_observed_status_codes,omitempty"`
 
-	// SystemExpectedNVLink reports whether this node looks like a multi-GPU NVIDIA
-	// host where GPUD expects an NVLink fabric to exist by default. This lets the
-	// component catch obvious topology failures even when no explicit threshold is
-	// configured.
+	// SystemExpectedNVLink reports whether this is a multi-GPU host advertising
+	// NVIDIA fabric support. It is informational; go-health owns health policy.
 	SystemExpectedNVLink bool `json:"system_expected_nvlink,omitempty"`
 
 	// timestamp of the last check
@@ -370,49 +461,6 @@ type checkResult struct {
 	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
-}
-
-func (cr *checkResult) hasCompletePeerNVLinkProbeCoverage() bool {
-	if cr == nil || cr.PeerNVLinkExpectedPairCount == 0 {
-		return false
-	}
-	return cr.PeerNVLinkProbePairCount == cr.PeerNVLinkExpectedPairCount
-}
-
-func (cr *checkResult) missingPeerNVLinkProbePairCount() int {
-	if cr == nil || cr.PeerNVLinkExpectedPairCount <= cr.PeerNVLinkProbePairCount {
-		return 0
-	}
-	return cr.PeerNVLinkExpectedPairCount - cr.PeerNVLinkProbePairCount
-}
-
-func (cr *checkResult) hasPeerNVLinkP2PFailure() bool {
-	if cr == nil {
-		return false
-	}
-	return cr.SystemExpectedNVLink &&
-		len(cr.NVLinks) > 1 &&
-		cr.PeerNVLinkProbePairCount > 0 &&
-		cr.PeerNVLinkOKPairCount == 0
-}
-
-func (cr *checkResult) peerNVLinkStatusesSuggestReboot() bool {
-	if cr == nil || len(cr.PeerNVLinkObservedStatusCodes) == 0 {
-		return false
-	}
-	for _, statusCode := range cr.PeerNVLinkObservedStatusCodes {
-		switch statusCode {
-		case p2pStatusChipsetNotSupported,
-			p2pStatusGPUNotSupported,
-			p2pStatusTopologyNotSupported,
-			p2pStatusDisabledByRegkey,
-			p2pStatusNotSupported:
-			continue
-		default:
-			return true
-		}
-	}
-	return false
 }
 
 func (cr *checkResult) ComponentName() string {
