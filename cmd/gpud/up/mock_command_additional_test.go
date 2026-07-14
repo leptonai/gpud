@@ -39,6 +39,7 @@ func newMockeyCLIContext(t *testing.T, args []string) *cli.Context {
 	_ = flags.String("data-dir", "", "")
 	_ = flags.String("token", "", "")
 	_ = flags.String("endpoint", "", "")
+	_ = flags.String("session-protocol", config.DefaultSessionProtocol, "")
 	_ = flags.String("machine-id", "", "")
 	_ = flags.Bool("machine-id-overwrite", false, "")
 	_ = flags.Bool("refresh-session-token", false, "")
@@ -113,7 +114,7 @@ func TestCommand_LoginSuccessWithRecordStateError(t *testing.T) {
 		}).Build()
 		mockey.Mock(pkdsystemd.SystemctlExists).To(func() bool { return true }).Build()
 		mockey.Mock(systemd.DefaultBinExists).To(func() bool { return true }).Build()
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -165,7 +166,7 @@ func TestCommand_WithAllFlags(t *testing.T) {
 		}).Build()
 		mockey.Mock(pkdsystemd.SystemctlExists).To(func() bool { return true }).Build()
 		mockey.Mock(systemd.DefaultBinExists).To(func() bool { return true }).Build()
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -275,7 +276,7 @@ func TestCommand_WithEmptyToken(t *testing.T) {
 		}).Build()
 		mockey.Mock(pkdsystemd.SystemctlExists).To(func() bool { return true }).Build()
 		mockey.Mock(systemd.DefaultBinExists).To(func() bool { return true }).Build()
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -299,7 +300,7 @@ func TestCommand_WithEmptyToken(t *testing.T) {
 func TestSystemdInit_WriteFileErrorWithDifferentPaths(t *testing.T) {
 	mockey.PatchConvey("systemdInit write file error with path check", t, func() {
 		writtenPath := ""
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -321,7 +322,7 @@ func TestSystemdInit_WriteFileErrorWithDifferentPaths(t *testing.T) {
 func TestSystemdInit_WithDbInMemory(t *testing.T) {
 	mockey.PatchConvey("systemdInit with db in memory", t, func() {
 		capturedDbInMemory := false
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
 			capturedDbInMemory = dbInMemory
 			return nil
 		}).Build()
@@ -471,6 +472,7 @@ func TestCommand_SystemdEnvFileWithEndpoint(t *testing.T) {
 		tmpDir := t.TempDir()
 		var capturedEndpoint string
 		var capturedDataDir string
+		var capturedSessionProtocol string
 
 		mockey.Mock(common.ResolveDataDir).To(func(cliContext *cli.Context) (string, error) {
 			return tmpDir, nil
@@ -481,9 +483,10 @@ func TestCommand_SystemdEnvFileWithEndpoint(t *testing.T) {
 		}).Build()
 		mockey.Mock(pkdsystemd.SystemctlExists).To(func() bool { return true }).Build()
 		mockey.Mock(systemd.DefaultBinExists).To(func() bool { return true }).Build()
-		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool) error {
+		mockey.Mock(systemd.CreateDefaultEnvFile).To(func(endpoint, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
 			capturedEndpoint = endpoint
 			capturedDataDir = dataDir
+			capturedSessionProtocol = sessionProtocol[0]
 			return nil
 		}).Build()
 		mockey.Mock(systemd.GPUdServiceUnitFileContents).To(func() string {
@@ -495,11 +498,12 @@ func TestCommand_SystemdEnvFileWithEndpoint(t *testing.T) {
 		mockey.Mock(pkgupdate.EnableGPUdSystemdUnit).To(func() error { return nil }).Build()
 		mockey.Mock(pkgupdate.RestartGPUdSystemdUnit).To(func() error { return nil }).Build()
 
-		cliContext := newMockeyCLIContext(t, []string{"--endpoint", "https://custom.endpoint.com"})
+		cliContext := newMockeyCLIContext(t, []string{"--endpoint", "https://custom.endpoint.com", "--session-protocol", "v2"})
 		err := Command(cliContext)
 		require.NoError(t, err)
 		assert.Equal(t, "https://custom.endpoint.com", capturedEndpoint)
 		assert.Equal(t, tmpDir, capturedDataDir)
+		assert.Equal(t, "v2", capturedSessionProtocol)
 	})
 }
 

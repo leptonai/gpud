@@ -103,6 +103,9 @@ type Config struct {
 	// SkipSessionUpdateConfig skips processing of updateConfig session commands. Intended for testing.
 	SkipSessionUpdateConfig bool `json:"skip_session_update_config"`
 
+	// SessionProtocol selects the control-plane session transport: v1, v2, or auto.
+	SessionProtocol string `json:"session_protocol"`
+
 	// DBInMemory enables in-memory SQLite database mode.
 	// When true, the database is opened as a shared in-memory database (file::memory:?cache=shared)
 	// instead of using the State file path. Data will not persist across restarts.
@@ -138,6 +141,11 @@ func (config *Config) Validate() error {
 	}
 	if config.EventsRetentionPeriod.Duration > 0 && config.EventsRetentionPeriod.Duration < time.Minute {
 		return fmt.Errorf("events_retention_period must be at least 1 minute, got %d", config.EventsRetentionPeriod.Duration)
+	}
+	switch config.SessionProtocol {
+	case "", "v1", "v2", "auto":
+	default:
+		return fmt.Errorf("session_protocol must be one of v1, v2, or auto, got %q", config.SessionProtocol)
 	}
 
 	return nil

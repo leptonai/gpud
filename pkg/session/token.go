@@ -63,9 +63,7 @@ func (s *Session) processUpdateToken(payload Request, response *Response) {
 		if !s.waitReconnectDelay(s.ctx, delay) {
 			return
 		}
-		if s.closer != nil {
-			s.closer.Close()
-		}
+		s.requestReconnect()
 	}()
 }
 

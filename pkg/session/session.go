@@ -55,6 +55,7 @@ type Op struct {
 	faultInjector       pkgfaultinjector.Injector
 	dbRW                *sql.DB
 	dbRO                *sql.DB
+	protocol            Protocol
 }
 
 type OpOption func(*Op)
@@ -63,6 +64,7 @@ var ErrAutoUpdateDisabledButExitCodeSet = errors.New("auto update is disabled bu
 
 func (op *Op) applyOpts(opts []OpOption) error {
 	op.autoUpdateExitCode = -1
+	op.protocol = ProtocolV1
 
 	for _, opt := range opts {
 		opt(op)
@@ -77,6 +79,13 @@ func (op *Op) applyOpts(opts []OpOption) error {
 	}
 
 	return nil
+}
+
+// WithProtocol selects the control-plane session transport.
+func WithProtocol(protocol string) OpOption {
+	return func(op *Op) {
+		op.protocol = Protocol(protocol)
+	}
 }
 
 func WithAuditLogger(auditLogger log.AuditLogger) OpOption {
@@ -193,6 +202,7 @@ type Session struct {
 
 	machineID    string
 	machineProof string
+	protocol     Protocol
 
 	// epLocalGPUdServer is the endpoint of the local GPUd server
 	epLocalGPUdServer string
@@ -224,6 +234,10 @@ type Session struct {
 	components []string
 
 	closer *closeOnce
+
+	connectionMu         sync.Mutex
+	connectionCancel     context.CancelFunc
+	connectionGeneration uint64
 
 	writer chan Body
 	reader chan Body
@@ -297,9 +311,41 @@ func (c *closeOnce) Done() chan any {
 	return c.closer
 }
 
+func (s *Session) registerConnectionCancel(cancel context.CancelFunc) func() {
+	s.connectionMu.Lock()
+	s.connectionGeneration++
+	generation := s.connectionGeneration
+	s.connectionCancel = cancel
+	s.connectionMu.Unlock()
+
+	return func() {
+		s.connectionMu.Lock()
+		defer s.connectionMu.Unlock()
+		if s.connectionGeneration == generation {
+			s.connectionCancel = nil
+		}
+	}
+}
+
+func (s *Session) requestReconnect() {
+	s.connectionMu.Lock()
+	if s.closer != nil {
+		s.closer.Close()
+	}
+	cancel := s.connectionCancel
+	s.connectionMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
 func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane string, token string, opts ...OpOption) (*Session, error) {
 	op := &Op{}
 	if err := op.applyOpts(opts); err != nil {
+		return nil, err
+	}
+	protocol, err := parseProtocol(string(op.protocol))
+	if err != nil {
 		return nil, err
 	}
 
@@ -327,6 +373,7 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 
 		machineID:    op.machineID,
 		machineProof: op.machineProof,
+		protocol:     protocol,
 		token:        token,
 		dataDir:      dataDir,
 		dbInMemory:   op.dbInMemory,

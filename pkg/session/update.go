@@ -37,7 +37,7 @@ func (s *Session) processUpdate(_ context.Context, payload Request, response *Re
 		}
 
 		if systemdManaged {
-			if uerr := pkdsystemd.CreateDefaultEnvFile(s.epControlPlane, s.dataDir, s.dbInMemory); uerr != nil {
+			if uerr := pkdsystemd.CreateDefaultEnvFile(s.epControlPlane, s.dataDir, s.dbInMemory, string(s.protocol)); uerr != nil {
 				response.Error = uerr.Error()
 				return
 			}

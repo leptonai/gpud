@@ -1,0 +1,67 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package gpud.session.v2;
+
+option go_package = "github.com/leptonai/gpud/pkg/session/v2;sessionv2";
+
+service SessionService {
+  rpc Connect(stream AgentEnvelope) returns (stream ManagerEnvelope);
+}
+
+message AgentEnvelope {
+  oneof payload {
+    Hello hello = 1;
+    CommandResult command_result = 2;
+    Heartbeat heartbeat = 3;
+  }
+}
+
+message ManagerEnvelope {
+  oneof payload {
+    HelloAck hello_ack = 1;
+    Command command = 2;
+    HeartbeatAck heartbeat_ack = 3;
+    DrainNotice drain_notice = 4;
+  }
+}
+
+message Hello {
+  uint32 min_protocol_revision = 1;
+  uint32 max_protocol_revision = 2;
+  string agent_version = 3;
+  uint32 max_receive_message_bytes = 4;
+  repeated string capabilities = 5;
+}
+
+message HelloAck {
+  uint32 protocol_revision = 1;
+  string manager_instance_id = 2;
+  uint32 max_receive_message_bytes = 3;
+  uint32 heartbeat_interval_seconds = 4;
+}
+
+message Command {
+  string request_id = 1;
+  bytes payload_json = 2;
+  int64 timeout_millis = 3;
+}
+
+message CommandResult {
+  string request_id = 1;
+  bytes payload_json = 2;
+}
+
+message Heartbeat {
+  uint64 sequence = 1;
+}
+
+message HeartbeatAck {
+  uint64 sequence = 1;
+}
+
+message DrainNotice {
+  int64 reconnect_after_millis = 1;
+}

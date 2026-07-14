@@ -26,6 +26,7 @@ func TestDefaultConfig(t *testing.T) {
 		assert.Equal(t, DefaultCompactPeriod, cfg.CompactPeriod)
 		assert.False(t, cfg.Pprof)
 		assert.True(t, cfg.EnableAutoUpdate)
+		assert.Equal(t, DefaultSessionProtocol, cfg.SessionProtocol)
 		assert.NotEmpty(t, cfg.DataDir)
 		assert.Empty(t, cfg.RebootCommands)
 

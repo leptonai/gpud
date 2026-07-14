@@ -1,12 +1,45 @@
 package command
 
 import (
+	"flag"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli"
 )
+
+func TestAppRunAndUpHaveSessionProtocolFlag(t *testing.T) {
+	t.Parallel()
+
+	app := App()
+	wantCommands := map[string]bool{"run": false, "up": false}
+	for _, cmd := range app.Commands {
+		if _, ok := wantCommands[cmd.Name]; !ok {
+			continue
+		}
+		wantCommands[cmd.Name] = true
+
+		var protocolFlag cli.Flag
+		for _, candidate := range cmd.Flags {
+			if candidate.GetName() == "session-protocol" {
+				protocolFlag = candidate
+				break
+			}
+		}
+		require.NotNilf(t, protocolFlag, "command %q is missing --session-protocol", cmd.Name)
+
+		set := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
+		protocolFlag.Apply(set)
+		require.NoError(t, set.Parse([]string{"--session-protocol", "v2"}))
+		ctx := cli.NewContext(app, set, nil)
+		require.Equal(t, "v2", ctx.String("session-protocol"))
+	}
+
+	for cmdName, found := range wantCommands {
+		require.Truef(t, found, "expected command %q to exist", cmdName)
+	}
+}
 
 func TestAppHasInfinibandExcludeDevicesFlag(t *testing.T) {
 	t.Parallel()
