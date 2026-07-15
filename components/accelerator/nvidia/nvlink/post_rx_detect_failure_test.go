@@ -2,6 +2,7 @@ package nvlink
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -42,6 +43,7 @@ func TestUpdateCurrentStateIgnoresPreviousBoot(t *testing.T) {
 	bootTime := now.Add(-24 * time.Hour)
 	bucket := &memoryEventBucket{events: eventstore.Events{
 		{Time: bootTime.Add(-time.Hour), Name: EventNamePostRxDetectFailure, Message: postRxDetectFailureMessage},
+		{Time: bootTime.Add(time.Hour), Name: "unrelated-event", Message: "ignored"},
 	}}
 	c := &component{
 		ctx:             context.Background(),
@@ -52,6 +54,56 @@ func TestUpdateCurrentStateIgnoresPreviousBoot(t *testing.T) {
 
 	require.NoError(t, c.updateCurrentState())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.LastHealthStates()[0].Health)
+}
+
+func TestUpdateCurrentStateHandlesUnavailableState(t *testing.T) {
+	now := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name     string
+		bucket   eventstore.Bucket
+		bootTime time.Time
+		wantErr  string
+	}{
+		{
+			name:     "event bucket is disabled",
+			bootTime: now.Add(-time.Hour),
+		},
+		{
+			name:     "boot time is invalid",
+			bucket:   &memoryEventBucket{},
+			bootTime: time.Time{},
+		},
+		{
+			name:     "boot time is in the future",
+			bucket:   &memoryEventBucket{},
+			bootTime: now.Add(time.Hour),
+		},
+		{
+			name:     "event query fails",
+			bucket:   &memoryEventBucket{getErr: errors.New("query failed")},
+			bootTime: now.Add(-time.Hour),
+			wantErr:  "query failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &component{
+				ctx:             context.Background(),
+				getTimeNowFunc:  func() time.Time { return now },
+				getBootTimeFunc: func() time.Time { return tt.bootTime },
+				eventBucket:     tt.bucket,
+			}
+
+			err := c.updateCurrentState()
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestBlockedNVMLCheckBecomesUnhealthyWithoutReplacement(t *testing.T) {
@@ -127,9 +179,23 @@ func TestStaleCompletedHealthStateFailsAfterMonitoringStarts(t *testing.T) {
 	assert.Contains(t, state.Reason, "has not refreshed")
 }
 
+func TestHealthStateFailsWhenNoCheckCompletesAfterMonitoringStarts(t *testing.T) {
+	now := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
+	c := &component{
+		getTimeNowFunc:      func() time.Time { return now },
+		monitoringStartedAt: now.Add(-defaultCheckStaleAfter),
+	}
+
+	state := c.LastHealthStates()[0]
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
+	assert.Contains(t, state.Reason, "has not refreshed")
+}
+
 type memoryEventBucket struct {
 	mu     sync.Mutex
 	events eventstore.Events
+	getErr error
+	closed atomic.Bool
 }
 
 func (b *memoryEventBucket) Name() string { return Name }
@@ -148,6 +214,9 @@ func (b *memoryEventBucket) Find(_ context.Context, _ eventstore.Event) (*events
 func (b *memoryEventBucket) Get(_ context.Context, since time.Time) (eventstore.Events, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.getErr != nil {
+		return nil, b.getErr
+	}
 	var events eventstore.Events
 	for _, event := range b.events {
 		if event.Time.After(since) {
@@ -181,6 +250,17 @@ func (b *memoryEventBucket) Purge(_ context.Context, beforeTimestamp int64) (int
 	return purged, nil
 }
 
-func (b *memoryEventBucket) Close() {}
+func (b *memoryEventBucket) Close() { b.closed.Store(true) }
 
 var _ eventstore.Bucket = (*memoryEventBucket)(nil)
+
+type memoryEventStore struct {
+	bucket eventstore.Bucket
+	err    error
+}
+
+func (s *memoryEventStore) Bucket(_ string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
+	return s.bucket, s.err
+}
+
+var _ eventstore.Store = (*memoryEventStore)(nil)
