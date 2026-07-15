@@ -13,6 +13,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
@@ -189,6 +190,72 @@ func TestHealthStateFailsWhenNoCheckCompletesAfterMonitoringStarts(t *testing.T)
 	state := c.LastHealthStates()[0]
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
 	assert.Contains(t, state.Reason, "has not refreshed")
+}
+
+func TestCheckDetectsPostRxDetectFailureForOneShotScan(t *testing.T) {
+	getNVLinkCalled := false
+	c := mustComponent(t, MockNVLinkComponent(
+		context.Background(),
+		func() map[string]device.Device { return map[string]device.Device{"gpu-0": nil} },
+		func(_ string, _ device.Device) (NVLink, error) {
+			getNVLinkCalled = true
+			return NVLink{}, nil
+		},
+	))
+	c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
+		return []kmsg.Message{{
+			Message: "NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!",
+		}}, nil
+	}
+
+	result := c.Check()
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+	assert.Contains(t, result.Summary(), postRxDetectFailureMessage)
+	assert.False(t, getNVLinkCalled, "kmsg failure should short-circuit NVML probing")
+	state := result.HealthStates()[0]
+	require.NotNil(t, state.SuggestedActions)
+	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, state.SuggestedActions.RepairActions)
+}
+
+func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
+	tests := []struct {
+		name       string
+		readAll    func(context.Context) ([]kmsg.Message, error)
+		wantHealth apiv1.HealthStateType
+		wantReason string
+	}{
+		{
+			name: "read failure",
+			readAll: func(context.Context) ([]kmsg.Message, error) {
+				return nil, errors.New("read failed")
+			},
+			wantHealth: apiv1.HealthStateTypeUnhealthy,
+			wantReason: "failed to read kmsg",
+		},
+		{
+			name: "no matching message",
+			readAll: func(context.Context) ([]kmsg.Message, error) {
+				return []kmsg.Message{{Message: "unrelated kernel message"}}, nil
+			},
+			wantHealth: apiv1.HealthStateTypeHealthy,
+			wantReason: "all 0 GPU(s) were checked, no nvlink issue found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := mustComponent(t, MockNVLinkComponent(
+				context.Background(),
+				func() map[string]device.Device { return map[string]device.Device{} },
+				nil,
+			))
+			c.readAllKmsg = tt.readAll
+
+			result := c.Check()
+			assert.Equal(t, tt.wantHealth, result.HealthStateType())
+			assert.Contains(t, result.Summary(), tt.wantReason)
+		})
+	}
 }
 
 type memoryEventBucket struct {

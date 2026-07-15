@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -45,6 +46,7 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 		require.NoError(t, err)
 		c := mustComponent(t, created)
 		require.NotNil(t, c.kmsgSyncer)
+		assert.Nil(t, c.readAllKmsg, "daemon components should rely on the kmsg syncer")
 		require.NotNil(t, match)
 
 		name, message := match("NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!")
@@ -98,4 +100,20 @@ func TestNew_WithEventStoreBucketError(t *testing.T) {
 
 	require.EqualError(t, err, "bucket failed")
 	assert.Nil(t, created)
+}
+
+func TestNew_OneShotKmsgReader_WithMockey(t *testing.T) {
+	mockey.PatchConvey("New enables direct kmsg reads only for Linux root one-shot scans", t, func() {
+		mockey.Mock(os.Geteuid).Return(0).Build()
+
+		created, err := New(&components.GPUdInstance{RootCtx: context.Background()})
+		require.NoError(t, err)
+		c := mustComponent(t, created)
+		if runtime.GOOS == "linux" {
+			assert.NotNil(t, c.readAllKmsg)
+		} else {
+			assert.Nil(t, c.readAllKmsg)
+		}
+		require.NoError(t, c.Close())
+	})
 }

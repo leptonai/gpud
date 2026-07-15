@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -51,6 +52,7 @@ type component struct {
 	getThresholdsFunc        func() ExpectedLinkStates
 	eventBucket              eventstore.Bucket
 	kmsgSyncer               *kmsg.Syncer
+	readAllKmsg              func(context.Context) ([]kmsg.Message, error)
 
 	lastMu               sync.RWMutex
 	lastCheckResult      *checkResult
@@ -63,7 +65,6 @@ type component struct {
 }
 
 // New creates a NVIDIA NVLink component.
-// New creates an NVLink component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -108,6 +109,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				return nil, err
 			}
 		}
+	}
+	if gpudInstance.EventStore == nil && runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		c.readAllKmsg = kmsg.ReadAll
 	}
 	return c, nil
 }
@@ -256,6 +260,30 @@ func (c *component) Check() components.CheckResult {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr
+	}
+	// gpud scan calls Check directly without Start or an event store. New only
+	// installs this reader in that mode, leaving daemon checks on the syncer path.
+	if c.readAllKmsg != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+		kmsgs, err := c.readAllKmsg(cctx)
+		ccancel()
+		if err != nil {
+			cr.err = err
+			cr.reason = "failed to read kmsg"
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			log.Logger.Warnw(cr.reason, "error", cr.err)
+			return cr
+		}
+		for _, message := range kmsgs {
+			if !HasPostRxDetectFailure(message.Message) {
+				continue
+			}
+			state := unhealthyRebootState(cr.ts, postRxDetectFailureMessage)
+			cr.health = state.Health
+			cr.reason = state.Reason
+			cr.suggestedActions = state.SuggestedActions
+			return cr
+		}
 	}
 
 	devs := c.nvmlInstance.Devices()
