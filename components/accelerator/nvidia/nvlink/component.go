@@ -443,8 +443,8 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
-	KmsgScanned  bool           `json:"kmsg_scanned,omitempty"`
-	MatchedKmsgs []kmsg.Message `json:"matched_kmsgs,omitempty"`
+	KmsgScanned  bool           `json:"-"`
+	MatchedKmsgs []kmsg.Message `json:"-"`
 
 	// NVLinks contains detailed NVLink information for all GPUs checked
 	NVLinks []NVLink `json:"nvlinks,omitempty"`
