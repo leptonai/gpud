@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -17,6 +19,9 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
+	pkghost "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
@@ -26,25 +31,40 @@ import (
 // Name is the name of the NVIDIA NVLink component.
 const Name = "accelerator-nvidia-nvlink"
 
+const (
+	defaultCheckInterval       = time.Minute
+	defaultCheckStaleAfter     = 2 * defaultCheckInterval
+	defaultStateUpdateInterval = 30 * time.Second
+)
+
 var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	getTimeNowFunc func() time.Time
+	getTimeNowFunc  func() time.Time
+	getBootTimeFunc func() time.Time
 
 	nvmlInstance             nvidianvml.Instance
 	getNVLinkFunc            func(uuid string, dev device.Device) (NVLink, error)
 	getPeerNVLinkP2PStatusFn func(dev device.Device, peer device.Device) (string, error)
 	getThresholdsFunc        func() ExpectedLinkStates
+	eventBucket              eventstore.Bucket
+	kmsgSyncer               *kmsg.Syncer
+	readAllKmsg              func(context.Context) ([]kmsg.Message, error)
 
-	lastMu          sync.RWMutex
-	lastCheckResult *checkResult
+	lastMu               sync.RWMutex
+	lastCheckResult      *checkResult
+	checksInFlight       map[*checkResult]time.Time
+	monitoringStartedAt  time.Time
+	lastCheckCompletedAt time.Time
+
+	mu        sync.RWMutex
+	currState apiv1.HealthState
 }
 
 // New creates a NVIDIA NVLink component.
-// New creates an NVLink component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 	c := &component{
@@ -53,10 +73,45 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
+		getBootTimeFunc:          pkghost.BootTime,
 		nvmlInstance:             gpudInstance.NVMLInstance,
 		getNVLinkFunc:            GetNVLink,
 		getPeerNVLinkP2PStatusFn: getPeerNVLinkP2PStatus,
 		getThresholdsFunc:        GetDefaultExpectedLinkStates,
+	}
+
+	if gpudInstance.EventStore != nil {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name, eventstore.WithDisablePurge())
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+
+		if os.Geteuid() == 0 {
+			bootID := pkghost.BootID()
+			if bootID == "" {
+				bootTime := c.getBootTimeFunc()
+				if !bootTime.IsZero() {
+					bootID = bootTime.Format(time.RFC3339Nano)
+				} else {
+					bootID = c.getTimeNowFunc().Format(time.RFC3339Nano)
+				}
+			}
+			c.kmsgSyncer, err = kmsg.NewSyncer(
+				cctx,
+				func(line string) (string, string) { return matchWithBootID(line, bootID) },
+				c.eventBucket,
+			)
+			if err != nil {
+				c.eventBucket.Close()
+				ccancel()
+				return nil, err
+			}
+		}
+	}
+	if gpudInstance.EventStore == nil && runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		c.readAllKmsg = kmsg.ReadAll
 	}
 	return c, nil
 }
@@ -80,8 +135,15 @@ func (c *component) IsSupported() bool {
 }
 
 func (c *component) Start() error {
+	if c.eventBucket != nil {
+		if err := c.updateCurrentState(); err != nil {
+			log.Logger.Errorw("failed to fetch current events", "error", err)
+		}
+	}
+	c.markMonitoringStarted()
+
 	go func() {
-		ticker := time.NewTicker(time.Minute)
+		ticker := time.NewTicker(defaultCheckInterval)
 		defer ticker.Stop()
 
 		for {
@@ -94,18 +156,54 @@ func (c *component) Start() error {
 			}
 		}
 	}()
+	if c.eventBucket != nil {
+		go func() {
+			ticker := time.NewTicker(defaultStateUpdateInterval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-c.ctx.Done():
+					return
+				case <-ticker.C:
+				}
+
+				if err := c.updateCurrentState(); err != nil {
+					log.Logger.Errorw("failed to fetch current events", "error", err)
+				}
+			}
+		}()
+	}
 	return nil
 }
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
+	c.mu.RLock()
+	currState := c.currState
+	c.mu.RUnlock()
+	if currState.Health != "" {
+		return apiv1.HealthStates{currState}
+	}
+
+	if state := c.watchdogHealthState(); state != nil {
+		return apiv1.HealthStates{*state}
+	}
+
 	c.lastMu.RLock()
 	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
-	return nil, nil
+func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
+	events, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return events.Events(), nil
 }
 
 func (c *component) Close() error {
@@ -113,24 +211,27 @@ func (c *component) Close() error {
 
 	c.cancel()
 
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
+
 	return nil
 }
 
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu nvlink")
 
-	cr := &checkResult{
-		ts: c.getTimeNowFunc(),
-	}
+	startedAt := c.getTimeNowFunc()
+	cr := &checkResult{ts: startedAt}
+	c.beginCheck(cr)
 	if c.getThresholdsFunc != nil {
 		thresholds := c.getThresholdsFunc()
 		cr.ExpectedLinkStates = &thresholds
 	}
-	defer func() {
-		c.lastMu.Lock()
-		c.lastCheckResult = cr
-		c.lastMu.Unlock()
-	}()
+	defer c.finishCheck(cr)
 
 	if c.nvmlInstance == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
@@ -159,6 +260,30 @@ func (c *component) Check() components.CheckResult {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "NVIDIA NVML is loaded but GPU is not detected (missing product name)"
 		return cr
+	}
+	// gpud scan calls Check directly without Start or an event store. New only
+	// installs this reader in that mode, leaving daemon checks on the syncer path.
+	if c.readAllKmsg != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+		kmsgs, err := c.readAllKmsg(cctx)
+		ccancel()
+		if err != nil {
+			cr.err = err
+			cr.reason = "failed to read kmsg"
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			log.Logger.Warnw(cr.reason, "error", cr.err)
+			return cr
+		}
+		for _, message := range kmsgs {
+			if !HasPostRxDetectFailure(message.Message) {
+				continue
+			}
+			state := unhealthyRebootState(cr.ts, postRxDetectFailureMessage)
+			cr.health = state.Health
+			cr.reason = state.Reason
+			cr.suggestedActions = state.SuggestedActions
+			return cr
+		}
 	}
 
 	devs := c.nvmlInstance.Devices()

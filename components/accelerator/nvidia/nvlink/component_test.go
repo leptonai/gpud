@@ -16,6 +16,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
@@ -424,6 +425,24 @@ func TestEvents(t *testing.T) {
 	assert.Empty(t, events)
 }
 
+func TestEventsWithEventBucket(t *testing.T) {
+	now := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
+	bucket := &memoryEventBucket{events: eventstore.Events{
+		{Time: now, Name: EventNamePostRxDetectFailure, Message: postRxDetectFailureMessage},
+	}}
+	component := &component{eventBucket: bucket}
+
+	events, err := component.Events(context.Background(), now.Add(-time.Second))
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Equal(t, EventNamePostRxDetectFailure, events[0].Name)
+
+	bucket.getErr = errors.New("query failed")
+	events, err = component.Events(context.Background(), now.Add(-time.Second))
+	require.EqualError(t, err, "query failed")
+	assert.Nil(t, events)
+}
+
 func TestStart(t *testing.T) {
 	ctx := t.Context()
 
@@ -445,6 +464,32 @@ func TestStart(t *testing.T) {
 
 	// Verify CheckOnce was called
 	assert.GreaterOrEqual(t, callCount.Load(), int32(1), "CheckOnce should have been called at least once")
+}
+
+func TestStartWithEventBucket(t *testing.T) {
+	now := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	bucket := &memoryEventBucket{events: eventstore.Events{
+		{Time: now.Add(-time.Minute), Name: EventNamePostRxDetectFailure, Message: postRxDetectFailureMessage},
+	}}
+	c := &component{
+		ctx:             ctx,
+		cancel:          cancel,
+		getTimeNowFunc:  func() time.Time { return now },
+		getBootTimeFunc: func() time.Time { return now.Add(-time.Hour) },
+		eventBucket:     bucket,
+	}
+
+	require.NoError(t, c.Start())
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, c.LastHealthStates()[0].Health)
+	c.lastMu.RLock()
+	monitoringStartedAt := c.monitoringStartedAt
+	c.lastMu.RUnlock()
+	assert.Equal(t, now, monitoringStartedAt)
+
+	c.eventBucket = &memoryEventBucket{getErr: errors.New("query failed")}
+	require.NoError(t, c.Start())
 }
 
 func TestClose(t *testing.T) {
