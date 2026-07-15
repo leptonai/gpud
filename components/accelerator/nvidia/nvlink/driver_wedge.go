@@ -2,7 +2,6 @@ package nvlink
 
 import (
 	"fmt"
-	"regexp"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,91 +12,64 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-const (
-	eventNameDriverWedge = "nvlink_driver_wedge"
-	driverWedgeReason    = "NVIDIA driver is stuck retrying NVLink link discovery (postRxDetLinkMask failure)"
-)
-
-var driverWedgePattern = regexp.MustCompile(`NVRM: knvlinkDiscoverPostRxDetLinks_[A-Za-z0-9_]+: Getting peer[0-9]+(?:'s)? postRxDetLinkMask failed!`)
-
-func matchDriverWedge(line string) bool {
-	return driverWedgePattern.MatchString(line)
-}
-
-func (c *component) startDriverWedgeDetection() error {
-	if c.eventBucket != nil {
-		if err := c.restoreDriverWedge(); err != nil {
-			// The watcher reads the current boot's kmsg buffer, so a transient
-			// restore failure does not disable live detection.
-			log.Logger.Warnw("failed to restore nvlink driver wedge event", "error", err)
-		}
-	}
-	if c.kmsgWatcher == nil {
-		return nil
-	}
-
-	messages, err := c.kmsgWatcher.Watch()
-	if err != nil {
-		return fmt.Errorf("failed to watch kmsg for nvlink driver wedge: %w", err)
-	}
-	go c.watchDriverWedge(messages)
-	return nil
-}
-
-func (c *component) watchDriverWedge(messages <-chan kmsg.Message) {
+func (c *component) start(kmsgCh <-chan kmsg.Message) {
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
-		case message, ok := <-messages:
+		case message, ok := <-kmsgCh:
 			if !ok {
 				return
 			}
-			if matchDriverWedge(message.Message) {
-				c.recordDriverWedge(message)
+			eventName, eventMessage := Match(message.Message)
+			if eventName != "" {
+				c.recordDriverWedgeEvent(message, eventName, eventMessage)
 			}
 		}
 	}
 }
 
-func (c *component) recordDriverWedge(message kmsg.Message) {
-	detectedAt := message.Timestamp.Time.UTC()
+func (c *component) recordDriverWedgeEvent(kmsgMessage kmsg.Message, eventName string, eventMessage string) {
+	detectedAt := kmsgMessage.Timestamp.Time.UTC()
 	if detectedAt.IsZero() {
 		detectedAt = c.getTimeNowFunc()
 	}
 
-	c.lastMu.Lock()
-	if c.driverWedgeDetectedAt.IsZero() {
-		c.driverWedgeDetectedAt = detectedAt
-		c.driverWedgeMessage = driverWedgeReason
+	c.mu.Lock()
+	if c.currState.Health == "" {
+		c.currState = *unhealthyRebootState(detectedAt, eventMessage)
 	}
-	if c.eventBucket == nil || c.driverWedgePersisted {
-		c.lastMu.Unlock()
+	if c.eventBucket == nil || c.driverWedgeEventPersisted {
+		c.mu.Unlock()
 		return
 	}
 	// Reserve the insert so repeated four-second kernel messages cannot race
 	// each other into duplicate persisted events.
-	c.driverWedgePersisted = true
-	c.lastMu.Unlock()
+	c.driverWedgeEventPersisted = true
+	c.mu.Unlock()
 
 	event := eventstore.Event{
 		Component: Name,
 		Time:      detectedAt,
-		Name:      eventNameDriverWedge,
+		Name:      eventName,
 		Type:      string(apiv1.EventTypeFatal),
-		Message:   driverWedgeReason,
+		Message:   eventMessage,
 	}
 	if err := c.eventBucket.Insert(c.ctx, event); err != nil {
-		c.lastMu.Lock()
-		c.driverWedgePersisted = false
-		c.lastMu.Unlock()
+		c.mu.Lock()
+		c.driverWedgeEventPersisted = false
+		c.mu.Unlock()
 		log.Logger.Errorw("failed to persist nvlink driver wedge event", "error", err)
 		return
 	}
-	log.Logger.Errorw("detected nvlink driver wedge", "event", eventNameDriverWedge, "detectedAt", detectedAt)
+	log.Logger.Errorw("detected nvlink driver wedge", "event", eventName, "detectedAt", detectedAt)
 }
 
-func (c *component) restoreDriverWedge() error {
+func (c *component) updateCurrentState() error {
+	if c.eventBucket == nil {
+		return nil
+	}
+
 	bootTime := c.getBootTimeFunc()
 	now := c.getTimeNowFunc()
 	if bootTime.Unix() <= 0 || bootTime.After(now) {
@@ -110,18 +82,17 @@ func (c *component) restoreDriverWedge() error {
 		return err
 	}
 	for _, event := range events {
-		if event.Name != eventNameDriverWedge {
+		if event.Name != EventNameDriverWedge {
 			continue
 		}
 		message := event.Message
 		if message == "" {
-			message = driverWedgeReason
+			message = driverWedgeMessage
 		}
-		c.lastMu.Lock()
-		c.driverWedgeDetectedAt = event.Time.UTC()
-		c.driverWedgeMessage = message
-		c.driverWedgePersisted = true
-		c.lastMu.Unlock()
+		c.mu.Lock()
+		c.currState = *unhealthyRebootState(event.Time.UTC(), message)
+		c.driverWedgeEventPersisted = true
+		c.mu.Unlock()
 		return nil
 	}
 	return nil
@@ -154,12 +125,10 @@ func (c *component) markMonitoringStarted() {
 	c.lastMu.Unlock()
 }
 
-func (c *component) healthOverride() *apiv1.HealthState {
+func (c *component) watchdogHealthState() *apiv1.HealthState {
 	now := c.getTimeNowFunc()
 
 	c.lastMu.RLock()
-	wedgeDetectedAt := c.driverWedgeDetectedAt
-	wedgeMessage := c.driverWedgeMessage
 	monitoringStartedAt := c.monitoringStartedAt
 	lastCheckCompletedAt := c.lastCheckCompletedAt
 	var oldestCheck time.Time
@@ -170,10 +139,7 @@ func (c *component) healthOverride() *apiv1.HealthState {
 	}
 	c.lastMu.RUnlock()
 
-	if !wedgeDetectedAt.IsZero() {
-		return unhealthyRebootState(wedgeDetectedAt, wedgeMessage)
-	}
-	if !oldestCheck.IsZero() && now.Sub(oldestCheck) >= checkStaleAfter {
+	if !oldestCheck.IsZero() && now.Sub(oldestCheck) >= defaultCheckStaleAfter {
 		reason := fmt.Sprintf("NVIDIA NVLink health check has not completed for %s; NVIDIA driver may be unresponsive", now.Sub(oldestCheck).Round(time.Second))
 		return unhealthyRebootState(oldestCheck, reason)
 	}
@@ -182,7 +148,7 @@ func (c *component) healthOverride() *apiv1.HealthState {
 		if lastRefresh.IsZero() {
 			lastRefresh = monitoringStartedAt
 		}
-		if now.Sub(lastRefresh) >= checkStaleAfter {
+		if now.Sub(lastRefresh) >= defaultCheckStaleAfter {
 			reason := fmt.Sprintf("NVIDIA NVLink health state has not refreshed for %s; NVIDIA driver may be unresponsive", now.Sub(lastRefresh).Round(time.Second))
 			return unhealthyRebootState(lastRefresh, reason)
 		}

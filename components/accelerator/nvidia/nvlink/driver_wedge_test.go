@@ -18,36 +18,7 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
-func TestMatchDriverWedge(t *testing.T) {
-	tests := []struct {
-		name  string
-		line  string
-		match bool
-	}{
-		{
-			name:  "incident GH100 signature",
-			line:  "NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!",
-			match: true,
-		},
-		{
-			name:  "other GPU architecture and peer",
-			line:  "kernel: NVRM: knvlinkDiscoverPostRxDetLinks_GB100_REV2: Getting peer17 postRxDetLinkMask failed!",
-			match: true,
-		},
-		{
-			name: "unrelated NVLink message",
-			line: "NVRM: NVLink link training completed",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.match, matchDriverWedge(tt.line))
-		})
-	}
-}
-
-func TestRecordDriverWedgePersistsOnceAndOverridesHealth(t *testing.T) {
+func TestRecordDriverWedgeEventPersistsOnceAndOverridesHealth(t *testing.T) {
 	now := time.Date(2026, 7, 11, 4, 21, 32, 0, time.UTC)
 	bucket := &memoryEventBucket{}
 	c := &component{
@@ -65,19 +36,19 @@ func TestRecordDriverWedgePersistsOnceAndOverridesHealth(t *testing.T) {
 		Message:   "NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!",
 	}
 
-	c.recordDriverWedge(message)
-	c.recordDriverWedge(message)
+	c.recordDriverWedgeEvent(message, EventNameDriverWedge, driverWedgeMessage)
+	c.recordDriverWedgeEvent(message, EventNameDriverWedge, driverWedgeMessage)
 
 	require.Len(t, bucket.snapshot(), 1)
-	assert.Equal(t, eventNameDriverWedge, bucket.snapshot()[0].Name)
+	assert.Equal(t, EventNameDriverWedge, bucket.snapshot()[0].Name)
 	state := c.LastHealthStates()[0]
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, driverWedgeReason, state.Reason)
+	assert.Equal(t, driverWedgeMessage, state.Reason)
 	require.NotNil(t, state.SuggestedActions)
 	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, state.SuggestedActions.RepairActions)
 }
 
-func TestRecordDriverWedgeRetriesPersistence(t *testing.T) {
+func TestRecordDriverWedgeEventRetriesPersistence(t *testing.T) {
 	now := time.Date(2026, 7, 11, 4, 21, 32, 0, time.UTC)
 	bucket := &memoryEventBucket{insertFailures: 1}
 	c := &component{
@@ -87,19 +58,19 @@ func TestRecordDriverWedgeRetriesPersistence(t *testing.T) {
 	}
 	message := kmsg.Message{Timestamp: metav1.NewTime(now)}
 
-	c.recordDriverWedge(message)
-	c.recordDriverWedge(message)
+	c.recordDriverWedgeEvent(message, EventNameDriverWedge, driverWedgeMessage)
+	c.recordDriverWedgeEvent(message, EventNameDriverWedge, driverWedgeMessage)
 
 	require.Len(t, bucket.snapshot(), 1)
-	assert.True(t, c.driverWedgePersisted)
+	assert.True(t, c.driverWedgeEventPersisted)
 }
 
-func TestRestoreDriverWedgeOnlyFromCurrentBoot(t *testing.T) {
+func TestUpdateCurrentStateRestoresDriverWedgeFromCurrentBoot(t *testing.T) {
 	now := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
 	bootTime := now.Add(-24 * time.Hour)
 	bucket := &memoryEventBucket{events: eventstore.Events{
-		{Time: bootTime.Add(-time.Hour), Name: eventNameDriverWedge, Message: "old boot"},
-		{Time: bootTime.Add(time.Hour), Name: eventNameDriverWedge, Message: driverWedgeReason},
+		{Time: bootTime.Add(-time.Hour), Name: EventNameDriverWedge, Message: "old boot"},
+		{Time: bootTime.Add(time.Hour), Name: EventNameDriverWedge, Message: driverWedgeMessage},
 	}}
 	c := &component{
 		ctx:             context.Background(),
@@ -108,19 +79,19 @@ func TestRestoreDriverWedgeOnlyFromCurrentBoot(t *testing.T) {
 		eventBucket:     bucket,
 	}
 
-	require.NoError(t, c.restoreDriverWedge())
+	require.NoError(t, c.updateCurrentState())
 
 	state := c.LastHealthStates()[0]
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, driverWedgeReason, state.Reason)
+	assert.Equal(t, driverWedgeMessage, state.Reason)
 	assert.Equal(t, bootTime.Add(time.Hour), state.Time.Time)
 }
 
-func TestRestoreDriverWedgeIgnoresPreviousBoot(t *testing.T) {
+func TestUpdateCurrentStateIgnoresPreviousBoot(t *testing.T) {
 	now := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
 	bootTime := now.Add(-24 * time.Hour)
 	bucket := &memoryEventBucket{events: eventstore.Events{
-		{Time: bootTime.Add(-time.Hour), Name: eventNameDriverWedge, Message: driverWedgeReason},
+		{Time: bootTime.Add(-time.Hour), Name: EventNameDriverWedge, Message: driverWedgeMessage},
 	}}
 	c := &component{
 		ctx:             context.Background(),
@@ -129,7 +100,7 @@ func TestRestoreDriverWedgeIgnoresPreviousBoot(t *testing.T) {
 		eventBucket:     bucket,
 	}
 
-	require.NoError(t, c.restoreDriverWedge())
+	require.NoError(t, c.updateCurrentState())
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, c.LastHealthStates()[0].Health)
 }
 
@@ -159,7 +130,7 @@ func TestBlockedNVMLCheckBecomesUnhealthyWithoutReplacement(t *testing.T) {
 		close(done)
 	}()
 	<-entered
-	clock.Store(now.Add(checkStaleAfter).UnixNano())
+	clock.Store(now.Add(defaultCheckStaleAfter).UnixNano())
 
 	state := c.LastHealthStates()[0]
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
@@ -198,7 +169,7 @@ func TestStaleCompletedHealthStateFailsAfterMonitoringStarts(t *testing.T) {
 			health: apiv1.HealthStateTypeHealthy,
 		},
 		monitoringStartedAt:  now.Add(-4 * time.Minute),
-		lastCheckCompletedAt: now.Add(-checkStaleAfter),
+		lastCheckCompletedAt: now.Add(-defaultCheckStaleAfter),
 	}
 
 	state := c.LastHealthStates()[0]
@@ -206,19 +177,18 @@ func TestStaleCompletedHealthStateFailsAfterMonitoringStarts(t *testing.T) {
 	assert.Contains(t, state.Reason, "has not refreshed")
 }
 
-func TestWatchDriverWedge(t *testing.T) {
+func TestStartProcessesDriverWedgeEvent(t *testing.T) {
 	now := time.Date(2026, 7, 11, 4, 21, 32, 0, time.UTC)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	watcher := &channelKmsgWatcher{messages: make(chan kmsg.Message, 1)}
+	kmsgCh := make(chan kmsg.Message, 1)
 	c := &component{
 		ctx:            ctx,
 		getTimeNowFunc: func() time.Time { return now },
-		kmsgWatcher:    watcher,
 	}
 
-	require.NoError(t, c.startDriverWedgeDetection())
-	watcher.messages <- kmsg.Message{
+	go c.start(kmsgCh)
+	kmsgCh <- kmsg.Message{
 		Timestamp: metav1.NewTime(now),
 		Message:   "NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!",
 	}
@@ -226,13 +196,6 @@ func TestWatchDriverWedge(t *testing.T) {
 		return c.LastHealthStates()[0].Health == apiv1.HealthStateTypeUnhealthy
 	}, time.Second, 10*time.Millisecond)
 }
-
-type channelKmsgWatcher struct {
-	messages chan kmsg.Message
-}
-
-func (w *channelKmsgWatcher) Watch() (<-chan kmsg.Message, error) { return w.messages, nil }
-func (w *channelKmsgWatcher) Close() error                        { return nil }
 
 type memoryEventBucket struct {
 	mu             sync.Mutex
@@ -302,4 +265,3 @@ func (b *memoryEventBucket) snapshot() eventstore.Events {
 }
 
 var _ eventstore.Bucket = (*memoryEventBucket)(nil)
-var _ kmsg.Watcher = (*channelKmsgWatcher)(nil)

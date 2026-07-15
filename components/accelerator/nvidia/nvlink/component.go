@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -32,8 +31,8 @@ import (
 const Name = "accelerator-nvidia-nvlink"
 
 const (
-	checkInterval   = time.Minute
-	checkStaleAfter = 2 * checkInterval
+	defaultCheckInterval   = time.Minute
+	defaultCheckStaleAfter = 2 * defaultCheckInterval
 )
 
 var _ components.Component = &component{}
@@ -52,14 +51,15 @@ type component struct {
 	eventBucket              eventstore.Bucket
 	kmsgWatcher              kmsg.Watcher
 
-	lastMu                sync.RWMutex
-	lastCheckResult       *checkResult
-	checksInFlight        map[*checkResult]time.Time
-	monitoringStartedAt   time.Time
-	lastCheckCompletedAt  time.Time
-	driverWedgeDetectedAt time.Time
-	driverWedgeMessage    string
-	driverWedgePersisted  bool
+	lastMu               sync.RWMutex
+	lastCheckResult      *checkResult
+	checksInFlight       map[*checkResult]time.Time
+	monitoringStartedAt  time.Time
+	lastCheckCompletedAt time.Time
+
+	mu                        sync.RWMutex
+	currState                 apiv1.HealthState
+	driverWedgeEventPersisted bool
 }
 
 // New creates a NVIDIA NVLink component.
@@ -87,7 +87,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return nil, err
 		}
 
-		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		if os.Geteuid() == 0 {
 			c.kmsgWatcher, err = kmsg.NewWatcher()
 			if err != nil {
 				c.eventBucket.Close()
@@ -118,13 +118,36 @@ func (c *component) IsSupported() bool {
 }
 
 func (c *component) Start() error {
-	if err := c.startDriverWedgeDetection(); err != nil {
-		return err
+	for {
+		err := c.updateCurrentState()
+		if err == nil {
+			break
+		}
+
+		if errors.Is(err, context.Canceled) {
+			log.Logger.Infow("context canceled, exiting")
+			return nil
+		}
+
+		log.Logger.Errorw("failed to fetch current events", "error", err)
+		select {
+		case <-c.ctx.Done():
+			return nil
+		case <-time.After(1 * time.Second):
+		}
+	}
+
+	if c.kmsgWatcher != nil {
+		kmsgCh, err := c.kmsgWatcher.Watch()
+		if err != nil {
+			return err
+		}
+		go c.start(kmsgCh)
 	}
 	c.markMonitoringStarted()
 
 	go func() {
-		ticker := time.NewTicker(checkInterval)
+		ticker := time.NewTicker(defaultCheckInterval)
 		defer ticker.Stop()
 
 		for {
@@ -141,7 +164,14 @@ func (c *component) Start() error {
 }
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
-	if state := c.healthOverride(); state != nil {
+	c.mu.RLock()
+	currState := c.currState
+	c.mu.RUnlock()
+	if currState.Health != "" {
+		return apiv1.HealthStates{currState}
+	}
+
+	if state := c.watchdogHealthState(); state != nil {
 		return apiv1.HealthStates{*state}
 	}
 
@@ -166,9 +196,11 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+
 	if c.kmsgWatcher != nil {
-		if err := c.kmsgWatcher.Close(); err != nil {
-			log.Logger.Warnw("failed to close kmsg watcher", "error", err)
+		cerr := c.kmsgWatcher.Close()
+		if cerr != nil {
+			log.Logger.Errorw("failed to close kmsg watcher", "error", cerr)
 		}
 	}
 	if c.eventBucket != nil {
