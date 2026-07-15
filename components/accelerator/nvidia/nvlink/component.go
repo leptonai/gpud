@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -17,6 +19,9 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/eventstore"
+	pkghost "github.com/leptonai/gpud/pkg/host"
+	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
@@ -26,21 +31,35 @@ import (
 // Name is the name of the NVIDIA NVLink component.
 const Name = "accelerator-nvidia-nvlink"
 
+const (
+	checkInterval   = time.Minute
+	checkStaleAfter = 2 * checkInterval
+)
+
 var _ components.Component = &component{}
 
 type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	getTimeNowFunc func() time.Time
+	getTimeNowFunc  func() time.Time
+	getBootTimeFunc func() time.Time
 
 	nvmlInstance             nvidianvml.Instance
 	getNVLinkFunc            func(uuid string, dev device.Device) (NVLink, error)
 	getPeerNVLinkP2PStatusFn func(dev device.Device, peer device.Device) (string, error)
 	getThresholdsFunc        func() ExpectedLinkStates
+	eventBucket              eventstore.Bucket
+	kmsgWatcher              kmsg.Watcher
 
-	lastMu          sync.RWMutex
-	lastCheckResult *checkResult
+	lastMu                sync.RWMutex
+	lastCheckResult       *checkResult
+	checksInFlight        map[*checkResult]time.Time
+	monitoringStartedAt   time.Time
+	lastCheckCompletedAt  time.Time
+	driverWedgeDetectedAt time.Time
+	driverWedgeMessage    string
+	driverWedgePersisted  bool
 }
 
 // New creates a NVIDIA NVLink component.
@@ -53,10 +72,29 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
+		getBootTimeFunc:          pkghost.BootTime,
 		nvmlInstance:             gpudInstance.NVMLInstance,
 		getNVLinkFunc:            GetNVLink,
 		getPeerNVLinkP2PStatusFn: getPeerNVLinkP2PStatus,
 		getThresholdsFunc:        GetDefaultExpectedLinkStates,
+	}
+
+	if gpudInstance.EventStore != nil {
+		var err error
+		c.eventBucket, err = gpudInstance.EventStore.Bucket(Name, eventstore.WithDisablePurge())
+		if err != nil {
+			ccancel()
+			return nil, err
+		}
+
+		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+			c.kmsgWatcher, err = kmsg.NewWatcher()
+			if err != nil {
+				c.eventBucket.Close()
+				ccancel()
+				return nil, err
+			}
+		}
 	}
 	return c, nil
 }
@@ -80,8 +118,13 @@ func (c *component) IsSupported() bool {
 }
 
 func (c *component) Start() error {
+	if err := c.startDriverWedgeDetection(); err != nil {
+		return err
+	}
+	c.markMonitoringStarted()
+
 	go func() {
-		ticker := time.NewTicker(time.Minute)
+		ticker := time.NewTicker(checkInterval)
 		defer ticker.Stop()
 
 		for {
@@ -98,20 +141,39 @@ func (c *component) Start() error {
 }
 
 func (c *component) LastHealthStates() apiv1.HealthStates {
+	if state := c.healthOverride(); state != nil {
+		return apiv1.HealthStates{*state}
+	}
+
 	c.lastMu.RLock()
 	lastCheckResult := c.lastCheckResult
 	c.lastMu.RUnlock()
 	return lastCheckResult.HealthStates()
 }
 
-func (c *component) Events(_ context.Context, _ time.Time) (apiv1.Events, error) {
-	return nil, nil
+func (c *component) Events(ctx context.Context, since time.Time) (apiv1.Events, error) {
+	if c.eventBucket == nil {
+		return nil, nil
+	}
+	events, err := c.eventBucket.Get(ctx, since)
+	if err != nil {
+		return nil, err
+	}
+	return events.Events(), nil
 }
 
 func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+	if c.kmsgWatcher != nil {
+		if err := c.kmsgWatcher.Close(); err != nil {
+			log.Logger.Warnw("failed to close kmsg watcher", "error", err)
+		}
+	}
+	if c.eventBucket != nil {
+		c.eventBucket.Close()
+	}
 
 	return nil
 }
@@ -119,18 +181,14 @@ func (c *component) Close() error {
 func (c *component) Check() components.CheckResult {
 	log.Logger.Infow("checking nvidia gpu nvlink")
 
-	cr := &checkResult{
-		ts: c.getTimeNowFunc(),
-	}
+	startedAt := c.getTimeNowFunc()
+	cr := &checkResult{ts: startedAt}
+	c.beginCheck(cr)
 	if c.getThresholdsFunc != nil {
 		thresholds := c.getThresholdsFunc()
 		cr.ExpectedLinkStates = &thresholds
 	}
-	defer func() {
-		c.lastMu.Lock()
-		c.lastCheckResult = cr
-		c.lastMu.Unlock()
-	}()
+	defer c.finishCheck(cr)
 
 	if c.nvmlInstance == nil {
 		cr.health = apiv1.HealthStateTypeHealthy
