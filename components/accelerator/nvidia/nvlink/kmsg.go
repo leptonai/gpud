@@ -27,3 +27,11 @@ func Match(line string) (eventName string, message string) {
 	}
 	return "", ""
 }
+
+func matchWithBootID(line string, bootID string) (eventName string, message string) {
+	eventName, message = Match(line)
+	if eventName != "" {
+		message += " (boot ID: " + bootID + ")"
+	}
+	return eventName, message
+}

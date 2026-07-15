@@ -31,8 +31,9 @@ import (
 const Name = "accelerator-nvidia-nvlink"
 
 const (
-	defaultCheckInterval   = time.Minute
-	defaultCheckStaleAfter = 2 * defaultCheckInterval
+	defaultCheckInterval       = time.Minute
+	defaultCheckStaleAfter     = 2 * defaultCheckInterval
+	defaultStateUpdateInterval = 30 * time.Second
 )
 
 var _ components.Component = &component{}
@@ -49,7 +50,7 @@ type component struct {
 	getPeerNVLinkP2PStatusFn func(dev device.Device, peer device.Device) (string, error)
 	getThresholdsFunc        func() ExpectedLinkStates
 	eventBucket              eventstore.Bucket
-	kmsgWatcher              kmsg.Watcher
+	kmsgSyncer               *kmsg.Syncer
 
 	lastMu               sync.RWMutex
 	lastCheckResult      *checkResult
@@ -57,9 +58,8 @@ type component struct {
 	monitoringStartedAt  time.Time
 	lastCheckCompletedAt time.Time
 
-	mu                        sync.RWMutex
-	currState                 apiv1.HealthState
-	driverWedgeEventPersisted bool
+	mu        sync.RWMutex
+	currState apiv1.HealthState
 }
 
 // New creates a NVIDIA NVLink component.
@@ -88,7 +88,20 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		}
 
 		if os.Geteuid() == 0 {
-			c.kmsgWatcher, err = kmsg.NewWatcher()
+			bootID := pkghost.BootID()
+			if bootID == "" {
+				bootTime := c.getBootTimeFunc()
+				if !bootTime.IsZero() {
+					bootID = bootTime.Format(time.RFC3339Nano)
+				} else {
+					bootID = c.getTimeNowFunc().Format(time.RFC3339Nano)
+				}
+			}
+			c.kmsgSyncer, err = kmsg.NewSyncer(
+				cctx,
+				func(line string) (string, string) { return matchWithBootID(line, bootID) },
+				c.eventBucket,
+			)
 			if err != nil {
 				c.eventBucket.Close()
 				ccancel()
@@ -118,31 +131,10 @@ func (c *component) IsSupported() bool {
 }
 
 func (c *component) Start() error {
-	for {
-		err := c.updateCurrentState()
-		if err == nil {
-			break
+	if c.eventBucket != nil {
+		if err := c.updateCurrentState(); err != nil {
+			log.Logger.Errorw("failed to fetch current events", "error", err)
 		}
-
-		if errors.Is(err, context.Canceled) {
-			log.Logger.Infow("context canceled, exiting")
-			return nil
-		}
-
-		log.Logger.Errorw("failed to fetch current events", "error", err)
-		select {
-		case <-c.ctx.Done():
-			return nil
-		case <-time.After(1 * time.Second):
-		}
-	}
-
-	if c.kmsgWatcher != nil {
-		kmsgCh, err := c.kmsgWatcher.Watch()
-		if err != nil {
-			return err
-		}
-		go c.start(kmsgCh)
 	}
 	c.markMonitoringStarted()
 
@@ -160,6 +152,24 @@ func (c *component) Start() error {
 			}
 		}
 	}()
+	if c.eventBucket != nil {
+		go func() {
+			ticker := time.NewTicker(defaultStateUpdateInterval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-c.ctx.Done():
+					return
+				case <-ticker.C:
+				}
+
+				if err := c.updateCurrentState(); err != nil {
+					log.Logger.Errorw("failed to fetch current events", "error", err)
+				}
+			}
+		}()
+	}
 	return nil
 }
 
@@ -197,11 +207,8 @@ func (c *component) Close() error {
 
 	c.cancel()
 
-	if c.kmsgWatcher != nil {
-		cerr := c.kmsgWatcher.Close()
-		if cerr != nil {
-			log.Logger.Errorw("failed to close kmsg watcher", "error", cerr)
-		}
+	if c.kmsgSyncer != nil {
+		c.kmsgSyncer.Close()
 	}
 	if c.eventBucket != nil {
 		c.eventBucket.Close()

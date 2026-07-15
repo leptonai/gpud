@@ -41,3 +41,14 @@ func TestMatch(t *testing.T) {
 		})
 	}
 }
+
+func TestMatchWithBootID(t *testing.T) {
+	line := "NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!"
+
+	eventName, message := matchWithBootID(line, "boot-1")
+	_, nextBootMessage := matchWithBootID(line, "boot-2")
+
+	assert.Equal(t, EventNameDriverWedge, eventName)
+	assert.Equal(t, driverWedgeMessage+" (boot ID: boot-1)", message)
+	assert.NotEqual(t, message, nextBootMessage)
+}

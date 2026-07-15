@@ -7,63 +7,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
-	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 )
-
-func (c *component) start(kmsgCh <-chan kmsg.Message) {
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case message, ok := <-kmsgCh:
-			if !ok {
-				return
-			}
-			eventName, eventMessage := Match(message.Message)
-			if eventName != "" {
-				c.recordDriverWedgeEvent(message, eventName, eventMessage)
-			}
-		}
-	}
-}
-
-func (c *component) recordDriverWedgeEvent(kmsgMessage kmsg.Message, eventName string, eventMessage string) {
-	detectedAt := kmsgMessage.Timestamp.Time.UTC()
-	if detectedAt.IsZero() {
-		detectedAt = c.getTimeNowFunc()
-	}
-
-	c.mu.Lock()
-	if c.currState.Health == "" {
-		c.currState = *unhealthyRebootState(detectedAt, eventMessage)
-	}
-	if c.eventBucket == nil || c.driverWedgeEventPersisted {
-		c.mu.Unlock()
-		return
-	}
-	// Reserve the insert so repeated four-second kernel messages cannot race
-	// each other into duplicate persisted events.
-	c.driverWedgeEventPersisted = true
-	c.mu.Unlock()
-
-	event := eventstore.Event{
-		Component: Name,
-		Time:      detectedAt,
-		Name:      eventName,
-		Type:      string(apiv1.EventTypeFatal),
-		Message:   eventMessage,
-	}
-	if err := c.eventBucket.Insert(c.ctx, event); err != nil {
-		c.mu.Lock()
-		c.driverWedgeEventPersisted = false
-		c.mu.Unlock()
-		log.Logger.Errorw("failed to persist nvlink driver wedge event", "error", err)
-		return
-	}
-	log.Logger.Errorw("detected nvlink driver wedge", "event", eventName, "detectedAt", detectedAt)
-}
 
 func (c *component) updateCurrentState() error {
 	if c.eventBucket == nil {
@@ -85,13 +30,8 @@ func (c *component) updateCurrentState() error {
 		if event.Name != EventNameDriverWedge {
 			continue
 		}
-		message := event.Message
-		if message == "" {
-			message = driverWedgeMessage
-		}
 		c.mu.Lock()
-		c.currState = *unhealthyRebootState(event.Time.UTC(), message)
-		c.driverWedgeEventPersisted = true
+		c.currState = *unhealthyRebootState(event.Time.UTC(), driverWedgeMessage)
 		c.mu.Unlock()
 		return nil
 	}

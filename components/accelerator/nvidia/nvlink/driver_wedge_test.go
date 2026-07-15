@@ -2,7 +2,6 @@ package nvlink
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -10,67 +9,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
-	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
-
-func TestRecordDriverWedgeEventPersistsOnceAndOverridesHealth(t *testing.T) {
-	now := time.Date(2026, 7, 11, 4, 21, 32, 0, time.UTC)
-	bucket := &memoryEventBucket{}
-	c := &component{
-		ctx:            context.Background(),
-		getTimeNowFunc: func() time.Time { return now },
-		eventBucket:    bucket,
-		lastCheckResult: &checkResult{
-			ts:     now.Add(-time.Minute),
-			health: apiv1.HealthStateTypeHealthy,
-			reason: "healthy before the driver wedge",
-		},
-	}
-	message := kmsg.Message{
-		Timestamp: metav1.NewTime(now),
-		Message:   "NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!",
-	}
-
-	c.recordDriverWedgeEvent(message, EventNameDriverWedge, driverWedgeMessage)
-	c.recordDriverWedgeEvent(message, EventNameDriverWedge, driverWedgeMessage)
-
-	require.Len(t, bucket.snapshot(), 1)
-	assert.Equal(t, EventNameDriverWedge, bucket.snapshot()[0].Name)
-	state := c.LastHealthStates()[0]
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, driverWedgeMessage, state.Reason)
-	require.NotNil(t, state.SuggestedActions)
-	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, state.SuggestedActions.RepairActions)
-}
-
-func TestRecordDriverWedgeEventRetriesPersistence(t *testing.T) {
-	now := time.Date(2026, 7, 11, 4, 21, 32, 0, time.UTC)
-	bucket := &memoryEventBucket{insertFailures: 1}
-	c := &component{
-		ctx:            context.Background(),
-		getTimeNowFunc: func() time.Time { return now },
-		eventBucket:    bucket,
-	}
-	message := kmsg.Message{Timestamp: metav1.NewTime(now)}
-
-	c.recordDriverWedgeEvent(message, EventNameDriverWedge, driverWedgeMessage)
-	c.recordDriverWedgeEvent(message, EventNameDriverWedge, driverWedgeMessage)
-
-	require.Len(t, bucket.snapshot(), 1)
-	assert.True(t, c.driverWedgeEventPersisted)
-}
 
 func TestUpdateCurrentStateRestoresDriverWedgeFromCurrentBoot(t *testing.T) {
 	now := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
 	bootTime := now.Add(-24 * time.Hour)
 	bucket := &memoryEventBucket{events: eventstore.Events{
 		{Time: bootTime.Add(-time.Hour), Name: EventNameDriverWedge, Message: "old boot"},
-		{Time: bootTime.Add(time.Hour), Name: EventNameDriverWedge, Message: driverWedgeMessage},
+		{Time: bootTime.Add(time.Hour), Name: EventNameDriverWedge, Message: driverWedgeMessage + " (boot ID: boot-1)"},
 	}}
 	c := &component{
 		ctx:             context.Background(),
@@ -177,30 +127,9 @@ func TestStaleCompletedHealthStateFailsAfterMonitoringStarts(t *testing.T) {
 	assert.Contains(t, state.Reason, "has not refreshed")
 }
 
-func TestStartProcessesDriverWedgeEvent(t *testing.T) {
-	now := time.Date(2026, 7, 11, 4, 21, 32, 0, time.UTC)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	kmsgCh := make(chan kmsg.Message, 1)
-	c := &component{
-		ctx:            ctx,
-		getTimeNowFunc: func() time.Time { return now },
-	}
-
-	go c.start(kmsgCh)
-	kmsgCh <- kmsg.Message{
-		Timestamp: metav1.NewTime(now),
-		Message:   "NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!",
-	}
-	require.Eventually(t, func() bool {
-		return c.LastHealthStates()[0].Health == apiv1.HealthStateTypeUnhealthy
-	}, time.Second, 10*time.Millisecond)
-}
-
 type memoryEventBucket struct {
-	mu             sync.Mutex
-	events         eventstore.Events
-	insertFailures int
+	mu     sync.Mutex
+	events eventstore.Events
 }
 
 func (b *memoryEventBucket) Name() string { return Name }
@@ -208,10 +137,6 @@ func (b *memoryEventBucket) Name() string { return Name }
 func (b *memoryEventBucket) Insert(_ context.Context, event eventstore.Event) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.insertFailures > 0 {
-		b.insertFailures--
-		return errors.New("injected insert failure")
-	}
 	b.events = append(b.events, event)
 	return nil
 }
@@ -257,11 +182,5 @@ func (b *memoryEventBucket) Purge(_ context.Context, beforeTimestamp int64) (int
 }
 
 func (b *memoryEventBucket) Close() {}
-
-func (b *memoryEventBucket) snapshot() eventstore.Events {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return append(eventstore.Events(nil), b.events...)
-}
 
 var _ eventstore.Bucket = (*memoryEventBucket)(nil)
