@@ -18,7 +18,7 @@ func (c *component) updateCurrentState() error {
 	bootTime := c.getBootTimeFunc()
 	now := c.getTimeNowFunc()
 	if bootTime.Unix() <= 0 || bootTime.After(now) {
-		log.Logger.Warnw("skipping nvlink driver wedge restore due to invalid boot time", "bootTime", bootTime, "now", now)
+		log.Logger.Warnw("skipping nvlink post-RX-detect failure restore due to invalid boot time", "bootTime", bootTime, "now", now)
 		return nil
 	}
 
@@ -27,11 +27,11 @@ func (c *component) updateCurrentState() error {
 		return err
 	}
 	for _, event := range events {
-		if event.Name != EventNameDriverWedge {
+		if event.Name != EventNamePostRxDetectFailure {
 			continue
 		}
 		c.mu.Lock()
-		c.currState = *unhealthyRebootState(event.Time.UTC(), driverWedgeMessage)
+		c.currState = *unhealthyRebootState(event.Time.UTC(), postRxDetectFailureMessage)
 		c.mu.Unlock()
 		return nil
 	}

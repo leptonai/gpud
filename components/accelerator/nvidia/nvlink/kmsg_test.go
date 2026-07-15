@@ -32,8 +32,8 @@ func TestMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			eventName, message := Match(tt.line)
 			if tt.match {
-				assert.Equal(t, EventNameDriverWedge, eventName)
-				assert.Equal(t, driverWedgeMessage, message)
+				assert.Equal(t, EventNamePostRxDetectFailure, eventName)
+				assert.Equal(t, postRxDetectFailureMessage, message)
 			} else {
 				assert.Empty(t, eventName)
 				assert.Empty(t, message)
@@ -48,7 +48,7 @@ func TestMatchWithBootID(t *testing.T) {
 	eventName, message := matchWithBootID(line, "boot-1")
 	_, nextBootMessage := matchWithBootID(line, "boot-2")
 
-	assert.Equal(t, EventNameDriverWedge, eventName)
-	assert.Equal(t, driverWedgeMessage+" (boot ID: boot-1)", message)
+	assert.Equal(t, EventNamePostRxDetectFailure, eventName)
+	assert.Equal(t, postRxDetectFailureMessage+" (boot ID: boot-1)", message)
 	assert.NotEqual(t, message, nextBootMessage)
 }

@@ -15,12 +15,12 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
-func TestUpdateCurrentStateRestoresDriverWedgeFromCurrentBoot(t *testing.T) {
+func TestUpdateCurrentStateRestoresPostRxDetectFailureFromCurrentBoot(t *testing.T) {
 	now := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
 	bootTime := now.Add(-24 * time.Hour)
 	bucket := &memoryEventBucket{events: eventstore.Events{
-		{Time: bootTime.Add(-time.Hour), Name: EventNameDriverWedge, Message: "old boot"},
-		{Time: bootTime.Add(time.Hour), Name: EventNameDriverWedge, Message: driverWedgeMessage + " (boot ID: boot-1)"},
+		{Time: bootTime.Add(-time.Hour), Name: EventNamePostRxDetectFailure, Message: "old boot"},
+		{Time: bootTime.Add(time.Hour), Name: EventNamePostRxDetectFailure, Message: postRxDetectFailureMessage + " (boot ID: boot-1)"},
 	}}
 	c := &component{
 		ctx:             context.Background(),
@@ -33,7 +33,7 @@ func TestUpdateCurrentStateRestoresDriverWedgeFromCurrentBoot(t *testing.T) {
 
 	state := c.LastHealthStates()[0]
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, state.Health)
-	assert.Equal(t, driverWedgeMessage, state.Reason)
+	assert.Equal(t, postRxDetectFailureMessage, state.Reason)
 	assert.Equal(t, bootTime.Add(time.Hour), state.Time.Time)
 }
 
@@ -41,7 +41,7 @@ func TestUpdateCurrentStateIgnoresPreviousBoot(t *testing.T) {
 	now := time.Date(2026, 7, 15, 3, 0, 0, 0, time.UTC)
 	bootTime := now.Add(-24 * time.Hour)
 	bucket := &memoryEventBucket{events: eventstore.Events{
-		{Time: bootTime.Add(-time.Hour), Name: EventNameDriverWedge, Message: driverWedgeMessage},
+		{Time: bootTime.Add(-time.Hour), Name: EventNamePostRxDetectFailure, Message: postRxDetectFailureMessage},
 	}}
 	c := &component{
 		ctx:             context.Background(),
