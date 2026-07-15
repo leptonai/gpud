@@ -210,7 +210,9 @@ func TestCheckDetectsPostRxDetectFailureForOneShotScan(t *testing.T) {
 
 	result := c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "scanned kmsg(s)")
 	assert.Contains(t, result.Summary(), postRxDetectFailureMessage)
+	assert.Equal(t, "matched 1 kmsg(s)", result.String())
 	assert.False(t, getNVLinkCalled, "kmsg failure should short-circuit NVML probing")
 	state := result.HealthStates()[0]
 	require.NotNil(t, state.SuggestedActions)
@@ -223,6 +225,7 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 		readAll    func(context.Context) ([]kmsg.Message, error)
 		wantHealth apiv1.HealthStateType
 		wantReason string
+		wantString string
 	}{
 		{
 			name: "read failure",
@@ -231,6 +234,7 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 			},
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 			wantReason: "failed to read kmsg",
+			wantString: "no data",
 		},
 		{
 			name: "no matching message",
@@ -239,6 +243,7 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 			},
 			wantHealth: apiv1.HealthStateTypeHealthy,
 			wantReason: "all 0 GPU(s) were checked, no nvlink issue found",
+			wantString: "matched 0 kmsg(s)",
 		},
 	}
 
@@ -254,6 +259,7 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 			result := c.Check()
 			assert.Equal(t, tt.wantHealth, result.HealthStateType())
 			assert.Contains(t, result.Summary(), tt.wantReason)
+			assert.Equal(t, tt.wantString, result.String())
 		})
 	}
 }

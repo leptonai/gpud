@@ -274,10 +274,14 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
+		cr.KmsgScanned = true
 		for _, message := range kmsgs {
 			if !HasPostRxDetectFailure(message.Message) {
 				continue
 			}
+			cr.MatchedKmsgs = append(cr.MatchedKmsgs, message)
+		}
+		if len(cr.MatchedKmsgs) > 0 {
 			state := unhealthyRebootState(cr.ts, postRxDetectFailureMessage)
 			cr.health = state.Health
 			cr.reason = state.Reason
@@ -439,6 +443,9 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
+	KmsgScanned  bool           `json:"kmsg_scanned,omitempty"`
+	MatchedKmsgs []kmsg.Message `json:"matched_kmsgs,omitempty"`
+
 	// NVLinks contains detailed NVLink information for all GPUs checked
 	NVLinks []NVLink `json:"nvlinks,omitempty"`
 
@@ -548,7 +555,14 @@ func (cr *checkResult) String() string {
 	if cr == nil {
 		return ""
 	}
+	kmsgSummary := ""
+	if cr.KmsgScanned {
+		kmsgSummary = fmt.Sprintf("matched %d kmsg(s)", len(cr.MatchedKmsgs))
+	}
 	if len(cr.NVLinks) == 0 {
+		if kmsgSummary != "" {
+			return kmsgSummary
+		}
 		return "no data"
 	}
 
@@ -581,12 +595,18 @@ func (cr *checkResult) String() string {
 	}
 	table.Render()
 
+	if kmsgSummary != "" {
+		return kmsgSummary + "\n\n" + buf.String()
+	}
 	return buf.String()
 }
 
 func (cr *checkResult) Summary() string {
 	if cr == nil {
 		return ""
+	}
+	if cr.KmsgScanned {
+		return "scanned kmsg(s); " + cr.reason
 	}
 	return cr.reason
 }
