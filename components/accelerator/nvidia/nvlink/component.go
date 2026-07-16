@@ -32,9 +32,10 @@ import (
 const Name = "accelerator-nvidia-nvlink"
 
 const (
-	defaultCheckInterval       = time.Minute
-	defaultCheckStaleAfter     = 2 * defaultCheckInterval
-	defaultStateUpdateInterval = 30 * time.Second
+	defaultCheckInterval        = time.Minute
+	defaultCheckStaleAfter      = 2 * defaultCheckInterval
+	defaultStateUpdateInterval  = 30 * time.Second
+	defaultKmsgEventDedupWindow = 5 * time.Minute
 )
 
 var _ components.Component = &component{}
@@ -102,6 +103,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				cctx,
 				func(line string) (string, string) { return matchWithBootID(line, bootID) },
 				c.eventBucket,
+				kmsg.WithCacheKeyTruncateSeconds(int(defaultKmsgEventDedupWindow.Seconds())),
 			)
 			if err != nil {
 				c.eventBucket.Close()
@@ -274,10 +276,29 @@ func (c *component) Check() components.CheckResult {
 			log.Logger.Warnw(cr.reason, "error", cr.err)
 			return cr
 		}
+		cr.KmsgScanned = true
+		type kmsgEventWindow struct {
+			name, message string
+			window        int64
+		}
+		seen := make(map[kmsgEventWindow]struct{})
 		for _, message := range kmsgs {
-			if !HasPostRxDetectFailure(message.Message) {
+			eventName, eventMessage := Match(message.Message)
+			if eventName == "" {
 				continue
 			}
+			key := kmsgEventWindow{
+				name:    eventName,
+				message: eventMessage,
+				window:  message.Timestamp.Unix() / int64(defaultKmsgEventDedupWindow/time.Second),
+			}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			cr.MatchedKmsgs = append(cr.MatchedKmsgs, message)
+		}
+		if len(cr.MatchedKmsgs) > 0 {
 			state := unhealthyRebootState(cr.ts, postRxDetectFailureMessage)
 			cr.health = state.Health
 			cr.reason = state.Reason
@@ -439,6 +460,9 @@ func (c *component) Check() components.CheckResult {
 var _ components.CheckResult = &checkResult{}
 
 type checkResult struct {
+	KmsgScanned  bool           `json:"-"`
+	MatchedKmsgs []kmsg.Message `json:"-"`
+
 	// NVLinks contains detailed NVLink information for all GPUs checked
 	NVLinks []NVLink `json:"nvlinks,omitempty"`
 
@@ -548,7 +572,14 @@ func (cr *checkResult) String() string {
 	if cr == nil {
 		return ""
 	}
+	kmsgSummary := ""
+	if cr.KmsgScanned {
+		kmsgSummary = fmt.Sprintf("matched %d kmsg(s)", len(cr.MatchedKmsgs))
+	}
 	if len(cr.NVLinks) == 0 {
+		if kmsgSummary != "" {
+			return kmsgSummary
+		}
 		return "no data"
 	}
 
@@ -581,12 +612,18 @@ func (cr *checkResult) String() string {
 	}
 	table.Render()
 
+	if kmsgSummary != "" {
+		return kmsgSummary + "\n\n" + buf.String()
+	}
 	return buf.String()
 }
 
 func (cr *checkResult) Summary() string {
 	if cr == nil {
 		return ""
+	}
+	if cr.KmsgScanned {
+		return "scanned kmsg(s); " + cr.reason
 	}
 	return cr.reason
 }

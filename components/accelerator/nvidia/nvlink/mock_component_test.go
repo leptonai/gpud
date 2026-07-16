@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -27,13 +28,15 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 
 		bucket := &memoryEventBucket{}
 		var match kmsg.MatchFunc
+		var syncerOpts []kmsg.OpOption
 		mockey.Mock(kmsg.NewSyncer).To(func(
 			_ context.Context,
 			matchFunc kmsg.MatchFunc,
 			eventBucket eventstore.Bucket,
-			_ ...kmsg.OpOption,
+			opts ...kmsg.OpOption,
 		) (*kmsg.Syncer, error) {
 			match = matchFunc
+			syncerOpts = opts
 			assert.Same(t, bucket, eventBucket)
 			return &kmsg.Syncer{}, nil
 		}).Build()
@@ -48,6 +51,8 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 		require.NotNil(t, c.kmsgSyncer)
 		assert.Nil(t, c.readAllKmsg, "daemon components should rely on the kmsg syncer")
 		require.NotNil(t, match)
+		require.Len(t, syncerOpts, 1)
+		assert.Equal(t, int(defaultKmsgEventDedupWindow.Seconds()), getKmsgCacheKeyTruncateSeconds(t, syncerOpts[0]))
 
 		name, message := match("NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!")
 		assert.Equal(t, EventNamePostRxDetectFailure, name)
@@ -61,6 +66,17 @@ func TestNew_WithEventStoreAsRoot_KmsgSyncer_WithMockey(t *testing.T) {
 			require.FailNow(t, "component context was not canceled")
 		}
 	})
+}
+
+func getKmsgCacheKeyTruncateSeconds(t *testing.T, opt kmsg.OpOption) int {
+	t.Helper()
+	op := &kmsg.Op{}
+	opt(op)
+
+	v := reflect.ValueOf(op).Elem().FieldByName("cacheKeyTruncateSeconds")
+	require.True(t, v.IsValid(), "cacheKeyTruncateSeconds field must exist")
+	require.Equal(t, reflect.Int, v.Kind(), "cacheKeyTruncateSeconds must be int")
+	return int(v.Int())
 }
 
 func TestNew_WithEventStoreAsRoot_KmsgSyncerError_WithMockey(t *testing.T) {

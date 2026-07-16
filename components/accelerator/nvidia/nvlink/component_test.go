@@ -613,6 +613,15 @@ func TestData_String(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("with kmsg summary", func(t *testing.T) {
+		got := (&checkResult{
+			KmsgScanned: true,
+			NVLinks:     []NVLink{{UUID: "gpu-uuid-123"}},
+		}).String()
+		assert.Contains(t, got, "matched 0 kmsg(s)")
+		assert.Contains(t, got, "gpu-uuid-123")
+	})
 }
 
 func TestData_Summary(t *testing.T) {

@@ -18,6 +18,11 @@ func TestMatch(t *testing.T) {
 			match: true,
 		},
 		{
+			name:  "incident link-mask update signature",
+			line:  "NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!",
+			match: true,
+		},
+		{
 			name:  "other GPU architecture and peer",
 			line:  "kernel: NVRM: knvlinkDiscoverPostRxDetLinks_GB100_REV2: Getting peer17 postRxDetLinkMask failed!",
 			match: true,

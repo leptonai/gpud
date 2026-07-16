@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -192,7 +193,7 @@ func TestHealthStateFailsWhenNoCheckCompletesAfterMonitoringStarts(t *testing.T)
 	assert.Contains(t, state.Reason, "has not refreshed")
 }
 
-func TestCheckDetectsPostRxDetectFailureForOneShotScan(t *testing.T) {
+func TestCheckDetectsAndDeduplicatesPostRxDetectFailureForOneShotScan(t *testing.T) {
 	getNVLinkCalled := false
 	c := mustComponent(t, MockNVLinkComponent(
 		context.Background(),
@@ -202,19 +203,39 @@ func TestCheckDetectsPostRxDetectFailureForOneShotScan(t *testing.T) {
 			return NVLink{}, nil
 		},
 	))
+	baseTime := time.Date(2026, 2, 3, 3, 0, 0, 0, time.UTC)
+	reportedKmsgs := []kmsg.Message{
+		{Timestamp: metav1.NewTime(baseTime), Message: "[6619715.535712] NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(18 * time.Microsecond)), Message: "[6619715.535730] NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(4*time.Second + 2771*time.Microsecond)), Message: "[6619719.538483] NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(4*time.Second + 2787*time.Microsecond)), Message: "[6619719.538499] NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(8*time.Second + 3808*time.Microsecond)), Message: "[6619723.539520] NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(8*time.Second + 3827*time.Microsecond)), Message: "[6619723.539539] NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!"},
+	}
+	for _, message := range reportedKmsgs {
+		eventName, eventMessage := Match(message.Message)
+		assert.Equal(t, EventNamePostRxDetectFailure, eventName, message.Message)
+		assert.Equal(t, postRxDetectFailureMessage, eventMessage, message.Message)
+	}
 	c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
-		return []kmsg.Message{{
-			Message: "NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!",
-		}}, nil
+		return reportedKmsgs, nil
 	}
 
 	result := c.Check()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "scanned kmsg(s)")
 	assert.Contains(t, result.Summary(), postRxDetectFailureMessage)
+	assert.Equal(t, "matched 1 kmsg(s)", result.String())
 	assert.False(t, getNVLinkCalled, "kmsg failure should short-circuit NVML probing")
 	state := result.HealthStates()[0]
 	require.NotNil(t, state.SuggestedActions)
 	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, state.SuggestedActions.RepairActions)
+
+	reportedKmsgs = append(reportedKmsgs, kmsg.Message{
+		Timestamp: metav1.NewTime(baseTime.Add(defaultKmsgEventDedupWindow)),
+		Message:   "NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!",
+	})
+	assert.Equal(t, "matched 2 kmsg(s)", c.Check().String(), "a later dedup window should report the failure again")
 }
 
 func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
@@ -223,6 +244,7 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 		readAll    func(context.Context) ([]kmsg.Message, error)
 		wantHealth apiv1.HealthStateType
 		wantReason string
+		wantString string
 	}{
 		{
 			name: "read failure",
@@ -231,6 +253,7 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 			},
 			wantHealth: apiv1.HealthStateTypeUnhealthy,
 			wantReason: "failed to read kmsg",
+			wantString: "no data",
 		},
 		{
 			name: "no matching message",
@@ -239,6 +262,7 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 			},
 			wantHealth: apiv1.HealthStateTypeHealthy,
 			wantReason: "all 0 GPU(s) were checked, no nvlink issue found",
+			wantString: "matched 0 kmsg(s)",
 		},
 	}
 
@@ -254,6 +278,7 @@ func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {
 			result := c.Check()
 			assert.Equal(t, tt.wantHealth, result.HealthStateType())
 			assert.Contains(t, result.Summary(), tt.wantReason)
+			assert.Equal(t, tt.wantString, result.String())
 		})
 	}
 }
