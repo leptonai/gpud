@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -192,7 +193,7 @@ func TestHealthStateFailsWhenNoCheckCompletesAfterMonitoringStarts(t *testing.T)
 	assert.Contains(t, state.Reason, "has not refreshed")
 }
 
-func TestCheckDetectsPostRxDetectFailureForOneShotScan(t *testing.T) {
+func TestCheckDetectsAndDeduplicatesPostRxDetectFailureForOneShotScan(t *testing.T) {
 	getNVLinkCalled := false
 	c := mustComponent(t, MockNVLinkComponent(
 		context.Background(),
@@ -202,10 +203,20 @@ func TestCheckDetectsPostRxDetectFailureForOneShotScan(t *testing.T) {
 			return NVLink{}, nil
 		},
 	))
+	baseTime := time.Date(2026, 2, 3, 3, 0, 0, 0, time.UTC)
+	reportedKmsgs := []kmsg.Message{
+		{Timestamp: metav1.NewTime(baseTime), Message: "[6619715.535712] NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(18 * time.Microsecond)), Message: "[6619715.535730] NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(4*time.Second + 2771*time.Microsecond)), Message: "[6619719.538483] NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(4*time.Second + 2787*time.Microsecond)), Message: "[6619719.538499] NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(8*time.Second + 3808*time.Microsecond)), Message: "[6619723.539520] NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!"},
+		{Timestamp: metav1.NewTime(baseTime.Add(8*time.Second + 3827*time.Microsecond)), Message: "[6619723.539539] NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!"},
+	}
+	for _, message := range reportedKmsgs {
+		assert.True(t, HasPostRxDetectFailure(message.Message), message.Message)
+	}
 	c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
-		return []kmsg.Message{{
-			Message: "NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!",
-		}}, nil
+		return reportedKmsgs, nil
 	}
 
 	result := c.Check()

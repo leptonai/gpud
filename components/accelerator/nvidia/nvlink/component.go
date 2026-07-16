@@ -32,9 +32,10 @@ import (
 const Name = "accelerator-nvidia-nvlink"
 
 const (
-	defaultCheckInterval       = time.Minute
-	defaultCheckStaleAfter     = 2 * defaultCheckInterval
-	defaultStateUpdateInterval = 30 * time.Second
+	defaultCheckInterval        = time.Minute
+	defaultCheckStaleAfter      = 2 * defaultCheckInterval
+	defaultStateUpdateInterval  = 30 * time.Second
+	defaultKmsgEventDedupWindow = 5 * time.Minute
 )
 
 var _ components.Component = &component{}
@@ -102,6 +103,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				cctx,
 				func(line string) (string, string) { return matchWithBootID(line, bootID) },
 				c.eventBucket,
+				kmsg.WithCacheKeyTruncateSeconds(int(defaultKmsgEventDedupWindow.Seconds())),
 			)
 			if err != nil {
 				c.eventBucket.Close()
@@ -275,10 +277,25 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 		cr.KmsgScanned = true
+		type kmsgEventWindow struct {
+			name, message string
+			window        int64
+		}
+		seen := make(map[kmsgEventWindow]struct{})
 		for _, message := range kmsgs {
-			if !HasPostRxDetectFailure(message.Message) {
+			eventName, eventMessage := Match(message.Message)
+			if eventName == "" {
 				continue
 			}
+			key := kmsgEventWindow{
+				name:    eventName,
+				message: eventMessage,
+				window:  message.Timestamp.Unix() / int64(defaultKmsgEventDedupWindow/time.Second),
+			}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
 			cr.MatchedKmsgs = append(cr.MatchedKmsgs, message)
 		}
 		if len(cr.MatchedKmsgs) > 0 {
