@@ -2,8 +2,8 @@ name: Helm chart release
 
 "on":
   push:
-    branches:
-      - main
+    tags:
+      - "*"
 
 permissions:
   contents: write
@@ -29,7 +29,7 @@ jobs:
           chart=deployments/helm/gpud
           pages_dir="$RUNNER_TEMP/gh-pages"
           name="$(awk '$1 == "name:" { print $2; exit }' "$chart/Chart.yaml")"
-          version="$(awk '$1 == "version:" { print $2; exit }' "$chart/Chart.yaml")"
+          version="${GITHUB_REF_NAME#v}"
           package="$pages_dir/$name-$version.tgz"
 
           git fetch origin gh-pages:refs/remotes/origin/gh-pages
@@ -37,7 +37,10 @@ jobs:
 
           if [[ ! -f "$package" || ! -f "$pages_dir/index.yaml" ]]; then
             if [[ ! -f "$package" ]]; then
-              helm package "$chart" --destination "$pages_dir"
+              helm package "$chart" \
+                --version "$version" \
+                --app-version "$version" \
+                --destination "$pages_dir"
             fi
             helm repo index "$pages_dir" --url https://leptonai.github.io/gpud
           fi
