@@ -1,4 +1,4 @@
-name: Build and Store gpud binary
+name: Build gpud binary
 
 on:
   push:
@@ -23,9 +23,3 @@ jobs:
       - name: Build project
         run: |
           make
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: gpud
-          path: bin/gpud
