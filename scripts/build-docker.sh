@@ -17,7 +17,7 @@
 # OPTIONS
 # ==============================================================================
 #
-#   --tag TAG           Docker image tag (required)
+#   --tag TAG           Docker image tag (required, repeatable)
 #   --platform PLAT     Target platforms (default: linux/amd64,linux/arm64)
 #   --os-name NAME      Base OS name (default: ubuntu)
 #   --os-version VER    Base OS version (default: 22.04)
@@ -132,7 +132,7 @@ PLATFORMS="linux/amd64,linux/arm64"
 OS_NAME="ubuntu"
 OS_VERSION="22.04"
 CUDA_VERSION="12.4.1"
-TAG=""
+TAGS=()
 PUSH=false
 LOAD=false
 NO_CACHE=false
@@ -174,7 +174,7 @@ show_help() {
 while [[ $# -gt 0 ]]; do
     case $1 in
         --tag)
-            TAG="$2"
+            TAGS+=("$2")
             shift 2
             ;;
         --platform)
@@ -220,10 +220,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate required arguments
-if [[ -z "$TAG" ]]; then
+if [[ ${#TAGS[@]} -eq 0 ]]; then
     log_error "Docker image tag is required. Use --tag to specify."
     exit 1
 fi
+TAG="${TAGS[0]}"
 
 # Check for Dockerfile
 if [[ ! -f "$PROJECT_ROOT/Dockerfile" ]]; then
@@ -250,44 +251,42 @@ if [[ "$LOAD" == "true" && "$PLATFORMS" == *","* ]]; then
 fi
 
 # Build the command
-BUILD_CMD="docker buildx build"
+BUILD_CMD=(
+    docker buildx build
+    --platform "$PLATFORMS"
+    --build-arg "OS_NAME=$OS_NAME"
+    --build-arg "OS_VERSION=$OS_VERSION"
+    --build-arg "CUDA_VERSION=$CUDA_VERSION"
+)
 
-# Add platform
-BUILD_CMD="$BUILD_CMD --platform $PLATFORMS"
+for tag in "${TAGS[@]}"; do
+    BUILD_CMD+=(--tag "$tag")
+done
 
-# Add build args
-BUILD_CMD="$BUILD_CMD --build-arg OS_NAME=$OS_NAME"
-BUILD_CMD="$BUILD_CMD --build-arg OS_VERSION=$OS_VERSION"
-BUILD_CMD="$BUILD_CMD --build-arg CUDA_VERSION=$CUDA_VERSION"
-
-# Add tag
-BUILD_CMD="$BUILD_CMD -t $TAG"
-
-# Add Dockerfile
-BUILD_CMD="$BUILD_CMD -f $PROJECT_ROOT/Dockerfile"
+BUILD_CMD+=(-f "$PROJECT_ROOT/Dockerfile")
 
 # Add optional flags
 if [[ "$PUSH" == "true" ]]; then
-    BUILD_CMD="$BUILD_CMD --push"
+    BUILD_CMD+=(--push)
 fi
 
 if [[ "$LOAD" == "true" ]]; then
-    BUILD_CMD="$BUILD_CMD --load"
+    BUILD_CMD+=(--load)
 fi
 
 if [[ "$NO_CACHE" == "true" ]]; then
-    BUILD_CMD="$BUILD_CMD --no-cache"
+    BUILD_CMD+=(--no-cache)
 fi
 
 # Add context
-BUILD_CMD="$BUILD_CMD $PROJECT_ROOT"
+BUILD_CMD+=("$PROJECT_ROOT")
 
 # Print build information
 echo ""
 log_info "========================================"
 log_info "GPUd Docker Build"
 log_info "========================================"
-log_info "Tag:          $TAG"
+log_info "Tags:         ${TAGS[*]}"
 log_info "Platforms:    $PLATFORMS"
 log_info "OS:           $OS_NAME $OS_VERSION"
 log_info "CUDA Version: $CUDA_VERSION"
@@ -300,11 +299,11 @@ echo ""
 
 log_step "Building Docker image..."
 echo ""
-log_info "Command: $BUILD_CMD"
+log_info "Command: ${BUILD_CMD[*]}"
 echo ""
 
 # Execute build
-eval "$BUILD_CMD"
+"${BUILD_CMD[@]}"
 
 BUILD_STATUS=$?
 
