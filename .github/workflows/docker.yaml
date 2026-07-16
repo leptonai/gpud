@@ -30,6 +30,13 @@ jobs:
       - name: Build and push image
         shell: bash
         run: |
+          image=nvcr.io/nvstaging/lepton/gpud
+          version="${GITHUB_REF_NAME#v}"
+
           ./scripts/build-docker.sh \
-            --tag "nvcr.io/nvstaging/lepton/gpud:${GITHUB_REF_NAME#v}" \
+            --tag "$image:$version" \
             --push
+
+          docker buildx imagetools create \
+            --tag "$image:latest" \
+            "$image:$version"
