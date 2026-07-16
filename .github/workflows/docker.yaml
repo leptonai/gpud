@@ -3,7 +3,7 @@ name: Docker image release
 "on":
   push:
     tags:
-      - "*"
+      - "v*.*.*"
 
 permissions:
   contents: read
