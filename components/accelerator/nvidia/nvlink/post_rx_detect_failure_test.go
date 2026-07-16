@@ -213,7 +213,9 @@ func TestCheckDetectsAndDeduplicatesPostRxDetectFailureForOneShotScan(t *testing
 		{Timestamp: metav1.NewTime(baseTime.Add(8*time.Second + 3827*time.Microsecond)), Message: "[6619723.539539] NVRM: knvlinkDiscoverPostRxDetLinks_GH100: Getting peer0's postRxDetLinkMask failed!"},
 	}
 	for _, message := range reportedKmsgs {
-		assert.True(t, HasPostRxDetectFailure(message.Message), message.Message)
+		eventName, eventMessage := Match(message.Message)
+		assert.Equal(t, EventNamePostRxDetectFailure, eventName, message.Message)
+		assert.Equal(t, postRxDetectFailureMessage, eventMessage, message.Message)
 	}
 	c.readAllKmsg = func(context.Context) ([]kmsg.Message, error) {
 		return reportedKmsgs, nil
@@ -228,6 +230,12 @@ func TestCheckDetectsAndDeduplicatesPostRxDetectFailureForOneShotScan(t *testing
 	state := result.HealthStates()[0]
 	require.NotNil(t, state.SuggestedActions)
 	assert.Equal(t, []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem}, state.SuggestedActions.RepairActions)
+
+	reportedKmsgs = append(reportedKmsgs, kmsg.Message{
+		Timestamp: metav1.NewTime(baseTime.Add(defaultKmsgEventDedupWindow)),
+		Message:   "NVRM: knvlinkUpdatePostRxDetectLinkMask_IMPL: Failed to update Rx Detect Link mask!",
+	})
+	assert.Equal(t, "matched 2 kmsg(s)", c.Check().String(), "a later dedup window should report the failure again")
 }
 
 func TestCheckHandlesOneShotKmsgReadResult(t *testing.T) {

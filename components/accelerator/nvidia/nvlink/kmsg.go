@@ -7,9 +7,10 @@ const (
 	// update an NVLink post-RX-detection link mask.
 	EventNamePostRxDetectFailure = "nvlink_post_rx_detect_failure"
 
-	// NVIDIA's published GH100 kernel source emits these errors when updating a
-	// post-RX-detection link mask fails. The source does not classify this error
-	// as a driver hang.
+	// NVIDIA's published GH100 discovery path calls
+	// knvlinkUpdatePostRxDetectLinkMask and reports the peer-mask failure when
+	// that update fails. Some driver builds also emit the paired update failure.
+	// The source does not classify this error as a driver hang.
 	// ref. https://github.com/NVIDIA/open-gpu-kernel-modules/blob/452cec62d827034798072827d3866d1881662b77/src/nvidia/src/kernel/gpu/nvlink/arch/hopper/kernel_nvlink_gh100.c#L173-L249
 	RegexPostRxDetectFailureKMessage = `NVRM: (?:knvlinkUpdatePostRxDetectLinkMask_[A-Za-z0-9_]+: Failed to update Rx Detect Link mask!|knvlinkDiscoverPostRxDetLinks_[A-Za-z0-9_]+: Getting peer[0-9]+(?:'s)? postRxDetLinkMask failed!)`
 
