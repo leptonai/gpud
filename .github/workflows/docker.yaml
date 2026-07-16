@@ -35,8 +35,5 @@ jobs:
 
           ./scripts/build-docker.sh \
             --tag "$image:$version" \
-            --push
-
-          docker buildx imagetools create \
             --tag "$image:latest" \
-            "$image:$version"
+            --push
