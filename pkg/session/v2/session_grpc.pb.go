@@ -29,7 +29,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SessionServiceClient interface {
-	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentEnvelope, ManagerEnvelope], error)
+	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentPacket, ManagerPacket], error)
 }
 
 type sessionServiceClient struct {
@@ -40,24 +40,24 @@ func NewSessionServiceClient(cc grpc.ClientConnInterface) SessionServiceClient {
 	return &sessionServiceClient{cc}
 }
 
-func (c *sessionServiceClient) Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentEnvelope, ManagerEnvelope], error) {
+func (c *sessionServiceClient) Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AgentPacket, ManagerPacket], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &SessionService_ServiceDesc.Streams[0], SessionService_Connect_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[AgentEnvelope, ManagerEnvelope]{ClientStream: stream}
+	x := &grpc.GenericClientStream[AgentPacket, ManagerPacket]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SessionService_ConnectClient = grpc.BidiStreamingClient[AgentEnvelope, ManagerEnvelope]
+type SessionService_ConnectClient = grpc.BidiStreamingClient[AgentPacket, ManagerPacket]
 
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
 type SessionServiceServer interface {
-	Connect(grpc.BidiStreamingServer[AgentEnvelope, ManagerEnvelope]) error
+	Connect(grpc.BidiStreamingServer[AgentPacket, ManagerPacket]) error
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -68,7 +68,7 @@ type SessionServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedSessionServiceServer struct{}
 
-func (UnimplementedSessionServiceServer) Connect(grpc.BidiStreamingServer[AgentEnvelope, ManagerEnvelope]) error {
+func (UnimplementedSessionServiceServer) Connect(grpc.BidiStreamingServer[AgentPacket, ManagerPacket]) error {
 	return status.Error(codes.Unimplemented, "method Connect not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
@@ -93,11 +93,11 @@ func RegisterSessionServiceServer(s grpc.ServiceRegistrar, srv SessionServiceSer
 }
 
 func _SessionService_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(SessionServiceServer).Connect(&grpc.GenericServerStream[AgentEnvelope, ManagerEnvelope]{ServerStream: stream})
+	return srv.(SessionServiceServer).Connect(&grpc.GenericServerStream[AgentPacket, ManagerPacket]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type SessionService_ConnectServer = grpc.BidiStreamingServer[AgentEnvelope, ManagerEnvelope]
+type SessionService_ConnectServer = grpc.BidiStreamingServer[AgentPacket, ManagerPacket]
 
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,

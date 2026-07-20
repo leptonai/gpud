@@ -10,21 +10,43 @@ option go_package = "github.com/leptonai/gpud/pkg/session/v2;sessionv2";
 import "google/protobuf/timestamp.proto";
 
 service SessionService {
-  rpc Connect(stream AgentEnvelope) returns (stream ManagerEnvelope);
+  rpc Connect(stream AgentPacket) returns (stream ManagerPacket);
 }
 
-message AgentEnvelope {
+message AgentPacket {
   oneof payload {
     Hello hello = 1;
-    Response response = 2;
+    Result result = 2;
   }
 }
 
-message ManagerEnvelope {
+message ManagerPacket {
+  reserved 2;
+
+  string request_id = 4;
+
   oneof payload {
     HelloAck hello_ack = 1;
-    Request request = 2;
     DrainNotice drain_notice = 3;
+    GetHealthStatesRequest get_health_states = 10;
+    GetEventsRequest get_events = 11;
+    GetMetricsRequest get_metrics = 12;
+    UpdateRequest update = 13;
+    SetHealthyRequest set_healthy = 14;
+    RebootRequest reboot = 15;
+    UpdateConfigRequest update_config = 16;
+    BootstrapRequest bootstrap = 17;
+    InjectFaultRequest inject_fault = 18;
+    DiagnosticRequest diagnostic = 19;
+    GetPackageStatusRequest get_package_status = 20;
+    LogoutRequest logout = 21;
+    GossipRequest gossip = 22;
+    TriggerComponentRequest trigger_component = 23;
+    SetPluginSpecsRequest set_plugin_specs = 24;
+    UpdateTokenRequest update_token = 25;
+    GetKAPMTLSStatusRequest get_kap_mtls_status = 26;
+    UpdateKAPMTLSCredentialsRequest update_kap_mtls_credentials = 27;
+    ActivateKAPMTLSRequest activate_kap_mtls = 28;
   }
 }
 
@@ -42,71 +64,45 @@ message HelloAck {
   uint32 max_receive_message_bytes = 3;
 }
 
-message Request {
-  string request_id = 1;
-
-  oneof command {
-    GetHealthStatesCommand get_health_states = 10;
-    GetEventsCommand get_events = 11;
-    GetMetricsCommand get_metrics = 12;
-    UpdateCommand update = 13;
-    SetHealthyCommand set_healthy = 14;
-    RebootCommand reboot = 15;
-    UpdateConfigCommand update_config = 16;
-    BootstrapCommand bootstrap = 17;
-    InjectFaultCommand inject_fault = 18;
-    DiagnosticCommand diagnostic = 19;
-    GetPackageStatusCommand get_package_status = 20;
-    LogoutCommand logout = 21;
-    GossipCommand gossip = 22;
-    TriggerComponentCommand trigger_component = 23;
-    SetPluginSpecsCommand set_plugin_specs = 24;
-    UpdateTokenCommand update_token = 25;
-    GetKAPMTLSStatusCommand get_kap_mtls_status = 26;
-    UpdateKAPMTLSCredentialsCommand update_kap_mtls_credentials = 27;
-    ActivateKAPMTLSCommand activate_kap_mtls = 28;
-  }
-}
-
-message Response {
+message Result {
   string request_id = 1;
   bytes payload_json = 2;
 }
 
-message GetHealthStatesCommand {}
+message GetHealthStatesRequest {}
 
-message GetEventsCommand {
+message GetEventsRequest {
   google.protobuf.Timestamp start_time = 1;
   google.protobuf.Timestamp end_time = 2;
 }
 
-message GetMetricsCommand {
+message GetMetricsRequest {
   int64 since_nanos = 1;
 }
 
-message UpdateCommand {
+message UpdateRequest {
   string version = 1;
   int64 since_nanos = 2;
 }
 
-message SetHealthyCommand {
+message SetHealthyRequest {
   repeated string components = 1;
   int64 since_nanos = 2;
 }
 
-message RebootCommand {}
+message RebootRequest {}
 
-message UpdateConfigCommand {
+message UpdateConfigRequest {
   map<string, string> values = 1;
 }
 
-message BootstrapCommand {
+message BootstrapRequest {
   int64 timeout_seconds = 1;
   string script_base64 = 2;
   bool request_present = 3;
 }
 
-message InjectFaultCommand {
+message InjectFaultRequest {
   bool request_present = 1;
 
   oneof fault {
@@ -120,25 +116,25 @@ message KernelMessage {
   string message = 2;
 }
 
-message DiagnosticCommand {
+message DiagnosticRequest {
   string report_id = 1;
   string type = 2;
   int64 timeout_seconds = 3;
   bool request_present = 4;
 }
 
-message GetPackageStatusCommand {}
+message GetPackageStatusRequest {}
 
-message LogoutCommand {}
+message LogoutRequest {}
 
-message GossipCommand {}
+message GossipRequest {}
 
-message TriggerComponentCommand {
+message TriggerComponentRequest {
   string component_name = 1;
   string tag_name = 2;
 }
 
-message SetPluginSpecsCommand {
+message SetPluginSpecsRequest {
   bool specs_present = 1;
   repeated PluginSpec specs = 2;
 }
@@ -186,13 +182,13 @@ message PluginMatchRule {
   optional string regex = 1;
 }
 
-message UpdateTokenCommand {
+message UpdateTokenRequest {
   string token = 1;
 }
 
-message GetKAPMTLSStatusCommand {}
+message GetKAPMTLSStatusRequest {}
 
-message UpdateKAPMTLSCredentialsCommand {
+message UpdateKAPMTLSCredentialsRequest {
   bytes certificate_pem = 1;
   bytes private_key_pem = 2;
   bytes gateway_ca_pem = 3;
@@ -202,7 +198,7 @@ message UpdateKAPMTLSCredentialsCommand {
   string gateway_ca_fingerprint = 7;
 }
 
-message ActivateKAPMTLSCommand {}
+message ActivateKAPMTLSRequest {}
 
 message DrainNotice {
   int64 reconnect_after_millis = 1;

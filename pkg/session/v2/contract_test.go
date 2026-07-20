@@ -18,20 +18,20 @@ func TestWireContract(t *testing.T) {
 	require.Equal(t, "x-gpud-machine-id", MetadataMachineID)
 	require.Equal(t, "x-gpud-machine-proof", MetadataMachineProof)
 
-	hello := &AgentEnvelope{Payload: &AgentEnvelope_Hello{Hello: &Hello{
+	hello := &AgentPacket{Payload: &AgentPacket_Hello{Hello: &Hello{
 		MinProtocolRevision:    1,
 		MaxProtocolRevision:    1,
 		AgentVersion:           "gpud",
 		MaxReceiveMessageBytes: 1024,
-		Capabilities:           []string{"typed-commands"},
+		Capabilities:           []string{"typed-requests"},
 	}}}
-	require.Equal(t, "0a1d080110011a04677075642080082a0e74797065642d636f6d6d616e6473", marshalWireHex(t, hello))
+	require.Equal(t, "0a1d080110011a04677075642080082a0e74797065642d7265717565737473", marshalWireHex(t, hello))
 
-	request := &ManagerEnvelope{Payload: &ManagerEnvelope_Request{Request: &Request{
+	request := &ManagerPacket{
 		RequestId: "r1",
-		Command:   &Request_GetHealthStates{GetHealthStates: &GetHealthStatesCommand{}},
-	}}}
-	require.Equal(t, "12060a0272315200", marshalWireHex(t, request))
+		Payload:   &ManagerPacket_GetHealthStates{GetHealthStates: &GetHealthStatesRequest{}},
+	}
+	require.Equal(t, "220272315200", marshalWireHex(t, request))
 }
 
 func marshalWireHex(t *testing.T, message proto.Message) string {

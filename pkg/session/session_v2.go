@@ -42,8 +42,8 @@ const (
 var errV2Unsupported = errors.New("single-connection session protocol is unsupported")
 
 type managerV2ReceiveResult struct {
-	envelope *sessionv2.ManagerEnvelope
-	err      error
+	packet *sessionv2.ManagerPacket
+	err    error
 }
 
 func (s *Session) keepAliveV2(allowLegacyFallback bool) {
@@ -115,12 +115,12 @@ func (s *Session) runV2Connection(ctx context.Context) reconnectSignal {
 		_ = stream.CloseSend()
 	}()
 
-	hello := &sessionv2.AgentEnvelope{Payload: &sessionv2.AgentEnvelope_Hello{Hello: &sessionv2.Hello{
+	hello := &sessionv2.AgentPacket{Payload: &sessionv2.AgentPacket_Hello{Hello: &sessionv2.Hello{
 		MinProtocolRevision:    sessionv2.ProtocolRevision,
 		MaxProtocolRevision:    sessionv2.ProtocolRevision,
 		AgentVersion:           version.Version,
 		MaxReceiveMessageBytes: sessionv2.DefaultMaxMessageBytes,
-		Capabilities:           []string{"typed-commands"},
+		Capabilities:           []string{"typed-requests"},
 	}}}
 	if err := stream.Send(hello); err != nil {
 		return classifyV2Error(err)
@@ -144,7 +144,7 @@ func (s *Session) runV2Connection(ctx context.Context) reconnectSignal {
 	}()
 
 	for {
-		envelope, err := stream.Recv()
+		packet, err := stream.Recv()
 		if err != nil {
 			select {
 			case senderErr := <-sendErr:
@@ -156,12 +156,17 @@ func (s *Session) runV2Connection(ctx context.Context) reconnectSignal {
 			return classifyV2Error(err)
 		}
 
-		switch payload := envelope.Payload.(type) {
-		case *sessionv2.ManagerEnvelope_Request:
-			if payload.Request == nil || payload.Request.RequestId == "" {
+		switch payload := packet.Payload.(type) {
+		case *sessionv2.ManagerPacket_DrainNotice:
+			retryAfter := time.Duration(payload.DrainNotice.GetReconnectAfterMillis()) * time.Millisecond
+			return reconnectSignal{side: reconnectSideSingle, statusCode: http.StatusServiceUnavailable, retryAfter: retryAfter, reason: "manager draining"}
+		case *sessionv2.ManagerPacket_HelloAck:
+			return reconnectSignal{side: reconnectSideSingle, reason: "unexpected v2 manager message", err: errors.New("unexpected v2 manager message")}
+		default:
+			if packet.RequestId == "" {
 				return reconnectSignal{side: reconnectSideSingle, reason: "invalid v2 request", err: errors.New("v2 request is missing request ID")}
 			}
-			request, err := requestFromV2(payload.Request)
+			request, err := requestFromV2(packet)
 			if err != nil {
 				return reconnectSignal{side: reconnectSideSingle, reason: "invalid v2 request", err: err}
 			}
@@ -169,24 +174,19 @@ func (s *Session) runV2Connection(ctx context.Context) reconnectSignal {
 			if err != nil {
 				return reconnectSignal{side: reconnectSideSingle, reason: "failed to encode v2 request", err: err}
 			}
-			body := Body{ReqID: payload.Request.RequestId, Data: data}
+			body := Body{ReqID: packet.RequestId, Data: data}
 			err = s.tryWriteV2Request(connectionCtx, body)
-			if errors.Is(err, errV2CommandQueueFull) {
-				return reconnectSignal{side: reconnectSideSingle, statusCode: http.StatusTooManyRequests, reason: "agent command queue is full", err: errV2CommandQueueFull}
+			if errors.Is(err, errV2RequestQueueFull) {
+				return reconnectSignal{side: reconnectSideSingle, statusCode: http.StatusTooManyRequests, reason: "agent request queue is full", err: errV2RequestQueueFull}
 			}
 			if err != nil {
 				return classifyV2Error(err)
 			}
-		case *sessionv2.ManagerEnvelope_DrainNotice:
-			retryAfter := time.Duration(payload.DrainNotice.GetReconnectAfterMillis()) * time.Millisecond
-			return reconnectSignal{side: reconnectSideSingle, statusCode: http.StatusServiceUnavailable, retryAfter: retryAfter, reason: "manager draining"}
-		default:
-			return reconnectSignal{side: reconnectSideSingle, reason: "unexpected v2 manager message", err: errors.New("unexpected v2 manager message")}
 		}
 	}
 }
 
-var errV2CommandQueueFull = errors.New("agent command queue is full")
+var errV2RequestQueueFull = errors.New("agent request queue is full")
 
 func (s *Session) tryWriteV2Request(ctx context.Context, body Body) (err error) {
 	defer func() {
@@ -201,7 +201,7 @@ func (s *Session) tryWriteV2Request(ctx context.Context, body Body) (err error) 
 	case s.reader <- body:
 		return nil
 	default:
-		return errV2CommandQueueFull
+		return errV2RequestQueueFull
 	}
 }
 
@@ -218,11 +218,11 @@ func (s *Session) sendV2Messages(
 			if !ok {
 				return errors.New("session response queue closed")
 			}
-			envelope := &sessionv2.AgentEnvelope{Payload: &sessionv2.AgentEnvelope_Response{Response: &sessionv2.Response{
+			packet := &sessionv2.AgentPacket{Payload: &sessionv2.AgentPacket_Result{Result: &sessionv2.Result{
 				RequestId:   body.ReqID,
 				PayloadJson: body.Data,
 			}}}
-			if err := sendAgentV2Envelope(stream, envelope, maxManagerReceiveBytes); err != nil {
+			if err := sendAgentV2Packet(stream, packet, maxManagerReceiveBytes); err != nil {
 				return err
 			}
 		}
@@ -236,29 +236,29 @@ func negotiatedV2MessageLimit(advertised uint32) int {
 	return int(advertised)
 }
 
-func sendAgentV2Envelope(stream sessionv2.SessionService_ConnectClient, envelope *sessionv2.AgentEnvelope, limit int) error {
-	if proto.Size(envelope) > limit {
+func sendAgentV2Packet(stream sessionv2.SessionService_ConnectClient, packet *sessionv2.AgentPacket, limit int) error {
+	if proto.Size(packet) > limit {
 		return status.Error(codes.ResourceExhausted, "agent session message exceeds manager receive limit")
 	}
-	return stream.Send(envelope)
+	return stream.Send(packet)
 }
 
 func receiveFirstManagerV2Message(
 	ctx context.Context,
 	stream sessionv2.SessionService_ConnectClient,
 	timeout time.Duration,
-) (*sessionv2.ManagerEnvelope, error) {
+) (*sessionv2.ManagerPacket, error) {
 	received := make(chan managerV2ReceiveResult, 1)
 	go func() {
-		envelope, err := stream.Recv()
-		received <- managerV2ReceiveResult{envelope: envelope, err: err}
+		packet, err := stream.Recv()
+		received <- managerV2ReceiveResult{packet: packet, err: err}
 	}()
 
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
 	case result := <-received:
-		return result.envelope, result.err
+		return result.packet, result.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-timer.C:

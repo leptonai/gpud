@@ -30,29 +30,29 @@ type testSessionV2Server struct {
 
 type recordingSessionV2ClientStream struct {
 	grpc.ClientStream
-	sent *sessionv2.AgentEnvelope
+	sent *sessionv2.AgentPacket
 }
 
 type scriptedSessionV2ClientStream struct {
 	grpc.ClientStream
-	send func(*sessionv2.AgentEnvelope) error
-	recv func() (*sessionv2.ManagerEnvelope, error)
+	send func(*sessionv2.AgentPacket) error
+	recv func() (*sessionv2.ManagerPacket, error)
 }
 
-func (s *recordingSessionV2ClientStream) Send(envelope *sessionv2.AgentEnvelope) error {
-	s.sent = envelope
+func (s *recordingSessionV2ClientStream) Send(packet *sessionv2.AgentPacket) error {
+	s.sent = packet
 	return nil
 }
 
-func (s *recordingSessionV2ClientStream) Recv() (*sessionv2.ManagerEnvelope, error) {
+func (s *recordingSessionV2ClientStream) Recv() (*sessionv2.ManagerPacket, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *scriptedSessionV2ClientStream) Send(envelope *sessionv2.AgentEnvelope) error {
-	return s.send(envelope)
+func (s *scriptedSessionV2ClientStream) Send(packet *sessionv2.AgentPacket) error {
+	return s.send(packet)
 }
 
-func (s *scriptedSessionV2ClientStream) Recv() (*sessionv2.ManagerEnvelope, error) {
+func (s *scriptedSessionV2ClientStream) Recv() (*sessionv2.ManagerPacket, error) {
 	return s.recv()
 }
 
@@ -78,8 +78,8 @@ func startTestSessionV2Server(t *testing.T, connect func(sessionv2.SessionServic
 	return "http://" + listener.Addr().String()
 }
 
-func TestRunV2ConnectionMultiplexesCommandAndResult(t *testing.T) {
-	serverResult := make(chan *sessionv2.Response, 1)
+func TestRunV2ConnectionMultiplexesRequestAndResult(t *testing.T) {
+	serverResult := make(chan *sessionv2.Result, 1)
 	endpoint := startTestSessionV2Server(t, func(stream sessionv2.SessionService_ConnectServer) error {
 		md, ok := metadata.FromIncomingContext(stream.Context())
 		if !ok {
@@ -105,22 +105,22 @@ func TestRunV2ConnectionMultiplexesCommandAndResult(t *testing.T) {
 		if first.GetHello() == nil {
 			return status.Error(codes.FailedPrecondition, "first message is not hello")
 		}
-		if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{
+		if err := stream.Send(&sessionv2.ManagerPacket{Payload: &sessionv2.ManagerPacket_HelloAck{HelloAck: &sessionv2.HelloAck{
 			ProtocolRevision: sessionv2.ProtocolRevision,
 		}}}); err != nil {
 			return err
 		}
-		if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Request{Request: &sessionv2.Request{
+		if err := stream.Send(&sessionv2.ManagerPacket{
 			RequestId: "request-1",
-			Command:   &sessionv2.Request_Gossip{Gossip: &sessionv2.GossipCommand{}},
-		}}}); err != nil {
+			Payload:   &sessionv2.ManagerPacket_Gossip{Gossip: &sessionv2.GossipRequest{}},
+		}); err != nil {
 			return err
 		}
 		result, err := stream.Recv()
 		if err != nil {
 			return err
 		}
-		serverResult <- result.GetResponse()
+		serverResult <- result.GetResult()
 		return status.Error(codes.Unavailable, "test complete")
 	})
 
@@ -321,17 +321,17 @@ func TestKeepAliveSelectsV2Protocols(t *testing.T) {
 func TestRunV2ConnectionRejectsInvalidManagerMessages(t *testing.T) {
 	tests := []struct {
 		name       string
-		first      *sessionv2.ManagerEnvelope
-		followup   *sessionv2.ManagerEnvelope
+		first      *sessionv2.ManagerPacket
+		followup   *sessionv2.ManagerPacket
 		reader     chan Body
 		statusCode int
 		reason     string
 	}{
-		{name: "invalid hello acknowledgement", first: &sessionv2.ManagerEnvelope{}, reason: "invalid v2 hello acknowledgement"},
-		{name: "missing request id", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Request{Request: &sessionv2.Request{}}}, reason: "invalid v2 request"},
-		{name: "full command queue", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Request{Request: &sessionv2.Request{RequestId: "r1", Command: &sessionv2.Request_Gossip{Gossip: &sessionv2.GossipCommand{}}}}}, reader: make(chan Body), statusCode: http.StatusTooManyRequests, reason: "agent command queue is full"},
-		{name: "drain notice", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_DrainNotice{DrainNotice: &sessionv2.DrainNotice{ReconnectAfterMillis: 250}}}, statusCode: http.StatusServiceUnavailable, reason: "manager draining"},
-		{name: "unexpected message", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{ProtocolRevision: sessionv2.ProtocolRevision}}}, reason: "unexpected v2 manager message"},
+		{name: "invalid hello acknowledgement", first: &sessionv2.ManagerPacket{}, reason: "invalid v2 hello acknowledgement"},
+		{name: "missing request id", followup: &sessionv2.ManagerPacket{Payload: &sessionv2.ManagerPacket_Gossip{Gossip: &sessionv2.GossipRequest{}}}, reason: "invalid v2 request"},
+		{name: "full request queue", followup: &sessionv2.ManagerPacket{RequestId: "r1", Payload: &sessionv2.ManagerPacket_Gossip{Gossip: &sessionv2.GossipRequest{}}}, reader: make(chan Body), statusCode: http.StatusTooManyRequests, reason: "agent request queue is full"},
+		{name: "drain notice", followup: &sessionv2.ManagerPacket{Payload: &sessionv2.ManagerPacket_DrainNotice{DrainNotice: &sessionv2.DrainNotice{ReconnectAfterMillis: 250}}}, statusCode: http.StatusServiceUnavailable, reason: "manager draining"},
+		{name: "unexpected message", followup: &sessionv2.ManagerPacket{Payload: &sessionv2.ManagerPacket_HelloAck{HelloAck: &sessionv2.HelloAck{ProtocolRevision: sessionv2.ProtocolRevision}}}, reason: "unexpected v2 manager message"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -343,7 +343,7 @@ func TestRunV2ConnectionRejectsInvalidManagerMessages(t *testing.T) {
 				}
 				first := tt.first
 				if first == nil {
-					first = &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{
+					first = &sessionv2.ManagerPacket{Payload: &sessionv2.ManagerPacket_HelloAck{HelloAck: &sessionv2.HelloAck{
 						ProtocolRevision: sessionv2.ProtocolRevision,
 					}}}
 				}
@@ -390,7 +390,7 @@ func TestRunV2ConnectionReturnsTransportFailures(t *testing.T) {
 			if _, err := stream.Recv(); err != nil {
 				return err
 			}
-			if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{
+			if err := stream.Send(&sessionv2.ManagerPacket{Payload: &sessionv2.ManagerPacket_HelloAck{HelloAck: &sessionv2.HelloAck{
 				ProtocolRevision: sessionv2.ProtocolRevision,
 			}}}); err != nil {
 				return err
@@ -413,7 +413,7 @@ func TestSendV2Messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		s := &Session{writer: make(chan Body)}
-		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return nil }}
+		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentPacket) error { return nil }}
 		if err := s.sendV2Messages(ctx, stream, sessionv2.DefaultMaxMessageBytes); !errors.Is(err, context.Canceled) {
 			t.Fatalf("error = %v", err)
 		}
@@ -423,7 +423,7 @@ func TestSendV2Messages(t *testing.T) {
 		writer := make(chan Body)
 		close(writer)
 		s := &Session{writer: writer}
-		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return nil }}
+		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentPacket) error { return nil }}
 		if err := s.sendV2Messages(context.Background(), stream, sessionv2.DefaultMaxMessageBytes); err == nil {
 			t.Fatal("closed response queue did not fail")
 		}
@@ -433,9 +433,9 @@ func TestSendV2Messages(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		s := &Session{writer: make(chan Body, 1)}
 		s.writer <- Body{ReqID: "r1", Data: []byte(`{}`)}
-		stream := &scriptedSessionV2ClientStream{send: func(envelope *sessionv2.AgentEnvelope) error {
-			if envelope.GetResponse().GetRequestId() != "r1" {
-				t.Fatalf("unexpected envelope: %v", envelope)
+		stream := &scriptedSessionV2ClientStream{send: func(packet *sessionv2.AgentPacket) error {
+			if packet.GetResult().GetRequestId() != "r1" {
+				t.Fatalf("unexpected packet: %v", packet)
 			}
 			cancel()
 			return nil
@@ -449,7 +449,7 @@ func TestSendV2Messages(t *testing.T) {
 		wantErr := errors.New("send failed")
 		s := &Session{writer: make(chan Body, 1)}
 		s.writer <- Body{ReqID: "r1"}
-		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return wantErr }}
+		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentPacket) error { return wantErr }}
 		if err := s.sendV2Messages(context.Background(), stream, sessionv2.DefaultMaxMessageBytes); !errors.Is(err, wantErr) {
 			t.Fatalf("error = %v", err)
 		}
@@ -480,8 +480,8 @@ func TestTryWriteV2RequestHandlesShutdownAndBackpressure(t *testing.T) {
 		}
 		s.reader <- Body{ReqID: "existing"}
 
-		if err := s.tryWriteV2Request(context.Background(), Body{ReqID: "new"}); !errors.Is(err, errV2CommandQueueFull) {
-			t.Fatalf("error = %v, want errV2CommandQueueFull", err)
+		if err := s.tryWriteV2Request(context.Background(), Body{ReqID: "new"}); !errors.Is(err, errV2RequestQueueFull) {
+			t.Fatalf("error = %v, want errV2RequestQueueFull", err)
 		}
 	})
 }
@@ -521,7 +521,7 @@ func TestReceiveFirstManagerV2MessageTimesOut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := stream.Send(&sessionv2.AgentEnvelope{Payload: &sessionv2.AgentEnvelope_Hello{Hello: &sessionv2.Hello{}}}); err != nil {
+	if err := stream.Send(&sessionv2.AgentPacket{Payload: &sessionv2.AgentPacket_Hello{Hello: &sessionv2.Hello{}}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -531,23 +531,23 @@ func TestReceiveFirstManagerV2MessageTimesOut(t *testing.T) {
 	}
 }
 
-func TestSendAgentV2EnvelopeEnforcesPeerLimit(t *testing.T) {
+func TestSendAgentV2PacketEnforcesPeerLimit(t *testing.T) {
 	stream := &recordingSessionV2ClientStream{}
-	envelope := &sessionv2.AgentEnvelope{Payload: &sessionv2.AgentEnvelope_Response{Response: &sessionv2.Response{RequestId: "r1"}}}
+	packet := &sessionv2.AgentPacket{Payload: &sessionv2.AgentPacket_Result{Result: &sessionv2.Result{RequestId: "r1"}}}
 
-	err := sendAgentV2Envelope(stream, envelope, 1)
+	err := sendAgentV2Packet(stream, packet, 1)
 	if status.Code(err) != codes.ResourceExhausted {
 		t.Fatalf("status = %v, want ResourceExhausted", status.Code(err))
 	}
 	if stream.sent != nil {
-		t.Fatal("oversized envelope was sent")
+		t.Fatal("oversized packet was sent")
 	}
 
-	if err := sendAgentV2Envelope(stream, envelope, sessionv2.DefaultMaxMessageBytes); err != nil {
+	if err := sendAgentV2Packet(stream, packet, sessionv2.DefaultMaxMessageBytes); err != nil {
 		t.Fatal(err)
 	}
-	if stream.sent != envelope {
-		t.Fatal("valid envelope was not sent")
+	if stream.sent != packet {
+		t.Fatal("valid packet was not sent")
 	}
 }
 

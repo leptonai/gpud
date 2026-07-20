@@ -19,23 +19,23 @@ import (
 	sessionv2 "github.com/leptonai/gpud/pkg/session/v2"
 )
 
-func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
+func TestRequestFromV2ConvertsConcreteRequests(t *testing.T) {
 	start := time.Unix(100, 200).UTC()
 	end := time.Unix(300, 400).UTC()
 	regex := "^ok$"
 	tests := []struct {
 		name    string
-		request *sessionv2.Request
+		request *sessionv2.ManagerPacket
 		want    Request
 	}{
 		{
 			name:    "states",
-			request: newV2Request(&sessionv2.Request_GetHealthStates{GetHealthStates: &sessionv2.GetHealthStatesCommand{}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_GetHealthStates{GetHealthStates: &sessionv2.GetHealthStatesRequest{}}),
 			want:    Request{Method: "states"},
 		},
 		{
 			name: "events",
-			request: newV2Request(&sessionv2.Request_GetEvents{GetEvents: &sessionv2.GetEventsCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_GetEvents{GetEvents: &sessionv2.GetEventsRequest{
 				StartTime: timestamppb.New(start),
 				EndTime:   timestamppb.New(end),
 			}}),
@@ -43,7 +43,7 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name: "zero event times",
-			request: newV2Request(&sessionv2.Request_GetEvents{GetEvents: &sessionv2.GetEventsCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_GetEvents{GetEvents: &sessionv2.GetEventsRequest{
 				StartTime: timestamppb.New(time.Time{}),
 				EndTime:   timestamppb.New(time.Time{}),
 			}}),
@@ -51,12 +51,12 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name:    "metrics",
-			request: newV2Request(&sessionv2.Request_GetMetrics{GetMetrics: &sessionv2.GetMetricsCommand{SinceNanos: int64(3 * time.Minute)}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_GetMetrics{GetMetrics: &sessionv2.GetMetricsRequest{SinceNanos: int64(3 * time.Minute)}}),
 			want:    Request{Method: "metrics", Since: 3 * time.Minute},
 		},
 		{
 			name: "update",
-			request: newV2Request(&sessionv2.Request_Update{Update: &sessionv2.UpdateCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_Update{Update: &sessionv2.UpdateRequest{
 				Version:    "v1.2.3",
 				SinceNanos: int64(4 * time.Second),
 			}}),
@@ -64,7 +64,7 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name: "set healthy",
-			request: newV2Request(&sessionv2.Request_SetHealthy{SetHealthy: &sessionv2.SetHealthyCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_SetHealthy{SetHealthy: &sessionv2.SetHealthyRequest{
 				Components: []string{"gpu", "disk"},
 				SinceNanos: int64(5 * time.Second),
 			}}),
@@ -72,17 +72,17 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name:    "reboot",
-			request: newV2Request(&sessionv2.Request_Reboot{Reboot: &sessionv2.RebootCommand{}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_Reboot{Reboot: &sessionv2.RebootRequest{}}),
 			want:    Request{Method: "reboot"},
 		},
 		{
 			name:    "update config",
-			request: newV2Request(&sessionv2.Request_UpdateConfig{UpdateConfig: &sessionv2.UpdateConfigCommand{Values: map[string]string{"key": "value"}}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_UpdateConfig{UpdateConfig: &sessionv2.UpdateConfigRequest{Values: map[string]string{"key": "value"}}}),
 			want:    Request{Method: "updateConfig", UpdateConfig: map[string]string{"key": "value"}},
 		},
 		{
 			name: "bootstrap",
-			request: newV2Request(&sessionv2.Request_Bootstrap{Bootstrap: &sessionv2.BootstrapCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_Bootstrap{Bootstrap: &sessionv2.BootstrapRequest{
 				TimeoutSeconds: 42,
 				ScriptBase64:   "c2NyaXB0",
 				RequestPresent: true,
@@ -91,22 +91,22 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name:    "nil bootstrap",
-			request: newV2Request(&sessionv2.Request_Bootstrap{Bootstrap: &sessionv2.BootstrapCommand{}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_Bootstrap{Bootstrap: &sessionv2.BootstrapRequest{}}),
 			want:    Request{Method: "bootstrap"},
 		},
 		{
 			name: "inject fault",
-			request: newV2Request(&sessionv2.Request_InjectFault{InjectFault: &sessionv2.InjectFaultCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_InjectFault{InjectFault: &sessionv2.InjectFaultRequest{
 				RequestPresent: true,
-				Fault:          &sessionv2.InjectFaultCommand_Xid{Xid: 79},
+				Fault:          &sessionv2.InjectFaultRequest_Xid{Xid: 79},
 			}}),
 			want: Request{Method: "injectFault", InjectFaultRequest: &pkgfaultinjector.Request{XID: &pkgfaultinjector.XIDToInject{ID: 79}}},
 		},
 		{
 			name: "inject kernel message fault",
-			request: newV2Request(&sessionv2.Request_InjectFault{InjectFault: &sessionv2.InjectFaultCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_InjectFault{InjectFault: &sessionv2.InjectFaultRequest{
 				RequestPresent: true,
-				Fault: &sessionv2.InjectFaultCommand_KernelMessage{KernelMessage: &sessionv2.KernelMessage{
+				Fault: &sessionv2.InjectFaultRequest_KernelMessage{KernelMessage: &sessionv2.KernelMessage{
 					Priority: "KERN_WARNING",
 					Message:  "test kernel fault",
 				}},
@@ -118,7 +118,7 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name: "diagnostic",
-			request: newV2Request(&sessionv2.Request_Diagnostic{Diagnostic: &sessionv2.DiagnosticCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_Diagnostic{Diagnostic: &sessionv2.DiagnosticRequest{
 				ReportId:       "report-1",
 				Type:           "gpu",
 				TimeoutSeconds: 60,
@@ -128,27 +128,27 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name:    "nil diagnostic",
-			request: newV2Request(&sessionv2.Request_Diagnostic{Diagnostic: &sessionv2.DiagnosticCommand{}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_Diagnostic{Diagnostic: &sessionv2.DiagnosticRequest{}}),
 			want:    Request{Method: "diagnostic"},
 		},
 		{
 			name:    "package status",
-			request: newV2Request(&sessionv2.Request_GetPackageStatus{GetPackageStatus: &sessionv2.GetPackageStatusCommand{}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_GetPackageStatus{GetPackageStatus: &sessionv2.GetPackageStatusRequest{}}),
 			want:    Request{Method: "packageStatus"},
 		},
 		{
 			name:    "logout",
-			request: newV2Request(&sessionv2.Request_Logout{Logout: &sessionv2.LogoutCommand{}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_Logout{Logout: &sessionv2.LogoutRequest{}}),
 			want:    Request{Method: "logout"},
 		},
 		{
 			name:    "gossip",
-			request: newV2Request(&sessionv2.Request_Gossip{Gossip: &sessionv2.GossipCommand{}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_Gossip{Gossip: &sessionv2.GossipRequest{}}),
 			want:    Request{Method: "gossip"},
 		},
 		{
 			name: "trigger component",
-			request: newV2Request(&sessionv2.Request_TriggerComponent{TriggerComponent: &sessionv2.TriggerComponentCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_TriggerComponent{TriggerComponent: &sessionv2.TriggerComponentRequest{
 				ComponentName: "gpu",
 				TagName:       "fast",
 			}}),
@@ -156,7 +156,7 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name: "plugin specs",
-			request: newV2Request(&sessionv2.Request_SetPluginSpecs{SetPluginSpecs: &sessionv2.SetPluginSpecsCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_SetPluginSpecs{SetPluginSpecs: &sessionv2.SetPluginSpecsRequest{
 				SpecsPresent: true,
 				Specs: []*sessionv2.PluginSpec{{
 					PluginName:        "disk",
@@ -222,17 +222,17 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name:    "update token",
-			request: newV2Request(&sessionv2.Request_UpdateToken{UpdateToken: &sessionv2.UpdateTokenCommand{Token: "token-1"}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_UpdateToken{UpdateToken: &sessionv2.UpdateTokenRequest{Token: "token-1"}}),
 			want:    Request{Method: "updateToken", Token: "token-1"},
 		},
 		{
 			name:    "KAP status",
-			request: newV2Request(&sessionv2.Request_GetKapMtlsStatus{GetKapMtlsStatus: &sessionv2.GetKAPMTLSStatusCommand{}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_GetKapMtlsStatus{GetKapMtlsStatus: &sessionv2.GetKAPMTLSStatusRequest{}}),
 			want:    Request{Method: "kapMTLSStatus"},
 		},
 		{
 			name: "KAP credentials",
-			request: newV2Request(&sessionv2.Request_UpdateKapMtlsCredentials{UpdateKapMtlsCredentials: &sessionv2.UpdateKAPMTLSCredentialsCommand{
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_UpdateKapMtlsCredentials{UpdateKapMtlsCredentials: &sessionv2.UpdateKAPMTLSCredentialsRequest{
 				CertificatePem:       []byte("cert"),
 				PrivateKeyPem:        []byte("key"),
 				GatewayCaPem:         []byte("ca"),
@@ -253,7 +253,7 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 		},
 		{
 			name:    "activate KAP",
-			request: newV2Request(&sessionv2.Request_ActivateKapMtls{ActivateKapMtls: &sessionv2.ActivateKAPMTLSCommand{}}),
+			request: newV2ManagerPacket(&sessionv2.ManagerPacket_ActivateKapMtls{ActivateKapMtls: &sessionv2.ActivateKAPMTLSRequest{}}),
 			want:    Request{Method: "activateKAPMTLS"},
 		},
 	}
@@ -267,54 +267,61 @@ func TestRequestFromV2ConvertsConcreteCommands(t *testing.T) {
 	}
 }
 
-func TestRequestFromV2RejectsInvalidCommands(t *testing.T) {
+func TestRequestFromV2RejectsInvalidRequests(t *testing.T) {
 	_, err := requestFromV2(nil)
 	require.ErrorContains(t, err, "request is missing")
 
-	_, err = requestFromV2(&sessionv2.Request{})
-	require.ErrorContains(t, err, "command is missing")
+	_, err = requestFromV2(&sessionv2.ManagerPacket{})
+	require.ErrorContains(t, err, "payload is missing")
 
-	_, err = requestFromV2(newV2Request(&sessionv2.Request_GetEvents{}))
-	require.ErrorContains(t, err, "get-events command is missing")
+	_, err = requestFromV2(newV2ManagerPacket(&sessionv2.ManagerPacket_GetEvents{}))
+	require.ErrorContains(t, err, "get-events payload is missing")
 
 	for _, test := range []struct {
 		name    string
-		command any
+		payload any
 		message string
 	}{
-		{name: "metrics", command: &sessionv2.Request_GetMetrics{}, message: "get-metrics command is missing"},
-		{name: "update", command: &sessionv2.Request_Update{}, message: "update command is missing"},
-		{name: "set healthy", command: &sessionv2.Request_SetHealthy{}, message: "set-healthy command is missing"},
-		{name: "update config", command: &sessionv2.Request_UpdateConfig{}, message: "update-config command is missing"},
-		{name: "bootstrap", command: &sessionv2.Request_Bootstrap{}, message: "bootstrap command is missing"},
-		{name: "inject fault", command: &sessionv2.Request_InjectFault{}, message: "inject-fault command is missing"},
-		{name: "diagnostic", command: &sessionv2.Request_Diagnostic{}, message: "diagnostic command is missing"},
-		{name: "trigger component", command: &sessionv2.Request_TriggerComponent{}, message: "trigger-component command is missing"},
-		{name: "plugin specs", command: &sessionv2.Request_SetPluginSpecs{}, message: "set-plugin-specs command is missing"},
-		{name: "update token", command: &sessionv2.Request_UpdateToken{}, message: "update-token command is missing"},
-		{name: "KAP credentials", command: &sessionv2.Request_UpdateKapMtlsCredentials{}, message: "update-KAP-mTLS-credentials command is missing"},
+		{name: "states", payload: &sessionv2.ManagerPacket_GetHealthStates{}, message: "get-health-states payload is missing"},
+		{name: "metrics", payload: &sessionv2.ManagerPacket_GetMetrics{}, message: "get-metrics payload is missing"},
+		{name: "update", payload: &sessionv2.ManagerPacket_Update{}, message: "update payload is missing"},
+		{name: "set healthy", payload: &sessionv2.ManagerPacket_SetHealthy{}, message: "set-healthy payload is missing"},
+		{name: "reboot", payload: &sessionv2.ManagerPacket_Reboot{}, message: "reboot payload is missing"},
+		{name: "update config", payload: &sessionv2.ManagerPacket_UpdateConfig{}, message: "update-config payload is missing"},
+		{name: "bootstrap", payload: &sessionv2.ManagerPacket_Bootstrap{}, message: "bootstrap payload is missing"},
+		{name: "inject fault", payload: &sessionv2.ManagerPacket_InjectFault{}, message: "inject-fault payload is missing"},
+		{name: "diagnostic", payload: &sessionv2.ManagerPacket_Diagnostic{}, message: "diagnostic payload is missing"},
+		{name: "package status", payload: &sessionv2.ManagerPacket_GetPackageStatus{}, message: "get-package-status payload is missing"},
+		{name: "logout", payload: &sessionv2.ManagerPacket_Logout{}, message: "logout payload is missing"},
+		{name: "gossip", payload: &sessionv2.ManagerPacket_Gossip{}, message: "gossip payload is missing"},
+		{name: "trigger component", payload: &sessionv2.ManagerPacket_TriggerComponent{}, message: "trigger-component payload is missing"},
+		{name: "plugin specs", payload: &sessionv2.ManagerPacket_SetPluginSpecs{}, message: "set-plugin-specs payload is missing"},
+		{name: "update token", payload: &sessionv2.ManagerPacket_UpdateToken{}, message: "update-token payload is missing"},
+		{name: "KAP status", payload: &sessionv2.ManagerPacket_GetKapMtlsStatus{}, message: "get-KAP-mTLS-status payload is missing"},
+		{name: "KAP credentials", payload: &sessionv2.ManagerPacket_UpdateKapMtlsCredentials{}, message: "update-KAP-mTLS-credentials payload is missing"},
+		{name: "activate KAP", payload: &sessionv2.ManagerPacket_ActivateKapMtls{}, message: "activate-KAP-mTLS payload is missing"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := requestFromV2(newV2Request(test.command))
+			_, err := requestFromV2(newV2ManagerPacket(test.payload))
 			require.ErrorContains(t, err, test.message)
 		})
 	}
 
-	_, err = requestFromV2(newV2Request(&sessionv2.Request_GetEvents{GetEvents: &sessionv2.GetEventsCommand{}}))
+	_, err = requestFromV2(newV2ManagerPacket(&sessionv2.ManagerPacket_GetEvents{GetEvents: &sessionv2.GetEventsRequest{}}))
 	require.ErrorContains(t, err, "invalid get-events start time")
 
-	_, err = requestFromV2(newV2Request(&sessionv2.Request_InjectFault{InjectFault: &sessionv2.InjectFaultCommand{
-		Fault: &sessionv2.InjectFaultCommand_Xid{Xid: 79},
+	_, err = requestFromV2(newV2ManagerPacket(&sessionv2.ManagerPacket_InjectFault{InjectFault: &sessionv2.InjectFaultRequest{
+		Fault: &sessionv2.InjectFaultRequest_Xid{Xid: 79},
 	}}))
 	require.ErrorContains(t, err, "payload is present without a request")
 
-	_, err = requestFromV2(newV2Request(&sessionv2.Request_InjectFault{InjectFault: &sessionv2.InjectFaultCommand{
+	_, err = requestFromV2(newV2ManagerPacket(&sessionv2.ManagerPacket_InjectFault{InjectFault: &sessionv2.InjectFaultRequest{
 		RequestPresent: true,
-		Fault:          &sessionv2.InjectFaultCommand_KernelMessage{},
+		Fault:          &sessionv2.InjectFaultRequest_KernelMessage{},
 	}}))
 	require.ErrorContains(t, err, "kernel-message fault is missing")
 
-	_, err = requestFromV2(newV2Request(&sessionv2.Request_SetPluginSpecs{SetPluginSpecs: &sessionv2.SetPluginSpecsCommand{
+	_, err = requestFromV2(newV2ManagerPacket(&sessionv2.ManagerPacket_SetPluginSpecs{SetPluginSpecs: &sessionv2.SetPluginSpecsRequest{
 		Specs: []*sessionv2.PluginSpec{{PluginName: "disk"}},
 	}}))
 	require.ErrorContains(t, err, "plugin specs are present without a specs payload")
@@ -344,8 +351,8 @@ func TestPluginSpecsFromV2PreservesNilEntries(t *testing.T) {
 	assert.Nil(t, pluginMatchRuleFromV2(nil))
 }
 
-func newV2Request(command any) *sessionv2.Request {
-	request := &sessionv2.Request{RequestId: "request-1"}
-	reflect.ValueOf(request).Elem().FieldByName("Command").Set(reflect.ValueOf(command))
-	return request
+func newV2ManagerPacket(payload any) *sessionv2.ManagerPacket {
+	packet := &sessionv2.ManagerPacket{RequestId: "request-1"}
+	reflect.ValueOf(packet).Elem().FieldByName("Payload").Set(reflect.ValueOf(payload))
+	return packet
 }

@@ -15,78 +15,84 @@ import (
 	sessionv2 "github.com/leptonai/gpud/pkg/session/v2"
 )
 
-func requestFromV2(request *sessionv2.Request) (Request, error) {
-	if request == nil {
+func requestFromV2(packet *sessionv2.ManagerPacket) (Request, error) {
+	if packet == nil {
 		return Request{}, fmt.Errorf("v2 request is missing")
 	}
 
 	var legacy Request
-	switch command := request.Command.(type) {
-	case *sessionv2.Request_GetHealthStates:
-		legacy.Method = "states"
-	case *sessionv2.Request_GetEvents:
-		if command.GetEvents == nil {
-			return Request{}, fmt.Errorf("get-events command is missing")
+	switch payload := packet.Payload.(type) {
+	case *sessionv2.ManagerPacket_GetHealthStates:
+		if payload.GetHealthStates == nil {
+			return Request{}, fmt.Errorf("get-health-states payload is missing")
 		}
-		if err := command.GetEvents.StartTime.CheckValid(); err != nil {
+		legacy.Method = "states"
+	case *sessionv2.ManagerPacket_GetEvents:
+		if payload.GetEvents == nil {
+			return Request{}, fmt.Errorf("get-events payload is missing")
+		}
+		if err := payload.GetEvents.StartTime.CheckValid(); err != nil {
 			return Request{}, fmt.Errorf("invalid get-events start time: %w", err)
 		}
-		if err := command.GetEvents.EndTime.CheckValid(); err != nil {
+		if err := payload.GetEvents.EndTime.CheckValid(); err != nil {
 			return Request{}, fmt.Errorf("invalid get-events end time: %w", err)
 		}
 		legacy.Method = "events"
-		legacy.StartTime = command.GetEvents.StartTime.AsTime()
-		legacy.EndTime = command.GetEvents.EndTime.AsTime()
-	case *sessionv2.Request_GetMetrics:
-		if command.GetMetrics == nil {
-			return Request{}, fmt.Errorf("get-metrics command is missing")
+		legacy.StartTime = payload.GetEvents.StartTime.AsTime()
+		legacy.EndTime = payload.GetEvents.EndTime.AsTime()
+	case *sessionv2.ManagerPacket_GetMetrics:
+		if payload.GetMetrics == nil {
+			return Request{}, fmt.Errorf("get-metrics payload is missing")
 		}
 		legacy.Method = "metrics"
-		legacy.Since = time.Duration(command.GetMetrics.SinceNanos)
-	case *sessionv2.Request_Update:
-		if command.Update == nil {
-			return Request{}, fmt.Errorf("update command is missing")
+		legacy.Since = time.Duration(payload.GetMetrics.SinceNanos)
+	case *sessionv2.ManagerPacket_Update:
+		if payload.Update == nil {
+			return Request{}, fmt.Errorf("update payload is missing")
 		}
 		legacy.Method = "update"
-		legacy.UpdateVersion = command.Update.Version
-		legacy.Since = time.Duration(command.Update.SinceNanos)
-	case *sessionv2.Request_SetHealthy:
-		if command.SetHealthy == nil {
-			return Request{}, fmt.Errorf("set-healthy command is missing")
+		legacy.UpdateVersion = payload.Update.Version
+		legacy.Since = time.Duration(payload.Update.SinceNanos)
+	case *sessionv2.ManagerPacket_SetHealthy:
+		if payload.SetHealthy == nil {
+			return Request{}, fmt.Errorf("set-healthy payload is missing")
 		}
 		legacy.Method = "setHealthy"
-		legacy.Components = command.SetHealthy.Components
-		legacy.Since = time.Duration(command.SetHealthy.SinceNanos)
-	case *sessionv2.Request_Reboot:
+		legacy.Components = payload.SetHealthy.Components
+		legacy.Since = time.Duration(payload.SetHealthy.SinceNanos)
+	case *sessionv2.ManagerPacket_Reboot:
+		if payload.Reboot == nil {
+			return Request{}, fmt.Errorf("reboot payload is missing")
+		}
 		legacy.Method = "reboot"
-	case *sessionv2.Request_UpdateConfig:
-		if command.UpdateConfig == nil {
-			return Request{}, fmt.Errorf("update-config command is missing")
+	case *sessionv2.ManagerPacket_UpdateConfig:
+		if payload.UpdateConfig == nil {
+			return Request{}, fmt.Errorf("update-config payload is missing")
 		}
 		legacy.Method = "updateConfig"
-		legacy.UpdateConfig = command.UpdateConfig.Values
-	case *sessionv2.Request_Bootstrap:
-		if command.Bootstrap == nil {
-			return Request{}, fmt.Errorf("bootstrap command is missing")
+		legacy.UpdateConfig = payload.UpdateConfig.Values
+	case *sessionv2.ManagerPacket_Bootstrap:
+		if payload.Bootstrap == nil {
+			return Request{}, fmt.Errorf("bootstrap payload is missing")
 		}
 		legacy.Method = "bootstrap"
-		if command.Bootstrap.RequestPresent {
+		if payload.Bootstrap.RequestPresent {
 			legacy.Bootstrap = &BootstrapRequest{
-				TimeoutInSeconds: int(command.Bootstrap.TimeoutSeconds),
-				ScriptBase64:     command.Bootstrap.ScriptBase64,
+				TimeoutInSeconds: int(payload.Bootstrap.TimeoutSeconds),
+				ScriptBase64:     payload.Bootstrap.ScriptBase64,
 			}
 		}
-	case *sessionv2.Request_InjectFault:
-		if command.InjectFault == nil {
-			return Request{}, fmt.Errorf("inject-fault command is missing")
+	case *sessionv2.ManagerPacket_InjectFault:
+		if payload.InjectFault == nil {
+			return Request{}, fmt.Errorf("inject-fault payload is missing")
 		}
 		legacy.Method = "injectFault"
-		if command.InjectFault.RequestPresent {
+		if payload.InjectFault.RequestPresent {
 			legacy.InjectFaultRequest = &pkgfaultinjector.Request{}
-			switch fault := command.InjectFault.Fault.(type) {
-			case *sessionv2.InjectFaultCommand_Xid:
+			switch fault := payload.InjectFault.Fault.(type) {
+			case *sessionv2.InjectFaultRequest_Xid:
 				legacy.InjectFaultRequest.XID = &pkgfaultinjector.XIDToInject{ID: int(fault.Xid)}
-			case *sessionv2.InjectFaultCommand_KernelMessage:
+			case *sessionv2.InjectFaultRequest_KernelMessage:
 				if fault.KernelMessage == nil {
 					return Request{}, fmt.Errorf("kernel-message fault is missing")
 				}
@@ -95,57 +101,69 @@ func requestFromV2(request *sessionv2.Request) (Request, error) {
 					Message:  fault.KernelMessage.Message,
 				}
 			}
-		} else if command.InjectFault.Fault != nil {
+		} else if payload.InjectFault.Fault != nil {
 			return Request{}, fmt.Errorf("inject-fault payload is present without a request")
 		}
-	case *sessionv2.Request_Diagnostic:
-		if command.Diagnostic == nil {
-			return Request{}, fmt.Errorf("diagnostic command is missing")
+	case *sessionv2.ManagerPacket_Diagnostic:
+		if payload.Diagnostic == nil {
+			return Request{}, fmt.Errorf("diagnostic payload is missing")
 		}
 		legacy.Method = "diagnostic"
-		if command.Diagnostic.RequestPresent {
+		if payload.Diagnostic.RequestPresent {
 			legacy.Diagnostic = &DiagnosticRequest{
-				ReportID:       command.Diagnostic.ReportId,
-				Type:           command.Diagnostic.Type,
-				TimeoutSeconds: command.Diagnostic.TimeoutSeconds,
+				ReportID:       payload.Diagnostic.ReportId,
+				Type:           payload.Diagnostic.Type,
+				TimeoutSeconds: payload.Diagnostic.TimeoutSeconds,
 			}
 		}
-	case *sessionv2.Request_GetPackageStatus:
+	case *sessionv2.ManagerPacket_GetPackageStatus:
+		if payload.GetPackageStatus == nil {
+			return Request{}, fmt.Errorf("get-package-status payload is missing")
+		}
 		legacy.Method = "packageStatus"
-	case *sessionv2.Request_Logout:
+	case *sessionv2.ManagerPacket_Logout:
+		if payload.Logout == nil {
+			return Request{}, fmt.Errorf("logout payload is missing")
+		}
 		legacy.Method = "logout"
-	case *sessionv2.Request_Gossip:
+	case *sessionv2.ManagerPacket_Gossip:
+		if payload.Gossip == nil {
+			return Request{}, fmt.Errorf("gossip payload is missing")
+		}
 		legacy.Method = "gossip"
-	case *sessionv2.Request_TriggerComponent:
-		if command.TriggerComponent == nil {
-			return Request{}, fmt.Errorf("trigger-component command is missing")
+	case *sessionv2.ManagerPacket_TriggerComponent:
+		if payload.TriggerComponent == nil {
+			return Request{}, fmt.Errorf("trigger-component payload is missing")
 		}
 		legacy.Method = "triggerComponent"
-		legacy.ComponentName = command.TriggerComponent.ComponentName
-		legacy.TagName = command.TriggerComponent.TagName
-	case *sessionv2.Request_SetPluginSpecs:
-		if command.SetPluginSpecs == nil {
-			return Request{}, fmt.Errorf("set-plugin-specs command is missing")
+		legacy.ComponentName = payload.TriggerComponent.ComponentName
+		legacy.TagName = payload.TriggerComponent.TagName
+	case *sessionv2.ManagerPacket_SetPluginSpecs:
+		if payload.SetPluginSpecs == nil {
+			return Request{}, fmt.Errorf("set-plugin-specs payload is missing")
 		}
 		legacy.Method = "setPluginSpecs"
-		if command.SetPluginSpecs.SpecsPresent {
-			legacy.CustomPluginSpecs = pluginSpecsFromV2(command.SetPluginSpecs.Specs)
-		} else if len(command.SetPluginSpecs.Specs) != 0 {
+		if payload.SetPluginSpecs.SpecsPresent {
+			legacy.CustomPluginSpecs = pluginSpecsFromV2(payload.SetPluginSpecs.Specs)
+		} else if len(payload.SetPluginSpecs.Specs) != 0 {
 			return Request{}, fmt.Errorf("plugin specs are present without a specs payload")
 		}
-	case *sessionv2.Request_UpdateToken:
-		if command.UpdateToken == nil {
-			return Request{}, fmt.Errorf("update-token command is missing")
+	case *sessionv2.ManagerPacket_UpdateToken:
+		if payload.UpdateToken == nil {
+			return Request{}, fmt.Errorf("update-token payload is missing")
 		}
 		legacy.Method = "updateToken"
-		legacy.Token = command.UpdateToken.Token
-	case *sessionv2.Request_GetKapMtlsStatus:
-		legacy.Method = "kapMTLSStatus"
-	case *sessionv2.Request_UpdateKapMtlsCredentials:
-		if command.UpdateKapMtlsCredentials == nil {
-			return Request{}, fmt.Errorf("update-KAP-mTLS-credentials command is missing")
+		legacy.Token = payload.UpdateToken.Token
+	case *sessionv2.ManagerPacket_GetKapMtlsStatus:
+		if payload.GetKapMtlsStatus == nil {
+			return Request{}, fmt.Errorf("get-KAP-mTLS-status payload is missing")
 		}
-		credentials := command.UpdateKapMtlsCredentials
+		legacy.Method = "kapMTLSStatus"
+	case *sessionv2.ManagerPacket_UpdateKapMtlsCredentials:
+		if payload.UpdateKapMtlsCredentials == nil {
+			return Request{}, fmt.Errorf("update-KAP-mTLS-credentials payload is missing")
+		}
+		credentials := payload.UpdateKapMtlsCredentials
 		legacy.Method = "updateKAPMTLSCredentials"
 		legacy.KAPMTLSCredentials = &KAPMTLSCredentialsRequest{
 			CertificatePEM:       credentials.CertificatePem,
@@ -156,12 +174,15 @@ func requestFromV2(request *sessionv2.Request) (Request, error) {
 			ClientCAFingerprint:  credentials.ClientCaFingerprint,
 			GatewayCAFingerprint: credentials.GatewayCaFingerprint,
 		}
-	case *sessionv2.Request_ActivateKapMtls:
+	case *sessionv2.ManagerPacket_ActivateKapMtls:
+		if payload.ActivateKapMtls == nil {
+			return Request{}, fmt.Errorf("activate-KAP-mTLS payload is missing")
+		}
 		legacy.Method = "activateKAPMTLS"
 	case nil:
-		return Request{}, fmt.Errorf("v2 request command is missing")
+		return Request{}, fmt.Errorf("v2 request payload is missing")
 	default:
-		return Request{}, fmt.Errorf("unsupported v2 request command %T", command)
+		return Request{}, fmt.Errorf("unsupported v2 request payload %T", payload)
 	}
 
 	return legacy, nil
