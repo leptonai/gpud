@@ -397,6 +397,14 @@ func classifyV2Error(err error) reconnectSignal {
 	switch st.Code() {
 	case codes.Unimplemented:
 		sig.err = fmt.Errorf("%w: %v", errV2Unsupported, err)
+	case codes.Unknown:
+		// A gateway without the v2 HTTP/2 route rejects the gRPC request before
+		// it reaches gpud-manager. Envoy reports that legacy configuration as a
+		// non-standard 464 response without a gRPC content type.
+		if strings.Contains(st.Message(), "unexpected HTTP status code received from server: 464") &&
+			strings.Contains(st.Message(), "missing HTTP content-type") {
+			sig.err = fmt.Errorf("%w: %v", errV2Unsupported, err)
+		}
 	case codes.ResourceExhausted:
 		sig.statusCode = http.StatusTooManyRequests
 	case codes.Unavailable:

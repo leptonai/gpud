@@ -168,9 +168,24 @@ func TestRunV2ConnectionMultiplexesCommandAndResult(t *testing.T) {
 }
 
 func TestClassifyV2ErrorMarksUnsupportedForAutoFallback(t *testing.T) {
-	sig := classifyV2Error(status.Error(codes.Unimplemented, "unknown service"))
-	if !errors.Is(sig.err, errV2Unsupported) {
-		t.Fatalf("error = %v, want errV2Unsupported", sig.err)
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "unimplemented service", err: status.Error(codes.Unimplemented, "unknown service")},
+		{
+			name: "legacy envoy gateway",
+			err: status.Error(codes.Unknown,
+				"unexpected HTTP status code received from server: 464 (); malformed header: missing HTTP content-type"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sig := classifyV2Error(tt.err)
+			if !errors.Is(sig.err, errV2Unsupported) {
+				t.Fatalf("error = %v, want errV2Unsupported", sig.err)
+			}
+		})
 	}
 }
 
@@ -195,6 +210,8 @@ func TestClassifyV2Error(t *testing.T) {
 		{name: "unavailable with retry", err: retryStatus.Err(), statusCode: http.StatusServiceUnavailable, retryAfter: 3 * time.Second},
 		{name: "unauthenticated", err: status.Error(codes.Unauthenticated, "bad token"), statusCode: http.StatusUnauthorized, authFailure: true},
 		{name: "permission denied", err: status.Error(codes.PermissionDenied, "wrong owner"), statusCode: http.StatusForbidden, authFailure: true},
+		{name: "unknown non-gateway error", err: status.Error(codes.Unknown, "upstream reset")},
+		{name: "http 464 without missing content type marker", err: status.Error(codes.Unknown, "unexpected HTTP status code received from server: 464")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
