@@ -14,7 +14,7 @@ func TestParseProtocol(t *testing.T) {
 		want  Protocol
 		ok    bool
 	}{
-		{value: "", want: ProtocolV1, ok: true},
+		{value: "", want: ProtocolAuto, ok: true},
 		{value: "v1", want: ProtocolV1, ok: true},
 		{value: "v2", want: ProtocolV2, ok: true},
 		{value: "auto", want: ProtocolAuto, ok: true},
@@ -38,6 +38,16 @@ func TestWithProtocol(t *testing.T) {
 	WithProtocol("v2")(op)
 	if op.protocol != ProtocolV2 {
 		t.Fatalf("protocol = %q, want %q", op.protocol, ProtocolV2)
+	}
+}
+
+func TestDefaultProtocol(t *testing.T) {
+	op := &Op{}
+	if err := op.applyOpts(nil); err != nil {
+		t.Fatalf("applyOpts() error = %v", err)
+	}
+	if op.protocol != ProtocolAuto {
+		t.Fatalf("protocol = %q, want %q", op.protocol, ProtocolAuto)
 	}
 }
 

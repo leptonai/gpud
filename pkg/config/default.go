@@ -16,7 +16,7 @@ const (
 	DefaultAPIVersion      = "v1"
 	DefaultGPUdPort        = 15132
 	DefaultDataDir         = "/var/lib/gpud"
-	DefaultSessionProtocol = "v1"
+	DefaultSessionProtocol = "auto"
 )
 
 var (

@@ -31,8 +31,11 @@ func TestAppRunAndUpHaveSessionProtocolFlag(t *testing.T) {
 
 		set := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
 		protocolFlag.Apply(set)
-		require.NoError(t, set.Parse([]string{"--session-protocol", "v2"}))
 		ctx := cli.NewContext(app, set, nil)
+		require.Equal(t, "auto", ctx.String("session-protocol"))
+
+		require.NoError(t, set.Parse([]string{"--session-protocol", "v2"}))
+		ctx = cli.NewContext(app, set, nil)
 		require.Equal(t, "v2", ctx.String("session-protocol"))
 	}
 

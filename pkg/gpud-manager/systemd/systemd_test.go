@@ -29,7 +29,7 @@ func TestCreateDefaultEnvFileContent(t *testing.T) {
 		assert.NotContains(t, content, "--endpoint=")
 		assert.NotContains(t, content, "--data-dir=")
 		assert.NotContains(t, content, "--db-in-memory")
-		assert.Contains(t, content, "--session-protocol=v1")
+		assert.Contains(t, content, "--session-protocol=auto")
 	})
 
 	t.Run("with endpoint only", func(t *testing.T) {

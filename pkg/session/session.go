@@ -64,7 +64,7 @@ var ErrAutoUpdateDisabledButExitCodeSet = errors.New("auto update is disabled bu
 
 func (op *Op) applyOpts(opts []OpOption) error {
 	op.autoUpdateExitCode = -1
-	op.protocol = ProtocolV1
+	op.protocol = ProtocolAuto
 
 	for _, opt := range opts {
 		opt(op)

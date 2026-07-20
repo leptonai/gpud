@@ -65,7 +65,7 @@ func createDefaultEnvFileContent(endpoint string, dataDir string, dbInMemory boo
 	if dbInMemory {
 		flags += " --db-in-memory"
 	}
-	protocol := "v1"
+	protocol := "auto"
 	if len(sessionProtocol) > 0 && sessionProtocol[0] != "" {
 		protocol = sessionProtocol[0]
 	}
@@ -88,7 +88,7 @@ func validateSessionProtocol(values []string) (string, error) {
 	if len(values) > 1 {
 		return "", fmt.Errorf("expected at most one session protocol, got %d", len(values))
 	}
-	protocol := "v1"
+	protocol := "auto"
 	if len(values) == 1 && values[0] != "" {
 		protocol = values[0]
 	}

@@ -17,7 +17,7 @@ const (
 func parseProtocol(value string) (Protocol, error) {
 	protocol := Protocol(value)
 	if protocol == "" {
-		protocol = ProtocolV1
+		protocol = ProtocolAuto
 	}
 	switch protocol {
 	case ProtocolV1, ProtocolV2, ProtocolAuto:
