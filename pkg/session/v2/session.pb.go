@@ -12,6 +12,7 @@ package sessionv2
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -29,8 +30,7 @@ type AgentEnvelope struct {
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*AgentEnvelope_Hello
-	//	*AgentEnvelope_CommandResult
-	//	*AgentEnvelope_Heartbeat
+	//	*AgentEnvelope_Response
 	Payload       isAgentEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -82,19 +82,10 @@ func (x *AgentEnvelope) GetHello() *Hello {
 	return nil
 }
 
-func (x *AgentEnvelope) GetCommandResult() *CommandResult {
+func (x *AgentEnvelope) GetResponse() *Response {
 	if x != nil {
-		if x, ok := x.Payload.(*AgentEnvelope_CommandResult); ok {
-			return x.CommandResult
-		}
-	}
-	return nil
-}
-
-func (x *AgentEnvelope) GetHeartbeat() *Heartbeat {
-	if x != nil {
-		if x, ok := x.Payload.(*AgentEnvelope_Heartbeat); ok {
-			return x.Heartbeat
+		if x, ok := x.Payload.(*AgentEnvelope_Response); ok {
+			return x.Response
 		}
 	}
 	return nil
@@ -108,27 +99,20 @@ type AgentEnvelope_Hello struct {
 	Hello *Hello `protobuf:"bytes,1,opt,name=hello,proto3,oneof"`
 }
 
-type AgentEnvelope_CommandResult struct {
-	CommandResult *CommandResult `protobuf:"bytes,2,opt,name=command_result,json=commandResult,proto3,oneof"`
-}
-
-type AgentEnvelope_Heartbeat struct {
-	Heartbeat *Heartbeat `protobuf:"bytes,3,opt,name=heartbeat,proto3,oneof"`
+type AgentEnvelope_Response struct {
+	Response *Response `protobuf:"bytes,2,opt,name=response,proto3,oneof"`
 }
 
 func (*AgentEnvelope_Hello) isAgentEnvelope_Payload() {}
 
-func (*AgentEnvelope_CommandResult) isAgentEnvelope_Payload() {}
-
-func (*AgentEnvelope_Heartbeat) isAgentEnvelope_Payload() {}
+func (*AgentEnvelope_Response) isAgentEnvelope_Payload() {}
 
 type ManagerEnvelope struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*ManagerEnvelope_HelloAck
-	//	*ManagerEnvelope_Command
-	//	*ManagerEnvelope_HeartbeatAck
+	//	*ManagerEnvelope_Request
 	//	*ManagerEnvelope_DrainNotice
 	Payload       isManagerEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
@@ -181,19 +165,10 @@ func (x *ManagerEnvelope) GetHelloAck() *HelloAck {
 	return nil
 }
 
-func (x *ManagerEnvelope) GetCommand() *Command {
+func (x *ManagerEnvelope) GetRequest() *Request {
 	if x != nil {
-		if x, ok := x.Payload.(*ManagerEnvelope_Command); ok {
-			return x.Command
-		}
-	}
-	return nil
-}
-
-func (x *ManagerEnvelope) GetHeartbeatAck() *HeartbeatAck {
-	if x != nil {
-		if x, ok := x.Payload.(*ManagerEnvelope_HeartbeatAck); ok {
-			return x.HeartbeatAck
+		if x, ok := x.Payload.(*ManagerEnvelope_Request); ok {
+			return x.Request
 		}
 	}
 	return nil
@@ -216,23 +191,17 @@ type ManagerEnvelope_HelloAck struct {
 	HelloAck *HelloAck `protobuf:"bytes,1,opt,name=hello_ack,json=helloAck,proto3,oneof"`
 }
 
-type ManagerEnvelope_Command struct {
-	Command *Command `protobuf:"bytes,2,opt,name=command,proto3,oneof"`
-}
-
-type ManagerEnvelope_HeartbeatAck struct {
-	HeartbeatAck *HeartbeatAck `protobuf:"bytes,3,opt,name=heartbeat_ack,json=heartbeatAck,proto3,oneof"`
+type ManagerEnvelope_Request struct {
+	Request *Request `protobuf:"bytes,2,opt,name=request,proto3,oneof"`
 }
 
 type ManagerEnvelope_DrainNotice struct {
-	DrainNotice *DrainNotice `protobuf:"bytes,4,opt,name=drain_notice,json=drainNotice,proto3,oneof"`
+	DrainNotice *DrainNotice `protobuf:"bytes,3,opt,name=drain_notice,json=drainNotice,proto3,oneof"`
 }
 
 func (*ManagerEnvelope_HelloAck) isManagerEnvelope_Payload() {}
 
-func (*ManagerEnvelope_Command) isManagerEnvelope_Payload() {}
-
-func (*ManagerEnvelope_HeartbeatAck) isManagerEnvelope_Payload() {}
+func (*ManagerEnvelope_Request) isManagerEnvelope_Payload() {}
 
 func (*ManagerEnvelope_DrainNotice) isManagerEnvelope_Payload() {}
 
@@ -313,13 +282,12 @@ func (x *Hello) GetCapabilities() []string {
 }
 
 type HelloAck struct {
-	state                    protoimpl.MessageState `protogen:"open.v1"`
-	ProtocolRevision         uint32                 `protobuf:"varint,1,opt,name=protocol_revision,json=protocolRevision,proto3" json:"protocol_revision,omitempty"`
-	ManagerInstanceId        string                 `protobuf:"bytes,2,opt,name=manager_instance_id,json=managerInstanceId,proto3" json:"manager_instance_id,omitempty"`
-	MaxReceiveMessageBytes   uint32                 `protobuf:"varint,3,opt,name=max_receive_message_bytes,json=maxReceiveMessageBytes,proto3" json:"max_receive_message_bytes,omitempty"`
-	HeartbeatIntervalSeconds uint32                 `protobuf:"varint,4,opt,name=heartbeat_interval_seconds,json=heartbeatIntervalSeconds,proto3" json:"heartbeat_interval_seconds,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	ProtocolRevision       uint32                 `protobuf:"varint,1,opt,name=protocol_revision,json=protocolRevision,proto3" json:"protocol_revision,omitempty"`
+	ManagerInstanceId      string                 `protobuf:"bytes,2,opt,name=manager_instance_id,json=managerInstanceId,proto3" json:"manager_instance_id,omitempty"`
+	MaxReceiveMessageBytes uint32                 `protobuf:"varint,3,opt,name=max_receive_message_bytes,json=maxReceiveMessageBytes,proto3" json:"max_receive_message_bytes,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *HelloAck) Reset() {
@@ -373,36 +341,49 @@ func (x *HelloAck) GetMaxReceiveMessageBytes() uint32 {
 	return 0
 }
 
-func (x *HelloAck) GetHeartbeatIntervalSeconds() uint32 {
-	if x != nil {
-		return x.HeartbeatIntervalSeconds
-	}
-	return 0
-}
-
-type Command struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	PayloadJson   []byte                 `protobuf:"bytes,2,opt,name=payload_json,json=payloadJson,proto3" json:"payload_json,omitempty"`
-	TimeoutMillis int64                  `protobuf:"varint,3,opt,name=timeout_millis,json=timeoutMillis,proto3" json:"timeout_millis,omitempty"`
+type Request struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	RequestId string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	// Types that are valid to be assigned to Command:
+	//
+	//	*Request_GetHealthStates
+	//	*Request_GetEvents
+	//	*Request_GetMetrics
+	//	*Request_Update
+	//	*Request_SetHealthy
+	//	*Request_Reboot
+	//	*Request_UpdateConfig
+	//	*Request_Bootstrap
+	//	*Request_InjectFault
+	//	*Request_Diagnostic
+	//	*Request_GetPackageStatus
+	//	*Request_Logout
+	//	*Request_Gossip
+	//	*Request_TriggerComponent
+	//	*Request_SetPluginSpecs
+	//	*Request_UpdateToken
+	//	*Request_GetKapMtlsStatus
+	//	*Request_UpdateKapMtlsCredentials
+	//	*Request_ActivateKapMtls
+	Command       isRequest_Command `protobuf_oneof:"command"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Command) Reset() {
-	*x = Command{}
+func (x *Request) Reset() {
+	*x = Request{}
 	mi := &file_session_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Command) String() string {
+func (x *Request) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Command) ProtoMessage() {}
+func (*Request) ProtoMessage() {}
 
-func (x *Command) ProtoReflect() protoreflect.Message {
+func (x *Request) ProtoReflect() protoreflect.Message {
 	mi := &file_session_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -414,33 +395,315 @@ func (x *Command) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Command.ProtoReflect.Descriptor instead.
-func (*Command) Descriptor() ([]byte, []int) {
+// Deprecated: Use Request.ProtoReflect.Descriptor instead.
+func (*Request) Descriptor() ([]byte, []int) {
 	return file_session_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *Command) GetRequestId() string {
+func (x *Request) GetRequestId() string {
 	if x != nil {
 		return x.RequestId
 	}
 	return ""
 }
 
-func (x *Command) GetPayloadJson() []byte {
+func (x *Request) GetCommand() isRequest_Command {
 	if x != nil {
-		return x.PayloadJson
+		return x.Command
 	}
 	return nil
 }
 
-func (x *Command) GetTimeoutMillis() int64 {
+func (x *Request) GetGetHealthStates() *GetHealthStatesCommand {
 	if x != nil {
-		return x.TimeoutMillis
+		if x, ok := x.Command.(*Request_GetHealthStates); ok {
+			return x.GetHealthStates
+		}
 	}
-	return 0
+	return nil
 }
 
-type CommandResult struct {
+func (x *Request) GetGetEvents() *GetEventsCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_GetEvents); ok {
+			return x.GetEvents
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetGetMetrics() *GetMetricsCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_GetMetrics); ok {
+			return x.GetMetrics
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetUpdate() *UpdateCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_Update); ok {
+			return x.Update
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetSetHealthy() *SetHealthyCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_SetHealthy); ok {
+			return x.SetHealthy
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetReboot() *RebootCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_Reboot); ok {
+			return x.Reboot
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetUpdateConfig() *UpdateConfigCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_UpdateConfig); ok {
+			return x.UpdateConfig
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetBootstrap() *BootstrapCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_Bootstrap); ok {
+			return x.Bootstrap
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetInjectFault() *InjectFaultCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_InjectFault); ok {
+			return x.InjectFault
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetDiagnostic() *DiagnosticCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_Diagnostic); ok {
+			return x.Diagnostic
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetGetPackageStatus() *GetPackageStatusCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_GetPackageStatus); ok {
+			return x.GetPackageStatus
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetLogout() *LogoutCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_Logout); ok {
+			return x.Logout
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetGossip() *GossipCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_Gossip); ok {
+			return x.Gossip
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetTriggerComponent() *TriggerComponentCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_TriggerComponent); ok {
+			return x.TriggerComponent
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetSetPluginSpecs() *SetPluginSpecsCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_SetPluginSpecs); ok {
+			return x.SetPluginSpecs
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetUpdateToken() *UpdateTokenCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_UpdateToken); ok {
+			return x.UpdateToken
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetGetKapMtlsStatus() *GetKAPMTLSStatusCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_GetKapMtlsStatus); ok {
+			return x.GetKapMtlsStatus
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetUpdateKapMtlsCredentials() *UpdateKAPMTLSCredentialsCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_UpdateKapMtlsCredentials); ok {
+			return x.UpdateKapMtlsCredentials
+		}
+	}
+	return nil
+}
+
+func (x *Request) GetActivateKapMtls() *ActivateKAPMTLSCommand {
+	if x != nil {
+		if x, ok := x.Command.(*Request_ActivateKapMtls); ok {
+			return x.ActivateKapMtls
+		}
+	}
+	return nil
+}
+
+type isRequest_Command interface {
+	isRequest_Command()
+}
+
+type Request_GetHealthStates struct {
+	GetHealthStates *GetHealthStatesCommand `protobuf:"bytes,10,opt,name=get_health_states,json=getHealthStates,proto3,oneof"`
+}
+
+type Request_GetEvents struct {
+	GetEvents *GetEventsCommand `protobuf:"bytes,11,opt,name=get_events,json=getEvents,proto3,oneof"`
+}
+
+type Request_GetMetrics struct {
+	GetMetrics *GetMetricsCommand `protobuf:"bytes,12,opt,name=get_metrics,json=getMetrics,proto3,oneof"`
+}
+
+type Request_Update struct {
+	Update *UpdateCommand `protobuf:"bytes,13,opt,name=update,proto3,oneof"`
+}
+
+type Request_SetHealthy struct {
+	SetHealthy *SetHealthyCommand `protobuf:"bytes,14,opt,name=set_healthy,json=setHealthy,proto3,oneof"`
+}
+
+type Request_Reboot struct {
+	Reboot *RebootCommand `protobuf:"bytes,15,opt,name=reboot,proto3,oneof"`
+}
+
+type Request_UpdateConfig struct {
+	UpdateConfig *UpdateConfigCommand `protobuf:"bytes,16,opt,name=update_config,json=updateConfig,proto3,oneof"`
+}
+
+type Request_Bootstrap struct {
+	Bootstrap *BootstrapCommand `protobuf:"bytes,17,opt,name=bootstrap,proto3,oneof"`
+}
+
+type Request_InjectFault struct {
+	InjectFault *InjectFaultCommand `protobuf:"bytes,18,opt,name=inject_fault,json=injectFault,proto3,oneof"`
+}
+
+type Request_Diagnostic struct {
+	Diagnostic *DiagnosticCommand `protobuf:"bytes,19,opt,name=diagnostic,proto3,oneof"`
+}
+
+type Request_GetPackageStatus struct {
+	GetPackageStatus *GetPackageStatusCommand `protobuf:"bytes,20,opt,name=get_package_status,json=getPackageStatus,proto3,oneof"`
+}
+
+type Request_Logout struct {
+	Logout *LogoutCommand `protobuf:"bytes,21,opt,name=logout,proto3,oneof"`
+}
+
+type Request_Gossip struct {
+	Gossip *GossipCommand `protobuf:"bytes,22,opt,name=gossip,proto3,oneof"`
+}
+
+type Request_TriggerComponent struct {
+	TriggerComponent *TriggerComponentCommand `protobuf:"bytes,23,opt,name=trigger_component,json=triggerComponent,proto3,oneof"`
+}
+
+type Request_SetPluginSpecs struct {
+	SetPluginSpecs *SetPluginSpecsCommand `protobuf:"bytes,24,opt,name=set_plugin_specs,json=setPluginSpecs,proto3,oneof"`
+}
+
+type Request_UpdateToken struct {
+	UpdateToken *UpdateTokenCommand `protobuf:"bytes,25,opt,name=update_token,json=updateToken,proto3,oneof"`
+}
+
+type Request_GetKapMtlsStatus struct {
+	GetKapMtlsStatus *GetKAPMTLSStatusCommand `protobuf:"bytes,26,opt,name=get_kap_mtls_status,json=getKapMtlsStatus,proto3,oneof"`
+}
+
+type Request_UpdateKapMtlsCredentials struct {
+	UpdateKapMtlsCredentials *UpdateKAPMTLSCredentialsCommand `protobuf:"bytes,27,opt,name=update_kap_mtls_credentials,json=updateKapMtlsCredentials,proto3,oneof"`
+}
+
+type Request_ActivateKapMtls struct {
+	ActivateKapMtls *ActivateKAPMTLSCommand `protobuf:"bytes,28,opt,name=activate_kap_mtls,json=activateKapMtls,proto3,oneof"`
+}
+
+func (*Request_GetHealthStates) isRequest_Command() {}
+
+func (*Request_GetEvents) isRequest_Command() {}
+
+func (*Request_GetMetrics) isRequest_Command() {}
+
+func (*Request_Update) isRequest_Command() {}
+
+func (*Request_SetHealthy) isRequest_Command() {}
+
+func (*Request_Reboot) isRequest_Command() {}
+
+func (*Request_UpdateConfig) isRequest_Command() {}
+
+func (*Request_Bootstrap) isRequest_Command() {}
+
+func (*Request_InjectFault) isRequest_Command() {}
+
+func (*Request_Diagnostic) isRequest_Command() {}
+
+func (*Request_GetPackageStatus) isRequest_Command() {}
+
+func (*Request_Logout) isRequest_Command() {}
+
+func (*Request_Gossip) isRequest_Command() {}
+
+func (*Request_TriggerComponent) isRequest_Command() {}
+
+func (*Request_SetPluginSpecs) isRequest_Command() {}
+
+func (*Request_UpdateToken) isRequest_Command() {}
+
+func (*Request_GetKapMtlsStatus) isRequest_Command() {}
+
+func (*Request_UpdateKapMtlsCredentials) isRequest_Command() {}
+
+func (*Request_ActivateKapMtls) isRequest_Command() {}
+
+type Response struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
 	PayloadJson   []byte                 `protobuf:"bytes,2,opt,name=payload_json,json=payloadJson,proto3" json:"payload_json,omitempty"`
@@ -448,20 +711,20 @@ type CommandResult struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CommandResult) Reset() {
-	*x = CommandResult{}
+func (x *Response) Reset() {
+	*x = Response{}
 	mi := &file_session_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CommandResult) String() string {
+func (x *Response) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CommandResult) ProtoMessage() {}
+func (*Response) ProtoMessage() {}
 
-func (x *CommandResult) ProtoReflect() protoreflect.Message {
+func (x *Response) ProtoReflect() protoreflect.Message {
 	mi := &file_session_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -473,46 +736,45 @@ func (x *CommandResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CommandResult.ProtoReflect.Descriptor instead.
-func (*CommandResult) Descriptor() ([]byte, []int) {
+// Deprecated: Use Response.ProtoReflect.Descriptor instead.
+func (*Response) Descriptor() ([]byte, []int) {
 	return file_session_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *CommandResult) GetRequestId() string {
+func (x *Response) GetRequestId() string {
 	if x != nil {
 		return x.RequestId
 	}
 	return ""
 }
 
-func (x *CommandResult) GetPayloadJson() []byte {
+func (x *Response) GetPayloadJson() []byte {
 	if x != nil {
 		return x.PayloadJson
 	}
 	return nil
 }
 
-type Heartbeat struct {
+type GetHealthStatesCommand struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Sequence      uint64                 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Heartbeat) Reset() {
-	*x = Heartbeat{}
+func (x *GetHealthStatesCommand) Reset() {
+	*x = GetHealthStatesCommand{}
 	mi := &file_session_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Heartbeat) String() string {
+func (x *GetHealthStatesCommand) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Heartbeat) ProtoMessage() {}
+func (*GetHealthStatesCommand) ProtoMessage() {}
 
-func (x *Heartbeat) ProtoReflect() protoreflect.Message {
+func (x *GetHealthStatesCommand) ProtoReflect() protoreflect.Message {
 	mi := &file_session_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -524,39 +786,33 @@ func (x *Heartbeat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Heartbeat.ProtoReflect.Descriptor instead.
-func (*Heartbeat) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetHealthStatesCommand.ProtoReflect.Descriptor instead.
+func (*GetHealthStatesCommand) Descriptor() ([]byte, []int) {
 	return file_session_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *Heartbeat) GetSequence() uint64 {
-	if x != nil {
-		return x.Sequence
-	}
-	return 0
-}
-
-type HeartbeatAck struct {
+type GetEventsCommand struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Sequence      uint64                 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	StartTime     *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	EndTime       *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *HeartbeatAck) Reset() {
-	*x = HeartbeatAck{}
+func (x *GetEventsCommand) Reset() {
+	*x = GetEventsCommand{}
 	mi := &file_session_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *HeartbeatAck) String() string {
+func (x *GetEventsCommand) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*HeartbeatAck) ProtoMessage() {}
+func (*GetEventsCommand) ProtoMessage() {}
 
-func (x *HeartbeatAck) ProtoReflect() protoreflect.Message {
+func (x *GetEventsCommand) ProtoReflect() protoreflect.Message {
 	mi := &file_session_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -568,16 +824,1369 @@ func (x *HeartbeatAck) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HeartbeatAck.ProtoReflect.Descriptor instead.
-func (*HeartbeatAck) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetEventsCommand.ProtoReflect.Descriptor instead.
+func (*GetEventsCommand) Descriptor() ([]byte, []int) {
 	return file_session_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *HeartbeatAck) GetSequence() uint64 {
+func (x *GetEventsCommand) GetStartTime() *timestamppb.Timestamp {
 	if x != nil {
-		return x.Sequence
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *GetEventsCommand) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+type GetMetricsCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SinceNanos    int64                  `protobuf:"varint,1,opt,name=since_nanos,json=sinceNanos,proto3" json:"since_nanos,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMetricsCommand) Reset() {
+	*x = GetMetricsCommand{}
+	mi := &file_session_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMetricsCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMetricsCommand) ProtoMessage() {}
+
+func (x *GetMetricsCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMetricsCommand.ProtoReflect.Descriptor instead.
+func (*GetMetricsCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetMetricsCommand) GetSinceNanos() int64 {
+	if x != nil {
+		return x.SinceNanos
 	}
 	return 0
+}
+
+type UpdateCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	SinceNanos    int64                  `protobuf:"varint,2,opt,name=since_nanos,json=sinceNanos,proto3" json:"since_nanos,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateCommand) Reset() {
+	*x = UpdateCommand{}
+	mi := &file_session_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCommand) ProtoMessage() {}
+
+func (x *UpdateCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCommand.ProtoReflect.Descriptor instead.
+func (*UpdateCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *UpdateCommand) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *UpdateCommand) GetSinceNanos() int64 {
+	if x != nil {
+		return x.SinceNanos
+	}
+	return 0
+}
+
+type SetHealthyCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Components    []string               `protobuf:"bytes,1,rep,name=components,proto3" json:"components,omitempty"`
+	SinceNanos    int64                  `protobuf:"varint,2,opt,name=since_nanos,json=sinceNanos,proto3" json:"since_nanos,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetHealthyCommand) Reset() {
+	*x = SetHealthyCommand{}
+	mi := &file_session_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetHealthyCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetHealthyCommand) ProtoMessage() {}
+
+func (x *SetHealthyCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetHealthyCommand.ProtoReflect.Descriptor instead.
+func (*SetHealthyCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SetHealthyCommand) GetComponents() []string {
+	if x != nil {
+		return x.Components
+	}
+	return nil
+}
+
+func (x *SetHealthyCommand) GetSinceNanos() int64 {
+	if x != nil {
+		return x.SinceNanos
+	}
+	return 0
+}
+
+type RebootCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RebootCommand) Reset() {
+	*x = RebootCommand{}
+	mi := &file_session_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RebootCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RebootCommand) ProtoMessage() {}
+
+func (x *RebootCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RebootCommand.ProtoReflect.Descriptor instead.
+func (*RebootCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{11}
+}
+
+type UpdateConfigCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        map[string]string      `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateConfigCommand) Reset() {
+	*x = UpdateConfigCommand{}
+	mi := &file_session_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateConfigCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateConfigCommand) ProtoMessage() {}
+
+func (x *UpdateConfigCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateConfigCommand.ProtoReflect.Descriptor instead.
+func (*UpdateConfigCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *UpdateConfigCommand) GetValues() map[string]string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
+type BootstrapCommand struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	TimeoutSeconds int64                  `protobuf:"varint,1,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	ScriptBase64   string                 `protobuf:"bytes,2,opt,name=script_base64,json=scriptBase64,proto3" json:"script_base64,omitempty"`
+	RequestPresent bool                   `protobuf:"varint,3,opt,name=request_present,json=requestPresent,proto3" json:"request_present,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *BootstrapCommand) Reset() {
+	*x = BootstrapCommand{}
+	mi := &file_session_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BootstrapCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BootstrapCommand) ProtoMessage() {}
+
+func (x *BootstrapCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BootstrapCommand.ProtoReflect.Descriptor instead.
+func (*BootstrapCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *BootstrapCommand) GetTimeoutSeconds() int64 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *BootstrapCommand) GetScriptBase64() string {
+	if x != nil {
+		return x.ScriptBase64
+	}
+	return ""
+}
+
+func (x *BootstrapCommand) GetRequestPresent() bool {
+	if x != nil {
+		return x.RequestPresent
+	}
+	return false
+}
+
+type InjectFaultCommand struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RequestPresent bool                   `protobuf:"varint,1,opt,name=request_present,json=requestPresent,proto3" json:"request_present,omitempty"`
+	// Types that are valid to be assigned to Fault:
+	//
+	//	*InjectFaultCommand_Xid
+	//	*InjectFaultCommand_KernelMessage
+	Fault         isInjectFaultCommand_Fault `protobuf_oneof:"fault"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InjectFaultCommand) Reset() {
+	*x = InjectFaultCommand{}
+	mi := &file_session_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InjectFaultCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InjectFaultCommand) ProtoMessage() {}
+
+func (x *InjectFaultCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InjectFaultCommand.ProtoReflect.Descriptor instead.
+func (*InjectFaultCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *InjectFaultCommand) GetRequestPresent() bool {
+	if x != nil {
+		return x.RequestPresent
+	}
+	return false
+}
+
+func (x *InjectFaultCommand) GetFault() isInjectFaultCommand_Fault {
+	if x != nil {
+		return x.Fault
+	}
+	return nil
+}
+
+func (x *InjectFaultCommand) GetXid() int64 {
+	if x != nil {
+		if x, ok := x.Fault.(*InjectFaultCommand_Xid); ok {
+			return x.Xid
+		}
+	}
+	return 0
+}
+
+func (x *InjectFaultCommand) GetKernelMessage() *KernelMessage {
+	if x != nil {
+		if x, ok := x.Fault.(*InjectFaultCommand_KernelMessage); ok {
+			return x.KernelMessage
+		}
+	}
+	return nil
+}
+
+type isInjectFaultCommand_Fault interface {
+	isInjectFaultCommand_Fault()
+}
+
+type InjectFaultCommand_Xid struct {
+	Xid int64 `protobuf:"varint,2,opt,name=xid,proto3,oneof"`
+}
+
+type InjectFaultCommand_KernelMessage struct {
+	KernelMessage *KernelMessage `protobuf:"bytes,3,opt,name=kernel_message,json=kernelMessage,proto3,oneof"`
+}
+
+func (*InjectFaultCommand_Xid) isInjectFaultCommand_Fault() {}
+
+func (*InjectFaultCommand_KernelMessage) isInjectFaultCommand_Fault() {}
+
+type KernelMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Priority      string                 `protobuf:"bytes,1,opt,name=priority,proto3" json:"priority,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *KernelMessage) Reset() {
+	*x = KernelMessage{}
+	mi := &file_session_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KernelMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KernelMessage) ProtoMessage() {}
+
+func (x *KernelMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KernelMessage.ProtoReflect.Descriptor instead.
+func (*KernelMessage) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *KernelMessage) GetPriority() string {
+	if x != nil {
+		return x.Priority
+	}
+	return ""
+}
+
+func (x *KernelMessage) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type DiagnosticCommand struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ReportId       string                 `protobuf:"bytes,1,opt,name=report_id,json=reportId,proto3" json:"report_id,omitempty"`
+	Type           string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	TimeoutSeconds int64                  `protobuf:"varint,3,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	RequestPresent bool                   `protobuf:"varint,4,opt,name=request_present,json=requestPresent,proto3" json:"request_present,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *DiagnosticCommand) Reset() {
+	*x = DiagnosticCommand{}
+	mi := &file_session_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DiagnosticCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DiagnosticCommand) ProtoMessage() {}
+
+func (x *DiagnosticCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiagnosticCommand.ProtoReflect.Descriptor instead.
+func (*DiagnosticCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *DiagnosticCommand) GetReportId() string {
+	if x != nil {
+		return x.ReportId
+	}
+	return ""
+}
+
+func (x *DiagnosticCommand) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *DiagnosticCommand) GetTimeoutSeconds() int64 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *DiagnosticCommand) GetRequestPresent() bool {
+	if x != nil {
+		return x.RequestPresent
+	}
+	return false
+}
+
+type GetPackageStatusCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPackageStatusCommand) Reset() {
+	*x = GetPackageStatusCommand{}
+	mi := &file_session_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPackageStatusCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPackageStatusCommand) ProtoMessage() {}
+
+func (x *GetPackageStatusCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPackageStatusCommand.ProtoReflect.Descriptor instead.
+func (*GetPackageStatusCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{17}
+}
+
+type LogoutCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LogoutCommand) Reset() {
+	*x = LogoutCommand{}
+	mi := &file_session_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LogoutCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LogoutCommand) ProtoMessage() {}
+
+func (x *LogoutCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LogoutCommand.ProtoReflect.Descriptor instead.
+func (*LogoutCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{18}
+}
+
+type GossipCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GossipCommand) Reset() {
+	*x = GossipCommand{}
+	mi := &file_session_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GossipCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GossipCommand) ProtoMessage() {}
+
+func (x *GossipCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GossipCommand.ProtoReflect.Descriptor instead.
+func (*GossipCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{19}
+}
+
+type TriggerComponentCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ComponentName string                 `protobuf:"bytes,1,opt,name=component_name,json=componentName,proto3" json:"component_name,omitempty"`
+	TagName       string                 `protobuf:"bytes,2,opt,name=tag_name,json=tagName,proto3" json:"tag_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TriggerComponentCommand) Reset() {
+	*x = TriggerComponentCommand{}
+	mi := &file_session_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TriggerComponentCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TriggerComponentCommand) ProtoMessage() {}
+
+func (x *TriggerComponentCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TriggerComponentCommand.ProtoReflect.Descriptor instead.
+func (*TriggerComponentCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *TriggerComponentCommand) GetComponentName() string {
+	if x != nil {
+		return x.ComponentName
+	}
+	return ""
+}
+
+func (x *TriggerComponentCommand) GetTagName() string {
+	if x != nil {
+		return x.TagName
+	}
+	return ""
+}
+
+type SetPluginSpecsCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SpecsPresent  bool                   `protobuf:"varint,1,opt,name=specs_present,json=specsPresent,proto3" json:"specs_present,omitempty"`
+	Specs         []*PluginSpec          `protobuf:"bytes,2,rep,name=specs,proto3" json:"specs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetPluginSpecsCommand) Reset() {
+	*x = SetPluginSpecsCommand{}
+	mi := &file_session_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetPluginSpecsCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetPluginSpecsCommand) ProtoMessage() {}
+
+func (x *SetPluginSpecsCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetPluginSpecsCommand.ProtoReflect.Descriptor instead.
+func (*SetPluginSpecsCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *SetPluginSpecsCommand) GetSpecsPresent() bool {
+	if x != nil {
+		return x.SpecsPresent
+	}
+	return false
+}
+
+func (x *SetPluginSpecsCommand) GetSpecs() []*PluginSpec {
+	if x != nil {
+		return x.Specs
+	}
+	return nil
+}
+
+type PluginSpec struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	PluginName        string                 `protobuf:"bytes,1,opt,name=plugin_name,json=pluginName,proto3" json:"plugin_name,omitempty"`
+	PluginType        string                 `protobuf:"bytes,2,opt,name=plugin_type,json=pluginType,proto3" json:"plugin_type,omitempty"`
+	ComponentList     []string               `protobuf:"bytes,3,rep,name=component_list,json=componentList,proto3" json:"component_list,omitempty"`
+	ComponentListFile string                 `protobuf:"bytes,4,opt,name=component_list_file,json=componentListFile,proto3" json:"component_list_file,omitempty"`
+	RunMode           string                 `protobuf:"bytes,5,opt,name=run_mode,json=runMode,proto3" json:"run_mode,omitempty"`
+	Tags              []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
+	HealthStatePlugin *Plugin                `protobuf:"bytes,7,opt,name=health_state_plugin,json=healthStatePlugin,proto3" json:"health_state_plugin,omitempty"`
+	TimeoutNanos      int64                  `protobuf:"varint,8,opt,name=timeout_nanos,json=timeoutNanos,proto3" json:"timeout_nanos,omitempty"`
+	IntervalNanos     int64                  `protobuf:"varint,9,opt,name=interval_nanos,json=intervalNanos,proto3" json:"interval_nanos,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *PluginSpec) Reset() {
+	*x = PluginSpec{}
+	mi := &file_session_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginSpec) ProtoMessage() {}
+
+func (x *PluginSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginSpec.ProtoReflect.Descriptor instead.
+func (*PluginSpec) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *PluginSpec) GetPluginName() string {
+	if x != nil {
+		return x.PluginName
+	}
+	return ""
+}
+
+func (x *PluginSpec) GetPluginType() string {
+	if x != nil {
+		return x.PluginType
+	}
+	return ""
+}
+
+func (x *PluginSpec) GetComponentList() []string {
+	if x != nil {
+		return x.ComponentList
+	}
+	return nil
+}
+
+func (x *PluginSpec) GetComponentListFile() string {
+	if x != nil {
+		return x.ComponentListFile
+	}
+	return ""
+}
+
+func (x *PluginSpec) GetRunMode() string {
+	if x != nil {
+		return x.RunMode
+	}
+	return ""
+}
+
+func (x *PluginSpec) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *PluginSpec) GetHealthStatePlugin() *Plugin {
+	if x != nil {
+		return x.HealthStatePlugin
+	}
+	return nil
+}
+
+func (x *PluginSpec) GetTimeoutNanos() int64 {
+	if x != nil {
+		return x.TimeoutNanos
+	}
+	return 0
+}
+
+func (x *PluginSpec) GetIntervalNanos() int64 {
+	if x != nil {
+		return x.IntervalNanos
+	}
+	return 0
+}
+
+type Plugin struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Steps         []*PluginStep          `protobuf:"bytes,1,rep,name=steps,proto3" json:"steps,omitempty"`
+	Parser        *PluginOutputParser    `protobuf:"bytes,2,opt,name=parser,proto3" json:"parser,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Plugin) Reset() {
+	*x = Plugin{}
+	mi := &file_session_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Plugin) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Plugin) ProtoMessage() {}
+
+func (x *Plugin) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Plugin.ProtoReflect.Descriptor instead.
+func (*Plugin) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *Plugin) GetSteps() []*PluginStep {
+	if x != nil {
+		return x.Steps
+	}
+	return nil
+}
+
+func (x *Plugin) GetParser() *PluginOutputParser {
+	if x != nil {
+		return x.Parser
+	}
+	return nil
+}
+
+type PluginStep struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	RunBashScript *BashScript            `protobuf:"bytes,2,opt,name=run_bash_script,json=runBashScript,proto3" json:"run_bash_script,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginStep) Reset() {
+	*x = PluginStep{}
+	mi := &file_session_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginStep) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginStep) ProtoMessage() {}
+
+func (x *PluginStep) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginStep.ProtoReflect.Descriptor instead.
+func (*PluginStep) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *PluginStep) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *PluginStep) GetRunBashScript() *BashScript {
+	if x != nil {
+		return x.RunBashScript
+	}
+	return nil
+}
+
+type BashScript struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContentType   string                 `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	Script        string                 `protobuf:"bytes,2,opt,name=script,proto3" json:"script,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BashScript) Reset() {
+	*x = BashScript{}
+	mi := &file_session_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BashScript) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BashScript) ProtoMessage() {}
+
+func (x *BashScript) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BashScript.ProtoReflect.Descriptor instead.
+func (*BashScript) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *BashScript) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+func (x *BashScript) GetScript() string {
+	if x != nil {
+		return x.Script
+	}
+	return ""
+}
+
+type PluginOutputParser struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JsonPaths     []*PluginJSONPath      `protobuf:"bytes,1,rep,name=json_paths,json=jsonPaths,proto3" json:"json_paths,omitempty"`
+	LogPath       string                 `protobuf:"bytes,2,opt,name=log_path,json=logPath,proto3" json:"log_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginOutputParser) Reset() {
+	*x = PluginOutputParser{}
+	mi := &file_session_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginOutputParser) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginOutputParser) ProtoMessage() {}
+
+func (x *PluginOutputParser) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginOutputParser.ProtoReflect.Descriptor instead.
+func (*PluginOutputParser) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *PluginOutputParser) GetJsonPaths() []*PluginJSONPath {
+	if x != nil {
+		return x.JsonPaths
+	}
+	return nil
+}
+
+func (x *PluginOutputParser) GetLogPath() string {
+	if x != nil {
+		return x.LogPath
+	}
+	return ""
+}
+
+type PluginJSONPath struct {
+	state            protoimpl.MessageState      `protogen:"open.v1"`
+	Query            string                      `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	Field            string                      `protobuf:"bytes,2,opt,name=field,proto3" json:"field,omitempty"`
+	Expect           *PluginMatchRule            `protobuf:"bytes,3,opt,name=expect,proto3" json:"expect,omitempty"`
+	SuggestedActions map[string]*PluginMatchRule `protobuf:"bytes,4,rep,name=suggested_actions,json=suggestedActions,proto3" json:"suggested_actions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *PluginJSONPath) Reset() {
+	*x = PluginJSONPath{}
+	mi := &file_session_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginJSONPath) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginJSONPath) ProtoMessage() {}
+
+func (x *PluginJSONPath) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginJSONPath.ProtoReflect.Descriptor instead.
+func (*PluginJSONPath) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *PluginJSONPath) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *PluginJSONPath) GetField() string {
+	if x != nil {
+		return x.Field
+	}
+	return ""
+}
+
+func (x *PluginJSONPath) GetExpect() *PluginMatchRule {
+	if x != nil {
+		return x.Expect
+	}
+	return nil
+}
+
+func (x *PluginJSONPath) GetSuggestedActions() map[string]*PluginMatchRule {
+	if x != nil {
+		return x.SuggestedActions
+	}
+	return nil
+}
+
+type PluginMatchRule struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Regex         *string                `protobuf:"bytes,1,opt,name=regex,proto3,oneof" json:"regex,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PluginMatchRule) Reset() {
+	*x = PluginMatchRule{}
+	mi := &file_session_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PluginMatchRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PluginMatchRule) ProtoMessage() {}
+
+func (x *PluginMatchRule) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PluginMatchRule.ProtoReflect.Descriptor instead.
+func (*PluginMatchRule) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *PluginMatchRule) GetRegex() string {
+	if x != nil && x.Regex != nil {
+		return *x.Regex
+	}
+	return ""
+}
+
+type UpdateTokenCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTokenCommand) Reset() {
+	*x = UpdateTokenCommand{}
+	mi := &file_session_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTokenCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTokenCommand) ProtoMessage() {}
+
+func (x *UpdateTokenCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTokenCommand.ProtoReflect.Descriptor instead.
+func (*UpdateTokenCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *UpdateTokenCommand) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+type GetKAPMTLSStatusCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetKAPMTLSStatusCommand) Reset() {
+	*x = GetKAPMTLSStatusCommand{}
+	mi := &file_session_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetKAPMTLSStatusCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetKAPMTLSStatusCommand) ProtoMessage() {}
+
+func (x *GetKAPMTLSStatusCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetKAPMTLSStatusCommand.ProtoReflect.Descriptor instead.
+func (*GetKAPMTLSStatusCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{30}
+}
+
+type UpdateKAPMTLSCredentialsCommand struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	CertificatePem       []byte                 `protobuf:"bytes,1,opt,name=certificate_pem,json=certificatePem,proto3" json:"certificate_pem,omitempty"`
+	PrivateKeyPem        []byte                 `protobuf:"bytes,2,opt,name=private_key_pem,json=privateKeyPem,proto3" json:"private_key_pem,omitempty"`
+	GatewayCaPem         []byte                 `protobuf:"bytes,3,opt,name=gateway_ca_pem,json=gatewayCaPem,proto3" json:"gateway_ca_pem,omitempty"`
+	GatewayEndpoint      string                 `protobuf:"bytes,4,opt,name=gateway_endpoint,json=gatewayEndpoint,proto3" json:"gateway_endpoint,omitempty"`
+	ServerName           string                 `protobuf:"bytes,5,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	ClientCaFingerprint  string                 `protobuf:"bytes,6,opt,name=client_ca_fingerprint,json=clientCaFingerprint,proto3" json:"client_ca_fingerprint,omitempty"`
+	GatewayCaFingerprint string                 `protobuf:"bytes,7,opt,name=gateway_ca_fingerprint,json=gatewayCaFingerprint,proto3" json:"gateway_ca_fingerprint,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *UpdateKAPMTLSCredentialsCommand) Reset() {
+	*x = UpdateKAPMTLSCredentialsCommand{}
+	mi := &file_session_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateKAPMTLSCredentialsCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateKAPMTLSCredentialsCommand) ProtoMessage() {}
+
+func (x *UpdateKAPMTLSCredentialsCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateKAPMTLSCredentialsCommand.ProtoReflect.Descriptor instead.
+func (*UpdateKAPMTLSCredentialsCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *UpdateKAPMTLSCredentialsCommand) GetCertificatePem() []byte {
+	if x != nil {
+		return x.CertificatePem
+	}
+	return nil
+}
+
+func (x *UpdateKAPMTLSCredentialsCommand) GetPrivateKeyPem() []byte {
+	if x != nil {
+		return x.PrivateKeyPem
+	}
+	return nil
+}
+
+func (x *UpdateKAPMTLSCredentialsCommand) GetGatewayCaPem() []byte {
+	if x != nil {
+		return x.GatewayCaPem
+	}
+	return nil
+}
+
+func (x *UpdateKAPMTLSCredentialsCommand) GetGatewayEndpoint() string {
+	if x != nil {
+		return x.GatewayEndpoint
+	}
+	return ""
+}
+
+func (x *UpdateKAPMTLSCredentialsCommand) GetServerName() string {
+	if x != nil {
+		return x.ServerName
+	}
+	return ""
+}
+
+func (x *UpdateKAPMTLSCredentialsCommand) GetClientCaFingerprint() string {
+	if x != nil {
+		return x.ClientCaFingerprint
+	}
+	return ""
+}
+
+func (x *UpdateKAPMTLSCredentialsCommand) GetGatewayCaFingerprint() string {
+	if x != nil {
+		return x.GatewayCaFingerprint
+	}
+	return ""
+}
+
+type ActivateKAPMTLSCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivateKAPMTLSCommand) Reset() {
+	*x = ActivateKAPMTLSCommand{}
+	mi := &file_session_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivateKAPMTLSCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivateKAPMTLSCommand) ProtoMessage() {}
+
+func (x *ActivateKAPMTLSCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivateKAPMTLSCommand.ProtoReflect.Descriptor instead.
+func (*ActivateKAPMTLSCommand) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{32}
 }
 
 type DrainNotice struct {
@@ -589,7 +2198,7 @@ type DrainNotice struct {
 
 func (x *DrainNotice) Reset() {
 	*x = DrainNotice{}
-	mi := &file_session_proto_msgTypes[8]
+	mi := &file_session_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +2210,7 @@ func (x *DrainNotice) String() string {
 func (*DrainNotice) ProtoMessage() {}
 
 func (x *DrainNotice) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_msgTypes[8]
+	mi := &file_session_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +2223,7 @@ func (x *DrainNotice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DrainNotice.ProtoReflect.Descriptor instead.
 func (*DrainNotice) Descriptor() ([]byte, []int) {
-	return file_session_proto_rawDescGZIP(), []int{8}
+	return file_session_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *DrainNotice) GetReconnectAfterMillis() int64 {
@@ -628,42 +2237,161 @@ var File_session_proto protoreflect.FileDescriptor
 
 const file_session_proto_rawDesc = "" +
 	"\n" +
-	"\rsession.proto\x12\x0fgpud.session.v2\"\xcf\x01\n" +
+	"\rsession.proto\x12\x0fgpud.session.v2\x1a\x1fgoogle/protobuf/timestamp.proto\"\x83\x01\n" +
 	"\rAgentEnvelope\x12.\n" +
-	"\x05hello\x18\x01 \x01(\v2\x16.gpud.session.v2.HelloH\x00R\x05hello\x12G\n" +
-	"\x0ecommand_result\x18\x02 \x01(\v2\x1e.gpud.session.v2.CommandResultH\x00R\rcommandResult\x12:\n" +
-	"\theartbeat\x18\x03 \x01(\v2\x1a.gpud.session.v2.HeartbeatH\x00R\theartbeatB\t\n" +
-	"\apayload\"\x95\x02\n" +
+	"\x05hello\x18\x01 \x01(\v2\x16.gpud.session.v2.HelloH\x00R\x05hello\x127\n" +
+	"\bresponse\x18\x02 \x01(\v2\x19.gpud.session.v2.ResponseH\x00R\bresponseB\t\n" +
+	"\apayload\"\xcf\x01\n" +
 	"\x0fManagerEnvelope\x128\n" +
 	"\thello_ack\x18\x01 \x01(\v2\x19.gpud.session.v2.HelloAckH\x00R\bhelloAck\x124\n" +
-	"\acommand\x18\x02 \x01(\v2\x18.gpud.session.v2.CommandH\x00R\acommand\x12D\n" +
-	"\rheartbeat_ack\x18\x03 \x01(\v2\x1d.gpud.session.v2.HeartbeatAckH\x00R\fheartbeatAck\x12A\n" +
-	"\fdrain_notice\x18\x04 \x01(\v2\x1c.gpud.session.v2.DrainNoticeH\x00R\vdrainNoticeB\t\n" +
+	"\arequest\x18\x02 \x01(\v2\x18.gpud.session.v2.RequestH\x00R\arequest\x12A\n" +
+	"\fdrain_notice\x18\x03 \x01(\v2\x1c.gpud.session.v2.DrainNoticeH\x00R\vdrainNoticeB\t\n" +
 	"\apayload\"\xf3\x01\n" +
 	"\x05Hello\x122\n" +
 	"\x15min_protocol_revision\x18\x01 \x01(\rR\x13minProtocolRevision\x122\n" +
 	"\x15max_protocol_revision\x18\x02 \x01(\rR\x13maxProtocolRevision\x12#\n" +
 	"\ragent_version\x18\x03 \x01(\tR\fagentVersion\x129\n" +
 	"\x19max_receive_message_bytes\x18\x04 \x01(\rR\x16maxReceiveMessageBytes\x12\"\n" +
-	"\fcapabilities\x18\x05 \x03(\tR\fcapabilities\"\xe0\x01\n" +
+	"\fcapabilities\x18\x05 \x03(\tR\fcapabilities\"\xa2\x01\n" +
 	"\bHelloAck\x12+\n" +
 	"\x11protocol_revision\x18\x01 \x01(\rR\x10protocolRevision\x12.\n" +
 	"\x13manager_instance_id\x18\x02 \x01(\tR\x11managerInstanceId\x129\n" +
-	"\x19max_receive_message_bytes\x18\x03 \x01(\rR\x16maxReceiveMessageBytes\x12<\n" +
-	"\x1aheartbeat_interval_seconds\x18\x04 \x01(\rR\x18heartbeatIntervalSeconds\"r\n" +
-	"\aCommand\x12\x1d\n" +
+	"\x19max_receive_message_bytes\x18\x03 \x01(\rR\x16maxReceiveMessageBytes\"\xda\v\n" +
+	"\aRequest\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x01 \x01(\tR\trequestId\x12U\n" +
+	"\x11get_health_states\x18\n" +
+	" \x01(\v2'.gpud.session.v2.GetHealthStatesCommandH\x00R\x0fgetHealthStates\x12B\n" +
+	"\n" +
+	"get_events\x18\v \x01(\v2!.gpud.session.v2.GetEventsCommandH\x00R\tgetEvents\x12E\n" +
+	"\vget_metrics\x18\f \x01(\v2\".gpud.session.v2.GetMetricsCommandH\x00R\n" +
+	"getMetrics\x128\n" +
+	"\x06update\x18\r \x01(\v2\x1e.gpud.session.v2.UpdateCommandH\x00R\x06update\x12E\n" +
+	"\vset_healthy\x18\x0e \x01(\v2\".gpud.session.v2.SetHealthyCommandH\x00R\n" +
+	"setHealthy\x128\n" +
+	"\x06reboot\x18\x0f \x01(\v2\x1e.gpud.session.v2.RebootCommandH\x00R\x06reboot\x12K\n" +
+	"\rupdate_config\x18\x10 \x01(\v2$.gpud.session.v2.UpdateConfigCommandH\x00R\fupdateConfig\x12A\n" +
+	"\tbootstrap\x18\x11 \x01(\v2!.gpud.session.v2.BootstrapCommandH\x00R\tbootstrap\x12H\n" +
+	"\finject_fault\x18\x12 \x01(\v2#.gpud.session.v2.InjectFaultCommandH\x00R\vinjectFault\x12D\n" +
+	"\n" +
+	"diagnostic\x18\x13 \x01(\v2\".gpud.session.v2.DiagnosticCommandH\x00R\n" +
+	"diagnostic\x12X\n" +
+	"\x12get_package_status\x18\x14 \x01(\v2(.gpud.session.v2.GetPackageStatusCommandH\x00R\x10getPackageStatus\x128\n" +
+	"\x06logout\x18\x15 \x01(\v2\x1e.gpud.session.v2.LogoutCommandH\x00R\x06logout\x128\n" +
+	"\x06gossip\x18\x16 \x01(\v2\x1e.gpud.session.v2.GossipCommandH\x00R\x06gossip\x12W\n" +
+	"\x11trigger_component\x18\x17 \x01(\v2(.gpud.session.v2.TriggerComponentCommandH\x00R\x10triggerComponent\x12R\n" +
+	"\x10set_plugin_specs\x18\x18 \x01(\v2&.gpud.session.v2.SetPluginSpecsCommandH\x00R\x0esetPluginSpecs\x12H\n" +
+	"\fupdate_token\x18\x19 \x01(\v2#.gpud.session.v2.UpdateTokenCommandH\x00R\vupdateToken\x12Y\n" +
+	"\x13get_kap_mtls_status\x18\x1a \x01(\v2(.gpud.session.v2.GetKAPMTLSStatusCommandH\x00R\x10getKapMtlsStatus\x12q\n" +
+	"\x1bupdate_kap_mtls_credentials\x18\x1b \x01(\v20.gpud.session.v2.UpdateKAPMTLSCredentialsCommandH\x00R\x18updateKapMtlsCredentials\x12U\n" +
+	"\x11activate_kap_mtls\x18\x1c \x01(\v2'.gpud.session.v2.ActivateKAPMTLSCommandH\x00R\x0factivateKapMtlsB\t\n" +
+	"\acommand\"L\n" +
+	"\bResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12!\n" +
-	"\fpayload_json\x18\x02 \x01(\fR\vpayloadJson\x12%\n" +
-	"\x0etimeout_millis\x18\x03 \x01(\x03R\rtimeoutMillis\"Q\n" +
-	"\rCommandResult\x12\x1d\n" +
+	"\fpayload_json\x18\x02 \x01(\fR\vpayloadJson\"\x18\n" +
+	"\x16GetHealthStatesCommand\"\x84\x01\n" +
+	"\x10GetEventsCommand\x129\n" +
 	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12!\n" +
-	"\fpayload_json\x18\x02 \x01(\fR\vpayloadJson\"'\n" +
-	"\tHeartbeat\x12\x1a\n" +
-	"\bsequence\x18\x01 \x01(\x04R\bsequence\"*\n" +
-	"\fHeartbeatAck\x12\x1a\n" +
-	"\bsequence\x18\x01 \x01(\x04R\bsequence\"C\n" +
+	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
+	"\bend_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\"4\n" +
+	"\x11GetMetricsCommand\x12\x1f\n" +
+	"\vsince_nanos\x18\x01 \x01(\x03R\n" +
+	"sinceNanos\"J\n" +
+	"\rUpdateCommand\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x1f\n" +
+	"\vsince_nanos\x18\x02 \x01(\x03R\n" +
+	"sinceNanos\"T\n" +
+	"\x11SetHealthyCommand\x12\x1e\n" +
+	"\n" +
+	"components\x18\x01 \x03(\tR\n" +
+	"components\x12\x1f\n" +
+	"\vsince_nanos\x18\x02 \x01(\x03R\n" +
+	"sinceNanos\"\x0f\n" +
+	"\rRebootCommand\"\x9a\x01\n" +
+	"\x13UpdateConfigCommand\x12H\n" +
+	"\x06values\x18\x01 \x03(\v20.gpud.session.v2.UpdateConfigCommand.ValuesEntryR\x06values\x1a9\n" +
+	"\vValuesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x89\x01\n" +
+	"\x10BootstrapCommand\x12'\n" +
+	"\x0ftimeout_seconds\x18\x01 \x01(\x03R\x0etimeoutSeconds\x12#\n" +
+	"\rscript_base64\x18\x02 \x01(\tR\fscriptBase64\x12'\n" +
+	"\x0frequest_present\x18\x03 \x01(\bR\x0erequestPresent\"\xa3\x01\n" +
+	"\x12InjectFaultCommand\x12'\n" +
+	"\x0frequest_present\x18\x01 \x01(\bR\x0erequestPresent\x12\x12\n" +
+	"\x03xid\x18\x02 \x01(\x03H\x00R\x03xid\x12G\n" +
+	"\x0ekernel_message\x18\x03 \x01(\v2\x1e.gpud.session.v2.KernelMessageH\x00R\rkernelMessageB\a\n" +
+	"\x05fault\"E\n" +
+	"\rKernelMessage\x12\x1a\n" +
+	"\bpriority\x18\x01 \x01(\tR\bpriority\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x96\x01\n" +
+	"\x11DiagnosticCommand\x12\x1b\n" +
+	"\treport_id\x18\x01 \x01(\tR\breportId\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12'\n" +
+	"\x0ftimeout_seconds\x18\x03 \x01(\x03R\x0etimeoutSeconds\x12'\n" +
+	"\x0frequest_present\x18\x04 \x01(\bR\x0erequestPresent\"\x19\n" +
+	"\x17GetPackageStatusCommand\"\x0f\n" +
+	"\rLogoutCommand\"\x0f\n" +
+	"\rGossipCommand\"[\n" +
+	"\x17TriggerComponentCommand\x12%\n" +
+	"\x0ecomponent_name\x18\x01 \x01(\tR\rcomponentName\x12\x19\n" +
+	"\btag_name\x18\x02 \x01(\tR\atagName\"o\n" +
+	"\x15SetPluginSpecsCommand\x12#\n" +
+	"\rspecs_present\x18\x01 \x01(\bR\fspecsPresent\x121\n" +
+	"\x05specs\x18\x02 \x03(\v2\x1b.gpud.session.v2.PluginSpecR\x05specs\"\xe9\x02\n" +
+	"\n" +
+	"PluginSpec\x12\x1f\n" +
+	"\vplugin_name\x18\x01 \x01(\tR\n" +
+	"pluginName\x12\x1f\n" +
+	"\vplugin_type\x18\x02 \x01(\tR\n" +
+	"pluginType\x12%\n" +
+	"\x0ecomponent_list\x18\x03 \x03(\tR\rcomponentList\x12.\n" +
+	"\x13component_list_file\x18\x04 \x01(\tR\x11componentListFile\x12\x19\n" +
+	"\brun_mode\x18\x05 \x01(\tR\arunMode\x12\x12\n" +
+	"\x04tags\x18\x06 \x03(\tR\x04tags\x12G\n" +
+	"\x13health_state_plugin\x18\a \x01(\v2\x17.gpud.session.v2.PluginR\x11healthStatePlugin\x12#\n" +
+	"\rtimeout_nanos\x18\b \x01(\x03R\ftimeoutNanos\x12%\n" +
+	"\x0einterval_nanos\x18\t \x01(\x03R\rintervalNanos\"x\n" +
+	"\x06Plugin\x121\n" +
+	"\x05steps\x18\x01 \x03(\v2\x1b.gpud.session.v2.PluginStepR\x05steps\x12;\n" +
+	"\x06parser\x18\x02 \x01(\v2#.gpud.session.v2.PluginOutputParserR\x06parser\"e\n" +
+	"\n" +
+	"PluginStep\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12C\n" +
+	"\x0frun_bash_script\x18\x02 \x01(\v2\x1b.gpud.session.v2.BashScriptR\rrunBashScript\"G\n" +
+	"\n" +
+	"BashScript\x12!\n" +
+	"\fcontent_type\x18\x01 \x01(\tR\vcontentType\x12\x16\n" +
+	"\x06script\x18\x02 \x01(\tR\x06script\"o\n" +
+	"\x12PluginOutputParser\x12>\n" +
+	"\n" +
+	"json_paths\x18\x01 \x03(\v2\x1f.gpud.session.v2.PluginJSONPathR\tjsonPaths\x12\x19\n" +
+	"\blog_path\x18\x02 \x01(\tR\alogPath\"\xc1\x02\n" +
+	"\x0ePluginJSONPath\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
+	"\x05field\x18\x02 \x01(\tR\x05field\x128\n" +
+	"\x06expect\x18\x03 \x01(\v2 .gpud.session.v2.PluginMatchRuleR\x06expect\x12b\n" +
+	"\x11suggested_actions\x18\x04 \x03(\v25.gpud.session.v2.PluginJSONPath.SuggestedActionsEntryR\x10suggestedActions\x1ae\n" +
+	"\x15SuggestedActionsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x126\n" +
+	"\x05value\x18\x02 \x01(\v2 .gpud.session.v2.PluginMatchRuleR\x05value:\x028\x01\"6\n" +
+	"\x0fPluginMatchRule\x12\x19\n" +
+	"\x05regex\x18\x01 \x01(\tH\x00R\x05regex\x88\x01\x01B\b\n" +
+	"\x06_regex\"*\n" +
+	"\x12UpdateTokenCommand\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"\x19\n" +
+	"\x17GetKAPMTLSStatusCommand\"\xce\x02\n" +
+	"\x1fUpdateKAPMTLSCredentialsCommand\x12'\n" +
+	"\x0fcertificate_pem\x18\x01 \x01(\fR\x0ecertificatePem\x12&\n" +
+	"\x0fprivate_key_pem\x18\x02 \x01(\fR\rprivateKeyPem\x12$\n" +
+	"\x0egateway_ca_pem\x18\x03 \x01(\fR\fgatewayCaPem\x12)\n" +
+	"\x10gateway_endpoint\x18\x04 \x01(\tR\x0fgatewayEndpoint\x12\x1f\n" +
+	"\vserver_name\x18\x05 \x01(\tR\n" +
+	"serverName\x122\n" +
+	"\x15client_ca_fingerprint\x18\x06 \x01(\tR\x13clientCaFingerprint\x124\n" +
+	"\x16gateway_ca_fingerprint\x18\a \x01(\tR\x14gatewayCaFingerprint\"\x18\n" +
+	"\x16ActivateKAPMTLSCommand\"C\n" +
 	"\vDrainNotice\x124\n" +
 	"\x16reconnect_after_millis\x18\x01 \x01(\x03R\x14reconnectAfterMillis2a\n" +
 	"\x0eSessionService\x12O\n" +
@@ -681,33 +2409,91 @@ func file_session_proto_rawDescGZIP() []byte {
 	return file_session_proto_rawDescData
 }
 
-var file_session_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_session_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_session_proto_goTypes = []any{
-	(*AgentEnvelope)(nil),   // 0: gpud.session.v2.AgentEnvelope
-	(*ManagerEnvelope)(nil), // 1: gpud.session.v2.ManagerEnvelope
-	(*Hello)(nil),           // 2: gpud.session.v2.Hello
-	(*HelloAck)(nil),        // 3: gpud.session.v2.HelloAck
-	(*Command)(nil),         // 4: gpud.session.v2.Command
-	(*CommandResult)(nil),   // 5: gpud.session.v2.CommandResult
-	(*Heartbeat)(nil),       // 6: gpud.session.v2.Heartbeat
-	(*HeartbeatAck)(nil),    // 7: gpud.session.v2.HeartbeatAck
-	(*DrainNotice)(nil),     // 8: gpud.session.v2.DrainNotice
+	(*AgentEnvelope)(nil),                   // 0: gpud.session.v2.AgentEnvelope
+	(*ManagerEnvelope)(nil),                 // 1: gpud.session.v2.ManagerEnvelope
+	(*Hello)(nil),                           // 2: gpud.session.v2.Hello
+	(*HelloAck)(nil),                        // 3: gpud.session.v2.HelloAck
+	(*Request)(nil),                         // 4: gpud.session.v2.Request
+	(*Response)(nil),                        // 5: gpud.session.v2.Response
+	(*GetHealthStatesCommand)(nil),          // 6: gpud.session.v2.GetHealthStatesCommand
+	(*GetEventsCommand)(nil),                // 7: gpud.session.v2.GetEventsCommand
+	(*GetMetricsCommand)(nil),               // 8: gpud.session.v2.GetMetricsCommand
+	(*UpdateCommand)(nil),                   // 9: gpud.session.v2.UpdateCommand
+	(*SetHealthyCommand)(nil),               // 10: gpud.session.v2.SetHealthyCommand
+	(*RebootCommand)(nil),                   // 11: gpud.session.v2.RebootCommand
+	(*UpdateConfigCommand)(nil),             // 12: gpud.session.v2.UpdateConfigCommand
+	(*BootstrapCommand)(nil),                // 13: gpud.session.v2.BootstrapCommand
+	(*InjectFaultCommand)(nil),              // 14: gpud.session.v2.InjectFaultCommand
+	(*KernelMessage)(nil),                   // 15: gpud.session.v2.KernelMessage
+	(*DiagnosticCommand)(nil),               // 16: gpud.session.v2.DiagnosticCommand
+	(*GetPackageStatusCommand)(nil),         // 17: gpud.session.v2.GetPackageStatusCommand
+	(*LogoutCommand)(nil),                   // 18: gpud.session.v2.LogoutCommand
+	(*GossipCommand)(nil),                   // 19: gpud.session.v2.GossipCommand
+	(*TriggerComponentCommand)(nil),         // 20: gpud.session.v2.TriggerComponentCommand
+	(*SetPluginSpecsCommand)(nil),           // 21: gpud.session.v2.SetPluginSpecsCommand
+	(*PluginSpec)(nil),                      // 22: gpud.session.v2.PluginSpec
+	(*Plugin)(nil),                          // 23: gpud.session.v2.Plugin
+	(*PluginStep)(nil),                      // 24: gpud.session.v2.PluginStep
+	(*BashScript)(nil),                      // 25: gpud.session.v2.BashScript
+	(*PluginOutputParser)(nil),              // 26: gpud.session.v2.PluginOutputParser
+	(*PluginJSONPath)(nil),                  // 27: gpud.session.v2.PluginJSONPath
+	(*PluginMatchRule)(nil),                 // 28: gpud.session.v2.PluginMatchRule
+	(*UpdateTokenCommand)(nil),              // 29: gpud.session.v2.UpdateTokenCommand
+	(*GetKAPMTLSStatusCommand)(nil),         // 30: gpud.session.v2.GetKAPMTLSStatusCommand
+	(*UpdateKAPMTLSCredentialsCommand)(nil), // 31: gpud.session.v2.UpdateKAPMTLSCredentialsCommand
+	(*ActivateKAPMTLSCommand)(nil),          // 32: gpud.session.v2.ActivateKAPMTLSCommand
+	(*DrainNotice)(nil),                     // 33: gpud.session.v2.DrainNotice
+	nil,                                     // 34: gpud.session.v2.UpdateConfigCommand.ValuesEntry
+	nil,                                     // 35: gpud.session.v2.PluginJSONPath.SuggestedActionsEntry
+	(*timestamppb.Timestamp)(nil),           // 36: google.protobuf.Timestamp
 }
 var file_session_proto_depIdxs = []int32{
-	2, // 0: gpud.session.v2.AgentEnvelope.hello:type_name -> gpud.session.v2.Hello
-	5, // 1: gpud.session.v2.AgentEnvelope.command_result:type_name -> gpud.session.v2.CommandResult
-	6, // 2: gpud.session.v2.AgentEnvelope.heartbeat:type_name -> gpud.session.v2.Heartbeat
-	3, // 3: gpud.session.v2.ManagerEnvelope.hello_ack:type_name -> gpud.session.v2.HelloAck
-	4, // 4: gpud.session.v2.ManagerEnvelope.command:type_name -> gpud.session.v2.Command
-	7, // 5: gpud.session.v2.ManagerEnvelope.heartbeat_ack:type_name -> gpud.session.v2.HeartbeatAck
-	8, // 6: gpud.session.v2.ManagerEnvelope.drain_notice:type_name -> gpud.session.v2.DrainNotice
-	0, // 7: gpud.session.v2.SessionService.Connect:input_type -> gpud.session.v2.AgentEnvelope
-	1, // 8: gpud.session.v2.SessionService.Connect:output_type -> gpud.session.v2.ManagerEnvelope
-	8, // [8:9] is the sub-list for method output_type
-	7, // [7:8] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	2,  // 0: gpud.session.v2.AgentEnvelope.hello:type_name -> gpud.session.v2.Hello
+	5,  // 1: gpud.session.v2.AgentEnvelope.response:type_name -> gpud.session.v2.Response
+	3,  // 2: gpud.session.v2.ManagerEnvelope.hello_ack:type_name -> gpud.session.v2.HelloAck
+	4,  // 3: gpud.session.v2.ManagerEnvelope.request:type_name -> gpud.session.v2.Request
+	33, // 4: gpud.session.v2.ManagerEnvelope.drain_notice:type_name -> gpud.session.v2.DrainNotice
+	6,  // 5: gpud.session.v2.Request.get_health_states:type_name -> gpud.session.v2.GetHealthStatesCommand
+	7,  // 6: gpud.session.v2.Request.get_events:type_name -> gpud.session.v2.GetEventsCommand
+	8,  // 7: gpud.session.v2.Request.get_metrics:type_name -> gpud.session.v2.GetMetricsCommand
+	9,  // 8: gpud.session.v2.Request.update:type_name -> gpud.session.v2.UpdateCommand
+	10, // 9: gpud.session.v2.Request.set_healthy:type_name -> gpud.session.v2.SetHealthyCommand
+	11, // 10: gpud.session.v2.Request.reboot:type_name -> gpud.session.v2.RebootCommand
+	12, // 11: gpud.session.v2.Request.update_config:type_name -> gpud.session.v2.UpdateConfigCommand
+	13, // 12: gpud.session.v2.Request.bootstrap:type_name -> gpud.session.v2.BootstrapCommand
+	14, // 13: gpud.session.v2.Request.inject_fault:type_name -> gpud.session.v2.InjectFaultCommand
+	16, // 14: gpud.session.v2.Request.diagnostic:type_name -> gpud.session.v2.DiagnosticCommand
+	17, // 15: gpud.session.v2.Request.get_package_status:type_name -> gpud.session.v2.GetPackageStatusCommand
+	18, // 16: gpud.session.v2.Request.logout:type_name -> gpud.session.v2.LogoutCommand
+	19, // 17: gpud.session.v2.Request.gossip:type_name -> gpud.session.v2.GossipCommand
+	20, // 18: gpud.session.v2.Request.trigger_component:type_name -> gpud.session.v2.TriggerComponentCommand
+	21, // 19: gpud.session.v2.Request.set_plugin_specs:type_name -> gpud.session.v2.SetPluginSpecsCommand
+	29, // 20: gpud.session.v2.Request.update_token:type_name -> gpud.session.v2.UpdateTokenCommand
+	30, // 21: gpud.session.v2.Request.get_kap_mtls_status:type_name -> gpud.session.v2.GetKAPMTLSStatusCommand
+	31, // 22: gpud.session.v2.Request.update_kap_mtls_credentials:type_name -> gpud.session.v2.UpdateKAPMTLSCredentialsCommand
+	32, // 23: gpud.session.v2.Request.activate_kap_mtls:type_name -> gpud.session.v2.ActivateKAPMTLSCommand
+	36, // 24: gpud.session.v2.GetEventsCommand.start_time:type_name -> google.protobuf.Timestamp
+	36, // 25: gpud.session.v2.GetEventsCommand.end_time:type_name -> google.protobuf.Timestamp
+	34, // 26: gpud.session.v2.UpdateConfigCommand.values:type_name -> gpud.session.v2.UpdateConfigCommand.ValuesEntry
+	15, // 27: gpud.session.v2.InjectFaultCommand.kernel_message:type_name -> gpud.session.v2.KernelMessage
+	22, // 28: gpud.session.v2.SetPluginSpecsCommand.specs:type_name -> gpud.session.v2.PluginSpec
+	23, // 29: gpud.session.v2.PluginSpec.health_state_plugin:type_name -> gpud.session.v2.Plugin
+	24, // 30: gpud.session.v2.Plugin.steps:type_name -> gpud.session.v2.PluginStep
+	26, // 31: gpud.session.v2.Plugin.parser:type_name -> gpud.session.v2.PluginOutputParser
+	25, // 32: gpud.session.v2.PluginStep.run_bash_script:type_name -> gpud.session.v2.BashScript
+	27, // 33: gpud.session.v2.PluginOutputParser.json_paths:type_name -> gpud.session.v2.PluginJSONPath
+	28, // 34: gpud.session.v2.PluginJSONPath.expect:type_name -> gpud.session.v2.PluginMatchRule
+	35, // 35: gpud.session.v2.PluginJSONPath.suggested_actions:type_name -> gpud.session.v2.PluginJSONPath.SuggestedActionsEntry
+	28, // 36: gpud.session.v2.PluginJSONPath.SuggestedActionsEntry.value:type_name -> gpud.session.v2.PluginMatchRule
+	0,  // 37: gpud.session.v2.SessionService.Connect:input_type -> gpud.session.v2.AgentEnvelope
+	1,  // 38: gpud.session.v2.SessionService.Connect:output_type -> gpud.session.v2.ManagerEnvelope
+	38, // [38:39] is the sub-list for method output_type
+	37, // [37:38] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_session_proto_init() }
@@ -717,22 +2503,46 @@ func file_session_proto_init() {
 	}
 	file_session_proto_msgTypes[0].OneofWrappers = []any{
 		(*AgentEnvelope_Hello)(nil),
-		(*AgentEnvelope_CommandResult)(nil),
-		(*AgentEnvelope_Heartbeat)(nil),
+		(*AgentEnvelope_Response)(nil),
 	}
 	file_session_proto_msgTypes[1].OneofWrappers = []any{
 		(*ManagerEnvelope_HelloAck)(nil),
-		(*ManagerEnvelope_Command)(nil),
-		(*ManagerEnvelope_HeartbeatAck)(nil),
+		(*ManagerEnvelope_Request)(nil),
 		(*ManagerEnvelope_DrainNotice)(nil),
 	}
+	file_session_proto_msgTypes[4].OneofWrappers = []any{
+		(*Request_GetHealthStates)(nil),
+		(*Request_GetEvents)(nil),
+		(*Request_GetMetrics)(nil),
+		(*Request_Update)(nil),
+		(*Request_SetHealthy)(nil),
+		(*Request_Reboot)(nil),
+		(*Request_UpdateConfig)(nil),
+		(*Request_Bootstrap)(nil),
+		(*Request_InjectFault)(nil),
+		(*Request_Diagnostic)(nil),
+		(*Request_GetPackageStatus)(nil),
+		(*Request_Logout)(nil),
+		(*Request_Gossip)(nil),
+		(*Request_TriggerComponent)(nil),
+		(*Request_SetPluginSpecs)(nil),
+		(*Request_UpdateToken)(nil),
+		(*Request_GetKapMtlsStatus)(nil),
+		(*Request_UpdateKapMtlsCredentials)(nil),
+		(*Request_ActivateKapMtls)(nil),
+	}
+	file_session_proto_msgTypes[14].OneofWrappers = []any{
+		(*InjectFaultCommand_Xid)(nil),
+		(*InjectFaultCommand_KernelMessage)(nil),
+	}
+	file_session_proto_msgTypes[28].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_session_proto_rawDesc), len(file_session_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -11,7 +11,4 @@ const (
 	MetadataMachineProof  = "x-gpud-machine-proof"
 )
 
-const (
-	DefaultMaxMessageBytes       = 8 * 1024 * 1024
-	DefaultHeartbeatIntervalSecs = 30
-)
+const DefaultMaxMessageBytes = 8 * 1024 * 1024

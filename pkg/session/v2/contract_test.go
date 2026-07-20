@@ -23,16 +23,15 @@ func TestWireContract(t *testing.T) {
 		MaxProtocolRevision:    1,
 		AgentVersion:           "gpud",
 		MaxReceiveMessageBytes: 1024,
-		Capabilities:           []string{"heartbeat"},
+		Capabilities:           []string{"typed-commands"},
 	}}}
-	require.Equal(t, "0a18080110011a04677075642080082a09686561727462656174", marshalWireHex(t, hello))
+	require.Equal(t, "0a1d080110011a04677075642080082a0e74797065642d636f6d6d616e6473", marshalWireHex(t, hello))
 
-	command := &ManagerEnvelope{Payload: &ManagerEnvelope_Command{Command: &Command{
-		RequestId:     "r1",
-		PayloadJson:   []byte(`{}`),
-		TimeoutMillis: 1500,
+	request := &ManagerEnvelope{Payload: &ManagerEnvelope_Request{Request: &Request{
+		RequestId: "r1",
+		Command:   &Request_GetHealthStates{GetHealthStates: &GetHealthStatesCommand{}},
 	}}}
-	require.Equal(t, "120b0a02723112027b7d18dc0b", marshalWireHex(t, command))
+	require.Equal(t, "12060a0272315200", marshalWireHex(t, request))
 }
 
 func marshalWireHex(t *testing.T, message proto.Message) string {

@@ -5,11 +5,11 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
-	"strings"
 	"testing"
 	"time"
 
@@ -79,7 +79,7 @@ func startTestSessionV2Server(t *testing.T, connect func(sessionv2.SessionServic
 }
 
 func TestRunV2ConnectionMultiplexesCommandAndResult(t *testing.T) {
-	serverResult := make(chan *sessionv2.CommandResult, 1)
+	serverResult := make(chan *sessionv2.Response, 1)
 	endpoint := startTestSessionV2Server(t, func(stream sessionv2.SessionService_ConnectServer) error {
 		md, ok := metadata.FromIncomingContext(stream.Context())
 		if !ok {
@@ -106,14 +106,13 @@ func TestRunV2ConnectionMultiplexesCommandAndResult(t *testing.T) {
 			return status.Error(codes.FailedPrecondition, "first message is not hello")
 		}
 		if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{
-			ProtocolRevision:         sessionv2.ProtocolRevision,
-			HeartbeatIntervalSeconds: 60,
+			ProtocolRevision: sessionv2.ProtocolRevision,
 		}}}); err != nil {
 			return err
 		}
-		if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Command{Command: &sessionv2.Command{
-			RequestId:   "request-1",
-			PayloadJson: []byte(`{"method":"gossip"}`),
+		if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Request{Request: &sessionv2.Request{
+			RequestId: "request-1",
+			Command:   &sessionv2.Request_Gossip{Gossip: &sessionv2.GossipCommand{}},
 		}}}); err != nil {
 			return err
 		}
@@ -121,7 +120,7 @@ func TestRunV2ConnectionMultiplexesCommandAndResult(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		serverResult <- result.GetCommandResult()
+		serverResult <- result.GetResponse()
 		return status.Error(codes.Unavailable, "test complete")
 	})
 
@@ -140,7 +139,11 @@ func TestRunV2ConnectionMultiplexesCommandAndResult(t *testing.T) {
 
 	select {
 	case command := <-s.reader:
-		if command.ReqID != "request-1" || string(command.Data) != `{"method":"gossip"}` {
+		var request Request
+		if err := json.Unmarshal(command.Data, &request); err != nil {
+			t.Fatal(err)
+		}
+		if command.ReqID != "request-1" || request.Method != "gossip" {
 			t.Fatalf("unexpected command: %+v", command)
 		}
 		s.writer <- Body{ReqID: command.ReqID, Data: []byte(`{"ok":true}`)}
@@ -325,8 +328,8 @@ func TestRunV2ConnectionRejectsInvalidManagerMessages(t *testing.T) {
 		reason     string
 	}{
 		{name: "invalid hello acknowledgement", first: &sessionv2.ManagerEnvelope{}, reason: "invalid v2 hello acknowledgement"},
-		{name: "missing command id", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Command{Command: &sessionv2.Command{}}}, reason: "invalid v2 command"},
-		{name: "full command queue", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Command{Command: &sessionv2.Command{RequestId: "r1"}}}, reader: make(chan Body), statusCode: http.StatusTooManyRequests, reason: "agent command queue is full"},
+		{name: "missing request id", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Request{Request: &sessionv2.Request{}}}, reason: "invalid v2 request"},
+		{name: "full command queue", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_Request{Request: &sessionv2.Request{RequestId: "r1", Command: &sessionv2.Request_Gossip{Gossip: &sessionv2.GossipCommand{}}}}}, reader: make(chan Body), statusCode: http.StatusTooManyRequests, reason: "agent command queue is full"},
 		{name: "drain notice", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_DrainNotice{DrainNotice: &sessionv2.DrainNotice{ReconnectAfterMillis: 250}}}, statusCode: http.StatusServiceUnavailable, reason: "manager draining"},
 		{name: "unexpected message", followup: &sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{ProtocolRevision: sessionv2.ProtocolRevision}}}, reason: "unexpected v2 manager message"},
 	}
@@ -388,8 +391,7 @@ func TestRunV2ConnectionReturnsTransportFailures(t *testing.T) {
 				return err
 			}
 			if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{
-				ProtocolRevision:         sessionv2.ProtocolRevision,
-				HeartbeatIntervalSeconds: 60,
+				ProtocolRevision: sessionv2.ProtocolRevision,
 			}}}); err != nil {
 				return err
 			}
@@ -404,32 +406,6 @@ func TestRunV2ConnectionReturnsTransportFailures(t *testing.T) {
 			t.Fatalf("runV2Connection() = %+v", sig)
 		}
 	})
-
-	t.Run("heartbeat watchdog", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		endpoint := startTestSessionV2Server(t, func(stream sessionv2.SessionService_ConnectServer) error {
-			if _, err := stream.Recv(); err != nil {
-				return err
-			}
-			if err := stream.Send(&sessionv2.ManagerEnvelope{Payload: &sessionv2.ManagerEnvelope_HelloAck{HelloAck: &sessionv2.HelloAck{
-				ProtocolRevision:         sessionv2.ProtocolRevision,
-				HeartbeatIntervalSeconds: 1,
-			}}}); err != nil {
-				return err
-			}
-			for {
-				if _, err := stream.Recv(); err != nil {
-					return err
-				}
-			}
-		})
-		s := &Session{epControlPlane: endpoint, reader: make(chan Body, 1), writer: make(chan Body, 1)}
-		sig := s.runV2Connection(ctx)
-		if !strings.Contains(sig.reason, "heartbeat acknowledgement") {
-			t.Fatalf("runV2Connection() = %+v", sig)
-		}
-	})
 }
 
 func TestSendV2Messages(t *testing.T) {
@@ -438,7 +414,7 @@ func TestSendV2Messages(t *testing.T) {
 		cancel()
 		s := &Session{writer: make(chan Body)}
 		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return nil }}
-		if err := s.sendV2Messages(ctx, stream, time.Hour, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); !errors.Is(err, context.Canceled) {
+		if err := s.sendV2Messages(ctx, stream, sessionv2.DefaultMaxMessageBytes); !errors.Is(err, context.Canceled) {
 			t.Fatalf("error = %v", err)
 		}
 	})
@@ -448,82 +424,36 @@ func TestSendV2Messages(t *testing.T) {
 		close(writer)
 		s := &Session{writer: writer}
 		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return nil }}
-		if err := s.sendV2Messages(context.Background(), stream, time.Hour, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); err == nil {
+		if err := s.sendV2Messages(context.Background(), stream, sessionv2.DefaultMaxMessageBytes); err == nil {
 			t.Fatal("closed response queue did not fail")
 		}
 	})
 
-	t.Run("command result is sent", func(t *testing.T) {
+	t.Run("response is sent", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		s := &Session{writer: make(chan Body, 1)}
 		s.writer <- Body{ReqID: "r1", Data: []byte(`{}`)}
 		stream := &scriptedSessionV2ClientStream{send: func(envelope *sessionv2.AgentEnvelope) error {
-			if envelope.GetCommandResult().GetRequestId() != "r1" {
+			if envelope.GetResponse().GetRequestId() != "r1" {
 				t.Fatalf("unexpected envelope: %v", envelope)
 			}
 			cancel()
 			return nil
 		}}
-		if err := s.sendV2Messages(ctx, stream, time.Hour, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); !errors.Is(err, context.Canceled) {
+		if err := s.sendV2Messages(ctx, stream, sessionv2.DefaultMaxMessageBytes); !errors.Is(err, context.Canceled) {
 			t.Fatalf("error = %v", err)
 		}
 	})
 
-	t.Run("command result send error", func(t *testing.T) {
+	t.Run("response send error", func(t *testing.T) {
 		wantErr := errors.New("send failed")
 		s := &Session{writer: make(chan Body, 1)}
 		s.writer <- Body{ReqID: "r1"}
 		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return wantErr }}
-		if err := s.sendV2Messages(context.Background(), stream, time.Hour, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); !errors.Is(err, wantErr) {
+		if err := s.sendV2Messages(context.Background(), stream, sessionv2.DefaultMaxMessageBytes); !errors.Is(err, wantErr) {
 			t.Fatalf("error = %v", err)
 		}
 	})
-
-	t.Run("heartbeat is sent", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		s := &Session{writer: make(chan Body)}
-		heartbeats := make(chan uint64, 1)
-		stream := &scriptedSessionV2ClientStream{send: func(envelope *sessionv2.AgentEnvelope) error {
-			if envelope.GetHeartbeat().GetSequence() != 1 {
-				t.Fatalf("unexpected envelope: %v", envelope)
-			}
-			cancel()
-			return nil
-		}}
-		if err := s.sendV2Messages(ctx, stream, time.Millisecond, sessionv2.DefaultMaxMessageBytes, heartbeats); !errors.Is(err, context.Canceled) {
-			t.Fatalf("error = %v", err)
-		}
-		if sequence := <-heartbeats; sequence != 1 {
-			t.Fatalf("sequence = %d", sequence)
-		}
-	})
-
-	t.Run("heartbeat send error", func(t *testing.T) {
-		wantErr := errors.New("heartbeat send failed")
-		s := &Session{writer: make(chan Body)}
-		stream := &scriptedSessionV2ClientStream{send: func(*sessionv2.AgentEnvelope) error { return wantErr }}
-		if err := s.sendV2Messages(context.Background(), stream, time.Millisecond, sessionv2.DefaultMaxMessageBytes, make(chan uint64, 1)); !errors.Is(err, wantErr) {
-			t.Fatalf("error = %v", err)
-		}
-	})
-}
-
-func TestMonitorV2HeartbeatAcknowledgementAndCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	sent := make(chan uint64, 1)
-	acks := make(chan uint64, 1)
-	done := make(chan error, 1)
-	go func() {
-		done <- monitorV2Heartbeat(ctx, time.Second, sent, acks)
-	}()
-	sent <- 1
-	time.Sleep(10 * time.Millisecond)
-	acks <- 1
-	time.Sleep(10 * time.Millisecond)
-	cancel()
-	if err := <-done; err != nil {
-		t.Fatalf("error = %v", err)
-	}
 }
 
 func TestNewV2ClientConn(t *testing.T) {
@@ -571,21 +501,9 @@ func TestReceiveFirstManagerV2MessageTimesOut(t *testing.T) {
 	}
 }
 
-func TestMonitorV2HeartbeatTimesOutWithoutAcknowledgement(t *testing.T) {
-	sent := make(chan uint64, 1)
-	acks := make(chan uint64, 1)
-	sent <- 1
-
-	started := time.Now()
-	err := monitorV2Heartbeat(context.Background(), 10*time.Millisecond, sent, acks)
-	if err == nil || time.Since(started) > time.Second {
-		t.Fatalf("monitorV2Heartbeat error = %v, elapsed = %s", err, time.Since(started))
-	}
-}
-
 func TestSendAgentV2EnvelopeEnforcesPeerLimit(t *testing.T) {
 	stream := &recordingSessionV2ClientStream{}
-	envelope := &sessionv2.AgentEnvelope{Payload: &sessionv2.AgentEnvelope_Heartbeat{Heartbeat: &sessionv2.Heartbeat{Sequence: 1}}}
+	envelope := &sessionv2.AgentEnvelope{Payload: &sessionv2.AgentEnvelope_Response{Response: &sessionv2.Response{RequestId: "r1"}}}
 
 	err := sendAgentV2Envelope(stream, envelope, 1)
 	if status.Code(err) != codes.ResourceExhausted {
