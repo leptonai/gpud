@@ -178,11 +178,14 @@ RUN apt-get update && \
   # Remove gnupg and related packages to address CVE-2025-68973
   # These are only needed for GPG key verification during build, not at runtime
   apt-get purge -y --auto-remove gnupg gnupg-l10n gnupg-utils gpg gpg-agent gpg-wks-client gpg-wks-server gpgconf gpgsm dirmngr && \
-  # Fail Jammy builds unless both packages include Ubuntu's CVE-2026-45447 fix.
+  # Fail supported Ubuntu builds unless both packages include Ubuntu's CVE-2026-45447 fix.
   . /etc/os-release && \
   if [ "$VERSION_CODENAME" = "jammy" ]; then \
     dpkg --compare-versions "$(dpkg-query -W -f='${Version}' openssl)" ge "3.0.2-0ubuntu1.25" && \
     dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libssl3)" ge "3.0.2-0ubuntu1.25"; \
+  elif [ "$VERSION_CODENAME" = "noble" ]; then \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' openssl)" ge "3.0.13-0ubuntu3.11" && \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libssl3t64)" ge "3.0.13-0ubuntu3.11"; \
   fi && \
   # util-linux provides findmnt, which the disk component shells out to.
   command -v findmnt >/dev/null && \
