@@ -277,6 +277,29 @@ func TestRequestFromV2RejectsInvalidCommands(t *testing.T) {
 	_, err = requestFromV2(newV2Request(&sessionv2.Request_GetEvents{}))
 	require.ErrorContains(t, err, "get-events command is missing")
 
+	for _, test := range []struct {
+		name    string
+		command any
+		message string
+	}{
+		{name: "metrics", command: &sessionv2.Request_GetMetrics{}, message: "get-metrics command is missing"},
+		{name: "update", command: &sessionv2.Request_Update{}, message: "update command is missing"},
+		{name: "set healthy", command: &sessionv2.Request_SetHealthy{}, message: "set-healthy command is missing"},
+		{name: "update config", command: &sessionv2.Request_UpdateConfig{}, message: "update-config command is missing"},
+		{name: "bootstrap", command: &sessionv2.Request_Bootstrap{}, message: "bootstrap command is missing"},
+		{name: "inject fault", command: &sessionv2.Request_InjectFault{}, message: "inject-fault command is missing"},
+		{name: "diagnostic", command: &sessionv2.Request_Diagnostic{}, message: "diagnostic command is missing"},
+		{name: "trigger component", command: &sessionv2.Request_TriggerComponent{}, message: "trigger-component command is missing"},
+		{name: "plugin specs", command: &sessionv2.Request_SetPluginSpecs{}, message: "set-plugin-specs command is missing"},
+		{name: "update token", command: &sessionv2.Request_UpdateToken{}, message: "update-token command is missing"},
+		{name: "KAP credentials", command: &sessionv2.Request_UpdateKapMtlsCredentials{}, message: "update-KAP-mTLS-credentials command is missing"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := requestFromV2(newV2Request(test.command))
+			require.ErrorContains(t, err, test.message)
+		})
+	}
+
 	_, err = requestFromV2(newV2Request(&sessionv2.Request_GetEvents{GetEvents: &sessionv2.GetEventsCommand{}}))
 	require.ErrorContains(t, err, "invalid get-events start time")
 
@@ -295,6 +318,30 @@ func TestRequestFromV2RejectsInvalidCommands(t *testing.T) {
 		Specs: []*sessionv2.PluginSpec{{PluginName: "disk"}},
 	}}))
 	require.ErrorContains(t, err, "plugin specs are present without a specs payload")
+}
+
+func TestPluginSpecsFromV2PreservesNilEntries(t *testing.T) {
+	got := pluginSpecsFromV2([]*sessionv2.PluginSpec{
+		nil,
+		{
+			HealthStatePlugin: &sessionv2.Plugin{
+				Steps: []*sessionv2.PluginStep{nil},
+				Parser: &sessionv2.PluginOutputParser{JsonPaths: []*sessionv2.PluginJSONPath{
+					nil,
+					{SuggestedActions: map[string]*sessionv2.PluginMatchRule{"none": nil}},
+				}},
+			},
+		},
+	})
+
+	require.Len(t, got, 2)
+	assert.Equal(t, pkgcustomplugins.Spec{}, got[0])
+	require.NotNil(t, got[1].HealthStatePlugin)
+	assert.Equal(t, []pkgcustomplugins.Step{{}}, got[1].HealthStatePlugin.Steps)
+	require.NotNil(t, got[1].HealthStatePlugin.Parser)
+	assert.Equal(t, []pkgcustomplugins.JSONPath{{}, {SuggestedActions: map[string]pkgcustomplugins.MatchRule{}}}, got[1].HealthStatePlugin.Parser.JSONPaths)
+	assert.Nil(t, pluginFromV2(nil))
+	assert.Nil(t, pluginMatchRuleFromV2(nil))
 }
 
 func newV2Request(command any) *sessionv2.Request {
