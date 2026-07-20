@@ -158,11 +158,11 @@ func TestAuditSessionRequestDataRedactsCredentials(t *testing.T) {
 }
 
 func TestAuditSessionRequestDataRedactsCaseVariants(t *testing.T) {
-	raw := []byte(`{"KAP_MTLS_CREDENTIALS":{"Certificate_PEM":"certificate-one","certificate_pem":"certificate-two","PRIVATE_KEY_PEM":"key-one","private_key_pem":"key-two","gateway_endpoint":"kap.example.test:8443"}}`)
+	raw := []byte(`{"TOKEN":"session-secret","KAP_MTLS_CREDENTIALS":{"Certificate_PEM":"certificate-one","certificate_pem":"certificate-two","PRIVATE_KEY_PEM":"key-one","private_key_pem":"key-two","gateway_endpoint":"kap.example.test:8443"}}`)
 
 	redacted, err := json.Marshal(auditSessionRequestData(raw))
 	require.NoError(t, err)
-	for _, secret := range []string{"certificate-one", "certificate-two", "key-one", "key-two"} {
+	for _, secret := range []string{"session-secret", "certificate-one", "certificate-two", "key-one", "key-two"} {
 		assert.NotContains(t, string(redacted), secret)
 	}
 	assert.Contains(t, string(redacted), "kap.example.test:8443")

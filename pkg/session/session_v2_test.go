@@ -456,6 +456,36 @@ func TestSendV2Messages(t *testing.T) {
 	})
 }
 
+func TestTryWriteV2RequestHandlesShutdownAndBackpressure(t *testing.T) {
+	t.Run("stopped session", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		s := &Session{
+			ctx:    ctx,
+			cancel: cancel,
+			writer: make(chan Body, 1),
+			reader: make(chan Body, 1),
+			closer: &closeOnce{closer: make(chan any)},
+		}
+		s.Stop()
+
+		if err := s.tryWriteV2Request(context.Background(), Body{ReqID: "stopped"}); !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want context.Canceled", err)
+		}
+	})
+
+	t.Run("full command queue", func(t *testing.T) {
+		s := &Session{
+			reader: make(chan Body, 1),
+			closer: &closeOnce{closer: make(chan any)},
+		}
+		s.reader <- Body{ReqID: "existing"}
+
+		if err := s.tryWriteV2Request(context.Background(), Body{ReqID: "new"}); !errors.Is(err, errV2CommandQueueFull) {
+			t.Fatalf("error = %v, want errV2CommandQueueFull", err)
+		}
+	})
+}
+
 func TestNewV2ClientConn(t *testing.T) {
 	for _, endpoint := range []string{"http://127.0.0.1", "https://gpud-gateway.example.com"} {
 		conn, err := newV2ClientConn(endpoint)

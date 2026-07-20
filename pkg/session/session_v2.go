@@ -170,12 +170,12 @@ func (s *Session) runV2Connection(ctx context.Context) reconnectSignal {
 				return reconnectSignal{side: reconnectSideSingle, reason: "failed to encode v2 request", err: err}
 			}
 			body := Body{ReqID: payload.Request.RequestId, Data: data}
-			select {
-			case s.reader <- body:
-			case <-connectionCtx.Done():
-				return classifyV2Error(connectionCtx.Err())
-			default:
-				return reconnectSignal{side: reconnectSideSingle, statusCode: http.StatusTooManyRequests, reason: "agent command queue is full", err: errors.New("agent command queue is full")}
+			err = s.tryWriteV2Request(connectionCtx, body)
+			if errors.Is(err, errV2CommandQueueFull) {
+				return reconnectSignal{side: reconnectSideSingle, statusCode: http.StatusTooManyRequests, reason: "agent command queue is full", err: errV2CommandQueueFull}
+			}
+			if err != nil {
+				return classifyV2Error(err)
 			}
 		case *sessionv2.ManagerEnvelope_DrainNotice:
 			retryAfter := time.Duration(payload.DrainNotice.GetReconnectAfterMillis()) * time.Millisecond
@@ -183,6 +183,25 @@ func (s *Session) runV2Connection(ctx context.Context) reconnectSignal {
 		default:
 			return reconnectSignal{side: reconnectSideSingle, reason: "unexpected v2 manager message", err: errors.New("unexpected v2 manager message")}
 		}
+	}
+}
+
+var errV2CommandQueueFull = errors.New("agent command queue is full")
+
+func (s *Session) tryWriteV2Request(ctx context.Context, body Body) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = context.Canceled
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.reader <- body:
+		return nil
+	default:
+		return errV2CommandQueueFull
 	}
 }
 
