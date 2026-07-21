@@ -12,15 +12,23 @@ import (
 const Name = "oci"
 
 func New() providers.Detector {
-	return providers.New(Name, detectProvider, nil, fetchPrivateIPv4, nil, nil)
+	return providers.NewWithRegion(
+		Name,
+		detectProvider,
+		nil,
+		fetchPrivateIPv4,
+		imds.FetchCanonicalRegionName,
+		nil,
+		imds.FetchInstanceID,
+	)
 }
 
 func detectProvider(ctx context.Context) (string, error) {
-	privateIP, err := fetchPrivateIPv4(ctx)
+	instanceID, err := imds.FetchInstanceID(ctx)
 	if err != nil {
 		return "", err
 	}
-	if privateIP != "" {
+	if instanceID != "" {
 		return Name, nil
 	}
 	return "", nil

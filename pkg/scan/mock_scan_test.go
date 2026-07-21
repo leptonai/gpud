@@ -29,6 +29,15 @@ type mockComponent struct {
 	checkResult components.CheckResult
 }
 
+func TestMain(m *testing.M) {
+	if os.Getenv("TEST_GPUD_SCAN") != "true" {
+		getProvider = func(context.Context, string) *providers.Info {
+			return &providers.Info{Provider: "unknown"}
+		}
+	}
+	os.Exit(m.Run())
+}
+
 func (m *mockComponent) Name() string                         { return m.name }
 func (m *mockComponent) Tags() []string                       { return nil }
 func (m *mockComponent) IsSupported() bool                    { return m.supported }
@@ -130,9 +139,11 @@ func TestScan_Success(t *testing.T) {
 				GPUInfo:   nil,
 			}, nil
 		}).Build()
-		mockey.Mock(pkgmachineinfo.GetProvider).To(func(string) *providers.Info {
+		previousGetProvider := getProvider
+		getProvider = func(context.Context, string) *providers.Info {
 			return &providers.Info{Provider: "oci", PrivateIP: "203.0.113.10"}
-		}).Build()
+		}
+		defer func() { getProvider = previousGetProvider }()
 
 		// Mock all.All() to return an empty list (no components to check)
 		mockey.Mock(all.All).To(func() []all.Component {
@@ -825,11 +836,18 @@ func TestScan_ContextCancellation(t *testing.T) {
 			return []all.Component{}
 		}).Build()
 
+		previousGetProvider := getProvider
+		getProvider = func(ctx context.Context, _ string) *providers.Info {
+			require.ErrorIs(t, ctx.Err(), context.Canceled)
+			return &providers.Info{Provider: "unknown"}
+		}
+		defer func() { getProvider = previousGetProvider }()
+
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
 		err := Scan(ctx)
-		// Scan should still complete since context is only used in the function
+		// Provider detection observes cancellation, while the rest of the scan remains best-effort.
 		require.NoError(t, err)
 	})
 }

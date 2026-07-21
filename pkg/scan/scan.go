@@ -17,6 +17,8 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
 
+var getProvider = pkgmachineinfo.GetProviderWithContext
+
 func printSummary(result components.CheckResult) {
 	header := cmdcommon.CheckMark
 	if result.HealthStateType() != apiv1.HealthStateTypeHealthy {
@@ -63,7 +65,7 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	fmt.Printf("\n%s machine info\n", cmdcommon.CheckMark)
 	mi.RenderTable(os.Stdout)
 
-	providerInfo := pkgmachineinfo.GetProvider("")
+	providerInfo := getProvider(ctx, "")
 	if providerInfo != nil {
 		fmt.Printf("\n%s provider info\n", cmdcommon.CheckMark)
 		providerInfo.RenderTable(os.Stdout)
