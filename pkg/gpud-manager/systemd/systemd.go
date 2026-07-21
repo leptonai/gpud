@@ -50,11 +50,11 @@ func DefaultBinExists() bool {
 // login.Login() always writes credentials to the persistent state file (via dataDir).
 // When --db-in-memory is enabled, gpud run reads credentials from the persistent file
 // and passes them to the server to seed into the in-memory database.
-func CreateDefaultEnvFile(endpoint string, dataDir string, dbInMemory bool) error {
-	return writeEnvFile(DefaultEnvFile, endpoint, dataDir, dbInMemory)
+func CreateDefaultEnvFile(endpoint string, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+	return writeEnvFile(DefaultEnvFile, endpoint, dataDir, dbInMemory, sessionProtocol...)
 }
 
-func createDefaultEnvFileContent(endpoint string, dataDir string, dbInMemory bool) string {
+func createDefaultEnvFileContent(endpoint string, dataDir string, dbInMemory bool, sessionProtocol ...string) string {
 	flags := "--log-level=info --log-file=/var/log/gpud.log"
 	if endpoint != "" {
 		flags += fmt.Sprintf(" --endpoint=%s", endpoint)
@@ -65,14 +65,39 @@ func createDefaultEnvFileContent(endpoint string, dataDir string, dbInMemory boo
 	if dbInMemory {
 		flags += " --db-in-memory"
 	}
+	protocol := "auto"
+	if len(sessionProtocol) > 0 && sessionProtocol[0] != "" {
+		protocol = sessionProtocol[0]
+	}
+	flags += fmt.Sprintf(" --session-protocol=%s", protocol)
 
 	return fmt.Sprintf(`# gpud environment variables are set here
 FLAGS="%s"
 `, flags)
 }
 
-func writeEnvFile(file string, endpoint string, dataDir string, dbInMemory bool) error {
-	return atomicfile.WriteFile(file, []byte(createDefaultEnvFileContent(endpoint, dataDir, dbInMemory)), 0644)
+func writeEnvFile(file string, endpoint string, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
+	protocol, err := validateSessionProtocol(sessionProtocol)
+	if err != nil {
+		return err
+	}
+	return atomicfile.WriteFile(file, []byte(createDefaultEnvFileContent(endpoint, dataDir, dbInMemory, protocol)), 0644)
+}
+
+func validateSessionProtocol(values []string) (string, error) {
+	if len(values) > 1 {
+		return "", fmt.Errorf("expected at most one session protocol, got %d", len(values))
+	}
+	protocol := "auto"
+	if len(values) == 1 && values[0] != "" {
+		protocol = values[0]
+	}
+	switch protocol {
+	case "v1", "v2", "auto":
+		return protocol, nil
+	default:
+		return "", fmt.Errorf("unsupported session protocol %q", protocol)
+	}
 }
 
 func updateFlagsFromExistingEnvFile(file string, endpoint string) error {

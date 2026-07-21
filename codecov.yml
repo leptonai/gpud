@@ -1,2 +1,4 @@
 ignore:
   - "e2e"
+  - "pkg/session/v2/session.pb.go"
+  - "pkg/session/v2/session_grpc.pb.go"

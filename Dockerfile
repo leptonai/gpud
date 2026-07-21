@@ -90,6 +90,7 @@ RUN mkdir -p /apt-sources/packages && cd /apt-sources/packages && \
     apt-get source --download-only ca-certificates || true && \
     apt-get source --download-only curl || true && \
     apt-get source --download-only gnupg2 || true && \
+    apt-get source --download-only openssl || true && \
     apt-get source --download-only pciutils || true && \
     apt-get source --download-only dmidecode || true && \
     apt-get source --download-only util-linux || true && \
@@ -121,6 +122,7 @@ RUN echo "# APT Package Sources" > /apt-sources/APT_SOURCES.txt && \
     echo "ca-certificates: $(apt-cache policy ca-certificates | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
     echo "curl: $(apt-cache policy curl | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
     echo "gnupg: $(apt-cache policy gnupg | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
+    echo "openssl: $(apt-cache policy openssl | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
     echo "pciutils: $(apt-cache policy pciutils | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
     echo "dmidecode: $(apt-cache policy dmidecode | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
     echo "util-linux: $(apt-cache policy util-linux | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
@@ -151,11 +153,15 @@ LABEL org.opencontainers.image.title="gpud" \
 # Install required runtime dependencies not included in the NVIDIA CUDA runtime image.
 # NOTE: gnupg is installed temporarily for Docker GPG key verification, then purged
 # to address CVE-2025-68973 (out-of-bounds write in GnuPG armor_filter before 2.4.9)
+# Upgrade OpenSSL's installed shared library explicitly; openssl permits older
+# libssl3 versions, and Ubuntu 24.04 renamed that package to libssl3t64.
 RUN apt-get update && \
   apt-get install -y --no-install-recommends \
   ca-certificates \
   curl \
   gnupg \
+  openssl \
+  "$(dpkg-query -W -f='${binary:Package}' 'libssl3*')" \
   pciutils \
   dmidecode \
   util-linux \
@@ -172,6 +178,15 @@ RUN apt-get update && \
   # Remove gnupg and related packages to address CVE-2025-68973
   # These are only needed for GPG key verification during build, not at runtime
   apt-get purge -y --auto-remove gnupg gnupg-l10n gnupg-utils gpg gpg-agent gpg-wks-client gpg-wks-server gpgconf gpgsm dirmngr && \
+  # Fail supported Ubuntu builds unless both packages include Ubuntu's CVE-2026-45447 fix.
+  . /etc/os-release && \
+  if [ "$VERSION_CODENAME" = "jammy" ]; then \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' openssl)" ge "3.0.2-0ubuntu1.25" && \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libssl3)" ge "3.0.2-0ubuntu1.25"; \
+  elif [ "$VERSION_CODENAME" = "noble" ]; then \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' openssl)" ge "3.0.13-0ubuntu3.11" && \
+    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libssl3t64)" ge "3.0.13-0ubuntu3.11"; \
+  fi && \
   # util-linux provides findmnt, which the disk component shells out to.
   command -v findmnt >/dev/null && \
   findmnt --version >/dev/null && \

@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	DefaultAPIVersion = "v1"
-	DefaultGPUdPort   = 15132
-	DefaultDataDir    = "/var/lib/gpud"
+	DefaultAPIVersion      = "v1"
+	DefaultGPUdPort        = 15132
+	DefaultDataDir         = "/var/lib/gpud"
+	DefaultSessionProtocol = "auto"
 )
 
 var (
@@ -52,6 +53,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		CompactPeriod:          DefaultCompactPeriod,
 		Pprof:                  false,
 		EnableAutoUpdate:       true,
+		SessionProtocol:        DefaultSessionProtocol,
 		NvidiaToolOverwrites: nvidiacommon.ToolOverwrites{
 			InfinibandClassRootDir:    options.InfinibandClassRootDir,
 			ExcludedInfinibandDevices: options.ExcludedInfinibandDevices,

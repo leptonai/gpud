@@ -212,6 +212,10 @@ func TestProcessUpdateTokenReconnectUsesJitteredDelay(t *testing.T) {
 			return ch
 		},
 	}
+	connectionCtx, cancelConnection := context.WithCancel(context.Background())
+	defer cancelConnection()
+	releaseConnection := s.registerConnectionCancel(cancelConnection)
+	defer releaseConnection()
 
 	response := &Response{}
 	s.processUpdateToken(Request{Token: "new-token"}, response)
@@ -232,6 +236,11 @@ func TestProcessUpdateTokenReconnectUsesJitteredDelay(t *testing.T) {
 	case <-s.closer.Done():
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for session closer")
+	}
+	select {
+	case <-connectionCtx.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for active v2 connection cancellation")
 	}
 }
 

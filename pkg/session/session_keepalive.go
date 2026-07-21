@@ -9,6 +9,17 @@ import (
 )
 
 func (s *Session) keepAlive() {
+	switch s.protocol {
+	case ProtocolV2:
+		s.keepAliveV2(false)
+	case ProtocolAuto:
+		s.keepAliveV2(true)
+	default:
+		s.keepAliveLegacy()
+	}
+}
+
+func (s *Session) keepAliveLegacy() {
 	backoff := reconnectBackoff{}
 	if !s.waitReconnectDelay(s.ctx, s.jitter(startupJitterMax)) {
 		return
@@ -39,7 +50,9 @@ func (s *Session) keepAlive() {
 				s.drainReaderChannel()
 			}
 
+			s.connectionMu.Lock()
 			s.closer = &closeOnce{closer: make(chan any)}
+			s.connectionMu.Unlock()
 			ctx, cancel := context.WithCancel(s.ctx) // create local context derived from session context
 			// DO NOT CHANGE OR REMOVE THIS COOKIE JAR, DEPEND ON IT FOR STICKY SESSION
 			jar, _ := cookiejar.New(nil)

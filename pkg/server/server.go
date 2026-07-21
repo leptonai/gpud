@@ -92,6 +92,7 @@ type Server struct {
 	autoUpdateExitCode      int
 	rebootCommands          string
 	skipSessionUpdateConfig bool
+	sessionProtocol         string
 
 	pluginSpecsFile string
 	faultInjector   pkgfaultinjector.Injector
@@ -255,6 +256,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		autoUpdateExitCode:      config.AutoUpdateExitCode,
 		rebootCommands:          config.RebootCommands,
 		skipSessionUpdateConfig: config.SkipSessionUpdateConfig,
+		sessionProtocol:         config.SessionProtocol,
 
 		pluginSpecsFile: config.PluginSpecsFile,
 	}
@@ -616,6 +618,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 			session.WithRebootCommands(s.rebootCommands),
 			session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
+			session.WithProtocol(s.sessionProtocol),
 			session.WithComponentsRegistry(s.componentsRegistry),
 			session.WithDataDir(s.dataDir),
 			session.WithDBInMemory(s.dbInMemory),
@@ -688,6 +691,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 				session.WithRebootCommands(s.rebootCommands),
 				session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
+				session.WithProtocol(s.sessionProtocol),
 				session.WithComponentsRegistry(s.componentsRegistry),
 				session.WithDataDir(s.dataDir),
 				session.WithDBInMemory(s.dbInMemory),

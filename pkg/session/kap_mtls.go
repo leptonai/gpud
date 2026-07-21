@@ -87,6 +87,10 @@ func redactSessionCredentials(value any) {
 	switch typed := value.(type) {
 	case map[string]any:
 		for key, child := range typed {
+			if strings.EqualFold(key, "token") {
+				typed[key] = "<redacted>"
+				continue
+			}
 			if strings.EqualFold(key, "kap_mtls_credentials") {
 				credentials, ok := child.(map[string]any)
 				if !ok {

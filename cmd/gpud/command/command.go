@@ -39,6 +39,15 @@ gpud scan
 sudo gpud up
 `
 
+func sessionProtocolFlag() cli.Flag {
+	return &cli.StringFlag{
+		Name:   "session-protocol",
+		Usage:  "control-plane session transport: v1, v2, or auto",
+		Value:  pkgconfig.DefaultSessionProtocol,
+		EnvVar: "GPUD_SESSION_PROTOCOL",
+	}
+}
+
 func App() *cli.App {
 	app := cli.NewApp()
 
@@ -125,6 +134,7 @@ nohup sudo gpud run &>> <your log file path> &
 					Usage: "(optional) endpoint for checking in",
 					Value: "gpud-manager-prod01.dgxc-lepton.nvidia.com",
 				},
+				sessionProtocolFlag(),
 				cli.StringFlag{
 					Name:  "gpu-count",
 					Usage: "(optional) specify count of gpu (leave empty to auto-detect)",
@@ -268,6 +278,7 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "skips processing session updateConfig requests (testing only)",
 					Hidden: true,
 				},
+				sessionProtocolFlag(),
 
 				&cli.DurationFlag{
 					Name:  "metrics-retention-period, retention-period",

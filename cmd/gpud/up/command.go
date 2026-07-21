@@ -130,7 +130,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 	// The env file only contains: --log-level, --log-file, --endpoint, --data-dir, --db-in-memory
 	// Session credentials are stored in the persistent state file, not the systemd env file.
 
-	if err := systemdInit(endpoint, dataDir, dbInMemory); err != nil {
+	if err := systemdInit(endpoint, dataDir, dbInMemory, cliContext.String("session-protocol")); err != nil {
 		return err
 	}
 	log.Logger.Debugw("successfully started systemd init")
@@ -178,11 +178,11 @@ func recordLoginSuccessState(ctx context.Context, dataDir string) error {
 	return nil
 }
 
-func systemdInit(endpoint string, dataDir string, dbInMemory bool) error {
+func systemdInit(endpoint string, dataDir string, dbInMemory bool, sessionProtocol ...string) error {
 	// Always create/overwrite env file (consistent with v0.8.0 behavior).
 	// IMPORTANT: The --token flag is NEVER written to the env file.
 	// Only runtime configuration flags are written: --log-level, --log-file, --endpoint, --data-dir, --db-in-memory
-	if err := systemd.CreateDefaultEnvFile(endpoint, dataDir, dbInMemory); err != nil {
+	if err := systemd.CreateDefaultEnvFile(endpoint, dataDir, dbInMemory, sessionProtocol...); err != nil {
 		return err
 	}
 	systemdUnitFileData := systemd.GPUdServiceUnitFileContents()

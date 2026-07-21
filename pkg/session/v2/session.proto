@@ -1,0 +1,205 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package gpud.session.v2;
+
+option go_package = "github.com/leptonai/gpud/pkg/session/v2;sessionv2";
+
+import "google/protobuf/timestamp.proto";
+
+service SessionService {
+  rpc Connect(stream AgentPacket) returns (stream ManagerPacket);
+}
+
+message AgentPacket {
+  oneof payload {
+    Hello hello = 1;
+    Result result = 2;
+  }
+}
+
+message ManagerPacket {
+  reserved 2;
+
+  string request_id = 4;
+
+  oneof payload {
+    HelloAck hello_ack = 1;
+    DrainNotice drain_notice = 3;
+    GetHealthStatesRequest get_health_states = 10;
+    GetEventsRequest get_events = 11;
+    GetMetricsRequest get_metrics = 12;
+    UpdateRequest update = 13;
+    SetHealthyRequest set_healthy = 14;
+    RebootRequest reboot = 15;
+    UpdateConfigRequest update_config = 16;
+    BootstrapRequest bootstrap = 17;
+    InjectFaultRequest inject_fault = 18;
+    DiagnosticRequest diagnostic = 19;
+    GetPackageStatusRequest get_package_status = 20;
+    LogoutRequest logout = 21;
+    GossipRequest gossip = 22;
+    TriggerComponentRequest trigger_component = 23;
+    SetPluginSpecsRequest set_plugin_specs = 24;
+    UpdateTokenRequest update_token = 25;
+    GetKAPMTLSStatusRequest get_kap_mtls_status = 26;
+    UpdateKAPMTLSCredentialsRequest update_kap_mtls_credentials = 27;
+    ActivateKAPMTLSRequest activate_kap_mtls = 28;
+  }
+}
+
+message Hello {
+  uint32 min_protocol_revision = 1;
+  uint32 max_protocol_revision = 2;
+  string agent_version = 3;
+  uint32 max_receive_message_bytes = 4;
+  repeated string capabilities = 5;
+}
+
+message HelloAck {
+  uint32 protocol_revision = 1;
+  string manager_instance_id = 2;
+  uint32 max_receive_message_bytes = 3;
+}
+
+message Result {
+  string request_id = 1;
+  bytes payload_json = 2;
+}
+
+message GetHealthStatesRequest {}
+
+message GetEventsRequest {
+  google.protobuf.Timestamp start_time = 1;
+  google.protobuf.Timestamp end_time = 2;
+}
+
+message GetMetricsRequest {
+  int64 since_nanos = 1;
+}
+
+message UpdateRequest {
+  string version = 1;
+  int64 since_nanos = 2;
+}
+
+message SetHealthyRequest {
+  repeated string components = 1;
+  int64 since_nanos = 2;
+}
+
+message RebootRequest {}
+
+message UpdateConfigRequest {
+  map<string, string> values = 1;
+}
+
+message BootstrapRequest {
+  int64 timeout_seconds = 1;
+  string script_base64 = 2;
+  bool request_present = 3;
+}
+
+message InjectFaultRequest {
+  bool request_present = 1;
+
+  oneof fault {
+    int64 xid = 2;
+    KernelMessage kernel_message = 3;
+  }
+}
+
+message KernelMessage {
+  string priority = 1;
+  string message = 2;
+}
+
+message DiagnosticRequest {
+  string report_id = 1;
+  string type = 2;
+  int64 timeout_seconds = 3;
+  bool request_present = 4;
+}
+
+message GetPackageStatusRequest {}
+
+message LogoutRequest {}
+
+message GossipRequest {}
+
+message TriggerComponentRequest {
+  string component_name = 1;
+  string tag_name = 2;
+}
+
+message SetPluginSpecsRequest {
+  bool specs_present = 1;
+  repeated PluginSpec specs = 2;
+}
+
+message PluginSpec {
+  string plugin_name = 1;
+  string plugin_type = 2;
+  repeated string component_list = 3;
+  string component_list_file = 4;
+  string run_mode = 5;
+  repeated string tags = 6;
+  Plugin health_state_plugin = 7;
+  int64 timeout_nanos = 8;
+  int64 interval_nanos = 9;
+}
+
+message Plugin {
+  repeated PluginStep steps = 1;
+  PluginOutputParser parser = 2;
+}
+
+message PluginStep {
+  string name = 1;
+  BashScript run_bash_script = 2;
+}
+
+message BashScript {
+  string content_type = 1;
+  string script = 2;
+}
+
+message PluginOutputParser {
+  repeated PluginJSONPath json_paths = 1;
+  string log_path = 2;
+}
+
+message PluginJSONPath {
+  string query = 1;
+  string field = 2;
+  PluginMatchRule expect = 3;
+  map<string, PluginMatchRule> suggested_actions = 4;
+}
+
+message PluginMatchRule {
+  optional string regex = 1;
+}
+
+message UpdateTokenRequest {
+  string token = 1;
+}
+
+message GetKAPMTLSStatusRequest {}
+
+message UpdateKAPMTLSCredentialsRequest {
+  bytes certificate_pem = 1;
+  bytes private_key_pem = 2;
+  bytes gateway_ca_pem = 3;
+  string gateway_endpoint = 4;
+  string server_name = 5;
+  string client_ca_fingerprint = 6;
+  string gateway_ca_fingerprint = 7;
+}
+
+message ActivateKAPMTLSRequest {}
+
+message DrainNotice {
+  int64 reconnect_after_millis = 1;
+}

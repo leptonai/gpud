@@ -7,6 +7,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func TestConfigValidateSessionProtocol(t *testing.T) {
+	for _, protocol := range []string{"", "v1", "v2", "auto"} {
+		cfg := &Config{Address: ":15132", MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute}, SessionProtocol: protocol}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() with protocol %q returned %v", protocol, err)
+		}
+	}
+	cfg := &Config{Address: ":15132", MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute}, SessionProtocol: "future"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("Validate() accepted an unsupported session protocol")
+	}
+}
+
 func TestConfigValidate_AutoUpdateExitCode(t *testing.T) {
 	tests := []struct {
 		name               string
