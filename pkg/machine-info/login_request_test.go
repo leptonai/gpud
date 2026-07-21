@@ -1015,13 +1015,15 @@ func TestCreateLoginRequest_ProviderInfoUsage(t *testing.T) {
 func TestCreateLoginRequest_IMDSPrivateIPPrecedence(t *testing.T) {
 	tests := []struct {
 		name              string
+		providerName      string
 		interfaces        []apiv1.MachineNetworkInterface // Simulates lexicographically sorted interfaces
 		providerPrivateIP string                          // IMDS private IP
 		expectedPrivateIP string
 		description       string
 	}{
 		{
-			name: "AWS multi-ENI scenario - IMDS IP takes precedence over lexicographic sort",
+			name:         "AWS multi-ENI scenario - IMDS IP takes precedence over lexicographic sort",
+			providerName: "aws",
 			interfaces: []apiv1.MachineNetworkInterface{
 				// These are in lexicographic order (as sorted by GetMachineNICInfo)
 				// 10.68.16.* comes before 10.68.17.* lexicographically
@@ -1036,7 +1038,8 @@ func TestCreateLoginRequest_IMDSPrivateIPPrecedence(t *testing.T) {
 			description:       "IMDS private IP should be used regardless of NICInfo lexicographic order",
 		},
 		{
-			name: "fallback to NICInfo when IMDS private IP is empty",
+			name:         "fallback to NICInfo when IMDS private IP is empty",
+			providerName: "aws",
 			interfaces: []apiv1.MachineNetworkInterface{
 				{Interface: "eth0", MAC: "00:11:22:33:44:01", IP: "10.0.0.100", Addr: netip.MustParseAddr("10.0.0.100")},
 				{Interface: "eth1", MAC: "00:11:22:33:44:02", IP: "192.168.1.50", Addr: netip.MustParseAddr("192.168.1.50")},
@@ -1046,7 +1049,8 @@ func TestCreateLoginRequest_IMDSPrivateIPPrecedence(t *testing.T) {
 			description:       "Should fall back to NICInfo when IMDS private IP is unavailable",
 		},
 		{
-			name: "GCP scenario - IMDS IP different from any interface",
+			name:         "GCP scenario - IMDS IP different from any interface",
+			providerName: "gcp",
 			interfaces: []apiv1.MachineNetworkInterface{
 				{Interface: "ens4", MAC: "00:11:22:33:44:01", IP: "10.128.0.50", Addr: netip.MustParseAddr("10.128.0.50")},
 				{Interface: "ens5", MAC: "00:11:22:33:44:02", IP: "10.128.0.51", Addr: netip.MustParseAddr("10.128.0.51")},
@@ -1057,10 +1061,19 @@ func TestCreateLoginRequest_IMDSPrivateIPPrecedence(t *testing.T) {
 		},
 		{
 			name:              "no interfaces and no IMDS - empty private IP",
+			providerName:      "unknown",
 			interfaces:        []apiv1.MachineNetworkInterface{},
 			providerPrivateIP: "",
 			expectedPrivateIP: "",
 			description:       "Should have empty private IP when both sources are unavailable",
+		},
+		{
+			name:              "OCI non-RFC1918 primary VNIC IP is preserved",
+			providerName:      "oci",
+			interfaces:        []apiv1.MachineNetworkInterface{},
+			providerPrivateIP: "203.0.113.10",
+			expectedPrivateIP: "203.0.113.10",
+			description:       "OCI IMDS privateIp should not be filtered by RFC1918 classification",
 		},
 	}
 
@@ -1076,7 +1089,7 @@ func TestCreateLoginRequest_IMDSPrivateIPPrecedence(t *testing.T) {
 
 			getProviderFunc := func(ip string) *providers.Info {
 				return &providers.Info{
-					Provider:   "aws",
+					Provider:   tt.providerName,
 					PublicIP:   "54.123.45.67",
 					PrivateIP:  tt.providerPrivateIP,
 					InstanceID: "i-1234567890abcdef0",
