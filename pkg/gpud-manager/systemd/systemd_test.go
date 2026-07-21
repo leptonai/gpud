@@ -29,6 +29,7 @@ func TestCreateDefaultEnvFileContent(t *testing.T) {
 		assert.NotContains(t, content, "--endpoint=")
 		assert.NotContains(t, content, "--data-dir=")
 		assert.NotContains(t, content, "--db-in-memory")
+		assert.Contains(t, content, "--session-protocol=auto")
 	})
 
 	t.Run("with endpoint only", func(t *testing.T) {
@@ -73,6 +74,25 @@ func TestCreateDefaultEnvFileContent(t *testing.T) {
 		assert.Contains(t, content, "--data-dir=/custom/data/dir")
 		assert.Contains(t, content, "--db-in-memory")
 	})
+
+	t.Run("with v2 session protocol", func(t *testing.T) {
+		content := createDefaultEnvFileContent("", "", false, "v2")
+		assert.Contains(t, content, "--session-protocol=v2")
+	})
+}
+
+func TestWriteEnvFileRejectsInvalidSessionProtocol(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gpud.env")
+	err := writeEnvFile(path, "", "", false, `v2\" MALICIOUS=1`)
+	require.ErrorContains(t, err, "unsupported session protocol")
+	_, statErr := os.Stat(path)
+	require.ErrorIs(t, statErr, os.ErrNotExist)
+}
+
+func TestWriteEnvFileRejectsMultipleSessionProtocols(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gpud.env")
+	err := writeEnvFile(path, "", "", false, "v1", "v2")
+	require.ErrorContains(t, err, "expected at most one session protocol")
 }
 
 func TestProcessEnvFileLines(t *testing.T) {
