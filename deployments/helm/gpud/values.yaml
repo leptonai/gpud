@@ -303,14 +303,26 @@ nodeSelector: {}
 tolerations:
   - operator: "Exists"
 
-# By default, this chart only schedules pods on nodes with NVIDIA GPUs.
-affinity:
-  nodeAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      nodeSelectorTerms:
-      - matchExpressions:
-        - key: nvidia.com/gpu.product
-          operator: Exists
+# Optional pod affinity. Empty by default so GPUd can run on GPU and non-GPU nodes.
+affinity: {}
+
+# Example: schedule only on nodes with NVIDIA GPUs.
+# affinity:
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: nvidia.com/gpu.product
+#           operator: Exists
+
+# Example: schedule only on nodes with a machine ID label.
+# affinity:
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: lepton.ai/machine-id
+#           operator: Exists
 
 # Extra volumes for the pod.
 extraVolumes: []

@@ -22,6 +22,7 @@
 #   --os-name NAME      Base OS name (default: ubuntu)
 #   --os-version VER    Base OS version (default: 22.04)
 #   --cuda-version VER  CUDA version (default: 12.4.1)
+#   --version VER       GPUd version embedded in the binary (default: git describe)
 #   --push              Push image to registry after build
 #   --load              Load image to local Docker (single platform only)
 #   --no-cache          Build without cache
@@ -132,6 +133,7 @@ PLATFORMS="linux/amd64,linux/arm64"
 OS_NAME="ubuntu"
 OS_VERSION="22.04"
 CUDA_VERSION="12.4.1"
+VERSION=""
 TAGS=()
 PUSH=false
 LOAD=false
@@ -193,6 +195,10 @@ while [[ $# -gt 0 ]]; do
             CUDA_VERSION="$2"
             shift 2
             ;;
+        --version)
+            VERSION="$2"
+            shift 2
+            ;;
         --push)
             PUSH=true
             shift
@@ -226,6 +232,18 @@ if [[ ${#TAGS[@]} -eq 0 ]]; then
 fi
 TAG="${TAGS[0]}"
 
+if [[ -z "$VERSION" ]]; then
+    if ! VERSION="$(git -C "$PROJECT_ROOT" describe --match 'v[0-9]*' --dirty='.m' --always 2>/dev/null)"; then
+        log_error "Unable to determine GPUd version; pass --version explicitly."
+        exit 1
+    fi
+fi
+
+if [[ -z "$VERSION" ]]; then
+    log_error "GPUd version must not be empty."
+    exit 1
+fi
+
 # Check for Dockerfile
 if [[ ! -f "$PROJECT_ROOT/Dockerfile" ]]; then
     log_error "Dockerfile not found in $PROJECT_ROOT"
@@ -257,6 +275,7 @@ BUILD_CMD=(
     --build-arg "OS_NAME=$OS_NAME"
     --build-arg "OS_VERSION=$OS_VERSION"
     --build-arg "CUDA_VERSION=$CUDA_VERSION"
+    --build-arg "GPUD_VERSION=$VERSION"
 )
 
 for tag in "${TAGS[@]}"; do
@@ -290,6 +309,7 @@ log_info "Tags:         ${TAGS[*]}"
 log_info "Platforms:    $PLATFORMS"
 log_info "OS:           $OS_NAME $OS_VERSION"
 log_info "CUDA Version: $CUDA_VERSION"
+log_info "GPUd Version: $VERSION"
 log_info "Push:         $PUSH"
 log_info "Load:         $LOAD"
 log_info "Verify:       $VERIFY"

@@ -13,6 +13,7 @@ jobs:
   release:
     # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
     strategy:
+      max-parallel: 1
       matrix:
         job:
           - os: ubuntu-22.04

@@ -17,6 +17,7 @@ FROM golang:1.25.12 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ARG BUILDPLATFORM
+ARG GPUD_VERSION
 
 WORKDIR /workspace
 
@@ -41,8 +42,10 @@ COPY Makefile Makefile
 # Must be after source code copy so Go can analyze imports
 RUN go mod vendor
 
-# Build the binary
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} make
+# Build the binary. The build context intentionally excludes .git, so the
+# caller must pass the version resolved from the source checkout.
+RUN test -n "${GPUD_VERSION}" && \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} make VERSION="${GPUD_VERSION}"
 
 # Generate Go module manifest with versions
 RUN echo "# Go Module Dependencies" > /workspace/GO_MODULES.txt && \
