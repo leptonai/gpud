@@ -237,7 +237,7 @@ nodeLabelExporter:
 # system-node-critical priority still keeps it scheduled first, evicted last.
 resources: null
 
-# Schedule only on the intended GPU worker nodes.
+# Schedule only on the intended worker nodes.
 affinity:
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
