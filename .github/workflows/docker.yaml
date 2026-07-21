@@ -34,6 +34,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
 
           ./scripts/build-docker.sh \
+            --version "$version" \
             --tag "$image:$version" \
             --tag "$image:latest" \
             --push
