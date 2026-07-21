@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,4 +34,32 @@ func TestFetchMetadataByPath_NonOK(t *testing.T) {
 	_, err := fetchMetadataByPath(context.Background(), srv.URL)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "received status code 404")
+}
+
+func TestFetchMetadataByPath_InvalidURL(t *testing.T) {
+	_, err := fetchMetadataByPath(context.Background(), "://bad-url")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create OCI metadata request")
+}
+
+func TestFetchMetadataByPath_Unreachable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	metadataURL := srv.URL
+	srv.Close()
+
+	_, err := fetchMetadataByPath(context.Background(), metadataURL)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to fetch OCI metadata")
+}
+
+func TestFetchMetadataByPath_ReadError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "10")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	_, err := fetchMetadataByPath(context.Background(), srv.URL)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read OCI metadata response body")
 }
