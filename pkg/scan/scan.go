@@ -63,6 +63,12 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	fmt.Printf("\n%s machine info\n", cmdcommon.CheckMark)
 	mi.RenderTable(os.Stdout)
 
+	providerInfo := pkgmachineinfo.GetProvider("")
+	if providerInfo != nil {
+		fmt.Printf("\n%s provider info\n", cmdcommon.CheckMark)
+		providerInfo.RenderTable(os.Stdout)
+	}
+
 	if mi.GPUInfo != nil && mi.GPUInfo.Product != "" {
 		threshold, err := nvidiainfiniband.SupportsInfinibandPortRate(mi.GPUInfo.Product)
 		if err == nil {

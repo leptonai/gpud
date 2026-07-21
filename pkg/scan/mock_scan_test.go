@@ -3,6 +3,8 @@ package scan
 import (
 	"context"
 	"errors"
+	"io"
+	"os"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/leptonai/gpud/components/all"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/providers"
 )
 
 // mockComponent implements components.Component for testing
@@ -127,6 +130,9 @@ func TestScan_Success(t *testing.T) {
 				GPUInfo:   nil,
 			}, nil
 		}).Build()
+		mockey.Mock(pkgmachineinfo.GetProvider).To(func(string) *providers.Info {
+			return &providers.Info{Provider: "oci", PrivateIP: "203.0.113.10"}
+		}).Build()
 
 		// Mock all.All() to return an empty list (no components to check)
 		mockey.Mock(all.All).To(func() []all.Component {
@@ -136,8 +142,19 @@ func TestScan_Success(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		err := Scan(ctx)
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
 		require.NoError(t, err)
+		os.Stdout = w
+
+		err = Scan(ctx)
+		_ = w.Close()
+		os.Stdout = oldStdout
+		output, readErr := io.ReadAll(r)
+		_ = r.Close()
+		require.NoError(t, readErr)
+		require.NoError(t, err)
+		assert.Contains(t, string(output), "203.0.113.10")
 	})
 }
 
