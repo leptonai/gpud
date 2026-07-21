@@ -3,6 +3,8 @@ package scan
 import (
 	"context"
 	"errors"
+	"io"
+	"os"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/leptonai/gpud/components/all"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/providers"
 )
 
 // mockComponent implements components.Component for testing
@@ -24,6 +27,15 @@ type mockComponent struct {
 	name        string
 	supported   bool
 	checkResult components.CheckResult
+}
+
+func TestMain(m *testing.M) {
+	if os.Getenv("TEST_GPUD_SCAN") != "true" {
+		getProvider = func(context.Context, string) *providers.Info {
+			return &providers.Info{Provider: "unknown"}
+		}
+	}
+	os.Exit(m.Run())
 }
 
 func (m *mockComponent) Name() string                         { return m.name }
@@ -127,6 +139,11 @@ func TestScan_Success(t *testing.T) {
 				GPUInfo:   nil,
 			}, nil
 		}).Build()
+		previousGetProvider := getProvider
+		getProvider = func(context.Context, string) *providers.Info {
+			return &providers.Info{Provider: "oci", PrivateIP: "203.0.113.10"}
+		}
+		defer func() { getProvider = previousGetProvider }()
 
 		// Mock all.All() to return an empty list (no components to check)
 		mockey.Mock(all.All).To(func() []all.Component {
@@ -136,8 +153,19 @@ func TestScan_Success(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		err := Scan(ctx)
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
 		require.NoError(t, err)
+		os.Stdout = w
+
+		err = Scan(ctx)
+		_ = w.Close()
+		os.Stdout = oldStdout
+		output, readErr := io.ReadAll(r)
+		_ = r.Close()
+		require.NoError(t, readErr)
+		require.NoError(t, err)
+		assert.Contains(t, string(output), "203.0.113.10")
 	})
 }
 
@@ -808,11 +836,18 @@ func TestScan_ContextCancellation(t *testing.T) {
 			return []all.Component{}
 		}).Build()
 
+		previousGetProvider := getProvider
+		getProvider = func(ctx context.Context, _ string) *providers.Info {
+			require.ErrorIs(t, ctx.Err(), context.Canceled)
+			return &providers.Info{Provider: "unknown"}
+		}
+		defer func() { getProvider = previousGetProvider }()
+
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
 		err := Scan(ctx)
-		// Scan should still complete since context is only used in the function
+		// Provider detection observes cancellation, while the rest of the scan remains best-effort.
 		require.NoError(t, err)
 	})
 }

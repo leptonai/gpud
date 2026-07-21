@@ -11,6 +11,7 @@ import (
 	pkgprovidersazure "github.com/leptonai/gpud/pkg/providers/azure"
 	pkgprovidersgcp "github.com/leptonai/gpud/pkg/providers/gcp"
 	pkgprovidersnscale "github.com/leptonai/gpud/pkg/providers/nscale"
+	pkgprovidersoci "github.com/leptonai/gpud/pkg/providers/oci"
 )
 
 var All = []pkgproviders.Detector{
@@ -18,6 +19,7 @@ var All = []pkgproviders.Detector{
 	pkgprovidersaws.New(),
 	pkgprovidersazure.New(),
 	pkgprovidersgcp.New(),
+	pkgprovidersoci.New(),
 }
 
 // Detect detects the provider and returns the provider info.

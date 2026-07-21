@@ -225,9 +225,14 @@ func GetMachineNICInfo() *apiv1.MachineNICInfo {
 // If the metadata service or other provider detection fails, it falls back to ASN lookup
 // using the public IP address.
 func GetProvider(publicIP string) *providers.Info {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	return GetProviderWithContext(context.Background(), publicIP)
+}
+
+// GetProviderWithContext passes the caller's context to metadata provider detection.
+func GetProviderWithContext(ctx context.Context, publicIP string) *providers.Info {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	providerInfo, err := pkgprovidersall.Detect(ctx)
-	cancel()
 	if err != nil {
 		log.Logger.Warnw("failed to detect provider", "error", err)
 	} else {

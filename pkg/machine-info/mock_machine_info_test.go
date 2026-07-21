@@ -361,6 +361,21 @@ func TestGetProvider_WithMockedProviderDetection(t *testing.T) {
 	})
 }
 
+func TestGetProviderWithContext_PropagatesCancellation(t *testing.T) {
+	mockey.PatchConvey("GetProviderWithContext passes caller cancellation to provider detection", t, func() {
+		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
+			require.ErrorIs(t, ctx.Err(), context.Canceled)
+			return nil, ctx.Err()
+		}).Build()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		provider := GetProviderWithContext(ctx, "")
+		require.NotNil(t, provider)
+		assert.Equal(t, "unknown", provider.Provider)
+	})
+}
+
 // TestGetMachineLocation_WithMockedLatency tests GetMachineLocation with mocked latency measurement
 func TestGetMachineLocation_WithMockedLatency(t *testing.T) {
 	mockey.PatchConvey("GetMachineLocation with successful measurement", t, func() {
