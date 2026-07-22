@@ -65,7 +65,7 @@ func TestAppRunAndUpRefreshSessionTokenDefaultsToTrue(t *testing.T) {
 		require.NotNilf(t, refreshFlag, "command %q is missing --refresh-session-token", cmd.Name)
 
 		set := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
-		refreshFlag.Apply(set)
+		require.NoError(t, refreshFlag.Apply(set))
 		ctx := cli.NewContext(app, set, nil)
 		require.True(t, ctx.Bool("refresh-session-token"))
 
