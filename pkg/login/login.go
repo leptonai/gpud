@@ -50,9 +50,8 @@ type LoginConfig struct {
 	// The control plane looks up the current workspace-scoped session token on
 	// every successful login, so re-login persists the token currently served by
 	// the control plane. This handles workspace token rotation at the cost of one
-	// extra login round-trip per start. The container/DaemonSet pattern sets it
-	// true; the default (false) preserves the skip-login optimization for
-	// host/systemd installs.
+	// extra login round-trip per start. The gpud CLI enables it by default;
+	// package callers can set it false to preserve the skip-login optimization.
 	RefreshSessionToken bool
 
 	DataDir string

@@ -44,6 +44,41 @@ func TestAppRunAndUpHaveSessionProtocolFlag(t *testing.T) {
 	}
 }
 
+func TestAppRunAndUpRefreshSessionTokenDefaultsToTrue(t *testing.T) {
+	t.Parallel()
+
+	app := App()
+	wantCommands := map[string]bool{"run": false, "up": false}
+	for _, cmd := range app.Commands {
+		if _, ok := wantCommands[cmd.Name]; !ok {
+			continue
+		}
+		wantCommands[cmd.Name] = true
+
+		var refreshFlag cli.Flag
+		for _, candidate := range cmd.Flags {
+			if candidate.GetName() == "refresh-session-token" {
+				refreshFlag = candidate
+				break
+			}
+		}
+		require.NotNilf(t, refreshFlag, "command %q is missing --refresh-session-token", cmd.Name)
+
+		set := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
+		refreshFlag.Apply(set)
+		ctx := cli.NewContext(app, set, nil)
+		require.True(t, ctx.Bool("refresh-session-token"))
+
+		require.NoError(t, set.Parse([]string{"--refresh-session-token=false"}))
+		ctx = cli.NewContext(app, set, nil)
+		require.False(t, ctx.Bool("refresh-session-token"))
+	}
+
+	for cmdName, found := range wantCommands {
+		require.Truef(t, found, "expected command %q to exist", cmdName)
+	}
+}
+
 func TestAppHasInfinibandExcludeDevicesFlag(t *testing.T) {
 	t.Parallel()
 
