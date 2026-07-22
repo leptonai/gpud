@@ -374,7 +374,9 @@ spec:
               # Pods restart often; the cached /var/lib/gpud session token can be stale
               # (for example, after workspace token rotation). Preserve the chart's
               # explicit opt-out now that refresh is enabled by default in gpud.
-              set -- "$@" --refresh-session-token="${GPUD_REFRESH_SESSION_TOKEN:-true}"
+              if [ "${GPUD_REFRESH_SESSION_TOKEN:-}" = "false" ]; then
+                set -- "$@" --refresh-session-token=false
+              fi
 
               set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
               set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
