@@ -49,9 +49,9 @@ type LoginConfig struct {
 	//
 	// The control plane looks up the current workspace-scoped session token on
 	// every successful login, so re-login persists the token currently served by
-	// the control plane. This handles workspace token rotation at the cost of one
-	// extra login round-trip per start. The gpud CLI enables it by default;
-	// package callers can set it false to preserve the skip-login optimization.
+	// the control plane. Re-login requires the caller-provided registration token,
+	// which GPUd does not persist. Keep this false outside BYOK deployments that
+	// inject a valid registration token on every start.
 	RefreshSessionToken bool
 
 	DataDir string

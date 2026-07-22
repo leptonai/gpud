@@ -44,7 +44,7 @@ func TestAppRunAndUpHaveSessionProtocolFlag(t *testing.T) {
 	}
 }
 
-func TestAppRunAndUpRefreshSessionTokenDefaultsToTrue(t *testing.T) {
+func TestAppRunAndUpRefreshSessionTokenDefaultsToFalse(t *testing.T) {
 	t.Parallel()
 
 	app := App()
@@ -67,11 +67,11 @@ func TestAppRunAndUpRefreshSessionTokenDefaultsToTrue(t *testing.T) {
 		set := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
 		refreshFlag.Apply(set)
 		ctx := cli.NewContext(app, set, nil)
-		require.True(t, ctx.Bool("refresh-session-token"))
-
-		require.NoError(t, set.Parse([]string{"--refresh-session-token=false"}))
-		ctx = cli.NewContext(app, set, nil)
 		require.False(t, ctx.Bool("refresh-session-token"))
+
+		require.NoError(t, set.Parse([]string{"--refresh-session-token"}))
+		ctx = cli.NewContext(app, set, nil)
+		require.True(t, ctx.Bool("refresh-session-token"))
 	}
 
 	for cmdName, found := range wantCommands {
