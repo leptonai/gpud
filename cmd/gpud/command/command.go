@@ -114,10 +114,12 @@ nohup sudo gpud run &>> <your log file path> &
 					Hidden: true,
 					Usage:  "(optional) when --machine-id differs from the persisted machine id, discard the persisted login identity (machine id + session token) and check in with the requested machine instead of failing. Health/system state (reboot history, events) is preserved. Use for the container/DaemonSet pattern where a node can be deleted from its node group and rejoined with a new machine object.",
 				},
-				cli.BoolTFlag{
+				// Re-login requires the registration token, which GPUd intentionally does not persist.
+				// Keep this opt-in for BYOK deployments that inject the token on every start.
+				cli.BoolFlag{
 					Name:   "refresh-session-token",
 					Hidden: true,
-					Usage:  "on every start, re-run login to re-fetch the current session token from the control plane instead of reusing the persisted one (enabled by default; set to false to keep the 'machine id already assigned' fast path)",
+					Usage:  "(optional) re-run login on start to fetch the current session token. Use only for BYOK deployments that supply a valid registration token on every start.",
 				},
 				cli.StringFlag{
 					Name:  "node-group",
@@ -193,10 +195,12 @@ sudo rm /etc/systemd/system/gpud.service
 					Hidden: true,
 					Usage:  "(optional) when --machine-id differs from the persisted machine id, discard the persisted login identity (machine id + session token) and check in with the requested machine instead of failing. Health/system state (reboot history, events) is preserved. Use for the container/DaemonSet pattern where a node can be deleted from its node group and rejoined with a new machine object.",
 				},
-				&cli.BoolTFlag{
+				// Re-login requires the registration token, which GPUd intentionally does not persist.
+				// Keep this opt-in for BYOK deployments that inject the token on every start.
+				&cli.BoolFlag{
 					Name:   "refresh-session-token",
 					Hidden: true,
-					Usage:  "on every start, re-run login to re-fetch the current session token from the control plane instead of reusing the persisted one (enabled by default; set to false to keep the 'machine id already assigned' fast path)",
+					Usage:  "(optional) re-run login on start to fetch the current session token. Use only for BYOK deployments that supply a valid registration token on every start.",
 				},
 				&cli.StringFlag{
 					Name:   "token",

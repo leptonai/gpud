@@ -68,15 +68,10 @@ gpud:
   # must never change without manually clearing /var/lib/gpud.
   machineIdOverwrite: true
 
-  # Re-fetch the session token from the control plane on every start.
-  #
-  # The control plane returns the current workspace-scoped session token on
-  # every successful login. GPUd refreshes it by default instead of trusting
-  # the cached token in /var/lib/gpud, preventing token rotation from breaking
-  # session keepalive at the cost of one extra login round-trip per start.
-  #
-  # Set to false to keep the skip-login optimization.
-  refreshSessionToken: true
+  # Re-login requires the registration token, which gpud does not persist.
+  # Keep this disabled unless a BYOK deployment injects a valid registration
+  # token on every start and needs to recover a stale session token.
+  refreshSessionToken: false
 
   # Enable auto update of gpud.
   enableAutoUpdate: false
