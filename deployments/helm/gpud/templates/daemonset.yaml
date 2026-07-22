@@ -372,10 +372,10 @@ spec:
               fi
 
               # Pods restart often; the cached /var/lib/gpud session token can be stale
-              # (for example, after workspace token rotation). --refresh-session-token
-              # forces a fresh login on start so we re-fetch the current token.
-              if [ "${GPUD_REFRESH_SESSION_TOKEN:-}" = "true" ]; then
-                set -- "$@" --refresh-session-token
+              # (for example, after workspace token rotation). Preserve the chart's
+              # explicit opt-out now that refresh is enabled by default in gpud.
+              if [ "${GPUD_REFRESH_SESSION_TOKEN:-}" = "false" ]; then
+                set -- "$@" --refresh-session-token=false
               fi
 
               set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
@@ -437,12 +437,10 @@ spec:
             - name: GPUD_MACHINE_ID_OVERWRITE
               value: "true"
             {{- end }}
-            {{- if .Values.gpud.refreshSessionToken }}
-            # Always re-fetch the session token on start (see the startup script).
+            # Re-fetch the session token on start unless explicitly disabled.
             # Consumed as $GPUD_REFRESH_SESSION_TOKEN.
             - name: GPUD_REFRESH_SESSION_TOKEN
-              value: "true"
-            {{- end }}
+              value: {{ .Values.gpud.refreshSessionToken | quote }}
             {{- if .Values.gpud.rebootCommands }}
             - name: GPUD_REBOOT_COMMANDS
               value: {{ .Values.gpud.rebootCommands | quote }}

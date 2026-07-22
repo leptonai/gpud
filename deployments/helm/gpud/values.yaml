@@ -70,20 +70,12 @@ gpud:
 
   # Re-fetch the session token from the control plane on every start.
   #
-  # gpud caches its session token in /var/lib/gpud and normally takes a "skip
-  # login" fast path on restart when a machine id is already persisted, reusing
-  # that cached token. The control plane returns the current workspace-scoped
-  # session token on every successful login, so with this enabled gpud passes
-  # "gpud run --refresh-session-token" to always re-login and re-fetch a current
-  # token instead of trusting the cached one. This prevents a stale cached token
-  # (e.g. after a workspace token rotation) from breaking session keepalive, at
-  # the cost of one extra
-  # login round-trip per start.
+  # The control plane returns the current workspace-scoped session token on
+  # every successful login. GPUd refreshes it by default instead of trusting
+  # the cached token in /var/lib/gpud, preventing token rotation from breaking
+  # session keepalive at the cost of one extra login round-trip per start.
   #
-  # Defaults to true for the container/DaemonSet pattern (pods restart often and
-  # should always come up with a fresh token). Set to false to keep the
-  # skip-login optimization. TODO: make always-refresh the default gpud behavior
-  # and retire this toggle once validated in production.
+  # Set to false to keep the skip-login optimization.
   refreshSessionToken: true
 
   # Enable auto update of gpud.

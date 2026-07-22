@@ -114,12 +114,10 @@ nohup sudo gpud run &>> <your log file path> &
 					Hidden: true,
 					Usage:  "(optional) when --machine-id differs from the persisted machine id, discard the persisted login identity (machine id + session token) and check in with the requested machine instead of failing. Health/system state (reboot history, events) is preserved. Use for the container/DaemonSet pattern where a node can be deleted from its node group and rejoined with a new machine object.",
 				},
-				// TODO: once validated in production, make session-token refresh the default
-				// behavior (always re-login on start) and remove this flag.
-				cli.BoolFlag{
+				cli.BoolTFlag{
 					Name:   "refresh-session-token",
 					Hidden: true,
-					Usage:  "(optional) on every start, re-run login to re-fetch the current session token from the control plane instead of reusing the persisted one (skips the 'machine id already assigned' fast path). Use for the container/DaemonSet pattern after a workspace token rotation.",
+					Usage:  "on every start, re-run login to re-fetch the current session token from the control plane instead of reusing the persisted one (enabled by default; set to false to keep the 'machine id already assigned' fast path)",
 				},
 				cli.StringFlag{
 					Name:  "node-group",
@@ -195,12 +193,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Hidden: true,
 					Usage:  "(optional) when --machine-id differs from the persisted machine id, discard the persisted login identity (machine id + session token) and check in with the requested machine instead of failing. Health/system state (reboot history, events) is preserved. Use for the container/DaemonSet pattern where a node can be deleted from its node group and rejoined with a new machine object.",
 				},
-				// TODO: once validated in production, make session-token refresh the default
-				// behavior (always re-login on start) and remove this flag.
-				&cli.BoolFlag{
+				&cli.BoolTFlag{
 					Name:   "refresh-session-token",
 					Hidden: true,
-					Usage:  "(optional) on every start, re-run login to re-fetch the current session token from the control plane instead of reusing the persisted one (skips the 'machine id already assigned' fast path). Use for the container/DaemonSet pattern after a workspace token rotation.",
+					Usage:  "on every start, re-run login to re-fetch the current session token from the control plane instead of reusing the persisted one (enabled by default; set to false to keep the 'machine id already assigned' fast path)",
 				},
 				&cli.StringFlag{
 					Name:   "token",
