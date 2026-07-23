@@ -241,6 +241,13 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 	}
 
 	if detail != nil {
+		// All XIDs use go-health actions, including when replaying events persisted
+		// by an older gpud process. NVLink keeps only the precise event type produced
+		// from its subcode/status decode.
+		if !isNVLinkXID(xidCode) {
+			ev.Type = string(detail.EventType)
+		}
+		xidErr.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
 		// Only set ev.Type from detail if not already set.
 		// The event may already have the correct Type from Match() which uses
 		// lookupNVLinkRule for precise unit-based matching. The detail from
@@ -257,9 +264,6 @@ func addEventDetails(ev eventstore.Event, xidErr *xidErrorEventDetail, devices m
 		}
 		if xidErr.SubCodeDescription == "" {
 			xidErr.SubCodeDescription = detail.SubCodeDescription
-		}
-		if xidErr.SuggestedActionsByGPUd == nil {
-			xidErr.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
 		}
 	}
 
