@@ -125,7 +125,7 @@ The recommended way to deploy GPUd on Kubernetes is with our official
 `nvcr.io/nvidia/lepton/gpud` image is public, so it does not require an image
 pull secret or NGC API key.
 
-Install or upgrade to the latest published chart release:
+Install or upgrade to the latest published release:
 
 ```bash
 helm repo add gpud https://leptonai.github.io/gpud
