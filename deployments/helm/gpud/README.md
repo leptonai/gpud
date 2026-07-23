@@ -4,6 +4,11 @@ This Helm chart deploys [GPUd](https://github.com/leptonai/gpud) as a [DaemonSet
 
 GPUd is a lightweight, high-performance daemon that monitors GPU resources. This chart is the recommended way to deploy GPUd on Kubernetes.
 
+The default `nvcr.io/nvidia/lepton/gpud` image is public. No image pull secret
+or NGC API key is required.
+Packaged charts derive the image tag from the pushed Git tag through
+`appVersion`; `values.yaml` does not pin a release tag.
+
 ## Prerequisites
 
 - Kubernetes 1.19+
@@ -11,11 +16,29 @@ GPUd is a lightweight, high-performance daemon that monitors GPU resources. This
 
 ## Installing the Chart
 
-Add the GPUd chart repository:
+Add the GPUd chart repository and resolve the latest published release. The
+GitHub API is preferred; `unstable_latest.txt` is used if the API is unavailable
+or does not return a tag:
 
 ```bash
 helm repo add gpud https://leptonai.github.io/gpud
-helm repo update
+helm repo update gpud
+
+GPUD_VERSION="$(
+  curl -fsSL \
+    'https://api.github.com/repos/leptonai/gpud/tags?per_page=1' 2>/dev/null |
+    sed -n 's/.*"name": *"\([^"]*\)".*/\1/p'
+)"
+if [ -z "$GPUD_VERSION" ]; then
+  GPUD_VERSION="$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
+fi
+GPUD_VERSION="${GPUD_VERSION#v}"
+
+helm upgrade --install my-gpud gpud/gpud \
+  --version "$GPUD_VERSION" \
+  --set image.repository=nvcr.io/nvidia/lepton/gpud \
+  --create-namespace \
+  --namespace gpud
 ```
 
 ### Migrating from the OCI chart registry
@@ -26,7 +49,8 @@ the repository above:
 
 ```bash
 helm upgrade --install my-gpud gpud/gpud \
-  --version 0.12.6 \
+  --version "$GPUD_VERSION" \
+  --set image.repository=nvcr.io/nvidia/lepton/gpud \
   --create-namespace \
   --namespace gpud
 ```
@@ -34,10 +58,11 @@ helm upgrade --install my-gpud gpud/gpud \
 The container image remains independently configurable through
 `image.repository` and `image.tag`.
 
-To install the chart with the release name `my-gpud`:
+To let Helm select the newest chart version automatically:
 
 ```bash
-helm install my-gpud gpud/gpud \
+helm upgrade --install my-gpud gpud/gpud \
+  --set image.repository=nvcr.io/nvidia/lepton/gpud \
   --create-namespace \
   --namespace gpud
 ```
@@ -50,6 +75,7 @@ To install with a specific image tag and disable telemetry:
 helm install my-gpud gpud/gpud \
   --create-namespace \
   --namespace gpud \
+  --set image.repository=nvcr.io/nvidia/lepton/gpud \
   --set image.tag="<MY_IMAGE_TAG>" \
   --set gpud.telemetry.enabled=false
 ```
@@ -181,32 +207,10 @@ Restrict access to both.
 
 ### BYOK Worker Cluster Example
 
-For a BYOK worker cluster using a private NVCR image, create the image pull
-secret in the release namespace:
-
-```bash
-source ~/nvapi.sh
-NAMESPACE=default
-
-# Image pull secret for the private NGC image.
-kubectl create secret docker-registry nvcr-staging-pull \
-  --docker-server=nvcr.io \
-  --docker-username='$oauthtoken' \
-  --docker-password="$NVAPI_KEY" \
-  --namespace "$NAMESPACE"
-
-```
-
-Then install or upgrade with a values file like this (a full BYOK overlay):
+The public default image also works for BYOK clusters without an image pull
+secret. Install or upgrade with a values file like this (a full BYOK overlay):
 
 ```yaml
-image:
-  repository: nvcr.io/nvstaging/dgx-cloud-lepton/gpud
-  tag: 0.12.6   # no "v" prefix from 0.12.2 onward
-
-imagePullSecrets:
-  - name: nvcr-staging-pull
-
 gpud:
   endpoint: gpud-manager-dev02.dev02.dgxc-lepton-dev.nvidia.com
   # Create and use the gpud-token Secret as part of this Helm release.
@@ -252,8 +256,10 @@ affinity:
 Install or upgrade with that values file in the same namespace:
 
 ```bash
-helm upgrade --install gpud <YOUR_REPO_NAME>/gpud \
-  --namespace "$NAMESPACE" \
+helm upgrade --install gpud gpud/gpud \
+  --create-namespace \
+  --namespace gpud \
+  --set image.repository=nvcr.io/nvidia/lepton/gpud \
   -f byok-values.yaml
 ```
 

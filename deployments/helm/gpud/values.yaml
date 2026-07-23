@@ -8,9 +8,10 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  repository: nvcr.io/nvidia/dgx-cloud-lepton/gpud
+  repository: nvcr.io/nvidia/lepton/gpud
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
+  # Overrides the image tag whose default is the chart appVersion. Packaged
+  # charts derive appVersion from the pushed Git tag.
   tag: ""
 
 # Application-specific settings for the GPUd container.
@@ -183,8 +184,9 @@ gpud:
   # --findmnt-commands/--lsblk-commands/--blockdev-usage-commands when applicable.
   commandOverride: []
 
-# Reference to one or more secrets to be used for pulling images from private registries.
-# Example for NVIDIA NGC registry (nvcr.io):
+# The default image repository is public and needs no image pull secret.
+# Configure this only when overriding image.repository with a private registry.
+# Example for a private NVIDIA NGC registry (nvcr.io):
 #
 # First, create a Kubernetes secret with your NGC API key:
 #   kubectl create secret docker-registry ngc-secret \
