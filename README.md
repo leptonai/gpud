@@ -131,14 +131,7 @@ Install or upgrade to the latest published release:
 helm repo add gpud https://leptonai.github.io/gpud
 helm repo update gpud
 
-GPUD_VERSION="$(
-  curl -fsSL \
-    'https://api.github.com/repos/leptonai/gpud/tags?per_page=1' 2>/dev/null |
-    sed -n 's/.*"name": *"\([^"]*\)".*/\1/p'
-)"
-if [ -z "$GPUD_VERSION" ]; then
-  GPUD_VERSION="$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
-fi
+GPUD_VERSION="$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
 GPUD_VERSION="${GPUD_VERSION#v}"
 
 helm upgrade --install gpud gpud/gpud \

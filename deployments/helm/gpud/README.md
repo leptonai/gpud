@@ -16,22 +16,14 @@ Packaged charts derive the image tag from the pushed Git tag through
 
 ## Installing the Chart
 
-Add the GPUd chart repository and resolve the latest published release. The
-GitHub API is preferred; `unstable_latest.txt` is used if the API is unavailable
-or does not return a tag:
+Add the GPUd chart repository and resolve the latest published version from
+`unstable_latest.txt`:
 
 ```bash
 helm repo add gpud https://leptonai.github.io/gpud
 helm repo update gpud
 
-GPUD_VERSION="$(
-  curl -fsSL \
-    'https://api.github.com/repos/leptonai/gpud/tags?per_page=1' 2>/dev/null |
-    sed -n 's/.*"name": *"\([^"]*\)".*/\1/p'
-)"
-if [ -z "$GPUD_VERSION" ]; then
-  GPUD_VERSION="$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
-fi
+GPUD_VERSION="$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
 GPUD_VERSION="${GPUD_VERSION#v}"
 
 helm upgrade --install my-gpud gpud/gpud \
