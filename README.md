@@ -120,7 +120,26 @@ sudo rm /usr/local/bin/gpud
 
 ### Run GPUd with Kubernetes
 
-The recommended way to deploy GPUd on Kubernetes is with our official [Helm chart](./deployments/helm/gpud/README.md).
+The recommended way to deploy GPUd on Kubernetes is with our official
+[Helm chart](./deployments/helm/gpud/README.md). The default
+`nvcr.io/nvidia/lepton/gpud` image is public, so it does not require an image
+pull secret or NGC API key.
+
+Install or upgrade to the latest published release:
+
+```bash
+helm repo add gpud https://leptonai.github.io/gpud
+helm repo update gpud
+
+GPUD_VERSION="$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
+GPUD_VERSION="${GPUD_VERSION#v}"
+
+helm upgrade --install gpud gpud/gpud \
+  --version "$GPUD_VERSION" \
+  --set image.repository=nvcr.io/nvidia/lepton/gpud \
+  --create-namespace \
+  --namespace gpud
+```
 
 ### Build with Docker
 

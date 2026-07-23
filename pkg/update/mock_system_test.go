@@ -48,9 +48,8 @@ func TestDetectUbuntuVersion_Ubuntu2404(t *testing.T) {
 	})
 }
 
-// TestDetectUbuntuVersion_Ubuntu2604UsesUbuntu2404Artifact tests Ubuntu 26.04
-// detection intentionally reuses the Ubuntu 24.04 artifact.
-func TestDetectUbuntuVersion_Ubuntu2604UsesUbuntu2404Artifact(t *testing.T) {
+// TestDetectUbuntuVersion_Ubuntu2604 tests Ubuntu 26.04 detection.
+func TestDetectUbuntuVersion_Ubuntu2604(t *testing.T) {
 	mockey.PatchConvey("detect ubuntu 26.04", t, func() {
 		cmdCallCount := 0
 		mockey.Mock((*exec.Cmd).Output).To(func(cmd *exec.Cmd) ([]byte, error) {
@@ -62,7 +61,7 @@ func TestDetectUbuntuVersion_Ubuntu2604UsesUbuntu2404Artifact(t *testing.T) {
 		}).Build()
 
 		result := detectUbuntuVersion()
-		assert.Equal(t, "ubuntu24.04", result)
+		assert.Equal(t, "ubuntu26.04", result)
 	})
 }
 

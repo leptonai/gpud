@@ -43,6 +43,16 @@ jobs:
             target: linux_arm64
             goreleaser_suffix: _ubuntu24.04
 
+          - os: ubuntu-26.04
+            platform: linux
+            target: linux_amd64
+            goreleaser_suffix: _ubuntu26.04
+
+          - os: ubuntu-26.04
+            platform: linux
+            target: linux_arm64
+            goreleaser_suffix: _ubuntu26.04
+
           - os: macos-latest
             platform: darwin
             target: darwin_amd64
