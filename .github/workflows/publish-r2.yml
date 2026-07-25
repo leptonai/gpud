@@ -1,0 +1,89 @@
+name: publish-r2
+
+on:
+  workflow_run:
+    workflows:
+      - goreleaser
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ github.event.workflow_run.head_branch }}
+
+    steps:
+      # workflow_run can access secrets, so only execute publishing code from the default branch.
+      - name: Checkout publishing code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install rclone
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone
+
+      - name: Build gpud
+        run: go build -o "${RUNNER_TEMP}/gpud" ./cmd/gpud
+
+      - name: Sign and publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GPUD_RELEASE_KEY: ${{ secrets.GPUD_RELEASE_KEY }}
+          RCLONE_R2_CONF: ${{ secrets.RCLONE_R2_CONF }}
+        run: |
+          set -euo pipefail
+
+          : "${VERSION:?release tag is missing}"
+          : "${GPUD_RELEASE_KEY:?GPUD_RELEASE_KEY is missing}"
+          : "${RCLONE_R2_CONF:?RCLONE_R2_CONF is missing}"
+
+          release_dir="${RUNNER_TEMP}/gpud-release"
+          key_path="${RUNNER_TEMP}/gpud-release.key"
+          rclone_config="${RUNNER_TEMP}/rclone.conf"
+
+          mkdir -p "${release_dir}"
+          printf '%s' "${GPUD_RELEASE_KEY}" > "${key_path}"
+          printf '%s' "${RCLONE_R2_CONF}" > "${rclone_config}"
+          chmod 600 "${key_path}" "${rclone_config}"
+          trap 'rm -f "${key_path}" "${rclone_config}"' EXIT
+
+          gh release download "${VERSION}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern 'gpud_*.tgz' \
+            --dir "${release_dir}"
+
+          shopt -s nullglob
+          packages=("${release_dir}"/gpud_*.tgz)
+          ((${#packages[@]} > 0)) || {
+            echo "No release packages found for ${VERSION}" >&2
+            exit 1
+          }
+
+          for package in "${packages[@]}"; do
+            "${RUNNER_TEMP}/gpud" release sign-package \
+              --sign-priv-path "${key_path}" \
+              --package-path "${package}" \
+              --sig-path "${package}.sig"
+          done
+
+          rclone --config "${rclone_config}" copy --verbose \
+            "${release_dir}" default:gpud-public-artifacts/
+
+          printf '%s' "${VERSION}" > "${RUNNER_TEMP}/unstable_latest.txt"
+          rclone --config "${rclone_config}" copyto --verbose \
+            "${RUNNER_TEMP}/unstable_latest.txt" \
+            default:gpud-public-artifacts/unstable_latest.txt
