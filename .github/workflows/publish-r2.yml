@@ -32,6 +32,8 @@ jobs:
 
       - name: Install rclone
         run: |
+          # Ubuntu 24.04 ships rclone 1.60.1, which gets HTTP 501 from R2's
+          # post-upload HEAD check. Use upstream rclone and retain integrity verification.
           curl --fail --silent --show-error \
             https://rclone.org/install.sh \
             --output "${RUNNER_TEMP}/install-rclone.sh"
