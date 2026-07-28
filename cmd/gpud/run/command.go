@@ -30,6 +30,7 @@ import (
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/login"
+	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
@@ -53,6 +54,11 @@ func Command(cliContext *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
+	findmntCommands := cliContext.String("findmnt-commands")
+	lsblkCommands := cliContext.String("lsblk-commands")
+	blockdevUsageCommands := cliContext.String("blockdev-usage-commands")
+	pkgmachineinfo.SetDiskCommands(findmntCommands, lsblkCommands, blockdevUsageCommands)
 
 	// Parse db-in-memory early as it affects login behavior
 	dbInMemory := cliContext.Bool("db-in-memory")
@@ -136,9 +142,6 @@ func Command(cliContext *cli.Context) error {
 	enableAutoUpdate := cliContext.Bool("enable-auto-update")
 	autoUpdateExitCode := cliContext.Int("auto-update-exit-code")
 	rebootCommands := cliContext.String("reboot-commands")
-	findmntCommands := cliContext.String("findmnt-commands")
-	lsblkCommands := cliContext.String("lsblk-commands")
-	blockdevUsageCommands := cliContext.String("blockdev-usage-commands")
 	containerdServiceActiveCommands := cliContext.String("containerd-service-active-commands")
 	versionFile := cliContext.String("version-file")
 	versionFileSet := cliContext.IsSet("version-file")

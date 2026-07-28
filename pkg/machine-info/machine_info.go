@@ -38,6 +38,19 @@ import (
 
 const diskPartitionsTimeout = 10 * time.Second
 
+var (
+	findmntCommand       string
+	lsblkCommand         string
+	blockdevUsageCommand string
+)
+
+// SetDiskCommands configures machine-info disk collection to run in the host namespace.
+func SetDiskCommands(findmnt, lsblk, blockdevUsage string) {
+	findmntCommand = findmnt
+	lsblkCommand = lsblk
+	blockdevUsageCommand = blockdevUsage
+}
+
 func currentGOOS() string {
 	return runtime.GOOS
 }
@@ -128,9 +141,26 @@ func GetSystemResourceRootVolumeTotal() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	usage, err := disk.GetUsage(ctx, "/")
-	if err != nil {
-		return "", fmt.Errorf("failed to get disk usage: %w", err)
+	var usage *disk.Usage
+	if blockdevUsageCommand == "" {
+		var err error
+		usage, err = disk.GetUsage(ctx, "/")
+		if err != nil {
+			return "", fmt.Errorf("failed to get disk usage: %w", err)
+		}
+	} else {
+		partitions, err := disk.GetPartitions(
+			ctx,
+			disk.WithMountPoint(func(mountPoint string) bool { return mountPoint == "/" }),
+			disk.WithBlockdevUsageCommand(blockdevUsageCommand),
+		)
+		if err != nil {
+			return "", fmt.Errorf("failed to get disk usage: %w", err)
+		}
+		if len(partitions) == 0 || partitions[0].Usage == nil {
+			return "", fmt.Errorf("failed to get disk usage: root partition not found")
+		}
+		usage = partitions[0].Usage
 	}
 
 	qty := resource.NewQuantity(uint64ToInt64Capped(usage.TotalBytes), resource.DecimalSI)
@@ -436,6 +466,8 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 		ctx,
 		disk.WithFstype(disk.DefaultFsTypeFunc),
 		disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
+		disk.WithFindmntCommand(findmntCommand),
+		disk.WithLsblkCommand(lsblkCommand),
 	)
 	if err != nil {
 		return nil, err
@@ -474,6 +506,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 			timeoutCtx,
 			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
 			disk.WithMountPoint(disk.DefaultMountPointFunc),
+			disk.WithBlockdevUsageCommand(blockdevUsageCommand),
 		)
 		cancel()
 		if err != nil {
@@ -499,12 +532,22 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	}
 
 	if currentGOOS() == "linux" {
-		_, serr := os.Stat("/var/lib/kubelet")
-		if serr != nil && !os.IsNotExist(serr) {
-			return nil, serr
+		kubeletRootExists := findmntCommand != ""
+		if !kubeletRootExists {
+			_, serr := os.Stat("/var/lib/kubelet")
+			if serr != nil && !os.IsNotExist(serr) {
+				return nil, serr
+			}
+			kubeletRootExists = serr == nil
 		}
-		if serr == nil {
-			out, err := disk.FindMnt(ctx, "/var/lib/kubelet")
+		if kubeletRootExists {
+			var out *disk.FindMntOutput
+			var err error
+			if findmntCommand == "" {
+				out, err = disk.FindMnt(ctx, "/var/lib/kubelet")
+			} else {
+				out, err = disk.FindMntWithCommand(ctx, "/var/lib/kubelet", findmntCommand)
+			}
 			if err != nil {
 				return nil, err
 			}

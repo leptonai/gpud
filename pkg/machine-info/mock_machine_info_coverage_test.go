@@ -295,6 +295,29 @@ func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
 	})
 }
 
+func TestMachineInfoDiskCommands_WithMockey(t *testing.T) {
+	mockey.PatchConvey("machine info uses configured host disk commands", t, func() {
+		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
+
+		findmnt := `printf '%s\n' '{"filesystems":[{"target":"/","source":"/dev/sda1","fstype":"ext4","size":"1000B","used":"400B","avail":"600B","use%":"40%"}]}' #`
+		lsblk := `printf '%s\n' '{"blockdevices":[{"name":"/dev/sda","type":"disk","size":1000,"mountpoint":null,"fstype":null,"children":[{"name":"/dev/sda1","type":"part","size":1000,"mountpoint":"/","fstype":"ext4","fsused":"400"}]}]}' #`
+		df := `printf '%s\n' 'Filesystem Type 1B-blocks Used Available Use% Mounted on' '/dev/sda1 ext4 1000 400 600 40% /' 'server:/data nfs4 2000 1000 1000 50% /mnt/nfs' #`
+		SetDiskCommands(findmnt, lsblk, df)
+		defer SetDiskCommands("", "", "")
+
+		info, err := GetMachineDiskInfo(context.Background())
+		require.NoError(t, err)
+		require.Len(t, info.BlockDevices, 2)
+		assert.Equal(t, "/dev/sda1", info.ContainerRootDisk)
+		assert.Equal(t, "/dev/sda1", info.BlockDevices[0].Name)
+		assert.Equal(t, "server:/data", info.BlockDevices[1].Name)
+
+		total, err := GetSystemResourceRootVolumeTotal()
+		require.NoError(t, err)
+		assert.Equal(t, "1k", total)
+	})
+}
+
 func TestGetMachineInfo_LinuxBranches_WithMockey(t *testing.T) {
 	baseNVML := &mockNvmlInstanceForMockey{
 		driverVersion: "550.90.07",
