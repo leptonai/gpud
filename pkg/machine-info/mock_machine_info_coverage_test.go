@@ -96,6 +96,15 @@ func (fakeFileInfo) ModTime() time.Time { return time.Time{} }
 func (fakeFileInfo) IsDir() bool        { return true }
 func (fakeFileInfo) Sys() interface{}   { return nil }
 
+func TestGetDiskCommandsZeroValue(t *testing.T) {
+	previous := diskCommandConfig.Swap(nil)
+	t.Cleanup(func() {
+		diskCommandConfig.Store(previous)
+	})
+
+	assert.Equal(t, diskCommands{}, getDiskCommands())
+}
+
 func TestDiskCommandsAtomicSnapshot(t *testing.T) {
 	first := diskCommands{findmntCommand: "findmnt-a", lsblkCommand: "lsblk-a", blockdevUsageCommand: "df-a"}
 	second := diskCommands{findmntCommand: "findmnt-b", lsblkCommand: "lsblk-b", blockdevUsageCommand: "df-b"}
@@ -111,6 +120,9 @@ func TestDiskCommandsAtomicSnapshot(t *testing.T) {
 		close(done)
 	}()
 
+	timeout := time.NewTimer(2 * time.Second)
+	defer timeout.Stop()
+
 	for {
 		commands := getDiskCommands()
 		if commands != first && commands != second {
@@ -119,6 +131,8 @@ func TestDiskCommandsAtomicSnapshot(t *testing.T) {
 		select {
 		case <-done:
 			return
+		case <-timeout.C:
+			t.Fatal("timed out waiting for disk command updates")
 		default:
 			runtime.Gosched()
 		}
