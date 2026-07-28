@@ -1,6 +1,5 @@
 <img src="./assets/gpud.svg" height="100" alt="GPUd logo">
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/leptonai/gpud)](https://goreportcard.com/report/github.com/leptonai/gpud)
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/leptonai/gpud?sort=semver)
 [![Go Reference](https://pkg.go.dev/badge/github.com/leptonai/gpud.svg)](https://pkg.go.dev/github.com/leptonai/gpud)
 [![codecov](https://codecov.io/gh/leptonai/gpud/graph/badge.svg?token=G8MGRK9X4A)](https://codecov.io/gh/leptonai/gpud)
@@ -14,10 +13,10 @@
 GPUd is built on years of experience operating large-scale GPU clusters at Meta, Alibaba Cloud, Uber, and Lepton AI. It is carefully designed to be self-contained and to integrate seamlessly with other systems such as Docker, containerd, Kubernetes, and NVIDIA ecosystems.
 
 - **First-class GPU support**: GPUd is GPU-centric, providing a unified view of critical GPU metrics and issues.
-- **Easy to run at scale**: GPUd is a self-contained binary that runs on any machine with a low footprint.
+- **Easy to run at scale**: GPUd is a self-contained binary that runs on supported Linux machines with a low footprint.
 - **Production grade**: GPUd is used in [DGX Cloud Lepton](https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton/)'s production infrastructure.
 
-Most importantly, GPUd operates with minimal CPU and memory overhead in a non-critical path and requires only read-only operations. See [*architecture*](./docs/ARCHITECTURE.md) for more details.
+GPUd keeps monitoring off the workload critical path and minimizes CPU and memory overhead. See [*architecture*](./docs/ARCHITECTURE.md) for more details.
 
 ## Get Started
 
@@ -38,10 +37,10 @@ curl -fsSL https://pkg.gpud.dev/install.sh | sh
 To install the latest published version explicitly:
 
 ```bash
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s $(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s -- "$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
 ```
 
-The install script also currently support other architectures (e.g., arm64) and OSes (e.g., macOS).
+The install script supports Linux on amd64 and arm64.
 
 ---
 
@@ -49,38 +48,29 @@ The install script also currently support other architectures (e.g., arm64) and 
 
 This section covers running `gpud` directly on a host machine.
 
-#### Resource Requirements (for Lepton Platform)
+#### Requirements for DGX Cloud Lepton
 
-If you plan to join the Lepton platform (using the `--token` flag), your node must meet these minimum requirements:
-
-**Minimum:**
-- **3 CPU cores** (2-core instances will fail to join — kubelet and system pods require minimum 3 cores)
-- 4 GiB memory
-
-**Recommended:**
-- 4+ CPU cores (e.g., AWS c6a.xlarge)
-- 8+ GiB memory
-
-**Why these requirements:** GPUd periodically reads system files from `/sys/class/infiniband/`, `/proc/`, and other paths to collect telemetry data. On nodes with less than 4 GiB memory, the Linux page cache cannot retain these files between polling cycles, causing every read to hit the disk and resulting in excessive I/O (measured at 5+ MB/s on 2 GiB nodes vs. 0 MB/s on larger nodes). The 4 GiB minimum ensures sufficient page cache for GPUd to operate as a lightweight daemon without causing disk I/O pressure.
-
-For complete hardware, software, and network requirements, see the official [NVIDIA DGX Cloud Lepton BYOC Requirements](https://docs.nvidia.com/dgx-cloud/lepton/compute/bring-your-own-compute/requirements/).
-
-> **Note:** These requirements apply only when joining the Lepton platform; standalone `gpud` operation has lower requirements.
+Before adding a machine to DGX Cloud Lepton, review the current
+[NVIDIA DGX Cloud Lepton BYOC Requirements](https://docs.nvidia.com/dgx-cloud/lepton/compute/bring-your-own-compute/requirements/).
 
 #### With `systemd` (Recommended for Linux)
 
 **Start the service:**
 
 ```bash
-sudo gpud up [--token <DGXC_LEPTON_AI_TOKEN>]
+sudo gpud up
 ```
 
-> **Note:** The optional `--token` connects `gpud` to the Lepton Platform. You can get a token from the [Settings > Tokens page](https://dashboard.dgxc-lepton.nvidia.com) on your dashboard.
+To add the machine to DGX Cloud Lepton, open
+[Node Groups](https://dashboard.dgxc-lepton.nvidia.com/workspace-redirect/node-groups/list),
+select **Add Machines > Add via Local Command**, and use the generated
+command. It installs GPUd and registers the machine with this `gpud up` form:
 
 ```bash
-gpud up \
---token <DGXC_LEPTON_AI_TOKEN> \
---node-group <DGXC_LEPTON_NODE_GROUP>
+sudo gpud up \
+  --token <DGXC_LEPTON_REGISTRATION_TOKEN> \
+  --endpoint <DGXC_LEPTON_ENDPOINT> \
+  --node-group <DGXC_LEPTON_NODE_GROUP>
 ```
 
 **Stop the service:**
@@ -96,18 +86,18 @@ sudo rm /usr/local/bin/gpud
 sudo rm /etc/systemd/system/gpud.service
 ```
 
-#### Without `systemd` (e.g., macOS)
+#### Without `systemd` (Linux)
 
 **Run in the foreground:**
 
 ```bash
-gpud run [--token <LEPTON_AI_TOKEN>]
+gpud run
 ```
 
 **Run in the background:**
 
 ```bash
-nohup sudo /usr/local/bin/gpud run [--token <LEPTON_AI_TOKEN>] &>> <your_log_file_path> &
+nohup sudo /usr/local/bin/gpud run &>> <your_log_file_path> &
 ```
 
 **Uninstall:**
@@ -149,10 +139,10 @@ A Dockerfile is provided to build a container image from source. For complete in
 
 ## Key Features
 
-- Monitor critical GPU and GPU fabric metrics (power, temperature).
-- Reports  GPU and GPU fabric status (nvidia-smi parser, error checking).
+- Monitors critical GPU and GPU fabric metrics (power, temperature).
+- Reports GPU and GPU fabric status (nvidia-smi parser, error checking).
 - Detects critical GPU and GPU fabric errors (kmsg, hardware slowdown, NVML Xid event, DCGM).
-- Monitor overall system metrics (CPU, memory, disk).
+- Monitors overall system metrics (CPU, memory, disk).
 
 Check out [*components*](./docs/COMPONENTS.md) for a detailed list of components and their features.
 
@@ -162,17 +152,19 @@ For users looking to set up a platform to collect and process data from gpud, pl
 
 ## FAQs
 
-### Does GPUd send data to lepton.ai?
+### Does GPUd send data to DGX Cloud Lepton?
 
-GPUd collects a small anonymous usage signal by default to help the engineering team better understand usage frequencies. The data is strictly anonymized and **does not contain any sensitive data**. You can disable this behavior by setting `GPUD_NO_USAGE_STATS=true`. If GPUd is run with systemd (default option for the `gpud up` command), you can add the line `GPUD_NO_USAGE_STATS=true` to the `/etc/default/gpud` environment file and restart the service.
-
-If you opt-in to log in to the Lepton AI platform, to assist you with more helpful GPU health states, GPUd periodically sends system runtime related information about the host to the platform. All these info are system workload and health info, and contain no user data. The data are sent via secure channels.
+GPUd connects to DGX Cloud Lepton only after it has been registered with the
+platform. The authenticated session exchanges the machine, health, and runtime
+information needed to manage the node.
 
 ### How to update GPUd?
 
 GPUd is still in active development, regularly releasing new versions for critical bug fixes and new features. We strongly recommend always being on the latest version of GPUd.
 
-When GPUd is registered with the Lepton platform, the platform will automatically update GPUd to the latest version. To disable such auto-updates, if GPUd is run with `systemd` (default option for the `gpud up` command), you may add the flag `FLAGS="--enable-auto-update=false"` to the `/etc/default/gpud` environment file and restart the service.
+Host installations started with `gpud up` enable automatic updates by default.
+To disable them, append `--enable-auto-update=false` to the existing `FLAGS`
+value in `/etc/default/gpud`, then restart the service.
 
 ## Learn more
 
