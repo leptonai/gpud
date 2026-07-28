@@ -37,7 +37,7 @@ func (blks BlockDevices) Flatten() FlattenedBlockDevices {
 	all := make(map[string]FlattenedBlockDevice)
 
 	for _, blk1 := range blks {
-		flattenBlockDevice(blk1, "", 0, all)
+		flattenBlockDevice(blk1, "", all)
 	}
 
 	flattened := make(FlattenedBlockDevices, 0, len(all))
@@ -50,9 +50,8 @@ func (blks BlockDevices) Flatten() FlattenedBlockDevices {
 	return flattened
 }
 
-// flattenBlockDevice recursively processes a block device and its children
-// up to maxDepth (2 levels deep), adding them to the all map.
-func flattenBlockDevice(blk BlockDevice, parentName string, depth int, all map[string]FlattenedBlockDevice) {
+// flattenBlockDevice recursively processes a block device and its children.
+func flattenBlockDevice(blk BlockDevice, parentName string, all map[string]FlattenedBlockDevice) {
 	// Flatten the current device
 	flattened := FlattenedBlockDevice{
 		Name:       blk.Name,
@@ -89,17 +88,12 @@ func flattenBlockDevice(blk BlockDevice, parentName string, depth int, all map[s
 		all[flattened.Name] = flattened
 	}
 
-	// Process children if we haven't reached max depth (2)
-	if depth < 2 {
-		for _, child := range blk.Children {
-			// Update parent's children list
-			parentDev := all[flattened.Name]
-			parentDev.Children = append(parentDev.Children, child.Name)
-			all[flattened.Name] = parentDev
+	for _, child := range blk.Children {
+		parentDev := all[flattened.Name]
+		parentDev.Children = append(parentDev.Children, child.Name)
+		all[flattened.Name] = parentDev
 
-			// Recursively process the child
-			flattenBlockDevice(child, flattened.Name, depth+1, all)
-		}
+		flattenBlockDevice(child, flattened.Name, all)
 	}
 }
 

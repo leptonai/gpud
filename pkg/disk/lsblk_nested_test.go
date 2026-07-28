@@ -69,6 +69,35 @@ func TestDefaultDeviceTypeFuncAllowsRaid(t *testing.T) {
 	assert.False(t, DefaultDeviceTypeFunc("loop"))
 }
 
+func TestFlattenIncludesNestedRaidPartition(t *testing.T) {
+	blks := BlockDevices{{
+		Name: "/dev/nvme0n1",
+		Children: []BlockDevice{{
+			Name: "/dev/nvme0n1p1",
+			Children: []BlockDevice{{
+				Name: "/dev/md127",
+				Type: "raid1",
+				Children: []BlockDevice{{
+					Name:       "/dev/md127p3",
+					Type:       "part",
+					Size:       CustomUint64{Uint64: 958872420352},
+					FSUsed:     CustomUint64{Uint64: 479606169600},
+					MountPoint: "/",
+					FSType:     "ext4",
+				}},
+			}},
+		}},
+	}}
+
+	root := findFlattenedDevice(blks.Flatten(), "/dev/md127p3")
+	require.NotNil(t, root)
+	assert.Equal(t, "/", root.MountPoint)
+	assert.Equal(t, "ext4", root.FSType)
+	assert.Equal(t, uint64(958872420352), root.Size)
+	assert.Equal(t, uint64(479606169600), root.FSUsed)
+	assert.Equal(t, []string{"/dev/md127"}, root.Parents)
+}
+
 func findFlattenedDevice(devs FlattenedBlockDevices, name string) *FlattenedBlockDevice {
 	for i := range devs {
 		if devs[i].Name == name {
