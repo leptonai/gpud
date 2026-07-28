@@ -95,6 +95,34 @@ func (fakeFileInfo) ModTime() time.Time { return time.Time{} }
 func (fakeFileInfo) IsDir() bool        { return true }
 func (fakeFileInfo) Sys() interface{}   { return nil }
 
+func TestDiskCommandsAtomicSnapshot(t *testing.T) {
+	first := diskCommands{findmntCommand: "findmnt-a", lsblkCommand: "lsblk-a", blockdevUsageCommand: "df-a"}
+	second := diskCommands{findmntCommand: "findmnt-b", lsblkCommand: "lsblk-b", blockdevUsageCommand: "df-b"}
+	SetDiskCommands(first.findmntCommand, first.lsblkCommand, first.blockdevUsageCommand)
+	defer SetDiskCommands("", "", "")
+
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 10_000; i++ {
+			SetDiskCommands(second.findmntCommand, second.lsblkCommand, second.blockdevUsageCommand)
+			SetDiskCommands(first.findmntCommand, first.lsblkCommand, first.blockdevUsageCommand)
+		}
+		close(done)
+	}()
+
+	for {
+		commands := getDiskCommands()
+		if commands != first && commands != second {
+			t.Fatalf("observed partial disk command snapshot: %+v", commands)
+		}
+		select {
+		case <-done:
+			return
+		default:
+		}
+	}
+}
+
 func TestGetMachineGPUInfo_CoverageBranches_WithMockey(t *testing.T) {
 	mockey.PatchConvey("GetMachineGPUInfo handles not-supported serial/minor/board", t, func() {
 		dev := newMachineInfoCoverageDevice()
