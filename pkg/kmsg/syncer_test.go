@@ -198,12 +198,12 @@ func TestSyncer_EventDedupWindowFunc(t *testing.T) {
 	require.NoError(t, err, "failed to create syncer")
 	defer w.Close()
 
-	// Use a fixed timestamp well within a 300-second (5-minute) truncation window
-	// so the test is deterministic regardless of wall-clock time.
-	baseTime := time.Date(2026, 1, 1, 12, 30, 10, 0, time.UTC)
+	// Cross an epoch-aligned 5-minute boundary two seconds after the first event.
+	// The aggregation window must still start at the first event.
+	baseTime := time.Date(2026, 1, 1, 12, 34, 58, 0, time.UTC)
 	ch <- Message{Timestamp: metav1.NewTime(baseTime), Message: "raw message with pid 123"}
-	ch <- Message{Timestamp: metav1.NewTime(baseTime.Add(4 * time.Minute)), Message: "raw message with pid 456"}
-	ch <- Message{Timestamp: metav1.NewTime(baseTime.Add(6 * time.Minute)), Message: "raw message with pid 789"}
+	ch <- Message{Timestamp: metav1.NewTime(baseTime.Add(2 * time.Second)), Message: "raw message with pid 456"}
+	ch <- Message{Timestamp: metav1.NewTime(baseTime.Add(5 * time.Minute)), Message: "raw message with pid 789"}
 	close(ch)
 
 	require.Eventually(t, func() bool {
@@ -211,6 +211,12 @@ func TestSyncer_EventDedupWindowFunc(t *testing.T) {
 		require.NoError(t, err)
 		return len(events) == 2
 	}, time.Second, 10*time.Millisecond)
+
+	events, err := bucket.Get(ctx, time.Unix(0, 0))
+	require.NoError(t, err)
+	require.Len(t, events, 2)
+	assert.True(t, events[0].Time.Equal(baseTime.Add(5*time.Minute)))
+	assert.True(t, events[1].Time.Equal(baseTime))
 }
 
 func TestSyncer_EventDedupWindowFunc_BypassesGenericDedup(t *testing.T) {

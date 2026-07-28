@@ -20,8 +20,11 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 )
 
-// Name is the ID of the NVIDIA peermem component.
-const Name = "accelerator-nvidia-peermem"
+const (
+	// Name is the ID of the NVIDIA peermem component.
+	Name                    = "accelerator-nvidia-peermem"
+	peermemEventDedupWindow = 5 * time.Minute
+)
 
 var _ components.Component = &component{}
 
@@ -66,7 +69,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 				Match,
 				c.eventBucket,
 				// Peermem errors can spam during transient GPU/NIC issues; coalesce within 5 minutes to reduce event noise.
-				kmsg.WithCacheKeyTruncateSeconds(300),
+				kmsg.WithEventDedupWindowFunc(func(event eventstore.Event) (time.Duration, bool) {
+					return peermemEventDedupWindow, event.Name == eventPeermemInvalidContext
+				}),
 			)
 			if err != nil {
 				ccancel()
