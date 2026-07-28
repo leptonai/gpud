@@ -48,8 +48,7 @@ func withDisableDedup() OpOption {
 
 // WithEventDedupWindowFunc applies an event-specific dedup window in the syncer.
 // When the callback returns a positive window, pkg/kmsg deduplicates matching
-// events against recent persisted events inside that time window instead of
-// using the generic parsed-message cache and infinite exact-match lookup.
+// events from their first occurrence instead of using epoch-aligned buckets.
 func WithEventDedupWindowFunc(fn EventDedupWindowFunc) OpOption {
 	return func(op *Op) {
 		op.eventDedupWindowFunc = fn
@@ -77,6 +76,11 @@ func (m Message) cacheKeyWithTruncateSeconds(truncateSeconds int) string {
 type deduper struct {
 	cache                   *cache.Cache
 	cacheKeyTruncateSeconds int
+}
+
+type windowEntry struct {
+	firstSeen   time.Time
+	occurrences int
 }
 
 func newDeduper(cacheExpiration time.Duration, cachePurgeInterval time.Duration, opts ...OpOption) *deduper {
@@ -122,4 +126,20 @@ func (d *deduper) addCacheWithWindow(m Message, truncateSeconds int, expiration 
 
 	d.cache.Set(k, freq, expiration)
 	return freq
+}
+
+func (d *deduper) addCacheWithinWindow(m Message, window time.Duration) int {
+	k := "window-" + m.Message
+	cur, found := d.cache.Get(k)
+	if found {
+		entry, ok := cur.(windowEntry)
+		if ok && m.Timestamp.Time.Before(entry.firstSeen.Add(window)) {
+			entry.occurrences++
+			d.cache.Set(k, entry, window)
+			return entry.occurrences
+		}
+	}
+
+	d.cache.Set(k, windowEntry{firstSeen: m.Timestamp.Time, occurrences: 1}, window)
+	return 1
 }

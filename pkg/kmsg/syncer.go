@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	cache "github.com/patrickmn/go-cache"
-
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
@@ -97,15 +95,20 @@ func (w *Syncer) sync(ch <-chan Message) {
 			// Deduplicate by parsed event name and message using the in-memory
 			// cache. Raw kernel messages may contain varying strings (e.g., PIDs)
 			// that the matcher normalizes, so we dedup on the parsed form.
-			// Events with a custom dedup window get a longer truncation bucket
-			// and cache TTL so they are coalesced over the configured period.
+			// Event-specific windows start at the first occurrence instead of
+			// using the generic epoch-aligned cache buckets.
 			if w.parsedDeduper != nil {
 				parsedMsg := Message{
 					Timestamp: kmsg.Timestamp,
 					Message:   name + "_" + message,
 				}
-				truncSec, expiration := w.dedupParams(event)
-				if occurrences := w.parsedDeduper.addCacheWithWindow(parsedMsg, truncSec, expiration); occurrences > 1 {
+				var occurrences int
+				if window, ok := w.eventDedupWindow(event); ok {
+					occurrences = w.parsedDeduper.addCacheWithinWindow(parsedMsg, window)
+				} else {
+					occurrences = w.parsedDeduper.addCache(parsedMsg)
+				}
+				if occurrences > 1 {
 					log.Logger.Debugw("skipping duplicate parsed kmsg message", "occurrences", occurrences, "eventName", name, "message", message)
 					continue
 				}
@@ -136,16 +139,12 @@ func (w *Syncer) sync(ch <-chan Message) {
 	}
 }
 
-// dedupParams returns the cache truncation seconds and per-item TTL to use for
-// the given event. Events with a custom dedup window get a wider truncation
-// bucket and a TTL matching the window. All other events use the deduper defaults.
-func (w *Syncer) dedupParams(event eventstore.Event) (truncateSeconds int, expiration time.Duration) {
-	if w.eventDedupWindowFunc != nil {
-		if window, ok := w.eventDedupWindowFunc(event); ok && window > 0 {
-			return int(window.Seconds()), window
-		}
+func (w *Syncer) eventDedupWindow(event eventstore.Event) (time.Duration, bool) {
+	if w.eventDedupWindowFunc == nil {
+		return 0, false
 	}
-	return w.parsedDeduper.cacheKeyTruncateSeconds, cache.DefaultExpiration
+	window, ok := w.eventDedupWindowFunc(event)
+	return window, ok && window > 0
 }
 
 func (w *Syncer) Close() {
