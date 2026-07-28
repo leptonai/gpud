@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -119,6 +120,7 @@ func TestDiskCommandsAtomicSnapshot(t *testing.T) {
 		case <-done:
 			return
 		default:
+			runtime.Gosched()
 		}
 	}
 }
@@ -320,6 +322,26 @@ func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
 		_, err := GetMachineDiskInfo(context.Background())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "findmnt failed")
+	})
+
+	mockey.PatchConvey("GetMachineDiskInfo ignores configured host findmnt error", t, func() {
+		SetDiskCommands("host-findmnt", "", "")
+		defer SetDiskCommands("", "", "")
+		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
+		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
+			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
+		}).Build()
+		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+			return nil, nil
+		}).Build()
+		mockey.Mock(disk.FindMntWithCommand).To(func(ctx context.Context, target, command string) (*disk.FindMntOutput, error) {
+			return nil, errors.New("findmnt failed")
+		}).Build()
+
+		info, err := GetMachineDiskInfo(context.Background())
+		require.NoError(t, err)
+		assert.Empty(t, info.ContainerRootDisk)
+		require.Len(t, info.BlockDevices, 1)
 	})
 }
 

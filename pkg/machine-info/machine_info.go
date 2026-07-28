@@ -563,9 +563,11 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 				out, err = disk.FindMntWithCommand(ctx, "/var/lib/kubelet", commands.findmntCommand)
 			}
 			if err != nil {
-				return nil, err
-			}
-			if len(out.Filesystems) > 0 && len(out.Filesystems[0].Sources) > 0 {
+				if commands.findmntCommand == "" {
+					return nil, err
+				}
+				log.Logger.Warnw("failed to find container root disk", "error", err)
+			} else if len(out.Filesystems) > 0 && len(out.Filesystems[0].Sources) > 0 {
 				info.ContainerRootDisk = out.Filesystems[0].Sources[0]
 			}
 		}
