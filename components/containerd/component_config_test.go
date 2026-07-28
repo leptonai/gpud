@@ -30,13 +30,86 @@ func TestContainerdConfigConstants(t *testing.T) {
 	assert.Contains(t, containerdConfigNvidiaRuntimePluginV2, "io.containerd.cri.v1.runtime")
 }
 
+func TestHasNvidiaRuntimeConfiguration(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   bool
+	}{
+		{
+			name: "legacy plugin with nvidia as default runtime",
+			config: `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`,
+			want: true,
+		},
+		{
+			name: "v2 plugin with nvidia as default runtime",
+			config: `default_runtime_name = "nvidia"
+[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`,
+			want: true,
+		},
+		{
+			name: "legacy plugin with native CDI",
+			config: `[plugins."io.containerd.grpc.v1.cri"]
+  enable_cdi = true
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`,
+			want: true,
+		},
+		{
+			name: "v2 plugin with native CDI and runc as default",
+			config: `[plugins."io.containerd.cri.v1.runtime".containerd]
+  default_runtime_name = "runc"
+[plugins."io.containerd.cri.v1.runtime"]
+  enable_cdi=true # enabled by GPU Operator
+[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`,
+			want: true,
+		},
+		{
+			name: "native CDI without nvidia runtime handler",
+			config: `[plugins."io.containerd.cri.v1.runtime"]
+  enable_cdi = true`,
+			want: false,
+		},
+		{
+			name: "nvidia runtime handler without default or native CDI",
+			config: `[plugins."io.containerd.cri.v1.runtime".containerd]
+  default_runtime_name = "runc"
+[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`,
+			want: false,
+		},
+		{
+			name: "commented native CDI setting",
+			config: `# enable_cdi = true
+[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`,
+			want: false,
+		},
+		{
+			name:   "no nvidia configuration",
+			config: `[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.runc]`,
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, hasNvidiaRuntimeConfiguration([]byte(tt.config)))
+		})
+	}
+}
+
 // TestAppendImportedContainerdConfigs verifies that imports referenced in a
 // containerd config are read and appended so substring checks see drop-in files.
 func TestAppendImportedContainerdConfigs(t *testing.T) {
 	dir := t.TempDir()
 	dropIn := filepath.Join(dir, "99-nvidia.toml")
-	dropInBody := `[plugins."io.containerd.cri.v1.runtime".containerd]
-  default_runtime_name = "nvidia"
+	dropInBody := `[plugins."io.containerd.cri.v1.runtime"]
+  enable_cdi = true
 [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
   runtime_type = "io.containerd.runc.v2"
 `
@@ -47,8 +120,9 @@ func TestAppendImportedContainerdConfigs(t *testing.T) {
 	main := []byte("version = 3\nimports = [\"" + filepath.Join(dir, "*.toml") + "\"]\n")
 	out := appendImportedContainerdConfigs(main)
 
-	assert.Contains(t, string(out), containerdConfigNvidiaDefaultRuntime)
+	assert.True(t, containerdConfigCDIEnabledRe.Match(out))
 	assert.Contains(t, string(out), containerdConfigNvidiaRuntimePluginV2)
+	assert.True(t, hasNvidiaRuntimeConfiguration(out))
 }
 
 // TestAppendImportedContainerdConfigs_NoImports returns the input unchanged

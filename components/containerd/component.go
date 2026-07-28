@@ -49,6 +49,11 @@ const (
 // written by nvidia-container-toolkit-daemonset) can be inspected too.
 var containerdConfigImportsRe = regexp.MustCompile(`(?m)^\s*imports\s*=\s*\[([^\]]*)\]`)
 
+// containerdConfigCDIEnabledRe matches containerd's native CDI setting.
+// Native CDI allows runc to remain the default runtime while GPU workloads
+// select the configured NVIDIA runtime handler.
+var containerdConfigCDIEnabledRe = regexp.MustCompile(`(?m)^\s*enable_cdi\s*=\s*true\s*(?:#.*)?$`)
+
 var _ components.Component = &component{}
 
 type component struct {
@@ -385,14 +390,12 @@ func (c *component) Check() components.CheckResult {
 				if err == nil {
 					config = appendImportedContainerdConfigs(config)
 				}
-				hasNvidiaPlugin := bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePlugin)) ||
-					bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePluginV2))
 				switch {
 				case err != nil:
 					reason := "error getting containerd config"
 					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
-				case !bytes.Contains(config, []byte(containerdConfigNvidiaDefaultRuntime)) || !hasNvidiaPlugin:
+				case !hasNvidiaRuntimeConfiguration(config):
 					reason := fmt.Sprintf("nvidia-container-toolkit pod is running but %s is missing NVIDIA runtime configuration", defaultContainerdConfigPath)
 					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
@@ -520,6 +523,20 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
 	return apiv1.HealthStates{state}
+}
+
+// hasNvidiaRuntimeConfiguration accepts both supported toolkit layouts:
+// NVIDIA as containerd's default runtime, or containerd native CDI enabled
+// with an NVIDIA runtime handler. The handler is required in both cases.
+func hasNvidiaRuntimeConfiguration(config []byte) bool {
+	hasNvidiaRuntimePlugin := bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePlugin)) ||
+		bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePluginV2))
+	if !hasNvidiaRuntimePlugin {
+		return false
+	}
+
+	return bytes.Contains(config, []byte(containerdConfigNvidiaDefaultRuntime)) ||
+		containerdConfigCDIEnabledRe.Match(config)
 }
 
 // appendImportedContainerdConfigs returns config with the contents of any
