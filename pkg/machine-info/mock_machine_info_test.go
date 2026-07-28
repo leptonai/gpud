@@ -541,6 +541,45 @@ func TestGetSystemResourceRootVolumeTotal_WithMockedDisk(t *testing.T) {
 		assert.Empty(t, volume)
 		assert.Contains(t, err.Error(), "failed to get disk usage")
 	})
+
+	mockey.PatchConvey("GetSystemResourceRootVolumeTotal host df error", t, func() {
+		SetDiskCommands("", "", "host-df")
+		defer SetDiskCommands("", "", "")
+		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+			return nil, errors.New("host df failed")
+		}).Build()
+
+		volume, err := GetSystemResourceRootVolumeTotal()
+		require.Error(t, err)
+		assert.Empty(t, volume)
+		assert.Contains(t, err.Error(), "host df failed")
+	})
+
+	mockey.PatchConvey("GetSystemResourceRootVolumeTotal host root missing", t, func() {
+		SetDiskCommands("", "", "host-df")
+		defer SetDiskCommands("", "", "")
+		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+			return nil, nil
+		}).Build()
+
+		volume, err := GetSystemResourceRootVolumeTotal()
+		require.Error(t, err)
+		assert.Empty(t, volume)
+		assert.Contains(t, err.Error(), "root partition not found")
+	})
+
+	mockey.PatchConvey("GetSystemResourceRootVolumeTotal host root usage missing", t, func() {
+		SetDiskCommands("", "", "host-df")
+		defer SetDiskCommands("", "", "")
+		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+			return disk.Partitions{{MountPoint: "/"}}, nil
+		}).Build()
+
+		volume, err := GetSystemResourceRootVolumeTotal()
+		require.Error(t, err)
+		assert.Empty(t, volume)
+		assert.Contains(t, err.Error(), "root partition not found")
+	})
 }
 
 // TestGetMachineNICInfo_WithMockedNetutil tests GetMachineNICInfo with mocked network interfaces

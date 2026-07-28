@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -94,6 +95,49 @@ func (fakeFileInfo) Mode() os.FileMode  { return 0 }
 func (fakeFileInfo) ModTime() time.Time { return time.Time{} }
 func (fakeFileInfo) IsDir() bool        { return true }
 func (fakeFileInfo) Sys() interface{}   { return nil }
+
+func TestGetDiskCommandsZeroValue(t *testing.T) {
+	previous := diskCommandConfig.Swap(nil)
+	t.Cleanup(func() {
+		diskCommandConfig.Store(previous)
+	})
+
+	assert.Equal(t, diskCommands{}, getDiskCommands())
+}
+
+func TestDiskCommandsAtomicSnapshot(t *testing.T) {
+	first := diskCommands{findmntCommand: "findmnt-a", lsblkCommand: "lsblk-a", blockdevUsageCommand: "df-a"}
+	second := diskCommands{findmntCommand: "findmnt-b", lsblkCommand: "lsblk-b", blockdevUsageCommand: "df-b"}
+	SetDiskCommands(first.findmntCommand, first.lsblkCommand, first.blockdevUsageCommand)
+	defer SetDiskCommands("", "", "")
+
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 10_000; i++ {
+			SetDiskCommands(second.findmntCommand, second.lsblkCommand, second.blockdevUsageCommand)
+			SetDiskCommands(first.findmntCommand, first.lsblkCommand, first.blockdevUsageCommand)
+		}
+		close(done)
+	}()
+
+	timeout := time.NewTimer(2 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		commands := getDiskCommands()
+		if commands != first && commands != second {
+			t.Fatalf("observed partial disk command snapshot: %+v", commands)
+		}
+		select {
+		case <-done:
+			return
+		case <-timeout.C:
+			t.Fatal("timed out waiting for disk command updates")
+		default:
+			runtime.Gosched()
+		}
+	}
+}
 
 func TestGetMachineGPUInfo_CoverageBranches_WithMockey(t *testing.T) {
 	mockey.PatchConvey("GetMachineGPUInfo handles not-supported serial/minor/board", t, func() {
@@ -292,6 +336,49 @@ func TestGetMachineDiskInfo_LinuxBranches_WithMockey(t *testing.T) {
 		_, err := GetMachineDiskInfo(context.Background())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "findmnt failed")
+	})
+
+	mockey.PatchConvey("GetMachineDiskInfo ignores configured host findmnt error", t, func() {
+		SetDiskCommands("host-findmnt", "", "")
+		defer SetDiskCommands("", "", "")
+		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
+		mockey.Mock(disk.GetBlockDevicesWithLsblk).To(func(ctx context.Context, opts ...disk.OpOption) (disk.BlockDevices, error) {
+			return disk.BlockDevices{{Name: "/dev/sda1", MountPoint: "/", FSType: "ext4"}}, nil
+		}).Build()
+		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+			return nil, nil
+		}).Build()
+		mockey.Mock(disk.FindMntWithCommand).To(func(ctx context.Context, target, command string) (*disk.FindMntOutput, error) {
+			return nil, errors.New("findmnt failed")
+		}).Build()
+
+		info, err := GetMachineDiskInfo(context.Background())
+		require.NoError(t, err)
+		assert.Empty(t, info.ContainerRootDisk)
+		require.Len(t, info.BlockDevices, 1)
+	})
+}
+
+func TestMachineInfoDiskCommands_WithMockey(t *testing.T) {
+	mockey.PatchConvey("machine info uses configured host disk commands", t, func() {
+		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
+
+		findmnt := `printf '%s\n' '{"filesystems":[{"target":"/","source":"/dev/sda1","fstype":"ext4","size":"1000B","used":"400B","avail":"600B","use%":"40%"}]}' #`
+		lsblk := `printf '%s\n' '{"blockdevices":[{"name":"/dev/sda","type":"disk","size":1000,"mountpoint":null,"fstype":null,"children":[{"name":"/dev/sda1","type":"part","size":1000,"mountpoint":"/","fstype":"ext4","fsused":"400"}]}]}' #`
+		df := `printf '%s\n' 'Filesystem Type 1B-blocks Used Available Use% Mounted on' '/dev/sda1 ext4 1000 400 600 40% /' 'server:/data nfs4 2000 1000 1000 50% /mnt/nfs' #`
+		SetDiskCommands(findmnt, lsblk, df)
+		defer SetDiskCommands("", "", "")
+
+		info, err := GetMachineDiskInfo(context.Background())
+		require.NoError(t, err)
+		require.Len(t, info.BlockDevices, 2)
+		assert.Equal(t, "/dev/sda1", info.ContainerRootDisk)
+		assert.Equal(t, "/dev/sda1", info.BlockDevices[0].Name)
+		assert.Equal(t, "server:/data", info.BlockDevices[1].Name)
+
+		total, err := GetSystemResourceRootVolumeTotal()
+		require.NoError(t, err)
+		assert.Equal(t, "1k", total)
 	})
 }
 

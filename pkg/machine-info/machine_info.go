@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -37,6 +38,30 @@ import (
 )
 
 const diskPartitionsTimeout = 10 * time.Second
+
+type diskCommands struct {
+	findmntCommand       string
+	lsblkCommand         string
+	blockdevUsageCommand string
+}
+
+var diskCommandConfig atomic.Pointer[diskCommands]
+
+// SetDiskCommands configures machine-info disk collection to run in the host namespace.
+func SetDiskCommands(findmnt, lsblk, blockdevUsage string) {
+	diskCommandConfig.Store(&diskCommands{
+		findmntCommand:       findmnt,
+		lsblkCommand:         lsblk,
+		blockdevUsageCommand: blockdevUsage,
+	})
+}
+
+func getDiskCommands() diskCommands {
+	if commands := diskCommandConfig.Load(); commands != nil {
+		return *commands
+	}
+	return diskCommands{}
+}
 
 func currentGOOS() string {
 	return runtime.GOOS
@@ -128,9 +153,27 @@ func GetSystemResourceRootVolumeTotal() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	usage, err := disk.GetUsage(ctx, "/")
-	if err != nil {
-		return "", fmt.Errorf("failed to get disk usage: %w", err)
+	commands := getDiskCommands()
+	var usage *disk.Usage
+	if commands.blockdevUsageCommand == "" {
+		var err error
+		usage, err = disk.GetUsage(ctx, "/")
+		if err != nil {
+			return "", fmt.Errorf("failed to get disk usage: %w", err)
+		}
+	} else {
+		partitions, err := disk.GetPartitions(
+			ctx,
+			disk.WithMountPoint(func(mountPoint string) bool { return mountPoint == "/" }),
+			disk.WithBlockdevUsageCommand(commands.blockdevUsageCommand),
+		)
+		if err != nil {
+			return "", fmt.Errorf("failed to get disk usage: %w", err)
+		}
+		if len(partitions) == 0 || partitions[0].Usage == nil {
+			return "", fmt.Errorf("failed to get disk usage: root partition not found")
+		}
+		usage = partitions[0].Usage
 	}
 
 	qty := resource.NewQuantity(uint64ToInt64Capped(usage.TotalBytes), resource.DecimalSI)
@@ -432,10 +475,13 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 }
 
 func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
+	commands := getDiskCommands()
 	blks, err := disk.GetBlockDevicesWithLsblk(
 		ctx,
 		disk.WithFstype(disk.DefaultFsTypeFunc),
 		disk.WithDeviceType(disk.DefaultDeviceTypeFunc),
+		disk.WithFindmntCommand(commands.findmntCommand),
+		disk.WithLsblkCommand(commands.lsblkCommand),
 	)
 	if err != nil {
 		return nil, err
@@ -474,6 +520,7 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 			timeoutCtx,
 			disk.WithFstype(disk.DefaultNFSFsTypeFunc),
 			disk.WithMountPoint(disk.DefaultMountPointFunc),
+			disk.WithBlockdevUsageCommand(commands.blockdevUsageCommand),
 		)
 		cancel()
 		if err != nil {
@@ -499,16 +546,28 @@ func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
 	}
 
 	if currentGOOS() == "linux" {
-		_, serr := os.Stat("/var/lib/kubelet")
-		if serr != nil && !os.IsNotExist(serr) {
-			return nil, serr
-		}
-		if serr == nil {
-			out, err := disk.FindMnt(ctx, "/var/lib/kubelet")
-			if err != nil {
-				return nil, err
+		kubeletRootExists := commands.findmntCommand != ""
+		if !kubeletRootExists {
+			_, serr := os.Stat("/var/lib/kubelet")
+			if serr != nil && !os.IsNotExist(serr) {
+				return nil, serr
 			}
-			if len(out.Filesystems) > 0 && len(out.Filesystems[0].Sources) > 0 {
+			kubeletRootExists = serr == nil
+		}
+		if kubeletRootExists {
+			var out *disk.FindMntOutput
+			var err error
+			if commands.findmntCommand == "" {
+				out, err = disk.FindMnt(ctx, "/var/lib/kubelet")
+			} else {
+				out, err = disk.FindMntWithCommand(ctx, "/var/lib/kubelet", commands.findmntCommand)
+			}
+			if err != nil {
+				if commands.findmntCommand == "" {
+					return nil, err
+				}
+				log.Logger.Warnw("failed to find container root disk", "error", err)
+			} else if len(out.Filesystems) > 0 && len(out.Filesystems[0].Sources) > 0 {
 				info.ContainerRootDisk = out.Filesystems[0].Sources[0]
 			}
 		}
