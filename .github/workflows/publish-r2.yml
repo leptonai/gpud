@@ -32,8 +32,10 @@ jobs:
 
       - name: Install rclone
         run: |
-          sudo apt-get update
-          sudo apt-get install -y rclone
+          curl --fail --silent --show-error \
+            https://rclone.org/install.sh \
+            --output "${RUNNER_TEMP}/install-rclone.sh"
+          sudo bash "${RUNNER_TEMP}/install-rclone.sh"
 
       - name: Build gpud
         run: go build -o "${RUNNER_TEMP}/gpud" ./cmd/gpud
