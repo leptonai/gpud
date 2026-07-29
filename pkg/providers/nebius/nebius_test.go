@@ -2,6 +2,7 @@ package nebius
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/bytedance/mockey"
@@ -43,5 +44,49 @@ func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 
 		require.Equal(t, "project-test123/computeinstance-inst789",
 			formatInstanceID("project-test123", "", "computeinstance-inst789"))
+	})
+}
+
+func TestProviderMetadataErrors(t *testing.T) {
+	metadataErr := errors.New("metadata unavailable")
+
+	mockey.PatchConvey("detectProvider returns the region error", t, func() {
+		mockey.Mock(imds.FetchRegion).To(func(context.Context) (string, error) {
+			return "", metadataErr
+		}).Build()
+
+		provider, err := detectProvider(context.Background())
+		require.ErrorIs(t, err, metadataErr)
+		require.Empty(t, provider)
+	})
+
+	mockey.PatchConvey("detectProvider rejects an empty region", t, func() {
+		mockey.Mock(imds.FetchRegion).To(func(context.Context) (string, error) {
+			return "", nil
+		}).Build()
+
+		provider, err := detectProvider(context.Background())
+		require.NoError(t, err)
+		require.Empty(t, provider)
+	})
+
+	mockey.PatchConvey("GetInstanceID returns the IMDS error", t, func() {
+		mockey.Mock(imds.FetchInstanceData).To(func(context.Context) (*imds.InstanceData, error) {
+			return nil, metadataErr
+		}).Build()
+
+		instanceID, err := GetInstanceID(context.Background())
+		require.ErrorIs(t, err, metadataErr)
+		require.Empty(t, instanceID)
+	})
+
+	mockey.PatchConvey("GetInstanceID requires parent_id and id", t, func() {
+		mockey.Mock(imds.FetchInstanceData).To(func(context.Context) (*imds.InstanceData, error) {
+			return &imds.InstanceData{}, nil
+		}).Build()
+
+		instanceID, err := GetInstanceID(context.Background())
+		require.ErrorContains(t, err, "missing parent_id or id")
+		require.Empty(t, instanceID)
 	})
 }
