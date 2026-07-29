@@ -246,14 +246,10 @@ func TestPrometheusScraper_MultipleMetricTypes(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Scrape and verify metrics
+	// Scrape and verify only supported metrics are returned.
 	ms, err := scraper.Scrape(ctx)
 	require.NoError(t, err)
-	require.NotEmpty(t, ms)
-
-	// Should have more than 4 metrics because histograms and summaries
-	// generate multiple underlying metrics
-	require.True(t, len(ms) >= 4, "Expected at least 4 metrics, got %d", len(ms))
+	require.Len(t, ms, 2)
 
 	// Verify the counter and gauge are included
 	var foundCounter, foundGauge bool
@@ -269,6 +265,8 @@ func TestPrometheusScraper_MultipleMetricTypes(t *testing.T) {
 			}
 			require.Equal(t, 75.5, m.Value)
 		}
+		require.NotEqual(t, "test_latency_seconds", m.Name)
+		require.NotEqual(t, "test_response_time_seconds", m.Name)
 	}
 	require.True(t, foundCounter, "Counter metric not found")
 	require.True(t, foundGauge, "Gauge metric not found")

@@ -65,12 +65,15 @@ func (s *promScraper) Scrape(_ context.Context) (pkgmetrics.Metrics, error) {
 				continue
 			}
 
-			// for now, only support counter and gauge
+			// The flattened metric model only supports counter and gauge values.
+			// Skip unsupported types instead of recording their zero value.
 			switch {
 			case mtRaw.GetCounter() != nil:
 				m.Value = mtRaw.GetCounter().GetValue()
 			case mtRaw.GetGauge() != nil:
 				m.Value = mtRaw.GetGauge().GetValue()
+			default:
+				continue
 			}
 
 			ms = append(ms, m)
