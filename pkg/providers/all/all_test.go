@@ -9,16 +9,21 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/leptonai/gpud/pkg/providers"
+	"github.com/leptonai/gpud/pkg/providers/nebius"
 	"github.com/leptonai/gpud/pkg/providers/oci"
 )
 
-func TestAllIncludesOCI(t *testing.T) {
-	for _, detector := range All {
-		if detector.Name() == oci.Name {
-			return
-		}
+func TestAllIncludesRequiredProviders(t *testing.T) {
+	for _, name := range []string{nebius.Name, oci.Name} {
+		t.Run(name, func(t *testing.T) {
+			for _, detector := range All {
+				if detector.Name() == name {
+					return
+				}
+			}
+			t.Fatalf("provider registry does not include %q", name)
+		})
 	}
-	t.Fatalf("provider registry does not include %q", oci.Name)
 }
 
 // mockDetector implements the providers.Detector interface for testing
