@@ -337,7 +337,7 @@ func GetProviderWithContext(ctx context.Context, publicIP string) *providers.Inf
 	}
 
 	if providerInfo.Provider == "nebius" && providerInfo.InstanceID == "" {
-		instanceID, err := nebius.GetInstanceID()
+		instanceID, err := nebius.GetInstanceID(ctx)
 		if err != nil {
 			log.Logger.Warnw("failed to get Nebius instance ID", "error", err)
 		} else {

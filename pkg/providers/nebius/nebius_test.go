@@ -1,106 +1,92 @@
 package nebius
 
 import (
-	"os"
-	"path/filepath"
+	"context"
+	"errors"
 	"testing"
+
+	"github.com/bytedance/mockey"
+	"github.com/stretchr/testify/require"
+
+	"github.com/leptonai/gpud/pkg/providers"
+	"github.com/leptonai/gpud/pkg/providers/nebius/imds"
 )
 
-func TestGetInstanceID(t *testing.T) {
-	// Save original metadataPath
-	originalMetadataPath := metadataPath
-	defer func() {
-		metadataPath = originalMetadataPath
-	}()
+func TestNewAndDetectProvider_WithMockey(t *testing.T) {
+	mockey.PatchConvey("New returns a region-capable Nebius detector", t, func() {
+		mockey.Mock(imds.FetchRegion).To(func(context.Context) (string, error) {
+			return "eu-west1", nil
+		}).Build()
+		mockey.Mock(imds.FetchInstanceData).To(func(context.Context) (*imds.InstanceData, error) {
+			return &imds.InstanceData{
+				ID:           "computeinstance-inst789",
+				ParentID:     "project-test123",
+				GPUClusterID: "computegpucluster-gpu456",
+			}, nil
+		}).Build()
 
-	tests := []struct {
-		name           string
-		setupFiles     map[string]string
-		expectedResult string
-		expectError    bool
-	}{
-		{
-			name: "success with gpu cluster",
-			setupFiles: map[string]string{
-				"parent-id":      "project-test123",
-				"gpu-cluster-id": "computegpucluster-gpu456",
-				"instance-id":    "computeinstance-inst789",
-			},
-			expectedResult: "project-test123/computegpucluster-gpu456/computeinstance-inst789",
-			expectError:    false,
-		},
-		{
-			name: "success without gpu cluster",
-			setupFiles: map[string]string{
-				"parent-id":   "project-test456",
-				"instance-id": "computeinstance-inst123",
-			},
-			expectedResult: "project-test456/computeinstance-inst123",
-			expectError:    false,
-		},
-		{
-			name: "success with empty gpu cluster id",
-			setupFiles: map[string]string{
-				"parent-id":      "project-test789",
-				"gpu-cluster-id": "",
-				"instance-id":    "computeinstance-inst456",
-			},
-			expectedResult: "project-test789/computeinstance-inst456",
-			expectError:    false,
-		},
-		{
-			name: "error: missing parent-id file",
-			setupFiles: map[string]string{
-				"instance-id": "computeinstance-inst789",
-			},
-			expectError: true,
-		},
-		{
-			name: "error: missing instance-id file",
-			setupFiles: map[string]string{
-				"parent-id": "project-test123",
-			},
-			expectError: true,
-		},
-		{
-			name:        "error: missing all files",
-			setupFiles:  map[string]string{},
-			expectError: true,
-		},
-	}
+		detector := New()
+		require.Equal(t, Name, detector.Name())
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create temporary directory using t.TempDir()
-			tempDir := t.TempDir()
+		provider, err := detector.Provider(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, Name, provider)
 
-			// Set metadataPath to temp directory
-			metadataPath = tempDir
+		regionDetector, ok := detector.(providers.RegionDetector)
+		require.True(t, ok)
+		region, err := regionDetector.Region(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "eu-west1", region)
 
-			// Create test files
-			for filename, content := range tt.setupFiles {
-				filePath := filepath.Join(tempDir, filename)
-				if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-					t.Fatalf("Failed to create test file %s: %v", filename, err)
-				}
-			}
+		instanceID, err := detector.InstanceID(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "project-test123/computegpucluster-gpu456/computeinstance-inst789", instanceID)
 
-			// Run the test
-			result, err := GetInstanceID()
+		require.Equal(t, "project-test123/computeinstance-inst789",
+			formatInstanceID("project-test123", "", "computeinstance-inst789"))
+	})
+}
 
-			// Check results
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
-				}
-				if result != tt.expectedResult {
-					t.Errorf("Expected result %q, got %q", tt.expectedResult, result)
-				}
-			}
-		})
-	}
+func TestProviderMetadataErrors(t *testing.T) {
+	metadataErr := errors.New("metadata unavailable")
+
+	mockey.PatchConvey("detectProvider returns the region error", t, func() {
+		mockey.Mock(imds.FetchRegion).To(func(context.Context) (string, error) {
+			return "", metadataErr
+		}).Build()
+
+		provider, err := detectProvider(context.Background())
+		require.ErrorIs(t, err, metadataErr)
+		require.Empty(t, provider)
+	})
+
+	mockey.PatchConvey("detectProvider rejects an empty region", t, func() {
+		mockey.Mock(imds.FetchRegion).To(func(context.Context) (string, error) {
+			return "", nil
+		}).Build()
+
+		provider, err := detectProvider(context.Background())
+		require.NoError(t, err)
+		require.Empty(t, provider)
+	})
+
+	mockey.PatchConvey("GetInstanceID returns the IMDS error", t, func() {
+		mockey.Mock(imds.FetchInstanceData).To(func(context.Context) (*imds.InstanceData, error) {
+			return nil, metadataErr
+		}).Build()
+
+		instanceID, err := GetInstanceID(context.Background())
+		require.ErrorIs(t, err, metadataErr)
+		require.Empty(t, instanceID)
+	})
+
+	mockey.PatchConvey("GetInstanceID requires parent_id and id", t, func() {
+		mockey.Mock(imds.FetchInstanceData).To(func(context.Context) (*imds.InstanceData, error) {
+			return &imds.InstanceData{}, nil
+		}).Build()
+
+		instanceID, err := GetInstanceID(context.Background())
+		require.ErrorContains(t, err, "missing parent_id or id")
+		require.Empty(t, instanceID)
+	})
 }

@@ -690,7 +690,7 @@ func TestGetProvider_NebiusSpecialCase(t *testing.T) {
 			return asnName
 		}).Build()
 
-		mockey.Mock(nebius.GetInstanceID).To(func() (string, error) {
+		mockey.Mock(nebius.GetInstanceID).To(func(context.Context) (string, error) {
 			return "nebius-instance-id", nil
 		}).Build()
 
@@ -723,7 +723,7 @@ func TestGetProvider_NebiusSpecialCase(t *testing.T) {
 			return asnName
 		}).Build()
 
-		mockey.Mock(nebius.GetInstanceID).To(func() (string, error) {
+		mockey.Mock(nebius.GetInstanceID).To(func(context.Context) (string, error) {
 			return "", errors.New("metadata unavailable")
 		}).Build()
 
