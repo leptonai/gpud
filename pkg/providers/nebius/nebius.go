@@ -3,8 +3,6 @@ package nebius
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/leptonai/gpud/pkg/providers"
 	"github.com/leptonai/gpud/pkg/providers/nebius/imds"
@@ -12,12 +10,8 @@ import (
 
 const Name = "nebius"
 
-var (
-	metadataPath = "/mnt/cloud-metadata"
-)
-
 func New() providers.Detector {
-	return providers.NewWithRegion(Name, detectProvider, nil, nil, imds.FetchRegion, nil, fetchInstanceID)
+	return providers.NewWithRegion(Name, detectProvider, nil, nil, imds.FetchRegion, nil, GetInstanceID)
 }
 
 func detectProvider(ctx context.Context) (string, error) {
@@ -31,33 +25,16 @@ func detectProvider(ctx context.Context) (string, error) {
 	return "", nil
 }
 
-func fetchInstanceID(ctx context.Context) (string, error) {
+// GetInstanceID fetches the Nebius VM identity from HTTP IMDS.
+func GetInstanceID(ctx context.Context) (string, error) {
 	data, err := imds.FetchInstanceData(ctx)
 	if err != nil {
 		return "", err
 	}
 	if data.ParentID == "" || data.ID == "" {
-		return "", fmt.Errorf("Nebius instance metadata is missing parent_id or id")
+		return "", fmt.Errorf("nebius instance metadata is missing parent_id or id")
 	}
 	return formatInstanceID(data.ParentID, data.GPUClusterID, data.ID), nil
-}
-
-func GetInstanceID() (string, error) {
-	projectID, err := os.ReadFile(filepath.Join(metadataPath, "parent-id"))
-	if err != nil {
-		return "", err
-	}
-	gpuClusterID, err := os.ReadFile(filepath.Join(metadataPath, "gpu-cluster-id"))
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return "", err
-		}
-	}
-	instanceID, err := os.ReadFile(filepath.Join(metadataPath, "instance-id"))
-	if err != nil {
-		return "", err
-	}
-	return formatInstanceID(string(projectID), string(gpuClusterID), string(instanceID)), nil
 }
 
 func formatInstanceID(parentID, gpuClusterID, instanceID string) string {

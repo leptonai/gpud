@@ -22,14 +22,25 @@ const (
 	metadataRetryBaseDelay = 100 * time.Millisecond
 )
 
-// InstanceData contains the Nebius VM identity fields used by GPUd.
+// InstanceData contains the fields returned by Nebius instance-data IMDS.
 type InstanceData struct {
-	ID           string `json:"id"`
-	ParentID     string `json:"parent_id"`
-	GPUClusterID string `json:"gpu_cluster_id"`
+	ID                     string            `json:"id"`
+	ParentID               string            `json:"parent_id"`
+	Name                   string            `json:"name"`
+	Hostname               string            `json:"hostname"`
+	Platform               string            `json:"platform"`
+	Preset                 string            `json:"preset"`
+	Labels                 map[string]string `json:"labels"`
+	ResourceVersion        int64             `json:"resource_version"`
+	CreatedAt              string            `json:"created_at"`
+	ServiceAccountID       string            `json:"service_account_id"`
+	GPUClusterID           string            `json:"gpu_cluster_id"`
+	InfinibandFabric       string            `json:"infiniband_fabric"`
+	InfinibandTopologyPath []string          `json:"infiniband_topology_path"`
+	Region                 string            `json:"region"`
 }
 
-// FetchInstanceData fetches the Nebius VM identity metadata.
+// FetchInstanceData fetches the Nebius VM instance metadata.
 func FetchInstanceData(ctx context.Context) (*InstanceData, error) {
 	return fetchInstanceData(ctx, imdsMetadataURL)
 }

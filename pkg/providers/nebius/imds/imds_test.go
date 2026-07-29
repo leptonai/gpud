@@ -17,11 +17,21 @@ func TestFetchInstanceData(t *testing.T) {
 		assert.Equal(t, "/instance-data", r.URL.Path)
 		assert.Equal(t, metadataTrue, r.Header.Get(headerMetadata))
 		_, _ = w.Write([]byte(`{
-			"id": "computeinstance-inst789",
-			"parent_id": "project-test123",
-			"gpu_cluster_id": "computegpucluster-gpu456",
-			"region": "eu-west1"
-		}`))
+				"id": "computeinstance-inst789",
+				"parent_id": "project-test123",
+				"name": "example-vm",
+				"hostname": "example-hostname",
+				"platform": "gpu-h200-sxm",
+				"preset": "1gpu-16vcpu-200gb",
+				"labels": {"environment": "test"},
+				"resource_version": 7,
+				"created_at": "2026-07-29T00:00:00Z",
+				"service_account_id": "serviceaccount-sa123",
+				"gpu_cluster_id": "computegpucluster-gpu456",
+				"infiniband_fabric": "fabric-5",
+				"infiniband_topology_path": ["hash-1", "hash-2", "hash-3"],
+				"region": "eu-west1"
+			}`))
 	}))
 	defer server.Close()
 
@@ -29,7 +39,18 @@ func TestFetchInstanceData(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "computeinstance-inst789", data.ID)
 	require.Equal(t, "project-test123", data.ParentID)
+	require.Equal(t, "example-vm", data.Name)
+	require.Equal(t, "example-hostname", data.Hostname)
+	require.Equal(t, "gpu-h200-sxm", data.Platform)
+	require.Equal(t, "1gpu-16vcpu-200gb", data.Preset)
+	require.Equal(t, map[string]string{"environment": "test"}, data.Labels)
+	require.EqualValues(t, 7, data.ResourceVersion)
+	require.Equal(t, "2026-07-29T00:00:00Z", data.CreatedAt)
+	require.Equal(t, "serviceaccount-sa123", data.ServiceAccountID)
 	require.Equal(t, "computegpucluster-gpu456", data.GPUClusterID)
+	require.Equal(t, "fabric-5", data.InfinibandFabric)
+	require.Equal(t, []string{"hash-1", "hash-2", "hash-3"}, data.InfinibandTopologyPath)
+	require.Equal(t, "eu-west1", data.Region)
 }
 
 func TestFetchMetadataByPath(t *testing.T) {
