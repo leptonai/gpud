@@ -40,10 +40,7 @@ func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 
 		instanceID, err := detector.InstanceID(context.Background())
 		require.NoError(t, err)
-		require.Equal(t, "project-test123/computegpucluster-gpu456/computeinstance-inst789", instanceID)
-
-		require.Equal(t, "project-test123/computeinstance-inst789",
-			formatInstanceID("project-test123", "", "computeinstance-inst789"))
+		require.Equal(t, "computeinstance-inst789", instanceID)
 	})
 }
 
@@ -80,13 +77,13 @@ func TestProviderMetadataErrors(t *testing.T) {
 		require.Empty(t, instanceID)
 	})
 
-	mockey.PatchConvey("GetInstanceID requires parent_id and id", t, func() {
+	mockey.PatchConvey("GetInstanceID requires id", t, func() {
 		mockey.Mock(imds.FetchInstanceData).To(func(context.Context) (*imds.InstanceData, error) {
 			return &imds.InstanceData{}, nil
 		}).Build()
 
 		instanceID, err := GetInstanceID(context.Background())
-		require.ErrorContains(t, err, "missing parent_id or id")
+		require.ErrorContains(t, err, "missing id")
 		require.Empty(t, instanceID)
 	})
 }
