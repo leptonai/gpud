@@ -2,7 +2,7 @@ package nebius
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/leptonai/gpud/pkg/providers"
 	"github.com/leptonai/gpud/pkg/providers/nebius/imds"
@@ -31,15 +31,8 @@ func GetInstanceID(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if data.ParentID == "" || data.ID == "" {
-		return "", fmt.Errorf("nebius instance metadata is missing parent_id or id")
+	if data.ID == "" {
+		return "", errors.New("nebius instance metadata is missing id")
 	}
-	return formatInstanceID(data.ParentID, data.GPUClusterID, data.ID), nil
-}
-
-func formatInstanceID(parentID, gpuClusterID, instanceID string) string {
-	if gpuClusterID != "" {
-		return fmt.Sprintf("%s/%s/%s", parentID, gpuClusterID, instanceID)
-	}
-	return fmt.Sprintf("%s/%s", parentID, instanceID)
+	return data.ID, nil
 }
