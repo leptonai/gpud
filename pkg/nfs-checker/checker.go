@@ -64,7 +64,7 @@ func (c *checker) Write(ctx context.Context) error {
 	// make sure the directory is writable
 	// permission bit "0755" is used to allow the group to read the files
 	// and the owner to read and write the files.
-	if err := pkgfile.MkdirAllWithTimeout(ctx, c.cfg.VolumePath, 0755); err != nil {
+	if err := pkgfile.MkdirAllWithTimeout(ctx, c.cfg.resolvedVolumePath(), 0755); err != nil {
 		return err
 	}
 

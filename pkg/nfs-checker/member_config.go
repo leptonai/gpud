@@ -24,7 +24,7 @@ type MemberConfig struct {
 
 // fileSelf returns the file path of the file that is written by the checker.
 func (cfg *MemberConfig) fileSelf() string {
-	dir := filepath.Join(cfg.VolumePath, cfg.DirName)
+	dir := filepath.Join(cfg.resolvedVolumePath(), cfg.DirName)
 	return filepath.Join(dir, cfg.ID)
 }
 

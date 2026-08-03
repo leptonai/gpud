@@ -254,6 +254,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Value: "",
 				},
 				cli.StringFlag{
+					Name:  "nfs-host-root",
+					Usage: "host filesystem root used by the NFS checker (e.g. '/proc/1/root' in a privileged hostPID container); the empty default preserves direct host paths for systemd installations",
+					Value: "",
+				},
+				cli.StringFlag{
 					Name:  "containerd-service-active-commands",
 					Usage: "command used to check whether the containerd service is active (e.g. 'nsenter --target 1 --mount -- systemctl is-active containerd' to query the host service manager from inside a container; exit code 0 means active); leave empty to use the built-in systemd check",
 					Value: "",

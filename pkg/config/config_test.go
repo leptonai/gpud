@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -18,6 +20,20 @@ func TestConfigValidateSessionProtocol(t *testing.T) {
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("Validate() accepted an unsupported session protocol")
 	}
+}
+
+func TestConfigValidateNFSHostRoot(t *testing.T) {
+	base := Config{Address: ":15132", MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute}}
+
+	for _, hostRoot := range []string{"", "/proc/1/root"} {
+		cfg := base
+		cfg.NFSHostRoot = hostRoot
+		require.NoError(t, cfg.Validate(), "NFS host root %q", hostRoot)
+	}
+
+	cfg := base
+	cfg.NFSHostRoot = "proc/1/root"
+	assert.Error(t, cfg.Validate())
 }
 
 func TestConfigValidate_AutoUpdateExitCode(t *testing.T) {

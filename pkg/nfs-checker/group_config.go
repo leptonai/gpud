@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	pkgfile "github.com/leptonai/gpud/pkg/file"
 )
@@ -18,6 +19,11 @@ type Config struct {
 	// And writes are saved in the [Config.VolumePath] under [Config.DirName].
 	// This path must be an absolute path.
 	VolumePath string `json:"volume_path"`
+
+	// HostRoot prefixes VolumePath only for local filesystem operations. It is a
+	// deployment detail, not part of the node-group NFS configuration sent by the
+	// control plane, so it is intentionally excluded from JSON.
+	HostRoot string `json:"-"`
 
 	// DirName is the directory name under [Config.VolumePath]
 	// to write and read the files.
@@ -76,13 +82,14 @@ func (c *Config) ValidateAndMkdir(ctx context.Context) error {
 		return ErrVolumePathNotAbs
 	}
 
-	if _, err := pkgfile.StatWithTimeout(ctx, c.VolumePath); os.IsNotExist(err) {
+	volumePath := c.resolvedVolumePath()
+	if _, err := pkgfile.StatWithTimeout(ctx, volumePath); os.IsNotExist(err) {
 		return fmt.Errorf("%q %w", c.VolumePath, ErrVolumePathNotExists)
 	} else if err != nil {
 		return err
 	}
 
-	dir := filepath.Join(c.VolumePath, c.DirName)
+	dir := filepath.Join(volumePath, c.DirName)
 	if _, err := pkgfile.StatWithTimeout(ctx, dir); os.IsNotExist(err) {
 		if err := pkgfile.MkdirAllWithTimeout(ctx, dir, 0755); err != nil {
 			return err
@@ -96,4 +103,11 @@ func (c *Config) ValidateAndMkdir(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *Config) resolvedVolumePath() string {
+	if c.HostRoot == "" {
+		return c.VolumePath
+	}
+	return filepath.Join(c.HostRoot, strings.TrimPrefix(filepath.Clean(c.VolumePath), string(filepath.Separator)))
 }

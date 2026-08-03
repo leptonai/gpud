@@ -58,6 +58,7 @@ func Command(cliContext *cli.Context) error {
 	findmntCommands := cliContext.String("findmnt-commands")
 	lsblkCommands := cliContext.String("lsblk-commands")
 	blockdevUsageCommands := cliContext.String("blockdev-usage-commands")
+	nfsHostRoot := cliContext.String("nfs-host-root")
 	pkgmachineinfo.SetDiskCommands(findmntCommands, lsblkCommands, blockdevUsageCommands)
 
 	// Parse db-in-memory early as it affects login behavior
@@ -356,6 +357,7 @@ func Command(cliContext *cli.Context) error {
 	cfg.FindmntCommands = findmntCommands
 	cfg.LsblkCommands = lsblkCommands
 	cfg.BlockdevUsageCommands = blockdevUsageCommands
+	cfg.NFSHostRoot = nfsHostRoot
 	cfg.ContainerdServiceActiveCommands = containerdServiceActiveCommands
 	if !versionFileSet {
 		versionFile = config.VersionFilePath(cfg.DataDir)

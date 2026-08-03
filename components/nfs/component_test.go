@@ -240,7 +240,7 @@ func TestCheckWithInvalidConfigs(t *testing.T) {
 	assert.Contains(t, result.Summary(), "invalid nfs group configs")
 }
 
-func TestCheckWithValidConfigs(t *testing.T) {
+func TestCheckWithoutNFSHostRootPreservesDirectPath(t *testing.T) {
 	// Create a temporary directory for testing
 	tmpDir := t.TempDir()
 
@@ -267,6 +267,37 @@ func TestCheckWithValidConfigs(t *testing.T) {
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
 	assert.Len(t, cr.NFSCheckResults, 1)
 	assert.Equal(t, tmpDir, cr.NFSCheckResults[0].Dir)
+}
+
+func TestCheckWithNFSHostRoot(t *testing.T) {
+	hostRoot := t.TempDir()
+	volumePath := "/mnt/nfs-share"
+	rootedVolumePath := filepath.Join(hostRoot, "mnt", "nfs-share")
+	require.NoError(t, os.MkdirAll(rootedVolumePath, 0755))
+
+	c := createTestComponent()
+	c.nfsHostRoot = hostRoot
+	c.getGroupConfigsFunc = func() pkgnfschecker.Configs {
+		return pkgnfschecker.Configs{{
+			VolumePath:   volumePath,
+			DirName:      ".gpud-nfs-checker",
+			FileContents: "test content",
+		}}
+	}
+	c.findMntTargetDevice = func(path string) (string, string, error) {
+		assert.Equal(t, volumePath, path)
+		return "server:/export/path", "nfs", nil
+	}
+	c.isNFSFSType = func(_ string) bool { return true }
+
+	result := c.Check()
+	cr := mustCheckResult(t, result)
+
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	require.Len(t, cr.NFSCheckResults, 1)
+	assert.Equal(t, filepath.Join(volumePath, ".gpud-nfs-checker"), cr.NFSCheckResults[0].Dir)
+	_, err := os.Stat(filepath.Join(rootedVolumePath, ".gpud-nfs-checker"))
+	assert.NoError(t, err)
 }
 
 // Test checkResult methods
