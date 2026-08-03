@@ -133,6 +133,22 @@ gpud:
   lsblkCommands: "nsenter --target 1 --mount -- lsblk"
   blockdevUsageCommands: "nsenter --target 1 --mount -- df"
 
+  # BYOK: root of the node filesystem used only when an NFS check is configured
+  # for this machine. This is NOT an NFS mount path and does NOT require paths
+  # such as /mnt/nfs-share to exist on every node. The control plane still sends
+  # each machine only its node-group-specific NFS paths. A machine with no NFS
+  # config performs no NFS path check; a configured machine whose mount is
+  # missing keeps gpud running and reports that NFS check as degraded.
+  #
+  # /proc/1/root exposes the node filesystem because this chart uses hostPID=true
+  # and runs gpud as privileged root. Using it avoids a hostPath volume for every
+  # possible node-group mount and therefore avoids blocking pod startup on nodes
+  # where another node group's path does not exist. Set this to "" only when the
+  # configured NFS paths are already visible in the container mount namespace.
+  # This Helm-only default does not affect systemd installations; the gpud CLI
+  # default is empty and preserves direct host-path behavior there.
+  nfsHostRoot: "/proc/1/root"
+
   # Command used by the containerd component to check whether the containerd
   # service is active. gpud runs inside a container here, so the container's own
   # systemd does not manage containerd; the chart wraps "systemctl is-active
@@ -181,7 +197,8 @@ gpud:
   # Override the default command for the gpud container.
   # If set, the chart's default startup wrapper is bypassed; include any gpud
   # flags you still need there, including --reboot-commands and the disk
-  # --findmnt-commands/--lsblk-commands/--blockdev-usage-commands when applicable.
+  # --findmnt-commands/--lsblk-commands/--blockdev-usage-commands, plus
+  # --nfs-host-root when NFS checks must access the node filesystem.
   commandOverride: []
 
 # The default image repository is public and needs no image pull secret.

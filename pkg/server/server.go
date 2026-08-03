@@ -315,6 +315,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		FindmntCommands:       config.FindmntCommands,
 		LsblkCommands:         config.LsblkCommands,
 		BlockdevUsageCommands: config.BlockdevUsageCommands,
+		NFSHostRoot:           config.NFSHostRoot,
 
 		ContainerdServiceActiveCommands: config.ContainerdServiceActiveCommands,
 

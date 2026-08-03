@@ -408,6 +408,17 @@ spec:
                 start_log_args="$start_log_args --blockdev-usage-commands=<set>"
                 set -- "$@" --blockdev-usage-commands="$GPUD_BLOCKDEV_USAGE_COMMANDS"
               fi
+
+              # BYOK: this is a node filesystem prefix, not a required NFS mount.
+              # It lets gpud resolve only the NFS paths configured for this
+              # machine through /proc/1/root. Nodes without an NFS config do not
+              # probe a path, and a missing configured mount degrades the check
+              # without preventing this DaemonSet pod from starting. Systemd
+              # installations do not use this Helm-only default.
+              if [ -n "${GPUD_NFS_HOST_ROOT:-}" ]; then
+                start_log_args="$start_log_args --nfs-host-root=$GPUD_NFS_HOST_ROOT"
+                set -- "$@" --nfs-host-root="$GPUD_NFS_HOST_ROOT"
+              fi
               if [ -n "${GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS:-}" ]; then
                 start_log_args="$start_log_args --containerd-service-active-commands=<set>"
                 set -- "$@" --containerd-service-active-commands="$GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS"
@@ -457,6 +468,12 @@ spec:
             {{- if .Values.gpud.blockdevUsageCommands }}
             - name: GPUD_BLOCKDEV_USAGE_COMMANDS
               value: {{ .Values.gpud.blockdevUsageCommands | quote }}
+            {{- end }}
+            {{- if .Values.gpud.nfsHostRoot }}
+            # BYOK: this value is only a host filesystem prefix. It does not
+            # assert that any particular NFS path exists on every DaemonSet node.
+            - name: GPUD_NFS_HOST_ROOT
+              value: {{ .Values.gpud.nfsHostRoot | quote }}
             {{- end }}
             {{- if .Values.gpud.containerdServiceActiveCommands }}
             - name: GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS

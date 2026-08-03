@@ -63,6 +63,11 @@ type GPUdInstance struct {
 	// from that command's output in the host mount namespace.
 	BlockdevUsageCommands string
 
+	// NFSHostRoot prefixes NFS checker file operations. Empty preserves direct
+	// host paths for systemd installations. Containerized gpud can use
+	// /proc/1/root to operate on the node's configured NFS paths.
+	NFSHostRoot string
+
 	// ContainerdServiceActiveCommands overrides how the containerd component
 	// checks whether the containerd service is active. Empty (the default)
 	// preserves the legacy in-namespace systemd.IsActive behavior. When set (e.g.

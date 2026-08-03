@@ -1,9 +1,7 @@
 package session
 
 import (
-	"context"
 	"encoding/json"
-	"time"
 
 	componentsnvidiagpucounts "github.com/leptonai/gpud/components/accelerator/nvidia/gpu-counts"
 	componentsnvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
@@ -95,20 +93,12 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 				return
 			}
 
-			// if NFS validation takes too long, it can block other session requests
-			// so we set a timeout and do it async
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				err := updateCfgs.Validate(ctx)
-				cancel()
-				if err != nil {
-					log.Logger.Warnw("invalid nfs config but proceeding with update to allow the user to fix the config", "error", err)
-				}
-
-				if s.setDefaultNFSGroupConfigsFunc != nil {
-					s.setDefaultNFSGroupConfigsFunc(updateCfgs)
-				}
-			}()
+			// Path validation belongs to the NFS component, which has the deployment's
+			// host-root view. Validating here would inspect the container namespace and
+			// incorrectly reject valid BYOK node paths before /proc/1/root is applied.
+			if s.setDefaultNFSGroupConfigsFunc != nil {
+				s.setDefaultNFSGroupConfigsFunc(updateCfgs)
+			}
 
 		default:
 			log.Logger.Warnw("unsupported component for updateConfig", "component", componentName)

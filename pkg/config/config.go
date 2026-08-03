@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -71,6 +72,12 @@ type Config struct {
 	// "nsenter --target 1 --mount -- df"), partitions and usage are read from
 	// that command's output in the host mount namespace.
 	BlockdevUsageCommands string `json:"blockdev_usage_commands,omitempty"`
+
+	// NFSHostRoot prefixes NFS volume paths for file operations. Empty preserves
+	// the existing direct-path behavior used by systemd installations. A
+	// containerized deployment can use /proc/1/root to access the node filesystem
+	// without mounting every node-group-specific NFS path into the container.
+	NFSHostRoot string `json:"nfs_host_root,omitempty"`
 
 	// ContainerdServiceActiveCommands overrides how the containerd component checks
 	// whether the containerd service is active. Empty preserves the legacy
@@ -141,6 +148,9 @@ func (config *Config) Validate() error {
 	}
 	if config.EventsRetentionPeriod.Duration > 0 && config.EventsRetentionPeriod.Duration < time.Minute {
 		return fmt.Errorf("events_retention_period must be at least 1 minute, got %d", config.EventsRetentionPeriod.Duration)
+	}
+	if config.NFSHostRoot != "" && !filepath.IsAbs(config.NFSHostRoot) {
+		return fmt.Errorf("nfs_host_root must be an absolute path, got %q", config.NFSHostRoot)
 	}
 	switch config.SessionProtocol {
 	case "", "v1", "v2", "auto":

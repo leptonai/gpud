@@ -44,7 +44,8 @@ type component struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	machineID string
+	machineID   string
+	nfsHostRoot string
 
 	getGroupConfigsFunc func() pkgnfschecker.Configs
 	findMntTargetDevice func(dir string) (string, string, error)
@@ -95,14 +96,32 @@ func newComponent(
 	}
 
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
+	findMntTargetDevice := disk.FindMntTargetDevice
+	if gpudInstance.FindmntCommands != "" {
+		findMntTargetDevice = func(dir string) (string, string, error) {
+			timeoutCtx, cancel := context.WithTimeout(cctx, 5*time.Second)
+			defer cancel()
+			out, err := disk.FindMntWithCommand(timeoutCtx, dir, gpudInstance.FindmntCommands)
+			if err != nil || out == nil || len(out.Filesystems) == 0 {
+				return "", "", err
+			}
+			found := out.Filesystems[0]
+			if len(found.Sources) == 0 {
+				return "", found.Fstype, nil
+			}
+			return found.Sources[0], found.Fstype, nil
+		}
+	}
+
 	c := &component{
 		ctx:    cctx,
 		cancel: ccancel,
 
-		machineID: gpudInstance.MachineID,
+		machineID:   gpudInstance.MachineID,
+		nfsHostRoot: gpudInstance.NFSHostRoot,
 
 		getGroupConfigsFunc: GetDefaultConfigs,
-		findMntTargetDevice: disk.FindMntTargetDevice,
+		findMntTargetDevice: findMntTargetDevice,
 		isNFSFSType:         disk.DefaultNFSFsTypeFunc,
 		getTimeNowFunc:      func() time.Time { return time.Now().UTC() },
 
@@ -302,6 +321,9 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	memberConfigs := groupConfigs.GetMemberConfigs(c.machineID)
+	for i := range memberConfigs {
+		memberConfigs[i].HostRoot = c.nfsHostRoot
+	}
 	timeoutCtx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 	err := c.validateMemberConfigs(timeoutCtx, memberConfigs)
 	cancel()
