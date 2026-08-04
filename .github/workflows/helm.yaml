@@ -52,3 +52,32 @@ jobs:
           fi
           git commit -m "Publish $name-$version"
           git push origin HEAD:gh-pages
+
+  ngc:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      NGC_CLI_API_KEY: ${{ secrets.NVAPI_KEY }}
+      NGC_CLI_ORG: nvstaging
+      NGC_CLI_TEAM: lepton
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install NGC CLI
+        run: |
+          curl -fsSL https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/4.34.7/files/ngccli_linux.zip -o "$RUNNER_TEMP/ngccli.zip"
+          unzip -q "$RUNNER_TEMP/ngccli.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ngc-cli" >> "$GITHUB_PATH"
+
+      - name: Package and push chart to NGC
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          package_dir="$RUNNER_TEMP/chart"
+
+          mkdir -p "$package_dir"
+          helm package deployments/helm/gpud \
+            --version "$version" \
+            --app-version "$version" \
+            --destination "$package_dir"
+          ngc registry chart push "nvstaging/lepton/gpud:$version" --source "$package_dir"
