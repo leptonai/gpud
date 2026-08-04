@@ -4,8 +4,8 @@ This Helm chart deploys [GPUd](https://github.com/leptonai/gpud) as a [DaemonSet
 
 GPUd is a lightweight, high-performance daemon that monitors GPU resources. This chart is the recommended way to deploy GPUd on Kubernetes.
 
-The default `nvcr.io/nvidia/lepton/gpud` image is public. No image pull secret
-or NGC API key is required.
+The default [`nvcr.io/nvidia/lepton/gpud` image](https://catalog.ngc.nvidia.com/orgs/nvidia/lepton/containers/gpud/-/tags)
+is public. No image pull secret or NGC API key is required.
 Packaged charts derive the image tag from the pushed Git tag through
 `appVersion`; `values.yaml` does not pin a release tag.
 
@@ -16,8 +16,12 @@ Packaged charts derive the image tag from the pushed Git tag through
 
 ## Installing the Chart
 
-Add the GPUd chart repository and resolve the latest published version from
-`unstable_latest.txt`:
+The chart is published through both
+[GitHub Pages](https://leptonai.github.io/gpud) and the
+[NGC catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/lepton/helm-charts/gpud/-).
+
+To install from GitHub Pages, add the repository and resolve the latest
+published version from `unstable_latest.txt`:
 
 ```bash
 helm repo add gpud https://leptonai.github.io/gpud
@@ -31,6 +35,12 @@ helm upgrade --install my-gpud gpud/gpud \
   --set image.repository=nvcr.io/nvidia/lepton/gpud \
   --create-namespace \
   --namespace gpud
+```
+
+Or pull the same chart from NGC:
+
+```bash
+helm pull https://helm.ngc.nvidia.com/nvidia/lepton/charts/gpud-0.12.24.tgz
 ```
 
 ### Migrating from the OCI chart registry
