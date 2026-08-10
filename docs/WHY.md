@@ -40,7 +40,7 @@ By addressing these challenges, GPUd simplifies GPU management, reduces human er
 - NVIDIA direct RDMA (Remote Direct Memory Access): check lsmod, peermem.
 - CPU, OS, memory, disk, file descriptor usage monitoring.
 - Regex-based kmsg streaming and scanning.
-- Workloads monitoring: supports containerd, docker, kubelet.
+- Workloads monitoring: supports containerd and docker.
 
 ## System comparisons
 

@@ -20,7 +20,6 @@ import (
 	"google.golang.org/grpc/status"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
-	componentkubelet "github.com/leptonai/gpud/components/kubelet"
 	pkgfile "github.com/leptonai/gpud/pkg/file"
 )
 
@@ -217,21 +216,13 @@ func TestGetVersionFromCli_WithMockey(t *testing.T) {
 	})
 }
 
-func TestComponentMethodsAndDanglingPods(t *testing.T) {
+func TestComponentMethods(t *testing.T) {
 	comp := &component{}
 	assert.True(t, comp.IsSupported())
 
 	cr := &checkResult{}
 	assert.Equal(t, Name, cr.ComponentName())
 
-	kubeletPods := []componentkubelet.PodStatus{
-		{Name: "pod", Namespace: "default"},
-	}
-	containerdPods := []PodSandbox{
-		{Name: "pod", Namespace: "default", State: "SANDBOX_READY"},
-		{Name: "dangling", Namespace: "default", State: "SANDBOX_READY"},
-	}
-	assert.Equal(t, 1, danglingPodCount(containerdPods, kubeletPods))
 }
 
 func TestConnectAndCreateClientWithFakeRuntimeServer(t *testing.T) {
