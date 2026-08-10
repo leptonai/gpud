@@ -29,7 +29,6 @@ import (
 	componentsdocker "github.com/leptonai/gpud/components/docker"
 	componentsfuse "github.com/leptonai/gpud/components/fuse"
 	componentskernelmodule "github.com/leptonai/gpud/components/kernel-module"
-	componentskubelet "github.com/leptonai/gpud/components/kubelet"
 	componentslibrary "github.com/leptonai/gpud/components/library"
 	componentsmemory "github.com/leptonai/gpud/components/memory"
 	componentsnetworklatency "github.com/leptonai/gpud/components/network/latency"
@@ -76,7 +75,6 @@ var componentInits = []Component{
 	{Name: componentsdocker.Name, InitFunc: componentsdocker.New},
 	{Name: componentsfuse.Name, InitFunc: componentsfuse.New},
 	{Name: componentskernelmodule.Name, InitFunc: componentskernelmodule.New},
-	{Name: componentskubelet.Name, InitFunc: componentskubelet.New},
 	{Name: componentslibrary.Name, InitFunc: componentslibrary.New},
 	{Name: componentsmemory.Name, InitFunc: componentsmemory.New},
 	{Name: componentsnetworklatency.Name, InitFunc: componentsnetworklatency.New},
