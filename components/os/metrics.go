@@ -121,6 +121,26 @@ var (
 		},
 		[]string{pkgmetrics.MetricComponentLabelKey},
 	).MustCurryWith(componentLabel)
+
+	metricBlockedProcesses = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "",
+			Subsystem: metricSubSystem,
+			Name:      "blocked_processes",
+			Help:      "tracks the current number of processes in uninterruptible sleep (Linux D-state)",
+		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
+	).MustCurryWith(componentLabel)
+
+	metricBlockedProcessesPersistent = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "",
+			Subsystem: metricSubSystem,
+			Name:      "blocked_processes_persistent",
+			Help:      "tracks the number of D-state processes that met the persistence threshold (consecutive checks)",
+		},
+		[]string{pkgmetrics.MetricComponentLabelKey},
+	).MustCurryWith(componentLabel)
 )
 
 func init() {
@@ -136,5 +156,7 @@ func init() {
 		metricThresholdAllocatedFileHandles,
 		metricThresholdAllocatedFileHandlesPercent,
 		metricZombieProcesses,
+		metricBlockedProcesses,
+		metricBlockedProcessesPersistent,
 	)
 }

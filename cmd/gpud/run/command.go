@@ -235,6 +235,13 @@ func Command(cliContext *cli.Context) error {
 		log.Logger.Infow("set sxid thresholds", "sxidOverrides", thresholds.Overrides)
 	}
 
+	// D-state process tracking (LEP-6029): auto-enables with nvidia-matching
+	// regexes when an NVIDIA GPU is detected, unless configured via flags;
+	// the daemon keeps the default persistence threshold (one-off scan uses 1)
+	if err := common.ApplyOSBlockedProcessThresholds(cliContext, common.DetectNvidiaGPU, false); err != nil {
+		return err
+	}
+
 	if eventsRetentionPeriod > 0 && !cliContext.IsSet("xid-lookback-period") {
 		componentsxid.SetLookbackPeriod(eventsRetentionPeriod)
 		log.Logger.Infow("set xid lookback period from events retention period", "xidLookbackPeriod", eventsRetentionPeriod)

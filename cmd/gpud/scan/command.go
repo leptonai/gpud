@@ -47,6 +47,13 @@ func CreateCommand() func(*cli.Context) error {
 			componentssxid.SetLookbackPeriod(cliContext.Duration("sxid-lookback-period"))
 		}
 
+		// D-state process tracking (LEP-6029): a one-off scan cannot observe
+		// consecutive checks, so on NVIDIA GPU machines the persistence threshold
+		// auto-lowers to 1 and any current D-state nvidia process flags unhealthy
+		if err := common.ApplyOSBlockedProcessThresholds(cliContext, common.DetectNvidiaGPU, true); err != nil {
+			return err
+		}
+
 		return cmdScan(
 			cliContext.String("log-level"),
 			cliContext.Int("gpu-count"),
