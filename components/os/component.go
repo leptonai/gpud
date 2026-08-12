@@ -755,6 +755,19 @@ const (
 //     reboots without recovery, suggest hardware inspection instead
 //     (same escalation model as the XID component)
 //   - other persistent blocked processes: degraded, no repair suggestion
+//
+// Why degraded vs unhealthy: a persistent D-state process is never ignored --
+// the kernel wait underneath it is not completing, and SIGKILL cannot clear
+// the task (verified on dev01 2026-08-12: containerd teardown wedged on a
+// D-state dd while the pod kept reporting "Running"). But the stuck name is
+// the only signal about which subsystem wedged. A non-matching name (storage,
+// NFS, any driver) means "something is stuck on this node, investigate" --
+// degraded, no repair suggestion. A matching name (default ^nvidia) means
+// the GPU driver path is implicated, as in the LEP-6029 incident -- unhealthy,
+// with reboot suggested because a node-local, unkillable kernel wait leaves
+// no softer remedy. If reboots do not clear the condition, the wedge likely
+// sits in hardware or firmware rather than transient driver state, hence the
+// escalation to hardware inspection.
 func (c *component) evaluateBlockedProcesses(cr *checkResult, thresholds BlockedProcessThresholds) bool {
 	if cr.BlockedProcesses.PersistentCount == 0 {
 		c.clearBlockedProcessEpisode(cr.ts)

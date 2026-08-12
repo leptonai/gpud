@@ -13,6 +13,50 @@ import (
 // This file implements tracking of processes stuck in uninterruptible sleep
 // (Linux "D" state, surfaced by gopsutil as "blocked") for LEP-6029.
 //
+// # What D-state is
+//
+// A D-state task is waiting inside a kernel syscall -- usually I/O (disk,
+// NFS, device-mapper) or a device driver (e.g., an NVIDIA UVM ioctl) -- and
+// the kernel does not deliver signals to it until that wait completes. Even
+// SIGKILL is only queued, so a D-state process cannot be killed, stopped, or
+// restarted from user space; it exits only when the kernel wait finishes or
+// the machine reboots.
+//
+// # Why it happens, and when it is fine to ignore
+//
+// Not every D-state process is bad. Every synchronous read, write, or page-in
+// passes through D briefly, so catching a healthy process in D for a few
+// milliseconds or seconds is normal, especially under I/O load. Such
+// transient waits must not change node health: this is why flagging requires
+// a persistence threshold of consecutive one-minute checks rather than a
+// single observation. Validation on healthy production GPU nodes
+// (2026-08-12, two iad nodes, 2,305 processes enumerated, plus a 30x10s
+// sampling window) found zero D-state processes, so the default threshold
+// has wide margin against false flags on this fleet.
+//
+// # When it is NOT fine to ignore
+//
+// A process that stays in D for minutes means its kernel wait is not
+// completing: a wedged driver, a suspended device, a dead NFS server, or
+// failing hardware. Because SIGKILL cannot clear it, the stuck task wedges
+// whatever sits behind it. The LEP-6029 incident had nvidia-smi in D blocking
+// a kubelet package-upgrade script. The 2026-08-12 dev01 validation
+// reproduced the same wedge class deterministically (dd on a suspended
+// device-mapper device, wchan folio_wait_bit_common): the task stayed in D
+// for >=6 minutes, containerd could not SIGKILL it during teardown, and the
+// pod kept reporting "Running" while dead -- the stale-status trap from
+// LEP-5812.
+//
+// # What D-state does not tell you
+//
+// D-state says "a kernel wait is stuck"; it does not say the GPU is at
+// fault. A dd waiting on a suspended dm device and an nvidia-smi waiting on a
+// wedged driver look identical in /proc. That is why escalation is name-gated
+// (see threshold.go): every persistent D-state process degrades the
+// component, but only names matching the escalation regexes (default ^nvidia
+// on GPU machines) mark it unhealthy with a reboot suggestion, and repeated
+// reboots without recovery escalate to hardware inspection.
+//
 // Design constraints validated against production clusters (2026-08-12):
 //   - Detection reuses the existing per-minute CountProcessesByStatus scan; no
 //     additional process enumeration, no external commands (nvidia-smi, NVML).

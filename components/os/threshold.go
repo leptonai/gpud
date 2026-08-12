@@ -15,6 +15,15 @@ const (
 	// checks a process must remain blocked (Linux D-state) before it is
 	// considered persistent. The OS component checks once per minute, so five
 	// consecutive checks correspond to roughly five minutes.
+	//
+	// Why five: transient D-state is normal -- any process doing synchronous
+	// I/O passes through D for milliseconds to seconds -- so a single
+	// observation must never flag a node. The 2026-08-12 validation found
+	// zero D-state processes on healthy production GPU nodes (instant scans
+	// plus a 30x10s sampling window), while an induced real D-state process
+	// (dd on a suspended device-mapper device) persisted >=6 minutes. Five
+	// one-minute checks sit between the two: long enough to ignore ordinary
+	// I/O waits, short enough to surface a wedged kernel path within minutes.
 	DefaultBlockedProcessPersistenceThreshold = 5
 
 	// defaultBlockedProcessNameRegex matches NVIDIA management processes
@@ -40,6 +49,15 @@ type BlockedProcessThresholds struct {
 	// NameRegexes gates which persistent D-state processes escalate to
 	// unhealthy with a repair suggestion. An empty set disables D-state
 	// process checking entirely.
+	//
+	// The gate exists because D-state alone does not identify the cause: a
+	// dd stuck on a suspended device and an nvidia-smi stuck in a wedged
+	// driver are the same state in /proc. A persistent D-state process from
+	// any name degrades the component (something in the kernel is stuck and
+	// SIGKILL cannot clear it), but a reboot suggestion is only attached when
+	// the name matches -- i.e., when the stuck process implicates the GPU
+	// driver path, as in the LEP-6029 incident (nvidia-smi in D during a
+	// kubelet package upgrade).
 	NameRegexes []string `json:"name_regexes"`
 
 	// compiledNameRegexes is the compiled form of NameRegexes, populated by
