@@ -13,6 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/client_golang/prometheus"
+	prometheusdto "github.com/prometheus/client_model/go"
+
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/eventstore"
@@ -708,4 +711,63 @@ func TestCheck_BlockedProcesses_ProcessScanErrorStillUnhealthy(t *testing.T) {
 	cr := comp.Check()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
 	assert.Contains(t, cr.Summary(), "error getting process count")
+}
+
+func TestCheck_BlockedProcesses_DisableClearsStateAndGauges(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	bucket := &recordingBucket{}
+	comp, now := newTestComponent(t, ctx, &mockRebootEventStore{}, bucket)
+	defer func() { _ = comp.Close() }()
+
+	// runtime-switchable thresholds, simulating a session updateConfig push
+	thresholds := mustBlockedProcessThresholds(t, 5, "^nvidia")
+	comp.getBlockedProcessThresholdsFunc = func() BlockedProcessThresholds { return thresholds }
+
+	// 1. enabled: 5 consecutive checks with a blocked nvidia-smi => unhealthy episode
+	cr := runChecks(comp, now, 5, blockedList(&mockProcessStatus{pid: 42, name: "nvidia-smi"}))
+	require.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+	require.Equal(t, []string{EventNameBlockedProcessesPersistent}, bucket.insertedNames())
+	assertGaugeValue(t, metricBlockedProcessesPersistent, 1)
+
+	// 2. disabled mid-episode (empty regexes): one check clears health,
+	// resets the tracker, closes the episode with a "disabled" recovery event,
+	// and zeroes the gauges
+	thresholds = mustBlockedProcessThresholds(t, 5)
+	cr = runChecks(comp, now, 1, nil)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType())
+
+	comp.blockedTracker.mu.Lock()
+	tracked := len(comp.blockedTracker.entries)
+	comp.blockedTracker.mu.Unlock()
+	assert.Zero(t, tracked, "disable must reset the tracker so re-enable re-earns the threshold")
+
+	names := bucket.insertedNames()
+	require.Equal(t, []string{EventNameBlockedProcessesPersistent, EventNameBlockedProcessesRecovered}, names)
+	events := bucket.insertedEvents()
+	assert.Contains(t, events[1].Message, "disabled", "recovery event must say the check was disabled, not that the processes actually cleared")
+
+	assertGaugeValue(t, metricBlockedProcesses, 0)
+	assertGaugeValue(t, metricBlockedProcessesPersistent, 0)
+
+	// 3. re-enabled while the same process is still blocked: must re-earn the
+	// full persistence threshold (not resume the stale counter), then fire a
+	// new episode
+	thresholds = mustBlockedProcessThresholds(t, 5, "^nvidia")
+	cr = runChecks(comp, now, 4, blockedList(&mockProcessStatus{pid: 42, name: "nvidia-smi"}))
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.HealthStateType(), "re-enabled check must re-earn the persistence threshold")
+	cr = runChecks(comp, now, 1, blockedList(&mockProcessStatus{pid: 42, name: "nvidia-smi"}))
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.HealthStateType())
+	assert.Equal(t, []string{EventNameBlockedProcessesPersistent, EventNameBlockedProcessesRecovered, EventNameBlockedProcessesPersistent}, bucket.insertedNames())
+}
+
+// assertGaugeValue asserts the current value of a component gauge.
+func assertGaugeValue(t *testing.T, gaugeVec *prometheus.GaugeVec, want float64) {
+	t.Helper()
+	gauge, err := gaugeVec.GetMetricWith(prometheus.Labels{})
+	require.NoError(t, err)
+	dto := &prometheusdto.Metric{}
+	require.NoError(t, gauge.Write(dto))
+	assert.InDelta(t, want, dto.GetGauge().GetValue(), 0.0001)
 }

@@ -32,7 +32,7 @@ func (c *component) SetHealthy() error {
 	// inserts EventNameBlockedProcessesRecovered when an episode is active,
 	// which also resets the reboot-escalation window (reboots are counted only
 	// since the most recent recovery)
-	c.clearBlockedProcessEpisode(now)
+	c.clearBlockedProcessEpisode(now, "persistent blocked processes cleared (set-healthy)")
 
 	// forget all tracked D-state processes: a process still blocked must
 	// re-earn the persistence threshold before being flagged again

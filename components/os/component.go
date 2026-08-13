@@ -397,6 +397,17 @@ func (c *component) Check() components.CheckResult {
 		cr.BlockedProcesses.Persistent = persistent
 		metricBlockedProcesses.With(prometheus.Labels{}).Set(float64(cr.BlockedProcesses.CurrentCount))
 		metricBlockedProcessesPersistent.With(prometheus.Labels{}).Set(float64(cr.BlockedProcesses.PersistentCount))
+	} else {
+		// Disabled (empty name regexes, e.g., a config push removed them):
+		// drop state carried over from a previously enabled window so that a
+		// re-enabled check re-earns the persistence threshold from scratch,
+		// close any active episode (marks the disabled window with a recovery
+		// event, resetting the reboot-escalation window), and zero the gauges
+		// so they do not report stale counts while disabled.
+		c.blockedTracker.reset()
+		c.clearBlockedProcessEpisode(cr.ts, "D-state process checking disabled (empty name regexes)")
+		metricBlockedProcesses.With(prometheus.Labels{}).Set(0)
+		metricBlockedProcessesPersistent.With(prometheus.Labels{}).Set(0)
 	}
 
 	if cr.ZombieProcesses > c.zombieProcessCountThresholdUnhealthy {
@@ -770,7 +781,7 @@ const (
 // escalation to hardware inspection.
 func (c *component) evaluateBlockedProcesses(cr *checkResult, thresholds BlockedProcessThresholds) bool {
 	if cr.BlockedProcesses.PersistentCount == 0 {
-		c.clearBlockedProcessEpisode(cr.ts)
+		c.clearBlockedProcessEpisode(cr.ts, "persistent blocked processes cleared")
 		return false
 	}
 
@@ -867,9 +878,12 @@ func (c *component) markBlockedProcessEpisode(cr *checkResult) {
 	}
 }
 
-// clearBlockedProcessEpisode records the falling edge (recovery) of a
-// persistent blocked-process episode in the event store.
-func (c *component) clearBlockedProcessEpisode(now time.Time) {
+// clearBlockedProcessEpisode records the falling edge of a persistent
+// blocked-process episode in the event store: recovery, operator set-healthy,
+// or the check being disabled. All three insert EventNameBlockedProcessesRecovered
+// because countBlockedEpisodeReboots anchors the reboot-escalation window on
+// that event name; the message distinguishes the cause for forensics.
+func (c *component) clearBlockedProcessEpisode(now time.Time, message string) {
 	c.blockedEpisodeMu.Lock()
 	active := c.blockedEpisodeActive
 	c.blockedEpisodeActive = false
@@ -884,7 +898,7 @@ func (c *component) clearBlockedProcessEpisode(now time.Time) {
 		Time:      now,
 		Name:      EventNameBlockedProcessesRecovered,
 		Type:      string(apiv1.EventTypeInfo),
-		Message:   "persistent blocked processes cleared",
+		Message:   message,
 	}); err != nil {
 		log.Logger.Warnw("failed to insert blocked processes recovery event", "error", err)
 	}
