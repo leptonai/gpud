@@ -24,9 +24,9 @@ import (
 //
 // # Why it happens, and when it is fine to ignore
 //
-// Not every D-state process is bad. Every synchronous read, write, or page-in
-// passes through D briefly, so catching a healthy process in D for a few
-// milliseconds or seconds is normal, especially under I/O load. Such
+// Not every D-state process is bad. Most blocking disk I/O (reads, writes,
+// page faults hitting storage) passes through D briefly, so catching a
+// healthy process in D for a few milliseconds or seconds is normal, especially under I/O load. Such
 // transient waits must not change node health: this is why flagging requires
 // a persistence threshold of consecutive one-minute checks rather than a
 // single observation. Validation on healthy production GPU nodes
@@ -51,7 +51,8 @@ import (
 //
 // D-state says "a kernel wait is stuck"; it does not say the GPU is at
 // fault. A dd waiting on a suspended dm device and an nvidia-smi waiting on a
-// wedged driver look identical in /proc. That is why escalation is name-gated
+// wedged driver show the same D state letter in /proc/<pid>/stat (both
+// become process.Blocked in gopsutil). That is why escalation is name-gated
 // (see threshold.go): every persistent D-state process degrades the
 // component, but only names matching the escalation regexes (default ^nvidia
 // on GPU machines) mark it unhealthy with a reboot suggestion, and repeated
