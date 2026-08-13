@@ -10,6 +10,7 @@ import (
 	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
+	componentsos "github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 )
@@ -100,6 +101,22 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 				s.setDefaultNFSGroupConfigsFunc(updateCfgs)
 			}
 
+		case componentsos.Name:
+			setComponents[componentName] = struct{}{}
+			var updateCfg componentsos.BlockedProcessThresholds
+			if err := json.Unmarshal([]byte(value), &updateCfg); err != nil {
+				log.Logger.Warnw("failed to unmarshal os blocked process thresholds config", "error", err)
+				resp.Error = err.Error()
+				return
+			}
+			if s.setDefaultOSBlockedProcessThresholdsFunc != nil {
+				if err := s.setDefaultOSBlockedProcessThresholdsFunc(updateCfg); err != nil {
+					log.Logger.Warnw("failed to set os blocked process thresholds", "error", err)
+					resp.Error = err.Error()
+					return
+				}
+			}
+
 		default:
 			log.Logger.Warnw("unsupported component for updateConfig", "component", componentName)
 		}
@@ -129,5 +146,16 @@ func (s *Session) processUpdateConfig(configMap map[string]string, resp *Respons
 	if _, ok := setComponents[componentstemperature.Name]; !ok && s.setDefaultTemperatureThresholdsFunc != nil {
 		log.Logger.Infow("falling back to default temperature config")
 		s.setDefaultTemperatureThresholdsFunc(componentstemperature.Thresholds{CelsiusSlowdownMargin: componentstemperature.ThresholdCelsiusSlowdownMargin})
+	}
+	// os falls back to the startup-resolved thresholds (CLI flags + NVIDIA GPU
+	// auto-detection), not the built-in empty default: resetting to empty here
+	// would silently disable D-state tracking on GPU machines whenever the
+	// control plane pushes a config that does not mention the os component.
+	if _, ok := setComponents[componentsos.Name]; !ok && s.setDefaultOSBlockedProcessThresholdsFunc != nil {
+		log.Logger.Infow("falling back to startup os blocked process thresholds")
+		if err := s.setDefaultOSBlockedProcessThresholdsFunc(componentsos.GetStartupBlockedProcessThresholds()); err != nil {
+			// the startup baseline was validated when recorded; log defensively
+			log.Logger.Warnw("failed to restore startup os blocked process thresholds", "error", err)
+		}
 	}
 }

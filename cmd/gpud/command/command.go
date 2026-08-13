@@ -25,6 +25,7 @@ import (
 	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	componentsnvidiatemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
+	componentsos "github.com/leptonai/gpud/components/os"
 	pkgconfig "github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
@@ -330,6 +331,15 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "sxid-thresholds",
 					Usage: `set per-SXID thresholds in JSON, e.g. '{"overrides":{"11004":{"rebootThreshold":7}}}'`,
+				},
+				&cli.StringFlag{
+					Name:  "os-blocked-process-name-regexes",
+					Usage: "comma-separated regexes matching process names; persistent D-state (blocked) processes matching any of them escalate the os component to unhealthy with a reboot suggestion (defaults to ^nvidia when an NVIDIA GPU is detected, otherwise the check is disabled; set to empty to disable explicitly)",
+				},
+				&cli.IntFlag{
+					Name:  "os-blocked-process-persistence-threshold",
+					Usage: fmt.Sprintf("consecutive checks a D-state (blocked) process must persist before being flagged (defaults to %d)", componentsos.DefaultBlockedProcessPersistenceThreshold),
+					Value: componentsos.DefaultBlockedProcessPersistenceThreshold,
 				},
 				&cli.DurationFlag{
 					Name:  "xid-lookback-period",
@@ -693,6 +703,15 @@ sudo rm /etc/systemd/system/gpud.service
 					Name:  "sxid-lookback-period",
 					Usage: "set the lookback period for SXID errors",
 					Value: componentssxid.DefaultLookbackPeriod,
+				},
+				&cli.StringFlag{
+					Name:  "os-blocked-process-name-regexes",
+					Usage: "comma-separated regexes matching process names; persistent D-state (blocked) processes matching any of them escalate the os component to unhealthy with a reboot suggestion (defaults to ^nvidia when an NVIDIA GPU is detected, otherwise the check is disabled; set to empty to disable explicitly)",
+				},
+				&cli.IntFlag{
+					Name:  "os-blocked-process-persistence-threshold",
+					Usage: fmt.Sprintf("consecutive checks a D-state (blocked) process must persist before being flagged (defaults to %d; auto-lowers to 1 when an NVIDIA GPU is detected, since a one-off scan cannot observe consecutive checks)", componentsos.DefaultBlockedProcessPersistenceThreshold),
+					Value: componentsos.DefaultBlockedProcessPersistenceThreshold,
 				},
 				&cli.IntFlag{
 					Name:  "threshold-celsius-slowdown-margin",

@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,6 +69,23 @@ type component struct {
 	zombieProcessCountThresholdDegraded  int
 	zombieProcessCountThresholdUnhealthy int
 
+	// blockedTracker tracks processes in uninterruptible sleep (Linux D-state,
+	// gopsutil "blocked") across checks to identify persistent ones (LEP-6029).
+	blockedTracker *blockedProcessTracker
+
+	// getBlockedProcessThresholdsFunc returns the D-state tracking
+	// configuration, read on every check (not snapshotted at creation) so
+	// session updateConfig changes take effect on the running daemon — the
+	// same pattern as gpu-counts' getThresholdsFunc. An empty NameRegexes
+	// set disables D-state process checking entirely (LEP-6029).
+	getBlockedProcessThresholdsFunc func() BlockedProcessThresholds
+
+	// blockedEpisodeMu guards blockedEpisodeActive.
+	blockedEpisodeMu sync.Mutex
+	// blockedEpisodeActive dedupes blocked-process episode start/recovery
+	// events (inserted only on transitions).
+	blockedEpisodeActive bool
+
 	getTimeNowFunc                func() time.Time
 	getHostUptimeFunc             func(ctx context.Context) (uint64, error)
 	getFileHandlesFunc            func() (uint64, uint64, error)
@@ -111,6 +129,9 @@ func newComponent(gpudInstance *components.GPUdInstance, pstoreDir string) (comp
 		countProcessesByStatusFunc:           process.CountProcessesByStatus,
 		zombieProcessCountThresholdDegraded:  defaultZombieProcessCountThresholdDegraded,
 		zombieProcessCountThresholdUnhealthy: defaultZombieProcessCountThresholdUnhealthy,
+
+		blockedTracker:                  newBlockedProcessTracker(),
+		getBlockedProcessThresholdsFunc: GetDefaultBlockedProcessThresholds,
 
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -363,6 +384,32 @@ func (c *component) Check() components.CheckResult {
 
 	metricZombieProcesses.With(prometheus.Labels{}).Set(float64(cr.ZombieProcesses))
 
+	// track processes in uninterruptible sleep (Linux D-state) on every check,
+	// even if the zombie thresholds below return early (LEP-6029); skipped
+	// entirely when no process-name regexes are configured (e.g., machines
+	// without NVIDIA GPUs), so the check only runs where it is actionable
+	blockedThresholds := c.getBlockedProcessThresholdsFunc()
+	if !blockedThresholds.IsZero() {
+		blockedNow := allProcs[procs.Blocked]
+		cr.BlockedProcesses.CurrentCount = len(blockedNow)
+		persistentCount, persistent := c.blockedTracker.update(cr.ts, blockedNow, blockedThresholds.PersistenceThreshold)
+		cr.BlockedProcesses.PersistentCount = persistentCount
+		cr.BlockedProcesses.Persistent = persistent
+		metricBlockedProcesses.With(prometheus.Labels{}).Set(float64(cr.BlockedProcesses.CurrentCount))
+		metricBlockedProcessesPersistent.With(prometheus.Labels{}).Set(float64(cr.BlockedProcesses.PersistentCount))
+	} else {
+		// Disabled (empty name regexes, e.g., a config push removed them):
+		// drop state carried over from a previously enabled window so that a
+		// re-enabled check re-earns the persistence threshold from scratch,
+		// close any active episode (marks the disabled window with a recovery
+		// event, resetting the reboot-escalation window), and zero the gauges
+		// so they do not report stale counts while disabled.
+		c.blockedTracker.reset()
+		c.clearBlockedProcessEpisode(cr.ts, "D-state process checking disabled (empty name regexes)")
+		metricBlockedProcesses.With(prometheus.Labels{}).Set(0)
+		metricBlockedProcessesPersistent.With(prometheus.Labels{}).Set(0)
+	}
+
 	if cr.ZombieProcesses > c.zombieProcessCountThresholdUnhealthy {
 		// exceeded high threshold, mark unhealthy
 		cr.health = apiv1.HealthStateTypeUnhealthy
@@ -377,6 +424,12 @@ func (c *component) Check() components.CheckResult {
 		cr.reason = fmt.Sprintf("too many zombie processes (degraded state threshold: %d)", c.zombieProcessCountThresholdDegraded)
 		cr.suggestedActions = defaultSuggestedActionsForFd
 		log.Logger.Warnw(cr.reason, "count", cr.ZombieProcesses)
+		return cr
+	}
+
+	// evaluate persistent D-state (blocked) processes after zombie checks;
+	// returns true if it determined the final health state for this check
+	if !blockedThresholds.IsZero() && c.evaluateBlockedProcesses(cr, blockedThresholds) {
 		return cr
 	}
 
@@ -516,6 +569,7 @@ type checkResult struct {
 	Platform                  Platform                          `json:"platform"`
 	Uptimes                   Uptimes                           `json:"uptimes"`
 	ZombieProcesses           int                               `json:"zombie_processes"`
+	BlockedProcesses          BlockedProcesses                  `json:"blocked_processes"`
 	FileDescriptors           FileDescriptors                   `json:"file_descriptors"`
 
 	// timestamp of the last check
@@ -593,6 +647,8 @@ func (cr *checkResult) String() string {
 	table.Append([]string{"Platform Version", cr.Platform.Version})
 	table.Append([]string{"Uptime", uptimeHumanized})
 	table.Append([]string{"Zombie Process Count", fmt.Sprintf("%d", cr.ZombieProcesses)})
+	table.Append([]string{"Blocked Process Count (D-state)", fmt.Sprintf("%d", cr.BlockedProcesses.CurrentCount)})
+	table.Append([]string{"Persistent Blocked Process Count", fmt.Sprintf("%d", cr.BlockedProcesses.PersistentCount)})
 
 	table.Append([]string{"File Descriptor Running PIDs", fmt.Sprintf("%d", cr.FileDescriptors.RunningPIDs)})
 	table.Append([]string{"File Descriptor Usage", fmt.Sprintf("%d", cr.FileDescriptors.Usage)})
@@ -688,4 +744,216 @@ func calcUsagePct(usage, limit uint64) float64 {
 		return float64(usage) / float64(limit) * 100
 	}
 	return 0
+}
+
+const (
+	// EventNameBlockedProcessesPersistent is emitted on the rising edge of a
+	// persistent blocked-process (Linux D-state) episode (LEP-6029).
+	EventNameBlockedProcessesPersistent = "blocked_processes_persistent"
+	// EventNameBlockedProcessesRecovered is emitted when a persistent
+	// blocked-process episode clears.
+	EventNameBlockedProcessesRecovered = "blocked_processes_recovered"
+)
+
+// evaluateBlockedProcesses sets the health state based on persistent
+// D-state processes. Returns true if it determined the final health state.
+//
+// Policy (LEP-6029):
+//   - no persistent blocked processes: clear any active episode, no opinion
+//     (returns false so other checks proceed)
+//   - persistent blocked processes whose names match the escalation regexes:
+//     unhealthy + reboot suggestion; after DefaultBlockedProcessRebootThreshold
+//     reboots without recovery, suggest hardware inspection instead
+//     (same escalation model as the XID component)
+//   - other persistent blocked processes: degraded, no repair suggestion
+//
+// Why degraded vs unhealthy: a persistent D-state process is never ignored --
+// the kernel wait underneath it is not completing, and SIGKILL cannot clear
+// the task (verified on dev01 2026-08-12: containerd teardown wedged on a
+// D-state dd while the pod kept reporting "Running"). But the stuck name is
+// the only signal about which subsystem wedged. A non-matching name (storage,
+// NFS, any driver) means "something is stuck on this node, investigate" --
+// degraded, no repair suggestion. A matching name (default ^nvidia) means
+// the GPU driver path is implicated, as in the LEP-6029 incident -- unhealthy,
+// with reboot suggested because a node-local, unkillable kernel wait leaves
+// no softer remedy. If reboots do not clear the condition, the wedge likely
+// sits in hardware or firmware rather than transient driver state, hence the
+// escalation to hardware inspection.
+func (c *component) evaluateBlockedProcesses(cr *checkResult, thresholds BlockedProcessThresholds) bool {
+	if cr.BlockedProcesses.PersistentCount == 0 {
+		c.clearBlockedProcessEpisode(cr.ts, "persistent blocked processes cleared")
+		return false
+	}
+
+	matched := matchAnyBlockedProcess(cr.BlockedProcesses.Persistent, thresholds)
+
+	summary := summarizeBlockedProcesses(cr.BlockedProcesses.Persistent)
+
+	if len(matched) == 0 {
+		cr.health = apiv1.HealthStateTypeDegraded
+		cr.reason = fmt.Sprintf("persistent D-state (uninterruptible sleep) processes detected (persistent: %d): %s",
+			cr.BlockedProcesses.PersistentCount, summary)
+		log.Logger.Warnw(cr.reason, "persistentCount", cr.BlockedProcesses.PersistentCount)
+		c.markBlockedProcessEpisode(cr)
+		return true
+	}
+
+	reboots := c.countBlockedEpisodeReboots(cr.ts)
+	action := apiv1.RepairActionTypeRebootSystem
+	description := "reboot the system to clear persistent D-state processes stuck in uninterruptible kernel waits"
+	if reboots >= DefaultBlockedProcessRebootThreshold {
+		action = apiv1.RepairActionTypeHardwareInspection
+		description = fmt.Sprintf("persistent D-state processes reappeared after %d reboots; recommend hardware/driver inspection instead of another reboot", reboots)
+	}
+
+	cr.health = apiv1.HealthStateTypeUnhealthy
+	cr.reason = fmt.Sprintf("persistent D-state processes matching escalation rules %q: %s",
+		strings.Join(thresholds.NameRegexes, ","), summary)
+	cr.suggestedActions = &apiv1.SuggestedActions{
+		Description:   description,
+		RepairActions: []apiv1.RepairActionType{action},
+	}
+	log.Logger.Warnw(cr.reason, "persistentCount", cr.BlockedProcesses.PersistentCount, "reboots", reboots, "action", action)
+	c.markBlockedProcessEpisode(cr)
+	return true
+}
+
+// matchAnyBlockedProcess returns the persistent blocked processes whose names
+// match the configured escalation regexes.
+func matchAnyBlockedProcess(persistent []BlockedProcess, thresholds BlockedProcessThresholds) []BlockedProcess {
+	matched := make([]BlockedProcess, 0, len(persistent))
+	for _, bp := range persistent {
+		if thresholds.MatchesName(bp.Name) {
+			matched = append(matched, bp)
+		}
+	}
+	return matched
+}
+
+// summarizeBlockedProcesses renders a bounded human-readable summary of
+// persistent blocked processes, e.g. "pid=1234 name=nvidia-smi blocked=6m5s".
+func summarizeBlockedProcesses(persistent []BlockedProcess) string {
+	const maxSummary = 3
+	parts := make([]string, 0, min(len(persistent), maxSummary))
+	for i, bp := range persistent {
+		if i >= maxSummary {
+			parts = append(parts, fmt.Sprintf("+%d more", len(persistent)-maxSummary))
+			break
+		}
+		parts = append(parts, fmt.Sprintf("pid=%d name=%s blocked=%s consecutive_checks=%d",
+			bp.PID, bp.Name, time.Duration(bp.BlockedSeconds*int64(time.Second)).Round(time.Second), bp.ConsecutiveChecks))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// markBlockedProcessEpisode records the rising edge of a persistent
+// blocked-process episode in the event store (bounded payload).
+func (c *component) markBlockedProcessEpisode(cr *checkResult) {
+	c.blockedEpisodeMu.Lock()
+	active := c.blockedEpisodeActive
+	c.blockedEpisodeActive = true
+	c.blockedEpisodeMu.Unlock()
+
+	if active || c.eventBucket == nil {
+		return
+	}
+
+	detail, err := json.Marshal(cr.BlockedProcesses)
+	if err != nil {
+		log.Logger.Warnw("failed to marshal blocked processes for event", "error", err)
+		detail = nil
+	}
+	ev := eventstore.Event{
+		Component: Name,
+		Time:      cr.ts,
+		Name:      EventNameBlockedProcessesPersistent,
+		Type:      string(apiv1.EventTypeWarning),
+		Message:   cr.reason,
+	}
+	if detail != nil {
+		ev.ExtraInfo = map[string]string{"blocked_processes": string(detail)}
+	}
+	if err := c.eventBucket.Insert(c.ctx, ev); err != nil {
+		log.Logger.Warnw("failed to insert blocked processes event", "error", err)
+	}
+}
+
+// clearBlockedProcessEpisode records the falling edge of a persistent
+// blocked-process episode in the event store: recovery, operator set-healthy,
+// or the check being disabled. All three insert EventNameBlockedProcessesRecovered
+// because countBlockedEpisodeReboots anchors the reboot-escalation window on
+// that event name; the message distinguishes the cause for forensics.
+func (c *component) clearBlockedProcessEpisode(now time.Time, message string) {
+	c.blockedEpisodeMu.Lock()
+	active := c.blockedEpisodeActive
+	c.blockedEpisodeActive = false
+	c.blockedEpisodeMu.Unlock()
+
+	if !active || c.eventBucket == nil {
+		return
+	}
+
+	if err := c.eventBucket.Insert(c.ctx, eventstore.Event{
+		Component: Name,
+		Time:      now,
+		Name:      EventNameBlockedProcessesRecovered,
+		Type:      string(apiv1.EventTypeInfo),
+		Message:   message,
+	}); err != nil {
+		log.Logger.Warnw("failed to insert blocked processes recovery event", "error", err)
+	}
+}
+
+// countBlockedEpisodeReboots counts reboot events since the most recent
+// blocked-process recovery (or within the lookback window if the condition
+// never recovered), mirroring the XID component's escalation model:
+// reboots that fail to clear the condition escalate the suggested action from
+// reboot to hardware inspection.
+//
+// NOTE: the escalation lookback is the fixed eventstore.DefaultRetention
+// (3 days), NOT the configured event retention (--events-retention-period,
+// default 14 days): reboots older than 3 days remain stored but no longer
+// count toward hardware-inspection escalation. This is deliberate for the
+// initial rollout (bounded escalation memory) but intentionally inconsistent
+// with the xid component, which wires its lookback to
+// --events-retention-period unless --xid-lookback-period is set (see
+// cmd/gpud/run/command.go). For strict xid parity, wire this lookback to the
+// retention flag the same way.
+func (c *component) countBlockedEpisodeReboots(now time.Time) int {
+	if c.rebootEventStore == nil {
+		return 0
+	}
+
+	since := now.Add(-eventstore.DefaultRetention)
+
+	cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+	defer ccancel()
+
+	reboots, err := c.rebootEventStore.GetRebootEvents(cctx, since)
+	if err != nil {
+		log.Logger.Warnw("failed to get reboot events for blocked process escalation", "error", err)
+		return 0
+	}
+
+	var lastRecovery time.Time
+	if c.eventBucket != nil {
+		evs, err := c.eventBucket.Get(cctx, since)
+		if err != nil {
+			log.Logger.Warnw("failed to get os events for blocked process escalation", "error", err)
+		} else {
+			for _, ev := range evs {
+				if ev.Name == EventNameBlockedProcessesRecovered && ev.Time.After(lastRecovery) {
+					lastRecovery = ev.Time
+				}
+			}
+		}
+	}
+
+	count := 0
+	for _, ev := range reboots {
+		if ev.Time.After(lastRecovery) {
+			count++
+		}
+	}
+	return count
 }

@@ -24,6 +24,7 @@ import (
 	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
+	componentsos "github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
@@ -225,6 +226,10 @@ type Session struct {
 	setDefaultNFSGroupConfigsFunc          func(cfgs pkgnfschecker.Configs)
 	setDefaultXIDThresholdsFunc            func(thresholds componentsxid.Thresholds)
 	setDefaultTemperatureThresholdsFunc    func(threshold componentstemperature.Thresholds)
+	// setDefaultOSBlockedProcessThresholdsFunc applies os D-state thresholds
+	// pushed via updateConfig (e.g., node-group config); returns an error on
+	// invalid regexes so the control plane gets feedback.
+	setDefaultOSBlockedProcessThresholdsFunc func(thresholds componentsos.BlockedProcessThresholds) error
 
 	nvmlInstance       nvidianvml.Instance
 	metricsStore       pkgmetrics.Store
@@ -384,12 +389,13 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 
 		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
 
-		setDefaultIbExpectedPortStatesFunc:     componentsnvidiainfiniband.SetDefaultExpectedPortStates,
-		setDefaultNVLinkExpectedLinkStatesFunc: componentsnvidianvlink.SetDefaultExpectedLinkStates,
-		setDefaultGPUCountsFunc:                componentsnvidiagpucounts.SetDefaultExpectedGPUCounts,
-		setDefaultNFSGroupConfigsFunc:          componentsnfs.SetDefaultConfigs,
-		setDefaultXIDThresholdsFunc:            componentsxid.SetDefaultThresholds,
-		setDefaultTemperatureThresholdsFunc:    componentstemperature.SetDefaultMarginThreshold,
+		setDefaultIbExpectedPortStatesFunc:       componentsnvidiainfiniband.SetDefaultExpectedPortStates,
+		setDefaultNVLinkExpectedLinkStatesFunc:   componentsnvidianvlink.SetDefaultExpectedLinkStates,
+		setDefaultGPUCountsFunc:                  componentsnvidiagpucounts.SetDefaultExpectedGPUCounts,
+		setDefaultNFSGroupConfigsFunc:            componentsnfs.SetDefaultConfigs,
+		setDefaultXIDThresholdsFunc:              componentsxid.SetDefaultThresholds,
+		setDefaultTemperatureThresholdsFunc:      componentstemperature.SetDefaultMarginThreshold,
+		setDefaultOSBlockedProcessThresholdsFunc: componentsos.SetDefaultBlockedProcessThresholds,
 
 		nvmlInstance:            op.nvmlInstance,
 		metricsStore:            op.metricsStore,
