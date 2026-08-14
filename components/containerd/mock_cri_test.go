@@ -169,6 +169,39 @@ func TestCheckContainerdRunning_ConnectErrorWithMockey(t *testing.T) {
 	})
 }
 
+func TestCheckCRIORunning_WithMockey(t *testing.T) {
+	srv := &fakeRuntimeServer{
+		version: "1.30.3",
+	}
+	endpoint, cleanup := startFakeRuntimeServer(t, srv)
+	t.Cleanup(cleanup)
+
+	addr, err := parseUnixEndpoint(endpoint)
+	require.NoError(t, err)
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(dialUnix))
+	require.NoError(t, err)
+
+	mockey.PatchConvey("CheckCRIORunning returns true when the CRI-O endpoint answers", t, func() {
+		mockey.Mock(connect).To(func(_ context.Context, _ string) (*grpc.ClientConn, error) {
+			return conn, nil
+		}).Build()
+
+		assert.True(t, CheckCRIORunning(context.Background()))
+	})
+}
+
+func TestCheckCRIORunning_ConnectErrorWithMockey(t *testing.T) {
+	mockey.PatchConvey("CheckCRIORunning returns false on connect error", t, func() {
+		// the missing-socket path is the common one: on a node without CRI-O,
+		// connect fails its os.Stat pre-check and CheckCRIORunning must say
+		// "not running" so the containerd failure logic stays in charge
+		mockey.Mock(connect).To(func(_ context.Context, _ string) (*grpc.ClientConn, error) {
+			return nil, errors.New("socket file does not exist: /run/crio/crio.sock")
+		}).Build()
+		assert.False(t, CheckCRIORunning(context.Background()))
+	})
+}
+
 func TestCheckSocketExists_WithMockey(t *testing.T) {
 	mockey.PatchConvey("CheckSocketExists respects Stat results", t, func() {
 		tempFile, err := os.CreateTemp("", "containerd-sock")

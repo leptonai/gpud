@@ -170,13 +170,26 @@ gpud:
   # Both use hostPath DirectoryOrCreate, so the pod still starts without containerd.
   mountContainerd: true
 
+  # Bind-mount the host's CRI-O dir (default true):
+  #   /run/crio (read-write)        -> crio.sock CRI endpoint, dialed to detect
+  #                                    that CRI-O is the node's runtime so a
+  #                                    missing containerd socket is not
+  #                                    misreported as unhealthy
+  mountCrio: true
+
   # Check whether the host's containerd service is active (exit code 0 = active),
   # mapped to "gpud run --containerd-service-active-commands".
   containerdServiceActiveCommands: "nsenter --target 1 --mount -- systemctl is-active containerd"
 ```
 
-Set `gpud.mountContainerd: false` and `gpud.containerdServiceActiveCommands: ""`
-on nodes that do not run containerd (e.g. docker or cri-o only).
+On nodes that run CRI-O instead of containerd, keep `gpud.mountCrio: true`
+(the default): the component dials the CRI endpoint at `/run/crio/crio.sock`
+to recognize a live CRI-O node and treats the absent containerd socket as
+expected, not unhealthy. Leaving the default on nodes without CRI-O is also
+safe: the mount creates an empty `/run/crio`, gpud finds no `crio.sock`, and
+the containerd check behaves as before. On nodes that run neither containerd
+nor CRI-O, set `gpud.mountContainerd: false` and
+`gpud.containerdServiceActiveCommands: ""`.
 
 ### Session Token from a Secret
 

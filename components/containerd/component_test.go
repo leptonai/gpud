@@ -1984,6 +1984,179 @@ func TestCheckOnceSocketNotExistsComprehensive(t *testing.T) {
 	assert.False(t, comp.lastCheckResult.ContainerdServiceActive)
 }
 
+// TestCheckSocketMissingButCRIOActive tests that a node whose active container
+// runtime is CRI-O (CRI-O socket present, containerd socket missing) is not
+// marked unhealthy, even though the containerd binary is installed.
+func TestCheckSocketMissingButCRIOActive(t *testing.T) {
+	ctx := context.Background()
+
+	runningFuncCalled := false
+	serviceActiveFuncCalled := false
+	listAllSandboxesFuncCalled := false
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true // containerd binary is installed
+		},
+		checkSocketExistsFunc: func() bool {
+			return false // containerd socket does not exist
+		},
+		checkCRIORunningFunc: func(ctx context.Context) bool {
+			return true // CRI-O answers its CRI endpoint -- CRI-O is the active runtime
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			runningFuncCalled = true
+			return false
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			serviceActiveFuncCalled = true
+			return false, nil
+		},
+		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+			listAllSandboxesFuncCalled = true
+			return nil, nil
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		endpoint: "unix:///mock/endpoint",
+	}
+
+	// even beyond the consecutive-missing threshold, the node must stay healthy
+	for range socketMissingConsecutiveThreshold + 2 {
+		cr := comp.Check()
+		require.NotNil(t, cr)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastCheckResult.health)
+		assert.Contains(t, comp.lastCheckResult.reason, "CRI-O is the active container runtime")
+		assert.Nil(t, comp.lastCheckResult.err)
+	}
+
+	// the missing-socket counter must not accumulate on CRI-O nodes
+	assert.Equal(t, 0, comp.socketMissingCount)
+
+	// containerd activeness checks must be skipped entirely on CRI-O nodes
+	assert.False(t, runningFuncCalled)
+	assert.False(t, serviceActiveFuncCalled)
+	assert.False(t, listAllSandboxesFuncCalled)
+}
+
+// TestCheckSocketMissingCRIONotPresent tests that the original socket-missing
+// behavior is preserved when CRI-O is not detected on the node.
+func TestCheckSocketMissingCRIONotPresent(t *testing.T) {
+	ctx := context.Background()
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkSocketExistsFunc: func() bool {
+			return false // containerd socket does not exist
+		},
+		checkCRIORunningFunc: func(ctx context.Context) bool {
+			return false // no CRI-O either
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		endpoint: "unix:///mock/endpoint",
+	}
+
+	for range socketMissingConsecutiveThreshold - 1 {
+		cr := comp.Check()
+		require.NotNil(t, cr)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastCheckResult.health)
+		assert.Contains(t, comp.lastCheckResult.reason, "socket file does not exist")
+	}
+
+	cr := runContainerdChecks(comp, 1)
+	require.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "socket file does not exist")
+	assert.Contains(t, cr.reason, "failed continuously")
+}
+
+// TestCheckSocketPresentWithCRIO tests that a node where containerd is running
+// (socket exists) is checked normally even when a CRI-O socket is also present.
+func TestCheckSocketPresentWithCRIO(t *testing.T) {
+	ctx := context.Background()
+
+	runningFuncCalled := false
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkSocketExistsFunc: func() bool {
+			return true // containerd socket exists
+		},
+		checkCRIORunningFunc: func(ctx context.Context) bool {
+			return true // CRI-O also running
+		},
+		checkContainerdRunningFunc: func(ctx context.Context) bool {
+			runningFuncCalled = true
+			return true
+		},
+		checkServiceActiveFunc: func(ctx context.Context) (bool, error) {
+			return true, nil
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		endpoint: "unix:///mock/endpoint",
+	}
+
+	cr := comp.Check()
+	require.NotNil(t, cr)
+	assert.True(t, runningFuncCalled)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, comp.lastCheckResult.health)
+	assert.Equal(t, "ok", comp.lastCheckResult.reason)
+}
+
+// TestCheckCRIOToContainerdTransition tests that the missing-socket counter is
+// reset while CRI-O is active, so a later CRI-O disappearance restarts the
+// consecutive-missing detection from zero.
+func TestCheckCRIOToContainerdTransition(t *testing.T) {
+	ctx := context.Background()
+	crioRunning := true
+
+	comp := &component{
+		ctx:    ctx,
+		cancel: func() {},
+		checkDependencyInstalledFunc: func() bool {
+			return true
+		},
+		checkSocketExistsFunc: func() bool {
+			return false // containerd socket never exists
+		},
+		checkCRIORunningFunc: func(ctx context.Context) bool {
+			return crioRunning
+		},
+		getTimeNowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+		endpoint: "unix:///mock/endpoint",
+	}
+
+	cr := runContainerdChecks(comp, socketMissingConsecutiveThreshold+2)
+	require.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Contains(t, cr.reason, "CRI-O is the active container runtime")
+
+	// CRI-O goes away: detection must restart from the first miss,
+	// not immediately trip the consecutive-failure threshold
+	crioRunning = false
+	cr = runContainerdChecks(comp, 1)
+	require.NotNil(t, cr)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Contains(t, cr.reason, "socket file does not exist")
+	assert.Contains(t, cr.reason, "detected 1/")
+}
+
 func Test_checkContainerdRunningFunc(t *testing.T) {
 	ctx := context.Background()
 
@@ -3900,6 +4073,13 @@ func TestContainerdSocketMissingFailureInjectorIntegration(t *testing.T) {
 	// Override checkDependencyInstalledFunc to return true (containerd is installed)
 	c.checkDependencyInstalledFunc = func() bool {
 		return true
+	}
+
+	// Keep this test independent of the host: New wires the real
+	// CheckCRIORunning, which would take the CRI-O skip path on a machine
+	// where a CRI-O endpoint happens to be reachable.
+	c.checkCRIORunningFunc = func(ctx context.Context) bool {
+		return false
 	}
 
 	// Disable uptime check so it doesn't override the health state when containerd uptime < threshold

@@ -64,6 +64,7 @@ type component struct {
 
 	checkDependencyInstalledFunc  func() bool
 	checkSocketExistsFunc         func() bool
+	checkCRIORunningFunc          func(context.Context) bool
 	checkContainerdRunningFunc    func(context.Context) bool
 	checkServiceActiveFunc        func(context.Context) (bool, error)
 	getContainerdUptimeFunc       func() (*time.Duration, error)
@@ -109,6 +110,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		checkDependencyInstalledFunc: checkContainerdInstalled,
 		checkSocketExistsFunc:        checkSocketExistsFunc,
+		checkCRIORunningFunc:         CheckCRIORunning,
 		checkContainerdRunningFunc:   CheckContainerdRunning,
 		// checkServiceActiveFunc defaults to the in-namespace systemd.IsActive
 		// check. When ContainerdServiceActiveCommands is set (e.g. wrapping
@@ -263,6 +265,29 @@ func (c *component) Check() components.CheckResult {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "containerd not installed"
 		return cr
+	}
+
+	// An installed containerd binary does not make containerd the node's
+	// container runtime: BYOK clusters that use CRI-O still ship the
+	// containerd binary (the gpud image installs containerd.io), but
+	// containerd is never started and its socket never appears. Without this
+	// skip, the activeness check below marks such nodes Unhealthy after five
+	// consecutive misses even though nothing is wrong (LEP-6128).
+	//
+	// CRI-O is probed with a real CRI connection (CheckCRIORunning) rather
+	// than a bare socket stat so a stale socket left by a crashed CRI-O does
+	// not spoof a containerd node into skipping a genuine containerd outage.
+	if c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() &&
+		c.checkCRIORunningFunc != nil {
+		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
+		crioRunning := c.checkCRIORunningFunc(cctx)
+		ccancel()
+		if crioRunning {
+			c.recordSocketMissing(false)
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = "containerd installed but CRI-O is the active container runtime, skipping containerd checks"
+			return cr
+		}
 	}
 
 	// below are the checks in case "containerd" is installed, thus requires activeness checks

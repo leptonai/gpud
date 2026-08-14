@@ -445,6 +445,10 @@ func TestGetMachineInfo_LinuxBranches_WithMockey(t *testing.T) {
 		mockey.Mock(componentcontainerd.GetVersion).To(func(ctx context.Context, endpoint string) (string, error) {
 			return "", errors.New("containerd version failed")
 		}).Build()
+		// Pin CRI-O detection so this test stays host-independent: with
+		// ContainerRuntimeVersion empty, GetMachineInfo would otherwise probe
+		// the host's real CRI-O endpoint and could set the version on a CRI-O box.
+		mockey.Mock(componentcontainerd.CheckCRIORunning).To(func(ctx context.Context) bool { return false }).Build()
 		mockey.Mock(componenttailscale.CheckTailscaleInstalled).To(func() bool { return true }).Build()
 		mockey.Mock(componenttailscale.GetTailscaleVersion).To(func() (string, error) {
 			return "", errors.New("tailscale version failed")
@@ -455,5 +459,78 @@ func TestGetMachineInfo_LinuxBranches_WithMockey(t *testing.T) {
 		require.NotNil(t, info)
 		assert.Equal(t, "", info.ContainerRuntimeVersion)
 		assert.Equal(t, "", info.TailscaleVersion)
+	})
+
+	mockey.PatchConvey("GetMachineInfo falls back to CRI-O version when containerd is absent", t, func() {
+		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
+		mockey.Mock(GetMachineGPUInfo).To(func(nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {
+			return &apiv1.MachineGPUInfo{}, nil
+		}).Build()
+		mockey.Mock(GetMachineDiskInfo).To(func(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
+			return &apiv1.MachineDiskInfo{}, nil
+		}).Build()
+		// containerd binary present but not running (CRI-O node): containerd
+		// version stays empty, so the CRI-O fallback must supply the runtime.
+		mockey.Mock(componentcontainerd.CheckContainerdInstalled).To(func() bool { return true }).Build()
+		mockey.Mock(componentcontainerd.CheckContainerdRunning).To(func(ctx context.Context) bool { return false }).Build()
+		mockey.Mock(componentcontainerd.CheckCRIORunning).To(func(ctx context.Context) bool { return true }).Build()
+		mockey.Mock(componentcontainerd.GetVersion).To(func(ctx context.Context, endpoint string) (string, error) {
+			if endpoint == componentcontainerd.DefaultCRIOEndpoint {
+				return "1.30.3", nil
+			}
+			return "", errors.New("containerd endpoint unreachable")
+		}).Build()
+		mockey.Mock(componenttailscale.CheckTailscaleInstalled).To(func() bool { return false }).Build()
+
+		info, err := GetMachineInfo(baseNVML)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "cri-o://1.30.3", info.ContainerRuntimeVersion)
+	})
+
+	mockey.PatchConvey("GetMachineInfo keeps runtime empty when the CRI-O version lookup fails", t, func() {
+		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
+		mockey.Mock(GetMachineGPUInfo).To(func(nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {
+			return &apiv1.MachineGPUInfo{}, nil
+		}).Build()
+		mockey.Mock(GetMachineDiskInfo).To(func(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
+			return &apiv1.MachineDiskInfo{}, nil
+		}).Build()
+		// CRI-O is live but its Version RPC fails: the runtime must stay empty
+		// rather than report a version we never actually read.
+		mockey.Mock(componentcontainerd.CheckContainerdInstalled).To(func() bool { return false }).Build()
+		mockey.Mock(componentcontainerd.CheckContainerdRunning).To(func(ctx context.Context) bool { return false }).Build()
+		mockey.Mock(componentcontainerd.CheckCRIORunning).To(func(ctx context.Context) bool { return true }).Build()
+		mockey.Mock(componentcontainerd.GetVersion).To(func(ctx context.Context, endpoint string) (string, error) {
+			return "", errors.New("cri-o version failed")
+		}).Build()
+		mockey.Mock(componenttailscale.CheckTailscaleInstalled).To(func() bool { return false }).Build()
+
+		info, err := GetMachineInfo(baseNVML)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "", info.ContainerRuntimeVersion)
+	})
+
+	mockey.PatchConvey("GetMachineInfo does not double-prefix an already-prefixed CRI-O version", t, func() {
+		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
+		mockey.Mock(GetMachineGPUInfo).To(func(nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {
+			return &apiv1.MachineGPUInfo{}, nil
+		}).Build()
+		mockey.Mock(GetMachineDiskInfo).To(func(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
+			return &apiv1.MachineDiskInfo{}, nil
+		}).Build()
+		mockey.Mock(componentcontainerd.CheckContainerdInstalled).To(func() bool { return false }).Build()
+		mockey.Mock(componentcontainerd.CheckContainerdRunning).To(func(ctx context.Context) bool { return false }).Build()
+		mockey.Mock(componentcontainerd.CheckCRIORunning).To(func(ctx context.Context) bool { return true }).Build()
+		mockey.Mock(componentcontainerd.GetVersion).To(func(ctx context.Context, endpoint string) (string, error) {
+			return "cri-o://1.31.0", nil
+		}).Build()
+		mockey.Mock(componenttailscale.CheckTailscaleInstalled).To(func() bool { return false }).Build()
+
+		info, err := GetMachineInfo(baseNVML)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "cri-o://1.31.0", info.ContainerRuntimeVersion)
 	})
 }
