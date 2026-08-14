@@ -2,7 +2,10 @@ package process
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -53,6 +56,59 @@ type processStatus struct {
 
 func (p *processStatus) PID() int32 {
 	return p.Pid
+}
+
+// Name returns the process comm. On systems with procfs (Linux, or when
+// HOST_PROC points at an alternate procfs root, e.g., /host/proc in debug
+// pods) it reads /proc/<pid>/comm only; elsewhere it falls back to the
+// platform-native gopsutil implementation.
+//
+// We deliberately avoid gopsutil's Process.Name() on Linux: for names
+// truncated to 15 chars (TASK_COMM_LEN-1) it falls back to reading
+// /proc/<pid>/cmdline, which requires mm access (access_remote_vm) and itself
+// blocks in uninterruptible sleep when the target task is stuck in a teardown
+// that holds its mmap_lock (e.g., a wedged GPU driver teardown such as
+// uvm_va_space_destroy). The D-state tracker exists to observe such tasks
+// without joining their wait; comm is served from task_struct and never
+// blocks. The name is kernel-truncated to 15 chars, consistent with ps(1).
+//
+// This is not theoretical: the gopsutil cmdline fallback was observed running
+// in production during the LEP-6029 canary validation (2026-08-13), where the
+// daemon reported the full 21-char name "nvidia-dstate-blocker" for a D-state
+// process while ps showed the 15-char comm "nvidia-dstate-b".
+//
+// The procfs-availability check runs per call (one stat per blocked process
+// per minute — negligible) so tests/dev hosts can toggle HOST_PROC between
+// cases. When procfs exists but the per-pid comm file does not, the process
+// exited between enumeration and read; the error is returned to the caller,
+// which already tolerates that PID churn (see countProcessesByStatus).
+func (p *processStatus) Name() (string, error) {
+	if _, err := os.Stat(procFSRoot()); err == nil {
+		return ReadComm(p.Pid)
+	}
+	return p.Process.Name()
+}
+
+// procFSRoot returns the procfs root: HOST_PROC if set (as gopsutil honors),
+// else /proc.
+func procFSRoot() string {
+	if v := os.Getenv("HOST_PROC"); v != "" {
+		return v
+	}
+	return "/proc"
+}
+
+// ReadComm reads the process name (comm) from <procfs>/<pid>/comm and returns
+// it trimmed. It never reads /proc/<pid>/cmdline (which can block on D-state
+// tasks holding their mmap_lock). A missing file (PID exited between
+// enumeration and read) returns an error; callers must tolerate that churn
+// rather than assume the process still exists.
+func ReadComm(pid int32) (string, error) {
+	b, err := os.ReadFile(filepath.Join(procFSRoot(), strconv.Itoa(int(pid)), "comm"))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
 }
 
 // FindProcessByName finds a process by its name.
