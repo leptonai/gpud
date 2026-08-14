@@ -38,6 +38,14 @@ func blockedList(procs ...process.ProcessStatus) []process.ProcessStatus {
 	return procs
 }
 
+// runUpdate adapts blockedProcessTracker.update to the (count, list) pair for
+// the tracker tests; transition fields (firstSeen/cleared) are covered
+// separately in TestBlockedProcessTracker_Transitions.
+func runUpdate(tr *blockedProcessTracker, now time.Time, blocked []process.ProcessStatus, threshold int) (int, []BlockedProcess) {
+	upd := tr.update(now, blocked, threshold)
+	return upd.persistentCount, upd.persistent
+}
+
 // mustBlockedProcessThresholds builds thresholds with compiled regexes for tests.
 func mustBlockedProcessThresholds(t *testing.T, threshold int, regexes ...string) BlockedProcessThresholds {
 	t.Helper()
@@ -109,7 +117,7 @@ func TestBlockedProcessTracker_NoBlocked(t *testing.T) {
 	tr := newBlockedProcessTracker()
 	now := time.Unix(1000, 0)
 	for i := 0; i < 10; i++ {
-		count, persistent := tr.update(now.Add(time.Duration(i)*time.Minute), nil, 5)
+		count, persistent := runUpdate(tr, now.Add(time.Duration(i)*time.Minute), nil, 5)
 		assert.Zero(t, count)
 		assert.Empty(t, persistent)
 	}
@@ -121,17 +129,17 @@ func TestBlockedProcessTracker_TransientNotFlagged(t *testing.T) {
 
 	// process blocked for 4 consecutive checks (< threshold of 5)
 	for i := 0; i < 4; i++ {
-		count, persistent := tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+		count, persistent := runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 		assert.Zero(t, count, "check %d must not be persistent yet", i)
 		assert.Empty(t, persistent)
 	}
 
 	// then disappears for good (2 consecutive absences drop the entry);
 	// when a process with the same PID appears later, the counter restarts
-	tr.update(now.Add(4*time.Minute), nil, 5)
-	tr.update(now.Add(5*time.Minute), nil, 5)
+	runUpdate(tr, now.Add(4*time.Minute), nil, 5)
+	runUpdate(tr, now.Add(5*time.Minute), nil, 5)
 	for i := 6; i < 10; i++ {
-		count, persistent := tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+		count, persistent := runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 		assert.Zero(t, count, "check %d must restart counting after recovery", i)
 		assert.Empty(t, persistent)
 	}
@@ -144,7 +152,7 @@ func TestBlockedProcessTracker_Persistent(t *testing.T) {
 	var count int
 	var persistent []BlockedProcess
 	for i := 0; i < 5; i++ {
-		count, persistent = tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+		count, persistent = runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	}
 	require.Equal(t, 1, count)
 	require.Len(t, persistent, 1)
@@ -158,7 +166,7 @@ func TestBlockedProcessTracker_Persistent(t *testing.T) {
 	assert.Equal(t, 5, bp.ConsecutiveChecks)
 
 	// keeps being reported on the 6th check
-	count, persistent = tr.update(now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+	count, persistent = runUpdate(tr, now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	require.Equal(t, 1, count)
 	assert.Equal(t, 6, persistent[0].ConsecutiveChecks)
 }
@@ -168,7 +176,7 @@ func TestBlockedProcessTracker_ThresholdOneFlagsImmediately(t *testing.T) {
 	now := time.Unix(1000, 0)
 
 	// threshold 1 (one-off gpud scan): a single observation is persistent
-	count, persistent := tr.update(now, blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 1)
+	count, persistent := runUpdate(tr, now, blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 1)
 	require.Equal(t, 1, count)
 	require.Len(t, persistent, 1)
 	assert.Equal(t, 1, persistent[0].ConsecutiveChecks)
@@ -181,10 +189,10 @@ func TestBlockedProcessTracker_NonPositiveThresholdFallsBackToDefault(t *testing
 
 	// threshold 0 must behave as DefaultBlockedProcessPersistenceThreshold
 	for i := 0; i < DefaultBlockedProcessPersistenceThreshold-1; i++ {
-		count, _ := tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 0)
+		count, _ := runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 0)
 		assert.Zero(t, count)
 	}
-	count, persistent := tr.update(now.Add((DefaultBlockedProcessPersistenceThreshold-1)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 0)
+	count, persistent := runUpdate(tr, now.Add((DefaultBlockedProcessPersistenceThreshold-1)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 0)
 	require.Equal(t, 1, count)
 	require.Len(t, persistent, 1)
 }
@@ -194,19 +202,19 @@ func TestBlockedProcessTracker_Reset(t *testing.T) {
 	now := time.Unix(1000, 0)
 
 	for i := 0; i < 5; i++ {
-		tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+		runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	}
-	count, _ := tr.update(now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+	count, _ := runUpdate(tr, now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	require.Equal(t, 1, count)
 
 	tr.reset()
 
 	// after reset the same process must re-earn the persistence threshold
 	for i := 6; i < 10; i++ {
-		count, _ := tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+		count, _ := runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 		assert.Zero(t, count, "check %d after reset must not be persistent yet", i)
 	}
-	count, persistent := tr.update(now.Add(10*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+	count, persistent := runUpdate(tr, now.Add(10*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	require.Equal(t, 1, count)
 	require.Len(t, persistent, 1)
 	assert.Equal(t, 5, persistent[0].ConsecutiveChecks)
@@ -220,16 +228,16 @@ func TestBlockedProcessTracker_SingleCheckAbsenceDoesNotReset(t *testing.T) {
 
 	// present for 4 checks
 	for i := 0; i < 4; i++ {
-		tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+		runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	}
 	// absent for 1 check (PID churn / transient /proc read error)
-	count, persistent := tr.update(now.Add(4*time.Minute), nil, 5)
+	count, persistent := runUpdate(tr, now.Add(4*time.Minute), nil, 5)
 	assert.Zero(t, count)
 	assert.Empty(t, persistent)
 
 	// present again: consecutive counter must NOT have reset; this is the 5th
 	// consecutive observation and must become persistent
-	count, persistent = tr.update(now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+	count, persistent = runUpdate(tr, now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	require.Equal(t, 1, count, "single-check absence must not reset persistence")
 	require.Len(t, persistent, 1)
 	assert.Equal(t, 5, persistent[0].ConsecutiveChecks)
@@ -240,22 +248,22 @@ func TestBlockedProcessTracker_RecoveryAfterTwoAbsences(t *testing.T) {
 	now := time.Unix(1000, 0)
 
 	for i := 0; i < 5; i++ {
-		tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+		runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	}
-	count, _ := tr.update(now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+	count, _ := runUpdate(tr, now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	require.Equal(t, 1, count)
 
 	// one absent check: still tracked and still reported persistent
-	count, _ = tr.update(now.Add(6*time.Minute), nil, 5)
+	count, _ = runUpdate(tr, now.Add(6*time.Minute), nil, 5)
 	assert.Equal(t, 1, count, "single absence is within grace and must not clear the condition")
 
 	// two consecutive absent checks: dropped (recovered)
-	count, persistent := tr.update(now.Add(7*time.Minute), nil, 5)
+	count, persistent := runUpdate(tr, now.Add(7*time.Minute), nil, 5)
 	assert.Zero(t, count)
 	assert.Empty(t, persistent)
 
 	// stays cleared
-	count, _ = tr.update(now.Add(8*time.Minute), nil, 5)
+	count, _ = runUpdate(tr, now.Add(8*time.Minute), nil, 5)
 	assert.Zero(t, count)
 }
 
@@ -268,16 +276,47 @@ func TestBlockedProcessTracker_BurstChecksDoNotInflatePersistence(t *testing.T) 
 	// consecutive count reaches 10, but the wall-clock duration gate
 	// (>= 4min for threshold 5) must not flag the process as persistent
 	for i := 0; i < 10; i++ {
-		count, persistent := tr.update(now.Add(time.Duration(i)*time.Second), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+		count, persistent := runUpdate(tr, now.Add(time.Duration(i)*time.Second), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 		assert.Zero(t, count, "burst check %d must not be persistent", i)
 		assert.Empty(t, persistent)
 	}
 
 	// once the wall-clock duration is reached, it fires
-	count, persistent := tr.update(now.Add(4*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+	count, persistent := runUpdate(tr, now.Add(4*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
 	require.Equal(t, 1, count)
 	require.Len(t, persistent, 1)
 	assert.Equal(t, 11, persistent[0].ConsecutiveChecks)
+}
+
+func TestBlockedProcessTracker_Transitions(t *testing.T) {
+	tr := newBlockedProcessTracker()
+	now := time.Unix(1000, 0)
+
+	// first observation: reported as firstSeen (this is what the component
+	// logs for matched names), nothing cleared
+	upd := tr.update(now, blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+	require.Len(t, upd.firstSeen, 1)
+	assert.Equal(t, int32(100), upd.firstSeen[0].PID)
+	assert.Equal(t, "nvidia-smi", upd.firstSeen[0].Name)
+	assert.Equal(t, 1, upd.firstSeen[0].ConsecutiveChecks)
+	assert.Empty(t, upd.cleared)
+
+	// second observation: no longer first-seen, nothing cleared
+	upd = tr.update(now.Add(time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "nvidia-smi"}), 5)
+	assert.Empty(t, upd.firstSeen)
+	assert.Empty(t, upd.cleared)
+
+	// one absence within grace: not cleared (PID churn tolerance)
+	upd = tr.update(now.Add(2*time.Minute), nil, 5)
+	assert.Empty(t, upd.cleared)
+
+	// second consecutive absence: cleared, carrying the tracked metadata for
+	// the recovery log line
+	upd = tr.update(now.Add(3*time.Minute), nil, 5)
+	require.Len(t, upd.cleared, 1)
+	assert.Equal(t, int32(100), upd.cleared[0].PID)
+	assert.Equal(t, "nvidia-smi", upd.cleared[0].Name)
+	assert.Equal(t, 2, upd.cleared[0].ConsecutiveChecks)
 }
 
 func TestBlockedProcessTracker_NameErrorTolerated(t *testing.T) {
@@ -286,9 +325,9 @@ func TestBlockedProcessTracker_NameErrorTolerated(t *testing.T) {
 
 	// name read fails (e.g., process disappeared between enumeration and metadata read)
 	for i := 0; i < 5; i++ {
-		tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "", nameErr: errors.New("no such file")}), 5)
+		runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "", nameErr: errors.New("no such file")}), 5)
 	}
-	count, persistent := tr.update(now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "", nameErr: errors.New("no such file")}), 5)
+	count, persistent := runUpdate(tr, now.Add(5*time.Minute), blockedList(&mockProcessStatus{pid: 100, name: "", nameErr: errors.New("no such file")}), 5)
 	require.Equal(t, 1, count)
 	require.Len(t, persistent, 1)
 	assert.Equal(t, "", persistent[0].Name, "name error must be tolerated and recorded as empty")
@@ -298,7 +337,7 @@ func TestBlockedProcessTracker_NilEntriesSkipped(t *testing.T) {
 	tr := newBlockedProcessTracker()
 	now := time.Unix(1000, 0)
 	for i := 0; i < 6; i++ {
-		count, _ := tr.update(now.Add(time.Duration(i)*time.Minute), blockedList(nil, &mockProcessStatus{pid: 100, name: "nvidia-smi"}, nil), 5)
+		count, _ := runUpdate(tr, now.Add(time.Duration(i)*time.Minute), blockedList(nil, &mockProcessStatus{pid: 100, name: "nvidia-smi"}, nil), 5)
 		if i >= 4 {
 			assert.Equal(t, 1, count)
 		}
@@ -317,7 +356,7 @@ func TestBlockedProcessTracker_BoundedOutput(t *testing.T) {
 	var count int
 	var persistent []BlockedProcess
 	for i := 0; i < 5; i++ {
-		count, persistent = tr.update(now.Add(time.Duration(i)*time.Minute), many, 5)
+		count, persistent = runUpdate(tr, now.Add(time.Duration(i)*time.Minute), many, 5)
 	}
 	assert.Equal(t, maxBlockedProcessesOutput+5, count, "true persistent count must exceed the bounded list")
 	assert.Len(t, persistent, maxBlockedProcessesOutput, "output list must be bounded")

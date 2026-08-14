@@ -3,6 +3,7 @@ package os
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -148,6 +149,35 @@ func newBlockedProcessTracker() *blockedProcessTracker {
 	}
 }
 
+// logBlockedProcessTransitions writes clear audit log lines for D-state
+// processes whose names match the escalation regexes:
+//   - first seen: the moment a matching process is observed in D-state. Nodes
+//     can wedge within minutes of a persistent D-state process appearing
+//     (LEP-6029 canary validation, 2026-08-13 — canary-1's kubelet froze
+//     BEFORE the 5-check threshold fired), potentially before the
+//     persistence-stage alarm; the first-seen log preserves the early
+//     timeline in gpud.log.
+//   - cleared: when a matching process leaves D-state (recovered, before or
+//     after flagging).
+//
+// The persistence-stage alarm itself is logged separately (Warnw with the
+// suggested repair action) in evaluateBlockedProcesses.
+func logBlockedProcessTransitions(upd blockedProcessUpdate, thresholds BlockedProcessThresholds) {
+	for _, bp := range upd.firstSeen {
+		if thresholds.MatchesName(bp.Name) {
+			log.Logger.Infow("found process in D-state (uninterruptible sleep) matching escalation rules; tracking its persistence",
+				"pid", bp.PID, "name", bp.Name, "regexes", strings.Join(thresholds.NameRegexes, ","))
+		}
+	}
+	for _, bp := range upd.cleared {
+		if thresholds.MatchesName(bp.Name) {
+			log.Logger.Infow("D-state process matching escalation rules cleared",
+				"pid", bp.PID, "name", bp.Name,
+				"blockedSeconds", bp.BlockedSeconds, "consecutiveChecks", bp.ConsecutiveChecks)
+		}
+	}
+}
+
 // reset drops all tracked processes, e.g. when an operator marks the
 // component healthy: a process still blocked must re-earn the persistence
 // threshold before being flagged again.
@@ -157,17 +187,36 @@ func (t *blockedProcessTracker) reset() {
 	t.entries = make(map[int32]*blockedProcessEntry)
 }
 
+// blockedProcessUpdate is the result of one tracker update.
+type blockedProcessUpdate struct {
+	// persistentCount is the number of tracked processes that met the
+	// persistence threshold (may exceed len(persistent) when the output is
+	// capped).
+	persistentCount int
+	// persistent is the bounded list of persistent blocked processes.
+	persistent []BlockedProcess
+	// firstSeen lists processes observed blocked for the first time in this
+	// update. The component logs these at info level when their names match
+	// the escalation regexes: fast-wedging nodes can freeze before the
+	// persistence threshold is met, so the first-seen log is the earliest
+	// forensic trace in gpud.log.
+	firstSeen []BlockedProcess
+	// cleared lists processes dropped from tracking in this update (absent
+	// beyond the grace window — recovered). The component logs these at info
+	// level when their names match the escalation regexes.
+	cleared []BlockedProcess
+}
+
 // update ingests the currently blocked processes observed at "now" and returns
-// the number of persistent blocked processes along with a bounded list of their
-// details (sorted by first-seen time, then PID). A process is persistent once
-// it has been blocked for persistenceThreshold consecutive checks; a
-// non-positive persistenceThreshold falls back to the default.
+// the update summary: persistent processes (consecutive checks >= threshold
+// AND wall time >= (threshold-1) check intervals), plus the first-seen and
+// cleared transitions for audit logging.
 //
 // Tolerates processes disappearing between enumeration and metadata reads:
 // a process absent for at most blockedProcessAbsenceGrace consecutive checks is
 // kept (its persistence counter is preserved, not extended); longer absence
 // drops the entry (recovered).
-func (t *blockedProcessTracker) update(now time.Time, blocked []process.ProcessStatus, persistenceThreshold int) (int, []BlockedProcess) {
+func (t *blockedProcessTracker) update(now time.Time, blocked []process.ProcessStatus, persistenceThreshold int) blockedProcessUpdate {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -176,6 +225,7 @@ func (t *blockedProcessTracker) update(now time.Time, blocked []process.ProcessS
 	}
 
 	seen := make(map[int32]struct{}, len(blocked))
+	var firstSeen []BlockedProcess
 	for _, p := range blocked {
 		if p == nil {
 			continue
@@ -197,6 +247,13 @@ func (t *blockedProcessTracker) update(now time.Time, blocked []process.ProcessS
 				lastSeen:          now,
 				consecutiveChecks: 1,
 			}
+			firstSeen = append(firstSeen, BlockedProcess{
+				PID:                  pid,
+				Name:                 name,
+				FirstSeenUnixSeconds: now.Unix(),
+				LastSeenUnixSeconds:  now.Unix(),
+				ConsecutiveChecks:    1,
+			})
 			continue
 		}
 		if name != "" {
@@ -207,12 +264,21 @@ func (t *blockedProcessTracker) update(now time.Time, blocked []process.ProcessS
 		e.absentChecks = 0
 	}
 
+	var cleared []BlockedProcess
 	for pid, e := range t.entries {
 		if _, ok := seen[pid]; ok {
 			continue
 		}
 		e.absentChecks++
 		if e.absentChecks > blockedProcessAbsenceGrace {
+			cleared = append(cleared, BlockedProcess{
+				PID:                  pid,
+				Name:                 e.name,
+				FirstSeenUnixSeconds: e.firstSeen.Unix(),
+				LastSeenUnixSeconds:  e.lastSeen.Unix(),
+				BlockedSeconds:       int64(e.lastSeen.Sub(e.firstSeen).Seconds()),
+				ConsecutiveChecks:    e.consecutiveChecks,
+			})
 			delete(t.entries, pid)
 		}
 	}
@@ -253,5 +319,10 @@ func (t *blockedProcessTracker) update(now time.Time, blocked []process.ProcessS
 		persistent = persistent[:maxBlockedProcessesOutput]
 	}
 
-	return persistentCount, persistent
+	return blockedProcessUpdate{
+		persistentCount: persistentCount,
+		persistent:      persistent,
+		firstSeen:       firstSeen,
+		cleared:         cleared,
+	}
 }

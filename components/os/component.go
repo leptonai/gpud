@@ -392,9 +392,10 @@ func (c *component) Check() components.CheckResult {
 	if !blockedThresholds.IsZero() {
 		blockedNow := allProcs[procs.Blocked]
 		cr.BlockedProcesses.CurrentCount = len(blockedNow)
-		persistentCount, persistent := c.blockedTracker.update(cr.ts, blockedNow, blockedThresholds.PersistenceThreshold)
-		cr.BlockedProcesses.PersistentCount = persistentCount
-		cr.BlockedProcesses.Persistent = persistent
+		upd := c.blockedTracker.update(cr.ts, blockedNow, blockedThresholds.PersistenceThreshold)
+		cr.BlockedProcesses.PersistentCount = upd.persistentCount
+		cr.BlockedProcesses.Persistent = upd.persistent
+		logBlockedProcessTransitions(upd, blockedThresholds)
 		metricBlockedProcesses.With(prometheus.Labels{}).Set(float64(cr.BlockedProcesses.CurrentCount))
 		metricBlockedProcessesPersistent.With(prometheus.Labels{}).Set(float64(cr.BlockedProcesses.PersistentCount))
 	} else {

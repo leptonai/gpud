@@ -65,17 +65,20 @@ func (p *processStatus) PID() int32 {
 //
 // We deliberately avoid gopsutil's Process.Name() on Linux: for names
 // truncated to 15 chars (TASK_COMM_LEN-1) it falls back to reading
-// /proc/<pid>/cmdline, which requires mm access (access_remote_vm) and itself
-// blocks in uninterruptible sleep when the target task is stuck in a teardown
-// that holds its mmap_lock (e.g., a wedged GPU driver teardown such as
-// uvm_va_space_destroy). The D-state tracker exists to observe such tasks
-// without joining their wait; comm is served from task_struct and never
-// blocks. The name is kernel-truncated to 15 chars, consistent with ps(1).
+// /proc/<pid>/cmdline, which requires mm access (access_remote_vm).
 //
-// This is not theoretical: the gopsutil cmdline fallback was observed running
-// in production during the LEP-6029 canary validation (2026-08-13), where the
-// daemon reported the full 21-char name "nvidia-dstate-blocker" for a D-state
-// process while ps showed the 15-char comm "nvidia-dstate-b".
+// The hazard has a precise precondition: the cmdline read only blocks when
+// the target task is stuck in D-state WHILE holding its mmap_lock — i.e., a
+// wedged teardown (e.g., the NVIDIA driver's uvm_va_space_destroy path during
+// process exit). A plain I/O wait in D-state (e.g., folio_wait_bit_common on
+// a suspended device) does not hold that lock, so the cmdline read completes;
+// we observed exactly that during the LEP-6029 canary validation
+// (2026-08-13), where the fallback returned the full 21-char name
+// "nvidia-dstate-blocker" for a D-state process while ps showed the 15-char
+// comm "nvidia-dstate-b". We still avoid the path entirely: the organic
+// incident shape is precisely the mm-holding teardown, and comm alone
+// suffices for detection — the name is kernel-truncated to 15 chars,
+// consistent with ps(1).
 //
 // The procfs-availability check runs per call (one stat per blocked process
 // per minute — negligible) so tests/dev hosts can toggle HOST_PROC between
