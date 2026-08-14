@@ -106,3 +106,26 @@ func TestProcessStatusName_NoProcfsFallsBackToNative(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, name, "native fallback must return the self process name")
 }
+
+func TestProcessStatusName_ProcfsRootMissingFallsBackToNative(t *testing.T) {
+	// When the procfs root does not exist at all, Name() must fall back to the
+	// platform-native gopsutil implementation rather than error or hang. On
+	// Linux CI /proc always exists, so this test forces the fallback by
+	// pointing HOST_PROC at a path that does not exist — keeping the fallback
+	// branch covered on Linux too (project coverage runs on Linux).
+	t.Setenv("HOST_PROC", filepath.Join(t.TempDir(), "no-such-procfs-root"))
+
+	ps := getProcessStatus(&procs.Process{Pid: int32(os.Getpid())})
+	name, err := ps.Name()
+	if runtime.GOOS == "linux" {
+		// gopsutil's native linux path also honors HOST_PROC, so with the root
+		// missing it cannot read this pid: the fallback must surface the error
+		// (tolerated by callers) rather than panic or hang.
+		require.Error(t, err)
+	} else {
+		// on darwin the native path (sysctl, no procfs) answers for the live
+		// self process regardless of HOST_PROC
+		require.NoError(t, err)
+		assert.NotEmpty(t, name)
+	}
+}
