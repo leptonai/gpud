@@ -120,13 +120,24 @@ func FindProcessByName(ctx context.Context, processName string) (ProcessStatus, 
 }
 
 // findProcessByName finds a process by its name.
+//
+// It wraps every gopsutil Process in processStatus before calling Name()
+// so the name comes from /proc/<pid>/comm, never /proc/<pid>/cmdline.
+// gopsutil Process.Name() falls back to cmdline when the comm field is
+// 15 chars (kernel TASK_COMM_LEN truncation).  Reading cmdline needs the
+// target's mm (access_remote_vm).  If the target is in D-state while
+// holding its mmap_lock, the read enters uninterruptible sleep and never
+// returns — the same hazard that processStatus.Name() avoids.
 func findProcessByName(ctx context.Context, processName string, listProcessFunc func(ctx context.Context) ([]*procs.Process, error)) (ProcessStatus, error) {
 	procs, err := listProcessFunc(ctx)
 	if err != nil {
 		return nil, err
 	}
 	for _, p := range procs {
-		name, err := p.Name()
+		// Wrap in processStatus so Name() reads comm only.
+		// processStatus.Name() checks procfs first; on macOS it falls
+		// back to the platform gopsutil path, which is safe there.
+		name, err := getProcessStatus(p).Name()
 		if err != nil {
 			continue
 		}
