@@ -7,6 +7,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -129,6 +130,9 @@ func TestCommand_ReadLoginSuccessError(t *testing.T) {
 
 // TestCommand_SystemdIsActiveError tests when checking systemd status fails.
 func TestCommand_SystemdIsActiveError(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("mockey does not work reliably on non-Linux; this test only runs on Linux CI")
+	}
 	tmpDir := t.TempDir()
 	stateFile := tmpDir + "/test.state"
 	realDB, err := sqlite.Open(stateFile)
@@ -159,6 +163,9 @@ func TestCommand_SystemdIsActiveError(t *testing.T) {
 
 // TestCommand_FindProcessByNameError tests when finding process fails.
 func TestCommand_FindProcessByNameError(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("mockey does not work reliably on non-Linux; this test only runs on Linux CI")
+	}
 	tmpDir := t.TempDir()
 	stateFile := tmpDir + "/test.state"
 	realDB, err := sqlite.Open(stateFile)
@@ -216,6 +223,9 @@ func TestCommand_ProcessNotRunning(t *testing.T) {
 
 // TestCommand_BlockUntilServerReadyError tests when waiting for server fails.
 func TestCommand_BlockUntilServerReadyError(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("mockey does not work reliably on non-Linux; this test only runs on Linux CI")
+	}
 	tmpDir := t.TempDir()
 	stateFile := tmpDir + "/test.state"
 	realDB, err := sqlite.Open(stateFile)
@@ -246,6 +256,9 @@ func TestCommand_BlockUntilServerReadyError(t *testing.T) {
 
 // TestCommand_GetPackageStatusError tests when getting package status fails.
 func TestCommand_GetPackageStatusError(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("mockey does not work reliably on non-Linux; this test only runs on Linux CI")
+	}
 	tmpDir := t.TempDir()
 	stateFile := tmpDir + "/test.state"
 	realDB, err := sqlite.Open(stateFile)
