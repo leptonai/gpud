@@ -55,6 +55,12 @@ func TestAllSuccessInterface_DeviceGetHandleByIndex(t *testing.T) {
 		assert.Equal(t, "mock", name)
 	})
 
+	t.Run("GetGpuFabricInfo", func(t *testing.T) {
+		info, r := device.GetGpuFabricInfo()
+		assert.Equal(t, nvml.ERROR_NOT_SUPPORTED, r)
+		assert.Equal(t, nvml.GpuFabricInfo{}, info)
+	})
+
 	t.Run("GetUUID", func(t *testing.T) {
 		uuid, r := device.GetUUID()
 		assert.Equal(t, nvml.SUCCESS, r)

@@ -142,6 +142,21 @@ func TestMachineInfo_RenderTable(t *testing.T) {
 			},
 		},
 		{
+			name: "Machine info with GPU fabric identifiers and chassis serial",
+			machineInfo: MachineInfo{
+				GPUdVersion:   "1.0.0",
+				ClusterUUID:   "12345678-1234-1234-1234-1234567890ab",
+				CliqueID:      42,
+				ChassisSerial: "3136434J5234567",
+			},
+			wantContains: []string{
+				"GPUd Version", "1.0.0",
+				"GPU Fabric Cluster UUID", "12345678-1234-1234-1234-1234567890ab",
+				"GPU Fabric Clique ID", "42",
+				"Chassis Serial", "3136434J5234567",
+			},
+		},
+		{
 			name: "Machine info with Disk info",
 			machineInfo: MachineInfo{
 				GPUdVersion:   "1.0.0",

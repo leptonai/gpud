@@ -50,6 +50,13 @@ var allSuccessInterface = &nvmlmock.Interface{
 			GetSupportedEventTypesFunc: func() (uint64, nvml.Return) {
 				return 1, nvml.SUCCESS
 			},
+			// The mock driver version is 535, so the fabric state code always
+			// falls back to the V1 API. Return "not supported" to match a real
+			// non-NVLink-fabric platform (e.g., GeForce RTX), instead of panicking
+			// on an unset mock function.
+			GetGpuFabricInfoFunc: func() (nvml.GpuFabricInfo, nvml.Return) {
+				return nvml.GpuFabricInfo{}, nvml.ERROR_NOT_SUPPORTED
+			},
 			GetArchitectureFunc: func() (nvml.DeviceArchitecture, nvml.Return) {
 				return 7, nvml.SUCCESS // NVML_DEVICE_ARCH_AMPERE (7)
 			},

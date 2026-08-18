@@ -29,6 +29,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
+	"github.com/leptonai/gpud/pkg/nvidia/nvidiasmi"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
 	"github.com/leptonai/gpud/pkg/providers"
@@ -95,8 +96,24 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		return nil, fmt.Errorf("failed to get machine gpu info: %w", err)
 	}
 
+	// The control plane records these values in the Machine CR status, so
+	// that operators can see the fabric domain and the clique of each node.
+	// Only NVLink fabric systems (e.g., NVIDIA GB200 NVL72) report them;
+	// they stay empty on other platforms.
+	info.ClusterUUID, info.CliqueID = getGPUFabricIdentifiers(nvmlInstance)
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
+
+	// Support and operations teams use the chassis serial number to find
+	// the physical hardware. The NVML Go bindings do not expose it, so query
+	// nvidia-smi instead. Only NVL72-class systems report it.
+	chassisSerial, err := nvidiasmi.GetChassisSerial(ctx)
+	if err != nil {
+		log.Logger.Warnw("failed to get chassis serial number", "error", err)
+	} else {
+		info.ChassisSerial = chassisSerial
+	}
 
 	if currentGOOS() == "linux" {
 		info.DiskInfo, err = GetMachineDiskInfo(ctx)
@@ -427,6 +444,23 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 
 	qty := resource.NewQuantity(int64(deviceCount), resource.DecimalSI)
 	return qty.String(), nil
+}
+
+// getGPUFabricIdentifiers returns the NVLink fabric cluster UUID and clique ID
+// of the machine (e.g., NVIDIA GB200 NVL72). All GPUs on the same machine share
+// these identifiers, so the first device with a readable fabric state is
+// sufficient. Fabric state telemetry is not supported on all platforms; in
+// that case this function returns empty values and does not fail.
+func getGPUFabricIdentifiers(nvmlInstance nvidianvml.Instance) (string, uint32) {
+	for uuid, dev := range nvmlInstance.Devices() {
+		fabricState, err := dev.GetFabricState()
+		if err != nil {
+			log.Logger.Debugw("failed to get GPU fabric state for machine info", "uuid", uuid, "error", err)
+			continue
+		}
+		return fabricState.ClusterUUID, fabricState.CliqueID
+	}
+	return "", 0
 }
 
 func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {
