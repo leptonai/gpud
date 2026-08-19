@@ -17,6 +17,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	"github.com/leptonai/gpud/pkg/disk"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
 	"github.com/leptonai/gpud/pkg/sqlite"
@@ -98,6 +99,25 @@ func TestNewComponentDefaultFunctionFields(t *testing.T) {
 	require.NoError(t, c.writeChecker(ctx, checker))
 	assert.Equal(t, pkgnfschecker.CheckResult{}, c.checkChecker(ctx, checker))
 	require.NoError(t, c.cleanChecker(checker))
+}
+
+func TestFindExactMntTargetDevice(t *testing.T) {
+	output := &disk.FindMntOutput{Filesystems: []disk.FoundMnt{
+		{
+			MountedPoint: "/lustre",
+			Sources:      []string{"server:/lustre"},
+			Fstype:       "lustre",
+		},
+	}}
+
+	dev, fsType := findExactMntTargetDevice(output, "/lustre/fs1")
+	assert.Empty(t, dev)
+	assert.Empty(t, fsType)
+
+	output.Filesystems[0].MountedPoint = "/lustre/fs1"
+	dev, fsType = findExactMntTargetDevice(output, "/lustre/fs1")
+	assert.Equal(t, "server:/lustre", dev)
+	assert.Equal(t, "lustre", fsType)
 }
 
 func TestComponentName(t *testing.T) {
