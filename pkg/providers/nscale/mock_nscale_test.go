@@ -158,3 +158,53 @@ func TestInstanceID_WithMockey(t *testing.T) {
 		require.Equal(t, "i-000017ac", instanceID)
 	})
 }
+
+func TestRegion_WithMockey(t *testing.T) {
+	mockey.PatchConvey("New returns a Detector that implements RegionDetector", t, func() {
+		mockey.Mock(imds.FetchRegion).To(func(ctx context.Context) (string, error) {
+			return "eu-north-1", nil
+		}).Build()
+
+		detector := New()
+		require.NotNil(t, detector)
+
+		// Type-assert that the detector implements RegionDetector.
+		regionDetector, ok := detector.(interface {
+			Region(context.Context) (string, error)
+		})
+		require.True(t, ok, "New() must return a detector that implements RegionDetector")
+
+		region, err := regionDetector.Region(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "eu-north-1", region)
+	})
+
+	mockey.PatchConvey("Region returns empty when FetchRegion returns empty", t, func() {
+		mockey.Mock(imds.FetchRegion).To(func(ctx context.Context) (string, error) {
+			return "", nil
+		}).Build()
+
+		detector := New()
+		regionDetector, ok := detector.(interface {
+			Region(context.Context) (string, error)
+		})
+		require.True(t, ok)
+		region, err := regionDetector.Region(context.Background())
+		require.NoError(t, err)
+		require.Empty(t, region)
+	})
+
+	mockey.PatchConvey("Region returns error when FetchRegion fails", t, func() {
+		mockey.Mock(imds.FetchRegion).To(func(ctx context.Context) (string, error) {
+			return "", errors.New("metadata unavailable")
+		}).Build()
+
+		detector := New()
+		regionDetector, ok := detector.(interface {
+			Region(context.Context) (string, error)
+		})
+		require.True(t, ok)
+		_, err := regionDetector.Region(context.Background())
+		require.Error(t, err)
+	})
+}

@@ -10,8 +10,23 @@ import (
 
 const Name = "nscale"
 
+// New returns a Detector that implements RegionDetector.
+// It uses the OpenStack metadata JSON to detect the nscale provider
+// and to read the provider region.
+// Every other provider (AWS, GCP, Azure, OCI, Nebius) already uses
+// NewWithRegion. This change keeps nscale consistent with the rest
+// of the provider registry.
+// ref. https://docs.openstack.org/nova/latest/user/metadata.html
 func New() providers.Detector {
-	return providers.New(Name, detectProvider, imds.FetchPublicIPv4, fetchPrivateIPv4, fetchVMEnvironment, imds.FetchInstanceID)
+	return providers.NewWithRegion(
+		Name,
+		detectProvider,
+		imds.FetchPublicIPv4,
+		fetchPrivateIPv4,
+		imds.FetchRegion,
+		fetchVMEnvironment,
+		imds.FetchInstanceID,
+	)
 }
 
 func detectProvider(ctx context.Context) (string, error) {
