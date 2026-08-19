@@ -65,13 +65,7 @@ func resolveNVMLLibraryPath() string {
 		return ""
 	}
 
-	archLibraryDir := "x86_64-linux-gnu"
-	switch runtime.GOARCH {
-	case "arm64":
-		archLibraryDir = "aarch64-linux-gnu"
-	case "ppc64le":
-		archLibraryDir = "powerpc64le-linux-gnu"
-	}
+	archLibraryDir := nvmlArchLibraryDir(runtime.GOARCH)
 	candidates := []string{
 		filepath.Join(driverRoot, "usr", "lib", archLibraryDir, "libnvidia-ml.so.1"),
 		filepath.Join(driverRoot, "usr", "lib64", "libnvidia-ml.so.1"),
@@ -83,6 +77,17 @@ func resolveNVMLLibraryPath() string {
 		}
 	}
 	return ""
+}
+
+func nvmlArchLibraryDir(goarch string) string {
+	switch goarch {
+	case "arm64":
+		return "aarch64-linux-gnu"
+	case "ppc64le":
+		return "powerpc64le-linux-gnu"
+	default:
+		return "x86_64-linux-gnu"
+	}
 }
 
 // Specifies the NVML library instance.
