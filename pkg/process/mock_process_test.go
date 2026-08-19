@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -625,6 +626,9 @@ func TestRead_WithInitialBufferSize(t *testing.T) {
 // --- CheckRunningByPid tests ---
 
 func TestCheckRunningByPid_SelfProcess(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("mockey does not work reliably on non-Linux; this test only runs on Linux CI")
+	}
 	mockey.PatchConvey("CheckRunningByPid for a running process", t, func() {
 		p, err := New(WithCommand("sleep", "30"))
 		require.NoError(t, err)
