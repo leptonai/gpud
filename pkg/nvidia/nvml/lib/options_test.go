@@ -42,18 +42,56 @@ func TestResolveNVMLLibraryPath(t *testing.T) {
 
 	require.NoError(t, os.Unsetenv(EnvNVMLLibraryPath))
 	driverRoot := t.TempDir()
-	archLibraryDir := "x86_64-linux-gnu"
-	switch runtime.GOARCH {
-	case "arm64":
-		archLibraryDir = "aarch64-linux-gnu"
-	case "ppc64le":
-		archLibraryDir = "powerpc64le-linux-gnu"
-	}
-	libraryPath := filepath.Join(driverRoot, "usr", "lib", archLibraryDir, "libnvidia-ml.so.1")
+	libraryPath := filepath.Join(driverRoot, "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
 	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
 	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
 	t.Setenv(EnvNVIDIADriverRoot, driverRoot)
 	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
+}
+
+func TestResolveNVMLLibraryPathFallbacks(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	driverRoot := t.TempDir()
+	t.Setenv(EnvNVIDIADriverRoot, driverRoot)
+
+	// A configured but empty driver root must retain the system-library fallback.
+	assert.Empty(t, resolveNVMLLibraryPath())
+
+	// Exercise the common non-multiarch layout after the architecture-specific
+	// candidate is absent.
+	libraryPath := filepath.Join(driverRoot, "usr", "lib64", "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
+}
+
+func TestNVMLArchLibraryDir(t *testing.T) {
+	tests := map[string]string{
+		"amd64":   "x86_64-linux-gnu",
+		"arm64":   "aarch64-linux-gnu",
+		"ppc64le": "powerpc64le-linux-gnu",
+		"unknown": "x86_64-linux-gnu",
+	}
+	for goarch, expected := range tests {
+		t.Run(goarch, func(t *testing.T) {
+			assert.Equal(t, expected, nvmlArchLibraryDir(goarch))
+		})
+	}
+}
+
+func TestApplyOptsWithResolvedNVMLLibrary(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	libraryPath := filepath.Join(t.TempDir(), "libnvidia-ml.so.1")
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+	t.Setenv(EnvNVMLLibraryPath, libraryPath)
+
+	op := &Op{}
+	op.applyOpts(nil)
+	assert.NotNil(t, op.nvmlLib)
 }
 
 // TestWithNVML tests that WithNVML correctly sets the nvmlLib field
