@@ -1,12 +1,16 @@
 package lib
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
@@ -21,6 +25,35 @@ func TestApplyOptsDefault(t *testing.T) {
 
 	// Verify that nvmlLib is set to a non-nil value (default nvml.New())
 	assert.NotNil(t, op.nvmlLib, "nvmlLib should be set to a default value when no options are provided")
+}
+
+func TestResolveNVMLLibraryPath(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	// No container-specific configuration preserves go-nvml's default system
+	// lookup, which is the path used by systemd and other non-container runs.
+	assert.Empty(t, resolveNVMLLibraryPath())
+
+	explicit := "/custom/libnvidia-ml.so.1"
+	t.Setenv(EnvNVMLLibraryPath, explicit)
+	t.Setenv(EnvNVIDIADriverRoot, t.TempDir())
+	assert.Equal(t, explicit, resolveNVMLLibraryPath())
+
+	require.NoError(t, os.Unsetenv(EnvNVMLLibraryPath))
+	driverRoot := t.TempDir()
+	archLibraryDir := "x86_64-linux-gnu"
+	switch runtime.GOARCH {
+	case "arm64":
+		archLibraryDir = "aarch64-linux-gnu"
+	case "ppc64le":
+		archLibraryDir = "powerpc64le-linux-gnu"
+	}
+	libraryPath := filepath.Join(driverRoot, "usr", "lib", archLibraryDir, "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+	t.Setenv(EnvNVIDIADriverRoot, driverRoot)
+	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
 }
 
 // TestWithNVML tests that WithNVML correctly sets the nvmlLib field

@@ -15,6 +15,8 @@ func TestNewDefaultNoEnvVars(t *testing.T) {
 	require.NoError(t, os.Unsetenv(EnvMockAllSuccess))
 	require.NoError(t, os.Unsetenv(EnvInjectRemapedRowsPending))
 	require.NoError(t, os.Unsetenv(EnvInjectClockEventsHwSlowdown))
+	require.NoError(t, os.Unsetenv(EnvNVMLLibraryPath))
+	require.NoError(t, os.Unsetenv(EnvNVIDIADriverRoot))
 
 	// Create a new library instance
 	lib, err := New(WithInitReturn(nvml.SUCCESS))
@@ -99,4 +101,6 @@ func cleanupEnvVars() {
 	_ = os.Unsetenv(EnvMockAllSuccess)
 	_ = os.Unsetenv(EnvInjectRemapedRowsPending)
 	_ = os.Unsetenv(EnvInjectClockEventsHwSlowdown)
+	_ = os.Unsetenv(EnvNVMLLibraryPath)
+	_ = os.Unsetenv(EnvNVIDIADriverRoot)
 }

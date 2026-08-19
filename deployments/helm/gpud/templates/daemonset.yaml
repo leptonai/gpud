@@ -159,6 +159,16 @@ spec:
             path: /var/lib/kubelet
             type: DirectoryOrCreate
 
+        {{- if .Values.gpud.mountNVIDIADriverRoot }}
+        # GPU Operator installs its driver libraries under this host path.
+        # On preinstalled-driver nodes this may be empty; gpud then preserves its
+        # normal system-library lookup.
+        - name: host-nvidia-driver
+          hostPath:
+            path: /run/nvidia/driver
+            type: DirectoryOrCreate
+        {{- end }}
+
         {{- if .Values.gpud.mountContainerd }}
         # Host containerd runtime directory (holds containerd.sock).
         # Required by: components/containerd (stat the socket and reach the CRI
@@ -448,6 +458,12 @@ spec:
           env:
             - name: GPUD_NO_USAGE_STATS
               value: {{ not .Values.gpud.telemetry.enabled | quote }}
+            {{- if .Values.gpud.mountNVIDIADriverRoot }}
+            # Opt in to the GPU Operator driver-root fallback. Bare-metal/systemd
+            # runs do not receive this environment variable.
+            - name: GPUD_NVIDIA_DRIVER_ROOT
+              value: /run/nvidia/driver
+            {{- end }}
             {{- if .Values.gpud.tokenSecret.name }}
             # Session token sourced from an existing Secret (takes priority over a
             # token node label). Consumed by the startup script as $GPUD_TOKEN.
@@ -582,6 +598,14 @@ spec:
             - name: host-kubelet-vol
               mountPath: /var/lib/kubelet
               readOnly: true
+
+            {{- if .Values.gpud.mountNVIDIADriverRoot }}
+            # GPU Operator-managed driver libraries. Read-only because gpud only
+            # loads NVML and never modifies the driver installation.
+            - name: host-nvidia-driver
+              mountPath: /run/nvidia/driver
+              readOnly: true
+            {{- end }}
 
             {{- if .Values.gpud.mountContainerd }}
             # Host containerd socket directory for containerd monitoring.

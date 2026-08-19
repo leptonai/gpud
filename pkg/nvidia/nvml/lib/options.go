@@ -1,9 +1,21 @@
 package lib
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
+
 	nvlibdevice "github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+)
+
+const (
+	// EnvNVMLLibraryPath explicitly selects the NVML shared library.
+	EnvNVMLLibraryPath = "GPUD_NVML_LIBRARY_PATH"
+	// EnvNVIDIADriverRoot points at a containerized NVIDIA driver installation,
+	// such as the GPU Operator's /run/nvidia/driver tree.
+	EnvNVIDIADriverRoot = "GPUD_NVIDIA_DRIVER_ROOT"
 )
 
 type Op struct {
@@ -31,8 +43,46 @@ func (op *Op) applyOpts(opts []OpOption) {
 		opt(op)
 	}
 	if op.nvmlLib == nil {
-		op.nvmlLib = nvml.New()
+		libraryPath := resolveNVMLLibraryPath()
+		if libraryPath == "" {
+			op.nvmlLib = nvml.New()
+		} else {
+			op.nvmlLib = nvml.New(nvml.WithLibraryPath(libraryPath))
+		}
 	}
+}
+
+// resolveNVMLLibraryPath returns an explicitly configured library first, then
+// searches a configured driver root. With neither environment variable set it
+// returns empty, preserving go-nvml's standard system-library lookup.
+func resolveNVMLLibraryPath() string {
+	if libraryPath := os.Getenv(EnvNVMLLibraryPath); libraryPath != "" {
+		return libraryPath
+	}
+
+	driverRoot := os.Getenv(EnvNVIDIADriverRoot)
+	if driverRoot == "" {
+		return ""
+	}
+
+	archLibraryDir := "x86_64-linux-gnu"
+	switch runtime.GOARCH {
+	case "arm64":
+		archLibraryDir = "aarch64-linux-gnu"
+	case "ppc64le":
+		archLibraryDir = "powerpc64le-linux-gnu"
+	}
+	candidates := []string{
+		filepath.Join(driverRoot, "usr", "lib", archLibraryDir, "libnvidia-ml.so.1"),
+		filepath.Join(driverRoot, "usr", "lib64", "libnvidia-ml.so.1"),
+		filepath.Join(driverRoot, "usr", "lib", "libnvidia-ml.so.1"),
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // Specifies the NVML library instance.
