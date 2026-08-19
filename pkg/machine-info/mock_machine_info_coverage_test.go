@@ -22,6 +22,8 @@ import (
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	nvidiadevice "github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvidiatestutil "github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
+	"github.com/leptonai/gpud/pkg/providers"
+	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 )
 
 type machineInfoCoverageDevice struct {
@@ -544,5 +546,74 @@ func TestGetMachineInfo_LinuxBranches_WithMockey(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		assert.Equal(t, "cri-o://1.31.0", info.ContainerRuntimeVersion)
+	})
+}
+
+func TestGetMachineGPUInfo_MinorAndBoardErrors_WithMockey(t *testing.T) {
+	mockey.PatchConvey("GetMachineGPUInfo returns minor id error", t, func() {
+		dev := newMachineInfoCoverageDevice()
+		dev.minorRet = nvml.ERROR_UNKNOWN
+		mockey.Mock(nvidiamemory.GetMemory).To(
+			func(uuid string, dev nvidiadevice.Device, productName string, getVirtualMemoryFunc nvidiamemory.GetVirtualMemoryFunc) (nvidiamemory.Memory, error) {
+				return nvidiamemory.Memory{TotalBytes: 1}, nil
+			},
+		).Build()
+
+		nvmlInstance := &mockNvmlInstanceForMockey{
+			productName: "NVIDIA H100 80GB HBM3",
+			devices: map[string]nvidiadevice.Device{
+				dev.uuid: dev,
+			},
+		}
+
+		_, err := GetMachineGPUInfo(nvmlInstance)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get minor id")
+	})
+
+	mockey.PatchConvey("GetMachineGPUInfo returns board id error", t, func() {
+		dev := newMachineInfoCoverageDevice()
+		dev.boardRet = nvml.ERROR_UNKNOWN
+		mockey.Mock(nvidiamemory.GetMemory).To(
+			func(uuid string, dev nvidiadevice.Device, productName string, getVirtualMemoryFunc nvidiamemory.GetVirtualMemoryFunc) (nvidiamemory.Memory, error) {
+				return nvidiamemory.Memory{TotalBytes: 1}, nil
+			},
+		).Build()
+
+		nvmlInstance := &mockNvmlInstanceForMockey{
+			productName: "NVIDIA H100 80GB HBM3",
+			devices: map[string]nvidiadevice.Device{
+				dev.uuid: dev,
+			},
+		}
+
+		_, err := GetMachineGPUInfo(nvmlInstance)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get board id")
+	})
+}
+
+func TestGetMachineInfo_GPUInfoError_WithMockey(t *testing.T) {
+	mockey.PatchConvey("GetMachineInfo returns gpu info error", t, func() {
+		mockey.Mock(GetMachineGPUInfo).To(func(nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {
+			return nil, errors.New("gpu info failed")
+		}).Build()
+
+		_, err := GetMachineInfo(&mockNvmlInstanceForMockey{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get machine gpu info")
+	})
+}
+
+func TestGetProviderWithContext_BlankProviderName_WithMockey(t *testing.T) {
+	mockey.PatchConvey("whitespace-only provider name falls back to unknown", t, func() {
+		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
+			return &providers.Info{Provider: "   "}, nil
+		}).Build()
+
+		info := GetProviderWithContext(context.Background(), "1.2.3.4")
+		require.NotNil(t, info)
+		assert.Equal(t, "unknown", info.Provider)
+		assert.Equal(t, "1.2.3.4", info.PublicIP)
 	})
 }
