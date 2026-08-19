@@ -376,6 +376,18 @@ func TestMachineInfoDiskCommands_WithMockey(t *testing.T) {
 		assert.Equal(t, "/dev/sda1", info.BlockDevices[0].Name)
 		assert.Equal(t, "server:/data", info.BlockDevices[1].Name)
 
+		// GetMachineDiskInfo above already exercises the configured commands. Avoid
+		// launching the same shell-backed df fixture again here: under the full CI
+		// suite that second short-lived process can sporadically produce no parsed
+		// rows. GetSystemResourceRootVolumeTotal only needs a root usage result for
+		// this assertion; command execution and df parsing have dedicated tests.
+		mockey.Mock(disk.GetPartitions).To(func(ctx context.Context, opts ...disk.OpOption) (disk.Partitions, error) {
+			return disk.Partitions{{
+				MountPoint: "/",
+				Usage:      &disk.Usage{TotalBytes: 1000},
+			}}, nil
+		}).Build()
+
 		total, err := GetSystemResourceRootVolumeTotal()
 		require.NoError(t, err)
 		assert.Equal(t, "1k", total)
