@@ -170,6 +170,24 @@ gpud:
   # Set to false on nodes that do not run containerd (e.g. docker/cri-o only).
   mountContainerd: true
 
+  # Mount the host CRI-O runtime directory (/run/crio, read-write so the CRI
+  # unix socket can be dialed) so the containerd component can detect that
+  # CRI-O is the node's container runtime. On a CRI-O node the containerd
+  # socket is expected to be absent; without this mount the component cannot
+  # reach the CRI-O socket from inside the pod and would report the node
+  # unhealthy for a missing containerd socket that is not actually a failure.
+  #
+  # Leaving this at the default true on a node without CRI-O is safe.
+  # DirectoryOrCreate makes kubelet create an empty /run/crio on the host, so
+  # the pod starts normally; gpud then finds no crio.sock, the CRI-O probe
+  # reports "not running", and the containerd check behaves exactly as if this
+  # mount did not exist. The only side effect is the empty /run/crio directory
+  # left on the host. On nodes where the containerd socket does exist, the
+  # CRI-O probe is never called at all.
+  #
+  # Set to false only if the node group uses a non-standard CRI-O socket path.
+  mountCrio: true
+
   # Mount /dev/mem for deep hardware inspection and memory diagnostics (e.g., PCIe config space).
   # Defaults to false for maximum compatibility across platforms (addresses issue #1144).
   # Set to true if you need deep memory inspection and your environment supports /dev/mem.

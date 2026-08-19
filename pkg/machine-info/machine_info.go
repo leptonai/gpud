@@ -116,6 +116,22 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 			}
 		}
 
+		// On a CRI-O node the containerd binary is installed but not running,
+		// so the block above leaves the runtime version empty even though the
+		// node has a live runtime. Fall back to CRI-O so the reported runtime
+		// reflects what actually runs the node's containers (LEP-6128).
+		if info.ContainerRuntimeVersion == "" && componentcontainerd.CheckCRIORunning(ctx) {
+			crioVersion, err := componentcontainerd.GetVersion(ctx, componentcontainerd.DefaultCRIOEndpoint)
+			if err != nil {
+				log.Logger.Warnw("failed to check cri-o version", "error", err)
+			} else {
+				if !strings.HasPrefix(crioVersion, "cri-o://") {
+					crioVersion = "cri-o://" + crioVersion
+				}
+				info.ContainerRuntimeVersion = crioVersion
+			}
+		}
+
 		// Collect tailscale version if installed
 		if componenttailscale.CheckTailscaleInstalled() {
 			tailscaleVersion, err := componenttailscale.GetTailscaleVersion()

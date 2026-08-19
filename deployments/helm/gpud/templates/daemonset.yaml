@@ -178,6 +178,22 @@ spec:
             path: /etc/containerd
             type: DirectoryOrCreate
         {{- end }}
+
+        {{- if .Values.gpud.mountCrio }}
+        # Host CRI-O runtime directory (holds crio.sock).
+        # Required by: components/containerd (dial the CRI endpoint at
+        # unix:///run/crio/crio.sock to detect that CRI-O is the node's
+        # container runtime, and skip the containerd check instead of
+        # reporting a missing containerd socket as unhealthy).
+        # DirectoryOrCreate so the pod still starts on nodes without CRI-O:
+        # kubelet creates an empty /run/crio on such hosts, gpud finds no
+        # crio.sock there, and the containerd check runs exactly as it would
+        # without this mount.
+        - name: host-run-crio
+          hostPath:
+            path: /run/crio
+            type: DirectoryOrCreate
+        {{- end }}
       {{- if .Values.extraVolumes }}
       {{- toYaml .Values.extraVolumes | nindent 8 }}
       {{- end }}
@@ -579,6 +595,15 @@ spec:
             - name: host-etc-containerd
               mountPath: /etc/containerd
               readOnly: true
+            {{- end }}
+
+            {{- if .Values.gpud.mountCrio }}
+            # Host CRI-O socket directory for the containerd component's CRI-O
+            # detection. Mounted at the same path gpud expects
+            # (/run/crio/crio.sock). Not read-only: connecting to the CRI unix
+            # socket requires write access (same reason /run/containerd is rw).
+            - name: host-run-crio
+              mountPath: /run/crio
             {{- end }}
           {{- if .Values.extraVolumeMounts }}
           {{- toYaml .Values.extraVolumeMounts | nindent 12 }}

@@ -28,6 +28,12 @@ const (
 	defaultSocketFile = "/run/containerd/containerd.sock"
 	// DefaultContainerRuntimeEndpoint is the default CRI socket for containerd.
 	DefaultContainerRuntimeEndpoint = "unix:///run/containerd/containerd.sock"
+
+	// DefaultCRIOEndpoint is the default CRI socket for CRI-O, which is also
+	// the endpoint kubelet uses for CRI-O runtimes. Uses /run (not /var/run) to
+	// match the containerd convention above and the DaemonSet's hostPath mount;
+	// on the host /var/run is a symlink to /run.
+	DefaultCRIOEndpoint = "unix:///run/crio/crio.sock"
 )
 
 // NOTE
@@ -225,6 +231,30 @@ func CheckSocketExists() bool {
 	}
 
 	log.Logger.Debugw("containerd default socket file exists, containerd installed", "file", defaultSocketFile)
+	return true
+}
+
+// CheckCRIORunning reports whether CRI-O answers a real CRI connection on its
+// default endpoint.
+//
+// The containerd component uses this to tell "containerd socket missing
+// because CRI-O runs the node" (expected, healthy) apart from "containerd
+// socket missing on a containerd node" (a real failure). It dials instead of
+// doing a bare os.Stat so that a stale socket left behind by a crashed CRI-O
+// cannot make a containerd node look like a CRI-O node and mask a genuine
+// containerd outage.
+func CheckCRIORunning(ctx context.Context) bool {
+	cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
+	defer ccancel()
+
+	conn, err := connect(cctx, DefaultCRIOEndpoint)
+	if err != nil {
+		log.Logger.Debugw("cri-o default cri endpoint not open", "endpoint", DefaultCRIOEndpoint, "error", err)
+		return false
+	}
+	_ = conn.Close()
+
+	log.Logger.Debugw("cri-o default cri endpoint open, cri-o running", "endpoint", DefaultCRIOEndpoint)
 	return true
 }
 
