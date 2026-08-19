@@ -5,6 +5,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_findMntTargetDevice(t *testing.T) {
@@ -33,12 +36,9 @@ func Test_findMntTargetDevice(t *testing.T) {
 func Test_findExactMntTargetDevice(t *testing.T) {
 	scanner := bufio.NewScanner(strings.NewReader("1 2 3 4 /test/subdir 6 7 8 9 10 11 - nfs server:/export rw"))
 	dev, fsType, err := findExactMntTargetDevice(scanner, "/test")
-	if err != nil {
-		t.Fatalf("findExactMntTargetDevice failed: %v", err)
-	}
-	if dev != "" || fsType != "" {
-		t.Fatalf("expected no exact mount, got dev=%q fsType=%q", dev, fsType)
-	}
+	require.NoError(t, err)
+	assert.Empty(t, dev)
+	assert.Empty(t, fsType)
 }
 
 func Test_findFsTypeAndDeviceByMinorNumber1(t *testing.T) {
