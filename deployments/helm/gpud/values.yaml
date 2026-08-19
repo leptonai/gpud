@@ -158,6 +158,14 @@ gpud:
   # Set to "" to use gpud's built-in in-namespace systemd check.
   containerdServiceActiveCommands: "nsenter --target 1 --mount -- systemctl is-active containerd"
 
+  # Mount the GPU Operator's host driver installation at /run/nvidia/driver.
+  # The matching GPUD_NVIDIA_DRIVER_ROOT environment variable makes gpud use
+  # NVML from that tree when present. This is Helm/container-specific; systemd
+  # installations retain the standard system-library lookup.
+  # DirectoryOrCreate keeps the DaemonSet schedulable on nodes using preinstalled
+  # drivers, where the directory is empty and gpud falls back to system NVML.
+  mountNVIDIADriverRoot: true
+
   # Mount the host containerd directories so the containerd component can monitor
   # the node's containerd when gpud runs inside a container:
   #   - /run/containerd (read-write): stat the socket and reach the CRI endpoint
