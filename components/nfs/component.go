@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -96,7 +97,7 @@ func newComponent(
 	}
 
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
-	findMntTargetDevice := disk.FindMntTargetDevice
+	findMntTargetDevice := disk.FindMntExactTargetDevice
 	if gpudInstance.FindmntCommands != "" {
 		findMntTargetDevice = func(dir string) (string, string, error) {
 			timeoutCtx, cancel := context.WithTimeout(cctx, 5*time.Second)
@@ -105,11 +106,8 @@ func newComponent(
 			if err != nil || out == nil || len(out.Filesystems) == 0 {
 				return "", "", err
 			}
-			found := out.Filesystems[0]
-			if len(found.Sources) == 0 {
-				return "", found.Fstype, nil
-			}
-			return found.Sources[0], found.Fstype, nil
+			dev, fsType := findExactMntTargetDevice(out, dir)
+			return dev, fsType, nil
 		}
 	}
 
@@ -171,6 +169,20 @@ func newComponent(
 	}
 
 	return c, nil
+}
+
+func findExactMntTargetDevice(out *disk.FindMntOutput, target string) (string, string) {
+	target = filepath.Clean(target)
+	for _, found := range out.Filesystems {
+		if filepath.Clean(found.MountedPoint) != target {
+			continue
+		}
+		if len(found.Sources) == 0 {
+			return "", found.Fstype
+		}
+		return found.Sources[0], found.Fstype
+	}
+	return "", ""
 }
 
 func (c *component) Name() string { return Name }

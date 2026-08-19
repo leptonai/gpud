@@ -30,6 +30,17 @@ func Test_findMntTargetDevice(t *testing.T) {
 	}
 }
 
+func Test_findExactMntTargetDevice(t *testing.T) {
+	scanner := bufio.NewScanner(strings.NewReader("1 2 3 4 /test/subdir 6 7 8 9 10 11 - nfs server:/export rw"))
+	dev, fsType, err := findExactMntTargetDevice(scanner, "/test")
+	if err != nil {
+		t.Fatalf("findExactMntTargetDevice failed: %v", err)
+	}
+	if dev != "" || fsType != "" {
+		t.Fatalf("expected no exact mount, got dev=%q fsType=%q", dev, fsType)
+	}
+}
+
 func Test_findFsTypeAndDeviceByMinorNumber1(t *testing.T) {
 	f, err := os.Open("testdata/mountinfo")
 	if err != nil {
