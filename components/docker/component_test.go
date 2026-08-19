@@ -1206,3 +1206,55 @@ func TestCheckErrorHandlingWithSuccessfulScenario(t *testing.T) {
 	assert.Equal(t, "ok", cr.reason)
 	assert.Len(t, cr.Containers, 2)
 }
+
+func TestComponentIsSupported(t *testing.T) {
+	ctx := context.Background()
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
+	c, err := New(gpudInstance)
+	require.NoError(t, err)
+	assert.True(t, c.IsSupported())
+}
+
+func TestNewDefaultCheckServiceActiveFunc(t *testing.T) {
+	ctx := context.Background()
+	gpudInstance := &components.GPUdInstance{RootCtx: ctx}
+	c, err := New(gpudInstance)
+	require.NoError(t, err)
+
+	comp, ok := c.(*component)
+	require.True(t, ok)
+
+	// the default constructor wires the systemd-based activeness check;
+	// invoke it once to exercise the closure (the result depends on the host)
+	_, _ = comp.checkServiceActiveFunc()
+}
+
+func TestCheckResultComponentName(t *testing.T) {
+	cr := &checkResult{}
+	assert.Equal(t, Name, cr.ComponentName())
+}
+
+func TestComponentStartExitsOnCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before Start so the run loop exits via ctx.Done
+
+	c := &component{
+		ctx:                          ctx,
+		cancel:                       cancel,
+		checkDependencyInstalledFunc: func() bool { return false },
+		checkDockerRunningFunc:       func(context.Context) bool { return false },
+		checkServiceActiveFunc:       func() (bool, error) { return false, nil },
+		listContainersFunc: func(context.Context) ([]pkgdocker.DockerContainer, error) {
+			return nil, nil
+		},
+	}
+
+	require.NoError(t, c.Start())
+
+	// the first Check runs immediately before the loop blocks on ctx.Done
+	require.Eventually(t, func() bool {
+		c.lastMu.RLock()
+		defer c.lastMu.RUnlock()
+		return c.lastCheckResult != nil
+	}, 3*time.Second, 10*time.Millisecond)
+}

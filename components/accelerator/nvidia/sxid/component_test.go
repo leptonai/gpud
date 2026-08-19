@@ -6,10 +6,12 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
@@ -827,13 +829,36 @@ func TestSXIDComponent_UpdateCurrentState_ErrorOnGet(t *testing.T) {
 type mockEventBucket struct {
 	getError error
 	events   eventstore.Events
+
+	findResult *eventstore.Event
+	findErr    error
+	insertErr  error
+
+	// optional non-blocking signal channels to synchronize tests with
+	// the background processing loop without data races
+	findCalled   chan struct{}
+	insertCalled chan struct{}
+	getCalled    chan struct{}
+}
+
+// notifyMockBucketCalled best-effort signals on the channel (never blocks).
+func notifyMockBucketCalled(ch chan struct{}) {
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
 }
 
 func (m *mockEventBucket) Insert(_ context.Context, _ eventstore.Event) error {
-	return nil
+	notifyMockBucketCalled(m.insertCalled)
+	return m.insertErr
 }
 
 func (m *mockEventBucket) Get(_ context.Context, _ time.Time) (eventstore.Events, error) {
+	notifyMockBucketCalled(m.getCalled)
 	if m.getError != nil {
 		return nil, m.getError
 	}
@@ -841,7 +866,8 @@ func (m *mockEventBucket) Get(_ context.Context, _ time.Time) (eventstore.Events
 }
 
 func (m *mockEventBucket) Find(_ context.Context, _ eventstore.Event) (*eventstore.Event, error) {
-	return nil, nil
+	notifyMockBucketCalled(m.findCalled)
+	return m.findResult, m.findErr
 }
 
 func (m *mockEventBucket) Latest(_ context.Context) (*eventstore.Event, error) {
@@ -1103,6 +1129,7 @@ func TestSXIDComponent_Start_ChannelHandling(t *testing.T) {
 type MockKmsgWatcher struct {
 	watchCh    chan kmsg.Message
 	watchError error
+	closeError error
 }
 
 func (m *MockKmsgWatcher) Watch() (<-chan kmsg.Message, error) {
@@ -1121,7 +1148,7 @@ func (m *MockKmsgWatcher) Close() error {
 	if m.watchCh != nil {
 		close(m.watchCh)
 	}
-	return nil
+	return m.closeError
 }
 
 func TestCheckResult_getError(t *testing.T) {
@@ -1155,4 +1182,418 @@ func TestCheckResult_getError(t *testing.T) {
 			}
 		})
 	}
+}
+
+// MockNVMLInstanceWithInitError returns exists=true but reports an
+// NVML initialization error (e.g., device handle enumeration failure).
+type MockNVMLInstanceWithInitError struct {
+	MockNVMLInstance
+	initErr error
+}
+
+func (m *MockNVMLInstanceWithInitError) InitError() error {
+	return m.initErr
+}
+
+func TestSXIDComponent_Check_NVMLNotLoaded(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	component.nvmlInstance = &MockNVMLInstance{exists: false}
+
+	result := component.Check()
+	data, ok := result.(*checkResult)
+	assert.True(t, ok, "Result should be of type *checkResult")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Contains(t, data.reason, "NVIDIA NVML library is not loaded")
+}
+
+func TestSXIDComponent_Check_NVMLInitError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	component.nvmlInstance = &MockNVMLInstanceWithInitError{
+		MockNVMLInstance: MockNVMLInstance{exists: true},
+		initErr:          errors.New("error getting device handle for index '0': Unknown Error"),
+	}
+
+	result := component.Check()
+	data, ok := result.(*checkResult)
+	assert.True(t, ok, "Result should be of type *checkResult")
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, data.health)
+	assert.Contains(t, data.reason, "NVML initialization error")
+	require.NotNil(t, data.suggestedActions)
+	assert.Contains(t, data.suggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
+}
+
+func TestSXIDComponent_Check_EmptyProductName(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	component.nvmlInstance = &MockNVMLInstanceNoProduct{
+		MockNVMLInstance: MockNVMLInstance{exists: true},
+	}
+
+	result := component.Check()
+	data, ok := result.(*checkResult)
+	assert.True(t, ok, "Result should be of type *checkResult")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Contains(t, data.reason, "missing product name")
+}
+
+func TestSXIDComponent_Check_NoKmsgReader(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	component.nvmlInstance = &MockNVMLInstanceWithProduct{
+		MockNVMLInstance: MockNVMLInstance{exists: true},
+	}
+	component.readAllKmsg = nil
+
+	result := component.Check()
+	data, ok := result.(*checkResult)
+	assert.True(t, ok, "Result should be of type *checkResult")
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, data.health)
+	assert.Contains(t, data.reason, "kmsg reader is not set")
+}
+
+func TestCheckResultComponentName(t *testing.T) {
+	cr := &checkResult{}
+	assert.Equal(t, Name, cr.ComponentName())
+}
+
+func TestCheckResultHealthStates(t *testing.T) {
+	t.Run("nil checkResult returns no-data-yet state", func(t *testing.T) {
+		var cr *checkResult
+		states := cr.HealthStates()
+		require.Len(t, states, 1)
+		assert.Equal(t, Name, states[0].Component)
+		assert.Equal(t, apiv1.HealthStateTypeHealthy, states[0].Health)
+		assert.Equal(t, "no data yet", states[0].Reason)
+	})
+
+	t.Run("non-nil checkResult propagates fields", func(t *testing.T) {
+		cr := &checkResult{
+			ts:     time.Now().UTC(),
+			health: apiv1.HealthStateTypeUnhealthy,
+			reason: "test reason",
+			err:    errors.New("test error"),
+		}
+		states := cr.HealthStates()
+		require.Len(t, states, 1)
+		assert.Equal(t, Name, states[0].Component)
+		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, states[0].Health)
+		assert.Equal(t, "test reason", states[0].Reason)
+		assert.Equal(t, "test error", states[0].Error)
+	})
+}
+
+func TestSXIDComponent_Events_BucketGetError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	component.eventBucket = &mockEventBucket{getError: errors.New("get failed")}
+
+	_, err := component.Events(ctx, time.Now().Add(-time.Hour))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get failed")
+}
+
+// failingEventStore implements eventstore.Store with a Bucket method
+// that always fails, to exercise the New constructor error path.
+type failingEventStore struct{}
+
+func (failingEventStore) Bucket(_ string, _ ...eventstore.OpOption) (eventstore.Bucket, error) {
+	return nil, errors.New("bucket unavailable")
+}
+
+func TestSXIDComponent_New_BucketError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	gpudInstance := &components.GPUdInstance{
+		RootCtx:    ctx,
+		EventStore: failingEventStore{},
+	}
+
+	comp, err := New(gpudInstance)
+	require.Error(t, err)
+	assert.Nil(t, comp)
+	assert.Contains(t, err.Error(), "bucket unavailable")
+}
+
+func TestSXIDComponent_Close_KmsgWatcherError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	component.kmsgWatcher = &MockKmsgWatcher{closeError: errors.New("watcher close failed")}
+
+	// Close logs the kmsg watcher error but still returns nil
+	assert.NoError(t, component.Close())
+}
+
+// transientFailBucket fails only the first Get call and delegates everything
+// else to the wrapped bucket, to exercise the Start retry loop.
+type transientFailBucket struct {
+	eventstore.Bucket
+	failed atomic.Bool
+}
+
+func (b *transientFailBucket) Get(ctx context.Context, since time.Time) (eventstore.Events, error) {
+	if b.failed.CompareAndSwap(false, true) {
+		return nil, errors.New("transient get failure")
+	}
+	return b.Bucket.Get(ctx, since)
+}
+
+func TestSXIDComponent_Start_RetryAfterTransientFailure(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	component.eventBucket = &transientFailBucket{Bucket: component.eventBucket}
+
+	// The first updateCurrentState fails, Start waits and retries,
+	// the retry succeeds, and Start returns nil (no kmsg watcher).
+	assert.NoError(t, component.Start())
+}
+
+func TestSXIDComponent_Start_ContextCanceledDuringRetry(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	getCalled := make(chan struct{}, 1)
+	component.eventBucket = &mockEventBucket{
+		getError:  errors.New("get failed"),
+		getCalled: getCalled,
+	}
+
+	// cancel the component context while Start backs off after the
+	// first failed state refresh, so Start exits via the ctx.Done branch
+	go func() {
+		<-getCalled
+		component.cancel()
+	}()
+
+	assert.NoError(t, component.Start())
+}
+
+func TestSXIDComponent_Start_TickerRefreshError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	// no kmsg watcher: Start returns after the initial state refresh
+	// succeeds, so drive the ticker loop directly instead
+	getCalled := make(chan struct{}, 1)
+	component.eventBucket = &mockEventBucket{
+		getError:  errors.New("get failed"),
+		getCalled: getCalled,
+	}
+
+	go component.start(make(chan kmsg.Message), 10*time.Millisecond)
+	defer func() {
+		_ = component.Close()
+	}()
+
+	// each tick fails the state refresh and the error branch is taken;
+	// the first signal is consumed by Start's initial refresh in callers,
+	// here start() only refreshes on ticks
+	select {
+	case <-getCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for ticker-driven state refresh")
+	}
+}
+
+func TestSXIDComponent_Start_ExtraEventChannelEdgeCases(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	goodBucket := component.eventBucket
+
+	go component.start(make(chan kmsg.Message), time.Hour)
+	defer func() {
+		_ = component.Close()
+	}()
+
+	// nil events are skipped without any bucket interaction
+	component.extraEventCh <- nil
+
+	// insert failure is logged and the loop continues
+	failInsert := &mockEventBucket{
+		insertErr:    errors.New("insert failed"),
+		insertCalled: make(chan struct{}, 1),
+	}
+	component.eventBucket = failInsert
+	component.extraEventCh <- &eventstore.Event{Time: time.Now().UTC(), Name: "extra_event_insert_fail"}
+	select {
+	case <-failInsert.insertCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for insert attempt")
+	}
+
+	// insert succeeds but the state refresh fails (Get error)
+	failGet := &mockEventBucket{
+		getError:     errors.New("get failed"),
+		insertCalled: make(chan struct{}, 1),
+		getCalled:    make(chan struct{}, 1),
+	}
+	component.eventBucket = failGet
+	component.extraEventCh <- &eventstore.Event{Time: time.Now().UTC(), Name: "extra_event_get_fail"}
+	select {
+	case <-failGet.insertCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for insert")
+	}
+	select {
+	case <-failGet.getCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for state refresh after insert")
+	}
+
+	// success path: insert + state refresh both succeed
+	component.eventBucket = goodBucket
+	component.extraEventCh <- &eventstore.Event{Time: time.Now().UTC(), Name: "extra_event_ok", Message: "ok"}
+	require.Eventually(t, func() bool {
+		events, err := goodBucket.Get(ctx, time.Now().Add(-time.Hour))
+		if err != nil {
+			return false
+		}
+		for _, ev := range events {
+			if ev.Name == "extra_event_ok" {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 50*time.Millisecond)
+}
+
+func TestSXIDComponent_Start_KmsgChannelEventHandling(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	component, cleanup := initComponentForTest(ctx, t)
+	defer cleanup()
+
+	goodBucket := component.eventBucket
+
+	kmsgCh := make(chan kmsg.Message, 4)
+	go component.start(kmsgCh, time.Hour)
+	defer func() {
+		_ = component.Close()
+	}()
+
+	sxidMsg := kmsg.Message{
+		Message:   "nvidia-nvswitch3: SXid (PCI:0000:05:00.0): 12028, Non-fatal, Link 32 egress non-posted PRIV error",
+		Timestamp: metav1.Time{Time: time.Now().UTC()},
+	}
+
+	// Find error: the event is skipped (logged) without insert
+	findFail := &mockEventBucket{
+		findErr:    errors.New("find failed"),
+		findCalled: make(chan struct{}, 1),
+	}
+	component.eventBucket = findFail
+	kmsgCh <- sxidMsg
+	select {
+	case <-findFail.findCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for find")
+	}
+
+	// already stored event: insert is skipped
+	alreadyStored := &mockEventBucket{
+		findResult:   &eventstore.Event{Name: EventNameErrorSXid},
+		findCalled:   make(chan struct{}, 1),
+		insertCalled: make(chan struct{}, 1),
+	}
+	component.eventBucket = alreadyStored
+	kmsgCh <- sxidMsg
+	select {
+	case <-alreadyStored.findCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for find")
+	}
+	select {
+	case <-alreadyStored.insertCalled:
+		t.Fatal("insert must be skipped for an already stored event")
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	// insert error is logged and the loop continues
+	insertFail := &mockEventBucket{
+		insertErr:    errors.New("insert failed"),
+		insertCalled: make(chan struct{}, 1),
+	}
+	component.eventBucket = insertFail
+	kmsgCh <- sxidMsg
+	select {
+	case <-insertFail.insertCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for insert attempt")
+	}
+
+	// insert succeeds but the state refresh fails (Get error)
+	getFail := &mockEventBucket{
+		getError:     errors.New("get failed"),
+		insertCalled: make(chan struct{}, 1),
+		getCalled:    make(chan struct{}, 1),
+	}
+	component.eventBucket = getFail
+	kmsgCh <- sxidMsg
+	select {
+	case <-getFail.insertCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for insert")
+	}
+	select {
+	case <-getFail.getCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for state refresh after insert")
+	}
+
+	// full success path with the real bucket: find miss -> insert -> refresh
+	component.eventBucket = goodBucket
+	kmsgCh <- sxidMsg
+	require.Eventually(t, func() bool {
+		events, err := goodBucket.Get(ctx, time.Now().Add(-time.Hour))
+		if err != nil {
+			return false
+		}
+		for _, ev := range events {
+			if ev.Name == EventNameErrorSXid {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 50*time.Millisecond)
 }
