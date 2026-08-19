@@ -132,7 +132,14 @@ func fetchOpenStackMetadata(ctx context.Context, metadataURL string) (*OpenStack
 // ref. https://docs.openstack.org/nova/latest/user/metadata.html
 // ref. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html (AZ fallback pattern)
 func FetchRegion(ctx context.Context) (string, error) {
-	resp, err := FetchOpenStackMetadata(ctx)
+	return fetchRegion(ctx, openStackMetadataJSONURL)
+}
+
+// fetchRegion retrieves the nscale region from the OpenStack metadata JSON
+// at the specified URL. It is separated from FetchRegion so that unit tests
+// can supply an httptest server URL.
+func fetchRegion(ctx context.Context, metadataURL string) (string, error) {
+	resp, err := fetchOpenStackMetadata(ctx, metadataURL)
 	if err != nil {
 		return "", err
 	}
