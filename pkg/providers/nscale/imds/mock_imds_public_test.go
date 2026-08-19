@@ -72,3 +72,16 @@ func TestFetchInstanceID_Public_WithMockey(t *testing.T) {
 		require.Equal(t, "i-abc123", got)
 	})
 }
+
+func TestFetchRegion_Public_WithMockey(t *testing.T) {
+	mockey.PatchConvey("FetchRegion forwards default OpenStack metadata URL", t, func() {
+		mockey.Mock(fetchRegion).To(func(ctx context.Context, metadataURL string) (string, error) {
+			require.Equal(t, openStackMetadataJSONURL, metadataURL)
+			return "eu-north-1", nil
+		}).Build()
+
+		region, err := FetchRegion(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "eu-north-1", region)
+	})
+}

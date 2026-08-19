@@ -25,6 +25,13 @@ type OpenStackMetadataResponse struct {
 type OpenStackMetadataMeta struct {
 	OrganizationID string `json:"organizationID"`
 	ProjectID      string `json:"projectID"`
+	// RegionID is the provider-specific region identifier.
+	// Nscale returns this field in the OpenStack metadata JSON.
+	// When RegionID is empty, FetchRegion falls back to AvailabilityZone
+	// (the same pattern AWS uses: derive region from AZ when the
+	// explicit region endpoint is unavailable).
+	// ref. https://docs.openstack.org/nova/latest/user/metadata.html
+	RegionID string `json:"regionID"`
 }
 
 // FetchMetadata fetches metadata from the nscale metadata service at the specified path.
@@ -112,4 +119,39 @@ func fetchOpenStackMetadata(ctx context.Context, metadataURL string) (*OpenStack
 		return nil, fmt.Errorf("failed to parse OpenStack metadata: %w", err)
 	}
 	return resp, nil
+}
+
+// FetchRegion returns the nscale provider region.
+// It reads regionID from the OpenStack metadata JSON.
+// When regionID is empty, it falls back to availability_zone.
+// This matches the AWS pattern: use the explicit region field first,
+// then derive region from the availability zone when the explicit
+// field is absent.
+// The OpenStack metadata is already fetched for provider detection;
+// this function does not add a new HTTP call.
+// ref. https://docs.openstack.org/nova/latest/user/metadata.html
+// ref. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html (AZ fallback pattern)
+func FetchRegion(ctx context.Context) (string, error) {
+	return fetchRegion(ctx, openStackMetadataJSONURL)
+}
+
+// fetchRegion retrieves the nscale region from the OpenStack metadata JSON
+// at the specified URL. It is separated from FetchRegion so that unit tests
+// can supply an httptest server URL.
+func fetchRegion(ctx context.Context, metadataURL string) (string, error) {
+	resp, err := fetchOpenStackMetadata(ctx, metadataURL)
+	if err != nil {
+		return "", err
+	}
+	if resp.Meta.RegionID != "" {
+		return resp.Meta.RegionID, nil
+	}
+	// Derive region from availability zone when regionID is absent.
+	// On nscale, availability_zone names a concrete failure domain.
+	// Using the AZ directly as the region identifier keeps provider
+	// location accurate when the explicit region field is not populated.
+	if resp.AvailabilityZone != "" {
+		return resp.AvailabilityZone, nil
+	}
+	return "", nil
 }

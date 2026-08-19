@@ -170,6 +170,8 @@ func TestFetchOpenStackMetadata(t *testing.T) {
 		require.Equal(t, "nova", resp.AvailabilityZone)
 		require.Equal(t, "org", resp.Meta.OrganizationID)
 		require.Equal(t, "project", resp.Meta.ProjectID)
+		// Verify the new RegionID field is parsed from the JSON.
+		require.Equal(t, "region-1", resp.Meta.RegionID)
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
@@ -186,5 +188,64 @@ func TestFetchOpenStackMetadata(t *testing.T) {
 		_, err := fetchOpenStackMetadata(ctx, srv.URL)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "failed to parse OpenStack metadata")
+	})
+}
+
+func TestFetchRegion(t *testing.T) {
+	t.Run("returns regionID when present in meta", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte(`{"uuid":"u-1","availability_zone":"nova","meta":{"organizationID":"org","projectID":"project","regionID":"eu-west-1"}}`))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		region, err := fetchRegion(ctx, srv.URL)
+		require.NoError(t, err)
+		require.Equal(t, "eu-west-1", region)
+	})
+
+	t.Run("falls back to availability_zone when regionID is empty", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			// meta present but regionID is empty string.
+			_, err := w.Write([]byte(`{"uuid":"u-1","availability_zone":"stavanger-1a","meta":{"organizationID":"org","projectID":"project","regionID":""}}`))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		region, err := fetchRegion(ctx, srv.URL)
+		require.NoError(t, err)
+		require.Equal(t, "stavanger-1a", region)
+	})
+
+	t.Run("returns empty when both regionID and availability_zone are absent", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte(`{"uuid":"u-1","meta":{"organizationID":"org","projectID":"project"}}`))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		region, err := fetchRegion(ctx, srv.URL)
+		require.NoError(t, err)
+		require.Empty(t, region)
+	})
+
+	t.Run("returns error when metadata fetch fails", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		_, err := fetchRegion(ctx, "://bad-url")
+		require.Error(t, err)
 	})
 }
