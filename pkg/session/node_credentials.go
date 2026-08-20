@@ -44,22 +44,39 @@ type NodeCredentialFile struct {
 	Mode uint32 `json:"mode,omitempty"`
 }
 
+// KubeletCredentials is what a kubelet needs to register. The fields are named
+// rather than a list, so each file's role is part of the contract instead of
+// something this side has to infer from a path.
+type KubeletCredentials struct {
+	// Config is the kubelet configuration, which carries the providerID.
+	Config *NodeCredentialFile `json:"config,omitempty"`
+	// ClientCertificate is the client certificate and its private key, in the
+	// single file kubelet reads them from.
+	ClientCertificate *NodeCredentialFile `json:"client_certificate,omitempty"`
+}
+
 // NodeCredentialsRequest carries credential material for one node, grouped by
 // the subsystem that owns it. Grouping rather than flattening means a new kind
 // of credential is a new field, not a change to an existing one.
 type NodeCredentialsRequest struct {
-	// Kubelet is the material a kubelet needs to register: its client
-	// certificate and key, its config, and whatever else the control plane
-	// decides belongs with them.
-	Kubelet []NodeCredentialFile `json:"kubelet,omitempty"`
+	// Kubelet is the material a kubelet needs to register.
+	Kubelet *KubeletCredentials `json:"kubelet,omitempty"`
 }
 
-// Files returns every file in the request, in the order they should be written.
+// Files flattens the request into the order the files should be written. Every
+// named field a caller may set has to appear here, or the file it carries is
+// accepted by the wire format and then silently never written.
 func (r *NodeCredentialsRequest) Files() []NodeCredentialFile {
-	if r == nil {
+	if r == nil || r.Kubelet == nil {
 		return nil
 	}
-	return r.Kubelet
+	var files []NodeCredentialFile
+	for _, f := range []*NodeCredentialFile{r.Kubelet.Config, r.Kubelet.ClientCertificate} {
+		if f != nil {
+			files = append(files, *f)
+		}
+	}
+	return files
 }
 
 // processNodeCredentials writes credential material the control plane sends.

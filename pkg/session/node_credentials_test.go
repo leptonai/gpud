@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
 	"testing"
@@ -66,9 +67,9 @@ func TestProcessNodeCredentialsWritesNothingWhenAnyFileIsRejected(t *testing.T) 
 	session := &Session{}
 	response := &Response{}
 	session.processNodeCredentials(context.Background(), Request{
-		NodeCredentials: &NodeCredentialsRequest{Kubelet: []NodeCredentialFile{
-			{Path: good, Contents: []byte("first")},
-			{Path: "/etc/systemd/system/evil.service", Contents: []byte("second")},
+		NodeCredentials: &NodeCredentialsRequest{Kubelet: &KubeletCredentials{
+			Config:            &NodeCredentialFile{Path: good, Contents: []byte("first")},
+			ClientCertificate: &NodeCredentialFile{Path: "/etc/systemd/system/evil.service", Contents: []byte("second")},
 		}},
 	}, response)
 
@@ -87,6 +88,12 @@ func TestProcessNodeCredentialsRequiresContent(t *testing.T) {
 	response = &Response{}
 	session.processNodeCredentials(context.Background(), Request{
 		NodeCredentials: &NodeCredentialsRequest{},
+	}, response)
+	assert.Contains(t, response.Error, "no files")
+
+	response = &Response{}
+	session.processNodeCredentials(context.Background(), Request{
+		NodeCredentials: &NodeCredentialsRequest{Kubelet: &KubeletCredentials{}},
 	}, response)
 	assert.Contains(t, response.Error, "no files")
 }
@@ -149,9 +156,11 @@ func TestWriteNodeCredentialFileReplacesAtomicallyAndLeavesNoResidue(t *testing.
 func TestAuditSessionRequestDataRedactsNodeCredentials(t *testing.T) {
 	raw, err := json.Marshal(Request{
 		Method: "nodeCredentials",
-		NodeCredentials: &NodeCredentialsRequest{Kubelet: []NodeCredentialFile{
-			{Path: "/var/lib/gpud/packages/kubelet/kubelet-client-current.pem",
-				Contents: []byte("BEGIN EC PRIVATE KEY very-secret")},
+		NodeCredentials: &NodeCredentialsRequest{Kubelet: &KubeletCredentials{
+			ClientCertificate: &NodeCredentialFile{
+				Path:     "/var/lib/gpud/packages/kubelet/kubelet-client-current.pem",
+				Contents: []byte("BEGIN EC PRIVATE KEY very-secret"),
+			},
 		}},
 	})
 	require.NoError(t, err)
@@ -168,4 +177,55 @@ func TestAuditSessionRequestDataRedactsNodeCredentials(t *testing.T) {
 	fields, ok := audited.(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "<redacted>", fields["node_credentials"])
+}
+
+// Files is where named fields become an ordered write list. A field added to
+// KubeletCredentials but not flattened here is accepted by the wire format and
+// then silently never written, which is the failure mode named fields trade
+// for the one a list had.
+//
+// If this fails after a field was added, add it to Files rather than to this
+// list.
+func TestNodeCredentialsFilesCoversEveryKubeletField(t *testing.T) {
+	kubelet := &KubeletCredentials{}
+	v := reflect.ValueOf(kubelet).Elem()
+	typ := v.Type()
+
+	for i := 0; i < typ.NumField(); i++ {
+		require.Equal(t, reflect.TypeOf(&NodeCredentialFile{}), typ.Field(i).Type,
+			"field %s is not a credential file; teach this test about it", typ.Field(i).Name)
+		v.Field(i).Set(reflect.ValueOf(&NodeCredentialFile{
+			Path:     "/var/lib/gpud/" + typ.Field(i).Name,
+			Contents: []byte("x"),
+		}))
+	}
+
+	files := (&NodeCredentialsRequest{Kubelet: kubelet}).Files()
+	assert.Len(t, files, typ.NumField(),
+		"Files() drops a KubeletCredentials field; every named file must be written")
+}
+
+// Order matters to a reader of the node: the certificate is what the kubelet
+// package waits for, so the config has to be in place by the time it lands.
+func TestNodeCredentialsFilesOrder(t *testing.T) {
+	files := (&NodeCredentialsRequest{Kubelet: &KubeletCredentials{
+		Config:            &NodeCredentialFile{Path: "/var/lib/gpud/kubelet.yaml", Contents: []byte("c")},
+		ClientCertificate: &NodeCredentialFile{Path: "/var/lib/gpud/cert.pem", Contents: []byte("k")},
+	}}).Files()
+	require.Len(t, files, 2)
+	assert.Equal(t, "/var/lib/gpud/kubelet.yaml", files[0].Path)
+	assert.Equal(t, "/var/lib/gpud/cert.pem", files[1].Path)
+}
+
+// An absent field must stay absent rather than become an empty file.
+func TestNodeCredentialsFilesSkipsAbsentFields(t *testing.T) {
+	files := (&NodeCredentialsRequest{Kubelet: &KubeletCredentials{
+		Config: &NodeCredentialFile{Path: "/var/lib/gpud/kubelet.yaml", Contents: []byte("c")},
+	}}).Files()
+	require.Len(t, files, 1)
+	assert.Equal(t, "/var/lib/gpud/kubelet.yaml", files[0].Path)
+
+	assert.Empty(t, (&NodeCredentialsRequest{Kubelet: &KubeletCredentials{}}).Files())
+	assert.Empty(t, (&NodeCredentialsRequest{}).Files())
+	assert.Empty(t, (*NodeCredentialsRequest)(nil).Files())
 }

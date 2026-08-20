@@ -261,27 +261,32 @@ func TestRequestFromV2ConvertsConcreteRequests(t *testing.T) {
 			// read it, so both have to survive the conversion.
 			name: "node credentials",
 			request: newV2ManagerPacket(&sessionv2.ManagerPacket_NodeCredentials{NodeCredentials: &sessionv2.NodeCredentialsRequest{
-				Kubelet: []*sessionv2.NodeCredentialFile{
-					{Path: "/var/lib/gpud/packages/kubelet/kubelet-client-current.pem", Contents: []byte("cert"), Mode: 0o600},
-					{Path: "/var/lib/gpud/packages/kubelet/kubelet.yaml", Contents: []byte("providerID: x"), Mode: 0o644},
+				Kubelet: &sessionv2.KubeletCredentials{
+					Config:            &sessionv2.NodeCredentialFile{Path: "/var/lib/gpud/packages/kubelet/kubelet.yaml", Contents: []byte("providerID: x"), Mode: 0o644},
+					ClientCertificate: &sessionv2.NodeCredentialFile{Path: "/var/lib/gpud/packages/kubelet/kubelet-client-current.pem", Contents: []byte("cert"), Mode: 0o600},
 				},
 			}}),
 			want: Request{Method: "nodeCredentials", NodeCredentials: &NodeCredentialsRequest{
-				Kubelet: []NodeCredentialFile{
-					{Path: "/var/lib/gpud/packages/kubelet/kubelet-client-current.pem", Contents: []byte("cert"), Mode: 0o600},
-					{Path: "/var/lib/gpud/packages/kubelet/kubelet.yaml", Contents: []byte("providerID: x"), Mode: 0o644},
+				Kubelet: &KubeletCredentials{
+					Config:            &NodeCredentialFile{Path: "/var/lib/gpud/packages/kubelet/kubelet.yaml", Contents: []byte("providerID: x"), Mode: 0o644},
+					ClientCertificate: &NodeCredentialFile{Path: "/var/lib/gpud/packages/kubelet/kubelet-client-current.pem", Contents: []byte("cert"), Mode: 0o600},
 				},
 			}},
 		},
 		{
-			// A nil element is a malformed packet, not a request to write an
-			// empty file, so it is dropped rather than converted.
-			name: "node credentials with a nil file",
+			// An absent field stays absent rather than becoming an empty file:
+			// a credential truncated to nothing looks like a successful write
+			// and fails wherever the file is read.
+			name: "node credentials with only one file set",
 			request: newV2ManagerPacket(&sessionv2.ManagerPacket_NodeCredentials{NodeCredentials: &sessionv2.NodeCredentialsRequest{
-				Kubelet: []*sessionv2.NodeCredentialFile{nil, {Path: "/var/lib/gpud/x", Contents: []byte("y")}},
+				Kubelet: &sessionv2.KubeletCredentials{
+					Config: &sessionv2.NodeCredentialFile{Path: "/var/lib/gpud/x", Contents: []byte("y")},
+				},
 			}}),
 			want: Request{Method: "nodeCredentials", NodeCredentials: &NodeCredentialsRequest{
-				Kubelet: []NodeCredentialFile{{Path: "/var/lib/gpud/x", Contents: []byte("y")}},
+				Kubelet: &KubeletCredentials{
+					Config: &NodeCredentialFile{Path: "/var/lib/gpud/x", Contents: []byte("y")},
+				},
 			}},
 		},
 	}

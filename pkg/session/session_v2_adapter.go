@@ -185,7 +185,7 @@ func requestFromV2(packet *sessionv2.ManagerPacket) (Request, error) {
 		}
 		legacy.Method = "nodeCredentials"
 		legacy.NodeCredentials = &NodeCredentialsRequest{
-			Kubelet: nodeCredentialFilesFromV2(payload.NodeCredentials.Kubelet),
+			Kubelet: kubeletCredentialsFromV2(payload.NodeCredentials.Kubelet),
 		}
 	case nil:
 		return Request{}, fmt.Errorf("v2 request payload is missing")
@@ -196,22 +196,24 @@ func requestFromV2(packet *sessionv2.ManagerPacket) (Request, error) {
 	return legacy, nil
 }
 
-// nodeCredentialFilesFromV2 drops nil entries rather than turning them into
-// empty files: an empty path fails validation anyway, and a nil element is a
-// malformed packet rather than a request to write nothing.
-func nodeCredentialFilesFromV2(files []*sessionv2.NodeCredentialFile) []NodeCredentialFile {
-	converted := make([]NodeCredentialFile, 0, len(files))
-	for _, file := range files {
-		if file == nil {
-			continue
-		}
-		converted = append(converted, NodeCredentialFile{
-			Path:     file.Path,
-			Contents: file.Contents,
-			Mode:     file.Mode,
-		})
+// kubeletCredentialsFromV2 converts the named kubelet files. An absent field
+// stays absent rather than becoming an empty file: a credential truncated to
+// nothing looks like a successful write and fails wherever the file is read.
+func kubeletCredentialsFromV2(k *sessionv2.KubeletCredentials) *KubeletCredentials {
+	if k == nil {
+		return nil
 	}
-	return converted
+	return &KubeletCredentials{
+		Config:            nodeCredentialFileFromV2(k.Config),
+		ClientCertificate: nodeCredentialFileFromV2(k.ClientCertificate),
+	}
+}
+
+func nodeCredentialFileFromV2(f *sessionv2.NodeCredentialFile) *NodeCredentialFile {
+	if f == nil {
+		return nil
+	}
+	return &NodeCredentialFile{Path: f.Path, Contents: f.Contents, Mode: f.Mode}
 }
 
 func pluginSpecsFromV2(specs []*sessionv2.PluginSpec) pkgcustomplugins.Specs {

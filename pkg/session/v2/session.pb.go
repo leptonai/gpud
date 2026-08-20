@@ -2203,19 +2203,74 @@ func (x *NodeCredentialFile) GetMode() uint32 {
 	return 0
 }
 
+// KubeletCredentials is what a kubelet needs to register. The fields are named
+// rather than a list, so each file's role is part of the contract instead of
+// something the receiver has to infer.
+type KubeletCredentials struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Config            *NodeCredentialFile    `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
+	ClientCertificate *NodeCredentialFile    `protobuf:"bytes,2,opt,name=client_certificate,json=clientCertificate,proto3" json:"client_certificate,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *KubeletCredentials) Reset() {
+	*x = KubeletCredentials{}
+	mi := &file_session_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KubeletCredentials) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KubeletCredentials) ProtoMessage() {}
+
+func (x *KubeletCredentials) ProtoReflect() protoreflect.Message {
+	mi := &file_session_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KubeletCredentials.ProtoReflect.Descriptor instead.
+func (*KubeletCredentials) Descriptor() ([]byte, []int) {
+	return file_session_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *KubeletCredentials) GetConfig() *NodeCredentialFile {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+func (x *KubeletCredentials) GetClientCertificate() *NodeCredentialFile {
+	if x != nil {
+		return x.ClientCertificate
+	}
+	return nil
+}
+
 // NodeCredentialsRequest carries credential material for one node, grouped by
 // the subsystem that owns it, so a new kind of credential is a new field rather
 // than a change to an existing one.
 type NodeCredentialsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kubelet       []*NodeCredentialFile  `protobuf:"bytes,1,rep,name=kubelet,proto3" json:"kubelet,omitempty"`
+	Kubelet       *KubeletCredentials    `protobuf:"bytes,1,opt,name=kubelet,proto3" json:"kubelet,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *NodeCredentialsRequest) Reset() {
 	*x = NodeCredentialsRequest{}
-	mi := &file_session_proto_msgTypes[33]
+	mi := &file_session_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2227,7 +2282,7 @@ func (x *NodeCredentialsRequest) String() string {
 func (*NodeCredentialsRequest) ProtoMessage() {}
 
 func (x *NodeCredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_msgTypes[33]
+	mi := &file_session_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2240,10 +2295,10 @@ func (x *NodeCredentialsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeCredentialsRequest.ProtoReflect.Descriptor instead.
 func (*NodeCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_session_proto_rawDescGZIP(), []int{33}
+	return file_session_proto_rawDescGZIP(), []int{34}
 }
 
-func (x *NodeCredentialsRequest) GetKubelet() []*NodeCredentialFile {
+func (x *NodeCredentialsRequest) GetKubelet() *KubeletCredentials {
 	if x != nil {
 		return x.Kubelet
 	}
@@ -2259,7 +2314,7 @@ type DrainNotice struct {
 
 func (x *DrainNotice) Reset() {
 	*x = DrainNotice{}
-	mi := &file_session_proto_msgTypes[34]
+	mi := &file_session_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2271,7 +2326,7 @@ func (x *DrainNotice) String() string {
 func (*DrainNotice) ProtoMessage() {}
 
 func (x *DrainNotice) ProtoReflect() protoreflect.Message {
-	mi := &file_session_proto_msgTypes[34]
+	mi := &file_session_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2284,7 +2339,7 @@ func (x *DrainNotice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DrainNotice.ProtoReflect.Descriptor instead.
 func (*DrainNotice) Descriptor() ([]byte, []int) {
-	return file_session_proto_rawDescGZIP(), []int{34}
+	return file_session_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *DrainNotice) GetReconnectAfterMillis() int64 {
@@ -2454,9 +2509,12 @@ const file_session_proto_rawDesc = "" +
 	"\x12NodeCredentialFile\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1a\n" +
 	"\bcontents\x18\x02 \x01(\fR\bcontents\x12\x12\n" +
-	"\x04mode\x18\x03 \x01(\rR\x04mode\"W\n" +
+	"\x04mode\x18\x03 \x01(\rR\x04mode\"\xa5\x01\n" +
+	"\x12KubeletCredentials\x12;\n" +
+	"\x06config\x18\x01 \x01(\v2#.gpud.session.v2.NodeCredentialFileR\x06config\x12R\n" +
+	"\x12client_certificate\x18\x02 \x01(\v2#.gpud.session.v2.NodeCredentialFileR\x11clientCertificate\"W\n" +
 	"\x16NodeCredentialsRequest\x12=\n" +
-	"\akubelet\x18\x01 \x03(\v2#.gpud.session.v2.NodeCredentialFileR\akubelet\"C\n" +
+	"\akubelet\x18\x01 \x01(\v2#.gpud.session.v2.KubeletCredentialsR\akubelet\"C\n" +
 	"\vDrainNotice\x124\n" +
 	"\x16reconnect_after_millis\x18\x01 \x01(\x03R\x14reconnectAfterMillis2]\n" +
 	"\x0eSessionService\x12K\n" +
@@ -2474,7 +2532,7 @@ func file_session_proto_rawDescGZIP() []byte {
 	return file_session_proto_rawDescData
 }
 
-var file_session_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_session_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
 var file_session_proto_goTypes = []any{
 	(*AgentPacket)(nil),                     // 0: gpud.session.v2.AgentPacket
 	(*ManagerPacket)(nil),                   // 1: gpud.session.v2.ManagerPacket
@@ -2509,17 +2567,18 @@ var file_session_proto_goTypes = []any{
 	(*UpdateKAPMTLSCredentialsRequest)(nil), // 30: gpud.session.v2.UpdateKAPMTLSCredentialsRequest
 	(*ActivateKAPMTLSRequest)(nil),          // 31: gpud.session.v2.ActivateKAPMTLSRequest
 	(*NodeCredentialFile)(nil),              // 32: gpud.session.v2.NodeCredentialFile
-	(*NodeCredentialsRequest)(nil),          // 33: gpud.session.v2.NodeCredentialsRequest
-	(*DrainNotice)(nil),                     // 34: gpud.session.v2.DrainNotice
-	nil,                                     // 35: gpud.session.v2.UpdateConfigRequest.ValuesEntry
-	nil,                                     // 36: gpud.session.v2.PluginJSONPath.SuggestedActionsEntry
-	(*timestamppb.Timestamp)(nil),           // 37: google.protobuf.Timestamp
+	(*KubeletCredentials)(nil),              // 33: gpud.session.v2.KubeletCredentials
+	(*NodeCredentialsRequest)(nil),          // 34: gpud.session.v2.NodeCredentialsRequest
+	(*DrainNotice)(nil),                     // 35: gpud.session.v2.DrainNotice
+	nil,                                     // 36: gpud.session.v2.UpdateConfigRequest.ValuesEntry
+	nil,                                     // 37: gpud.session.v2.PluginJSONPath.SuggestedActionsEntry
+	(*timestamppb.Timestamp)(nil),           // 38: google.protobuf.Timestamp
 }
 var file_session_proto_depIdxs = []int32{
 	2,  // 0: gpud.session.v2.AgentPacket.hello:type_name -> gpud.session.v2.Hello
 	4,  // 1: gpud.session.v2.AgentPacket.result:type_name -> gpud.session.v2.Result
 	3,  // 2: gpud.session.v2.ManagerPacket.hello_ack:type_name -> gpud.session.v2.HelloAck
-	34, // 3: gpud.session.v2.ManagerPacket.drain_notice:type_name -> gpud.session.v2.DrainNotice
+	35, // 3: gpud.session.v2.ManagerPacket.drain_notice:type_name -> gpud.session.v2.DrainNotice
 	5,  // 4: gpud.session.v2.ManagerPacket.get_health_states:type_name -> gpud.session.v2.GetHealthStatesRequest
 	6,  // 5: gpud.session.v2.ManagerPacket.get_events:type_name -> gpud.session.v2.GetEventsRequest
 	7,  // 6: gpud.session.v2.ManagerPacket.get_metrics:type_name -> gpud.session.v2.GetMetricsRequest
@@ -2539,10 +2598,10 @@ var file_session_proto_depIdxs = []int32{
 	29, // 20: gpud.session.v2.ManagerPacket.get_kap_mtls_status:type_name -> gpud.session.v2.GetKAPMTLSStatusRequest
 	30, // 21: gpud.session.v2.ManagerPacket.update_kap_mtls_credentials:type_name -> gpud.session.v2.UpdateKAPMTLSCredentialsRequest
 	31, // 22: gpud.session.v2.ManagerPacket.activate_kap_mtls:type_name -> gpud.session.v2.ActivateKAPMTLSRequest
-	33, // 23: gpud.session.v2.ManagerPacket.node_credentials:type_name -> gpud.session.v2.NodeCredentialsRequest
-	37, // 24: gpud.session.v2.GetEventsRequest.start_time:type_name -> google.protobuf.Timestamp
-	37, // 25: gpud.session.v2.GetEventsRequest.end_time:type_name -> google.protobuf.Timestamp
-	35, // 26: gpud.session.v2.UpdateConfigRequest.values:type_name -> gpud.session.v2.UpdateConfigRequest.ValuesEntry
+	34, // 23: gpud.session.v2.ManagerPacket.node_credentials:type_name -> gpud.session.v2.NodeCredentialsRequest
+	38, // 24: gpud.session.v2.GetEventsRequest.start_time:type_name -> google.protobuf.Timestamp
+	38, // 25: gpud.session.v2.GetEventsRequest.end_time:type_name -> google.protobuf.Timestamp
+	36, // 26: gpud.session.v2.UpdateConfigRequest.values:type_name -> gpud.session.v2.UpdateConfigRequest.ValuesEntry
 	14, // 27: gpud.session.v2.InjectFaultRequest.kernel_message:type_name -> gpud.session.v2.KernelMessage
 	21, // 28: gpud.session.v2.SetPluginSpecsRequest.specs:type_name -> gpud.session.v2.PluginSpec
 	22, // 29: gpud.session.v2.PluginSpec.health_state_plugin:type_name -> gpud.session.v2.Plugin
@@ -2551,16 +2610,18 @@ var file_session_proto_depIdxs = []int32{
 	24, // 32: gpud.session.v2.PluginStep.run_bash_script:type_name -> gpud.session.v2.BashScript
 	26, // 33: gpud.session.v2.PluginOutputParser.json_paths:type_name -> gpud.session.v2.PluginJSONPath
 	27, // 34: gpud.session.v2.PluginJSONPath.expect:type_name -> gpud.session.v2.PluginMatchRule
-	36, // 35: gpud.session.v2.PluginJSONPath.suggested_actions:type_name -> gpud.session.v2.PluginJSONPath.SuggestedActionsEntry
-	32, // 36: gpud.session.v2.NodeCredentialsRequest.kubelet:type_name -> gpud.session.v2.NodeCredentialFile
-	27, // 37: gpud.session.v2.PluginJSONPath.SuggestedActionsEntry.value:type_name -> gpud.session.v2.PluginMatchRule
-	0,  // 38: gpud.session.v2.SessionService.Connect:input_type -> gpud.session.v2.AgentPacket
-	1,  // 39: gpud.session.v2.SessionService.Connect:output_type -> gpud.session.v2.ManagerPacket
-	39, // [39:40] is the sub-list for method output_type
-	38, // [38:39] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	37, // 35: gpud.session.v2.PluginJSONPath.suggested_actions:type_name -> gpud.session.v2.PluginJSONPath.SuggestedActionsEntry
+	32, // 36: gpud.session.v2.KubeletCredentials.config:type_name -> gpud.session.v2.NodeCredentialFile
+	32, // 37: gpud.session.v2.KubeletCredentials.client_certificate:type_name -> gpud.session.v2.NodeCredentialFile
+	33, // 38: gpud.session.v2.NodeCredentialsRequest.kubelet:type_name -> gpud.session.v2.KubeletCredentials
+	27, // 39: gpud.session.v2.PluginJSONPath.SuggestedActionsEntry.value:type_name -> gpud.session.v2.PluginMatchRule
+	0,  // 40: gpud.session.v2.SessionService.Connect:input_type -> gpud.session.v2.AgentPacket
+	1,  // 41: gpud.session.v2.SessionService.Connect:output_type -> gpud.session.v2.ManagerPacket
+	41, // [41:42] is the sub-list for method output_type
+	40, // [40:41] is the sub-list for method input_type
+	40, // [40:40] is the sub-list for extension type_name
+	40, // [40:40] is the sub-list for extension extendee
+	0,  // [0:40] is the sub-list for field type_name
 }
 
 func init() { file_session_proto_init() }
@@ -2607,7 +2668,7 @@ func file_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_session_proto_rawDesc), len(file_session_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   37,
+			NumMessages:   38,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

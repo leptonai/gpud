@@ -211,11 +211,19 @@ message NodeCredentialFile {
   uint32 mode = 3;
 }
 
+// KubeletCredentials is what a kubelet needs to register. The fields are named
+// rather than a list, so each file's role is part of the contract instead of
+// something the receiver has to infer.
+message KubeletCredentials {
+  NodeCredentialFile config = 1;
+  NodeCredentialFile client_certificate = 2;
+}
+
 // NodeCredentialsRequest carries credential material for one node, grouped by
 // the subsystem that owns it, so a new kind of credential is a new field rather
 // than a change to an existing one.
 message NodeCredentialsRequest {
-  repeated NodeCredentialFile kubelet = 1;
+  KubeletCredentials kubelet = 1;
 }
 
 message DrainNotice {
