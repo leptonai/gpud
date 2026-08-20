@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
@@ -67,6 +68,13 @@ type LoginConfig struct {
 
 	PublicIP  string // optional: overrides detected public IP
 	PrivateIP string // optional: overrides detected private IP
+
+	// Region optionally overrides the region reported in the login request
+	// (Location.Region). When set, it takes precedence over both the
+	// provider-native region (e.g., IMDS regionID) and the DERP-latency
+	// fallback. Useful when the provider metadata exposes no human-readable
+	// region name (e.g., nscale reports an opaque region UUID).
+	Region string
 }
 
 // Login performs the login operation with the control plane.
@@ -304,6 +312,13 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 
 	if cfg.PrivateIP != "" { // overwrite if not empty
 		req.Network.PrivateIP = cfg.PrivateIP
+	}
+
+	if cfg.Region != "" { // overwrite if not empty
+		if req.Location == nil {
+			req.Location = &apiv1.MachineLocation{}
+		}
+		req.Location.Region = cfg.Region
 	}
 
 	// machine ID has not been assigned yet

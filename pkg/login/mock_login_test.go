@@ -1742,3 +1742,120 @@ func TestSendRequestWrapper_SendRequestError(t *testing.T) {
 		assert.Nil(t, resp)
 	})
 }
+
+// TestLogin_RegionOverride verifies that LoginConfig.Region overrides the login
+// request location regardless of what provider detection or the DERP-latency
+// fallback produced, and that an empty override leaves the detected location
+// untouched.
+func TestLogin_RegionOverride(t *testing.T) {
+	type step struct {
+		name           string
+		regionOverride string
+		detected       *apiv1.MachineLocation
+		wantRegion     string
+		wantNilLoc     bool
+	}
+	steps := []step{
+		{
+			name:           "overrides provider-native region",
+			regionOverride: "eu-north-1",
+			detected:       &apiv1.MachineLocation{Region: "d0ba550d-1be4-4c4e-8ef9-3adb23b3fe3b"},
+			wantRegion:     "eu-north-1",
+		},
+		{
+			name:           "sets location when detection returned none",
+			regionOverride: "eu-north-1",
+			detected:       nil,
+			wantRegion:     "eu-north-1",
+		},
+		{
+			name:           "empty override keeps detected region",
+			regionOverride: "",
+			detected:       &apiv1.MachineLocation{Region: "us-west-2"},
+			wantRegion:     "us-west-2",
+		},
+		{
+			name:           "empty override with no detected location stays nil",
+			regionOverride: "",
+			detected:       nil,
+			wantNilLoc:     true,
+		},
+	}
+
+	for _, tc := range steps {
+		t.Run(tc.name, func(t *testing.T) {
+			mockey.PatchConvey("login region override", t, func() {
+				mockDB := &sql.DB{}
+
+				mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
+					return "/tmp/test", nil
+				}).Build()
+				mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
+					return mockDB, nil
+				}).Build()
+				mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+					return nil
+				}).Build()
+				mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(context.Context, *sql.DB) error {
+					return nil
+				}).Build()
+				mockey.Mock(sessionstates.CreateTable).To(func(context.Context, *sql.DB) error {
+					return nil
+				}).Build()
+				mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+					return "", nil
+				}).Build()
+				mockey.Mock(pkgmetadata.ReadMetadata).To(func(context.Context, *sql.DB, string) (string, error) {
+					return "", nil
+				}).Build()
+				mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+					return nvidianvml.NewNoOp(), nil
+				}).Build()
+				mockey.Mock((nvidianvml.Instance).Shutdown).To(func() error {
+					return nil
+				}).Build()
+
+				mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+					return &apiv1.LoginRequest{
+						Network:  &apiv1.MachineNetwork{},
+						Location: tc.detected,
+					}, nil
+				}).Build()
+
+				var receivedRequest apiv1.LoginRequest
+				mockey.Mock(SendRequest).To(func(_ context.Context, _ string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+					receivedRequest = req
+					return &apiv1.LoginResponse{
+						MachineID: "new-machine-id",
+						Token:     "session-token",
+					}, nil
+				}).Build()
+
+				mockey.Mock(pkgmetadata.SetMetadata).To(func(context.Context, *sql.DB, string, string) error {
+					return nil
+				}).Build()
+				mockey.Mock(config.FifoFilePath).To(func(string) string {
+					return "/tmp/test/fifo"
+				}).Build()
+				mockey.Mock(serverRunning).To(func() bool {
+					return false
+				}).Build()
+
+				err := Login(context.Background(), LoginConfig{
+					Token:    "test-token",
+					Endpoint: "https://example.com",
+					DataDir:  "/tmp/test",
+					Region:   tc.regionOverride,
+				})
+				require.NoError(t, err)
+
+				if tc.wantNilLoc {
+					assert.Nil(t, receivedRequest.Location)
+					return
+				}
+				require.NotNil(t, receivedRequest.Location)
+				assert.Equal(t, tc.wantRegion, receivedRequest.Location.Region)
+			})
+		})
+	}
+}

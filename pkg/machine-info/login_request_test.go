@@ -1199,6 +1199,72 @@ func TestCreateLoginRequest_ProviderRegionOverridesLatencyLocation(t *testing.T)
 	assert.False(t, machineLocationCalled)
 }
 
+// TestCreateLoginRequest_UnknownRegionFallback verifies that the login request
+// reports region "unknown" (never empty) when the provider metadata lookup
+// failed or is unsupported AND the DERP-latency fallback also failed.
+func TestCreateLoginRequest_UnknownRegionFallback(t *testing.T) {
+	getMachineInfoFunc := func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+		return &apiv1.MachineInfo{
+			CPUInfo:    &apiv1.MachineCPUInfo{LogicalCores: 4},
+			MemoryInfo: &apiv1.MachineMemoryInfo{TotalBytes: 16 * 1024 * 1024 * 1024},
+			NICInfo:    &apiv1.MachineNICInfo{},
+		}, nil
+	}
+
+	steps := []struct {
+		name              string
+		getProviderFunc   func(string) *providers.Info
+		getMachineLocFunc func() *apiv1.MachineLocation
+	}{
+		{
+			name: "provider without region and DERP returns nil",
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "nscale", PublicIP: ip, PrivateIP: "7.247.195.146", InstanceID: "i-00001923"}
+			},
+			getMachineLocFunc: func() *apiv1.MachineLocation { return nil },
+		},
+		{
+			// mirrors real GetProvider behavior: returns Info{Provider: "unknown"}
+			// with no region when no provider is detected (never returns nil)
+			name: "provider unsupported and DERP returns nil",
+			getProviderFunc: func(string) *providers.Info {
+				return &providers.Info{Provider: "unknown"}
+			},
+			getMachineLocFunc: func() *apiv1.MachineLocation { return nil },
+		},
+		{
+			name: "provider region empty and DERP returns empty region",
+			getProviderFunc: func(ip string) *providers.Info {
+				return &providers.Info{Provider: "nscale", PublicIP: ip, Region: "  "}
+			},
+			getMachineLocFunc: func() *apiv1.MachineLocation { return &apiv1.MachineLocation{} },
+		},
+	}
+
+	for _, tc := range steps {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := createLoginRequest(
+				"token",
+				"machine-id",
+				"",
+				"1",
+				&mockNvmlInstance{},
+				func() (string, error) { return "46.148.127.98", nil },
+				tc.getMachineLocFunc,
+				getMachineInfoFunc,
+				tc.getProviderFunc,
+				func() (string, error) { return "100Gi", nil },
+				func(nvidianvml.Instance) (string, error) { return "1", nil },
+			)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, req)
+			assert.NotNil(t, req.Location)
+			assert.Equal(t, RegionUnknown, req.Location.Region)
+		})
+	}
+}
+
 func TestGetProviderLocation(t *testing.T) {
 	tests := []struct {
 		name     string
