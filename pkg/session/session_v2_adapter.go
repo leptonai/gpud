@@ -179,6 +179,14 @@ func requestFromV2(packet *sessionv2.ManagerPacket) (Request, error) {
 			return Request{}, fmt.Errorf("activate-KAP-mTLS payload is missing")
 		}
 		legacy.Method = "activateKAPMTLS"
+	case *sessionv2.ManagerPacket_NodeCredentials:
+		if payload.NodeCredentials == nil {
+			return Request{}, fmt.Errorf("node-credentials payload is missing")
+		}
+		legacy.Method = "nodeCredentials"
+		legacy.NodeCredentials = &NodeCredentialsRequest{
+			Kubelet: nodeCredentialFilesFromV2(payload.NodeCredentials.Kubelet),
+		}
 	case nil:
 		return Request{}, fmt.Errorf("v2 request payload is missing")
 	default:
@@ -186,6 +194,24 @@ func requestFromV2(packet *sessionv2.ManagerPacket) (Request, error) {
 	}
 
 	return legacy, nil
+}
+
+// nodeCredentialFilesFromV2 drops nil entries rather than turning them into
+// empty files: an empty path fails validation anyway, and a nil element is a
+// malformed packet rather than a request to write nothing.
+func nodeCredentialFilesFromV2(files []*sessionv2.NodeCredentialFile) []NodeCredentialFile {
+	converted := make([]NodeCredentialFile, 0, len(files))
+	for _, file := range files {
+		if file == nil {
+			continue
+		}
+		converted = append(converted, NodeCredentialFile{
+			Path:     file.Path,
+			Contents: file.Contents,
+			Mode:     file.Mode,
+		})
+	}
+	return converted
 }
 
 func pluginSpecsFromV2(specs []*sessionv2.PluginSpec) pkgcustomplugins.Specs {

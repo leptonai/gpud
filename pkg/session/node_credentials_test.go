@@ -156,10 +156,16 @@ func TestAuditSessionRequestDataRedactsNodeCredentials(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	audited, err := json.Marshal(auditSessionRequestData(raw))
-	require.NoError(t, err)
+	audited := auditSessionRequestData(raw)
 
-	assert.NotContains(t, string(audited), "very-secret")
-	assert.NotContains(t, string(audited), "PRIVATE KEY")
-	assert.Contains(t, string(audited), "<redacted>")
+	serialized, err := json.Marshal(audited)
+	require.NoError(t, err)
+	assert.NotContains(t, string(serialized), "very-secret")
+	assert.NotContains(t, string(serialized), "PRIVATE KEY")
+
+	// Asserted on the value rather than the serialized form, which escapes the
+	// angle brackets.
+	fields, ok := audited.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "<redacted>", fields["node_credentials"])
 }
