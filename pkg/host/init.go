@@ -130,7 +130,7 @@ func loadInfo() {
 	currentSystemManufacturer, err = GetSystemManufacturer(ctx)
 	cancel()
 	if err != nil {
-		log.Logger.Errorw("failed to detect virtualization environment", "error", err)
+		log.Logger.Errorw("failed to detect system manufacturer", "error", err)
 	}
 
 	currentOSMachineID, err = GetOSMachineID()
