@@ -10,29 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_findMntTargetDevice(t *testing.T) {
-	f, err := os.Open("testdata/mountinfo")
-	if err != nil {
-		t.Fatalf("failed to open testdata/mountinfo: %v", err)
-	}
-	defer func() {
-		_ = f.Close()
-	}()
-
-	buf := bufio.NewScanner(f)
-
-	mountPoint, fsType, err := findMntTargetDevice(buf, "/var/lib/kubelet")
-	if err != nil {
-		t.Fatalf("failed to find mount point: %v", err)
-	}
-	if mountPoint != "/dev/mapper/vgroot-lvroot" {
-		t.Fatalf("expected mount point: %s, got: %s", "/dev/mapper/vgroot-lvroot", mountPoint)
-	}
-	if fsType != "ext4" {
-		t.Fatalf("expected fsType ext4, got: %s", fsType)
-	}
-}
-
 func Test_findExactMntTargetDevice(t *testing.T) {
 	scanner := bufio.NewScanner(strings.NewReader("1 2 3 4 /test/subdir 6 7 8 9 10 11 - nfs server:/export rw"))
 	dev, fsType, err := findExactMntTargetDevice(scanner, "/test")
@@ -87,8 +64,8 @@ func Test_findFsTypeAndDeviceByMinorNumber2(t *testing.T) {
 	}
 }
 
-// Test for FindMntTargetDevice public function
-func TestFindMntTargetDevice(t *testing.T) {
+// Test for FindMntExactTargetDevice public function
+func TestFindMntExactTargetDevice(t *testing.T) {
 	// This test will use the actual /proc/self/mountinfo if it exists
 	// We'll skip the test if not running on Linux
 	if _, err := os.Stat("/proc/self/mountinfo"); os.IsNotExist(err) {
@@ -96,9 +73,9 @@ func TestFindMntTargetDevice(t *testing.T) {
 	}
 
 	// Test with a common mount point that should exist on most Linux systems
-	dev, fsType, err := FindMntTargetDevice("/")
+	dev, fsType, err := FindMntExactTargetDevice("/")
 	if err != nil {
-		t.Fatalf("FindMntTargetDevice failed: %v", err)
+		t.Fatalf("FindMntExactTargetDevice failed: %v", err)
 	}
 
 	// Root should have some device and filesystem type
@@ -127,8 +104,8 @@ func TestFindFsTypeAndDeviceByMinorNumber(t *testing.T) {
 	}
 }
 
-// Test edge cases for findMntTargetDevice
-func Test_findMntTargetDevice_EdgeCases(t *testing.T) {
+// Test edge cases for findExactMntTargetDevice
+func Test_findExactMntTargetDevice_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name           string
 		mountinfoData  string
@@ -194,11 +171,11 @@ func Test_findMntTargetDevice_EdgeCases(t *testing.T) {
 			expectError:    false,
 		},
 		{
-			name:           "prefix match for subdirectory",
-			mountinfoData:  "1 2 3 4 /test/subdir 6 7 8 9 10 11 - xfs /dev/sdb1 rw",
+			name:           "sibling prefix is not an exact match",
+			mountinfoData:  "1 2 3 4 /test-backup 6 7 8 9 10 11 - xfs /dev/sdb1 rw",
 			targetDir:      "/test",
-			expectedDev:    "/dev/sdb1",
-			expectedFsType: "xfs",
+			expectedDev:    "",
+			expectedFsType: "",
 			expectError:    false,
 		},
 		{
@@ -421,11 +398,11 @@ func Test_findMntTargetDevice_EdgeCases(t *testing.T) {
 			expectError:    false,
 		},
 		{
-			name:           "lustre mount - nested mount point under search dir",
+			name:           "lustre nested mount is not an exact match",
 			mountinfoData:  "2502 2357 0:102 / /lustre/fs1/shared/project rw,relatime shared:520 master:1 - lustre 172.16.0.100@tcp:/lustrefs rw,flock,lazystatfs",
 			targetDir:      "/lustre/fs1",
-			expectedDev:    "172.16.0.100@tcp:/lustrefs",
-			expectedFsType: "lustre",
+			expectedDev:    "",
+			expectedFsType: "",
 			expectError:    false,
 		},
 		{
@@ -450,7 +427,7 @@ func Test_findMntTargetDevice_EdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			scanner := bufio.NewScanner(strings.NewReader(tt.mountinfoData))
-			dev, fsType, err := findMntTargetDevice(scanner, tt.targetDir)
+			dev, fsType, err := findExactMntTargetDevice(scanner, tt.targetDir)
 
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error but got none")

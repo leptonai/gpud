@@ -556,7 +556,7 @@ func TestLustreMountDetectionViaMountinfo(t *testing.T) {
 	scanner := bufio.NewScanner(strings.NewReader(mountinfoData))
 
 	// Verify Lustre mount is detected via mountinfo
-	dev, fsType, err := findMntTargetDevice(scanner, "/lustre/fs1")
+	dev, fsType, err := findExactMntTargetDevice(scanner, "/lustre/fs1")
 	require.NoError(t, err)
 	assert.Equal(t, "172.16.0.100@tcp:/lustrefs", dev)
 	assert.Equal(t, "lustre", fsType)
