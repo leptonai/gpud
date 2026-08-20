@@ -82,6 +82,7 @@ func Command(cliContext *cli.Context) (retErr error) {
 
 			PublicIP:  cliContext.String("public-ip"),
 			PrivateIP: cliContext.String("private-ip"),
+			Region:    cliContext.String("region"),
 		}
 
 		if lerr := login.Login(loginCtx, loginCfg); lerr != nil {

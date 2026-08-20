@@ -14,6 +14,13 @@ import (
 	"github.com/leptonai/gpud/pkg/providers"
 )
 
+// RegionUnknown is reported as the login request region when neither the
+// provider metadata (e.g., IMDS unsupported or unreachable) nor the
+// DERP-latency fallback produced one. Matches the "unknown" provider
+// convention in GetProvider, and gives downstream consumers (e.g., node
+// region label propagation) a stable non-empty value.
+const RegionUnknown = "unknown"
+
 func CreateLoginRequest(token string, machineID string, nodeGroup string, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 	return createLoginRequest(
 		token,
@@ -150,6 +157,19 @@ func createLoginRequest(
 		req.Location = providerLocation
 	} else if machineLocationCh != nil {
 		req.Location = <-machineLocationCh
+	}
+
+	// Never report an empty region: when the provider metadata lookup
+	// failed or is unsupported AND the DERP-latency fallback also failed,
+	// mark the region "unknown" so downstream region consumers (e.g.,
+	// node region label propagation) see a stable value instead of "". An
+	// explicit region override (e.g., "gpud up --region") is applied by
+	// the caller after this and still takes precedence.
+	if req.Location == nil {
+		req.Location = &apiv1.MachineLocation{}
+	}
+	if strings.TrimSpace(req.Location.Region) == "" {
+		req.Location.Region = RegionUnknown
 	}
 
 	return req, nil
