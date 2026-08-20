@@ -37,7 +37,10 @@ import (
 	"github.com/leptonai/gpud/version"
 )
 
-const diskPartitionsTimeout = 10 * time.Second
+const (
+	diskPartitionsTimeout             = 10 * time.Second
+	minDriverMajorForNVMLPlatformInfo = 570
+)
 
 type diskCommands struct {
 	findmntCommand       string
@@ -94,6 +97,13 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get machine gpu info: %w", err)
 	}
+
+	// The control plane records these values in the Machine CR status, so
+	// that operators can see the fabric domain and the clique of each node.
+	// Only NVLink fabric systems (e.g., NVIDIA GB200 NVL72) report them;
+	// they stay empty on other platforms.
+	info.ClusterUUID, info.CliqueID = getGPUFabricIdentifiers(nvmlInstance)
+	info.ChassisSerial = getGPUChassisSerial(nvmlInstance)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -427,6 +437,43 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 
 	qty := resource.NewQuantity(int64(deviceCount), resource.DecimalSI)
 	return qty.String(), nil
+}
+
+// getGPUFabricIdentifiers returns the NVLink fabric cluster UUID and clique ID
+// of the machine (e.g., NVIDIA GB200 NVL72). All GPUs on the same machine share
+// these identifiers, so the first device with a readable fabric state is
+// sufficient. Fabric state telemetry is not supported on all platforms; in
+// that case this function returns empty values and does not fail.
+func getGPUFabricIdentifiers(nvmlInstance nvidianvml.Instance) (string, uint32) {
+	for uuid, dev := range nvmlInstance.Devices() {
+		fabricState, err := dev.GetFabricState()
+		if err != nil {
+			log.Logger.Debugw("failed to get GPU fabric state for machine info", "uuid", uuid, "error", err)
+			continue
+		}
+		return fabricState.ClusterUUID, fabricState.CliqueID
+	}
+	return "", 0
+}
+
+// getGPUChassisSerial returns the chassis serial reported by NVML platform
+// info. The API first shipped with R570; calling it on older drivers can fail
+// during symbol resolution before NVML can return ERROR_NOT_SUPPORTED.
+func getGPUChassisSerial(nvmlInstance nvidianvml.Instance) string {
+	if nvmlInstance.DriverMajor() < minDriverMajorForNVMLPlatformInfo {
+		return ""
+	}
+	for uuid, dev := range nvmlInstance.Devices() {
+		platformInfo, ret := dev.GetPlatformInfo()
+		if ret != nvml.SUCCESS {
+			log.Logger.Debugw("failed to get GPU platform info for machine info", "uuid", uuid, "error", nvml.ErrorString(ret))
+			continue
+		}
+		if serial := strings.TrimRight(string(platformInfo.ChassisSerialNumber[:]), "\x00"); serial != "" {
+			return serial
+		}
+	}
+	return ""
 }
 
 func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {
