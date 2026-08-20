@@ -2,11 +2,13 @@ package fabricmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -598,4 +600,137 @@ func TestDefaultWatchCommandsSyntax(t *testing.T) {
 	assert.False(t, strings.HasPrefix(defaultWatchCommands[0][0], "bash"), "should not start with bash (process library handles wrapping)")
 	assert.Contains(t, defaultWatchCommands[0][0], "&", "should contain background operator")
 	assert.Contains(t, defaultWatchCommands[0][0], "wait", "should contain wait")
+}
+
+// stubEventBucket implements eventstore.Bucket with controllable results so the
+// logLineProcessor error and dedup branches can be exercised deterministically.
+type stubEventBucket struct {
+	findResult *eventstore.Event
+	findErr    error
+	insertErr  error
+	getErr     error
+
+	findCalled   chan struct{}
+	insertCalled chan struct{}
+}
+
+func notifyStubBucketCalled(ch chan struct{}) {
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
+func (b *stubEventBucket) Name() string { return Name }
+
+func (b *stubEventBucket) Insert(_ context.Context, _ eventstore.Event) error {
+	notifyStubBucketCalled(b.insertCalled)
+	return b.insertErr
+}
+
+func (b *stubEventBucket) Find(_ context.Context, _ eventstore.Event) (*eventstore.Event, error) {
+	notifyStubBucketCalled(b.findCalled)
+	return b.findResult, b.findErr
+}
+
+func (b *stubEventBucket) Get(_ context.Context, _ time.Time) (eventstore.Events, error) {
+	return nil, b.getErr
+}
+
+func (b *stubEventBucket) Latest(_ context.Context) (*eventstore.Event, error) {
+	return nil, nil
+}
+
+func (b *stubEventBucket) Purge(_ context.Context, _ int64) (int, error) { return 0, nil }
+
+func (b *stubEventBucket) Close() {}
+
+const testTopologyMismatchLogLine = "[ERROR] [tid 99999] detected number of NVSwitches don't match with any supported system topology, aborting fabric manager"
+
+func TestLogLineProcessorBucketFindAndInsertErrors(t *testing.T) {
+	t.Parallel()
+
+	bucket := &stubEventBucket{
+		findErr:      errors.New("find failed"),
+		insertErr:    errors.New("insert failed"),
+		findCalled:   make(chan struct{}, 1),
+		insertCalled: make(chan struct{}, 1),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mw := &mockWatcher{ch: make(chan logLine, 1)}
+	llp := newLogLineProcessor(ctx, mw, Match, bucket)
+	defer llp.close()
+
+	mw.ch <- logLine{ts: time.Now().UTC(), content: testTopologyMismatchLogLine}
+
+	// A Find error is logged and processing falls through to Insert, whose
+	// error is also logged without crashing the watch loop.
+	select {
+	case <-bucket.insertCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for insert attempt after find error")
+	}
+}
+
+func TestLogLineProcessorSkipsAlreadyStoredEvent(t *testing.T) {
+	t.Parallel()
+
+	bucket := &stubEventBucket{
+		findResult:   &eventstore.Event{Name: eventNVSwitchTopologyMismatch},
+		findCalled:   make(chan struct{}, 1),
+		insertCalled: make(chan struct{}, 1),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mw := &mockWatcher{ch: make(chan logLine, 1)}
+	llp := newLogLineProcessor(ctx, mw, Match, bucket)
+	defer llp.close()
+
+	mw.ch <- logLine{ts: time.Now().UTC(), content: testTopologyMismatchLogLine}
+
+	select {
+	case <-bucket.findCalled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for find")
+	}
+
+	// the exact event already exists in the store, so no insert may happen
+	select {
+	case <-bucket.insertCalled:
+		t.Fatal("insert must be skipped for an already stored event")
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+func TestLogLineProcessorGetEventsError(t *testing.T) {
+	t.Parallel()
+
+	llp := &logLineProcessor{eventBucket: &stubEventBucket{getErr: errors.New("get failed")}}
+	_, err := llp.getEvents(context.Background(), time.Now().Add(-time.Hour))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get failed")
+}
+
+func TestNewWatcherProcessCreationError(t *testing.T) {
+	mockeyPatchMu.Lock()
+	defer mockeyPatchMu.Unlock()
+
+	mockey.PatchConvey("newWatcher returns the process creation error", t, func() {
+		mockey.Mock(process.New).To(func(_ ...process.OpOption) (process.Process, error) {
+			return nil, errors.New("process creation failed")
+		}).Build()
+
+		w, err := newWatcher([][]string{{"tail", "-f", "/var/log/nvidia-fabricmanager.log"}})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "process creation failed")
+		assert.Nil(t, w)
+	})
 }

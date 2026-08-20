@@ -1,12 +1,16 @@
 package lib
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
@@ -21,6 +25,73 @@ func TestApplyOptsDefault(t *testing.T) {
 
 	// Verify that nvmlLib is set to a non-nil value (default nvml.New())
 	assert.NotNil(t, op.nvmlLib, "nvmlLib should be set to a default value when no options are provided")
+}
+
+func TestResolveNVMLLibraryPath(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	// No container-specific configuration preserves go-nvml's default system
+	// lookup, which is the path used by systemd and other non-container runs.
+	assert.Empty(t, resolveNVMLLibraryPath())
+
+	explicit := "/custom/libnvidia-ml.so.1"
+	t.Setenv(EnvNVMLLibraryPath, explicit)
+	t.Setenv(EnvNVIDIADriverRoot, t.TempDir())
+	assert.Equal(t, explicit, resolveNVMLLibraryPath())
+
+	require.NoError(t, os.Unsetenv(EnvNVMLLibraryPath))
+	driverRoot := t.TempDir()
+	libraryPath := filepath.Join(driverRoot, "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+	t.Setenv(EnvNVIDIADriverRoot, driverRoot)
+	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
+}
+
+func TestResolveNVMLLibraryPathFallbacks(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	driverRoot := t.TempDir()
+	t.Setenv(EnvNVIDIADriverRoot, driverRoot)
+
+	// A configured but empty driver root must retain the system-library fallback.
+	assert.Empty(t, resolveNVMLLibraryPath())
+
+	// Exercise the common non-multiarch layout after the architecture-specific
+	// candidate is absent.
+	libraryPath := filepath.Join(driverRoot, "usr", "lib64", "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
+}
+
+func TestNVMLArchLibraryDir(t *testing.T) {
+	tests := map[string]string{
+		"amd64":   "x86_64-linux-gnu",
+		"arm64":   "aarch64-linux-gnu",
+		"ppc64le": "powerpc64le-linux-gnu",
+		"unknown": "x86_64-linux-gnu",
+	}
+	for goarch, expected := range tests {
+		t.Run(goarch, func(t *testing.T) {
+			assert.Equal(t, expected, nvmlArchLibraryDir(goarch))
+		})
+	}
+}
+
+func TestApplyOptsWithResolvedNVMLLibrary(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	libraryPath := filepath.Join(t.TempDir(), "libnvidia-ml.so.1")
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+	t.Setenv(EnvNVMLLibraryPath, libraryPath)
+
+	op := &Op{}
+	op.applyOpts(nil)
+	assert.NotNil(t, op.nvmlLib)
 }
 
 // TestWithNVML tests that WithNVML correctly sets the nvmlLib field
