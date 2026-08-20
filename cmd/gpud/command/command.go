@@ -106,6 +106,10 @@ nohup sudo gpud run &>> <your log file path> &
 					Usage: "(optional) can specify public ip for machine",
 				},
 				cli.StringFlag{
+					Name:  "region",
+					Usage: "(optional) override the region reported in the login request; skips provider-metadata and DERP-latency region detection",
+				},
+				cli.StringFlag{
 					Name:   "machine-id",
 					Hidden: true,
 					Usage:  "(optional) machine id to register/run as. If it matches the machine id already persisted in the state DB, login is skipped (reused across reboots). If it DIFFERS from the persisted one, login fails unless --machine-id-overwrite is set -- this prevents silently retargeting an already-registered node.",
