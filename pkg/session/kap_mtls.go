@@ -104,6 +104,14 @@ func redactSessionCredentials(value any) {
 				}
 				continue
 			}
+			if strings.EqualFold(key, "node_credentials") {
+				// Every file under here is credential material, and the
+				// per-subsystem grouping means new kinds appear without this
+				// function being touched. Redact the whole subtree rather than
+				// naming fields that will drift.
+				typed[key] = "<redacted>"
+				continue
+			}
 			redactSessionCredentials(child)
 		}
 	case []any:

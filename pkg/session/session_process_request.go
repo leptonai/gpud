@@ -151,6 +151,9 @@ func (s *Session) processRequest(ctx context.Context, reqID string, payload Requ
 
 	case "activateKAPMTLS":
 		s.processActivateKAPMTLS(ctx, response)
+
+	case "nodeCredentials":
+		s.processNodeCredentials(ctx, payload, response)
 	}
 
 	return false // Request is handled synchronously
