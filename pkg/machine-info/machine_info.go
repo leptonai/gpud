@@ -29,7 +29,6 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
-	"github.com/leptonai/gpud/pkg/nvidia/nvidiasmi"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
 	"github.com/leptonai/gpud/pkg/providers"
@@ -38,7 +37,10 @@ import (
 	"github.com/leptonai/gpud/version"
 )
 
-const diskPartitionsTimeout = 10 * time.Second
+const (
+	diskPartitionsTimeout             = 10 * time.Second
+	minDriverMajorForNVMLPlatformInfo = 570
+)
 
 type diskCommands struct {
 	findmntCommand       string
@@ -101,19 +103,10 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 	// Only NVLink fabric systems (e.g., NVIDIA GB200 NVL72) report them;
 	// they stay empty on other platforms.
 	info.ClusterUUID, info.CliqueID = getGPUFabricIdentifiers(nvmlInstance)
+	info.ChassisSerial = getGPUChassisSerial(nvmlInstance)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-
-	// Support and operations teams use the chassis serial number to find
-	// the physical hardware. The NVML Go bindings do not expose it, so query
-	// nvidia-smi instead. Only NVL72-class systems report it.
-	chassisSerial, err := nvidiasmi.GetChassisSerial(ctx)
-	if err != nil {
-		log.Logger.Warnw("failed to get chassis serial number", "error", err)
-	} else {
-		info.ChassisSerial = chassisSerial
-	}
 
 	if currentGOOS() == "linux" {
 		info.DiskInfo, err = GetMachineDiskInfo(ctx)
@@ -461,6 +454,26 @@ func getGPUFabricIdentifiers(nvmlInstance nvidianvml.Instance) (string, uint32) 
 		return fabricState.ClusterUUID, fabricState.CliqueID
 	}
 	return "", 0
+}
+
+// getGPUChassisSerial returns the chassis serial reported by NVML platform
+// info. The API first shipped with R570; calling it on older drivers can fail
+// during symbol resolution before NVML can return ERROR_NOT_SUPPORTED.
+func getGPUChassisSerial(nvmlInstance nvidianvml.Instance) string {
+	if nvmlInstance.DriverMajor() < minDriverMajorForNVMLPlatformInfo {
+		return ""
+	}
+	for uuid, dev := range nvmlInstance.Devices() {
+		platformInfo, ret := dev.GetPlatformInfo()
+		if ret != nvml.SUCCESS {
+			log.Logger.Debugw("failed to get GPU platform info for machine info", "uuid", uuid, "error", nvml.ErrorString(ret))
+			continue
+		}
+		if serial := strings.TrimRight(string(platformInfo.ChassisSerialNumber[:]), "\x00"); serial != "" {
+			return serial
+		}
+	}
+	return ""
 }
 
 func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo, error) {

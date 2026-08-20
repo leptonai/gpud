@@ -299,8 +299,8 @@ type MachineInfo struct {
 	// an NVLink fabric.
 	CliqueID uint32 `json:"cliqueID,omitempty"`
 	// ChassisSerial is the serial number of the chassis that contains the GPUs
-	// ("Chassis Serial Number" in nvidia-smi -q). Support and operations teams
-	// use it to find the physical hardware for repair or replacement.
+	// as reported by NVML platform info. Support and operations teams use it to
+	// find the physical hardware for repair or replacement.
 	// Empty when the platform does not report a chassis serial number.
 	ChassisSerial string `json:"chassisSerial,omitempty"`
 

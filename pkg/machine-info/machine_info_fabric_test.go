@@ -15,19 +15,24 @@ import (
 	nvidiamemory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/netutil"
-	"github.com/leptonai/gpud/pkg/nvidia/nvidiasmi"
 	nvidiadevice "github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
 
 // fabricMachineInfoDevice overrides the fabric state of the coverage device.
 type fabricMachineInfoDevice struct {
 	*machineInfoCoverageDevice
-	fabricState nvidiadevice.FabricState
-	fabricErr   error
+	fabricState  nvidiadevice.FabricState
+	fabricErr    error
+	platformInfo nvml.PlatformInfo
+	platformRet  nvml.Return
 }
 
 func (d *fabricMachineInfoDevice) GetFabricState() (nvidiadevice.FabricState, error) {
 	return d.fabricState, d.fabricErr
+}
+
+func (d *fabricMachineInfoDevice) GetPlatformInfo() (nvml.PlatformInfo, nvml.Return) {
+	return d.platformInfo, d.platformRet
 }
 
 func newFabricMachineInfoDevice(fabricState nvidiadevice.FabricState, fabricErr error) *fabricMachineInfoDevice {
@@ -35,6 +40,7 @@ func newFabricMachineInfoDevice(fabricState nvidiadevice.FabricState, fabricErr 
 		machineInfoCoverageDevice: newMachineInfoCoverageDevice(),
 		fabricState:               fabricState,
 		fabricErr:                 fabricErr,
+		platformRet:               nvml.ERROR_NOT_SUPPORTED,
 	}
 }
 
@@ -116,17 +122,16 @@ func TestGetMachineInfo_GPUFabricIdentifiers(t *testing.T) {
 				return nvidiamemory.Memory{TotalBytes: 186 * 1024 * 1024 * 1024}, nil
 			},
 		).Build()
-		mockey.Mock(nvidiasmi.GetChassisSerial).To(func(ctx context.Context) (string, error) {
-			return "3136434J5234567", nil
-		}).Build()
-
 		dev := newFabricMachineInfoDevice(nvidiadevice.FabricState{
 			CliqueID:    42,
 			ClusterUUID: "cluster-uuid-123",
 			State:       nvml.GPU_FABRIC_STATE_COMPLETED,
 			Status:      nvml.SUCCESS,
 		}, nil)
+		copy(dev.platformInfo.ChassisSerialNumber[:], "3136434J5234567")
+		dev.platformRet = nvml.SUCCESS
 		nvmlInstance := &mockNvmlInstanceForMockey{
+			driverMajor:  570,
 			productName:  "NVIDIA GB200",
 			brand:        "NVIDIA",
 			architecture: "blackwell",
@@ -142,7 +147,7 @@ func TestGetMachineInfo_GPUFabricIdentifiers(t *testing.T) {
 		assert.Equal(t, "3136434J5234567", info.ChassisSerial)
 	})
 
-	mockey.PatchConvey("GetMachineInfo tolerates chassis serial lookup failure", t, func() {
+	mockey.PatchConvey("GetMachineInfo tolerates NVML platform info failure", t, func() {
 		mockey.Mock(pkghost.KernelVersion).To(func() string { return "5.15.0-generic" }).Build()
 		mockey.Mock(pkghost.OSName).To(func() string { return "Ubuntu 22.04.2 LTS" }).Build()
 		mockey.Mock(cpu.CountsWithContext).To(func(ctx context.Context, logical bool) (int, error) { return 16, nil }).Build()
@@ -157,12 +162,9 @@ func TestGetMachineInfo_GPUFabricIdentifiers(t *testing.T) {
 				return nvidiamemory.Memory{TotalBytes: 186 * 1024 * 1024 * 1024}, nil
 			},
 		).Build()
-		mockey.Mock(nvidiasmi.GetChassisSerial).To(func(ctx context.Context) (string, error) {
-			return "", errors.New("nvidia-smi not found")
-		}).Build()
-
 		dev := newFabricMachineInfoDevice(nvidiadevice.FabricState{}, errors.New("fabric state telemetry not supported"))
 		nvmlInstance := &mockNvmlInstanceForMockey{
+			driverMajor:  570,
 			productName:  "NVIDIA H100 80GB HBM3",
 			brand:        "Tesla",
 			architecture: "hopper",
