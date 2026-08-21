@@ -296,8 +296,9 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 	}
 
-	// Start the NVSentinel receiver before component registration so
-	// components can subscribe to it in their constructors.
+	// Start the NVSentinel receiver before component registration.
+	// Components subscribe to it in their constructors, so it must be
+	// ready when they are created.
 	var nvsSource nvsentinel.Source
 	nvsDedupWindow := nvsentinel.DefaultEventDedupWindow
 	if config.NVSentinel != nil {
@@ -495,6 +496,7 @@ func (s *Server) Stop() {
 	}
 
 	if s.gpudInstance != nil && s.gpudInstance.NVSentinel != nil {
+		log.Logger.Debugw("closing nvsentinel receiver")
 		if err := s.gpudInstance.NVSentinel.Close(); err != nil {
 			log.Logger.Warnw("failed to close nvsentinel receiver", "error", err)
 		}

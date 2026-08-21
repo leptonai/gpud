@@ -98,11 +98,10 @@ type Config struct {
 	PluginSpecsFile string `json:"plugin_specs_file"`
 
 	// NVSentinel configures the optional NVSentinel integration.
-	// When enabled, GPUd serves the NVSentinel PlatformConnector gRPC API on a
-	// local unix socket, and the node's NVSentinel platform-connector forwards
-	// health events to it. Components that have an NVSentinel counterpart then
-	// prefer the NVSentinel data point and fall back to their own detection
-	// when no corresponding NVSentinel data point exists.
+	// When enabled, GPUd serves the NVSentinel PlatformConnector gRPC API on
+	// a local unix socket. The node's NVSentinel platform-connector forwards
+	// health events to that socket. Components prefer the NVSentinel data
+	// point when one exists and fall back to their own detection otherwise.
 	NVSentinel *NVSentinelConfig `json:"nvsentinel,omitempty"`
 
 	// Components specifies the components to enable.
@@ -153,16 +152,16 @@ type NVSentinelConfig struct {
 	Enabled bool `json:"enabled"`
 
 	// SocketPath is the unix socket GPUd serves for NVSentinel health event
-	// forwarding. The NVSentinel platform-connector container must be able to
-	// reach this path. The default works with the stock NVSentinel DaemonSet,
-	// which mounts the host's /var/run/nvsentinel directory at container path
-	// /var/run. Empty means nvsentinel.DefaultSocketPath.
+	// forwarding. The NVSentinel platform-connector container must reach this
+	// path. The default works with the stock NVSentinel DaemonSet, which
+	// mounts the host /var/run/nvsentinel directory at container /var/run.
+	// Empty means nvsentinel.DefaultSocketPath.
 	SocketPath string `json:"socket_path,omitempty"`
 
 	// EventDedupWindow is how long a received NVSentinel event suppresses
-	// GPUd's own duplicate detection of the same data point. It only needs to
-	// cover the delivery skew between the NVSentinel and GPUd detectors that
-	// watch the same incident. Zero means nvsentinel.DefaultEventDedupWindow.
+	// GPUd's own duplicate detection of the same data point. It needs only
+	// to cover the delivery skew between the two detectors that watch the
+	// same incident. Zero means nvsentinel.DefaultEventDedupWindow.
 	EventDedupWindow metav1.Duration `json:"event_dedup_window,omitempty"`
 }
 
