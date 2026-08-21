@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// DefaultSocketPath is the default unix socket GPUd serves. The stock
+	// DefaultSocketPath is the default unix socket GPUd serves. The
 	// NVSentinel DaemonSet mounts host /var/run/nvsentinel at container
 	// /var/run, so the platform-connector reaches this socket at container
 	// path /var/run/gpud.sock.
@@ -62,9 +62,9 @@ type Source interface {
 	Close() error
 }
 
-// New starts a receiver that serves the NVSentinel PlatformConnector gRPC API
-// on the given unix socket path. Point the NVSentinel platform-connector gRPC
-// sink target at this socket (helm values
+// New starts a receiver that serves the NVSentinel PlatformConnector
+// gRPC API on the given unix socket path. The NVSentinel platform-connector
+// gRPC sink target must point at this socket (helm values
 // platformConnector.grpcSinkConnector.enabled/target).
 func New(socketPath string) (Source, error) {
 	if socketPath == "" {
@@ -89,7 +89,7 @@ func New(socketPath string) (Source, error) {
 		return nil, fmt.Errorf("failed to listen on nvsentinel socket %s: %w", socketPath, err)
 	}
 
-	// NVSentinel platform-connectors run as root, same as GPUd.
+	// NVSentinel platform-connectors run as root. GPUd runs as root too.
 	if err := os.Chmod(socketPath, 0o660); err != nil {
 		_ = lis.Close()
 		return nil, fmt.Errorf("failed to set nvsentinel socket permissions: %w", err)
