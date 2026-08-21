@@ -16,25 +16,26 @@ import (
 )
 
 const (
-	// dataSourceNVSentinel marks sxid events that came from NVSentinel
-	// instead of GPUd's own kmsg scanning.
+	// dataSourceNVSentinel is the data_source value for events that came from
+	// NVSentinel rather than GPUd's own kmsg scanning.
 	dataSourceNVSentinel = "nvsentinel"
 
-	// checkNameSyslogsSXIDError is the NVSentinel syslog monitor check that
-	// reports NVSwitch SXid errors.
+	// checkNameSyslogsSXIDError is the NVSentinel check that reports NVSwitch
+	// SXid errors from the syslog monitor.
 	checkNameSyslogsSXIDError = "SysLogsSXIDError"
 
-	// EventKeyNVSentinelCheckName records the NVSentinel check that produced
-	// the event.
+	// EventKeyNVSentinelCheckName records which NVSentinel check produced the
+	// event.
 	EventKeyNVSentinelCheckName = "nvsentinel_check_name"
-	// EventKeyNVSentinelEventID records the NVSentinel event ID for
-	// cross-referencing with the NVSentinel datastore.
+	// EventKeyNVSentinelEventID records the NVSentinel event ID. Operators can
+	// cross-reference it with the NVSentinel datastore.
 	EventKeyNVSentinelEventID = "nvsentinel_event_id"
 )
 
-// watchNVSentinel subscribes the component to the NVSentinel event source.
-// NVSentinel SXid data points enter the same event bucket as kmsg-detected
-// ones, so thresholds, health evolution, and the events API stay unchanged.
+// watchNVSentinel subscribes the component to the NVSentinel event source
+// and starts a goroutine that forwards matching SXid events into the
+// component's event bucket. The bucket is the same one kmsg-detected
+// events use, so health evolution and the events API work unchanged.
 func (c *component) watchNVSentinel() {
 	if c.nvsSource == nil {
 		return
@@ -65,9 +66,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		return
 	}
 
-	// Recovery events carry no new data point for this component. GPUd heals
-	// its sxid state through the lookback window and reboot tracking, so a
-	// healthy NVSentinel event is logged but not stored.
+	// A healthy event does not carry a new data point for this component.
+	// GPUd heals its sxid state through the lookback window and reboot
+	// tracking, so the event is logged and skipped.
 	if ev.IsHealthy {
 		log.Logger.Debugw("skipping healthy nvsentinel event", "checkName", ev.CheckName)
 		return
@@ -78,8 +79,8 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		return
 	}
 
-	// NVSentinel reported a fatal verdict: map it to a fatal GPUd event.
-	// A non-fatal unhealthy verdict maps to critical.
+	// The NVSentinel verdict drives the GPUd event severity.
+	// isFatal → Fatal. Unhealthy and not fatal → Critical.
 	eventType := string(apiv1.EventTypeCritical)
 	if ev.IsFatal {
 		eventType = string(apiv1.EventTypeFatal)
@@ -96,8 +97,8 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		DeviceUUID: deviceUUID,
 		SXid:       sxidValue,
 	}
-	// Enrich with the GPUd catalog entry, then let the NVSentinel recommended
-	// action win when it maps to a GPUd repair action.
+	// Start with the GPUd catalog entry. Then let the NVSentinel
+	// recommended action win when it maps to a GPUd repair action.
 	if detail, found := GetDetail(sxidNum); found {
 		payload.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
 	}
@@ -124,8 +125,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		},
 	}
 
-	// When GPUd's own kmsg detection won the delivery race, its copy is
-	// already stored. Skip the NVSentinel copy to keep one event per incident.
+	// When GPUd's kmsg detection won the delivery race, its copy is
+	// already in the bucket. Skip this NVSentinel copy so the incident
+	// stays at one event.
 	if c.hasStoredSXidTwin(sxidNum, deviceUUID, ev.GeneratedTimestamp) {
 		log.Logger.Infow("gpud already stored this sxid data point, skipping nvsentinel copy",
 			"sxid", sxidNum, "deviceUUID", deviceUUID, "checkName", ev.CheckName)
@@ -141,12 +143,12 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 // matchNVSentinelSXid reports whether the NVSentinel event is an SXid data
 // point for this component, and extracts the SXid number and GPU UUID.
 //
-// The SysLogsSXIDError check name and the NVSWITCH component class both
-// identify SXid data points. Any numeric error code qualifies; the GPUd SXid
-// catalog enriches known codes, and an unknown code is still stored because
-// NVSentinel's detection must not be dropped only because the catalog is
-// older than the hardware. The GPU UUID is derived from the PCI entity when
-// possible, because NVSentinel reports the GPU as a numeric ID, not a UUID.
+// The matcher accepts events with the SysLogsSXIDError check name or the
+// NVSWITCH component class. Any numeric error code qualifies. The GPUd
+// catalog enriches known codes. An unknown code is still stored —
+// NVSentinel's detection must not be dropped just because the catalog is
+// older than the hardware. The GPU UUID comes from the PCI entity when
+// the NVML device list can map it.
 func (c *component) matchNVSentinelSXid(ev nvsentinel.HealthEvent) (int, string, bool) {
 	if ev.CheckName != checkNameSyslogsSXIDError && ev.ComponentClass != "NVSWITCH" {
 		return 0, "", false
@@ -170,10 +172,10 @@ func (c *component) matchNVSentinelSXid(ev nvsentinel.HealthEvent) (int, string,
 	return sxidNum, deviceUUID, true
 }
 
-// deviceUUIDFromPCI resolves a PCI bus address from an NVSentinel event to a
-// GPU UUID using the NVML device list. Kernel-style addresses
-// ("0000:5c:00.0") and NVML-style addresses ("00000000:5C:00.0") differ in
-// domain width and case; compare on the normalized tail.
+// deviceUUIDFromPCI resolves a PCI bus address to a GPU UUID using the
+// NVML device list. Kernel addresses ("0000:5c:00.0") and NVML addresses
+// ("00000000:5C:00.0") differ in domain width and case. The function
+// compares the normalized tail (bus:device.function).
 func (c *component) deviceUUIDFromPCI(pci string) string {
 	normalize := func(s string) string {
 		s = strings.ToLower(strings.TrimPrefix(s, "PCI:"))
@@ -198,9 +200,9 @@ func (c *component) deviceUUIDFromPCI(pci string) string {
 	return ""
 }
 
-// nvsentinelCoversSXid reports whether NVSentinel already reported this SXid
-// data point within the dedup window. The kmsg path uses it to prefer the
-// NVSentinel copy of the same incident.
+// nvsentinelCoversSXid reports whether NVSentinel reported this SXid
+// data point within the dedup window. The kmsg path calls it to decide
+// whether to suppress its own copy.
 func (c *component) nvsentinelCoversSXid(sxidErr *Error) bool {
 	if c.nvsSource == nil || sxidErr == nil {
 		return false
@@ -211,10 +213,11 @@ func (c *component) nvsentinelCoversSXid(sxidErr *Error) bool {
 		if !ok {
 			return false
 		}
-		// SXid events describe an NVSwitch link, and the kmsg device UUID does
-		// not appear in the NVSentinel entity list as a UUID, so match on the
-		// SXid number and the window. Both detectors read the same kernel
-		// report; a repeated number within the window is the same incident.
+		// SXid events describe an NVSwitch link. The kmsg device UUID does
+		// not appear in the NVSentinel entity list as a UUID, so the
+		// comparison uses only the SXid number. Both detectors read the
+		// same kernel report — a repeated number within the window is
+		// the same incident.
 		return evSXid == sxidErr.SXid
 	})
 }
@@ -238,8 +241,8 @@ func (c *component) hasStoredSXidTwin(sxidNum int, deviceUUID string, ts time.Ti
 			continue
 		}
 
-		// The stored payload may be the legacy plain-number format or the
-		// JSON detail format.
+		// The stored payload is either the legacy plain-number format or the
+		// JSON detail format. Try the legacy parse first; it is cheaper.
 		raw := stored.ExtraInfo[EventKeyErrorSXidData]
 		if legacy, err := strconv.Atoi(raw); err == nil {
 			if legacy == sxidNum {

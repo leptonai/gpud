@@ -16,21 +16,22 @@ import (
 )
 
 const (
-	// dataSourceNVSentinel marks xid events that came from NVSentinel instead
-	// of GPUd's own kmsg scanning.
+	// dataSourceNVSentinel is the data_source value for events that came from
+	// NVSentinel rather than GPUd's own kmsg scanning.
 	dataSourceNVSentinel = "nvsentinel"
 
-	// EventKeyNVSentinelCheckName records the NVSentinel check that produced
-	// the event (for example "SysLogsXIDError").
+	// EventKeyNVSentinelCheckName records which NVSentinel check produced the
+	// event (for example "SysLogsXIDError").
 	EventKeyNVSentinelCheckName = "nvsentinel_check_name"
-	// EventKeyNVSentinelEventID records the NVSentinel event ID for
-	// cross-referencing with the NVSentinel datastore.
+	// EventKeyNVSentinelEventID records the NVSentinel event ID. Operators can
+	// cross-reference it with the NVSentinel datastore.
 	EventKeyNVSentinelEventID = "nvsentinel_event_id"
 )
 
-// watchNVSentinel subscribes the component to the NVSentinel event source.
-// NVSentinel Xid data points enter the same event bucket as kmsg-detected
-// ones, so thresholds, health evolution, and the events API stay unchanged.
+// watchNVSentinel subscribes the component to the NVSentinel event source
+// and starts a goroutine that forwards matching Xid events into the
+// component's event bucket. The bucket is the same one kmsg-detected
+// events use, so health evolution and the events API work without changes.
 func (c *component) watchNVSentinel() {
 	if c.nvsSource == nil {
 		return
@@ -61,9 +62,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		return
 	}
 
-	// Recovery events carry no new data point for this component. GPUd heals
-	// its xid state through the lookback window and reboot tracking, so a
-	// healthy NVSentinel event is logged but not stored.
+	// A healthy event does not carry a new data point for this component.
+	// GPUd heals its xid state through the lookback window and reboot
+	// tracking, so the event is logged and skipped.
 	if ev.IsHealthy {
 		log.Logger.Debugw("skipping healthy nvsentinel event", "checkName", ev.CheckName)
 		return
@@ -74,9 +75,10 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		return
 	}
 
-	// NVSentinel reported a fatal verdict: map it to a fatal GPUd event.
-	// A non-fatal unhealthy verdict maps to critical. The GPUd catalog still
-	// enriches description and repair actions at read time.
+	// The NVSentinel verdict drives the GPUd event severity.
+	// isFatal → Fatal. Unhealthy and not fatal → Critical.
+	// The GPUd catalog enriches the description and repair actions at
+	// read time regardless of severity.
 	eventType := string(apiv1.EventTypeCritical)
 	if ev.IsFatal {
 		eventType = string(apiv1.EventTypeFatal)
@@ -93,8 +95,8 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		DeviceUUID: deviceUUID,
 		Xid:        xidValue,
 	}
-	// Enrich with the GPUd catalog entry, then let the NVSentinel recommended
-	// action win when it maps to a GPUd repair action.
+	// Start with the GPUd catalog entry. Then let the NVSentinel
+	// recommended action win when it maps to a GPUd repair action.
 	if detail, found := GetDetail(xidNum); found {
 		payload.Description = detail.Description
 		payload.SuggestedActionsByGPUd = detail.SuggestedActionsByGPUd
@@ -122,8 +124,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		},
 	}
 
-	// When GPUd's own kmsg detection won the delivery race, its copy is
-	// already stored. Skip the NVSentinel copy to keep one event per incident.
+	// When GPUd's kmsg detection won the delivery race, its copy is
+	// already in the bucket. Skip this NVSentinel copy so the incident
+	// stays at one event.
 	if c.hasStoredXidTwin(xidNum, deviceUUID, ev.GeneratedTimestamp) {
 		log.Logger.Infow("gpud already stored this xid data point, skipping nvsentinel copy",
 			"xid", xidNum, "deviceUUID", deviceUUID, "checkName", ev.CheckName)
@@ -152,11 +155,11 @@ const checkNameSyslogsSXIDError = "SysLogsSXIDError"
 // matchNVSentinelXid reports whether the NVSentinel event is an Xid data
 // point for this component, and extracts the Xid number and GPU UUID.
 //
-// Matching is data-driven: an event qualifies when it targets the GPU
-// component class and carries a numeric error code (the Xid number). The
-// GPUd catalog enriches known codes with description and repair actions, but
-// an unknown code is still stored, because NVSentinel's detection must not be
-// dropped only because the catalog is older than the hardware.
+// The matcher is data-driven rather than check-name-driven. An event
+// qualifies when it targets the GPU component class and carries a numeric
+// error code. The GPUd catalog enriches known codes. An unknown code is
+// still stored — NVSentinel's detection must not be dropped just because
+// the catalog is older than the hardware.
 func (c *component) matchNVSentinelXid(ev nvsentinel.HealthEvent) (int, string, bool) {
 	if ev.ComponentClass != "GPU" || ev.CheckName == checkNameSyslogsSXIDError {
 		return 0, "", false
@@ -183,9 +186,9 @@ func (c *component) matchNVSentinelXid(ev nvsentinel.HealthEvent) (int, string, 
 	return xidNum, deviceUUID, true
 }
 
-// nvsentinelCoversXid reports whether NVSentinel already reported this Xid
-// data point within the dedup window. The kmsg path uses it to prefer the
-// NVSentinel copy of the same incident.
+// nvsentinelCoversXid reports whether NVSentinel reported this Xid data
+// point within the dedup window. The kmsg path calls it to decide whether to
+// suppress its own copy.
 func (c *component) nvsentinelCoversXid(xidErr *Error) bool {
 	if c.nvsSource == nil || xidErr == nil {
 		return false
@@ -201,9 +204,9 @@ func (c *component) nvsentinelCoversXid(xidErr *Error) bool {
 		if !ok || evXid != xidErr.Xid {
 			return false
 		}
-		// Both detectors read the same kernel report. Suppress the duplicate
-		// unless the two sides name different devices, which means two
-		// distinct incidents.
+		// Both detectors read the same kernel report. Suppress the kmsg
+		// copy unless the two sides name different devices — then they
+		// describe distinct incidents on different GPUs.
 		if deviceUUID != "" && evUUID != "" {
 			return deviceUUID == evUUID
 		}
@@ -211,8 +214,9 @@ func (c *component) nvsentinelCoversXid(xidErr *Error) bool {
 	})
 }
 
-// hasStoredXidTwin reports whether the bucket already holds an event for the
-// same Xid data point within the dedup window around ts.
+// hasStoredXidTwin reports whether the bucket already holds an event for
+// the same Xid data point within the dedup window around ts. It handles
+// both the JSON payload format and the legacy plain-number format.
 func (c *component) hasStoredXidTwin(xidNum int, deviceUUID string, ts time.Time) bool {
 	ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 	events, err := c.eventBucket.Get(ctx, ts.Add(-c.nvsDedupWindow))
@@ -229,18 +233,27 @@ func (c *component) hasStoredXidTwin(xidNum int, deviceUUID string, ts time.Time
 		if stored.Time.After(ts.Add(c.nvsDedupWindow)) {
 			continue
 		}
+
+		raw := stored.ExtraInfo[EventKeyErrorXidData]
+		// Try the JSON payload (the current format) first.
 		var detail xidErrorEventDetail
-		if err := json.Unmarshal([]byte(stored.ExtraInfo[EventKeyErrorXidData]), &detail); err != nil {
+		if err := json.Unmarshal([]byte(raw), &detail); err == nil {
+			storedXid, ok := intFromUint64(detail.Xid)
+			if ok && storedXid == xidNum {
+				if deviceUUID == "" || detail.DeviceUUID == "" || detail.DeviceUUID == deviceUUID {
+					return true
+				}
+			}
 			continue
 		}
-		storedXid, ok := intFromUint64(detail.Xid)
-		if !ok || storedXid != xidNum {
-			continue
+		// Fall back to the legacy plain-number format ("79").
+		if legacyXid, err := strconv.Atoi(raw); err == nil && legacyXid == xidNum {
+			// Legacy events carry the device UUID in the device_uuid key.
+			storedUUID := stored.ExtraInfo[EventKeyDeviceUUID]
+			if deviceUUID == "" || storedUUID == "" || storedUUID == deviceUUID {
+				return true
+			}
 		}
-		if deviceUUID != "" && detail.DeviceUUID != "" && detail.DeviceUUID != deviceUUID {
-			continue
-		}
-		return true
 	}
 	return false
 }

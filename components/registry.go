@@ -79,14 +79,13 @@ type GPUdInstance struct {
 
 	FailureInjector *FailureInjector
 
-	// NVSentinel is the optional NVSentinel event source. Nil when the
-	// integration is disabled. Components with an NVSentinel counterpart use
-	// it to prefer NVSentinel data points over their own duplicate detection.
+	// NVSentinel is the optional NVSentinel event source. When nil the
+	// integration is off. Components check it in their constructors.
 	NVSentinel nvsentinel.Source
 
-	// NVSentinelEventDedupWindow is how long a received NVSentinel event
-	// suppresses the component's own duplicate detection of the same data
-	// point. Only meaningful when NVSentinel is non-nil.
+	// NVSentinelEventDedupWindow controls how long a received NVSentinel
+	// event suppresses the component's own detection of the same data point.
+	// Zero causes the component to fall back to the default.
 	NVSentinelEventDedupWindow time.Duration
 }
 

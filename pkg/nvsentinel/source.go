@@ -18,11 +18,10 @@ import (
 )
 
 const (
-	// DefaultSocketPath is the default unix socket GPUd serves for NVSentinel
-	// health event forwarding. The stock NVSentinel DaemonSet mounts the
-	// host's /var/run/nvsentinel directory at container path /var/run, so the
-	// platform-connector reaches this socket at container path
-	// /var/run/gpud.sock.
+	// DefaultSocketPath is the default unix socket GPUd serves. The stock
+	// NVSentinel DaemonSet mounts host /var/run/nvsentinel at container
+	// /var/run, so the platform-connector reaches this socket at container
+	// path /var/run/gpud.sock.
 	DefaultSocketPath = "/var/run/nvsentinel/gpud.sock"
 
 	// DefaultEventDedupWindow is how long a received NVSentinel event
@@ -58,7 +57,8 @@ type Source interface {
 	// It returns the zero time if no event has been received.
 	LastReceived() time.Time
 
-	// Close stops the receiver and closes all subscriber channels.
+	// Close stops the receiver, closes all subscriber channels, and removes
+	// the socket file.
 	Close() error
 }
 
@@ -159,9 +159,9 @@ func (s *source) Covers(window time.Duration, match func(HealthEvent) bool) bool
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Do not prune by the caller's window here: a short-window query must not
-	// discard events that a later, wider query can still legitimately see.
-	// The fixed cap in record already bounds memory.
+	// Do not prune by the caller's window. A short-window query must not
+	// discard events a later wider query can still see. The count cap in
+	// record already bounds memory.
 	for i := len(s.recent) - 1; i >= 0; i-- {
 		ev := s.recent[i]
 		if ev.GeneratedTimestamp.After(cutoff) && match(ev) {
@@ -199,7 +199,8 @@ func (s *source) Close() error {
 	return nil
 }
 
-// record stores one received event and forwards it to all subscribers.
+// record stores an event in the recent index and forwards it to every
+// subscriber.
 func (s *source) record(ev HealthEvent) {
 	s.mu.Lock()
 	s.lastReceived = time.Now().UTC()
