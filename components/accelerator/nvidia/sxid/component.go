@@ -26,6 +26,7 @@ import (
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvsentinel"
 )
 
 // Name is the name of the SXID component.
@@ -68,6 +69,13 @@ type component struct {
 
 	mu        sync.RWMutex
 	currState apiv1.HealthState
+
+	// nvsSource is the optional NVSentinel event source. When set, NVSentinel
+	// SXid data points are preferred and GPUd's own kmsg detection of the
+	// same data point is suppressed.
+	nvsSource      nvsentinel.Source
+	nvsDedupWindow time.Duration
+	nvsUnsubscribe func()
 }
 
 // New returns the NVIDIA SXID component.
@@ -106,6 +114,15 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		c.readAllKmsg = kmsg.ReadAll
+	}
+
+	if gpudInstance.NVSentinel != nil && c.eventBucket != nil {
+		c.nvsSource = gpudInstance.NVSentinel
+		c.nvsDedupWindow = gpudInstance.NVSentinelEventDedupWindow
+		if c.nvsDedupWindow <= 0 {
+			c.nvsDedupWindow = nvsentinel.DefaultEventDedupWindow
+		}
+		c.watchNVSentinel()
 	}
 
 	return c, nil
@@ -188,6 +205,10 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+
+	if c.nvsUnsubscribe != nil {
+		c.nvsUnsubscribe()
+	}
 
 	if c.kmsgWatcher != nil {
 		cerr := c.kmsgWatcher.Close()
@@ -434,6 +455,15 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			sxidErr := Match(message.Message)
 			if sxidErr == nil {
 				log.Logger.Debugw("not sxid event, skip", "kmsg", message)
+				continue
+			}
+
+			// Prefer the NVSentinel data point when NVSentinel already
+			// reported this incident; both detectors read the same kernel
+			// report, and storing both would double-count it in thresholds.
+			if c.nvsentinelCoversSXid(sxidErr) {
+				log.Logger.Infow("nvsentinel covers this sxid data point, skipping gpud-native insert",
+					"sxid", sxidErr.SXid, "deviceUUID", sxidErr.DeviceUUID)
 				continue
 			}
 

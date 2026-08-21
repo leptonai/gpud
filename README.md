@@ -180,6 +180,7 @@ value in `/etc/default/gpud`, then restart the service.
 - [Install GPUd](./docs/INSTALL.md)
 - [GPUd components](./docs/COMPONENTS.md)
 - [GPUd architecture](./docs/ARCHITECTURE.md)
+- [NVSentinel integration](./docs/NVSENTINEL.md)
 
 ## Contributing
 
