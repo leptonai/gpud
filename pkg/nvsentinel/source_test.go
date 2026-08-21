@@ -176,3 +176,122 @@ func TestSourceRecentIndexIsCapped(t *testing.T) {
 	s.mu.Unlock()
 	assert.Equal(t, maxRecentEvents, got)
 }
+func TestSourceSubscribeAfterClose(t *testing.T) {
+	socketPath := shortSocketPath(t)
+
+	src, err := New(socketPath)
+	require.NoError(t, err)
+	require.NoError(t, src.Close())
+
+	// Subscribing after Close returns an already-closed channel.
+	ch, unsub := src.Subscribe()
+	defer unsub()
+	_, open := <-ch
+	assert.False(t, open)
+}
+
+func TestSourceSubscriberChannelFullDropsEvent(t *testing.T) {
+	socketPath := shortSocketPath(t)
+
+	src, err := New(socketPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = src.Close() })
+
+	// Create a subscriber with a full channel. subscriberBufferSize is 256.
+	s := src.(*source)
+	ch := make(chan HealthEvent, subscriberBufferSize)
+	s.mu.Lock()
+	s.subs[999] = ch
+	s.mu.Unlock()
+	t.Cleanup(func() {
+		s.mu.Lock()
+		delete(s.subs, 999)
+		s.mu.Unlock()
+		close(ch)
+	})
+
+	// Fill the channel.
+	for i := 0; i < subscriberBufferSize; i++ {
+		ch <- HealthEvent{CheckName: "filler"}
+	}
+
+	// One more event: the channel is full, so record drops it.
+	s.record(HealthEvent{CheckName: "dropped"})
+
+	// The dropped event never arrives; the next receive is a buffered filler.
+	select {
+	case ev := <-ch:
+		assert.Equal(t, "filler", ev.CheckName, "should receive buffered filler, not dropped")
+	case <-time.After(time.Second):
+		t.Fatal("channel should have buffered events")
+	}
+}
+
+func TestSourceCloseIsIdempotent(t *testing.T) {
+	socketPath := shortSocketPath(t)
+
+	src, err := New(socketPath)
+	require.NoError(t, err)
+
+	require.NoError(t, src.Close())
+	// Second Close must not panic or error (grpc.Server.Stop and lis.Close tolerate double-close).
+	require.NoError(t, src.Close())
+}
+
+func TestSourceRecordUpdatesLastReceived(t *testing.T) {
+	socketPath := shortSocketPath(t)
+
+	src, err := New(socketPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = src.Close() })
+
+	s := src.(*source)
+	assert.True(t, s.LastReceived().IsZero())
+
+	s.record(HealthEvent{CheckName: "test"})
+	assert.False(t, s.LastReceived().IsZero())
+}
+
+func TestSourceCoversEmptyRecent(t *testing.T) {
+	socketPath := shortSocketPath(t)
+
+	src, err := New(socketPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = src.Close() })
+
+	// No events recorded: Covers always returns false.
+	assert.False(t, src.Covers(time.Hour, func(HealthEvent) bool { return true }))
+}
+func TestNewSocketDirNotCreatable(t *testing.T) {
+	// MkdirAll fails when a path component is a regular file.
+	blockingFile := filepath.Join(t.TempDir(), "not-a-dir")
+	require.NoError(t, os.WriteFile(blockingFile, []byte("x"), 0o644))
+
+	_, err := New(filepath.Join(blockingFile, "sub", "nvsentinel.sock"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create nvsentinel socket directory")
+}
+
+func TestNewStaleSocketRemovalError(t *testing.T) {
+	// os.Remove fails when the socket path is a non-empty directory.
+	dir := t.TempDir()
+	socketPath := filepath.Join(dir, "nvsentinel.sock")
+	require.NoError(t, os.MkdirAll(socketPath, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(socketPath, "occupant"), []byte("x"), 0o644))
+
+	_, err := New(socketPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to remove stale nvsentinel socket")
+}
+
+func TestNewListenError(t *testing.T) {
+	// Listen fails when the socket directory is not writable.
+	dir := t.TempDir()
+	socketPath := filepath.Join(dir, "nvsentinel.sock")
+	require.NoError(t, os.Chmod(dir, 0o555))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	_, err := New(socketPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to listen on nvsentinel socket")
+}
