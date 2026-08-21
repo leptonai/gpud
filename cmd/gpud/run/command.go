@@ -379,15 +379,7 @@ func Command(cliContext *cli.Context) error {
 		cfg.Components = strings.Split(components, ",")
 	}
 
-	nvsentinelEndpoint := cliContext.String("nvsentinel-endpoint")
-	if nvsentinelEndpoint != "" {
-		if cfg.NVSentinel == nil {
-			cfg.NVSentinel = &config.NVSentinelConfig{}
-		}
-		cfg.NVSentinel.Enabled = true
-		cfg.NVSentinel.SocketPath = nvsentinelEndpoint
-		log.Logger.Infow("nvsentinel integration enabled via --nvsentinel-endpoint", "socket", nvsentinelEndpoint)
-	}
+	applyNVSentinelEndpoint(cfg, cliContext.String("nvsentinel-endpoint"))
 
 	auditLogger := log.NewNopAuditLogger()
 	if logFile != "" {
@@ -458,6 +450,21 @@ func Command(cliContext *cli.Context) error {
 	<-done
 
 	return nil
+}
+
+// applyNVSentinelEndpoint enables the NVSentinel integration from the
+// --nvsentinel-endpoint CLI flag. An empty endpoint leaves the config
+// untouched so YAML configuration keeps working unchanged.
+func applyNVSentinelEndpoint(cfg *config.Config, endpoint string) {
+	if endpoint == "" {
+		return
+	}
+	if cfg.NVSentinel == nil {
+		cfg.NVSentinel = &config.NVSentinelConfig{}
+	}
+	cfg.NVSentinel.Enabled = true
+	cfg.NVSentinel.SocketPath = endpoint
+	log.Logger.Infow("nvsentinel integration enabled via --nvsentinel-endpoint", "socket", endpoint)
 }
 
 func validateMachineIDOverride(prevMachineID, requestedMachineID string, overwrite, controlPlaneLoginSucceeded bool) error {

@@ -597,6 +597,27 @@ fi
 	err = runCommand(ctx, scriptPath, "version", nil)
 	assert.Error(t, err)
 }
+func TestRunCommandContextCanceledDuringExecution(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "slow.sh")
+	// A script that outlives the cancellation below.
+	scriptContent := `#!/bin/bash
+sleep 30
+`
+	require.NoError(t, os.WriteFile(scriptPath, []byte(scriptContent), 0755))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	// The command is still running when the context is canceled, so the
+	// select in runCommand takes the ctx.Done() branch.
+	err := runCommand(ctx, scriptPath, "run", nil)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
 
 // TestRunCommandWithBackgroundProcessKilledByDefault demonstrates the default
 // process behavior (Setpgid=true) where backgrounded processes get killed when

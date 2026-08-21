@@ -9,11 +9,46 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/leptonai/gpud/pkg/config"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgsqlite "github.com/leptonai/gpud/pkg/sqlite"
 )
+
+func TestApplyNVSentinelEndpoint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty endpoint leaves config untouched", func(t *testing.T) {
+		t.Parallel()
+		cfg := &config.Config{}
+		applyNVSentinelEndpoint(cfg, "")
+		assert.Nil(t, cfg.NVSentinel)
+	})
+
+	t.Run("endpoint enables integration on nil config", func(t *testing.T) {
+		t.Parallel()
+		cfg := &config.Config{}
+		applyNVSentinelEndpoint(cfg, "/var/run/nvsentinel/gpud.sock")
+		require.NotNil(t, cfg.NVSentinel)
+		assert.True(t, cfg.NVSentinel.Enabled)
+		assert.Equal(t, "/var/run/nvsentinel/gpud.sock", cfg.NVSentinel.SocketPath)
+	})
+
+	t.Run("endpoint overrides existing config but keeps other fields", func(t *testing.T) {
+		t.Parallel()
+		cfg := &config.Config{
+			NVSentinel: &config.NVSentinelConfig{
+				EventDedupWindow: metav1.Duration{Duration: 5 * time.Minute},
+			},
+		}
+		applyNVSentinelEndpoint(cfg, "/custom/path.sock")
+		require.NotNil(t, cfg.NVSentinel)
+		assert.True(t, cfg.NVSentinel.Enabled)
+		assert.Equal(t, "/custom/path.sock", cfg.NVSentinel.SocketPath)
+		assert.Equal(t, 5*time.Minute, cfg.NVSentinel.EventDedupWindow.Duration)
+	})
+}
 
 func TestParseInfinibandExcludeDevices(t *testing.T) {
 	t.Parallel()
