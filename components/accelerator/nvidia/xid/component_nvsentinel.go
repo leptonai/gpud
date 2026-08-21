@@ -147,9 +147,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 }
 
 // checkNameSyslogsSXIDError is the NVSentinel syslog monitor SXid check.
-// NVSentinel labels both its Xid and SXid syslog checks with component class
-// "GPU", so this component must exclude the SXid check explicitly; the sxid
-// component owns those events.
+// NVSentinel labels both its Xid and SXid syslog checks with component
+// class GPU. This component explicitly excludes the SXid check because
+// the sxid component owns those events.
 const checkNameSyslogsSXIDError = "SysLogsSXIDError"
 
 // matchNVSentinelXid reports whether the NVSentinel event is an Xid data
