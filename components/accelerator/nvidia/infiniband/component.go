@@ -108,12 +108,13 @@ type component struct {
 	// to avoid reading them again and causing kernel log spam
 	ignoreFiles map[string]struct{}
 
-	// nvsSource is the optional NVSentinel event source. When set, NVSentinel
-	// NIC driver data points are preferred and GPUd's own kmsg detection of
-	// the same data point is suppressed.
+	// nvsSource is the optional NVSentinel event source. When set, the
+	// component prefers NVSentinel NIC driver data points and suppresses
+	// its own kmsg detection of the same data point.
 	nvsSource      nvsentinel.Source
 	nvsDedupWindow time.Duration
 	nvsUnsubscribe func()
+	// ^ stop function returned by nvsSource.Subscribe
 }
 
 // New creates the NVIDIA InfiniBand component for a gpud instance.
