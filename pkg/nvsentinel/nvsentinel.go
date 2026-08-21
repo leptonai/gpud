@@ -25,8 +25,8 @@ const (
 	RecommendedActionUnknown        RecommendedAction = "UNKNOWN"
 )
 
-// Entity is one impacted device or resource that the event names
-// (for example a GPU UUID or an InfiniBand device name).
+// Entity names one impacted device or resource (for example a GPU
+// UUID or an InfiniBand device).
 type Entity struct {
 	Type  string `json:"type"`
 	Value string `json:"value"`
