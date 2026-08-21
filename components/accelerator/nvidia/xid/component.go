@@ -29,6 +29,7 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	"github.com/leptonai/gpud/pkg/nvsentinel"
 )
 
 // Name is the name of the XID component.
@@ -73,6 +74,13 @@ type component struct {
 
 	mu        sync.RWMutex
 	currState apiv1.HealthState
+
+	// nvsSource is the optional NVSentinel event source. When set, NVSentinel
+	// Xid data points are preferred and GPUd's own kmsg detection of the same
+	// data point is suppressed.
+	nvsSource      nvsentinel.Source
+	nvsDedupWindow time.Duration
+	nvsUnsubscribe func()
 }
 
 // New returns the NVIDIA XID component.
@@ -115,6 +123,15 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		c.readAllKmsg = kmsg.ReadAll
+	}
+
+	if gpudInstance.NVSentinel != nil && c.eventBucket != nil {
+		c.nvsSource = gpudInstance.NVSentinel
+		c.nvsDedupWindow = gpudInstance.NVSentinelEventDedupWindow
+		if c.nvsDedupWindow <= 0 {
+			c.nvsDedupWindow = nvsentinel.DefaultEventDedupWindow
+		}
+		c.watchNVSentinel()
 	}
 
 	return c, nil
@@ -197,6 +214,10 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+
+	if c.nvsUnsubscribe != nil {
+		c.nvsUnsubscribe()
+	}
 
 	if c.kmsgWatcher != nil {
 		cerr := c.kmsgWatcher.Close()
@@ -481,8 +502,17 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			// from Xid 63/64, while row remmaping pending may self-resolve
 			// after >3 times of system reboots
 			// this is why we here discard Xid 63/64 in favor of row remapping checks
-			if c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping && (xidErr.Xid == 63 || xidErr.Xid == 64) {
+			if c.nvmlInstance != nil && c.nvmlInstance.GetMemoryErrorManagementCapabilities().RowRemapping && (xidErr.Xid == 63 || xidErr.Xid == 64) {
 				log.Logger.Warnw("discarding Xid 63/64 in favor of remapped-rows component", "xid", xidErr.Xid, "deviceUUID", xidErr.DeviceUUID)
+				continue
+			}
+
+			// Prefer the NVSentinel data point when NVSentinel already
+			// reported this incident; both detectors read the same kernel
+			// report, and storing both would double-count it in thresholds.
+			if c.nvsentinelCoversXid(xidErr) {
+				log.Logger.Infow("nvsentinel covers this xid data point, skipping gpud-native insert",
+					"xid", xidErr.Xid, "deviceUUID", xidErr.DeviceUUID)
 				continue
 			}
 
