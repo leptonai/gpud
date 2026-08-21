@@ -28,14 +28,14 @@ const (
 	// suppresses GPUd's own duplicate detection of the same data point.
 	DefaultEventDedupWindow = 2 * time.Minute
 
-	// maxRecentEvents caps the in-memory recent-event index. The index exists
-	// to answer Covers queries for duplicate suppression; it does not need to
-	// be large because Covers queries always use a short time window.
+	// maxRecentEvents caps the in-memory recent-event index. The index
+	// answers Covers queries for duplicate suppression. It stays small
+	// because Covers queries always use a short time window.
 	maxRecentEvents = 4096
 
 	// subscriberBufferSize bounds each subscriber channel. Subscribers are
-	// component-internal forwarders that drain immediately, so a full channel
-	// means a subscriber is stuck; the event is dropped and logged.
+	// component-internal forwarders that drain events immediately. A full
+	// channel means a subscriber is stuck. The event is dropped and logged.
 	subscriberBufferSize = 256
 )
 
@@ -48,9 +48,9 @@ type Source interface {
 	// The channel is closed when the source is closed.
 	Subscribe() (<-chan HealthEvent, func())
 
-	// Covers reports whether a received event matches match within the given
-	// window. Components use it to prefer NVSentinel data points over their
-	// own duplicate detection.
+	// Covers reports whether a received event satisfied the predicate
+	// within the given window. Components call it to decide whether to
+	// suppress their own duplicate detection.
 	Covers(window time.Duration, match func(HealthEvent) bool) bool
 
 	// LastReceived returns when the last event batch was received.

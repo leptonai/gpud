@@ -11,11 +11,11 @@ NVSentinel's local unix socket is push-only. It serves one RPC,
 `PlatformConnector.HealthEventOccurredV1`, so that health monitors can report
 events into NVSentinel. There is no RPC to pull events back out.
 
-NVSentinel's supported egress for a third-party process is the
-platform-connector **gRPC sink connector**: it forwards every health event to a
-configured gRPC target. The platform-connectors run as a DaemonSet and mount
-the host's `/var/run/nvsentinel` directory at container path `/var/run`, so a socket
-GPUd creates under that host directory is reachable from the node's
+The platform-connector gRPC sink connector is NVSentinel's supported
+egress path. It forwards every health event to a configured gRPC target.
+The platform-connectors run as a DaemonSet. They mount the host's
+`/var/run/nvsentinel` directory at container path `/var/run`. A socket GPUd
+creates under that host directory is reachable from the node's
 platform-connector.
 
 The integration uses this path:

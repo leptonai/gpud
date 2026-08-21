@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
-	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -165,44 +164,12 @@ func (c *component) matchNVSentinelSXid(ev nvsentinel.HealthEvent) (int, string,
 		return 0, "", false
 	}
 
-	deviceUUID := ""
-	if pci, ok := ev.EntityValue("PCI"); ok {
-		deviceUUID = c.deviceUUIDFromPCI(pci)
-	}
+	// NVSentinel reports the GPU UUID directly in the GPU_UUID entity.
+	// No PCI-to-UUID resolution is needed.
+	deviceUUID, _ := ev.EntityValue("GPU_UUID")
 	return sxidNum, deviceUUID, true
 }
 
-// deviceUUIDFromPCI resolves a PCI bus address to a GPU UUID using the
-// NVML device list. Kernel addresses ("0000:5c:00.0") and NVML addresses
-// ("00000000:5C:00.0") differ in domain width and case. The function
-// compares the normalized tail (bus:device.function).
-func (c *component) deviceUUIDFromPCI(pci string) string {
-	normalize := func(s string) string {
-		s = strings.ToLower(strings.TrimPrefix(s, "PCI:"))
-		parts := strings.SplitN(s, ":", 2)
-		if len(parts) == 2 {
-			// Drop the PCI domain; keep bus:device.function.
-			s = parts[1]
-		}
-		return s
-	}
-
-	if c.nvmlInstance == nil {
-		return ""
-	}
-
-	target := normalize(pci)
-	for uuid, dev := range c.nvmlInstance.Devices() {
-		if normalize(dev.PCIBusID()) == target {
-			return uuid
-		}
-	}
-	return ""
-}
-
-// nvsentinelCoversSXid reports whether NVSentinel reported this SXid
-// data point within the dedup window. The kmsg path calls it to decide
-// whether to suppress its own copy.
 func (c *component) nvsentinelCoversSXid(sxidErr *Error) bool {
 	if c.nvsSource == nil || sxidErr == nil {
 		return false
