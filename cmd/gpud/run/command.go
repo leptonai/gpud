@@ -379,6 +379,15 @@ func Command(cliContext *cli.Context) error {
 		cfg.Components = strings.Split(components, ",")
 	}
 
+	nvsentinelEndpoint := cliContext.String("nvsentinel-endpoint")
+	if nvsentinelEndpoint != "" {
+		cfg.NVSentinel = &config.NVSentinelConfig{
+			Enabled:    true,
+			SocketPath: nvsentinelEndpoint,
+		}
+		log.Logger.Infow("nvsentinel integration enabled via --nvsentinel-endpoint", "socket", nvsentinelEndpoint)
+	}
+
 	auditLogger := log.NewNopAuditLogger()
 	if logFile != "" {
 		logAuditFile := log.CreateAuditLogFilepath(logFile)
