@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvsentinel"
 )
 
 var (
@@ -76,6 +78,16 @@ type GPUdInstance struct {
 	ContainerdServiceActiveCommands string
 
 	FailureInjector *FailureInjector
+
+	// NVSentinel is the optional NVSentinel event source. Nil when the
+	// integration is disabled. Components with an NVSentinel counterpart use
+	// it to prefer NVSentinel data points over their own duplicate detection.
+	NVSentinel nvsentinel.Source
+
+	// NVSentinelEventDedupWindow is how long a received NVSentinel event
+	// suppresses the component's own duplicate detection of the same data
+	// point. Only meaningful when NVSentinel is non-nil.
+	NVSentinelEventDedupWindow time.Duration
 }
 
 // FailureInjector configures test-only failure injection for selected components.
