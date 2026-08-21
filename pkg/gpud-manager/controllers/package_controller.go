@@ -379,39 +379,39 @@ func runCommand(ctx context.Context, script, arg string, result *string) error {
 		}
 	}()
 
-	finCh := make(chan struct{})
 	if result != nil {
-		go func() {
-			defer close(finCh)
-			lines := make([]string, 0)
-			err := process.Read(
-				ctx,
-				p,
-				// only read stdout to check the version output
-				process.WithReadStdout(),
-				process.WithProcessLine(func(line string) {
-					lines = append(lines, line)
-				}),
-			)
-			output := strings.Join(lines, "\n")
-			if err == nil {
-				*result = output
-			} else {
-				*result = fmt.Sprintf("failed to run '%s %s' with error %v\n\noutput:\n%s", script, arg, err, output)
-			}
-		}()
-	}
-	var retErr error
-	select {
-	case <-ctx.Done():
-		retErr = ctx.Err()
-	case err = <-p.Wait():
-		if err != nil {
-			retErr = err
+		// Read stdout in the current goroutine (not a separate goroutine)
+		// to avoid a race where cmd.Wait() — called by the watchCmd goroutine
+		// started in p.Start() — closes the StdoutPipe before a reader goroutine
+		// has had a chance to drain it, resulting in empty or truncated output.
+		// Reading inline ensures the scanner is blocked on the pipe read before
+		// the child process even writes anything, making the race practically
+		// impossible.
+		lines := make([]string, 0)
+		readErr := process.Read(
+			ctx,
+			p,
+			// only read stdout to check the version output
+			process.WithReadStdout(),
+			process.WithProcessLine(func(line string) {
+				lines = append(lines, line)
+			}),
+		)
+		output := strings.Join(lines, "\n")
+		if readErr == nil {
+			*result = output
+		} else {
+			*result = fmt.Sprintf("failed to run '%s %s' with error %v\n\noutput:\n%s", script, arg, readErr, output)
 		}
 	}
-	if result != nil {
-		<-finCh
+
+	// Wait for the process to exit.  When result != nil the stdout pipe has
+	// already been fully drained by process.Read above, so cmd.Wait() closing
+	// it here is safe.
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-p.Wait():
+		return err
 	}
-	return retErr
 }
