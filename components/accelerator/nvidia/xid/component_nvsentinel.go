@@ -152,8 +152,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 // the sxid component owns those events.
 const checkNameSyslogsSXIDError = "SysLogsSXIDError"
 
-// matchNVSentinelXid reports whether the NVSentinel event is an Xid data
-// point for this component, and extracts the Xid number and GPU UUID.
+// matchNVSentinelXid reports whether the NVSentinel event carries an Xid
+// data point for this component. It returns the Xid number and the GPU
+// UUID. NVSentinel stores the UUID in the GPU_UUID entity.
 //
 // The matcher is data-driven rather than check-name-driven. An event
 // qualifies when it targets the GPU component class and carries a numeric
@@ -182,7 +183,12 @@ func (c *component) matchNVSentinelXid(ev nvsentinel.HealthEvent) (int, string, 
 		return 0, "", false
 	}
 
-	deviceUUID, _ := ev.EntityValue("GPU")
+	// NVSentinel monitors report the GPU UUID under the GPU_UUID entity
+	// type. Fall back to GPU for forward compatibility.
+	deviceUUID, ok := ev.EntityValue("GPU_UUID")
+	if !ok {
+		deviceUUID, _ = ev.EntityValue("GPU")
+	}
 	return xidNum, deviceUUID, true
 }
 

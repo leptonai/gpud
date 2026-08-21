@@ -1,0 +1,15 @@
+# Build stage: cross-compile the test binary for Linux
+FROM golang:1.25-bookworm AS builder
+
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64     go build -o /nvsentinel-test ./cmd/nvsentinel-integration-test/
+
+# Run stage: minimal container
+FROM debian:bookworm-slim
+
+COPY --from=builder /nvsentinel-test /usr/local/bin/nvsentinel-test
+ENTRYPOINT ["/usr/local/bin/nvsentinel-test"]
