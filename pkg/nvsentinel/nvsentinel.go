@@ -7,8 +7,9 @@ import (
 	"github.com/leptonai/gpud/pkg/nvsentinel/proto/datamodels"
 )
 
-// RecommendedAction mirrors the NVSentinel RecommendedAction enum as a
-// string, so values stay readable in GPUd logs and JSON output.
+// RecommendedAction is the NVSentinel recommended action as a string.
+// Using a string rather than the proto enum keeps GPUd logs and JSON
+// output readable.
 type RecommendedAction string
 
 const (
@@ -24,16 +25,16 @@ const (
 	RecommendedActionUnknown        RecommendedAction = "UNKNOWN"
 )
 
-// Entity identifies one impacted entity, for example a GPU UUID or an
-// InfiniBand device name.
+// Entity is one impacted device or resource that the event names
+// (for example a GPU UUID or an InfiniBand device name).
 type Entity struct {
 	Type  string `json:"type"`
 	Value string `json:"value"`
 }
 
-// HealthEvent is one NVSentinel health event in a GPUd-native form.
-// It carries every field GPUd components need; the wire type stays in
-// the generated proto package.
+// HealthEvent is one NVSentinel health event in the form GPUd
+// components consume. The wire type stays in the generated proto
+// package `datamodels`.
 type HealthEvent struct {
 	Agent          string            `json:"agent"`
 	ComponentClass string            `json:"component_class"`
@@ -52,8 +53,8 @@ type HealthEvent struct {
 	GeneratedTimestamp time.Time         `json:"generated_timestamp"`
 }
 
-// EntityValue returns the value of the first impacted entity of the given
-// type (for example "GPU" or "NIC").
+// EntityValue returns the value of the first entity with the given type
+// (for example "GPU" or "NIC"). ok is false when no entity matches.
 func (e HealthEvent) EntityValue(entityType string) (string, bool) {
 	for _, ent := range e.Entities {
 		if ent.Type == entityType {
@@ -64,8 +65,9 @@ func (e HealthEvent) EntityValue(entityType string) (string, bool) {
 }
 
 // SuggestedRepairActions maps the NVSentinel recommended action to GPUd
-// repair actions. NVSentinel actions that have no GPUd counterpart (for
-// example RUN_FIELDDIAG) return nil; the raw action stays on the event.
+// repair-action types. Actions without a GPUd counterpart (RUN_FIELDDIAG,
+// for example) return nil. The raw action stays on the event for
+// provenance.
 func (e HealthEvent) SuggestedRepairActions() []apiv1.RepairActionType {
 	switch e.Action {
 	case RecommendedActionRestartVM, RecommendedActionRestartBM:
@@ -78,8 +80,8 @@ func (e HealthEvent) SuggestedRepairActions() []apiv1.RepairActionType {
 }
 
 // healthEventFromProto converts the wire type to the GPUd-native type.
-// A missing timestamp falls back to the receive time, so every recorded
-// event has a usable timestamp.
+// When the proto carries no timestamp, the function uses the receive time
+// so every stored event has a usable timestamp.
 func healthEventFromProto(pb *datamodels.HealthEvent, receivedAt time.Time) HealthEvent {
 	ev := HealthEvent{
 		Agent:          pb.GetAgent(),

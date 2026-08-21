@@ -11,33 +11,34 @@ import (
 )
 
 const (
-	// checkNameSyslogsNICDriverError is the NVSentinel syslog monitor check
-	// that reports NIC driver errors. Its error code carries the pattern name.
+	// checkNameSyslogsNICDriverError is the NVSentinel check that reports NIC
+	// driver errors from the syslog monitor. The error code holds the pattern
+	// name (for example "pci_power_insufficient").
 	checkNameSyslogsNICDriverError = "SysLogsNICDriverError"
 
-	// EventKeyNVSentinelCheckName records the NVSentinel check that produced
-	// the event.
+	// EventKeyNVSentinelCheckName records which NVSentinel check produced the
+	// event.
 	EventKeyNVSentinelCheckName = "nvsentinel_check_name"
-	// EventKeyNVSentinelEventID records the NVSentinel event ID for
-	// cross-referencing with the NVSentinel datastore.
+	// EventKeyNVSentinelEventID records the NVSentinel event ID. Operators can
+	// cross-reference it with the NVSentinel datastore.
 	EventKeyNVSentinelEventID = "nvsentinel_event_id"
 	// EventKeyNVSentinelNICDevice records the NIC device name (for example
 	// "mlx5_0") from the NVSentinel NIC entity.
 	EventKeyNVSentinelNICDevice = "nvsentinel_nic_device"
 )
 
-// nvsPatternToEventName maps the NVSentinel NIC driver pattern names to this
-// component's event names. NVSentinel patterns without a GPUd counterpart
-// are skipped: the component's event vocabulary is fixed, and its health
-// evaluation reads live port state, not the event bucket.
+// nvsPatternToEventName maps NVSentinel NIC driver pattern names to this
+// component's event names. Patterns without a GPUd counterpart are skipped.
+// The component's event vocabulary is fixed, and its health evaluation
+// reads live port state, not the event bucket.
 var nvsPatternToEventName = map[string]string{
 	"pci_power_insufficient": eventPCIPowerInsufficient,
 	"port_module_high_temp":  eventPortModuleHighTemperature,
 	"access_reg_failed":      eventAccessRegFailed,
 }
 
-// eventNameToNVSPattern is the reverse of nvsPatternToEventName, used by the
-// kmsg matcher to find the NVSentinel pattern that covers a GPUd event.
+// eventNameToNVSPattern reverses nvsPatternToEventName. The kmsg matcher
+// uses it to find which NVSentinel pattern covers a GPUd event.
 var eventNameToNVSPattern = func() map[string]string {
 	m := make(map[string]string, len(nvsPatternToEventName))
 	for pattern, name := range nvsPatternToEventName {
@@ -46,7 +47,9 @@ var eventNameToNVSPattern = func() map[string]string {
 	return m
 }()
 
-// watchNVSentinel subscribes the component to the NVSentinel event source.
+// watchNVSentinel subscribes the component to the NVSentinel event source
+// and starts a goroutine that forwards matching NIC driver events into
+// the component's event bucket.
 func (c *component) watchNVSentinel() {
 	if c.nvsSource == nil {
 		return
@@ -70,9 +73,9 @@ func (c *component) watchNVSentinel() {
 	}()
 }
 
-// matchNVSentinelNIC maps an NVSentinel event to this component's event name.
-// ok is false when the event is not an InfiniBand data point that this
-// component reports.
+// matchNVSentinelNIC maps an NVSentinel NIC driver event to this
+// component's event name. ok is false when the event does not report an
+// InfiniBand data point this component covers.
 func matchNVSentinelNIC(ev nvsentinel.HealthEvent) (eventName string, ok bool) {
 	if ev.CheckName != checkNameSyslogsNICDriverError {
 		return "", false
@@ -84,14 +87,14 @@ func matchNVSentinelNIC(ev nvsentinel.HealthEvent) (eventName string, ok bool) {
 	return name, found
 }
 
-// onNVSentinelEvent translates one NVSentinel event into the component's own
-// event format and inserts it into the event bucket.
+// onNVSentinelEvent translates a qualifying NVSentinel event into the
+// component's event format and inserts it into the event bucket.
 func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 	if c.eventBucket == nil {
 		return
 	}
 
-	// Recovery events carry no new data point for this component.
+	// A healthy event does not carry a new data point. Log and skip.
 	if ev.IsHealthy {
 		log.Logger.Debugw("skipping healthy nvsentinel event", "checkName", ev.CheckName)
 		return
@@ -120,8 +123,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		},
 	}
 
-	// When GPUd's own kmsg detection won the delivery race, its copy is
-	// already stored. Skip the NVSentinel copy to keep one event per incident.
+	// When GPUd's kmsg detection won the delivery race, its copy is
+	// already in the bucket. Skip this copy so the incident stays at
+	// one event.
 	if c.hasStoredEventTwin(eventName, ev.GeneratedTimestamp) {
 		log.Logger.Infow("gpud already stored this infiniband data point, skipping nvsentinel copy",
 			"eventName", eventName, "checkName", ev.CheckName)
@@ -133,9 +137,9 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 	}
 }
 
-// matchPreferNVSentinel wraps the kmsg matcher: when NVSentinel already
-// reported the same NIC driver pattern within the dedup window, the kmsg line
-// produces no event, so the NVSentinel copy stays the single record.
+// matchPreferNVSentinel wraps the kmsg matcher. When NVSentinel already
+// reported the same NIC driver pattern within the dedup window, the kmsg
+// line produces no event — the NVSentinel copy stays the single record.
 func (c *component) matchPreferNVSentinel(line string) (string, string) {
 	eventName, message := Match(line)
 	if eventName == "" || c.nvsSource == nil {
@@ -162,8 +166,8 @@ func (c *component) matchPreferNVSentinel(line string) (string, string) {
 	return eventName, message
 }
 
-// hasStoredEventTwin reports whether the bucket already holds an event with
-// the same name within the dedup window around ts.
+// hasStoredEventTwin reports whether the bucket already holds an event
+// with the same name within the dedup window around ts.
 func (c *component) hasStoredEventTwin(eventName string, ts time.Time) bool {
 	ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 	events, err := c.eventBucket.Get(ctx, ts.Add(-c.nvsDedupWindow))
