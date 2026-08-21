@@ -381,10 +381,11 @@ func Command(cliContext *cli.Context) error {
 
 	nvsentinelEndpoint := cliContext.String("nvsentinel-endpoint")
 	if nvsentinelEndpoint != "" {
-		cfg.NVSentinel = &config.NVSentinelConfig{
-			Enabled:    true,
-			SocketPath: nvsentinelEndpoint,
+		if cfg.NVSentinel == nil {
+			cfg.NVSentinel = &config.NVSentinelConfig{}
 		}
+		cfg.NVSentinel.Enabled = true
+		cfg.NVSentinel.SocketPath = nvsentinelEndpoint
 		log.Logger.Infow("nvsentinel integration enabled via --nvsentinel-endpoint", "socket", nvsentinelEndpoint)
 	}
 
