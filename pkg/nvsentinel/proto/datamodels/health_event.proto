@@ -1,0 +1,90 @@
+// Copyright (c) 2026, Lepton AI. All rights reserved.
+//
+// This is a minimal, wire-compatible subset of NVSentinel's
+// data-models/protobufs/health_event.proto (package "datamodels").
+// Only the messages and fields that GPUd consumes are declared here.
+// Field numbers match upstream, so events sent by NVSentinel
+// platform-connectors decode correctly; fields GPUd does not need
+// (BehaviourOverrides, CRD wrappers) are reserved and skipped on the wire.
+//
+// Upstream: github.com/NVIDIA/NVSentinel (Apache License 2.0).
+//
+// Regenerate with: go generate ./pkg/nvsentinel/...
+
+syntax = "proto3";
+package datamodels;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/leptonai/gpud/pkg/nvsentinel/proto/datamodels";
+
+// PlatformConnector is the service NVSentinel platform-connectors expose on
+// their local unix socket. NVSentinel health monitors call it to report
+// events, and the platform-connector "gRPC sink connector" forwards every
+// event to a configured target. GPUd implements this service so it can act
+// as that target and receive the same event stream.
+service PlatformConnector {
+  rpc HealthEventOccurredV1(HealthEvents) returns (google.protobuf.Empty) {}
+}
+
+message HealthEvents {
+  uint32 version = 1;
+  repeated HealthEvent events = 2;
+}
+
+// RecommendedAction mirrors the upstream enum. Values are sparse upstream;
+// the numbering must stay identical for wire compatibility.
+enum RecommendedAction {
+  NONE = 0;
+  COMPONENT_RESET = 2;
+  CONTACT_SUPPORT = 5;
+  RUN_FIELDDIAG = 6;
+  RESTART_VM = 15;
+  RESTART_BM = 24;
+  REPLACE_VM = 25;
+  RUN_DCGMEUD = 26;
+  CUSTOM = 27;
+  UNKNOWN = 99;
+}
+
+// ProcessingStrategy tells downstream NVSentinel modules how to handle the
+// event. GPUd only observes events, so this is informational here.
+enum ProcessingStrategy {
+  UNSPECIFIED = 0;
+  EXECUTE_REMEDIATION = 1;
+  STORE_ONLY = 2;
+  STORE_AND_ANALYSE = 3;
+}
+
+message Entity {
+  string entityType = 1;
+  string entityValue = 2;
+}
+
+message HealthEvent {
+  uint32 version = 1;
+
+  string agent = 2;
+  string componentClass = 3;
+
+  string checkName = 4;
+  bool isFatal = 5;
+  bool isHealthy = 6;
+  string message = 7;
+  RecommendedAction recommendedAction = 8;
+  repeated string errorCode = 9;
+  repeated Entity entitiesImpacted = 10;
+
+  map<string, string> metadata = 11;
+  google.protobuf.Timestamp generatedTimestamp = 12;
+  string nodeName = 13;
+
+  // Upstream fields 14 and 15 are BehaviourOverrides (quarantine/drain).
+  // GPUd never remediates on NVSentinel's behalf, so they are not decoded.
+  reserved 14, 15;
+
+  ProcessingStrategy processingStrategy = 16;
+  string id = 17;
+  string customRecommendedAction = 18;
+}
