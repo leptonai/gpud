@@ -33,7 +33,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: mkdir temp: %v\n", err)
 		os.Exit(1)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	socketPath := filepath.Join(tmpDir, "nvsentinel.sock")
 	log.Logger.Infow("using socket", "path", socketPath)
@@ -43,7 +43,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: nvsentinel.New: %v\n", err)
 		os.Exit(1)
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	events, stop := src.Subscribe()
 	defer stop()
@@ -58,7 +58,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: grpc.NewClient: %v\n", err)
 		os.Exit(1)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client := datamodels.NewPlatformConnectorClient(conn)
 
