@@ -1877,3 +1877,132 @@ func TestLogin_RegionOverride(t *testing.T) {
 		})
 	}
 }
+
+// TestLogin_RecordMetadataError verifies that a failure to persist any of the
+// post-login metadata fields aborts the login with a descriptive error.
+func TestLogin_RecordMetadataError(t *testing.T) {
+	tests := []struct {
+		name       string
+		failKey    string
+		wantErrSub string
+	}{
+		{"machine ID record fails", pkgmetadata.MetadataKeyMachineID, "failed to record machine ID"},
+		{"session token record fails", pkgmetadata.MetadataKeyToken, "failed to record session token"},
+		{"machine proof record fails", pkgmetadata.MetadataKeyMachineProof, "failed to record machine proof"},
+		{"public IP record fails", pkgmetadata.MetadataKeyPublicIP, "failed to record public IP"},
+		{"private IP record fails", pkgmetadata.MetadataKeyPrivateIP, "failed to record private IP"},
+		{"login success record fails", pkgmetadata.MetadataKeyControlPlaneLoginSuccess, "failed to record login success"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockey.PatchConvey("set metadata fails for "+tc.name, t, func() {
+				mockDB := &sql.DB{}
+				mockNVML := nvidianvml.NewNoOp()
+
+				mockey.Mock(config.ResolveDataDir).To(func(string) (string, error) {
+					return "/tmp/test", nil
+				}).Build()
+
+				mockey.Mock(sqlite.Open).To(func(string, ...sqlite.OpOption) (*sql.DB, error) {
+					return mockDB, nil
+				}).Build()
+
+				mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+					return nil
+				}).Build()
+
+				mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(context.Context, *sql.DB) error {
+					return nil
+				}).Build()
+
+				mockey.Mock(sessionstates.CreateTable).To(func(context.Context, *sql.DB) error {
+					return nil
+				}).Build()
+
+				mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+					return "", nil
+				}).Build()
+
+				mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+					return mockNVML, nil
+				}).Build()
+
+				mockey.Mock((nvidianvml.Instance).Shutdown).To(func() error {
+					return nil
+				}).Build()
+
+				mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+					return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
+				}).Build()
+
+				mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+					return &apiv1.LoginResponse{
+						MachineID:    "machine-123",
+						Token:        "session-token",
+						MachineProof: "machine-proof",
+					}, nil
+				}).Build()
+
+				mockey.Mock(pkgmetadata.SetMetadata).To(func(_ context.Context, _ *sql.DB, key, _ string) error {
+					if key == tc.failKey {
+						return errors.New("db write failed")
+					}
+					return nil
+				}).Build()
+
+				mockey.Mock(config.FifoFilePath).To(func(string) string {
+					return "/tmp/test/fifo"
+				}).Build()
+
+				mockey.Mock(serverRunning).To(func() bool {
+					return false
+				}).Build()
+
+				err := Login(context.Background(), LoginConfig{
+					Token:    "test-token",
+					Endpoint: "https://example.com",
+					DataDir:  "/tmp/test",
+				})
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrSub)
+			})
+		})
+	}
+}
+
+// TestLogin_OpenReadOnlyStateFileError verifies that failing to open the
+// read-only state file handle aborts the login.
+func TestLogin_OpenReadOnlyStateFileError(t *testing.T) {
+	mockey.PatchConvey("open read-only state file error", t, func() {
+		mockDB := &sql.DB{}
+		openCalls := 0
+
+		mockey.Mock(config.ResolveDataDir).To(func(string) (string, error) {
+			return "/tmp/test", nil
+		}).Build()
+
+		mockey.Mock(sqlite.Open).To(func(_ string, opts ...sqlite.OpOption) (*sql.DB, error) {
+			openCalls++
+			if openCalls == 2 {
+				return nil, errors.New("failed to open read-only state file")
+			}
+			return mockDB, nil
+		}).Build()
+
+		mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+			return nil
+		}).Build()
+
+		ctx := context.Background()
+		cfg := LoginConfig{
+			Token:    "test-token",
+			Endpoint: "https://example.com",
+			DataDir:  "/tmp/test",
+		}
+
+		err := Login(ctx, cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to open state file")
+	})
+}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 )
@@ -73,6 +74,30 @@ func TestSendRequest_HttpError(t *testing.T) {
 	// Verify error is returned
 	assert.Error(t, err)
 	assert.Nil(t, resp)
+}
+
+func TestSendRequest_NoHostInURL(t *testing.T) {
+	// A URL that parses but carries no host hits the host check.
+	resp, err := sendRequest(context.Background(), "http://", apiv1.LoginRequest{Token: "test-token"})
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "no host in endpoint URL")
+}
+
+func TestSendRequest_ResponseBodyReadError(t *testing.T) {
+	// The server declares a longer body than it writes, so reading the
+	// response body fails with an unexpected EOF.
+	server := newLocalHTTPServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte("{}"))
+		assert.NoError(t, err)
+	}))
+
+	resp, err := sendRequest(context.Background(), server.URL, apiv1.LoginRequest{Token: "test-token"})
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "error reading response body")
 }
 
 func TestSendRequest_BadStatusCode(t *testing.T) {
