@@ -84,6 +84,19 @@ func (c *PackageController) reconcileLoop(ctx context.Context) {
 	}
 }
 
+// packageStatusSnapshot returns a point-in-time copy of the package map under
+// the read lock. Runners iterate the snapshot so they never traverse the map
+// concurrently with reconcileLoop, which inserts entries under the write lock.
+func (c *PackageController) packageStatusSnapshot() []*packages.PackageStatus {
+	c.RLock()
+	defer c.RUnlock()
+	pkgs := make([]*packages.PackageStatus, 0, len(c.packageStatus))
+	for _, pkg := range c.packageStatus {
+		pkgs = append(pkgs, pkg)
+	}
+	return pkgs
+}
+
 func (c *PackageController) updateRunner(ctx context.Context) {
 	ticker := time.NewTicker(c.syncPeriod)
 	defer ticker.Stop()
@@ -94,12 +107,17 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 		case <-ticker.C:
 			ticker.Reset(c.syncPeriod)
 		}
-		for _, pkg := range c.packageStatus {
-			if !pkg.IsInstalled {
+		for _, pkg := range c.packageStatusSnapshot() {
+			c.RLock()
+			installed := pkg.IsInstalled
+			scriptPath := pkg.ScriptPath
+			targetVersion := pkg.TargetVersion
+			c.RUnlock()
+			if !installed {
 				continue
 			}
 			var version string
-			err := runCommand(ctx, pkg.ScriptPath, "version", &version)
+			err := runCommand(ctx, scriptPath, "version", &version)
 			if err != nil {
 				log.Logger.Errorf("[package controller]: %v unexpected version failure: %v", pkg.Name, err)
 				continue
@@ -112,7 +130,7 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 			c.Unlock()
 
 			var shouldSkipResult string
-			if err = runCommand(ctx, pkg.ScriptPath, "shouldSkip", &shouldSkipResult); err == nil {
+			if err = runCommand(ctx, scriptPath, "shouldSkip", &shouldSkipResult); err == nil {
 				c.Lock()
 				c.packageStatus[pkg.Name].Skipped = true
 				c.Unlock()
@@ -120,12 +138,12 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 				continue
 			}
 
-			if version == pkg.TargetVersion {
+			if version == targetVersion {
 				log.Logger.Debugf("[package controller]: %v version is %v (same as target, no-op)", pkg.Name, version)
 				continue
 			}
 
-			log.Logger.Infof("[package controller]: %v version is %v, target is %v", pkg.Name, version, pkg.TargetVersion)
+			log.Logger.Infof("[package controller]: %v version is %v, target is %v", pkg.Name, version, targetVersion)
 			var eta time.Duration
 			c.Lock()
 			c.packageStatus[pkg.Name].Installing = true
@@ -152,7 +170,7 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 					}
 				}
 			}()
-			err = runCommand(ctx, pkg.ScriptPath, "upgrade", nil)
+			err = runCommand(ctx, scriptPath, "upgrade", nil)
 			close(done)
 			c.Lock()
 			c.packageStatus[pkg.Name].Installing = false
@@ -175,21 +193,36 @@ func (c *PackageController) installRunner(ctx context.Context) {
 		case <-ticker.C:
 			ticker.Reset(c.syncPeriod)
 		}
-		for _, pkg := range c.packageStatus {
+		for _, pkg := range c.packageStatusSnapshot() {
+			c.RLock()
+			dependency := pkg.Dependency
+			scriptPath := pkg.ScriptPath
+			c.RUnlock()
 			var skipCheck bool
-			for _, dep := range pkg.Dependency {
-				if _, ok := c.packageStatus[dep[0]]; !ok {
+			for _, dep := range dependency {
+				// Read the dependency's mutable fields under the read lock;
+				// updateRunner and the async install goroutine mutate them
+				// under the write lock.
+				c.RLock()
+				depPkg, depFound := c.packageStatus[dep[0]]
+				depInstalled := depFound && depPkg.IsInstalled
+				depVersion := ""
+				if depFound {
+					depVersion = depPkg.CurrentVersion
+				}
+				c.RUnlock()
+				if !depFound {
 					log.Logger.Infof("[package controller]: %v dependency %v not found, skipping", pkg.Name, dep[0])
 					skipCheck = true
 					break
 				}
-				if !c.packageStatus[dep[0]].IsInstalled {
+				if !depInstalled {
 					log.Logger.Infof("[package controller]: %v dependency %v not installed, skipping", pkg.Name, dep[0])
 					skipCheck = true
 					break
 				}
-				if dep[1] != "*" && (c.packageStatus[dep[0]].CurrentVersion == "" || c.packageStatus[dep[0]].CurrentVersion < dep[1]) {
-					log.Logger.Infof("[package controller]: %v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], c.packageStatus[dep[0]].CurrentVersion, dep[1])
+				if dep[1] != "*" && (depVersion == "" || depVersion < dep[1]) {
+					log.Logger.Infof("[package controller]: %v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], depVersion, dep[1])
 					skipCheck = true
 					break
 				}
@@ -199,7 +232,7 @@ func (c *PackageController) installRunner(ctx context.Context) {
 			}
 
 			var shouldSkipResult string
-			if err := runCommand(ctx, pkg.ScriptPath, "shouldSkip", &shouldSkipResult); err == nil {
+			if err := runCommand(ctx, scriptPath, "shouldSkip", &shouldSkipResult); err == nil {
 				c.Lock()
 				c.packageStatus[pkg.Name].Skipped = true
 				c.packageStatus[pkg.Name].Progress = 100
@@ -209,13 +242,16 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				continue
 			}
 
-			if pkg.Installing {
+			c.RLock()
+			installing := pkg.Installing
+			c.RUnlock()
+			if installing {
 				log.Logger.Infof("[package controller]: %v installing...", pkg.Name)
 				continue
 			}
 
 			// if installing, then skip
-			err := runCommand(ctx, pkg.ScriptPath, "isInstalled", nil)
+			err := runCommand(ctx, scriptPath, "isInstalled", nil)
 			if err == nil {
 				c.Lock()
 				c.packageStatus[pkg.Name].Progress = 100
@@ -253,12 +289,12 @@ func (c *PackageController) installRunner(ctx context.Context) {
 						}
 					}
 				}()
-				err = runCommand(ctx, pkg.ScriptPath, "install", nil)
+				err = runCommand(ctx, scriptPath, "install", nil)
 				close(done)
 				if err != nil {
 					log.Logger.Errorf("[package controller]: %v unexpected install failure: %v", pkg.Name, err)
 				} else {
-					if err = runCommand(ctx, pkg.ScriptPath, "start", nil); err != nil {
+					if err = runCommand(ctx, scriptPath, "start", nil); err != nil {
 						log.Logger.Errorf("[package controller]: %v failed to start after installing: %v", pkg.Name, err)
 					}
 				}
@@ -281,11 +317,14 @@ func (c *PackageController) deleteRunner(ctx context.Context) {
 		case <-ticker.C:
 			ticker.Reset(c.syncPeriod)
 		}
-		for _, pkg := range c.packageStatus {
-			if err := runCommand(ctx, pkg.ScriptPath, "needDelete", nil); err != nil {
+		for _, pkg := range c.packageStatusSnapshot() {
+			c.RLock()
+			scriptPath := pkg.ScriptPath
+			c.RUnlock()
+			if err := runCommand(ctx, scriptPath, "needDelete", nil); err != nil {
 				continue
 			}
-			err := runCommand(ctx, pkg.ScriptPath, "delete", nil)
+			err := runCommand(ctx, scriptPath, "delete", nil)
 			if err != nil {
 				log.Logger.Infof("[package controller]: %v failed to delete: %v", pkg.Name, err)
 			}
@@ -303,13 +342,17 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 		case <-ticker.C:
 			ticker.Reset(c.syncPeriod)
 		}
-		for _, pkg := range c.packageStatus {
-			if !pkg.IsInstalled {
+		for _, pkg := range c.packageStatusSnapshot() {
+			c.RLock()
+			installed := pkg.IsInstalled
+			scriptPath := pkg.ScriptPath
+			c.RUnlock()
+			if !installed {
 				continue
 			}
 
 			var shouldSkipResult string
-			if err := runCommand(ctx, pkg.ScriptPath, "shouldSkip", &shouldSkipResult); err == nil {
+			if err := runCommand(ctx, scriptPath, "shouldSkip", &shouldSkipResult); err == nil {
 				c.Lock()
 				c.packageStatus[pkg.Name].Skipped = true
 				c.packageStatus[pkg.Name].Status = true
@@ -318,7 +361,7 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 				continue
 			}
 
-			err := runCommand(ctx, pkg.ScriptPath, "status", nil)
+			err := runCommand(ctx, scriptPath, "status", nil)
 			if err == nil {
 				c.Lock()
 				c.packageStatus[pkg.Name].Status = true
