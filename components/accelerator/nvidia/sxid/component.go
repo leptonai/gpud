@@ -167,10 +167,19 @@ func (c *component) Start() error {
 		}
 	}
 
-	if c.kmsgWatcher != nil {
-		kmsgCh, err := c.kmsgWatcher.Watch()
-		if err != nil {
-			return err
+	// Run the event loop whenever any event source exists: the kmsg watcher
+	// (root with /dev/kmsg) or the NVSentinel receiver. NVSentinel's syslog
+	// health monitor may be the only kmsg reader on a node; without this,
+	// NVSentinel events would queue in extraEventCh and never be stored.
+	// A nil kmsgCh is never ready in start's select, which is fine.
+	if c.kmsgWatcher != nil || c.nvsSource != nil {
+		var kmsgCh <-chan kmsg.Message
+		if c.kmsgWatcher != nil {
+			ch, err := c.kmsgWatcher.Watch()
+			if err != nil {
+				return err
+			}
+			kmsgCh = ch
 		}
 		go c.start(kmsgCh, DefaultStateUpdatePeriod)
 	}
