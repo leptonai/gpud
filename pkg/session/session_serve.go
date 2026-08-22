@@ -52,6 +52,11 @@ type Request struct {
 	// KAPMTLSCredentials carries short-lived client credentials for the
 	// node-local KAP mTLS agent. The private key must never be logged.
 	KAPMTLSCredentials *KAPMTLSCredentialsRequest `json:"kap_mtls_credentials,omitempty"`
+
+	// NodeCredentials carries credential material the control plane places on
+	// the node, with the destination of each file in the request. Private keys
+	// travel here, so it must never be logged.
+	NodeCredentials *NodeCredentialsRequest `json:"node_credentials,omitempty"`
 }
 
 // Response is the response from GPUd to the control plane.
