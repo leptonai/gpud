@@ -172,7 +172,7 @@ func assertEvent(ev nvsentinel.HealthEvent, src nvsentinel.Source) error {
 		return fmt.Errorf("missing GPU entity")
 	}
 	if src.LastReceived().IsZero() {
-		return fmt.Errorf("LastReceived is zero")
+		return fmt.Errorf("lastReceived is zero")
 	}
 
 	// Verify Covers reports the event.
@@ -180,7 +180,7 @@ func assertEvent(ev nvsentinel.HealthEvent, src nvsentinel.Source) error {
 		return ev.CheckName == "SysLogsXIDError" && len(ev.ErrorCodes) > 0 && ev.ErrorCodes[0] == "79"
 	}
 	if !src.Covers(2*time.Minute, matchXid79) {
-		return fmt.Errorf("Covers returned false for the event we just received")
+		return fmt.Errorf("covers returned false for the event we just received")
 	}
 	return nil
 }
