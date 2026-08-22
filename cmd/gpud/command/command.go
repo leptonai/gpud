@@ -283,6 +283,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "sets the components to enable (comma-separated, leave empty for default to enable all components, set 'none' or any other non-matching value to disable all components, prefix component name with '-' to disable it)",
 					Value: "",
 				},
+				&cli.StringFlag{
+					Name:  "nvsentinel-endpoint",
+					Usage: "unix socket path for the NVSentinel health event receiver (e.g. /var/run/nvsentinel/gpud.sock); setting this opens the socket and enables the integration",
+					Value: "",
+				},
 				&cli.BoolFlag{
 					Name:   "skip-session-update-config",
 					Usage:  "skips processing session updateConfig requests (testing only)",

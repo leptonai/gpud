@@ -45,3 +45,4 @@ custom-gcl
 
 # Private helm values overlay (nvcr.io image + pull secret) -- internal only
 deployments/helm/gpud/values-nvcr.yaml
+nvsentinel-integration-test
