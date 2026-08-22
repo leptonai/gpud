@@ -84,6 +84,7 @@ func TestCommand_RequireRootError(t *testing.T) {
 // TestCommand_LoginError tests the command when login fails.
 func TestCommand_LoginError(t *testing.T) {
 	mockey.PatchConvey("login error", t, func() {
+		systemdStarted := false
 		mockey.Mock(common.ResolveDataDir).To(func(cliContext *cli.Context) (string, error) {
 			return "/tmp/test", nil
 		}).Build()
@@ -91,11 +92,16 @@ func TestCommand_LoginError(t *testing.T) {
 		mockey.Mock(login.Login).To(func(ctx context.Context, cfg login.LoginConfig) error {
 			return errors.New("login failed")
 		}).Build()
+		mockey.Mock(os.Executable).To(func() (string, error) {
+			systemdStarted = true
+			return "/usr/bin/gpud", nil
+		}).Build()
 
 		cliContext := newCLIContext(t, []string{"--token", "test-token"})
 		err := Command(cliContext)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "login failed")
+		assert.False(t, systemdStarted)
 	})
 }
 

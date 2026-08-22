@@ -299,9 +299,19 @@ func GetProvider(publicIP string) *providers.Info {
 
 // GetProviderWithContext passes the caller's context to metadata provider detection.
 func GetProviderWithContext(ctx context.Context, publicIP string) *providers.Info {
+	return getProviderWithContext(ctx, publicIP, pkgprovidersall.Detect)
+}
+
+func getProviderForLogin(publicIP, region string) *providers.Info {
+	return getProviderWithContext(context.Background(), publicIP, func(ctx context.Context) (*providers.Info, error) {
+		return pkgprovidersall.DetectWithRegionOverride(ctx, region)
+	})
+}
+
+func getProviderWithContext(ctx context.Context, publicIP string, detect func(context.Context) (*providers.Info, error)) *providers.Info {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	providerInfo, err := pkgprovidersall.Detect(ctx)
+	providerInfo, err := detect(ctx)
 	if err != nil {
 		log.Logger.Warnw("failed to detect provider", "error", err)
 	} else {

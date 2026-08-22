@@ -10,6 +10,10 @@ var (
 	_ RegionDetector = &regionDetector{}
 )
 
+type imdsDetector interface {
+	supportsIMDS() bool
+}
+
 type detector struct {
 	providerName           string
 	detectProviderFunc     func(ctx context.Context) (string, error)
@@ -17,6 +21,7 @@ type detector struct {
 	fetchPrivateIPv4Func   func(ctx context.Context) (string, error)
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error)
 	fetchInstanceIDFunc    func(ctx context.Context) (string, error)
+	imds                   bool
 }
 
 type regionDetector struct {
@@ -50,6 +55,28 @@ func NewWithRegion(
 	}
 }
 
+func NewIMDSWithRegion(
+	name string,
+	detectProviderFunc func(ctx context.Context) (string, error),
+	fetchPublicIPv4Func func(ctx context.Context) (string, error),
+	fetchPrivateIPv4Func func(ctx context.Context) (string, error),
+	fetchRegionFunc func(ctx context.Context) (string, error),
+	fetchVMEnvironmentFunc func(ctx context.Context) (string, error),
+	fetchInstanceIDFunc func(ctx context.Context) (string, error),
+) Detector {
+	d := &regionDetector{
+		detector:        newDetector(name, detectProviderFunc, fetchPublicIPv4Func, fetchPrivateIPv4Func, fetchVMEnvironmentFunc, fetchInstanceIDFunc),
+		fetchRegionFunc: fetchRegionFunc,
+	}
+	d.imds = true
+	return d
+}
+
+func SupportsIMDS(d Detector) bool {
+	imds, ok := d.(imdsDetector)
+	return ok && imds.supportsIMDS()
+}
+
 func newDetector(
 	name string,
 	detectProviderFunc func(ctx context.Context) (string, error),
@@ -70,6 +97,10 @@ func newDetector(
 
 func (d *detector) Name() string {
 	return d.providerName
+}
+
+func (d *detector) supportsIMDS() bool {
+	return d.imds
 }
 
 func (d *detector) Provider(ctx context.Context) (string, error) {

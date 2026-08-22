@@ -171,6 +171,20 @@ func TestDetector_Region(t *testing.T) {
 	}
 }
 
+func TestIMDSDetectorCapability(t *testing.T) {
+	assert.False(t, SupportsIMDS(New("plain", nil, nil, nil, nil, nil)))
+
+	d := NewIMDSWithRegion("imds-region", nil, nil, nil, func(context.Context) (string, error) {
+		return "us-east-1", nil
+	}, nil, nil)
+	assert.True(t, SupportsIMDS(d))
+	regionDetector, ok := d.(RegionDetector)
+	assert.True(t, ok)
+	region, err := regionDetector.Region(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, "us-east-1", region)
+}
+
 func TestDetector_VMEnvironment(t *testing.T) {
 	const testProviderName = "test-provider-for-vm-env"
 	tests := []struct {

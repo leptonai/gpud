@@ -4,6 +4,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
@@ -188,6 +189,31 @@ func TestCommand_SuccessPath(t *testing.T) {
 		assert.True(t, receivedLoginCfg.RefreshSessionToken)
 		assert.Equal(t, 5*time.Minute, receivedCfg.MetricsRetentionPeriod.Duration)
 		assert.Equal(t, 14*24*time.Hour, receivedCfg.EventsRetentionPeriod.Duration)
+	})
+}
+
+func TestCommand_LoginErrorStopsBeforeServerStartup(t *testing.T) {
+	ctx := newTestCLIContext(t, cliFlagValues{
+		stringFlags: map[string]string{
+			"log-level": "info",
+			"data-dir":  t.TempDir(),
+			"token":     "registration-token",
+		},
+	})
+
+	mockey.PatchConvey("login failure stops startup", t, func() {
+		managerStarted := false
+		mockey.Mock(login.Login).To(func(context.Context, login.LoginConfig) error {
+			return errors.New("provider nscale IMDS did not return an instance ID")
+		}).Build()
+		mockey.Mock(gpudmanager.New).To(func(string) (*gpudmanager.Manager, error) {
+			managerStarted = true
+			return &gpudmanager.Manager{}, nil
+		}).Build()
+
+		err := Command(ctx)
+		require.ErrorContains(t, err, "did not return an instance ID")
+		assert.False(t, managerStarted)
 	})
 }
 
