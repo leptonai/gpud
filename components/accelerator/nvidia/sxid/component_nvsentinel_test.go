@@ -483,3 +483,27 @@ func TestNewNVSentinelWithoutEventStore(t *testing.T) {
 	require.True(t, ok)
 	assert.Nil(t, c.nvsSource)
 }
+
+// TestNVSentinelSXidEventsProcessedWithoutKmsgWatcher is a regression test for
+// the Start gating: NVSentinel events must be stored even when the kmsg
+// watcher is absent (non-root or /dev/kmsg unavailable). NVSentinel's syslog
+// monitor may be the only kmsg reader on the node, so the event loop must run
+// with just the NVSentinel source. Previously Start only ran the loop when
+// kmsgWatcher was non-nil, silently dropping NVSentinel events into
+// extraEventCh.
+func TestNVSentinelSXidEventsProcessedWithoutKmsgWatcher(t *testing.T) {
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	// No kmsgWatcher (zero value): this is the non-root / no-kmsg case.
+	require.Nil(t, c.kmsgWatcher)
+	require.NoError(t, c.Start())
+
+	src.Send(newNVSentinelSXidEvent("12028"))
+
+	ctx := context.Background()
+	require.Eventually(t, func() bool {
+		events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+		return err == nil && len(events) == 1
+	}, 10*time.Second, 50*time.Millisecond)
+}
