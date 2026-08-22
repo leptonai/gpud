@@ -2,6 +2,7 @@ package machineinfo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -18,6 +20,8 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 	nvidiadev "github.com/leptonai/gpud/pkg/nvidia/dev"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/providers"
+	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 )
 
 func TestGetMachineNetwork(t *testing.T) {
@@ -307,23 +311,34 @@ func TestGetProvider(t *testing.T) {
 }
 
 func TestGetProviderForLogin(t *testing.T) {
-	// On a non-cloud test machine every IMDS probe fails, so detection
-	// returns the unknown provider with the override region applied.
-	info := getProviderForLogin("", "eu-north-1")
-	require.NotNil(t, info)
-	assert.Equal(t, "unknown", info.Provider)
-	assert.Equal(t, "eu-north-1", info.Region)
+	// Mock the detector: CI runners may themselves be cloud VMs (e.g. Azure),
+	// so the detection result must not depend on the host environment.
+	mockey.PatchConvey("region override flows to detection", t, func() {
+		var gotRegion string
+		mockey.Mock(pkgprovidersall.DetectWithRegionOverride).To(func(_ context.Context, region string) (*providers.Info, error) {
+			gotRegion = region
+			return &providers.Info{Provider: "azure", Region: region}, nil
+		}).Build()
 
-	// The override is trimmed before use.
-	info = getProviderForLogin("", "  eu-west-2  ")
-	require.NotNil(t, info)
-	assert.Equal(t, "eu-west-2", info.Region)
+		info := getProviderForLogin("1.2.3.4", "eu-north-1")
+		require.NotNil(t, info)
+		assert.Equal(t, "eu-north-1", gotRegion)
+		assert.Equal(t, "azure", info.Provider)
+		assert.Equal(t, "eu-north-1", info.Region)
+		// The caller's public IP is filled in when detection did not set one.
+		assert.Equal(t, "1.2.3.4", info.PublicIP)
+	})
 
-	// Empty override behaves like detection without an override.
-	info = getProviderForLogin("", "")
-	require.NotNil(t, info)
-	assert.Equal(t, "unknown", info.Provider)
-	assert.Empty(t, info.Region)
+	mockey.PatchConvey("detection error still returns a provider info", t, func() {
+		mockey.Mock(pkgprovidersall.DetectWithRegionOverride).To(func(_ context.Context, _ string) (*providers.Info, error) {
+			return nil, errors.New("imds unreachable")
+		}).Build()
+
+		info := getProviderForLogin("", "")
+		require.NotNil(t, info)
+		assert.Equal(t, "unknown", info.Provider)
+		assert.Empty(t, info.Region)
+	})
 }
 
 // TestGetMachineLocation_Basic tests basic location functionality
