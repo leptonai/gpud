@@ -47,6 +47,11 @@ func TestFetchMetadataByPath(t *testing.T) {
 			expectedError: "failed to fetch metadata: received status code 404",
 		},
 		{
+			name: "metadata server unreachable",
+			// no metaServerHandler: uses the non-existent localhost:9999 server
+			expectedError: "failed to fetch metadata",
+		},
+		{
 			name: "metadata response read error",
 			metaServerHandler: func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Length", "10")
@@ -126,6 +131,15 @@ func TestFetchComputeResponse(t *testing.T) {
 				require.NoError(t, err)
 			},
 			expectedError: "failed to fetch metadata: received status code 404",
+		},
+		{
+			name: "compute response is invalid JSON",
+			mockHandler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write([]byte("not-json{"))
+				require.NoError(t, err)
+			},
+			expectedError: "failed to parse compute metadata",
 		},
 	}
 
