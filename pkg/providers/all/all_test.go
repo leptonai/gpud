@@ -26,6 +26,12 @@ func TestAllIncludesRequiredProviders(t *testing.T) {
 	}
 }
 
+func TestAllProvidersSupportIMDS(t *testing.T) {
+	for _, detector := range All {
+		assert.True(t, providers.SupportsIMDS(detector), detector.Name())
+	}
+}
+
 // mockDetector implements the providers.Detector interface for testing
 type mockDetector struct {
 	name          string
@@ -274,6 +280,16 @@ func TestDetect_NoProviderDetected(t *testing.T) {
 	})
 }
 
+func TestDetect_RegionOverrideSkipsFallbackForUnknownProvider(t *testing.T) {
+	withTemporaryDetectors(nil, func() {
+		info, err := DetectWithRegionOverride(context.Background(), "eu-north-1")
+		assert.NoError(t, err)
+		assert.Equal(t, "unknown", info.Provider)
+		assert.Equal(t, "eu-north-1", info.Region)
+		assert.False(t, info.IMDSDetected)
+	})
+}
+
 func TestDetect_PublicIPError(t *testing.T) {
 	testDetectors := []providers.Detector{
 		&mockDetector{
@@ -363,5 +379,135 @@ func TestDetect_InstanceIDError(t *testing.T) {
 		assert.Equal(t, "10.0.1.100", info.PrivateIP)
 		assert.Equal(t, "AWS", info.VMEnvironment)
 		assert.Empty(t, info.InstanceID)
+	})
+}
+
+func TestDetect_IMDSRetriesRequiredMetadata(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	regionCalls := 0
+	instanceIDCalls := 0
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		nil,
+		func(context.Context) (string, error) {
+			regionCalls++
+			if regionCalls < 3 {
+				return "", nil
+			}
+			return "eu-west-2", nil
+		},
+		nil,
+		func(context.Context) (string, error) {
+			instanceIDCalls++
+			if instanceIDCalls < 2 {
+				return "", errors.New("metadata unavailable")
+			}
+			return "instance-1", nil
+		},
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, info.IMDSDetected)
+		assert.Equal(t, "eu-west-2", info.Region)
+		assert.Equal(t, "instance-1", info.InstanceID)
+		assert.Equal(t, 3, regionCalls)
+		assert.Equal(t, 2, instanceIDCalls)
+	})
+}
+
+func TestDetect_IMDSRetryExhaustion(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	instanceIDCalls := 0
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		nil,
+		func(context.Context) (string, error) { return "eu-west-2", nil },
+		nil,
+		func(context.Context) (string, error) {
+			instanceIDCalls++
+			return " ", nil
+		},
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, info.IMDSDetected)
+		assert.Empty(t, info.InstanceID)
+		assert.Equal(t, 4, instanceIDCalls)
+	})
+}
+
+func TestDetect_RegionOverrideSkipsIMDSAndKeepsInstanceID(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	regionCalls := 0
+	instanceIDCalls := 0
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		nil,
+		func(context.Context) (string, error) {
+			regionCalls++
+			return "metadata-region", nil
+		},
+		nil,
+		func(context.Context) (string, error) {
+			instanceIDCalls++
+			return "instance-1", nil
+		},
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := DetectWithRegionOverride(context.Background(), " eu-north-1 ")
+		assert.NoError(t, err)
+		assert.Equal(t, "eu-north-1", info.Region)
+		assert.Equal(t, "instance-1", info.InstanceID)
+		assert.Zero(t, regionCalls)
+		assert.Equal(t, 1, instanceIDCalls)
+	})
+}
+
+func TestDetect_IMDSRetryStopsOnContextCancellation(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, time.Hour}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	instanceIDCalls := 0
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		nil,
+		func(context.Context) (string, error) { return "eu-west-2", nil },
+		nil,
+		func(context.Context) (string, error) {
+			instanceIDCalls++
+			cancel()
+			return "", errors.New("metadata unavailable")
+		},
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(ctx)
+		assert.NoError(t, err)
+		assert.Empty(t, info.InstanceID)
+		assert.Equal(t, 1, instanceIDCalls)
 	})
 }
