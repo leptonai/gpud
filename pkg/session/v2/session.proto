@@ -47,6 +47,7 @@ message ManagerPacket {
     GetKAPMTLSStatusRequest get_kap_mtls_status = 26;
     UpdateKAPMTLSCredentialsRequest update_kap_mtls_credentials = 27;
     ActivateKAPMTLSRequest activate_kap_mtls = 28;
+    NodeCredentialsRequest node_credentials = 29;
   }
 }
 
@@ -199,6 +200,31 @@ message UpdateKAPMTLSCredentialsRequest {
 }
 
 message ActivateKAPMTLSRequest {}
+
+// NodeCredentialFile is one file the control plane places on a node. The
+// destination travels with the file so that adding or moving a credential does
+// not need a GPUd release; the agent confines the path to the trees it allows.
+message NodeCredentialFile {
+  string path = 1;
+  bytes contents = 2;
+  // Mode is the file mode. The agent applies 0600 when this is zero.
+  uint32 mode = 3;
+}
+
+// KubeletCredentials is what a kubelet needs to register. The fields are named
+// rather than a list, so each file's role is part of the contract instead of
+// something the receiver has to infer.
+message KubeletCredentials {
+  NodeCredentialFile config = 1;
+  NodeCredentialFile client_certificate = 2;
+}
+
+// NodeCredentialsRequest carries credential material for one node, grouped by
+// the subsystem that owns it, so a new kind of credential is a new field rather
+// than a change to an existing one.
+message NodeCredentialsRequest {
+  KubeletCredentials kubelet = 1;
+}
 
 message DrainNotice {
   int64 reconnect_after_millis = 1;
