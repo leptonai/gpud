@@ -44,6 +44,7 @@ type Info struct {
 	Region        string `json:"region"`
 	VMEnvironment string `json:"vm_environment"`
 	InstanceID    string `json:"instance_id"`
+	IMDSDetected  bool   `json:"-"`
 }
 
 func (i *Info) RenderTable(wr io.Writer) {

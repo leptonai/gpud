@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -25,11 +27,7 @@ type OpenStackMetadataResponse struct {
 type OpenStackMetadataMeta struct {
 	OrganizationID string `json:"organizationID"`
 	ProjectID      string `json:"projectID"`
-	// RegionID is the provider-specific region identifier.
-	// Nscale returns this field in the OpenStack metadata JSON.
-	// When RegionID is empty, FetchRegion falls back to AvailabilityZone
-	// (the same pattern AWS uses: derive region from AZ when the
-	// explicit region endpoint is unavailable).
+	// RegionID may be a human-readable region or an opaque provider UUID.
 	// ref. https://docs.openstack.org/nova/latest/user/metadata.html
 	RegionID string `json:"regionID"`
 }
@@ -121,16 +119,8 @@ func fetchOpenStackMetadata(ctx context.Context, metadataURL string) (*OpenStack
 	return resp, nil
 }
 
-// FetchRegion returns the nscale provider region.
-// It reads regionID from the OpenStack metadata JSON.
-// When regionID is empty, it falls back to availability_zone.
-// This matches the AWS pattern: use the explicit region field first,
-// then derive region from the availability zone when the explicit
-// field is absent.
-// The OpenStack metadata is already fetched for provider detection;
-// this function does not add a new HTTP call.
+// FetchRegion returns a human-readable nscale region from OpenStack metadata.
 // ref. https://docs.openstack.org/nova/latest/user/metadata.html
-// ref. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html (AZ fallback pattern)
 func FetchRegion(ctx context.Context) (string, error) {
 	return fetchRegion(ctx, openStackMetadataJSONURL)
 }
@@ -143,15 +133,15 @@ func fetchRegion(ctx context.Context, metadataURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if resp.Meta.RegionID != "" {
-		return resp.Meta.RegionID, nil
+	for _, candidate := range []string{resp.Meta.RegionID, resp.AvailabilityZone} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" || strings.EqualFold(candidate, "unknown") || strings.EqualFold(candidate, "nova") {
+			continue
+		}
+		if _, err := uuid.Parse(candidate); err == nil {
+			continue
+		}
+		return candidate, nil
 	}
-	// Derive region from availability zone when regionID is absent.
-	// On nscale, availability_zone names a concrete failure domain.
-	// Using the AZ directly as the region identifier keeps provider
-	// location accurate when the explicit region field is not populated.
-	if resp.AvailabilityZone != "" {
-		return resp.AvailabilityZone, nil
-	}
-	return "", nil
+	return "", fmt.Errorf("nscale metadata has no usable region; set one with gpud up --region")
 }

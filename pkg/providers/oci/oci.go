@@ -12,7 +12,7 @@ import (
 const Name = "oci"
 
 func New() providers.Detector {
-	return providers.NewWithRegion(
+	return providers.NewIMDSWithRegion(
 		Name,
 		detectProvider,
 		nil,
