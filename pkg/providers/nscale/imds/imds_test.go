@@ -43,6 +43,25 @@ func TestFetchMetadataByPathWithStatusCode(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, code)
 		require.Contains(t, err.Error(), "received status code 404")
 	})
+
+	t.Run("response body read error", func(t *testing.T) {
+		// The server declares a longer body than it writes, so reading
+		// the response body fails with an unexpected EOF.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Length", "100")
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte("i-000017ac"))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		_, _, err := fetchMetadataByPathWithStatusCode(ctx, srv.URL)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to read metadata response body")
+	})
 }
 
 func TestFetchPublicIPv4(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/leptonai/gpud/pkg/log"
@@ -303,6 +304,26 @@ func TestGetProvider(t *testing.T) {
 			t.Logf("Provider for IP %s: %s", tt.ip, provider.Provider)
 		})
 	}
+}
+
+func TestGetProviderForLogin(t *testing.T) {
+	// On a non-cloud test machine every IMDS probe fails, so detection
+	// returns the unknown provider with the override region applied.
+	info := getProviderForLogin("", "eu-north-1")
+	require.NotNil(t, info)
+	assert.Equal(t, "unknown", info.Provider)
+	assert.Equal(t, "eu-north-1", info.Region)
+
+	// The override is trimmed before use.
+	info = getProviderForLogin("", "  eu-west-2  ")
+	require.NotNil(t, info)
+	assert.Equal(t, "eu-west-2", info.Region)
+
+	// Empty override behaves like detection without an override.
+	info = getProviderForLogin("", "")
+	require.NotNil(t, info)
+	assert.Equal(t, "unknown", info.Provider)
+	assert.Empty(t, info.Region)
 }
 
 // TestGetMachineLocation_Basic tests basic location functionality
