@@ -11,7 +11,7 @@ import (
 const Name = "nebius"
 
 func New() providers.Detector {
-	return providers.NewWithRegion(Name, detectProvider, nil, nil, imds.FetchRegion, nil, GetInstanceID)
+	return providers.NewIMDSWithRegion(Name, detectProvider, nil, nil, imds.FetchRegion, nil, GetInstanceID)
 }
 
 func detectProvider(ctx context.Context) (string, error) {

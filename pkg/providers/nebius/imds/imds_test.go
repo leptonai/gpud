@@ -7,10 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"testing/iotest"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,31 +88,6 @@ func TestFetchMetadataByPath(t *testing.T) {
 		require.Equal(t, "eu-west1", region)
 	})
 
-	t.Run("retries each documented transient status", func(t *testing.T) {
-		for _, statusCode := range []int{
-			http.StatusTooManyRequests,
-			http.StatusInternalServerError,
-			http.StatusServiceUnavailable,
-		} {
-			t.Run(http.StatusText(statusCode), func(t *testing.T) {
-				var requests atomic.Int32
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					if requests.Add(1) == 1 {
-						w.WriteHeader(statusCode)
-						return
-					}
-					_, _ = w.Write([]byte("eu-west1"))
-				}))
-				defer server.Close()
-
-				region, err := fetchMetadataByPath(context.Background(), server.URL)
-				require.NoError(t, err)
-				require.Equal(t, "eu-west1", region)
-				require.EqualValues(t, 2, requests.Load())
-			})
-		}
-	})
-
 	t.Run("returns terminal status error", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
@@ -155,29 +128,17 @@ func TestFetchMetadataByPath(t *testing.T) {
 		require.ErrorIs(t, err, readErr)
 	})
 
-	t.Run("returns after exhausting retries", func(t *testing.T) {
-		var requests atomic.Int32
+	t.Run("returns status error", func(t *testing.T) {
+		requests := 0
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			requests.Add(1)
+			requests++
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}))
 		defer server.Close()
 
 		_, err := fetchMetadataByPath(context.Background(), server.URL)
 		require.ErrorContains(t, err, "status code 503")
-		require.EqualValues(t, maxMetadataRetries+1, requests.Load())
-	})
-
-	t.Run("returns when context ends during retry wait", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}))
-		defer server.Close()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-		defer cancel()
-		_, err := fetchMetadataByPath(ctx, server.URL)
-		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Equal(t, 1, requests)
 	})
 }
 

@@ -150,6 +150,11 @@ type computeResponse struct {
 
 // FetchAvailabilityZone fetches Azure instance environment using IMDS.
 func FetchAvailabilityZone(ctx context.Context) (string, error) {
+	return FetchRegion(ctx)
+}
+
+// FetchRegion fetches the Azure region from IMDS.
+func FetchRegion(ctx context.Context) (string, error) {
 	resp, err := fetchComputeResponse(ctx, imdsMetadataURL)
 	if err != nil {
 		return "", err

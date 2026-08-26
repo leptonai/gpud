@@ -43,6 +43,25 @@ func TestFetchMetadataByPathWithStatusCode(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, code)
 		require.Contains(t, err.Error(), "received status code 404")
 	})
+
+	t.Run("response body read error", func(t *testing.T) {
+		// The server declares a longer body than it writes, so reading
+		// the response body fails with an unexpected EOF.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Length", "100")
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte("i-000017ac"))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		_, _, err := fetchMetadataByPathWithStatusCode(ctx, srv.URL)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to read metadata response body")
+	})
 }
 
 func TestFetchPublicIPv4(t *testing.T) {
@@ -225,7 +244,7 @@ func TestFetchRegion(t *testing.T) {
 		require.Equal(t, "stavanger-1a", region)
 	})
 
-	t.Run("returns empty when both regionID and availability_zone are absent", func(t *testing.T) {
+	t.Run("errors when both regionID and availability_zone are absent", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte(`{"uuid":"u-1","meta":{"organizationID":"org","projectID":"project"}}`))
@@ -237,7 +256,23 @@ func TestFetchRegion(t *testing.T) {
 		defer cancel()
 
 		region, err := fetchRegion(ctx, srv.URL)
-		require.NoError(t, err)
+		require.ErrorContains(t, err, "gpud up --region")
+		require.Empty(t, region)
+	})
+
+	t.Run("rejects opaque region UUID and generic nova availability zone", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte(`{"uuid":"u-1","availability_zone":"nova","meta":{"organizationID":"org","projectID":"project","regionID":"d0ba550d-1be4-4c4e-8ef9-3adb23b3fe3b"}}`))
+			require.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		region, err := fetchRegion(ctx, srv.URL)
+		require.ErrorContains(t, err, "gpud up --region")
 		require.Empty(t, region)
 	})
 

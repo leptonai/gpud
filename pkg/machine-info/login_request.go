@@ -22,6 +22,10 @@ import (
 const RegionUnknown = "unknown"
 
 func CreateLoginRequest(token string, machineID string, nodeGroup string, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+	return CreateLoginRequestWithRegion(token, machineID, nodeGroup, gpuCount, "", nvmlInstance)
+}
+
+func CreateLoginRequestWithRegion(token string, machineID string, nodeGroup string, gpuCount string, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 	return createLoginRequest(
 		token,
 		machineID,
@@ -31,7 +35,7 @@ func CreateLoginRequest(token string, machineID string, nodeGroup string, gpuCou
 		netutil.PublicIP,
 		GetMachineLocation,
 		GetMachineInfo,
-		GetProvider,
+		func(ip string) *providers.Info { return getProviderForLogin(ip, region) },
 		GetSystemResourceRootVolumeTotal,
 		GetSystemResourceGPUCount,
 	)
@@ -84,6 +88,14 @@ func createLoginRequest(
 	log.Logger.Debugw("detected public IP", "publicIP", req.Network.PublicIP)
 
 	detectedProvider := getProviderFunc(req.Network.PublicIP)
+	if detectedProvider.IMDSDetected {
+		if strings.TrimSpace(detectedProvider.InstanceID) == "" {
+			return nil, fmt.Errorf("provider %q IMDS did not return an instance ID after retries; aborting login", detectedProvider.Provider)
+		}
+		if region := strings.TrimSpace(detectedProvider.Region); region == "" || strings.EqualFold(region, RegionUnknown) {
+			return nil, fmt.Errorf("provider %q IMDS did not return a region after retries; set one with gpud up --region", detectedProvider.Provider)
+		}
+	}
 	log.Logger.Debugw("provider detection completed",
 		"provider", detectedProvider.Provider,
 		"providerInstanceID", detectedProvider.InstanceID,
@@ -162,9 +174,8 @@ func createLoginRequest(
 	// Never report an empty region: when the provider metadata lookup
 	// failed or is unsupported AND the DERP-latency fallback also failed,
 	// mark the region "unknown" so downstream region consumers (e.g.,
-	// node region label propagation) see a stable value instead of "". An
-	// explicit region override (e.g., "gpud up --region") is applied by
-	// the caller after this and still takes precedence.
+	// node region label propagation) see a stable value instead of "".
+	// An explicit gpud up region is applied before this request is built.
 	if req.Location == nil {
 		req.Location = &apiv1.MachineLocation{}
 	}

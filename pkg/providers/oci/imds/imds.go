@@ -15,9 +15,6 @@ const (
 
 	headerAuthorization = "Authorization"
 	bearerOracle        = "Bearer Oracle"
-
-	maxMetadataRetries     = 3
-	metadataRetryBaseDelay = 100 * time.Millisecond
 )
 
 // FetchInstanceID fetches the OCI instance OCID.
@@ -60,37 +57,18 @@ func fetchMetadataByPath(ctx context.Context, metadataURL string) (string, error
 	}
 	req.Header.Set(headerAuthorization, bearerOracle)
 
-	for attempt := 0; ; attempt++ {
-		resp, err := client.Do(req)
-		if err != nil {
-			return "", fmt.Errorf("failed to fetch OCI metadata: %w", err)
-		}
-
-		if resp.StatusCode == http.StatusOK {
-			metadataBytes, readErr := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			if readErr != nil {
-				return "", fmt.Errorf("failed to read OCI metadata response body: %w", readErr)
-			}
-			return strings.TrimSpace(string(metadataBytes)), nil
-		}
-
-		statusCode := resp.StatusCode
-		_ = resp.Body.Close()
-		if !retryableStatus(statusCode) || attempt == maxMetadataRetries {
-			return "", fmt.Errorf("failed to fetch OCI metadata: received status code %d", statusCode)
-		}
-
-		select {
-		case <-ctx.Done():
-			return "", fmt.Errorf("failed to fetch OCI metadata: %w", ctx.Err())
-		case <-time.After(metadataRetryBaseDelay << attempt):
-		}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch OCI metadata: %w", err)
 	}
-}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to fetch OCI metadata: received status code %d", resp.StatusCode)
+	}
 
-func retryableStatus(statusCode int) bool {
-	return statusCode == http.StatusNotFound ||
-		statusCode == http.StatusTooManyRequests ||
-		(statusCode >= http.StatusInternalServerError && statusCode < 600)
+	metadataBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read OCI metadata response body: %w", err)
+	}
+	return strings.TrimSpace(string(metadataBytes)), nil
 }

@@ -336,7 +336,7 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsRelogsIn(t *testing.
 		}).Build()
 
 		var receivedMachineID string
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			receivedMachineID = machineID
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
@@ -431,7 +431,7 @@ func TestLogin_RefreshSessionTokenRelogsIn(t *testing.T) {
 		}).Build()
 
 		var receivedMachineID string
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, machineID, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, machineID, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			receivedMachineID = machineID
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
@@ -517,7 +517,7 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsAndMismatchedOverrid
 			return nvidianvml.NewNoOp(), nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			loginRequestCreated = true
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
@@ -614,7 +614,7 @@ func TestLogin_MachineIDOverwriteChecksInWithRequestedMachineID(t *testing.T) {
 		}).Build()
 
 		var receivedMachineID string
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, machineID, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, machineID, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			receivedMachineID = machineID
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
@@ -722,6 +722,8 @@ func TestLogin_CreateLoginRequestError(t *testing.T) {
 	mockey.PatchConvey("create login request error", t, func() {
 		mockDB := &sql.DB{}
 		mockNVML := nvidianvml.NewNoOp()
+		sendCalled := false
+		persistCalled := false
 
 		mockey.Mock(config.ResolveDataDir).To(func(dataDir string) (string, error) {
 			return "/tmp/test", nil
@@ -755,8 +757,18 @@ func TestLogin_CreateLoginRequestError(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
-			return nil, errors.New("failed to get machine info")
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+			return nil, errors.New("provider nscale IMDS did not return an instance ID")
+		}).Build()
+
+		mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+			sendCalled = true
+			return nil, nil
+		}).Build()
+
+		mockey.Mock(pkgmetadata.SetMetadata).To(func(context.Context, *sql.DB, string, string) error {
+			persistCalled = true
+			return nil
 		}).Build()
 
 		ctx := context.Background()
@@ -769,6 +781,8 @@ func TestLogin_CreateLoginRequestError(t *testing.T) {
 		err := Login(ctx, cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create login request")
+		assert.False(t, sendCalled)
+		assert.False(t, persistCalled)
 	})
 }
 
@@ -810,7 +824,7 @@ func TestLogin_SendRequestError(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{
 				Network: &apiv1.MachineNetwork{
 					PublicIP:  "1.2.3.4",
@@ -874,7 +888,7 @@ func TestLogin_SendRequestErrorWithResponse(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
@@ -938,7 +952,7 @@ func TestLogin_SetMetadataEndpointError(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
@@ -1011,7 +1025,7 @@ func TestLogin_Success(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{
 				Network: &apiv1.MachineNetwork{
 					PublicIP:  "1.2.3.4",
@@ -1096,7 +1110,7 @@ func TestLogin_SuccessWithPublicPrivateIPOverride(t *testing.T) {
 		}).Build()
 
 		receivedRequest := &apiv1.LoginRequest{}
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{
 				Network: &apiv1.MachineNetwork{
 					PublicIP:  "1.2.3.4",
@@ -1181,7 +1195,7 @@ func TestLogin_SuccessWithServerRunning(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
@@ -1261,7 +1275,7 @@ func TestLogin_SuccessWithValidationResults(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
@@ -1419,7 +1433,7 @@ func TestLogin_WithMachineIDAndNodeGroup(t *testing.T) {
 		}).Build()
 
 		var receivedMachineID, receivedNodeGroup string
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			receivedMachineID = machineID
 			receivedNodeGroup = nodeGroup
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
@@ -1501,7 +1515,7 @@ func TestLogin_NVMLShutdownError(t *testing.T) {
 			return errors.New("shutdown failed")
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
@@ -1575,7 +1589,7 @@ func TestLogin_WithGPUCount(t *testing.T) {
 		}).Build()
 
 		var receivedGPUCount string
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			receivedGPUCount = gpuCount
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
@@ -1651,7 +1665,7 @@ func TestLogin_SendRequestWithDeprecatedErrorField(t *testing.T) {
 			return nil
 		}).Build()
 
-		mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(token, machineID, nodeGroup, gpuCount string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
@@ -1743,10 +1757,7 @@ func TestSendRequestWrapper_SendRequestError(t *testing.T) {
 	})
 }
 
-// TestLogin_RegionOverride verifies that LoginConfig.Region overrides the login
-// request location regardless of what provider detection or the DERP-latency
-// fallback produced, and that an empty override leaves the detected location
-// untouched.
+// TestLogin_RegionOverride verifies that Login passes the override to provider detection.
 func TestLogin_RegionOverride(t *testing.T) {
 	type step struct {
 		name           string
@@ -1815,10 +1826,16 @@ func TestLogin_RegionOverride(t *testing.T) {
 					return nil
 				}).Build()
 
-				mockey.Mock(pkgmachineinfo.CreateLoginRequest).To(func(_, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+				var receivedRegionOverride string
+				mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, region string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+					receivedRegionOverride = region
+					location := tc.detected
+					if region != "" {
+						location = &apiv1.MachineLocation{Region: region}
+					}
 					return &apiv1.LoginRequest{
 						Network:  &apiv1.MachineNetwork{},
-						Location: tc.detected,
+						Location: location,
 					}, nil
 				}).Build()
 
@@ -1848,6 +1865,7 @@ func TestLogin_RegionOverride(t *testing.T) {
 					Region:   tc.regionOverride,
 				})
 				require.NoError(t, err)
+				assert.Equal(t, tc.regionOverride, receivedRegionOverride)
 
 				if tc.wantNilLoc {
 					assert.Nil(t, receivedRequest.Location)
@@ -1858,4 +1876,133 @@ func TestLogin_RegionOverride(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestLogin_RecordMetadataError verifies that a failure to persist any of the
+// post-login metadata fields aborts the login with a descriptive error.
+func TestLogin_RecordMetadataError(t *testing.T) {
+	tests := []struct {
+		name       string
+		failKey    string
+		wantErrSub string
+	}{
+		{"machine ID record fails", pkgmetadata.MetadataKeyMachineID, "failed to record machine ID"},
+		{"session token record fails", pkgmetadata.MetadataKeyToken, "failed to record session token"},
+		{"machine proof record fails", pkgmetadata.MetadataKeyMachineProof, "failed to record machine proof"},
+		{"public IP record fails", pkgmetadata.MetadataKeyPublicIP, "failed to record public IP"},
+		{"private IP record fails", pkgmetadata.MetadataKeyPrivateIP, "failed to record private IP"},
+		{"login success record fails", pkgmetadata.MetadataKeyControlPlaneLoginSuccess, "failed to record login success"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockey.PatchConvey("set metadata fails for "+tc.name, t, func() {
+				mockDB := &sql.DB{}
+				mockNVML := nvidianvml.NewNoOp()
+
+				mockey.Mock(config.ResolveDataDir).To(func(string) (string, error) {
+					return "/tmp/test", nil
+				}).Build()
+
+				mockey.Mock(sqlite.Open).To(func(string, ...sqlite.OpOption) (*sql.DB, error) {
+					return mockDB, nil
+				}).Build()
+
+				mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+					return nil
+				}).Build()
+
+				mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(context.Context, *sql.DB) error {
+					return nil
+				}).Build()
+
+				mockey.Mock(sessionstates.CreateTable).To(func(context.Context, *sql.DB) error {
+					return nil
+				}).Build()
+
+				mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+					return "", nil
+				}).Build()
+
+				mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+					return mockNVML, nil
+				}).Build()
+
+				mockey.Mock((nvidianvml.Instance).Shutdown).To(func() error {
+					return nil
+				}).Build()
+
+				mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+					return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
+				}).Build()
+
+				mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+					return &apiv1.LoginResponse{
+						MachineID:    "machine-123",
+						Token:        "session-token",
+						MachineProof: "machine-proof",
+					}, nil
+				}).Build()
+
+				mockey.Mock(pkgmetadata.SetMetadata).To(func(_ context.Context, _ *sql.DB, key, _ string) error {
+					if key == tc.failKey {
+						return errors.New("db write failed")
+					}
+					return nil
+				}).Build()
+
+				mockey.Mock(config.FifoFilePath).To(func(string) string {
+					return "/tmp/test/fifo"
+				}).Build()
+
+				mockey.Mock(serverRunning).To(func() bool {
+					return false
+				}).Build()
+
+				err := Login(context.Background(), LoginConfig{
+					Token:    "test-token",
+					Endpoint: "https://example.com",
+					DataDir:  "/tmp/test",
+				})
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrSub)
+			})
+		})
+	}
+}
+
+// TestLogin_OpenReadOnlyStateFileError verifies that failing to open the
+// read-only state file handle aborts the login.
+func TestLogin_OpenReadOnlyStateFileError(t *testing.T) {
+	mockey.PatchConvey("open read-only state file error", t, func() {
+		mockDB := &sql.DB{}
+		openCalls := 0
+
+		mockey.Mock(config.ResolveDataDir).To(func(string) (string, error) {
+			return "/tmp/test", nil
+		}).Build()
+
+		mockey.Mock(sqlite.Open).To(func(_ string, opts ...sqlite.OpOption) (*sql.DB, error) {
+			openCalls++
+			if openCalls == 2 {
+				return nil, errors.New("failed to open read-only state file")
+			}
+			return mockDB, nil
+		}).Build()
+
+		mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+			return nil
+		}).Build()
+
+		ctx := context.Background()
+		cfg := LoginConfig{
+			Token:    "test-token",
+			Endpoint: "https://example.com",
+			DataDir:  "/tmp/test",
+		}
+
+		err := Login(ctx, cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to open state file")
+	})
 }

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	apiv1 "github.com/leptonai/gpud/api/v1"
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
 	"github.com/leptonai/gpud/pkg/log"
@@ -69,11 +68,7 @@ type LoginConfig struct {
 	PublicIP  string // optional: overrides detected public IP
 	PrivateIP string // optional: overrides detected private IP
 
-	// Region optionally overrides the region reported in the login request
-	// (Location.Region). When set, it takes precedence over both the
-	// provider-native region (e.g., IMDS regionID) and the DERP-latency
-	// fallback. Useful when the provider metadata exposes no human-readable
-	// region name (e.g., nscale reports an opaque region UUID).
+	// Region overrides the login region and skips provider-region IMDS and DERP lookup.
 	Region string
 }
 
@@ -299,7 +294,7 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	// otherwise, the control plane will assign a new machine ID
 	loginCreatedAt := time.Now()
 	log.Logger.Debugw("creating login request")
-	req, err := pkgmachineinfo.CreateLoginRequest(cfg.Token, cfg.MachineID, cfg.NodeGroup, cfg.GPUCount, nvmlInstance)
+	req, err := pkgmachineinfo.CreateLoginRequestWithRegion(cfg.Token, cfg.MachineID, cfg.NodeGroup, cfg.GPUCount, cfg.Region, nvmlInstance)
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}
@@ -312,13 +307,6 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 
 	if cfg.PrivateIP != "" { // overwrite if not empty
 		req.Network.PrivateIP = cfg.PrivateIP
-	}
-
-	if cfg.Region != "" { // overwrite if not empty
-		if req.Location == nil {
-			req.Location = &apiv1.MachineLocation{}
-		}
-		req.Location.Region = cfg.Region
 	}
 
 	// machine ID has not been assigned yet
