@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -113,3 +114,79 @@ type mockNvmlInstanceWithProduct struct {
 }
 
 func (m *mockNvmlInstanceWithProduct) ProductName() string { return m.productName }
+
+// TestListNVIDIAGPUDevicesFunc_OriginalCall exercises the un-stubbed
+// listNVIDIAGPUDevicesFunc so that its function body (the currentGOOS
+// branch and the real nvidiapci.ListNVIDIAGPUDevices call) is covered by
+// the coverage profile. On non-Linux platforms the function returns
+// (nil, nil) immediately; on Linux it reads /sys/bus/pci/devices, which
+// either yields devices or an empty list. Either outcome is acceptable —
+// the test only asserts that the call does not panic.
+func TestListNVIDIAGPUDevicesFunc_OriginalCall(t *testing.T) {
+	// Ensure no other test has left a stub in place.
+	original := listNVIDIAGPUDevicesFunc
+	defer func() { listNVIDIAGPUDevicesFunc = original }()
+
+	devs, err := listNVIDIAGPUDevicesFunc()
+	// On non-Linux: devs == nil, err == nil
+	// On Linux: devs may be nil or non-nil, err may be nil or non-nil
+	// (e.g., if /sys/bus/pci/devices is not mounted in the test container).
+	// The only invariant is that the call must not panic.
+	t.Logf("listNVIDIAGPUDevicesFunc returned %d devices, err=%v", len(devs), err)
+}
+
+// TestDetectGPUProductFromPCI_EmptyDevices verifies that
+// detectGPUProductFromPCI returns an empty string when the PCI device
+// list is empty (no NVIDIA GPUs on the host).
+func TestDetectGPUProductFromPCI_EmptyDevices(t *testing.T) {
+	restore := stubListNVIDIAGPUDevices(nil, nil)
+	defer restore()
+
+	assert.Empty(t, detectGPUProductFromPCI())
+}
+
+// TestDetectGPUProductFromPCI_SingleKnownDevice verifies the direct
+// call to detectGPUProductFromPCI returns the sanitized product name
+// for a known device ID.
+func TestDetectGPUProductFromPCI_SingleKnownDevice(t *testing.T) {
+	restore := stubListNVIDIAGPUDevices([]nvidiapci.GPUDevice{
+		{Address: "0000:19:00.0", DeviceID: "2330"},
+	}, nil)
+	defer restore()
+
+	assert.Equal(t, "NVIDIA-H100-80GB-HBM3", detectGPUProductFromPCI())
+}
+
+// TestListNVIDIAGPUDevicesFunc_NonLinuxReturnsNil uses mockey to force the
+// non-Linux branch of listNVIDIAGPUDevicesFunc, covering the early return
+// (nil, nil) that is unreachable on Linux CI without mocking.
+func TestListNVIDIAGPUDevicesFunc_NonLinuxReturnsNil(t *testing.T) {
+	mockey.PatchRun(func() {
+		mockey.Mock(currentGOOS).To(func() string { return "darwin" }).Build()
+
+		devs, err := listNVIDIAGPUDevicesFunc()
+		assert.NoError(t, err)
+		assert.Nil(t, devs)
+	})
+}
+
+// TestListNVIDIAGPUDevicesFunc_LinuxCallsSysfs uses mockey to force the
+// Linux branch of listNVIDIAGPUDevicesFunc and stubs the underlying
+// nvidiapci.ListNVIDIAGPUDevices call, covering the real sysfs path
+// deterministically on every platform.
+func TestListNVIDIAGPUDevicesFunc_LinuxCallsSysfs(t *testing.T) {
+	mockey.PatchRun(func() {
+		mockey.Mock(currentGOOS).To(func() string { return "linux" }).Build()
+		mockey.Mock(nvidiapci.ListNVIDIAGPUDevices).To(func(dir string) ([]nvidiapci.GPUDevice, error) {
+			assert.Equal(t, nvidiapci.DefaultSysfsPCIDevicesDir, dir)
+			return []nvidiapci.GPUDevice{
+				{Address: "0000:19:00.0", DeviceID: "2330"},
+			}, nil
+		}).Build()
+
+		devs, err := listNVIDIAGPUDevicesFunc()
+		assert.NoError(t, err)
+		require.Len(t, devs, 1)
+		assert.Equal(t, "2330", devs[0].DeviceID)
+	})
+}

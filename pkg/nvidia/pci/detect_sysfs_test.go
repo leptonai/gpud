@@ -90,3 +90,81 @@ func TestListNVIDIAGPUDevices_NonDirectoryEntriesSkipped(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, devs, 1)
 }
+
+// writeFakePCIDeviceVendorOnly creates a sysfs PCI device entry with only
+// the vendor attribute. Missing class or device attributes simulate
+// unreadable sysfs entries, exercising the error-skip branches in
+// ListNVIDIAGPUDevices.
+func writeFakePCIDeviceVendorOnly(t *testing.T, root string, address string, vendor string) {
+	t.Helper()
+	dir := filepath.Join(root, address)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "vendor"), []byte(vendor+"\n"), 0o644))
+}
+
+// writeFakePCIDeviceVendorClass creates a sysfs PCI device entry with
+// vendor and class attributes but no device attribute.
+func writeFakePCIDeviceVendorClass(t *testing.T, root string, address string, vendor string, class string) {
+	t.Helper()
+	dir := filepath.Join(root, address)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "vendor"), []byte(vendor+"\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "class"), []byte(class+"\n"), 0o644))
+}
+
+// TestListNVIDIAGPUDevices_ClassReadError verifies that an NVIDIA device
+// whose "class" sysfs attribute is missing is skipped without failing
+// the scan. This covers the readSysfsAttribute error branch for "class".
+func TestListNVIDIAGPUDevices_ClassReadError(t *testing.T) {
+	root := t.TempDir()
+
+	// NVIDIA device with vendor but no class file -- class read fails
+	writeFakePCIDeviceVendorOnly(t, root, "0000:19:00.0", "0x10de")
+	// a valid NVIDIA GPU device that should still be discovered
+	writeFakePCIDevice(t, root, "0000:9b:00.0", "0x10de", "0x2330", "0x030200")
+
+	devs, err := ListNVIDIAGPUDevices(root)
+	require.NoError(t, err)
+	require.Len(t, devs, 1)
+	assert.Equal(t, "0000:9b:00.0", devs[0].Address)
+	assert.Equal(t, "2330", devs[0].DeviceID)
+}
+
+// TestListNVIDIAGPUDevices_DeviceReadError verifies that an NVIDIA GPU
+// device whose "device" sysfs attribute is missing is skipped without
+// failing the scan. This covers the readSysfsAttribute error branch for
+// "device".
+func TestListNVIDIAGPUDevices_DeviceReadError(t *testing.T) {
+	root := t.TempDir()
+
+	// NVIDIA 3D controller with vendor and class but no device file --
+	// device read fails
+	writeFakePCIDeviceVendorClass(t, root, "0000:19:00.0", "0x10de", "0x030200")
+	// a valid NVIDIA GPU device that should still be discovered
+	writeFakePCIDevice(t, root, "0000:9b:00.0", "0x10de", "0x2330", "0x030200")
+
+	devs, err := ListNVIDIAGPUDevices(root)
+	require.NoError(t, err)
+	require.Len(t, devs, 1)
+	assert.Equal(t, "0000:9b:00.0", devs[0].Address)
+	assert.Equal(t, "2330", devs[0].DeviceID)
+}
+
+// TestReadSysfsAttribute directly exercises readSysfsAttribute for both
+// the success and error paths, ensuring 100% line coverage of the
+// helper.
+func TestReadSysfsAttribute(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "0000:19:00.0")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "vendor"), []byte("0x10de\n"), 0o644))
+
+	// success path
+	val, err := readSysfsAttribute(dir, "vendor")
+	require.NoError(t, err)
+	assert.Equal(t, "0x10de", val)
+
+	// error path -- file does not exist
+	_, err = readSysfsAttribute(dir, "nonexistent")
+	require.Error(t, err)
+}

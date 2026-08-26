@@ -116,6 +116,28 @@ func TestGetProductNameByPCIDeviceID(t *testing.T) {
 	}
 }
 
+// TestGetProductNameByPCIDeviceID_AllMappingsCovered verifies that every
+// entry in the pciDeviceIDToProductName map is individually resolvable
+// through GetProductNameByPCIDeviceID. This guards against typos or stale
+// entries that a spot-check table would miss, and ensures the fallback
+// table stays 100% coherent with the production map.
+func TestGetProductNameByPCIDeviceID_AllMappingsCovered(t *testing.T) {
+	for deviceID, expectedName := range pciDeviceIDToProductName {
+		t.Run(deviceID, func(t *testing.T) {
+			got := GetProductNameByPCIDeviceID(deviceID)
+			if got != expectedName {
+				t.Errorf("GetProductNameByPCIDeviceID(%q) = %q, want %q", deviceID, got, expectedName)
+			}
+			// The sanitized form must be non-empty for every mapped product,
+			// because downstream consumers match on the sanitized name.
+			sanitized := SanitizeProductName(got)
+			if sanitized == "" {
+				t.Errorf("SanitizeProductName(GetProductNameByPCIDeviceID(%q)) is empty", deviceID)
+			}
+		})
+	}
+}
+
 // TestGetProductNameByPCIDeviceID_SanitizedMatchDocumentsThat every mapped
 // product name round-trips through SanitizeProductName into the sanitized
 // form that downstream consumers (e.g., the Lepton control plane) match on,
