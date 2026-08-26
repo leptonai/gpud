@@ -35,6 +35,18 @@ func TestParseNodeLabelsJSON(t *testing.T) {
 		assert.Nil(t, labels)
 		assert.Contains(t, err.Error(), "must be a JSON object")
 	})
+
+	t.Run("rejects malformed JSON", func(t *testing.T) {
+		labels, err := ParseNodeLabelsJSON(`{"team":`)
+		require.Error(t, err)
+		assert.Nil(t, labels)
+	})
+
+	t.Run("rejects non-object JSON", func(t *testing.T) {
+		labels, err := ParseNodeLabelsJSON(`["team"]`)
+		require.Error(t, err)
+		assert.Nil(t, labels)
+	})
 }
 
 func TestValidateNodeLabels(t *testing.T) {
@@ -77,6 +89,10 @@ func TestValidateNodeLabels(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "at most 8 node labels")
+	})
+
+	t.Run("accepts nil labels", func(t *testing.T) {
+		require.NoError(t, ValidateNodeLabels(nil))
 	})
 }
 

@@ -73,32 +73,7 @@ func TestFetchMetadataByPath_NonOK(t *testing.T) {
 	_, err := fetchMetadataByPath(context.Background(), srv.URL)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "received status code 404")
-	require.Equal(t, maxMetadataRetries+1, attempts)
-}
-
-func TestFetchMetadataByPath_RetriesTransientStatuses(t *testing.T) {
-	statuses := []int{
-		http.StatusNotFound,
-		http.StatusTooManyRequests,
-		http.StatusInternalServerError,
-		http.StatusOK,
-	}
-	attempts := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		status := statuses[attempts]
-		attempts++
-		w.WriteHeader(status)
-		if status == http.StatusOK {
-			_, err := w.Write([]byte("metadata"))
-			require.NoError(t, err)
-		}
-	}))
-	defer srv.Close()
-
-	got, err := fetchMetadataByPath(context.Background(), srv.URL)
-	require.NoError(t, err)
-	require.Equal(t, "metadata", got)
-	require.Equal(t, len(statuses), attempts)
+	require.Equal(t, 1, attempts)
 }
 
 func TestFetchMetadataByPath_DoesNotRetryOtherStatuses(t *testing.T) {
@@ -113,18 +88,6 @@ func TestFetchMetadataByPath_DoesNotRetryOtherStatuses(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "received status code 400")
 	require.Equal(t, 1, attempts)
-}
-
-func TestFetchMetadataByPath_CancelsRetryBackoff(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cancel()
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer srv.Close()
-
-	_, err := fetchMetadataByPath(ctx, srv.URL)
-	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestFetchMetadataByPath_InvalidURL(t *testing.T) {

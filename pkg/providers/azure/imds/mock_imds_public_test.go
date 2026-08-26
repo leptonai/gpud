@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bytedance/mockey"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,5 +71,41 @@ func TestFetchInstanceID_Public_WithMockey(t *testing.T) {
 		got, err := FetchInstanceID(context.Background())
 		require.NoError(t, err)
 		require.Contains(t, got, "virtualMachines/vm1")
+	})
+}
+
+func TestFetchRegion_Error_WithMockey(t *testing.T) {
+	mockey.PatchConvey("FetchRegion propagates compute fetch error", t, func() {
+		mockey.Mock(fetchComputeResponse).To(func(ctx context.Context, metadataURL string) (*computeResponse, error) {
+			return nil, assert.AnError
+		}).Build()
+
+		got, err := FetchRegion(context.Background())
+		require.Error(t, err)
+		require.Empty(t, got)
+	})
+}
+
+func TestFetchAZEnvironment_Error_WithMockey(t *testing.T) {
+	mockey.PatchConvey("FetchAZEnvironment propagates compute fetch error", t, func() {
+		mockey.Mock(fetchComputeResponse).To(func(ctx context.Context, metadataURL string) (*computeResponse, error) {
+			return nil, assert.AnError
+		}).Build()
+
+		got, err := FetchAZEnvironment(context.Background())
+		require.Error(t, err)
+		require.Empty(t, got)
+	})
+}
+
+func TestFetchInstanceID_Error_WithMockey(t *testing.T) {
+	mockey.PatchConvey("FetchInstanceID propagates compute fetch error", t, func() {
+		mockey.Mock(fetchComputeResponse).To(func(ctx context.Context, metadataURL string) (*computeResponse, error) {
+			return nil, assert.AnError
+		}).Build()
+
+		got, err := FetchInstanceID(context.Background())
+		require.Error(t, err)
+		require.Empty(t, got)
 	})
 }
