@@ -31,6 +31,7 @@ import (
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
+	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 	"github.com/leptonai/gpud/pkg/providers"
 	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 	"github.com/leptonai/gpud/pkg/providers/nebius"
@@ -495,6 +496,17 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 		Architecture: nvmlInstance.Architecture(),
 	}
 
+	// NVML product detection needs the NVIDIA userspace driver library,
+	// which is unavailable when the driver is installed and managed by the
+	// NVIDIA GPU Operator (its toolkit is injected only into GPU workload
+	// containers) or when the Operator-managed driver is still being
+	// installed during initial node discovery. Fall back to PCI sysfs
+	// enumeration, which needs no driver, so the GPU product is still
+	// reported (LEP-6173).
+	if info.Product == "" {
+		info.Product = detectGPUProductFromPCI()
+	}
+
 	productName := nvmlInstance.ProductName()
 	for uuid, dev := range nvmlInstance.Devices() {
 		if info.Memory == "" {
@@ -547,6 +559,45 @@ func GetMachineGPUInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineGPUInfo,
 	}
 
 	return info, nil
+}
+
+// listNVIDIAGPUDevicesFunc lists NVIDIA GPU PCI devices for the product
+// name fallback. PCI sysfs exists only on Linux; other platforms get no
+// devices. It is a package-level variable so tests can stub PCI device
+// discovery.
+var listNVIDIAGPUDevicesFunc = func() ([]nvidiapci.GPUDevice, error) {
+	if currentGOOS() != "linux" {
+		return nil, nil
+	}
+	return nvidiapci.ListNVIDIAGPUDevices(nvidiapci.DefaultSysfsPCIDevicesDir)
+}
+
+// detectGPUProductFromPCI returns the sanitized GPU product name derived
+// from the PCI device IDs in sysfs, or an empty string when no known
+// NVIDIA GPU is found. PCI enumeration needs no NVIDIA driver, so this
+// works even when the driver is absent or still being installed (e.g.,
+// GPU Operator-managed drivers during initial node discovery).
+func detectGPUProductFromPCI() string {
+	devs, err := listNVIDIAGPUDevicesFunc()
+	if err != nil {
+		log.Logger.Warnw("failed to list NVIDIA GPU PCI devices for product detection", "error", err)
+		return ""
+	}
+	for _, dev := range devs {
+		name := nvidiaproduct.GetProductNameByPCIDeviceID(dev.DeviceID)
+		if name == "" {
+			log.Logger.Debugw("no product name mapping for NVIDIA PCI device ID", "address", dev.Address, "deviceID", dev.DeviceID)
+			continue
+		}
+		sanitized := nvidiaproduct.SanitizeProductName(name)
+		log.Logger.Infow("detected GPU product from PCI device ID (NVML unavailable)",
+			"address", dev.Address,
+			"deviceID", dev.DeviceID,
+			"product", sanitized,
+		)
+		return sanitized
+	}
+	return ""
 }
 
 func GetMachineDiskInfo(ctx context.Context) (*apiv1.MachineDiskInfo, error) {
