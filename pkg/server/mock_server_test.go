@@ -982,12 +982,18 @@ func TestHandleAdminPackagesStatus_Error(t *testing.T) {
 // TestMachineInfo_WithMockedGetMachineInfo tests machineInfo with a successful mocked GetMachineInfo.
 func TestMachineInfo_WithMockedGetMachineInfo(t *testing.T) {
 	mockey.PatchConvey("machineInfo returns mocked machine info", t, func() {
+		cliqueZero := uint32(0)
 		expectedInfo := &apiv1.MachineInfo{
 			GPUdVersion:     "test-version",
 			KernelVersion:   "5.4.0-test",
 			OSImage:         "TestOS",
 			Hostname:        "test-host",
 			OperatingSystem: "linux",
+			GPUInfo: &apiv1.MachineGPUInfo{
+				ClusterUUID:   "12345678-1234-1234-1234-1234567890ab",
+				CliqueID:      &cliqueZero,
+				ChassisSerial: "3136434J5234567",
+			},
 		}
 
 		mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
@@ -1014,6 +1020,10 @@ func TestMachineInfo_WithMockedGetMachineInfo(t *testing.T) {
 		assert.Equal(t, "TestOS", resp.OSImage)
 		assert.Equal(t, "test-host", resp.Hostname)
 		assert.Equal(t, "linux", resp.OperatingSystem)
+		require.NotNil(t, resp.GPUInfo)
+		assert.Equal(t, "12345678-1234-1234-1234-1234567890ab", resp.GPUInfo.ClusterUUID)
+		assert.Equal(t, uint32(0), *resp.GPUInfo.CliqueID)
+		assert.Equal(t, "3136434J5234567", resp.GPUInfo.ChassisSerial)
 	})
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/utils/ptr"
 
 	nvidiamemory "github.com/leptonai/gpud/components/accelerator/nvidia/memory"
 	pkghost "github.com/leptonai/gpud/pkg/host"
@@ -58,7 +59,7 @@ func TestGetGPUFabricIdentifiers(t *testing.T) {
 
 		clusterUUID, cliqueID := getGPUFabricIdentifiers(nvmlInstance)
 		assert.Equal(t, "cluster-uuid-123", clusterUUID)
-		assert.Equal(t, uint32(42), cliqueID)
+		assert.Equal(t, ptr.To(uint32(42)), cliqueID)
 	})
 
 	t.Run("skips devices with fabric state errors", func(t *testing.T) {
@@ -79,7 +80,7 @@ func TestGetGPUFabricIdentifiers(t *testing.T) {
 
 		clusterUUID, cliqueID := getGPUFabricIdentifiers(nvmlInstance)
 		assert.Equal(t, "cluster-uuid-456", clusterUUID)
-		assert.Equal(t, uint32(7), cliqueID)
+		assert.Equal(t, ptr.To(uint32(7)), cliqueID)
 	})
 
 	t.Run("returns empty values when no device supports fabric state", func(t *testing.T) {
@@ -90,7 +91,7 @@ func TestGetGPUFabricIdentifiers(t *testing.T) {
 
 		clusterUUID, cliqueID := getGPUFabricIdentifiers(nvmlInstance)
 		assert.Empty(t, clusterUUID)
-		assert.Zero(t, cliqueID)
+		assert.Nil(t, cliqueID)
 	})
 
 	t.Run("returns empty values without devices", func(t *testing.T) {
@@ -100,7 +101,7 @@ func TestGetGPUFabricIdentifiers(t *testing.T) {
 
 		clusterUUID, cliqueID := getGPUFabricIdentifiers(nvmlInstance)
 		assert.Empty(t, clusterUUID)
-		assert.Zero(t, cliqueID)
+		assert.Nil(t, cliqueID)
 	})
 }
 
@@ -142,9 +143,10 @@ func TestGetMachineInfo_GPUFabricIdentifiers(t *testing.T) {
 		info, err := GetMachineInfo(nvmlInstance)
 		require.NoError(t, err)
 		require.NotNil(t, info)
-		assert.Equal(t, "cluster-uuid-123", info.ClusterUUID)
-		assert.Equal(t, uint32(42), info.CliqueID)
-		assert.Equal(t, "3136434J5234567", info.ChassisSerial)
+		require.NotNil(t, info.GPUInfo)
+		assert.Equal(t, "cluster-uuid-123", info.GPUInfo.ClusterUUID)
+		assert.Equal(t, ptr.To(uint32(42)), info.GPUInfo.CliqueID)
+		assert.Equal(t, "3136434J5234567", info.GPUInfo.ChassisSerial)
 	})
 
 	mockey.PatchConvey("GetMachineInfo tolerates NVML platform info failure", t, func() {
@@ -175,8 +177,9 @@ func TestGetMachineInfo_GPUFabricIdentifiers(t *testing.T) {
 		info, err := GetMachineInfo(nvmlInstance)
 		require.NoError(t, err)
 		require.NotNil(t, info)
-		assert.Empty(t, info.ClusterUUID)
-		assert.Zero(t, info.CliqueID)
-		assert.Empty(t, info.ChassisSerial)
+		require.NotNil(t, info.GPUInfo)
+		assert.Empty(t, info.GPUInfo.ClusterUUID)
+		assert.Nil(t, info.GPUInfo.CliqueID)
+		assert.Empty(t, info.GPUInfo.ChassisSerial)
 	})
 }

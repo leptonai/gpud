@@ -98,12 +98,13 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		return nil, fmt.Errorf("failed to get machine gpu info: %w", err)
 	}
 
-	// The control plane records these values in the Machine CR status, so
-	// that operators can see the fabric domain and the clique of each node.
-	// Only NVLink fabric systems (e.g., NVIDIA GB200 NVL72) report them;
-	// they stay empty on other platforms.
-	info.ClusterUUID, info.CliqueID = getGPUFabricIdentifiers(nvmlInstance)
-	info.ChassisSerial = getGPUChassisSerial(nvmlInstance)
+	// The control plane records these values next to the other GPU properties in
+	// Machine.Status.MachineInfo.GPUInfo. Keep the producer wire shape aligned
+	// with that CRD shape so gpud-manager can unmarshal and persist them.
+	if info.GPUInfo != nil {
+		info.GPUInfo.ClusterUUID, info.GPUInfo.CliqueID = getGPUFabricIdentifiers(nvmlInstance)
+		info.GPUInfo.ChassisSerial = getGPUChassisSerial(nvmlInstance)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -454,16 +455,17 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 // these identifiers, so the first device with a readable fabric state is
 // sufficient. Fabric state telemetry is not supported on all platforms; in
 // that case this function returns empty values and does not fail.
-func getGPUFabricIdentifiers(nvmlInstance nvidianvml.Instance) (string, uint32) {
+func getGPUFabricIdentifiers(nvmlInstance nvidianvml.Instance) (string, *uint32) {
 	for uuid, dev := range nvmlInstance.Devices() {
 		fabricState, err := dev.GetFabricState()
 		if err != nil {
 			log.Logger.Debugw("failed to get GPU fabric state for machine info", "uuid", uuid, "error", err)
 			continue
 		}
-		return fabricState.ClusterUUID, fabricState.CliqueID
+		cliqueID := fabricState.CliqueID
+		return fabricState.ClusterUUID, &cliqueID
 	}
-	return "", 0
+	return "", nil
 }
 
 // getGPUChassisSerial returns the chassis serial reported by NVML platform
