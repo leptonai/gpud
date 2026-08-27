@@ -25,6 +25,7 @@ import (
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvsentinel"
 )
 
 const (
@@ -106,6 +107,14 @@ type component struct {
 	// ignoreFiles tracks the files that failed to read (e.g. EINVAL)
 	// to avoid reading them again and causing kernel log spam
 	ignoreFiles map[string]struct{}
+
+	// nvsSource is the optional NVSentinel event source. When set, the
+	// component prefers NVSentinel NIC driver data points and suppresses
+	// its own kmsg detection of the same data point.
+	nvsSource      nvsentinel.Source
+	nvsDedupWindow time.Duration
+	nvsUnsubscribe func()
+	// ^ stop function returned by nvsSource.Subscribe
 }
 
 // New creates the NVIDIA InfiniBand component for a gpud instance.
@@ -158,10 +167,24 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return nil, err
 		}
 
+		if gpudInstance.NVSentinel != nil {
+			c.nvsSource = gpudInstance.NVSentinel
+			c.nvsDedupWindow = gpudInstance.NVSentinelEventDedupWindow
+			if c.nvsDedupWindow <= 0 {
+				c.nvsDedupWindow = nvsentinel.DefaultEventDedupWindow
+			}
+			c.watchNVSentinel()
+		}
+
 		if os.Geteuid() == 0 {
+			matchFunc := Match
+			if c.nvsSource != nil {
+				matchFunc = c.matchPreferNVSentinel
+			}
+
 			c.kmsgSyncer, err = kmsg.NewSyncer(
 				cctx,
-				Match,
+				matchFunc,
 				c.eventBucket,
 				kmsg.WithCacheKeyTruncateSeconds(int(defaultKmsgEventDedupWindow.Seconds())),
 				kmsg.WithEventDedupWindowFunc(c.kmsgEventDedupWindow),
@@ -258,6 +281,10 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+
+	if c.nvsUnsubscribe != nil {
+		c.nvsUnsubscribe()
+	}
 
 	if c.kmsgSyncer != nil {
 		c.kmsgSyncer.Close()

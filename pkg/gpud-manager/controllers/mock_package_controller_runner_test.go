@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +14,20 @@ import (
 
 	"github.com/leptonai/gpud/pkg/gpud-manager/packages"
 )
+
+// waitMockQuiescent blocks until the mockey-patched function has not been
+// called for a full quiet window, proving the runner goroutine has left the
+// patched code before PatchConvey unpatches it. Without this, the goroutine
+// can still be executing the mock trampoline during mockey teardown, which
+// the race detector flags as a data race on mockey internals.
+func waitMockQuiescent(t *testing.T, calls *atomic.Int64) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		before := calls.Load()
+		time.Sleep(100 * time.Millisecond)
+		return calls.Load() == before
+	}, 10*time.Second, 50*time.Millisecond)
+}
 
 func TestUpdateRunner_WithMockedRunCommand(t *testing.T) {
 	mockey.PatchConvey("update runner handles skip/same/upgrade/version errors", t, func() {
@@ -50,7 +65,9 @@ func TestUpdateRunner_WithMockedRunCommand(t *testing.T) {
 
 		upgradeCalled := make(chan struct{}, 1)
 
+		var mockCalls atomic.Int64
 		mockey.Mock(runCommand).To(func(ctx context.Context, script, arg string, result *string) error {
+			mockCalls.Add(1)
 			switch filepath.Base(script) {
 			case "badversion.sh":
 				if arg == "version" {
@@ -98,27 +115,35 @@ func TestUpdateRunner_WithMockedRunCommand(t *testing.T) {
 		}).Build()
 
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		go controller.updateRunner(ctx)
 
 		select {
 		case <-upgradeCalled:
-		case <-time.After(2 * time.Second):
-			cancel()
+		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for upgrade to run")
 		}
-		cancel()
 
+		// Assert all expected state BEFORE canceling. updateRunner iterates
+		// packageStatus in random map order, so the "skip" package may be
+		// processed on a later tick than "upgrade". Canceling first races
+		// that tick and flakes the test ("Condition never satisfied").
 		require.Eventually(t, func() bool {
 			controller.RLock()
 			defer controller.RUnlock()
 			return controller.packageStatus["skip"].Skipped
-		}, time.Second, 10*time.Millisecond)
+		}, 10*time.Second, 10*time.Millisecond)
 
 		require.Eventually(t, func() bool {
 			controller.RLock()
 			defer controller.RUnlock()
 			return controller.packageStatus["upgrade"].Progress == 100
-		}, time.Second, 10*time.Millisecond)
+		}, 10*time.Second, 10*time.Millisecond)
+
+		cancel()
+		// Ensure the runner goroutine has left the patched runCommand before
+		// PatchConvey unpatches it on scope exit (avoids a teardown data race).
+		waitMockQuiescent(t, &mockCalls)
 
 		controller.RLock()
 		same := controller.packageStatus["same"]
@@ -169,7 +194,9 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 		installCalled := make(chan struct{}, 1)
 		startCalled := make(chan struct{}, 1)
 
+		var mockCalls atomic.Int64
 		mockey.Mock(runCommand).To(func(ctx context.Context, script, arg string, result *string) error {
+			mockCalls.Add(1)
 			switch filepath.Base(script) {
 			case "skip-install.sh":
 				if arg == "shouldSkip" {
@@ -209,40 +236,45 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 		}).Build()
 
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		go controller.installRunner(ctx)
 
 		select {
 		case <-installCalled:
-		case <-time.After(2 * time.Second):
-			cancel()
+		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for install to run")
 		}
 
 		select {
 		case <-startCalled:
-		case <-time.After(2 * time.Second):
-			cancel()
+		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for start to run")
 		}
-		cancel()
 
+		// Assert state before canceling: installRunner iterates packageStatus in
+		// random map order, so dependent packages may be processed on later ticks.
 		require.Eventually(t, func() bool {
 			controller.RLock()
 			defer controller.RUnlock()
 			return controller.packageStatus["skip"].Skipped && controller.packageStatus["skip"].IsInstalled
-		}, time.Second, 10*time.Millisecond)
+		}, 10*time.Second, 10*time.Millisecond)
 
 		require.Eventually(t, func() bool {
 			controller.RLock()
 			defer controller.RUnlock()
 			return controller.packageStatus["installed"].IsInstalled
-		}, time.Second, 10*time.Millisecond)
+		}, 10*time.Second, 10*time.Millisecond)
 
 		require.Eventually(t, func() bool {
 			controller.RLock()
 			defer controller.RUnlock()
 			return controller.packageStatus["install"].Progress == 100
-		}, time.Second, 10*time.Millisecond)
+		}, 10*time.Second, 10*time.Millisecond)
+
+		cancel()
+		// Ensure the runner goroutine has left the patched runCommand before
+		// PatchConvey unpatches it on scope exit (avoids a teardown data race).
+		waitMockQuiescent(t, &mockCalls)
 
 		controller.RLock()
 		missing := controller.packageStatus["needs-missing-dep"]
@@ -292,7 +324,9 @@ func TestStatusAndDeleteRunner_WithMockedRunCommand(t *testing.T) {
 		startCalled := make(chan struct{}, 1)
 		deleteCalled := make(chan struct{}, 1)
 
+		var mockCalls atomic.Int64
 		mockey.Mock(runCommand).To(func(ctx context.Context, script, arg string, result *string) error {
+			mockCalls.Add(1)
 			switch filepath.Base(script) {
 			case "skip-status.sh":
 				if arg == "shouldSkip" {
@@ -356,35 +390,39 @@ func TestStatusAndDeleteRunner_WithMockedRunCommand(t *testing.T) {
 		}).Build()
 
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		go controller.statusRunner(ctx)
 		go controller.deleteRunner(ctx)
 
 		select {
 		case <-startCalled:
-		case <-time.After(2 * time.Second):
-			cancel()
+		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for status restart")
 		}
 
 		select {
 		case <-deleteCalled:
-		case <-time.After(2 * time.Second):
-			cancel()
+		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for delete")
 		}
 
-		cancel()
-
+		// Assert state before canceling: both runners iterate packageStatus in
+		// random map order, so dependent packages may be processed on later ticks.
 		require.Eventually(t, func() bool {
 			controller.RLock()
 			defer controller.RUnlock()
 			return controller.packageStatus["skip"].Skipped && controller.packageStatus["skip"].Status
-		}, time.Second, 10*time.Millisecond)
+		}, 10*time.Second, 10*time.Millisecond)
 
 		require.Eventually(t, func() bool {
 			controller.RLock()
 			defer controller.RUnlock()
 			return controller.packageStatus["ok"].Status
-		}, time.Second, 10*time.Millisecond)
+		}, 10*time.Second, 10*time.Millisecond)
+
+		cancel()
+		// Ensure the runner goroutines have left the patched runCommand before
+		// PatchConvey unpatches it on scope exit (avoids a teardown data race).
+		waitMockQuiescent(t, &mockCalls)
 	})
 }

@@ -22,6 +22,35 @@ func TestConfigValidateSessionProtocol(t *testing.T) {
 	}
 }
 
+func TestConfigValidateNVSentinel(t *testing.T) {
+	base := Config{Address: ":15132", MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute}}
+
+	// Unset and enabled-with-defaults are both valid.
+	require.NoError(t, base.Validate())
+
+	cfg := base
+	cfg.NVSentinel = &NVSentinelConfig{Enabled: true}
+	require.NoError(t, cfg.Validate())
+
+	cfg = base
+	cfg.NVSentinel = &NVSentinelConfig{
+		Enabled:          true,
+		SocketPath:       "/var/run/nvsentinel/gpud.sock",
+		EventDedupWindow: metav1.Duration{Duration: time.Minute},
+	}
+	require.NoError(t, cfg.Validate())
+
+	// The socket path must be absolute.
+	cfg = base
+	cfg.NVSentinel = &NVSentinelConfig{Enabled: true, SocketPath: "relative/gpud.sock"}
+	assert.Error(t, cfg.Validate())
+
+	// The dedup window must not be negative.
+	cfg = base
+	cfg.NVSentinel = &NVSentinelConfig{Enabled: true, EventDedupWindow: metav1.Duration{Duration: -time.Minute}}
+	assert.Error(t, cfg.Validate())
+}
+
 func TestConfigValidateNFSHostRoot(t *testing.T) {
 	base := Config{Address: ":15132", MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute}}
 

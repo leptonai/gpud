@@ -26,6 +26,7 @@ import (
 	"github.com/leptonai/gpud/pkg/kmsg"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvsentinel"
 )
 
 // Name is the name of the SXID component.
@@ -68,6 +69,14 @@ type component struct {
 
 	mu        sync.RWMutex
 	currState apiv1.HealthState
+
+	// nvsSource is the optional NVSentinel event source. When set, the
+	// component prefers NVSentinel SXid data points and suppresses its own
+	// kmsg detection of the same data point.
+	nvsSource      nvsentinel.Source
+	nvsDedupWindow time.Duration
+	nvsUnsubscribe func()
+	// ^ stop function returned by nvsSource.Subscribe
 }
 
 // New returns the NVIDIA SXID component.
@@ -106,6 +115,15 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 		c.readAllKmsg = kmsg.ReadAll
+	}
+
+	if gpudInstance.NVSentinel != nil && c.eventBucket != nil {
+		c.nvsSource = gpudInstance.NVSentinel
+		c.nvsDedupWindow = gpudInstance.NVSentinelEventDedupWindow
+		if c.nvsDedupWindow <= 0 {
+			c.nvsDedupWindow = nvsentinel.DefaultEventDedupWindow
+		}
+		c.watchNVSentinel()
 	}
 
 	return c, nil
@@ -149,10 +167,19 @@ func (c *component) Start() error {
 		}
 	}
 
-	if c.kmsgWatcher != nil {
-		kmsgCh, err := c.kmsgWatcher.Watch()
-		if err != nil {
-			return err
+	// Run the event loop whenever any event source exists: the kmsg watcher
+	// (root with /dev/kmsg) or the NVSentinel receiver. NVSentinel's syslog
+	// health monitor may be the only kmsg reader on a node; without this,
+	// NVSentinel events would queue in extraEventCh and never be stored.
+	// A nil kmsgCh is never ready in start's select, which is fine.
+	if c.kmsgWatcher != nil || c.nvsSource != nil {
+		var kmsgCh <-chan kmsg.Message
+		if c.kmsgWatcher != nil {
+			ch, err := c.kmsgWatcher.Watch()
+			if err != nil {
+				return err
+			}
+			kmsgCh = ch
 		}
 		go c.start(kmsgCh, DefaultStateUpdatePeriod)
 	}
@@ -188,6 +215,10 @@ func (c *component) Close() error {
 	log.Logger.Debugw("closing component")
 
 	c.cancel()
+
+	if c.nvsUnsubscribe != nil {
+		c.nvsUnsubscribe()
+	}
 
 	if c.kmsgWatcher != nil {
 		cerr := c.kmsgWatcher.Close()
@@ -434,6 +465,16 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			sxidErr := Match(message.Message)
 			if sxidErr == nil {
 				log.Logger.Debugw("not sxid event, skip", "kmsg", message)
+				continue
+			}
+
+			// When NVSentinel already reported this incident, skip the
+			// GPUd-native copy. Both detectors read the same kernel report.
+			// Storing both copies would double-count the same incident in
+			// thresholds.
+			if c.nvsentinelCoversSXid(sxidErr) {
+				log.Logger.Infow("nvsentinel covers this sxid data point, skipping gpud-native insert",
+					"sxid", sxidErr.SXid, "deviceUUID", sxidErr.DeviceUUID)
 				continue
 			}
 
