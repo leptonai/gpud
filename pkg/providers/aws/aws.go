@@ -10,7 +10,7 @@ import (
 const Name = "aws"
 
 func New() providers.Detector {
-	return providers.NewWithRegion(Name, detectProvider, imds.FetchPublicIPv4, imds.FetchLocalIPv4, imds.FetchRegion, nil, imds.FetchInstanceID)
+	return providers.NewIMDSWithRegion(Name, detectProvider, imds.FetchPublicIPv4, imds.FetchLocalIPv4, imds.FetchRegion, nil, imds.FetchInstanceID)
 }
 
 func detectProvider(ctx context.Context) (string, error) {

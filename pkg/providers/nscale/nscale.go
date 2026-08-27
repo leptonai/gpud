@@ -18,7 +18,7 @@ const Name = "nscale"
 // of the provider registry.
 // ref. https://docs.openstack.org/nova/latest/user/metadata.html
 func New() providers.Detector {
-	return providers.NewWithRegion(
+	return providers.NewIMDSWithRegion(
 		Name,
 		detectProvider,
 		imds.FetchPublicIPv4,
