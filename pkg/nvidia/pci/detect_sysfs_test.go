@@ -168,4 +168,3 @@ func TestReadSysfsAttribute(t *testing.T) {
 	_, err = readSysfsAttribute(dir, "nonexistent")
 	require.Error(t, err)
 }
-
