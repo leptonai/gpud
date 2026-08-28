@@ -1,11 +1,13 @@
 package machineinfo
 
 import (
+	"encoding/json"
 	"errors"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/log"
@@ -67,6 +69,33 @@ func TestCreateGossipRequest(t *testing.T) {
 }
 
 // TestCreateGossipRequestMocked tests the createGossipRequest function with mocked dependencies
+func TestGossipRequestGPUIdentifierWireShape(t *testing.T) {
+	cliqueZero := uint32(0)
+	req := apiv1.GossipRequest{
+		MachineID: "machine-1",
+		MachineInfo: &apiv1.MachineInfo{
+			GPUInfo: &apiv1.MachineGPUInfo{
+				ClusterUUID:   "12345678-1234-1234-1234-1234567890ab",
+				CliqueID:      &cliqueZero,
+				ChassisSerial: "3136434J5234567",
+			},
+		},
+	}
+
+	raw, err := json.Marshal(req)
+	require.NoError(t, err)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(raw, &got))
+	machineInfo, ok := got["machineInfo"].(map[string]any)
+	require.True(t, ok)
+	gpuInfo, ok := machineInfo["gpuInfo"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "12345678-1234-1234-1234-1234567890ab", gpuInfo["clusterUUID"])
+	assert.Equal(t, float64(0), gpuInfo["cliqueID"])
+	assert.Equal(t, "3136434J5234567", gpuInfo["chassisSerial"])
+	assert.NotContains(t, machineInfo, "clusterUUID")
+}
+
 func TestCreateGossipRequestMocked(t *testing.T) {
 	// Setup
 	machineID := "test-machine-id"

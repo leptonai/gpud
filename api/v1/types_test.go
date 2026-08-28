@@ -2,7 +2,12 @@ package v1
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"k8s.io/utils/ptr"
 )
 
 func TestEventTypeFromString(t *testing.T) {
@@ -96,6 +101,35 @@ func TestSuggestedActions_DescribeActions(t *testing.T) {
 	}
 }
 
+func TestMachineInfo_GPUIdentifierJSONShape(t *testing.T) {
+	cliqueZero := uint32(0)
+	info := MachineInfo{
+		GPUInfo: &MachineGPUInfo{
+			ClusterUUID:   "12345678-1234-1234-1234-1234567890ab",
+			CliqueID:      &cliqueZero,
+			ChassisSerial: "3136434J5234567",
+		},
+	}
+
+	raw, err := json.Marshal(info)
+	require.NoError(t, err)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(raw, &got))
+	assert.NotContains(t, got, "clusterUUID")
+	assert.NotContains(t, got, "cliqueID")
+	assert.NotContains(t, got, "chassisSerial")
+	gpuInfo, ok := got["gpuInfo"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "12345678-1234-1234-1234-1234567890ab", gpuInfo["clusterUUID"])
+	assert.Equal(t, float64(0), gpuInfo["cliqueID"])
+	assert.Equal(t, "3136434J5234567", gpuInfo["chassisSerial"])
+
+	info.GPUInfo.CliqueID = nil
+	raw, err = json.Marshal(info)
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "cliqueID")
+}
+
 func TestMachineInfo_RenderTable(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -144,10 +178,12 @@ func TestMachineInfo_RenderTable(t *testing.T) {
 		{
 			name: "Machine info with GPU fabric identifiers and chassis serial",
 			machineInfo: MachineInfo{
-				GPUdVersion:   "1.0.0",
-				ClusterUUID:   "12345678-1234-1234-1234-1234567890ab",
-				CliqueID:      42,
-				ChassisSerial: "3136434J5234567",
+				GPUdVersion: "1.0.0",
+				GPUInfo: &MachineGPUInfo{
+					ClusterUUID:   "12345678-1234-1234-1234-1234567890ab",
+					CliqueID:      ptr.To(uint32(42)),
+					ChassisSerial: "3136434J5234567",
+				},
 			},
 			wantContains: []string{
 				"GPUd Version", "1.0.0",

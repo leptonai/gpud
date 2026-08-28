@@ -286,24 +286,6 @@ type MachineInfo struct {
 	// Uptime represents when the machine up
 	Uptime metav1.Time `json:"uptime,omitempty"`
 
-	// ClusterUUID is the GPU fabric cluster UUID ("Cluster UUID" in nvidia-smi -q).
-	// All nodes in one NVLink fabric, for example one NVIDIA GB200 NVL72 rack,
-	// report the same value. NVIDIA uses it to group nodes by fabric domain.
-	// Collected with the NVML fabric state API. Empty when the node is not in
-	// an NVLink fabric.
-	ClusterUUID string `json:"clusterUUID,omitempty"`
-	// CliqueID is the GPU fabric clique ID ("Clique Id" in nvidia-smi -q).
-	// It identifies the clique of the node inside the NVLink fabric. NVIDIA
-	// uses it to place and isolate workloads on multi-node NVLink systems.
-	// Collected with the NVML fabric state API. Zero when the node is not in
-	// an NVLink fabric.
-	CliqueID uint32 `json:"cliqueID,omitempty"`
-	// ChassisSerial is the serial number of the chassis that contains the GPUs
-	// as reported by NVML platform info. Support and operations teams use it to
-	// find the physical hardware for repair or replacement.
-	// Empty when the platform does not report a chassis serial number.
-	ChassisSerial string `json:"chassisSerial,omitempty"`
-
 	// CPUInfo is the CPU info of the machine.
 	CPUInfo *MachineCPUInfo `json:"cpuInfo,omitempty"`
 	// MemoryInfo is the memory info of the machine.
@@ -343,14 +325,16 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 		table.Append([]string{"GPU Memory", i.GPUInfo.Memory})
 	}
 
-	if i.ClusterUUID != "" {
-		table.Append([]string{"GPU Fabric Cluster UUID", i.ClusterUUID})
-	}
-	if i.CliqueID != 0 {
-		table.Append([]string{"GPU Fabric Clique ID", fmt.Sprintf("%d", i.CliqueID)})
-	}
-	if i.ChassisSerial != "" {
-		table.Append([]string{"Chassis Serial", i.ChassisSerial})
+	if i.GPUInfo != nil {
+		if i.GPUInfo.ClusterUUID != "" {
+			table.Append([]string{"GPU Fabric Cluster UUID", i.GPUInfo.ClusterUUID})
+		}
+		if i.GPUInfo.CliqueID != nil {
+			table.Append([]string{"GPU Fabric Clique ID", fmt.Sprintf("%d", *i.GPUInfo.CliqueID)})
+		}
+		if i.GPUInfo.ChassisSerial != "" {
+			table.Append([]string{"Chassis Serial", i.GPUInfo.ChassisSerial})
+		}
 	}
 
 	if i.NICInfo != nil {
@@ -399,6 +383,22 @@ type MachineGPUInfo struct {
 	Architecture string `json:"architecture,omitempty"`
 
 	Memory string `json:"memory,omitempty"`
+
+	// ClusterUUID is the GPU fabric cluster UUID ("Cluster UUID" in nvidia-smi -q).
+	// All nodes in one NVLink fabric, for example one NVIDIA GB200 NVL72 rack,
+	// report the same value. NVIDIA uses it to group nodes by fabric domain.
+	// Collected with the NVML fabric state API. Empty when the node is not in
+	// an NVLink fabric.
+	ClusterUUID string `json:"clusterUUID,omitempty"`
+	// CliqueID is the GPU fabric clique ID ("Clique Id" in nvidia-smi -q).
+	// It identifies the clique of the node inside the NVLink fabric. A pointer
+	// preserves clique 0 as a reported value while nil means not reported.
+	CliqueID *uint32 `json:"cliqueID,omitempty"`
+	// ChassisSerial is the serial number of the chassis that contains the GPUs
+	// as reported by NVML platform info. Support and operations teams use it to
+	// find the physical hardware for repair or replacement.
+	// Empty when the platform does not report a chassis serial number.
+	ChassisSerial string `json:"chassisSerial,omitempty"`
 
 	// GPUs is the GPU info of the machine.
 	GPUs []MachineGPUInstance `json:"gpus,omitempty"`

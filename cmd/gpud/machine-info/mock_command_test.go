@@ -483,9 +483,15 @@ func TestCommand_JSONOutput(t *testing.T) {
 			return mockNVML, nil
 		}).Build()
 
+		cliqueZero := uint32(0)
 		mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 			return &apiv1.MachineInfo{
 				MachineID: "test-machine-id",
+				GPUInfo: &apiv1.MachineGPUInfo{
+					ClusterUUID:   "12345678-1234-1234-1234-1234567890ab",
+					CliqueID:      &cliqueZero,
+					ChassisSerial: "3136434J5234567",
+				},
 			}, nil
 		}).Build()
 
@@ -517,6 +523,14 @@ func TestCommand_JSONOutput(t *testing.T) {
 		var out map[string]any
 		require.NoError(t, json.Unmarshal([]byte(stdout), &out))
 		assert.Equal(t, "", out["machine_id"])
+		machineInfoOut, ok := out["machine_info"].(map[string]any)
+		require.True(t, ok)
+		gpuInfoOut, ok := machineInfoOut["gpuInfo"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "12345678-1234-1234-1234-1234567890ab", gpuInfoOut["clusterUUID"])
+		assert.Equal(t, float64(0), gpuInfoOut["cliqueID"])
+		assert.Equal(t, "3136434J5234567", gpuInfoOut["chassisSerial"])
+		assert.NotContains(t, machineInfoOut, "clusterUUID")
 
 		providerOut, ok := out["provider"].(map[string]any)
 		require.True(t, ok)
