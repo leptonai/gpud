@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func TestWireContract(t *testing.T) {
@@ -17,6 +18,12 @@ func TestWireContract(t *testing.T) {
 	require.Equal(t, "authorization", MetadataAuthorization)
 	require.Equal(t, "x-gpud-machine-id", MetadataMachineID)
 	require.Equal(t, "x-gpud-machine-proof", MetadataMachineProof)
+
+	managerPacket := File_session_proto.Messages().ByName("ManagerPacket")
+	require.NotNil(t, managerPacket)
+	require.True(t, managerPacket.ReservedRanges().Has(protoreflect.FieldNumber(2)))
+	require.True(t, managerPacket.ReservedRanges().Has(protoreflect.FieldNumber(29)))
+	require.True(t, managerPacket.ReservedNames().Has(protoreflect.Name("node_credentials")))
 
 	hello := &AgentPacket{Payload: &AgentPacket_Hello{Hello: &Hello{
 		MinProtocolRevision:    1,

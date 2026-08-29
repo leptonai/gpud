@@ -168,6 +168,17 @@ func TestAuditSessionRequestDataRedactsCaseVariants(t *testing.T) {
 	assert.Contains(t, string(redacted), "kap.example.test:8443")
 }
 
+func TestAuditSessionRequestDataRedactsRetiredNodeCredentials(t *testing.T) {
+	// An older manager can still send this v1 payload during a rolling upgrade.
+	// GPUd no longer handles it, but its credential contents must not reach logs.
+	raw := []byte(`{"method":"nodeCredentials","node_credentials":{"kubelet":{"client_certificate":{"contents":"very-secret-private-key"}}}}`)
+
+	redacted, err := json.Marshal(auditSessionRequestData(raw))
+	require.NoError(t, err)
+	assert.NotContains(t, string(redacted), "very-secret-private-key")
+	assert.Contains(t, string(redacted), "redacted")
+}
+
 func TestKAPMTLSWireTypesRoundTrip(t *testing.T) {
 	request := Request{
 		Method: "updateKAPMTLSCredentials",
