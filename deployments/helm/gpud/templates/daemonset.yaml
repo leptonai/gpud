@@ -169,6 +169,16 @@ spec:
             type: DirectoryOrCreate
         {{- end }}
 
+        {{- if .Values.gpud.mountHostRoot }}
+        # Host root filesystem, exposing pre-installed NVIDIA driver libraries
+        # under /host/usr/lib*. Same "host-root" pattern as the GPU Operator's
+        # DRA driver DaemonSet.
+        - name: host-root
+          hostPath:
+            path: /
+            type: Directory
+        {{- end }}
+
         {{- if .Values.gpud.mountContainerd }}
         # Host containerd runtime directory (holds containerd.sock).
         # Required by: components/containerd (stat the socket and reach the CRI
@@ -459,10 +469,17 @@ spec:
             - name: GPUD_NO_USAGE_STATS
               value: {{ not .Values.gpud.telemetry.enabled | quote }}
             {{- if .Values.gpud.mountNVIDIADriverRoot }}
-            # Opt in to the GPU Operator driver-root fallback. Bare-metal/systemd
-            # runs do not receive this environment variable.
+            # GPU Operator driver-root fallback. Bare-metal/systemd runs do not
+            # receive this environment variable.
             - name: GPUD_NVIDIA_DRIVER_ROOT
               value: /run/nvidia/driver
+            {{- end }}
+            {{- if .Values.gpud.mountHostRoot }}
+            # Pre-installed host driver libraries via the host-root mount.
+            # Probed before GPUD_NVIDIA_DRIVER_ROOT so the host driver wins
+            # when both are present.
+            - name: GPUD_NVIDIA_HOST_ROOT
+              value: /host
             {{- end }}
             {{- if .Values.gpud.tokenSecret.name }}
             # Session token sourced from an existing Secret (takes priority over a
@@ -602,9 +619,22 @@ spec:
             {{- if .Values.gpud.mountNVIDIADriverRoot }}
             # GPU Operator-managed driver libraries. Read-only because gpud only
             # loads NVML and never modifies the driver installation.
+            # HostToContainer so an Operator driver (re)install that creates
+            # mounts under /run/nvidia/driver is visible without a pod restart.
             - name: host-nvidia-driver
               mountPath: /run/nvidia/driver
               readOnly: true
+              mountPropagation: HostToContainer
+            {{- end }}
+
+            {{- if .Values.gpud.mountHostRoot }}
+            # Pre-installed host driver libraries under /host/usr/lib*.
+            # Read-only; HostToContainer mirrors the GPU Operator's DRA driver
+            # DaemonSet so host driver changes propagate into the container.
+            - name: host-root
+              mountPath: /host
+              readOnly: true
+              mountPropagation: HostToContainer
             {{- end }}
 
             {{- if .Values.gpud.mountContainerd }}

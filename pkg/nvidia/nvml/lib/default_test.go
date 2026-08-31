@@ -103,4 +103,5 @@ func cleanupEnvVars() {
 	_ = os.Unsetenv(EnvInjectClockEventsHwSlowdown)
 	_ = os.Unsetenv(EnvNVMLLibraryPath)
 	_ = os.Unsetenv(EnvNVIDIADriverRoot)
+	_ = os.Unsetenv(EnvNVIDIAHostRoot)
 }

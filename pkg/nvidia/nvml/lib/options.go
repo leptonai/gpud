@@ -16,6 +16,13 @@ const (
 	// EnvNVIDIADriverRoot points at a containerized NVIDIA driver installation,
 	// such as the GPU Operator's /run/nvidia/driver tree.
 	EnvNVIDIADriverRoot = "GPUD_NVIDIA_DRIVER_ROOT"
+	// EnvNVIDIAHostRoot points at the container path where the host root
+	// filesystem is mounted read-only (e.g., "/host"), exposing a
+	// pre-installed host driver's libraries under "<root>/usr/lib...".
+	// Mirroring the GPU Operator's own driver-validation order, a
+	// pre-installed host driver takes precedence over the
+	// EnvNVIDIADriverRoot tree when both are present.
+	EnvNVIDIAHostRoot = "GPUD_NVIDIA_HOST_ROOT"
 )
 
 type Op struct {
@@ -53,23 +60,42 @@ func (op *Op) applyOpts(opts []OpOption) {
 }
 
 // resolveNVMLLibraryPath returns an explicitly configured library first, then
-// searches a configured driver root. With neither environment variable set it
-// returns empty, preserving go-nvml's standard system-library lookup.
+// searches a configured host root and driver root. With no environment
+// variable set it returns empty, preserving go-nvml's standard system-library
+// lookup.
 func resolveNVMLLibraryPath() string {
 	if libraryPath := os.Getenv(EnvNVMLLibraryPath); libraryPath != "" {
 		return libraryPath
 	}
 
-	driverRoot := os.Getenv(EnvNVIDIADriverRoot)
-	if driverRoot == "" {
-		return ""
+	// A pre-installed host driver takes precedence over a GPU
+	// Operator-managed driver root when both are present, mirroring the
+	// Operator's own driver-validation order (pre-installed wins when both
+	// validate). Loading the host's own libnvidia-ml guarantees the
+	// userspace library matches the loaded kernel module.
+	if hostRoot := os.Getenv(EnvNVIDIAHostRoot); hostRoot != "" {
+		if libraryPath := probeNVMLLibrary(hostRoot); libraryPath != "" {
+			return libraryPath
+		}
 	}
 
+	if driverRoot := os.Getenv(EnvNVIDIADriverRoot); driverRoot != "" {
+		return probeNVMLLibrary(driverRoot)
+	}
+
+	return ""
+}
+
+// probeNVMLLibrary returns the first existing NVML shared library under the
+// given root, covering the Debian/Ubuntu multiarch, RHEL lib64, and plain
+// usr/lib layouts. It returns empty when the root has no NVML library (e.g.,
+// the GPU Operator has not finished installing the driver yet).
+func probeNVMLLibrary(root string) string {
 	archLibraryDir := nvmlArchLibraryDir(runtime.GOARCH)
 	candidates := []string{
-		filepath.Join(driverRoot, "usr", "lib", archLibraryDir, "libnvidia-ml.so.1"),
-		filepath.Join(driverRoot, "usr", "lib64", "libnvidia-ml.so.1"),
-		filepath.Join(driverRoot, "usr", "lib", "libnvidia-ml.so.1"),
+		filepath.Join(root, "usr", "lib", archLibraryDir, "libnvidia-ml.so.1"),
+		filepath.Join(root, "usr", "lib64", "libnvidia-ml.so.1"),
+		filepath.Join(root, "usr", "lib", "libnvidia-ml.so.1"),
 	}
 	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {

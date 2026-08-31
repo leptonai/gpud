@@ -67,6 +67,65 @@ func TestResolveNVMLLibraryPathFallbacks(t *testing.T) {
 	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
 }
 
+// TestResolveNVMLLibraryPathHostRootPrecedence verifies that a pre-installed
+// host driver (via EnvNVIDIAHostRoot) takes precedence over a GPU
+// Operator-managed driver root (EnvNVIDIADriverRoot) when both contain an
+// NVML library, mirroring the GPU Operator's driver-validation order.
+func TestResolveNVMLLibraryPathHostRootPrecedence(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	writeLibrary := func(root string) string {
+		libraryPath := filepath.Join(root, "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
+		require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+		require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+		return libraryPath
+	}
+
+	hostRoot := t.TempDir()
+	hostLibrary := writeLibrary(hostRoot)
+	driverRoot := t.TempDir()
+	driverLibrary := writeLibrary(driverRoot)
+
+	// Both present: the pre-installed host driver wins.
+	t.Setenv(EnvNVIDIAHostRoot, hostRoot)
+	t.Setenv(EnvNVIDIADriverRoot, driverRoot)
+	assert.Equal(t, hostLibrary, resolveNVMLLibraryPath())
+
+	// Host root without libraries falls through to the driver root.
+	require.NoError(t, os.Remove(hostLibrary))
+	assert.Equal(t, driverLibrary, resolveNVMLLibraryPath())
+
+	// Neither root provides a library: preserve the system-library fallback.
+	require.NoError(t, os.Remove(driverLibrary))
+	assert.Empty(t, resolveNVMLLibraryPath())
+
+	// An explicit library path still wins over both roots.
+	explicit := "/custom/libnvidia-ml.so.1"
+	t.Setenv(EnvNVMLLibraryPath, explicit)
+	assert.Equal(t, explicit, resolveNVMLLibraryPath())
+}
+
+// TestResolveNVMLLibraryPathHostRootOnly verifies host-root resolution when
+// no driver root is configured, and that an unset host root preserves the
+// previous driver-root-only behavior.
+func TestResolveNVMLLibraryPathHostRootOnly(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	hostRoot := t.TempDir()
+	libraryPath := filepath.Join(hostRoot, "usr", "lib64", "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+
+	// Unset host root: the library under it must not be picked up.
+	assert.Empty(t, resolveNVMLLibraryPath())
+
+	// Set host root: the lib64 layout is found.
+	t.Setenv(EnvNVIDIAHostRoot, hostRoot)
+	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
+}
+
 func TestNVMLArchLibraryDir(t *testing.T) {
 	tests := map[string]string{
 		"amd64":   "x86_64-linux-gnu",

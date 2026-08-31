@@ -162,9 +162,19 @@ gpud:
   # The matching GPUD_NVIDIA_DRIVER_ROOT environment variable makes gpud use
   # NVML from that tree when present. This is Helm/container-specific; systemd
   # installations retain the standard system-library lookup.
-  # Enable this on GPU Operator clusters. It defaults to false so the chart does
-  # not create /run/nvidia/driver on nodes that use preinstalled drivers.
-  mountNVIDIADriverRoot: false
+  # Defaults to true so GPU Operator clusters work out of the box, matching the
+  # Operator's own DRA driver DaemonSet (which also uses DirectoryOrCreate).
+  # On nodes with preinstalled drivers the hostPath may create an empty,
+  # unused /run/nvidia/driver directory; set to false to avoid that.
+  mountNVIDIADriverRoot: true
+
+  # Mount the host root filesystem read-only at /host so gpud can load NVML
+  # from a pre-installed host driver (host /usr/lib*). The matching
+  # GPUD_NVIDIA_HOST_ROOT environment variable makes gpud prefer the
+  # pre-installed host driver over the GPU Operator driver root when both are
+  # present, mirroring the Operator's own driver-validation order. Without
+  # this mount, a containerized gpud cannot see the host's driver libraries.
+  mountHostRoot: true
 
   # Mount the host containerd directories so the containerd component can monitor
   # the node's containerd when gpud runs inside a container:
