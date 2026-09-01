@@ -31,40 +31,220 @@ func TestResolveNVMLLibraryPath(t *testing.T) {
 	cleanupEnvVars()
 	t.Cleanup(cleanupEnvVars)
 
-	// No container-specific configuration preserves go-nvml's default system
-	// lookup, which is the path used by systemd and other non-container runs.
+	// With no explicit override, resolution probes the well-known driver
+	// roots. Neither "/host" nor "/run/nvidia/driver" exists on a test
+	// machine, so the probes find nothing and go-nvml's default system
+	// lookup is preserved -- the same outcome bare-metal/systemd runs get.
 	assert.Empty(t, resolveNVMLLibraryPath())
 
+	// An explicit library path always wins over the driver-root probes.
 	explicit := "/custom/libnvidia-ml.so.1"
 	t.Setenv(EnvNVMLLibraryPath, explicit)
-	t.Setenv(EnvNVIDIADriverRoot, t.TempDir())
 	assert.Equal(t, explicit, resolveNVMLLibraryPath())
-
-	require.NoError(t, os.Unsetenv(EnvNVMLLibraryPath))
-	driverRoot := t.TempDir()
-	libraryPath := filepath.Join(driverRoot, "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
-	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
-	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
-	t.Setenv(EnvNVIDIADriverRoot, driverRoot)
-	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
 }
 
-func TestResolveNVMLLibraryPathFallbacks(t *testing.T) {
-	cleanupEnvVars()
-	t.Cleanup(cleanupEnvVars)
-
+func TestResolveFromDriverRootsFallbacks(t *testing.T) {
 	driverRoot := t.TempDir()
-	t.Setenv(EnvNVIDIADriverRoot, driverRoot)
 
-	// A configured but empty driver root must retain the system-library fallback.
-	assert.Empty(t, resolveNVMLLibraryPath())
+	// A mounted but empty driver root (e.g. the GPU Operator has not
+	// finished installing the driver yet) must retain the system-library
+	// fallback.
+	assert.Empty(t, resolveFromDriverRoots(t.TempDir(), driverRoot))
 
 	// Exercise the common non-multiarch layout after the architecture-specific
 	// candidate is absent.
 	libraryPath := filepath.Join(driverRoot, "usr", "lib64", "libnvidia-ml.so.1")
 	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
 	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
-	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
+	assert.Equal(t, libraryPath, resolveFromDriverRoots(t.TempDir(), driverRoot))
+}
+
+// TestResolveFromDriverRootsHostRootPrecedence verifies that a pre-installed
+// host driver (host root mount) takes precedence over a GPU Operator-managed
+// driver root when both contain an NVML library, mirroring the GPU
+// Operator's driver-validation order.
+func TestResolveFromDriverRootsHostRootPrecedence(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	writeLibrary := func(root string) string {
+		libraryPath := filepath.Join(root, "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
+		require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+		require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+		return libraryPath
+	}
+
+	hostRoot := t.TempDir()
+	hostLibrary := writeLibrary(hostRoot)
+	driverRoot := t.TempDir()
+	driverLibrary := writeLibrary(driverRoot)
+
+	// Both present: the pre-installed host driver wins.
+	assert.Equal(t, hostLibrary, resolveFromDriverRoots(hostRoot, driverRoot))
+
+	// Host root without libraries falls through to the driver root.
+	require.NoError(t, os.Remove(hostLibrary))
+	assert.Equal(t, driverLibrary, resolveFromDriverRoots(hostRoot, driverRoot))
+
+	// Neither root provides a library: preserve the system-library fallback.
+	require.NoError(t, os.Remove(driverLibrary))
+	assert.Empty(t, resolveFromDriverRoots(hostRoot, driverRoot))
+
+	// An explicit library path still wins over both roots.
+	explicit := "/custom/libnvidia-ml.so.1"
+	t.Setenv(EnvNVMLLibraryPath, explicit)
+	assert.Equal(t, explicit, resolveNVMLLibraryPath())
+}
+
+// TestResolveFromDriverRootsHostRootOnly verifies host-root resolution when
+// the driver root mount is absent/empty.
+func TestResolveFromDriverRootsHostRootOnly(t *testing.T) {
+	hostRoot := t.TempDir()
+	libraryPath := filepath.Join(hostRoot, "usr", "lib64", "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+
+	// The lib64 layout is found via the host root even with an empty driver root.
+	assert.Equal(t, libraryPath, resolveFromDriverRoots(hostRoot, t.TempDir()))
+}
+
+// TestProbeDriverReadyContract covers the GPU Operator driver-ready contract
+// discovery: missing contract, host-driver selection ("/"), rejected relative
+// paths, quoted values, and a custom driver install directory.
+func TestProbeDriverReadyContract(t *testing.T) {
+	// Missing contract file.
+	assert.Empty(t, probeDriverReadyContract(t.TempDir()))
+
+	writeContract := func(hostRoot, contents string) {
+		contractPath := filepath.Join(hostRoot, driverReadyContractPath)
+		require.NoError(t, os.MkdirAll(filepath.Dir(contractPath), 0o755))
+		require.NoError(t, os.WriteFile(contractPath, []byte(contents), 0o644))
+	}
+
+	hostRoot := t.TempDir()
+
+	// The contract selecting the host driver ("/") is covered by the
+	// standard host-root probes, so the contract probe returns empty.
+	writeContract(hostRoot, "NVIDIA_DRIVER_ROOT=/\n")
+	assert.Empty(t, probeDriverReadyContract(hostRoot))
+
+	// Relative paths are rejected.
+	writeContract(hostRoot, "NVIDIA_DRIVER_ROOT=run/nvidia/driver\n")
+	assert.Empty(t, probeDriverReadyContract(hostRoot))
+
+	// A custom install directory without the NVML library yields empty.
+	writeContract(hostRoot, "NVIDIA_DRIVER_ROOT=\"/opt/nvidia/driver\"\n")
+	assert.Empty(t, probeDriverReadyContract(hostRoot))
+
+	// A custom install directory with the NVML library resolves under the
+	// host root.
+	libraryPath := filepath.Join(hostRoot, "opt", "nvidia", "driver", "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+	assert.Equal(t, libraryPath, probeDriverReadyContract(hostRoot))
+}
+
+// TestResolveFromDriverRootsDriverReadyContract verifies the GPU Operator's
+// driver-ready contract is honored between the host-root and driver-root
+// probes: a pre-installed host driver still wins, the Operator-validated
+// custom install directory wins over the static driver root, and without the
+// contract the static driver root is used.
+func TestResolveFromDriverRootsDriverReadyContract(t *testing.T) {
+	hostRoot := t.TempDir()
+	contractPath := filepath.Join(hostRoot, driverReadyContractPath)
+	require.NoError(t, os.MkdirAll(filepath.Dir(contractPath), 0o755))
+	require.NoError(t, os.WriteFile(contractPath, []byte("NVIDIA_DRIVER_ROOT=/opt/nvidia/driver\nDRIVER_ROOT_CTR_PATH=/driver-root\n"), 0o644))
+	contractLibrary := filepath.Join(hostRoot, "opt", "nvidia", "driver", "usr", "lib64", "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(contractLibrary), 0o755))
+	require.NoError(t, os.WriteFile(contractLibrary, nil, 0o644))
+
+	driverRoot := t.TempDir()
+	staticLibrary := filepath.Join(driverRoot, "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(staticLibrary), 0o755))
+	require.NoError(t, os.WriteFile(staticLibrary, nil, 0o644))
+
+	// A pre-installed host driver takes precedence over the contract.
+	hostLibrary := filepath.Join(hostRoot, "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(hostLibrary), 0o755))
+	require.NoError(t, os.WriteFile(hostLibrary, nil, 0o644))
+	assert.Equal(t, hostLibrary, resolveFromDriverRoots(hostRoot, driverRoot))
+	require.NoError(t, os.Remove(hostLibrary))
+
+	// The Operator-validated custom install directory wins over the static
+	// driver root.
+	assert.Equal(t, contractLibrary, resolveFromDriverRoots(hostRoot, driverRoot))
+
+	// Without the contract file, the static driver root is used.
+	require.NoError(t, os.Remove(contractPath))
+	assert.Equal(t, staticLibrary, resolveFromDriverRoots(hostRoot, driverRoot))
+}
+
+// TestFindNVMLCompanionLibraries covers the companion-library selection that
+// preloadNVMLCompanionLibraries relies on: only the NVIDIA companions that
+// libnvidia-ml needs (libcuda, libnvidia-cfg, libnvidia-gpucomp) may be
+// selected from the resolved library's directory.
+//
+// The critical negative assertion is that libc.so.6 is NEVER selected: the
+// GPU Operator driver tree bundles its own glibc, and loading that copy (or
+// exposing the whole directory via LD_LIBRARY_PATH) crashes the host process
+// with "undefined symbol: __tunable_is_initialized, version GLIBC_PRIVATE".
+func TestFindNVMLCompanionLibraries(t *testing.T) {
+	writeFiles := func(dir string, names ...string) {
+		t.Helper()
+		for _, name := range names {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), nil, 0o644))
+		}
+	}
+
+	// A bare SONAME (no directory) means the system lookup is in use, which
+	// also provides the companions -- nothing to preload.
+	assert.Nil(t, findNVMLCompanionLibraries("libnvidia-ml.so.1"))
+
+	// A nonexistent or empty driver tree provides nothing.
+	assert.Nil(t, findNVMLCompanionLibraries(filepath.Join(t.TempDir(), "does-not-exist", "libnvidia-ml.so.1")))
+	emptyDir := t.TempDir()
+	assert.Nil(t, findNVMLCompanionLibraries(filepath.Join(emptyDir, "libnvidia-ml.so.1")))
+
+	// Full 580.x driver tree: all three companion families are found, the
+	// SONAME symlinks are preferred for libcuda/libnvidia-cfg, the versioned
+	// file is used for libnvidia-gpucomp (the only name it ships under), and
+	// the bundled glibc is deliberately left out.
+	fullDir := t.TempDir()
+	writeFiles(fullDir,
+		"libnvidia-ml.so.1", "libnvidia-ml.so.580.82.07",
+		"libcuda.so", "libcuda.so.1", "libcuda.so.580.82.07",
+		"libnvidia-cfg.so", "libnvidia-cfg.so.1", "libnvidia-cfg.so.580.82.07",
+		"libnvidia-gpucomp.so.580.82.07",
+		"libc.so.6", "libpthread.so.0", "libm.so.6", // operator tree's bundled glibc: must never be preloaded
+	)
+	assert.Equal(t, []string{
+		filepath.Join(fullDir, "libcuda.so.1"),
+		filepath.Join(fullDir, "libnvidia-cfg.so.1"),
+		filepath.Join(fullDir, "libnvidia-gpucomp.so.580.82.07"),
+	}, findNVMLCompanionLibraries(filepath.Join(fullDir, "libnvidia-ml.so.1")))
+
+	// Older drivers ship no libnvidia-gpucomp: selection degrades to the
+	// families that exist.
+	olderDir := t.TempDir()
+	writeFiles(olderDir, "libcuda.so.1", "libcuda.so.535.154.05")
+	assert.Equal(t, []string{
+		filepath.Join(olderDir, "libcuda.so.1"),
+	}, findNVMLCompanionLibraries(filepath.Join(olderDir, "libnvidia-ml.so.1")))
+
+	// Without the SONAME symlink, the versioned file is still usable.
+	versionedOnlyDir := t.TempDir()
+	writeFiles(versionedOnlyDir, "libcuda.so.580.82.07")
+	assert.Equal(t, []string{
+		filepath.Join(versionedOnlyDir, "libcuda.so.580.82.07"),
+	}, findNVMLCompanionLibraries(filepath.Join(versionedOnlyDir, "libnvidia-ml.so.1")))
+}
+
+// TestPreloadNVMLCompanionLibrariesNoCompanions verifies that preloading is a
+// safe no-op when the resolved library has no companions (the unit-test
+// machine has no driver tree), so applyOpts behavior is unchanged there.
+func TestPreloadNVMLCompanionLibrariesNoCompanions(t *testing.T) {
+	preloadNVMLCompanionLibraries("libnvidia-ml.so.1")
+	preloadNVMLCompanionLibraries(filepath.Join(t.TempDir(), "libnvidia-ml.so.1"))
 }
 
 func TestNVMLArchLibraryDir(t *testing.T) {
