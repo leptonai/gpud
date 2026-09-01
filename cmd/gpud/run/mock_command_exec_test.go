@@ -49,6 +49,7 @@ func newTestCLIContext(t *testing.T, values cliFlagValues) *cli.Context {
 	set.String("machine-id", "", "")
 	set.Bool("machine-id-overwrite", false, "")
 	set.Bool("refresh-session-token", false, "")
+	set.Bool("require-nvidia-driver", false, "")
 	set.String("listen-address", "", "")
 	set.Bool("pprof", false, "")
 	set.Duration("metrics-retention-period", 0, "")

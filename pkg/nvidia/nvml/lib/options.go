@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	nvlibdevice "github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
@@ -12,10 +13,25 @@ import (
 
 const (
 	// EnvNVMLLibraryPath explicitly selects the NVML shared library.
+	//
+	// This remains the only environment override for library selection.
+	// The two driver roots below are deliberately NOT configurable via
+	// environment variables: the gpud DaemonSet mounts them at these fixed,
+	// well-known paths by default (gpud.mountHostRoot and
+	// gpud.mountNVIDIADriverRoot), so an env var could only restate -- or
+	// disagree with -- the actual mount layout without adding flexibility.
 	EnvNVMLLibraryPath = "GPUD_NVML_LIBRARY_PATH"
-	// EnvNVIDIADriverRoot points at a containerized NVIDIA driver installation,
-	// such as the GPU Operator's /run/nvidia/driver tree.
-	EnvNVIDIADriverRoot = "GPUD_NVIDIA_DRIVER_ROOT"
+
+	// defaultHostRoot is the well-known container path where the gpud
+	// DaemonSet mounts the host root filesystem read-only, exposing a
+	// pre-installed host driver's libraries under "<root>/usr/lib...".
+	// It also exposes the GPU Operator's driver-ready validation contract,
+	// which gpud uses to discover a non-default driver install directory.
+	defaultHostRoot = "/host"
+
+	// defaultDriverRoot is the well-known container path where the gpud
+	// DaemonSet mounts the GPU Operator's driver installation tree.
+	defaultDriverRoot = "/run/nvidia/driver"
 )
 
 type Op struct {
@@ -53,27 +69,95 @@ func (op *Op) applyOpts(opts []OpOption) {
 }
 
 // resolveNVMLLibraryPath returns an explicitly configured library first, then
-// searches a configured driver root. With neither environment variable set it
-// returns empty, preserving go-nvml's standard system-library lookup.
+// probes the well-known driver roots that the gpud DaemonSet mounts by
+// default. It returns empty when no driver tree provides a library,
+// preserving go-nvml's standard system-library lookup.
+//
+// Every probe is existence-based, so on machines without these mounts (e.g.
+// bare-metal/systemd installations, where "/host" does not exist) resolution
+// falls through to the system lookup exactly as before.
 func resolveNVMLLibraryPath() string {
 	if libraryPath := os.Getenv(EnvNVMLLibraryPath); libraryPath != "" {
 		return libraryPath
 	}
+	return resolveFromDriverRoots(defaultHostRoot, defaultDriverRoot)
+}
 
-	driverRoot := os.Getenv(EnvNVIDIADriverRoot)
-	if driverRoot == "" {
-		return ""
+// resolveFromDriverRoots probes the host root and the GPU Operator driver
+// root for a usable NVML library. It takes the roots as parameters (rather
+// than reading the package constants) so tests can point the probes at
+// temporary directories.
+//
+// The probe order mirrors the GPU Operator's own driver-validation order: a
+// pre-installed host driver wins over the Operator-managed driver root when
+// both are present. Loading the host's own libnvidia-ml guarantees the
+// userspace library matches the loaded kernel module.
+func resolveFromDriverRoots(hostRoot, driverRoot string) string {
+	if libraryPath := probeNVMLLibrary(hostRoot); libraryPath != "" {
+		return libraryPath
 	}
 
+	// The GPU Operator records its validated driver root in the
+	// driver-ready contract; honor it to cover a non-default driver
+	// install directory (spec.hostPaths.driverInstallDir). The contract
+	// file lives on the host, so it is only readable through the host-root
+	// mount.
+	if libraryPath := probeDriverReadyContract(hostRoot); libraryPath != "" {
+		return libraryPath
+	}
+
+	return probeNVMLLibrary(driverRoot)
+}
+
+// probeNVMLLibrary returns the first existing NVML shared library under the
+// given root, covering the Debian/Ubuntu multiarch, RHEL lib64, and plain
+// usr/lib layouts. It returns empty when the root has no NVML library (e.g.,
+// the GPU Operator has not finished installing the driver yet).
+func probeNVMLLibrary(root string) string {
 	archLibraryDir := nvmlArchLibraryDir(runtime.GOARCH)
 	candidates := []string{
-		filepath.Join(driverRoot, "usr", "lib", archLibraryDir, "libnvidia-ml.so.1"),
-		filepath.Join(driverRoot, "usr", "lib64", "libnvidia-ml.so.1"),
-		filepath.Join(driverRoot, "usr", "lib", "libnvidia-ml.so.1"),
+		filepath.Join(root, "usr", "lib", archLibraryDir, "libnvidia-ml.so.1"),
+		filepath.Join(root, "usr", "lib64", "libnvidia-ml.so.1"),
+		filepath.Join(root, "usr", "lib", "libnvidia-ml.so.1"),
 	}
 	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
+		}
+	}
+	return ""
+}
+
+// driverReadyContractPath is the GPU Operator's driver validation contract,
+// relative to the host root. The Operator's driver-validation step records
+// the selected NVIDIA_DRIVER_ROOT here after the driver validates, so it
+// reflects a non-default driver install directory
+// (spec.hostPaths.driverInstallDir).
+const driverReadyContractPath = "run/nvidia/validations/driver-ready"
+
+// probeDriverReadyContract reads the GPU Operator's driver-ready contract
+// under the given host root and probes the NVIDIA_DRIVER_ROOT it selects,
+// resolved under the same host root. It returns empty when the contract is
+// absent, unparseable, names a non-absolute path, or selects the host driver
+// ("/", already covered by the standard host-root probes). The contract's
+// DRIVER_ROOT_CTR_PATH is the DRA container's own mount path and does not
+// apply to gpud's mount layout.
+func probeDriverReadyContract(hostRoot string) string {
+	b, err := os.ReadFile(filepath.Join(hostRoot, driverReadyContractPath))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "NVIDIA_DRIVER_ROOT=")
+		if !ok {
+			continue
+		}
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if value == "" || value == "/" || !filepath.IsAbs(value) {
+			continue
+		}
+		if libraryPath := probeNVMLLibrary(filepath.Join(hostRoot, value)); libraryPath != "" {
+			return libraryPath
 		}
 	}
 	return ""
