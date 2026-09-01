@@ -179,6 +179,74 @@ func TestResolveFromDriverRootsDriverReadyContract(t *testing.T) {
 	assert.Equal(t, staticLibrary, resolveFromDriverRoots(hostRoot, driverRoot))
 }
 
+// TestFindNVMLCompanionLibraries covers the companion-library selection that
+// preloadNVMLCompanionLibraries relies on: only the NVIDIA companions that
+// libnvidia-ml needs (libcuda, libnvidia-cfg, libnvidia-gpucomp) may be
+// selected from the resolved library's directory.
+//
+// The critical negative assertion is that libc.so.6 is NEVER selected: the
+// GPU Operator driver tree bundles its own glibc, and loading that copy (or
+// exposing the whole directory via LD_LIBRARY_PATH) crashes the host process
+// with "undefined symbol: __tunable_is_initialized, version GLIBC_PRIVATE".
+func TestFindNVMLCompanionLibraries(t *testing.T) {
+	writeFiles := func(dir string, names ...string) {
+		t.Helper()
+		for _, name := range names {
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), nil, 0o644))
+		}
+	}
+
+	// A bare SONAME (no directory) means the system lookup is in use, which
+	// also provides the companions -- nothing to preload.
+	assert.Nil(t, findNVMLCompanionLibraries("libnvidia-ml.so.1"))
+
+	// A nonexistent or empty driver tree provides nothing.
+	assert.Nil(t, findNVMLCompanionLibraries(filepath.Join(t.TempDir(), "does-not-exist", "libnvidia-ml.so.1")))
+	emptyDir := t.TempDir()
+	assert.Nil(t, findNVMLCompanionLibraries(filepath.Join(emptyDir, "libnvidia-ml.so.1")))
+
+	// Full 580.x driver tree: all three companion families are found, the
+	// SONAME symlinks are preferred for libcuda/libnvidia-cfg, the versioned
+	// file is used for libnvidia-gpucomp (the only name it ships under), and
+	// the bundled glibc is deliberately left out.
+	fullDir := t.TempDir()
+	writeFiles(fullDir,
+		"libnvidia-ml.so.1", "libnvidia-ml.so.580.82.07",
+		"libcuda.so", "libcuda.so.1", "libcuda.so.580.82.07",
+		"libnvidia-cfg.so", "libnvidia-cfg.so.1", "libnvidia-cfg.so.580.82.07",
+		"libnvidia-gpucomp.so.580.82.07",
+		"libc.so.6", "libpthread.so.0", "libm.so.6", // operator tree's bundled glibc: must never be preloaded
+	)
+	assert.Equal(t, []string{
+		filepath.Join(fullDir, "libcuda.so.1"),
+		filepath.Join(fullDir, "libnvidia-cfg.so.1"),
+		filepath.Join(fullDir, "libnvidia-gpucomp.so.580.82.07"),
+	}, findNVMLCompanionLibraries(filepath.Join(fullDir, "libnvidia-ml.so.1")))
+
+	// Older drivers ship no libnvidia-gpucomp: selection degrades to the
+	// families that exist.
+	olderDir := t.TempDir()
+	writeFiles(olderDir, "libcuda.so.1", "libcuda.so.535.154.05")
+	assert.Equal(t, []string{
+		filepath.Join(olderDir, "libcuda.so.1"),
+	}, findNVMLCompanionLibraries(filepath.Join(olderDir, "libnvidia-ml.so.1")))
+
+	// Without the SONAME symlink, the versioned file is still usable.
+	versionedOnlyDir := t.TempDir()
+	writeFiles(versionedOnlyDir, "libcuda.so.580.82.07")
+	assert.Equal(t, []string{
+		filepath.Join(versionedOnlyDir, "libcuda.so.580.82.07"),
+	}, findNVMLCompanionLibraries(filepath.Join(versionedOnlyDir, "libnvidia-ml.so.1")))
+}
+
+// TestPreloadNVMLCompanionLibrariesNoCompanions verifies that preloading is a
+// safe no-op when the resolved library has no companions (the unit-test
+// machine has no driver tree), so applyOpts behavior is unchanged there.
+func TestPreloadNVMLCompanionLibrariesNoCompanions(t *testing.T) {
+	preloadNVMLCompanionLibraries("libnvidia-ml.so.1")
+	preloadNVMLCompanionLibraries(filepath.Join(t.TempDir(), "libnvidia-ml.so.1"))
+}
+
 func TestNVMLArchLibraryDir(t *testing.T) {
 	tests := map[string]string{
 		"amd64":   "x86_64-linux-gnu",
