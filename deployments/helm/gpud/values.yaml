@@ -74,6 +74,11 @@ gpud:
   # token on every start and needs to recover a stale session token.
   refreshSessionToken: false
 
+  # Refuse to register an NVIDIA GPU node until its driver and NVML are ready.
+  # CPU-only nodes continue normally. Enable this for BYOK, where administrators
+  # must install a working NVIDIA driver before the node joins Lepton.
+  requireNVIDIADriver: true
+
   # Enable auto update of gpud.
   enableAutoUpdate: false
 
@@ -159,12 +164,28 @@ gpud:
   containerdServiceActiveCommands: "nsenter --target 1 --mount -- systemctl is-active containerd"
 
   # Mount the GPU Operator's host driver installation at /run/nvidia/driver.
-  # The matching GPUD_NVIDIA_DRIVER_ROOT environment variable makes gpud use
-  # NVML from that tree when present. This is Helm/container-specific; systemd
-  # installations retain the standard system-library lookup.
-  # Enable this on GPU Operator clusters. It defaults to false so the chart does
-  # not create /run/nvidia/driver on nodes that use preinstalled drivers.
-  mountNVIDIADriverRoot: false
+  # gpud probes this well-known path automatically when the mount is present
+  # and loads NVML from that tree -- there is no environment variable for it
+  # because the chart fixes the mount path and the probe is existence-based.
+  # This is Helm/container-specific; systemd installations retain the standard
+  # system-library lookup.
+  # Defaults to true so GPU Operator clusters work out of the box, matching the
+  # Operator's own DRA driver DaemonSet (which also uses DirectoryOrCreate).
+  # On nodes with preinstalled drivers the hostPath may create an empty,
+  # unused /run/nvidia/driver directory; set to false to avoid that.
+  mountNVIDIADriverRoot: true
+
+  # Mount the host root filesystem read-only at /host so gpud can load NVML
+  # from a pre-installed host driver (host /usr/lib*). gpud probes this
+  # well-known path automatically and prefers the pre-installed host driver
+  # over the GPU Operator driver root when both are present, mirroring the
+  # Operator's own driver-validation order. The mount also exposes the
+  # Operator's driver-ready contract
+  # (/host/run/nvidia/validations/driver-ready), so a non-default Operator
+  # driver install directory is discovered without extra configuration.
+  # Without this mount, a containerized gpud cannot see the host's driver
+  # libraries.
+  mountHostRoot: true
 
   # Mount the host containerd directories so the containerd component can monitor
   # the node's containerd when gpud runs inside a container:

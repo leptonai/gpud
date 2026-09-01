@@ -33,11 +33,49 @@ import (
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgnfschecker "github.com/leptonai/gpud/pkg/nfs-checker"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
 	gpudserver "github.com/leptonai/gpud/pkg/server"
 	pkgsqlite "github.com/leptonai/gpud/pkg/sqlite"
 	pkgsystemd "github.com/leptonai/gpud/pkg/systemd"
 	"github.com/leptonai/gpud/version"
 )
+
+var hasNVIDIAGPU = func() (bool, error) {
+	return nvidiapci.HasNVIDIAGPU(nvidiapci.DefaultSysfsPCIDevicesDir)
+}
+
+var newNVMLInstance = nvidianvml.New
+
+func requireNVIDIADriver() error {
+	hasGPU, err := hasNVIDIAGPU()
+	if err != nil {
+		return fmt.Errorf("failed to detect NVIDIA GPU devices: %w", err)
+	}
+	if !hasGPU {
+		return nil
+	}
+
+	instance, err := newNVMLInstance()
+	if err != nil {
+		return fmt.Errorf("NVIDIA GPU detected but the NVIDIA driver is not ready: %w", err)
+	}
+	defer func() {
+		if err := instance.Shutdown(); err != nil {
+			log.Logger.Debugw("failed to shut down pre-login NVML instance", "error", err)
+		}
+	}()
+
+	if !instance.NVMLExists() {
+		return fmt.Errorf("NVIDIA GPU detected but the NVIDIA NVML library is not loaded")
+	}
+	if err := instance.InitError(); err != nil {
+		return fmt.Errorf("NVIDIA GPU detected but the NVIDIA driver is not ready: %w", err)
+	}
+	return nil
+}
+
+var ensureNVIDIADriver = requireNVIDIADriver
 
 func Command(cliContext *cli.Context) error {
 	logLevel := cliContext.String("log-level")
@@ -90,6 +128,12 @@ func Command(cliContext *cli.Context) error {
 	shouldOverwriteMachineID := cliContext.Bool("machine-id-overwrite")
 	refreshSessionToken := cliContext.Bool("refresh-session-token")
 	controlPlaneLoginSucceeded := false
+
+	if cliContext.Bool("require-nvidia-driver") && (cliContext.IsSet("token") || controlPlaneLoginRegistrationToken != "") {
+		if err := ensureNVIDIADriver(); err != nil {
+			return err
+		}
+	}
 
 	// Note: login.Login() ALWAYS writes to the persistent state file (via dataDir),
 	// regardless of --db-in-memory flag. The login package doesn't know about in-memory mode.

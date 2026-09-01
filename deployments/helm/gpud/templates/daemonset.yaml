@@ -161,12 +161,29 @@ spec:
 
         {{- if .Values.gpud.mountNVIDIADriverRoot }}
         # GPU Operator installs its driver libraries under this host path.
-        # On preinstalled-driver nodes this may be empty; gpud then preserves its
+        # gpud probes this well-known container path automatically when the
+        # mount is present -- no environment variable is needed because the
+        # path is fixed here and the mount is on by default. On
+        # preinstalled-driver nodes this may be empty; gpud then preserves its
         # normal system-library lookup.
         - name: host-nvidia-driver
           hostPath:
             path: /run/nvidia/driver
             type: DirectoryOrCreate
+        {{- end }}
+
+        {{- if .Values.gpud.mountHostRoot }}
+        # Host root filesystem, exposing pre-installed NVIDIA driver libraries
+        # under /host/usr/lib*. Same "host-root" pattern as the GPU Operator's
+        # DRA driver DaemonSet. gpud probes this well-known path automatically
+        # (before the driver root, so a pre-installed host driver wins),
+        # including the Operator's driver-ready contract at
+        # /host/run/nvidia/validations/driver-ready -- again with no
+        # environment variable, since the mount path is fixed.
+        - name: host-root
+          hostPath:
+            path: /
+            type: Directory
         {{- end }}
 
         {{- if .Values.gpud.mountContainerd }}
@@ -403,6 +420,10 @@ spec:
                 set -- "$@" --refresh-session-token
               fi
 
+              if [ "${GPUD_REQUIRE_NVIDIA_DRIVER:-}" = "true" ]; then
+                set -- "$@" --require-nvidia-driver
+              fi
+
               set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
               set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
 
@@ -458,12 +479,6 @@ spec:
           env:
             - name: GPUD_NO_USAGE_STATS
               value: {{ not .Values.gpud.telemetry.enabled | quote }}
-            {{- if .Values.gpud.mountNVIDIADriverRoot }}
-            # Opt in to the GPU Operator driver-root fallback. Bare-metal/systemd
-            # runs do not receive this environment variable.
-            - name: GPUD_NVIDIA_DRIVER_ROOT
-              value: /run/nvidia/driver
-            {{- end }}
             {{- if .Values.gpud.tokenSecret.name }}
             # Session token sourced from an existing Secret (takes priority over a
             # token node label). Consumed by the startup script as $GPUD_TOKEN.
@@ -483,6 +498,12 @@ spec:
             # BYOK only: re-login on startup using the injected registration token.
             # Consumed as $GPUD_REFRESH_SESSION_TOKEN.
             - name: GPUD_REFRESH_SESSION_TOKEN
+              value: "true"
+            {{- end }}
+            {{- if .Values.gpud.requireNVIDIADriver }}
+            # BYOK: do not register NVIDIA GPU hardware until the driver and
+            # NVML are available. CPU-only nodes are unaffected.
+            - name: GPUD_REQUIRE_NVIDIA_DRIVER
               value: "true"
             {{- end }}
             {{- if .Values.gpud.rebootCommands }}
@@ -602,9 +623,22 @@ spec:
             {{- if .Values.gpud.mountNVIDIADriverRoot }}
             # GPU Operator-managed driver libraries. Read-only because gpud only
             # loads NVML and never modifies the driver installation.
+            # HostToContainer so an Operator driver (re)install that creates
+            # mounts under /run/nvidia/driver is visible without a pod restart.
             - name: host-nvidia-driver
               mountPath: /run/nvidia/driver
               readOnly: true
+              mountPropagation: HostToContainer
+            {{- end }}
+
+            {{- if .Values.gpud.mountHostRoot }}
+            # Pre-installed host driver libraries under /host/usr/lib*.
+            # Read-only; HostToContainer mirrors the GPU Operator's DRA driver
+            # DaemonSet so host driver changes propagate into the container.
+            - name: host-root
+              mountPath: /host
+              readOnly: true
+              mountPropagation: HostToContainer
             {{- end }}
 
             {{- if .Values.gpud.mountContainerd }}
