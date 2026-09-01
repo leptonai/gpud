@@ -179,14 +179,6 @@ func requestFromV2(packet *sessionv2.ManagerPacket) (Request, error) {
 			return Request{}, fmt.Errorf("activate-KAP-mTLS payload is missing")
 		}
 		legacy.Method = "activateKAPMTLS"
-	case *sessionv2.ManagerPacket_NodeCredentials:
-		if payload.NodeCredentials == nil {
-			return Request{}, fmt.Errorf("node-credentials payload is missing")
-		}
-		legacy.Method = "nodeCredentials"
-		legacy.NodeCredentials = &NodeCredentialsRequest{
-			Kubelet: kubeletCredentialsFromV2(payload.NodeCredentials.Kubelet),
-		}
 	case nil:
 		return Request{}, fmt.Errorf("v2 request payload is missing")
 	default:
@@ -194,26 +186,6 @@ func requestFromV2(packet *sessionv2.ManagerPacket) (Request, error) {
 	}
 
 	return legacy, nil
-}
-
-// kubeletCredentialsFromV2 converts the named kubelet files. An absent field
-// stays absent rather than becoming an empty file: a credential truncated to
-// nothing looks like a successful write and fails wherever the file is read.
-func kubeletCredentialsFromV2(k *sessionv2.KubeletCredentials) *KubeletCredentials {
-	if k == nil {
-		return nil
-	}
-	return &KubeletCredentials{
-		Config:            nodeCredentialFileFromV2(k.Config),
-		ClientCertificate: nodeCredentialFileFromV2(k.ClientCertificate),
-	}
-}
-
-func nodeCredentialFileFromV2(f *sessionv2.NodeCredentialFile) *NodeCredentialFile {
-	if f == nil {
-		return nil
-	}
-	return &NodeCredentialFile{Path: f.Path, Contents: f.Contents, Mode: f.Mode}
 }
 
 func pluginSpecsFromV2(specs []*sessionv2.PluginSpec) pkgcustomplugins.Specs {

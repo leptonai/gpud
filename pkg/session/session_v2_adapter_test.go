@@ -256,39 +256,6 @@ func TestRequestFromV2ConvertsConcreteRequests(t *testing.T) {
 			request: newV2ManagerPacket(&sessionv2.ManagerPacket_ActivateKapMtls{ActivateKapMtls: &sessionv2.ActivateKAPMTLSRequest{}}),
 			want:    Request{Method: "activateKAPMTLS"},
 		},
-		{
-			// The path and the mode decide where the material lands and who can
-			// read it, so both have to survive the conversion.
-			name: "node credentials",
-			request: newV2ManagerPacket(&sessionv2.ManagerPacket_NodeCredentials{NodeCredentials: &sessionv2.NodeCredentialsRequest{
-				Kubelet: &sessionv2.KubeletCredentials{
-					Config:            &sessionv2.NodeCredentialFile{Path: "/var/lib/gpud/packages/kubelet/kubelet.yaml", Contents: []byte("providerID: x"), Mode: 0o644},
-					ClientCertificate: &sessionv2.NodeCredentialFile{Path: "/var/lib/gpud/packages/kubelet/kubelet-client-current.pem", Contents: []byte("cert"), Mode: 0o600},
-				},
-			}}),
-			want: Request{Method: "nodeCredentials", NodeCredentials: &NodeCredentialsRequest{
-				Kubelet: &KubeletCredentials{
-					Config:            &NodeCredentialFile{Path: "/var/lib/gpud/packages/kubelet/kubelet.yaml", Contents: []byte("providerID: x"), Mode: 0o644},
-					ClientCertificate: &NodeCredentialFile{Path: "/var/lib/gpud/packages/kubelet/kubelet-client-current.pem", Contents: []byte("cert"), Mode: 0o600},
-				},
-			}},
-		},
-		{
-			// An absent field stays absent rather than becoming an empty file:
-			// a credential truncated to nothing looks like a successful write
-			// and fails wherever the file is read.
-			name: "node credentials with only one file set",
-			request: newV2ManagerPacket(&sessionv2.ManagerPacket_NodeCredentials{NodeCredentials: &sessionv2.NodeCredentialsRequest{
-				Kubelet: &sessionv2.KubeletCredentials{
-					Config: &sessionv2.NodeCredentialFile{Path: "/var/lib/gpud/x", Contents: []byte("y")},
-				},
-			}}),
-			want: Request{Method: "nodeCredentials", NodeCredentials: &NodeCredentialsRequest{
-				Kubelet: &KubeletCredentials{
-					Config: &NodeCredentialFile{Path: "/var/lib/gpud/x", Contents: []byte("y")},
-				},
-			}},
-		},
 	}
 
 	for _, test := range tests {
@@ -333,7 +300,6 @@ func TestRequestFromV2RejectsInvalidRequests(t *testing.T) {
 		{name: "KAP status", payload: &sessionv2.ManagerPacket_GetKapMtlsStatus{}, message: "get-KAP-mTLS-status payload is missing"},
 		{name: "KAP credentials", payload: &sessionv2.ManagerPacket_UpdateKapMtlsCredentials{}, message: "update-KAP-mTLS-credentials payload is missing"},
 		{name: "activate KAP", payload: &sessionv2.ManagerPacket_ActivateKapMtls{}, message: "activate-KAP-mTLS payload is missing"},
-		{name: "node credentials", payload: &sessionv2.ManagerPacket_NodeCredentials{}, message: "node-credentials payload is missing"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := requestFromV2(newV2ManagerPacket(test.payload))
