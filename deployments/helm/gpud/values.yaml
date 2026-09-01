@@ -172,7 +172,10 @@ gpud:
   # from a pre-installed host driver (host /usr/lib*). The matching
   # GPUD_NVIDIA_HOST_ROOT environment variable makes gpud prefer the
   # pre-installed host driver over the GPU Operator driver root when both are
-  # present, mirroring the Operator's own driver-validation order. Without
+  # present, mirroring the Operator's own driver-validation order. The mount
+  # also exposes the Operator's driver-ready contract
+  # (/run/nvidia/validations/driver-ready), so a non-default Operator driver
+  # install directory is discovered without extra configuration. Without
   # this mount, a containerized gpud cannot see the host's driver libraries.
   mountHostRoot: true
 

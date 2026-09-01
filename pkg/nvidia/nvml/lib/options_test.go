@@ -126,6 +126,83 @@ func TestResolveNVMLLibraryPathHostRootOnly(t *testing.T) {
 	assert.Equal(t, libraryPath, resolveNVMLLibraryPath())
 }
 
+// TestProbeDriverReadyContract covers the GPU Operator driver-ready contract
+// discovery: missing contract, host-driver selection ("/"), rejected relative
+// paths, quoted values, and a custom driver install directory.
+func TestProbeDriverReadyContract(t *testing.T) {
+	// Missing contract file.
+	assert.Empty(t, probeDriverReadyContract(t.TempDir()))
+
+	writeContract := func(hostRoot, contents string) {
+		contractPath := filepath.Join(hostRoot, driverReadyContractPath)
+		require.NoError(t, os.MkdirAll(filepath.Dir(contractPath), 0o755))
+		require.NoError(t, os.WriteFile(contractPath, []byte(contents), 0o644))
+	}
+
+	hostRoot := t.TempDir()
+
+	// The contract selecting the host driver ("/") is covered by the
+	// standard host-root probes, so the contract probe returns empty.
+	writeContract(hostRoot, "NVIDIA_DRIVER_ROOT=/\n")
+	assert.Empty(t, probeDriverReadyContract(hostRoot))
+
+	// Relative paths are rejected.
+	writeContract(hostRoot, "NVIDIA_DRIVER_ROOT=run/nvidia/driver\n")
+	assert.Empty(t, probeDriverReadyContract(hostRoot))
+
+	// A custom install directory without the NVML library yields empty.
+	writeContract(hostRoot, "NVIDIA_DRIVER_ROOT=\"/opt/nvidia/driver\"\n")
+	assert.Empty(t, probeDriverReadyContract(hostRoot))
+
+	// A custom install directory with the NVML library resolves under the
+	// host root.
+	libraryPath := filepath.Join(hostRoot, "opt", "nvidia", "driver", "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
+	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
+	assert.Equal(t, libraryPath, probeDriverReadyContract(hostRoot))
+}
+
+// TestResolveNVMLLibraryPathDriverReadyContract verifies the GPU Operator's
+// driver-ready contract is honored between the host-root and driver-root
+// probes: a pre-installed host driver still wins, the Operator-validated
+// custom install directory wins over the static driver root, and without the
+// contract the static driver root is used.
+func TestResolveNVMLLibraryPathDriverReadyContract(t *testing.T) {
+	cleanupEnvVars()
+	t.Cleanup(cleanupEnvVars)
+
+	hostRoot := t.TempDir()
+	contractPath := filepath.Join(hostRoot, driverReadyContractPath)
+	require.NoError(t, os.MkdirAll(filepath.Dir(contractPath), 0o755))
+	require.NoError(t, os.WriteFile(contractPath, []byte("NVIDIA_DRIVER_ROOT=/opt/nvidia/driver\nDRIVER_ROOT_CTR_PATH=/driver-root\n"), 0o644))
+	contractLibrary := filepath.Join(hostRoot, "opt", "nvidia", "driver", "usr", "lib64", "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(contractLibrary), 0o755))
+	require.NoError(t, os.WriteFile(contractLibrary, nil, 0o644))
+
+	driverRoot := t.TempDir()
+	staticLibrary := filepath.Join(driverRoot, "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(staticLibrary), 0o755))
+	require.NoError(t, os.WriteFile(staticLibrary, nil, 0o644))
+
+	t.Setenv(EnvNVIDIAHostRoot, hostRoot)
+	t.Setenv(EnvNVIDIADriverRoot, driverRoot)
+
+	// A pre-installed host driver takes precedence over the contract.
+	hostLibrary := filepath.Join(hostRoot, "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
+	require.NoError(t, os.MkdirAll(filepath.Dir(hostLibrary), 0o755))
+	require.NoError(t, os.WriteFile(hostLibrary, nil, 0o644))
+	assert.Equal(t, hostLibrary, resolveNVMLLibraryPath())
+	require.NoError(t, os.Remove(hostLibrary))
+
+	// The Operator-validated custom install directory wins over the static
+	// driver root.
+	assert.Equal(t, contractLibrary, resolveNVMLLibraryPath())
+
+	// Without the contract file, the static driver root is used.
+	require.NoError(t, os.Remove(contractPath))
+	assert.Equal(t, staticLibrary, resolveNVMLLibraryPath())
+}
+
 func TestNVMLArchLibraryDir(t *testing.T) {
 	tests := map[string]string{
 		"amd64":   "x86_64-linux-gnu",

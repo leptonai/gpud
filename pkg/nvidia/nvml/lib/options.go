@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	nvlibdevice "github.com/NVIDIA/go-nvlib/pkg/nvlib/device"
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
@@ -21,7 +22,9 @@ const (
 	// pre-installed host driver's libraries under "<root>/usr/lib...".
 	// Mirroring the GPU Operator's own driver-validation order, a
 	// pre-installed host driver takes precedence over the
-	// EnvNVIDIADriverRoot tree when both are present.
+	// EnvNVIDIADriverRoot tree when both are present. The host root also
+	// exposes the Operator's driver-ready validation contract, which gpud
+	// uses to discover a non-default driver install directory.
 	EnvNVIDIAHostRoot = "GPUD_NVIDIA_HOST_ROOT"
 )
 
@@ -77,6 +80,13 @@ func resolveNVMLLibraryPath() string {
 		if libraryPath := probeNVMLLibrary(hostRoot); libraryPath != "" {
 			return libraryPath
 		}
+
+		// The GPU Operator records its validated driver root in the
+		// driver-ready contract; honor it to cover a non-default driver
+		// install directory (spec.hostPaths.driverInstallDir).
+		if libraryPath := probeDriverReadyContract(hostRoot); libraryPath != "" {
+			return libraryPath
+		}
 	}
 
 	if driverRoot := os.Getenv(EnvNVIDIADriverRoot); driverRoot != "" {
@@ -100,6 +110,41 @@ func probeNVMLLibrary(root string) string {
 	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
+		}
+	}
+	return ""
+}
+
+// driverReadyContractPath is the GPU Operator's driver validation contract,
+// relative to the host root. The Operator's driver-validation step records
+// the selected NVIDIA_DRIVER_ROOT here after the driver validates, so it
+// reflects a non-default driver install directory
+// (spec.hostPaths.driverInstallDir).
+const driverReadyContractPath = "run/nvidia/validations/driver-ready"
+
+// probeDriverReadyContract reads the GPU Operator's driver-ready contract
+// under the given host root and probes the NVIDIA_DRIVER_ROOT it selects,
+// resolved under the same host root. It returns empty when the contract is
+// absent, unparseable, names a non-absolute path, or selects the host driver
+// ("/", already covered by the standard host-root probes). The contract's
+// DRIVER_ROOT_CTR_PATH is the DRA container's own mount path and does not
+// apply to gpud's mount layout.
+func probeDriverReadyContract(hostRoot string) string {
+	b, err := os.ReadFile(filepath.Join(hostRoot, driverReadyContractPath))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "NVIDIA_DRIVER_ROOT=")
+		if !ok {
+			continue
+		}
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		if value == "" || value == "/" || !filepath.IsAbs(value) {
+			continue
+		}
+		if libraryPath := probeNVMLLibrary(filepath.Join(hostRoot, value)); libraryPath != "" {
+			return libraryPath
 		}
 	}
 	return ""
