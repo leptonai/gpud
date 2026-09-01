@@ -161,7 +161,10 @@ spec:
 
         {{- if .Values.gpud.mountNVIDIADriverRoot }}
         # GPU Operator installs its driver libraries under this host path.
-        # On preinstalled-driver nodes this may be empty; gpud then preserves its
+        # gpud probes this well-known container path automatically when the
+        # mount is present -- no environment variable is needed because the
+        # path is fixed here and the mount is on by default. On
+        # preinstalled-driver nodes this may be empty; gpud then preserves its
         # normal system-library lookup.
         - name: host-nvidia-driver
           hostPath:
@@ -172,7 +175,11 @@ spec:
         {{- if .Values.gpud.mountHostRoot }}
         # Host root filesystem, exposing pre-installed NVIDIA driver libraries
         # under /host/usr/lib*. Same "host-root" pattern as the GPU Operator's
-        # DRA driver DaemonSet.
+        # DRA driver DaemonSet. gpud probes this well-known path automatically
+        # (before the driver root, so a pre-installed host driver wins),
+        # including the Operator's driver-ready contract at
+        # /host/run/nvidia/validations/driver-ready -- again with no
+        # environment variable, since the mount path is fixed.
         - name: host-root
           hostPath:
             path: /
@@ -468,19 +475,6 @@ spec:
           env:
             - name: GPUD_NO_USAGE_STATS
               value: {{ not .Values.gpud.telemetry.enabled | quote }}
-            {{- if .Values.gpud.mountNVIDIADriverRoot }}
-            # GPU Operator driver-root fallback. Bare-metal/systemd runs do not
-            # receive this environment variable.
-            - name: GPUD_NVIDIA_DRIVER_ROOT
-              value: /run/nvidia/driver
-            {{- end }}
-            {{- if .Values.gpud.mountHostRoot }}
-            # Pre-installed host driver libraries via the host-root mount.
-            # Probed before GPUD_NVIDIA_DRIVER_ROOT so the host driver wins
-            # when both are present.
-            - name: GPUD_NVIDIA_HOST_ROOT
-              value: /host
-            {{- end }}
             {{- if .Values.gpud.tokenSecret.name }}
             # Session token sourced from an existing Secret (takes priority over a
             # token node label). Consumed by the startup script as $GPUD_TOKEN.

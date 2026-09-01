@@ -13,19 +13,25 @@ import (
 
 const (
 	// EnvNVMLLibraryPath explicitly selects the NVML shared library.
+	//
+	// This remains the only environment override for library selection.
+	// The two driver roots below are deliberately NOT configurable via
+	// environment variables: the gpud DaemonSet mounts them at these fixed,
+	// well-known paths by default (gpud.mountHostRoot and
+	// gpud.mountNVIDIADriverRoot), so an env var could only restate -- or
+	// disagree with -- the actual mount layout without adding flexibility.
 	EnvNVMLLibraryPath = "GPUD_NVML_LIBRARY_PATH"
-	// EnvNVIDIADriverRoot points at a containerized NVIDIA driver installation,
-	// such as the GPU Operator's /run/nvidia/driver tree.
-	EnvNVIDIADriverRoot = "GPUD_NVIDIA_DRIVER_ROOT"
-	// EnvNVIDIAHostRoot points at the container path where the host root
-	// filesystem is mounted read-only (e.g., "/host"), exposing a
+
+	// defaultHostRoot is the well-known container path where the gpud
+	// DaemonSet mounts the host root filesystem read-only, exposing a
 	// pre-installed host driver's libraries under "<root>/usr/lib...".
-	// Mirroring the GPU Operator's own driver-validation order, a
-	// pre-installed host driver takes precedence over the
-	// EnvNVIDIADriverRoot tree when both are present. The host root also
-	// exposes the Operator's driver-ready validation contract, which gpud
-	// uses to discover a non-default driver install directory.
-	EnvNVIDIAHostRoot = "GPUD_NVIDIA_HOST_ROOT"
+	// It also exposes the GPU Operator's driver-ready validation contract,
+	// which gpud uses to discover a non-default driver install directory.
+	defaultHostRoot = "/host"
+
+	// defaultDriverRoot is the well-known container path where the gpud
+	// DaemonSet mounts the GPU Operator's driver installation tree.
+	defaultDriverRoot = "/run/nvidia/driver"
 )
 
 type Op struct {
@@ -63,37 +69,44 @@ func (op *Op) applyOpts(opts []OpOption) {
 }
 
 // resolveNVMLLibraryPath returns an explicitly configured library first, then
-// searches a configured host root and driver root. With no environment
-// variable set it returns empty, preserving go-nvml's standard system-library
-// lookup.
+// probes the well-known driver roots that the gpud DaemonSet mounts by
+// default. It returns empty when no driver tree provides a library,
+// preserving go-nvml's standard system-library lookup.
+//
+// Every probe is existence-based, so on machines without these mounts (e.g.
+// bare-metal/systemd installations, where "/host" does not exist) resolution
+// falls through to the system lookup exactly as before.
 func resolveNVMLLibraryPath() string {
 	if libraryPath := os.Getenv(EnvNVMLLibraryPath); libraryPath != "" {
 		return libraryPath
 	}
+	return resolveFromDriverRoots(defaultHostRoot, defaultDriverRoot)
+}
 
-	// A pre-installed host driver takes precedence over a GPU
-	// Operator-managed driver root when both are present, mirroring the
-	// Operator's own driver-validation order (pre-installed wins when both
-	// validate). Loading the host's own libnvidia-ml guarantees the
-	// userspace library matches the loaded kernel module.
-	if hostRoot := os.Getenv(EnvNVIDIAHostRoot); hostRoot != "" {
-		if libraryPath := probeNVMLLibrary(hostRoot); libraryPath != "" {
-			return libraryPath
-		}
-
-		// The GPU Operator records its validated driver root in the
-		// driver-ready contract; honor it to cover a non-default driver
-		// install directory (spec.hostPaths.driverInstallDir).
-		if libraryPath := probeDriverReadyContract(hostRoot); libraryPath != "" {
-			return libraryPath
-		}
+// resolveFromDriverRoots probes the host root and the GPU Operator driver
+// root for a usable NVML library. It takes the roots as parameters (rather
+// than reading the package constants) so tests can point the probes at
+// temporary directories.
+//
+// The probe order mirrors the GPU Operator's own driver-validation order: a
+// pre-installed host driver wins over the Operator-managed driver root when
+// both are present. Loading the host's own libnvidia-ml guarantees the
+// userspace library matches the loaded kernel module.
+func resolveFromDriverRoots(hostRoot, driverRoot string) string {
+	if libraryPath := probeNVMLLibrary(hostRoot); libraryPath != "" {
+		return libraryPath
 	}
 
-	if driverRoot := os.Getenv(EnvNVIDIADriverRoot); driverRoot != "" {
-		return probeNVMLLibrary(driverRoot)
+	// The GPU Operator records its validated driver root in the
+	// driver-ready contract; honor it to cover a non-default driver
+	// install directory (spec.hostPaths.driverInstallDir). The contract
+	// file lives on the host, so it is only readable through the host-root
+	// mount.
+	if libraryPath := probeDriverReadyContract(hostRoot); libraryPath != "" {
+		return libraryPath
 	}
 
-	return ""
+	return probeNVMLLibrary(driverRoot)
 }
 
 // probeNVMLLibrary returns the first existing NVML shared library under the
