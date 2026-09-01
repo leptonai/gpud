@@ -957,7 +957,7 @@ func TestStart_WithKmsgMessages_WithMockey(t *testing.T) {
 			eventBucket:      mockBucket,
 			rebootEventStore: mockReboot,
 			kmsgWatcher:      mockWatcher,
-			extraEventCh:     make(chan *eventstore.Event, 256),
+			extraEventCh:     make(chan pendingEvent, 256),
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
 			},
@@ -999,7 +999,7 @@ func TestStart_WithExtraEvent_WithMockey(t *testing.T) {
 			cancel:           cancel,
 			eventBucket:      mockBucket,
 			rebootEventStore: mockReboot,
-			extraEventCh:     make(chan *eventstore.Event, 256),
+			extraEventCh:     make(chan pendingEvent, 256),
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
 			},
@@ -1015,7 +1015,7 @@ func TestStart_WithExtraEvent_WithMockey(t *testing.T) {
 			Name:    "test_event",
 			Message: "test message",
 		}
-		comp.extraEventCh <- event
+		comp.extraEventCh <- pendingEvent{event: event}
 
 		// Allow time for processing
 		time.Sleep(200 * time.Millisecond)
@@ -1038,7 +1038,7 @@ func TestStart_WithNilExtraEvent_WithMockey(t *testing.T) {
 			cancel:           cancel,
 			eventBucket:      mockBucket,
 			rebootEventStore: mockReboot,
-			extraEventCh:     make(chan *eventstore.Event, 256),
+			extraEventCh:     make(chan pendingEvent, 256),
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
 			},
@@ -1049,7 +1049,7 @@ func TestStart_WithNilExtraEvent_WithMockey(t *testing.T) {
 		go comp.start(dummyCh, 50*time.Millisecond)
 
 		// Send nil event - should be handled gracefully
-		comp.extraEventCh <- nil
+		comp.extraEventCh <- pendingEvent{}
 
 		// Allow time for processing
 		time.Sleep(200 * time.Millisecond)
@@ -1074,7 +1074,7 @@ func TestStart_InsertEventError_WithMockey(t *testing.T) {
 			cancel:           cancel,
 			eventBucket:      mockBucket,
 			rebootEventStore: mockReboot,
-			extraEventCh:     make(chan *eventstore.Event, 256),
+			extraEventCh:     make(chan pendingEvent, 256),
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
 			},
@@ -1090,7 +1090,7 @@ func TestStart_InsertEventError_WithMockey(t *testing.T) {
 			Name:    "test_event",
 			Message: "test message",
 		}
-		comp.extraEventCh <- event
+		comp.extraEventCh <- pendingEvent{event: event}
 
 		// Allow time for processing
 		time.Sleep(200 * time.Millisecond)
@@ -1123,7 +1123,7 @@ func TestStart_DuplicateSXIDEvent_WithMockey(t *testing.T) {
 			eventBucket:      mockBucket,
 			rebootEventStore: mockReboot,
 			kmsgWatcher:      mockWatcher,
-			extraEventCh:     make(chan *eventstore.Event, 256),
+			extraEventCh:     make(chan pendingEvent, 256),
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
 			},
@@ -1168,7 +1168,7 @@ func TestStart_FindEventError_WithMockey(t *testing.T) {
 			eventBucket:      mockBucket,
 			rebootEventStore: mockReboot,
 			kmsgWatcher:      mockWatcher,
-			extraEventCh:     make(chan *eventstore.Event, 256),
+			extraEventCh:     make(chan pendingEvent, 256),
 			getTimeNowFunc: func() time.Time {
 				return time.Now().UTC()
 			},

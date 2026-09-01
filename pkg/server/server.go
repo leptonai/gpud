@@ -49,6 +49,7 @@ import (
 	pkgmetricsstore "github.com/leptonai/gpud/pkg/metrics/store"
 	pkgmetricssyncer "github.com/leptonai/gpud/pkg/metrics/syncer"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvsentinel"
 	"github.com/leptonai/gpud/pkg/session"
 	"github.com/leptonai/gpud/pkg/sqlite"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
@@ -295,6 +296,27 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 	}
 
+	// Start the NVSentinel receiver before component registration.
+	// Components subscribe to it in their constructors, so it must be
+	// ready when they are created.
+	var nvsSource nvsentinel.Source
+	nvsDedupWindow := nvsentinel.DefaultEventDedupWindow
+	if config.NVSentinel != nil {
+		if config.NVSentinel.EventDedupWindow.Duration > 0 {
+			nvsDedupWindow = config.NVSentinel.EventDedupWindow.Duration
+		}
+		if config.NVSentinel.Enabled {
+			socketPath := config.NVSentinel.SocketPath
+			if socketPath == "" {
+				socketPath = nvsentinel.DefaultSocketPath
+			}
+			nvsSource, err = nvsentinel.New(socketPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to start nvsentinel receiver: %w", err)
+			}
+		}
+	}
+
 	s.gpudInstance = &components.GPUdInstance{
 		RootCtx: ctx,
 
@@ -320,6 +342,9 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		ContainerdServiceActiveCommands: config.ContainerdServiceActiveCommands,
 
 		FailureInjector: config.FailureInjector,
+
+		NVSentinel:                 nvsSource,
+		NVSentinelEventDedupWindow: nvsDedupWindow,
 	}
 	if s.gpudInstance.MachineID == "" {
 		s.gpudInstance.MachineID = pkghost.MachineID()
@@ -467,6 +492,13 @@ func (s *Server) Stop() {
 			if err := closer.Close(); err != nil {
 				log.Logger.Errorf("failed to close plugin %v: %v", component.Name(), err)
 			}
+		}
+	}
+
+	if s.gpudInstance != nil && s.gpudInstance.NVSentinel != nil {
+		log.Logger.Debugw("closing nvsentinel receiver")
+		if err := s.gpudInstance.NVSentinel.Close(); err != nil {
+			log.Logger.Warnw("failed to close nvsentinel receiver", "error", err)
 		}
 	}
 

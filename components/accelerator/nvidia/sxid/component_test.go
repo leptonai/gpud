@@ -1103,7 +1103,7 @@ func TestSXIDComponent_Start_ChannelHandling(t *testing.T) {
 		Name:    "test_event",
 		Message: "test message",
 	}
-	component.extraEventCh <- event
+	component.extraEventCh <- pendingEvent{event: event}
 
 	// Also send a kmsg message to mock channel
 	mockCh <- kmsg.Message{
@@ -1446,7 +1446,7 @@ func TestSXIDComponent_Start_ExtraEventChannelEdgeCases(t *testing.T) {
 	}()
 
 	// nil events are skipped without any bucket interaction
-	component.extraEventCh <- nil
+	component.extraEventCh <- pendingEvent{}
 
 	// insert failure is logged and the loop continues
 	failInsert := &mockEventBucket{
@@ -1454,7 +1454,7 @@ func TestSXIDComponent_Start_ExtraEventChannelEdgeCases(t *testing.T) {
 		insertCalled: make(chan struct{}, 1),
 	}
 	component.eventBucket = failInsert
-	component.extraEventCh <- &eventstore.Event{Time: time.Now().UTC(), Name: "extra_event_insert_fail"}
+	component.extraEventCh <- pendingEvent{event: &eventstore.Event{Time: time.Now().UTC(), Name: "extra_event_insert_fail"}}
 	select {
 	case <-failInsert.insertCalled:
 	case <-time.After(5 * time.Second):
@@ -1468,7 +1468,7 @@ func TestSXIDComponent_Start_ExtraEventChannelEdgeCases(t *testing.T) {
 		getCalled:    make(chan struct{}, 1),
 	}
 	component.eventBucket = failGet
-	component.extraEventCh <- &eventstore.Event{Time: time.Now().UTC(), Name: "extra_event_get_fail"}
+	component.extraEventCh <- pendingEvent{event: &eventstore.Event{Time: time.Now().UTC(), Name: "extra_event_get_fail"}}
 	select {
 	case <-failGet.insertCalled:
 	case <-time.After(5 * time.Second):
@@ -1482,7 +1482,7 @@ func TestSXIDComponent_Start_ExtraEventChannelEdgeCases(t *testing.T) {
 
 	// success path: insert + state refresh both succeed
 	component.eventBucket = goodBucket
-	component.extraEventCh <- &eventstore.Event{Time: time.Now().UTC(), Name: "extra_event_ok", Message: "ok"}
+	component.extraEventCh <- pendingEvent{event: &eventstore.Event{Time: time.Now().UTC(), Name: "extra_event_ok", Message: "ok"}}
 	require.Eventually(t, func() bool {
 		events, err := goodBucket.Get(ctx, time.Now().Add(-time.Hour))
 		if err != nil {

@@ -97,6 +97,13 @@ type Config struct {
 	// PluginSpecsFile is the file that contains the plugin specs.
 	PluginSpecsFile string `json:"plugin_specs_file"`
 
+	// NVSentinel configures the optional NVSentinel integration.
+	// When enabled, GPUd serves the NVSentinel PlatformConnector gRPC API on
+	// a local unix socket. The node's NVSentinel platform-connector forwards
+	// health events to that socket. Components prefer the NVSentinel data
+	// point when one exists and fall back to their own detection otherwise.
+	NVSentinel *NVSentinelConfig `json:"nvsentinel,omitempty"`
+
 	// Components specifies the components to enable.
 	// Leave empty, "*", or "all" to enable all components.
 	// Or prefix component names with "-" to disable them.
@@ -139,6 +146,25 @@ type Config struct {
 	SessionEndpoint string `json:"-"`
 }
 
+// NVSentinelConfig holds the top-level NVSentinel endpoint settings.
+type NVSentinelConfig struct {
+	// Enabled turns the NVSentinel receiver on. Default false.
+	Enabled bool `json:"enabled"`
+
+	// SocketPath is the unix socket GPUd serves for NVSentinel health event
+	// forwarding. The NVSentinel platform-connector container must reach this
+	// path. The default works with the stock NVSentinel DaemonSet, which
+	// mounts the host /var/run/nvsentinel directory at container /var/run.
+	// Empty means nvsentinel.DefaultSocketPath.
+	SocketPath string `json:"socket_path,omitempty"`
+
+	// EventDedupWindow is how long a received NVSentinel event suppresses
+	// GPUd's own duplicate detection of the same data point. It needs only
+	// to cover the delivery skew between the two detectors that watch the
+	// same incident. Zero means nvsentinel.DefaultEventDedupWindow.
+	EventDedupWindow metav1.Duration `json:"event_dedup_window,omitempty"`
+}
+
 func (config *Config) Validate() error {
 	if config.Address == "" {
 		return errors.New("address is required")
@@ -151,6 +177,14 @@ func (config *Config) Validate() error {
 	}
 	if config.NFSHostRoot != "" && !filepath.IsAbs(config.NFSHostRoot) {
 		return fmt.Errorf("nfs_host_root must be an absolute path, got %q", config.NFSHostRoot)
+	}
+	if config.NVSentinel != nil {
+		if config.NVSentinel.SocketPath != "" && !filepath.IsAbs(config.NVSentinel.SocketPath) {
+			return fmt.Errorf("nvsentinel.socket_path must be an absolute path, got %q", config.NVSentinel.SocketPath)
+		}
+		if d := config.NVSentinel.EventDedupWindow.Duration; d < 0 {
+			return fmt.Errorf("nvsentinel.event_dedup_window must not be negative, got %s", d)
+		}
 	}
 	switch config.SessionProtocol {
 	case "", "v1", "v2", "auto":

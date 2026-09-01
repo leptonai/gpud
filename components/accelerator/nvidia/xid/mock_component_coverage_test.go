@@ -219,7 +219,7 @@ func TestComponent_start_Branches_WithMockey(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	extraCh := make(chan *eventstore.Event, 2)
+	extraCh := make(chan pendingEvent, 2)
 	kmsgCh := make(chan kmsg.Message, 2)
 
 	c := &component{
@@ -239,8 +239,8 @@ func TestComponent_start_Branches_WithMockey(t *testing.T) {
 			close(done)
 		}()
 
-		extraCh <- nil
-		extraCh <- &eventstore.Event{Name: "test", Time: time.Now()}
+		extraCh <- pendingEvent{}
+		extraCh <- pendingEvent{event: &eventstore.Event{Name: "test", Time: time.Now()}}
 		kmsgCh <- kmsg.Message{
 			Timestamp: metav1.Now(),
 			Message:   "this is not an xid message",
@@ -426,7 +426,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 			eventBucket: &stubEventBucket{
 				findErr: errors.New("find failed"),
 			},
-			extraEventCh: make(chan *eventstore.Event, 1),
+			extraEventCh: make(chan pendingEvent, 1),
 		}
 		run(t, c, xidMsg)
 	})
@@ -441,7 +441,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 			eventBucket: &stubEventBucket{
 				findEvent: &eventstore.Event{Name: EventNameErrorXid},
 			},
-			extraEventCh: make(chan *eventstore.Event, 1),
+			extraEventCh: make(chan pendingEvent, 1),
 		}
 		run(t, c, xidMsg)
 	})
@@ -456,7 +456,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 			eventBucket: &stubEventBucket{
 				insertErr: errors.New("insert failed"),
 			},
-			extraEventCh: make(chan *eventstore.Event, 1),
+			extraEventCh: make(chan pendingEvent, 1),
 		}
 		run(t, c, xidMsg)
 	})
@@ -469,7 +469,7 @@ func TestStart_KmsgEventBranches_WithMockey(t *testing.T) {
 			nvmlInstance: createMockNVMLInstance(),
 			devices:      map[string]device.Device{},
 			eventBucket:  &stubEventBucket{},
-			extraEventCh: make(chan *eventstore.Event, 1),
+			extraEventCh: make(chan pendingEvent, 1),
 		}
 
 		mockey.PatchConvey("updateCurrentState returns error after insert", t, func() {
