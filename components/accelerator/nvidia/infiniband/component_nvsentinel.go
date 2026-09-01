@@ -2,9 +2,13 @@ package infiniband
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	infinibandclass "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/class"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/nvsentinel"
@@ -153,6 +157,13 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 // matchPreferNVSentinel wraps the kmsg matcher. When NVSentinel already
 // reported the same NIC driver pattern within the dedup window, the kmsg
 // line produces no event — the NVSentinel copy stays the single record.
+//
+// ACCESS_REG failures are correlated per device: the native normalized
+// message carries the adapter's PCI BDF, while the NVSentinel event names
+// the NIC (for example "mlx5_0"), so the two identities are compared
+// through the sysfs device symlink. When the identities cannot be compared
+// the native event is retained — suppressing it could hide a distinct
+// device incident.
 func (c *component) matchPreferNVSentinel(line string) (string, string) {
 	eventName, message := Match(line)
 	if eventName == "" || c.nvsSource == nil {
@@ -162,6 +173,18 @@ func (c *component) matchPreferNVSentinel(line string) (string, string) {
 	pattern, ok := eventNameToNVSPattern[eventName]
 	if !ok {
 		return eventName, message
+	}
+
+	// The ACCESS_REG dedup policy is per-device (see kmsgEventDedupWindow).
+	// Without the native PCI address the devices cannot be compared, so
+	// keep the native event rather than suppressing it on a pattern-only
+	// match from a potentially different adapter.
+	nativePCI := ""
+	if eventName == eventAccessRegFailed {
+		nativePCI = pciDeviceFromMessage(message)
+		if nativePCI == "" {
+			return eventName, message
+		}
 	}
 
 	covered := c.nvsSource.Covers(c.nvsDedupWindow, func(ev nvsentinel.HealthEvent) bool {
@@ -174,7 +197,20 @@ func (c *component) matchPreferNVSentinel(line string) (string, string) {
 		if ev.CheckName != checkNameSyslogsNICDriverError || len(ev.ErrorCodes) == 0 {
 			return false
 		}
-		return ev.ErrorCodes[0] == pattern
+		if ev.ErrorCodes[0] != pattern {
+			return false
+		}
+		if eventName == eventAccessRegFailed {
+			nic, _ := ev.EntityValue("NIC")
+			evPCI := c.resolveNICPCIAddress(nic)
+			if evPCI == "" {
+				// The NVSentinel event names no comparable device; it must
+				// not suppress this native report.
+				return false
+			}
+			return evPCI == nativePCI
+		}
+		return true
 	})
 	if covered {
 		log.Logger.Infow("nvsentinel covers this infiniband data point, skipping gpud-native insert",
@@ -189,8 +225,9 @@ func (c *component) matchPreferNVSentinel(line string) (string, string) {
 // with the same name within the dedup window around ts. ACCESS_REG events
 // are additionally correlated by NIC device: two adapters can fail within
 // the window, and the component's dedup policy for ACCESS_REG is
-// per-device (see kmsgEventDedupWindow). When either side has no device,
-// the match deliberately falls back to the name-only policy.
+// per-device (see kmsgEventDedupWindow). When the incoming NVSentinel
+// event names no device, the match deliberately falls back to the
+// name-only policy.
 func (c *component) hasStoredEventTwin(eventName string, device string, ts time.Time) bool {
 	ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 	events, err := c.eventBucket.Get(ctx, ts.Add(-c.nvsDedupWindow))
@@ -205,13 +242,91 @@ func (c *component) hasStoredEventTwin(eventName string, device string, ts time.
 			continue
 		}
 		if eventName == eventAccessRegFailed && device != "" {
-			// Both sides must name the same NIC; a stored event without a
-			// device (e.g. a native kmsg copy) keeps the name-only match.
-			if storedDevice := stored.ExtraInfo[EventKeyNVSentinelNICDevice]; storedDevice != "" && storedDevice != device {
+			if !c.sameAccessRegDevice(stored, device) {
 				continue
 			}
 		}
 		return true
 	}
 	return false
+}
+
+// sameAccessRegDevice reports whether a stored ACCESS_REG event belongs to
+// the same NIC as the incoming NVSentinel event. A stored NVSentinel copy
+// names the NIC directly. A native kmsg copy does not populate the
+// NVSentinel-specific key, but its normalized message embeds the adapter's
+// PCI BDF, which is mapped back to the NIC name through the sysfs device
+// symlink. When the stored event's device identity cannot be determined,
+// no twin is claimed: skipping the incoming event would also mark it
+// covered and lose a potentially distinct device incident.
+func (c *component) sameAccessRegDevice(stored eventstore.Event, device string) bool {
+	if storedDevice := stored.ExtraInfo[EventKeyNVSentinelNICDevice]; storedDevice != "" {
+		return storedDevice == device
+	}
+	storedPCI := pciDeviceFromMessage(stored.Message)
+	if storedPCI == "" {
+		return false
+	}
+	devicePCI := c.resolveNICPCIAddress(device)
+	if devicePCI == "" {
+		return false
+	}
+	return storedPCI == devicePCI
+}
+
+// pciDeviceFromMessage extracts the PCI BDF the kmsg matcher embedded in a
+// normalized ACCESS_REG message ("(PCI device 0000:5c:00.0)", see
+// accessRegFailedMessage). It returns "" when the message carries no PCI
+// address.
+func pciDeviceFromMessage(message string) string {
+	idx := strings.Index(message, pciDeviceMessagePrefix)
+	if idx < 0 {
+		return ""
+	}
+	rest := message[idx+len(pciDeviceMessagePrefix):]
+	if end := strings.IndexByte(rest, ')'); end >= 0 {
+		rest = rest[:end]
+	}
+	return strings.ToLower(rest)
+}
+
+// resolveNICPCIAddress maps an InfiniBand device name (for example
+// "mlx5_0") to its PCI BDF address (for example "0000:5c:00.0") by reading
+// the device symlink under the InfiniBand class root directory
+// (/sys/class/infiniband/<name>/device). It returns "" when the mapping
+// cannot be resolved. Successful resolutions are cached: the name-to-BDF
+// mapping is static for the lifetime of a boot, and ACCESS_REG floods can
+// otherwise turn into repeated reads of the same symlink.
+func (c *component) resolveNICPCIAddress(nicName string) string {
+	if nicName == "" {
+		return ""
+	}
+
+	c.nicPCICacheMu.RLock()
+	bdf, ok := c.nicPCICache[nicName]
+	c.nicPCICacheMu.RUnlock()
+	if ok {
+		return bdf
+	}
+
+	rootDir := c.toolOverwrites.InfinibandClassRootDir
+	if rootDir == "" {
+		rootDir = infinibandclass.DefaultRootDir
+	}
+	link, err := os.Readlink(filepath.Join(rootDir, nicName, "device"))
+	if err != nil {
+		return ""
+	}
+	bdf = strings.ToLower(filepath.Base(link))
+	if !compiledPCIDevice.MatchString(bdf) {
+		return ""
+	}
+
+	c.nicPCICacheMu.Lock()
+	if c.nicPCICache == nil {
+		c.nicPCICache = make(map[string]string)
+	}
+	c.nicPCICache[nicName] = bdf
+	c.nicPCICacheMu.Unlock()
+	return bdf
 }

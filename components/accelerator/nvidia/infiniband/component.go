@@ -115,6 +115,13 @@ type component struct {
 	nvsDedupWindow time.Duration
 	nvsUnsubscribe func()
 	// ^ stop function returned by nvsSource.Subscribe
+
+	// nicPCICache maps InfiniBand device names (for example "mlx5_0") to
+	// their PCI BDF addresses, resolved from the device symlink under the
+	// InfiniBand class root. ACCESS_REG event correlation uses it to
+	// compare the NVSentinel NIC name with the native kmsg PCI identity.
+	nicPCICacheMu sync.RWMutex
+	nicPCICache   map[string]string
 }
 
 // New creates the NVIDIA InfiniBand component for a gpud instance.
@@ -149,6 +156,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return infinibandclass.LoadDevices(gpudInstance.NVIDIAToolOverwrites.InfinibandClassRootDir, opts...)
 		},
 		ignoreFiles: make(map[string]struct{}),
+		nicPCICache: make(map[string]string),
 	}
 
 	if gpudInstance.DBRW != nil && gpudInstance.DBRO != nil {

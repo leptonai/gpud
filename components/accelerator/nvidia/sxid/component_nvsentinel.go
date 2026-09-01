@@ -30,6 +30,12 @@ const (
 	// EventKeyNVSentinelEventID records the NVSentinel event ID. Operators can
 	// cross-reference it with the NVSentinel datastore.
 	EventKeyNVSentinelEventID = "nvsentinel_event_id"
+	// EventKeyNVSentinelSwitchPCI records the normalized NVSwitch PCI address
+	// from the NVSentinel PCI entity (for example "0000:05:00.0"). An SXid
+	// error belongs to a switch, not to a GPU: the stored-twin check compares
+	// this switch identity rather than the GPU UUID, because two switches
+	// reporting the same SXid can map to the same GPU (or to no GPU at all).
+	EventKeyNVSentinelSwitchPCI = "nvsentinel_switch_pci"
 )
 
 // pendingEvent is one event queued for insertion into the event bucket.
@@ -84,7 +90,7 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		return
 	}
 
-	sxidNum, deviceUUID, ok := c.matchNVSentinelSXid(ev)
+	sxidNum, deviceUUID, switchPCI, ok := c.matchNVSentinelSXid(ev)
 	if !ok {
 		return
 	}
@@ -132,14 +138,17 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 			EventKeyDeviceUUID:          deviceUUID,
 			EventKeyNVSentinelCheckName: ev.CheckName,
 			EventKeyNVSentinelEventID:   ev.ID,
+			EventKeyNVSentinelSwitchPCI: switchPCI,
 		},
 	}
 
 	// When GPUd's kmsg detection won the delivery race, its copy is
 	// already in the bucket. Skip this NVSentinel copy so the incident
 	// stays at one event. The data point is already durable, so coverage
-	// is safe to claim.
-	if c.hasStoredSXidTwin(sxidNum, deviceUUID, ev.GeneratedTimestamp) {
+	// is safe to claim. The twin check compares the switch PCI identity:
+	// an SXid error belongs to a switch, and two switches reporting the
+	// same SXid are distinct incidents even when they map to the same GPU.
+	if c.hasStoredSXidTwin(sxidNum, switchPCI, ev.GeneratedTimestamp) {
 		log.Logger.Infow("gpud already stored this sxid data point, skipping nvsentinel copy",
 			"sxid", sxidNum, "deviceUUID", deviceUUID, "checkName", ev.CheckName)
 		if c.nvsSource != nil {
@@ -157,34 +166,45 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 }
 
 // matchNVSentinelSXid reports whether the NVSentinel event is an SXid data
-// point for this component, and extracts the SXid number and GPU UUID.
+// point for this component, and extracts the SXid number, the GPU UUID, and
+// the normalized NVSwitch PCI address.
 //
 // The matcher accepts events with the SysLogsSXIDError check name or the
 // NVSWITCH component class. Any numeric error code qualifies. The GPUd
 // catalog enriches known codes. An unknown code is still stored —
 // NVSentinel's detection must not be dropped just because the catalog is
-// older than the hardware. The GPU UUID comes from the PCI entity when
-// the NVML device list can map it.
-func (c *component) matchNVSentinelSXid(ev nvsentinel.HealthEvent) (int, string, bool) {
+// older than the hardware.
+//
+// The GPU UUID comes from the GPU_UUID entity and identifies the impacted
+// GPU for operators. The switch PCI address comes from the PCI entity and
+// identifies the reporting switch; it is the identity used for incident
+// correlation, because an SXid error belongs to a switch, not to a GPU.
+func (c *component) matchNVSentinelSXid(ev nvsentinel.HealthEvent) (sxidNum int, deviceUUID string, switchPCI string, ok bool) {
 	if ev.CheckName != checkNameSyslogsSXIDError && ev.ComponentClass != "NVSWITCH" {
-		return 0, "", false
+		return 0, "", "", false
 	}
 
-	sxidNum := -1
+	num := -1
 	for _, code := range ev.ErrorCodes {
 		if n, err := strconv.Atoi(code); err == nil {
-			sxidNum = n
+			num = n
 			break
 		}
 	}
-	if sxidNum < 0 {
-		return 0, "", false
+	if num < 0 {
+		return 0, "", "", false
 	}
 
 	// NVSentinel reports the GPU UUID directly in the GPU_UUID entity.
 	// No PCI-to-UUID resolution is needed.
-	deviceUUID, _ := ev.EntityValue("GPU_UUID")
-	return sxidNum, deviceUUID, true
+	deviceUUID, _ = ev.EntityValue("GPU_UUID")
+
+	// NVSentinel carries the switch PCI address in its PCI entity
+	// ("0000:05:00.0"); the native kmsg report carries the same address
+	// with a "PCI:" prefix. Normalize for comparison.
+	pci, _ := ev.EntityValue("PCI")
+	switchPCI = normalizePCIAddress(pci)
+	return num, deviceUUID, switchPCI, true
 }
 
 func (c *component) nvsentinelCoversSXid(sxidErr *Error) bool {
@@ -204,7 +224,7 @@ func (c *component) nvsentinelCoversSXid(sxidErr *Error) bool {
 		if ev.IsHealthy {
 			return false
 		}
-		evSXid, _, ok := c.matchNVSentinelSXid(ev)
+		evSXid, _, evPCI, ok := c.matchNVSentinelSXid(ev)
 		if !ok || evSXid != sxidErr.SXid {
 			return false
 		}
@@ -214,8 +234,6 @@ func (c *component) nvsentinelCoversSXid(sxidErr *Error) bool {
 		// only the same switch covers. When either side lacks the address,
 		// deliberately fall back to the number-only match — both detectors
 		// read the same kernel report.
-		evPCI, _ := ev.EntityValue("PCI")
-		evPCI = normalizePCIAddress(evPCI)
 		if nativePCI != "" && evPCI != "" {
 			return nativePCI == evPCI
 		}
@@ -235,8 +253,16 @@ func normalizePCIAddress(addr string) string {
 }
 
 // hasStoredSXidTwin reports whether the bucket already holds an event for the
-// same SXid data point within the dedup window around ts.
-func (c *component) hasStoredSXidTwin(sxidNum int, deviceUUID string, ts time.Time) bool {
+// same SXid data point within the dedup window around ts. Incidents are
+// correlated by the switch PCI address: an SXid error belongs to an NVSwitch,
+// and two switches reporting the same SXid are distinct incidents even when
+// they map to the same GPU UUID (or when the GPU UUID is empty). Claiming a
+// twin also records NVSentinel coverage for the incoming event, so a false
+// twin would suppress the second switch's native report without ever storing
+// it.
+func (c *component) hasStoredSXidTwin(sxidNum int, switchPCI string, ts time.Time) bool {
+	switchPCI = normalizePCIAddress(switchPCI)
+
 	ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 	events, err := c.eventBucket.Get(ctx, ts.Add(-c.nvsDedupWindow))
 	cancel()
@@ -257,10 +283,16 @@ func (c *component) hasStoredSXidTwin(sxidNum int, deviceUUID string, ts time.Ti
 		// JSON detail format. Try the legacy parse first; it is cheaper.
 		raw := stored.ExtraInfo[EventKeyErrorSXidData]
 		if legacy, err := strconv.Atoi(raw); err == nil {
-			if legacy == sxidNum {
-				return true
+			if legacy != sxidNum {
+				continue
 			}
-			continue
+			// The native kmsg copy stores the switch PCI address
+			// ("PCI:0000:05:00.0") in the device_uuid key.
+			storedPCI := normalizePCIAddress(stored.ExtraInfo[EventKeyDeviceUUID])
+			if !sameSwitchPCI(storedPCI, switchPCI) {
+				continue
+			}
+			return true
 		}
 		var detail sxidErrorEventDetail
 		if err := json.Unmarshal([]byte(raw), &detail); err != nil {
@@ -270,10 +302,25 @@ func (c *component) hasStoredSXidTwin(sxidNum int, deviceUUID string, ts time.Ti
 		if !ok || storedSXid != sxidNum {
 			continue
 		}
-		if deviceUUID != "" && detail.DeviceUUID != "" && detail.DeviceUUID != deviceUUID {
+		// NVSentinel-stored copies persist the switch PCI address under the
+		// nvsentinel_switch_pci key. detail.DeviceUUID is the GPU UUID and
+		// must not be compared here: two switches can map to the same GPU.
+		storedPCI := normalizePCIAddress(stored.ExtraInfo[EventKeyNVSentinelSwitchPCI])
+		if !sameSwitchPCI(storedPCI, switchPCI) {
 			continue
 		}
 		return true
 	}
 	return false
+}
+
+// sameSwitchPCI reports whether two normalized switch PCI addresses identify
+// the same NVSwitch. When either side lacks the address, the comparison is
+// inconclusive and deliberately falls back to the SXid-number-only match —
+// both detectors read the same kernel report.
+func sameSwitchPCI(a, b string) bool {
+	if a != "" && b != "" {
+		return a == b
+	}
+	return true
 }

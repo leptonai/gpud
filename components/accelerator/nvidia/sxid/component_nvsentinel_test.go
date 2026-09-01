@@ -72,27 +72,28 @@ func TestMatchNVSentinelSXid(t *testing.T) {
 	c := &component{}
 
 	// The SXid syslog check matches by check name.
-	num, _, ok := c.matchNVSentinelSXid(newNVSentinelSXidEvent("12028"))
+	num, _, switchPCI, ok := c.matchNVSentinelSXid(newNVSentinelSXidEvent("12028"))
 	assert.True(t, ok)
 	assert.Equal(t, 12028, num)
+	assert.Equal(t, "0000:05:00.0", switchPCI)
 
 	// The NVSWITCH component class also identifies SXid data points.
 	ev := newNVSentinelSXidEvent("12028")
 	ev.CheckName = "CustomSwitchCheck"
 	ev.ComponentClass = "NVSWITCH"
-	_, _, ok = c.matchNVSentinelSXid(ev)
+	_, _, _, ok = c.matchNVSentinelSXid(ev)
 	assert.True(t, ok)
 
 	// The plain Xid check belongs to the xid component.
 	ev = newNVSentinelSXidEvent("79")
 	ev.CheckName = "SysLogsXIDError"
 	ev.ComponentClass = "GPU"
-	_, _, ok = c.matchNVSentinelSXid(ev)
+	_, _, _, ok = c.matchNVSentinelSXid(ev)
 	assert.False(t, ok)
 
 	// A non-numeric error code carries no SXid data point.
 	ev = newNVSentinelSXidEvent("not-a-number")
-	_, _, ok = c.matchNVSentinelSXid(ev)
+	_, _, _, ok = c.matchNVSentinelSXid(ev)
 	assert.False(t, ok)
 }
 
@@ -119,6 +120,8 @@ func TestNVSentinelSXidEventInserted(t *testing.T) {
 	assert.Equal(t, EventNameErrorSXid, stored.Name)
 	assert.Equal(t, string(apiv1.EventTypeFatal), stored.Type)
 	assert.Equal(t, "nvs-event-1", stored.ExtraInfo[EventKeyNVSentinelEventID])
+	// The switch PCI identity is persisted for the stored-twin check.
+	assert.Equal(t, "0000:05:00.0", stored.ExtraInfo[EventKeyNVSentinelSwitchPCI])
 
 	var detail sxidErrorEventDetail
 	require.NoError(t, json.Unmarshal([]byte(stored.ExtraInfo[EventKeyErrorSXidData]), &detail))
@@ -189,25 +192,31 @@ func TestHasStoredSXidTwinJSONFormat(t *testing.T) {
 	raw, err := json.Marshal(payload)
 	require.NoError(t, err)
 
+	// The NVSentinel copy persists the switch PCI address under the
+	// nvsentinel_switch_pci key; the GPU UUID is operator context only.
 	require.NoError(t, c.eventBucket.Insert(context.Background(), eventstore.Event{
 		Time: now,
 		Name: EventNameErrorSXid,
 		ExtraInfo: map[string]string{
-			EventKeyErrorSXidData: string(raw),
-			EventKeyDeviceUUID:    "GPU-abc",
+			EventKeyErrorSXidData:       string(raw),
+			EventKeyDeviceUUID:          "GPU-abc",
+			EventKeyNVSentinelSwitchPCI: "0000:05:00.0",
 		},
 	}))
 
-	// Same SXid and device: twin found.
-	assert.True(t, c.hasStoredSXidTwin(12028, "GPU-abc", now))
+	// Same SXid on the same switch: twin found.
+	assert.True(t, c.hasStoredSXidTwin(12028, "0000:05:00.0", now))
 
 	// Different SXid: no twin.
-	assert.False(t, c.hasStoredSXidTwin(12029, "GPU-abc", now))
+	assert.False(t, c.hasStoredSXidTwin(12029, "0000:05:00.0", now))
 
-	// Different device UUID: no twin.
-	assert.False(t, c.hasStoredSXidTwin(12028, "GPU-other", now))
+	// Same SXid on a different switch: no twin — a distinct incident even
+	// though both switches map to the same stored GPU UUID.
+	assert.False(t, c.hasStoredSXidTwin(12028, "0000:07:00.0", now))
 
-	// Empty device UUID on the query: still a twin (UUID mismatch is skipped when either side is empty).
+	// Empty switch PCI on the query: still a twin (the PCI comparison is
+	// skipped when either side is empty — both detectors read the same
+	// kernel report).
 	assert.True(t, c.hasStoredSXidTwin(12028, "", now))
 }
 
@@ -216,15 +225,29 @@ func TestHasStoredSXidTwinLegacyFormat(t *testing.T) {
 	c := newTestComponentWithNVSentinel(t, src)
 
 	now := time.Now().UTC()
-	// Legacy format stores the SXid number as a plain string in EventKeyErrorSXidData.
+	// Legacy format stores the SXid number as a plain string in
+	// EventKeyErrorSXidData and the switch PCI address ("PCI:...") in the
+	// device_uuid key.
 	require.NoError(t, c.eventBucket.Insert(context.Background(), eventstore.Event{
 		Time: now,
 		Name: EventNameErrorSXid,
 		ExtraInfo: map[string]string{
 			EventKeyErrorSXidData: "12028",
+			EventKeyDeviceUUID:    "PCI:0000:05:00.0",
 		},
 	}))
 
+	// The same switch, with or without the "PCI:" prefix: twin found.
+	assert.True(t, c.hasStoredSXidTwin(12028, "0000:05:00.0", now))
+	assert.True(t, c.hasStoredSXidTwin(12028, "PCI:0000:05:00.0", now))
+
+	// The same SXid on a different switch: no twin.
+	assert.False(t, c.hasStoredSXidTwin(12028, "0000:07:00.0", now))
+
+	// Different SXid: no twin.
+	assert.False(t, c.hasStoredSXidTwin(12029, "0000:05:00.0", now))
+
+	// Empty switch PCI on the query: number-only fallback twin.
 	assert.True(t, c.hasStoredSXidTwin(12028, "", now))
 	assert.False(t, c.hasStoredSXidTwin(12029, "", now))
 }
@@ -378,6 +401,81 @@ func TestNVSentinelSXidEventSkippedWhenGPUdTwinStored(t *testing.T) {
 
 	// The NVSentinel copy of the same incident is skipped.
 	src.Send(newNVSentinelSXidEvent("12028"))
+	time.Sleep(time.Second)
+
+	events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.Len(t, events, 1)
+}
+
+// TestNVSentinelSXidTwinCheckUsesSwitchPCI is a regression test for the
+// stored-twin check: two NVSwitches reporting the same SXid are distinct
+// incidents even when both NVSentinel events name the same GPU UUID. The
+// second event must be stored, not skipped as a twin — skipping it would
+// also record NVSentinel coverage for a data point that was never
+// persisted, suppressing the second switch's native kmsg report.
+func TestNVSentinelSXidTwinCheckUsesSwitchPCI(t *testing.T) {
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	kmsgCh := make(chan kmsg.Message, 1)
+	go c.start(kmsgCh, time.Hour)
+
+	// Both switches report the same SXid and map to the same GPU; only
+	// their PCI addresses differ.
+	eventFor := func(pci string, id string) nvsentinel.HealthEvent {
+		ev := newNVSentinelSXidEvent("12028")
+		ev.ID = id
+		ev.Entities = []nvsentinel.Entity{
+			{Type: "GPU_UUID", Value: "GPU-shared"},
+			{Type: "PCI", Value: pci},
+		}
+		return ev
+	}
+
+	src.Send(eventFor("0000:05:00.0", "nvs-event-switch-1"))
+	src.Send(eventFor("0000:07:00.0", "nvs-event-switch-2"))
+
+	ctx := context.Background()
+	require.Eventually(t, func() bool {
+		events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+		return err == nil && len(events) == 2
+	}, 10*time.Second, 50*time.Millisecond)
+
+	events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	require.Len(t, events, 2)
+	byID := map[string]eventstore.Event{}
+	for _, e := range events {
+		byID[e.ExtraInfo[EventKeyNVSentinelEventID]] = e
+	}
+	assert.Equal(t, "0000:05:00.0", byID["nvs-event-switch-1"].ExtraInfo[EventKeyNVSentinelSwitchPCI])
+	assert.Equal(t, "0000:07:00.0", byID["nvs-event-switch-2"].ExtraInfo[EventKeyNVSentinelSwitchPCI])
+}
+
+// TestNVSentinelSXidTwinSameSwitchPCIStillSkips is the companion case: a
+// redelivered NVSentinel event for the same switch stays a twin and is not
+// stored twice.
+func TestNVSentinelSXidTwinSameSwitchPCIStillSkips(t *testing.T) {
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	kmsgCh := make(chan kmsg.Message, 1)
+	go c.start(kmsgCh, time.Hour)
+
+	src.Send(newNVSentinelSXidEvent("12028"))
+
+	ctx := context.Background()
+	require.Eventually(t, func() bool {
+		events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+		return err == nil && len(events) == 1
+	}, 10*time.Second, 50*time.Millisecond)
+
+	// The platform connector retries the same event (new event ID, same
+	// switch PCI): the stored copy is a twin, so the retry is skipped.
+	dup := newNVSentinelSXidEvent("12028")
+	dup.ID = "nvs-event-retry"
+	src.Send(dup)
 	time.Sleep(time.Second)
 
 	events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))

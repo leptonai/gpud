@@ -3,6 +3,8 @@ package infiniband
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -413,8 +415,10 @@ func TestNVSentinelIBAccessRegFailedPerDevice(t *testing.T) {
 }
 
 func TestNVSentinelIBAccessRegFailedTwinFallbackWithoutDevice(t *testing.T) {
-	// A native kmsg copy carries no NVSentinel NIC device key: the twin
-	// check deliberately falls back to the name-only match.
+	// A native kmsg copy carries no NVSentinel NIC device key. When its
+	// normalized message also lacks a PCI BDF, the stored event's device
+	// identity is unknown, so no twin is claimed: the NVSentinel event is
+	// stored rather than skipped-and-covered.
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
@@ -425,11 +429,167 @@ func TestNVSentinelIBAccessRegFailedTwinFallbackWithoutDevice(t *testing.T) {
 	}))
 
 	src.Send(newNVSentinelNICEvent("access_reg_failed", "mlx5_1"))
+
+	ctx := context.Background()
+	require.Eventually(t, func() bool {
+		events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+		return err == nil && len(events) == 2
+	}, 10*time.Second, 50*time.Millisecond)
+}
+
+// writeFakeIBClassRoot builds a minimal InfiniBand class root whose device
+// symlinks map NIC names to PCI BDF addresses, the way
+// /sys/class/infiniband/<name>/device does.
+func writeFakeIBClassRoot(t *testing.T, nicToBDF map[string]string) string {
+	t.Helper()
+	root := t.TempDir()
+	for nic, bdf := range nicToBDF {
+		nicDir := filepath.Join(root, nic)
+		require.NoError(t, os.MkdirAll(nicDir, 0o755))
+		require.NoError(t, os.Symlink(filepath.Join("..", "..", bdf), filepath.Join(nicDir, "device")))
+	}
+	return root
+}
+
+func TestResolveNICPCIAddress(t *testing.T) {
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+	c.toolOverwrites.InfinibandClassRootDir = writeFakeIBClassRoot(t, map[string]string{
+		"mlx5_0": "0000:5c:00.0",
+	})
+
+	assert.Equal(t, "0000:5c:00.0", c.resolveNICPCIAddress("mlx5_0"))
+	// Unknown devices and empty names do not resolve.
+	assert.Equal(t, "", c.resolveNICPCIAddress("mlx5_9"))
+	assert.Equal(t, "", c.resolveNICPCIAddress(""))
+
+	// A successful resolution is cached: removing the fixture still
+	// resolves.
+	require.NoError(t, os.RemoveAll(c.toolOverwrites.InfinibandClassRootDir))
+	assert.Equal(t, "0000:5c:00.0", c.resolveNICPCIAddress("mlx5_0"))
+}
+
+func TestPCIDeviceFromMessage(t *testing.T) {
+	assert.Equal(t, "0000:5c:00.0", pciDeviceFromMessage(
+		"MLX5 ACCESS_REG command failed - device may have restricted PF access (PCI device 0000:5c:00.0)"))
+	assert.Equal(t, "", pciDeviceFromMessage(
+		"MLX5 ACCESS_REG command failed - device may have restricted PF access"))
+	assert.Equal(t, "", pciDeviceFromMessage(""))
+}
+
+// TestNVSentinelIBAccessRegFailedTwinCorrelatesNativeBDF covers the native
+// stored-twin path: the stored kmsg copy names its adapter by PCI BDF, and
+// the incoming NVSentinel event names it by NIC. The two are the same
+// incident only when the sysfs device symlink maps them together.
+func TestNVSentinelIBAccessRegFailedTwinCorrelatesNativeBDF(t *testing.T) {
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+	c.toolOverwrites.InfinibandClassRootDir = writeFakeIBClassRoot(t, map[string]string{
+		"mlx5_0": "0000:5c:00.0",
+		"mlx5_1": "0000:d2:00.0",
+	})
+
+	// GPUd's kmsg detection stores its copy first; the normalized message
+	// carries the adapter's PCI BDF.
+	require.NoError(t, c.eventBucket.Insert(context.Background(), eventstore.Event{
+		Time:    time.Now().UTC(),
+		Name:    eventAccessRegFailed,
+		Type:    string(apiv1.EventTypeCritical),
+		Message: "MLX5 ACCESS_REG command failed - device may have restricted PF access (PCI device 0000:5c:00.0)",
+	}))
+
+	// The same adapter (mlx5_0 → 0000:5c:00.0): the NVSentinel copy is a
+	// twin and stays skipped.
+	src.Send(newNVSentinelNICEvent("access_reg_failed", "mlx5_0"))
 	time.Sleep(500 * time.Millisecond)
 
 	events, err := c.eventBucket.Get(context.Background(), time.Now().Add(-time.Hour))
 	require.NoError(t, err)
 	assert.Len(t, events, 1)
+
+	// A different adapter (mlx5_1 → 0000:d2:00.0) within the window: a
+	// distinct incident that must be stored, not skipped-and-covered.
+	src.Send(newNVSentinelNICEvent("access_reg_failed", "mlx5_1"))
+
+	ctx := context.Background()
+	require.Eventually(t, func() bool {
+		events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+		return err == nil && len(events) == 2
+	}, 10*time.Second, 50*time.Millisecond)
+}
+
+// TestMatchPreferNVSentinelAccessRegPerDevice covers the suppression
+// direction: NVSentinel coverage for one adapter must not suppress the
+// native ACCESS_REG report of another adapter.
+func TestMatchPreferNVSentinelAccessRegPerDevice(t *testing.T) {
+	const line = "mlx5_core 0000:5c:00.0: mlx5_cmd_out_err:838:(pid 268269): ACCESS_REG(0x805) op_mod(0x1) failed, status bad resource(0x5), syndrome (0x305684), err(-22)"
+
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+	c.toolOverwrites.InfinibandClassRootDir = writeFakeIBClassRoot(t, map[string]string{
+		"mlx5_0": "0000:5c:00.0",
+		"mlx5_1": "0000:d2:00.0",
+	})
+
+	// No coverage yet: the native line produces an event.
+	name, message := c.matchPreferNVSentinel(line)
+	assert.Equal(t, eventAccessRegFailed, name)
+	assert.Contains(t, message, "0000:5c:00.0")
+
+	// Coverage for the same adapter (mlx5_0 → 0000:5c:00.0): the native
+	// copy is suppressed.
+	src.RecordCoverage(newNVSentinelNICEvent("access_reg_failed", "mlx5_0"))
+	name, message = c.matchPreferNVSentinel(line)
+	assert.Empty(t, name)
+	assert.Empty(t, message)
+}
+
+func TestMatchPreferNVSentinelAccessRegKeepsOtherDevice(t *testing.T) {
+	// The native line reports the adapter at 0000:d2:00.0 (mlx5_1) while
+	// NVSentinel coverage exists only for mlx5_0 (0000:5c:00.0): the
+	// native report of a distinct adapter must be retained.
+	const line = "mlx5_core 0000:d2:00.0: mlx5_cmd_out_err:838:(pid 268269): ACCESS_REG(0x805) op_mod(0x1) failed"
+
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+	c.toolOverwrites.InfinibandClassRootDir = writeFakeIBClassRoot(t, map[string]string{
+		"mlx5_0": "0000:5c:00.0",
+		"mlx5_1": "0000:d2:00.0",
+	})
+
+	src.RecordCoverage(newNVSentinelNICEvent("access_reg_failed", "mlx5_0"))
+
+	name, message := c.matchPreferNVSentinel(line)
+	assert.Equal(t, eventAccessRegFailed, name)
+	assert.NotEmpty(t, message)
+}
+
+func TestMatchPreferNVSentinelAccessRegKeepsUncomparable(t *testing.T) {
+	// When the two identities cannot be compared, the native event is
+	// retained rather than suppressed on a pattern-only match.
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+	c.toolOverwrites.InfinibandClassRootDir = writeFakeIBClassRoot(t, map[string]string{
+		"mlx5_0": "0000:5c:00.0",
+	})
+	src.RecordCoverage(newNVSentinelNICEvent("access_reg_failed", "mlx5_0"))
+
+	// The native line carries no PCI BDF: cannot compare.
+	name, _ := c.matchPreferNVSentinel("mlx5_cmd_out_err:838:(pid 1441871): ACCESS_REG(0x805) op_mod(0x1) failed, status bad resource(0x5), syndrome (0x305684), err(-22)")
+	assert.Equal(t, eventAccessRegFailed, name)
+
+	// The NVSentinel event names a NIC that does not resolve: cannot
+	// compare.
+	src2 := nvsentineltest.NewFakeSource()
+	c2 := newTestComponentWithNVSentinel(t, src2)
+	c2.toolOverwrites.InfinibandClassRootDir = writeFakeIBClassRoot(t, map[string]string{
+		"mlx5_0": "0000:5c:00.0",
+	})
+	src2.RecordCoverage(newNVSentinelNICEvent("access_reg_failed", "mlx5_9"))
+
+	const line = "mlx5_core 0000:d2:00.0: mlx5_cmd_out_err:838:(pid 268269): ACCESS_REG(0x805) op_mod(0x1) failed"
+	name, _ = c2.matchPreferNVSentinel(line)
+	assert.Equal(t, eventAccessRegFailed, name)
 }
 
 func TestNVSentinelIBHealthyEventDoesNotCover(t *testing.T) {

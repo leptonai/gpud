@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/leptonai/gpud/pkg/nvsentinel/proto/datamodels"
@@ -197,14 +199,38 @@ func TestSourceSubscriberUnsubscribeAndClose(t *testing.T) {
 
 	ch, unsubscribe := src.Subscribe()
 	unsubscribe()
-	// Unsubscribe closes the channel and is safe to call twice.
-	_, open := <-ch
-	assert.False(t, open)
+	// Unsubscribe detaches the listener without closing the channel (the
+	// dispatcher is the only sender and may still hold a reference); the
+	// channel is closed when the source is closed. Unsubscribe is safe to
+	// call twice.
+	select {
+	case ev := <-ch:
+		t.Fatalf("unexpected event after unsubscribe: %+v", ev)
+	case <-time.After(100 * time.Millisecond):
+	}
 	unsubscribe()
 
+	// An event enqueued after unsubscribe is not delivered to the
+	// detached listener; it is held for zero subscribers instead.
+	s := src.(*source)
+	require.NoError(t, s.enqueue(HealthEvent{CheckName: "held"}))
+	select {
+	case ev := <-ch:
+		t.Fatalf("unsubscribed listener received event: %+v", ev)
+	case <-time.After(200 * time.Millisecond):
+	}
+
 	ch2, _ := src.Subscribe()
+	// The held event is delivered to the new subscriber.
+	select {
+	case ev := <-ch2:
+		assert.Equal(t, "held", ev.CheckName)
+	case <-time.After(5 * time.Second):
+		t.Fatal("held event was not delivered to the new subscriber")
+	}
+
 	require.NoError(t, src.Close())
-	_, open = <-ch2
+	_, open := <-ch2
 	assert.False(t, open)
 }
 
@@ -243,52 +269,132 @@ func TestSourceSubscribeAfterClose(t *testing.T) {
 	assert.False(t, open)
 }
 
-func TestSourceSubscriberChannelFullDropsEvent(t *testing.T) {
+// TestSourceSubscriberChannelFullBlocksDelivery verifies the delivery
+// guarantee behind the acknowledged receive queue: a full subscriber
+// channel no longer drops the event. The dispatcher waits for the
+// subscriber to drain and then delivers.
+func TestSourceSubscriberChannelFullBlocksDelivery(t *testing.T) {
 	socketPath := shortSocketPath(t)
 
 	src, err := New(socketPath)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = src.Close() })
 
-	// Create a subscriber with a full channel. subscriberBufferSize is 256.
-	s := src.(*source)
-	ch := make(chan HealthEvent, subscriberBufferSize)
-	s.mu.Lock()
-	s.subs[999] = ch
-	s.mu.Unlock()
-	t.Cleanup(func() {
-		s.mu.Lock()
-		delete(s.subs, 999)
-		s.mu.Unlock()
-		close(ch)
-	})
+	ch, unsubscribe := src.Subscribe()
+	defer unsubscribe()
 
-	// Fill the channel.
+	// Fill the subscriber channel directly so the dispatcher blocks on the
+	// next delivery.
+	s := src.(*source)
+	s.mu.Lock()
+	require.Len(t, s.subs, 1)
+	sub := s.subs[0]
+	s.mu.Unlock()
 	for i := 0; i < subscriberBufferSize; i++ {
-		ch <- HealthEvent{CheckName: "filler"}
+		sub.ch <- HealthEvent{CheckName: "filler"}
 	}
 
-	// One more event: the channel is full, so record drops it.
-	s.record(HealthEvent{CheckName: "dropped"})
+	// Enqueue one more event. The dispatcher accepts it into a subscriber
+	// send that cannot complete while the channel is full.
+	require.NoError(t, s.enqueue(HealthEvent{CheckName: "blocked"}))
 
-	// The dropped event never arrives; the next receive is a buffered filler.
+	// The event must not be dropped: nothing new arrives while the
+	// subscriber is stuck. The single read below frees one buffer slot,
+	// which the blocked dispatcher send then fills.
 	select {
 	case ev := <-ch:
-		assert.Equal(t, "filler", ev.CheckName, "should receive buffered filler, not dropped")
+		assert.Equal(t, "filler", ev.CheckName, "should receive buffered filler while blocked")
 	case <-time.After(time.Second):
 		t.Fatal("channel should have buffered events")
 	}
 
-	// The dropped event must not cover anything: the subscriber never
-	// received it, so no component could persist it and report coverage.
-	assert.False(t, src.Covers(time.Hour, func(ev HealthEvent) bool {
-		return ev.CheckName == "dropped"
-	}))
+	// Drain the remaining buffered fillers; the last event out must be
+	// the blocked one the dispatcher held onto.
+	for i := 0; i < subscriberBufferSize-1; i++ {
+		ev := <-ch
+		assert.Equal(t, "filler", ev.CheckName)
+	}
+	select {
+	case ev := <-ch:
+		assert.Equal(t, "blocked", ev.CheckName)
+	case <-time.After(5 * time.Second):
+		t.Fatal("dispatcher did not deliver the event after the subscriber drained")
+	}
+}
+
+// TestSourceQueueFullFailsRPC verifies that a full receive queue fails the
+// RPC with Unavailable instead of acknowledging an undeliverable event,
+// so the NVSentinel gRPC sink keeps the queue item and retries.
+func TestSourceQueueFullFailsRPC(t *testing.T) {
+	// Build a source with a tiny queue directly; the socket setup in New
+	// is not needed to exercise the handler's enqueue path.
+	s := &source{
+		queue:    make(chan HealthEvent, 1),
+		subs:     make(map[int]*subscription),
+		subAdded: make(chan struct{}),
+	}
+	srv := &platformConnectorServer{src: s}
+
+	// The first event fits the queue and is acknowledged.
+	_, err := srv.HealthEventOccurredV1(context.Background(), &datamodels.HealthEvents{
+		Version: 1,
+		Events:  []*datamodels.HealthEvent{{CheckName: "first"}},
+	})
+	require.NoError(t, err)
+
+	// The second event does not fit and must fail the RPC as Unavailable.
+	_, err = srv.HealthEventOccurredV1(context.Background(), &datamodels.HealthEvents{
+		Version: 1,
+		Events:  []*datamodels.HealthEvent{{CheckName: "second"}},
+	})
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Unavailable, st.Code())
+}
+
+// TestSourceHoldsEventUntilFirstSubscriber verifies that events received
+// before any subscriber registers are not dropped: they stay in the
+// acknowledged receive queue and are delivered once a subscriber appears
+// (for example, while components are still starting).
+func TestSourceHoldsEventUntilFirstSubscriber(t *testing.T) {
+	socketPath := shortSocketPath(t)
+
+	src, err := New(socketPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = src.Close() })
+
+	client := newTestClient(t, socketPath)
+
+	// No subscribers yet: the RPC still succeeds because the event is
+	// acknowledged into the receive queue.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err = client.HealthEventOccurredV1(ctx, &datamodels.HealthEvents{
+		Version: 1,
+		Events: []*datamodels.HealthEvent{{
+			CheckName:          "SysLogsXIDError",
+			ComponentClass:     "GPU",
+			ErrorCode:          []string{"79"},
+			GeneratedTimestamp: timestamppb.Now(),
+		}},
+	})
+	require.NoError(t, err)
+
+	// The event is delivered once a subscriber registers.
+	events, unsubscribe := src.Subscribe()
+	defer unsubscribe()
+	select {
+	case ev := <-events:
+		assert.Equal(t, "SysLogsXIDError", ev.CheckName)
+	case <-time.After(5 * time.Second):
+		t.Fatal("event held for zero subscribers was not delivered after Subscribe")
+	}
 }
 
 // TestSourceConcurrentBroadcastUnsubscribeAndClose exercises the subscriber
-// lifetime race: broadcast (record) must never send on a channel that
-// unsubscribe or Close already closed. Run with -race.
+// lifetime race: the dispatcher must never send on a channel that
+// unsubscribe or Close already detached or closed. Run with -race.
 func TestSourceConcurrentBroadcastUnsubscribeAndClose(t *testing.T) {
 	socketPath := shortSocketPath(t)
 
@@ -298,22 +404,22 @@ func TestSourceConcurrentBroadcastUnsubscribeAndClose(t *testing.T) {
 	s := src.(*source)
 	done := make(chan struct{})
 
-	// Broadcast events continuously.
+	// Enqueue events continuously.
 	go func() {
 		defer close(done)
 		for i := 0; i < 1000; i++ {
-			s.record(HealthEvent{CheckName: "SysLogsXIDError"})
+			_ = s.enqueue(HealthEvent{CheckName: "SysLogsXIDError"})
 		}
 	}()
 
-	// Subscribe and unsubscribe in a loop while the broadcast is in flight.
+	// Subscribe and unsubscribe in a loop while the dispatch is in flight.
 	for i := 0; i < 100; i++ {
 		_, unsubscribe := src.Subscribe()
 		unsubscribe()
 	}
 
 	<-done
-	// Close races with any residual broadcast; must not panic.
+	// Close races with any residual dispatch; must not panic.
 	require.NoError(t, src.Close())
 }
 
@@ -338,7 +444,7 @@ func TestSourceRecordUpdatesLastReceived(t *testing.T) {
 	s := src.(*source)
 	assert.True(t, s.LastReceived().IsZero())
 
-	s.record(HealthEvent{CheckName: "test"})
+	require.NoError(t, s.enqueue(HealthEvent{CheckName: "test"}))
 	assert.False(t, s.LastReceived().IsZero())
 }
 
