@@ -43,16 +43,26 @@ func TestFakeSourceCovers(t *testing.T) {
 	assert.False(t, src.Covers(time.Hour, func(nvsentinel.HealthEvent) bool { return true }))
 
 	now := time.Now().UTC()
+
+	// Send only broadcasts: like the real source, the event is not covered
+	// until a persisting component reports coverage.
 	src.Send(nvsentinel.HealthEvent{
 		CheckName:          "SysLogsXIDError",
 		ErrorCodes:         []string{"79"},
 		GeneratedTimestamp: now,
 	})
-
-	// Matching predicate within a wide window covers.
 	matchXid79 := func(ev nvsentinel.HealthEvent) bool {
 		return ev.CheckName == "SysLogsXIDError" && len(ev.ErrorCodes) > 0 && ev.ErrorCodes[0] == "79"
 	}
+	assert.False(t, src.Covers(time.Hour, matchXid79))
+
+	// Once coverage is reported, a matching predicate within the window
+	// covers.
+	src.RecordCoverage(nvsentinel.HealthEvent{
+		CheckName:          "SysLogsXIDError",
+		ErrorCodes:         []string{"79"},
+		GeneratedTimestamp: now,
+	})
 	assert.True(t, src.Covers(time.Hour, matchXid79))
 
 	// Non-matching predicate does not cover.
@@ -60,10 +70,20 @@ func TestFakeSourceCovers(t *testing.T) {
 		return ev.CheckName == "SysLogsSXIDError"
 	}))
 
+	// A healthy event is never covered.
+	src.RecordCoverage(nvsentinel.HealthEvent{
+		CheckName:          "SysLogsSXIDError",
+		IsHealthy:          true,
+		GeneratedTimestamp: now,
+	})
+	assert.False(t, src.Covers(time.Hour, func(ev nvsentinel.HealthEvent) bool {
+		return ev.CheckName == "SysLogsSXIDError"
+	}))
+
 	// An event older than the window does not cover.
 	src2 := NewFakeSource()
 	t.Cleanup(func() { _ = src2.Close() })
-	src2.Send(nvsentinel.HealthEvent{
+	src2.RecordCoverage(nvsentinel.HealthEvent{
 		CheckName:          "SysLogsXIDError",
 		ErrorCodes:         []string{"79"},
 		GeneratedTimestamp: time.Now().UTC().Add(-2 * time.Hour),
@@ -78,14 +98,15 @@ func TestFakeSourceLastReceived(t *testing.T) {
 	// No events: zero time.
 	assert.True(t, src.LastReceived().IsZero())
 
-	ts := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	src.Send(nvsentinel.HealthEvent{GeneratedTimestamp: ts})
-	assert.Equal(t, ts, src.LastReceived())
+	// LastReceived tracks the receive time (like the real source), not the
+	// event's generated timestamp.
+	src.Send(nvsentinel.HealthEvent{GeneratedTimestamp: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)})
+	first := src.LastReceived()
+	assert.False(t, first.IsZero())
 
-	// A later event updates LastReceived.
-	ts2 := ts.Add(time.Hour)
-	src.Send(nvsentinel.HealthEvent{GeneratedTimestamp: ts2})
-	assert.Equal(t, ts2, src.LastReceived())
+	// A later send updates LastReceived.
+	src.Send(nvsentinel.HealthEvent{GeneratedTimestamp: time.Now().UTC()})
+	assert.True(t, !src.LastReceived().Before(first))
 }
 
 func TestFakeSourceCloseIsNoOp(t *testing.T) {

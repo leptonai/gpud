@@ -67,7 +67,7 @@ type component struct {
 	kmsgWatcher      kmsg.Watcher
 
 	readAllKmsg  func(context.Context) ([]kmsg.Message, error)
-	extraEventCh chan *eventstore.Event
+	extraEventCh chan pendingEvent
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -98,7 +98,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getThresholdFunc: GetDefaultThresholds,
 
 		rebootEventStore: gpudInstance.RebootEventStore,
-		extraEventCh:     make(chan *eventstore.Event, 256),
+		extraEventCh:     make(chan pendingEvent, 256),
 	}
 
 	if gpudInstance.NVMLInstance != nil {
@@ -482,13 +482,18 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 
-		case newEvent := <-c.extraEventCh:
-			if newEvent == nil {
+		case pending := <-c.extraEventCh:
+			if pending.event == nil {
 				continue
 			}
-			if err := c.eventBucket.Insert(c.ctx, *newEvent); err != nil {
+			if err := c.eventBucket.Insert(c.ctx, *pending.event); err != nil {
 				log.Logger.Errorw("failed to create event", "error", err)
 				continue
+			}
+			// Coverage is reported only after the insert succeeds: a failed
+			// insert must never suppress native detection of this incident.
+			if pending.nvsEvent != nil && c.nvsSource != nil {
+				c.nvsSource.RecordCoverage(*pending.nvsEvent)
 			}
 			if err := c.updateCurrentState(); err != nil {
 				log.Logger.Errorw("failed to update current state", "error", err)

@@ -3,6 +3,7 @@ package sxid
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -344,8 +345,8 @@ func TestNVSentinelSXidCoversMatchingEvent(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
-	// Send an SXid event to the source.
-	src.Send(newNVSentinelSXidEvent("12028"))
+	// Report coverage for an SXid event the way a persisting component does.
+	src.RecordCoverage(newNVSentinelSXidEvent("12028"))
 
 	// The Covers check should find the matching event.
 	sxidErr := &Error{SXid: 12028}
@@ -444,7 +445,7 @@ func TestNVSentinelSXidCoversWithNonMatchingEventInSource(t *testing.T) {
 	ev := newNVSentinelSXidEvent("12028")
 	ev.CheckName = "SysLogsXIDError"
 	ev.ComponentClass = "GPU"
-	src.Send(ev)
+	src.RecordCoverage(ev)
 
 	assert.False(t, c.nvsentinelCoversSXid(&Error{SXid: 12028}))
 }
@@ -506,4 +507,92 @@ func TestNVSentinelSXidEventsProcessedWithoutKmsgWatcher(t *testing.T) {
 		events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
 		return err == nil && len(events) == 1
 	}, 10*time.Second, 50*time.Millisecond)
+}
+
+func TestNormalizePCIAddress(t *testing.T) {
+	assert.Equal(t, "0000:05:00.0", normalizePCIAddress("PCI:0000:05:00.0"))
+	assert.Equal(t, "0000:05:00.0", normalizePCIAddress("0000:05:00.0"))
+	assert.Equal(t, "0000:05:00.0", normalizePCIAddress("pci:0000:05:00.0"))
+	assert.Equal(t, "0000:05:00.0", normalizePCIAddress("  PCI:0000:05:00.0  "))
+	assert.Equal(t, "", normalizePCIAddress(""))
+}
+
+func TestNVSentinelSXidCoversCorrelatesPCI(t *testing.T) {
+	// On a multi-switch node the SXid number alone does not identify the
+	// incident: two NVSwitches can emit the same code within the dedup
+	// window. Coverage correlates the switch PCI address.
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	// NVSentinel persisted an SXid 12028 from the switch at 0000:05:00.0.
+	src.RecordCoverage(newNVSentinelSXidEvent("12028"))
+
+	// Same switch (the native report carries the "PCI:" prefix): covered.
+	assert.True(t, c.nvsentinelCoversSXid(&Error{SXid: 12028, DeviceUUID: "PCI:0000:05:00.0"}))
+	// Same code on a different switch: NOT covered — a distinct incident.
+	assert.False(t, c.nvsentinelCoversSXid(&Error{SXid: 12028, DeviceUUID: "PCI:0000:07:00.0"}))
+	// A different code on the same switch: not covered.
+	assert.False(t, c.nvsentinelCoversSXid(&Error{SXid: 12029, DeviceUUID: "PCI:0000:05:00.0"}))
+	// A native report without a PCI address falls back to the
+	// number-only match: both detectors read the same kernel report.
+	assert.True(t, c.nvsentinelCoversSXid(&Error{SXid: 12028}))
+}
+
+func TestNVSentinelSXidCoversPCIFallbackWhenEventLacksPCI(t *testing.T) {
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	// An NVSentinel event without a PCI entity: number-only fallback.
+	ev := newNVSentinelSXidEvent("12028")
+	ev.Entities = nil
+	src.RecordCoverage(ev)
+
+	assert.True(t, c.nvsentinelCoversSXid(&Error{SXid: 12028, DeviceUUID: "PCI:0000:05:00.0"}))
+	assert.False(t, c.nvsentinelCoversSXid(&Error{SXid: 12029, DeviceUUID: "PCI:0000:05:00.0"}))
+}
+
+func TestNVSentinelSXidHealthyEventDoesNotCover(t *testing.T) {
+	// Regression: a healthy event stores no data point, so it must never
+	// enter the coverage index and suppress a later native incident.
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	kmsgCh := make(chan kmsg.Message, 1)
+	go c.start(kmsgCh, time.Hour)
+
+	ev := newNVSentinelSXidEvent("12028")
+	ev.IsFatal = false
+	ev.IsHealthy = true
+	src.Send(ev)
+
+	// Give the forwarder a chance to process (and skip) the event.
+	time.Sleep(500 * time.Millisecond)
+
+	assert.False(t, c.nvsentinelCoversSXid(&Error{SXid: 12028, DeviceUUID: "PCI:0000:05:00.0"}))
+	assert.False(t, src.Covers(time.Hour, func(ev nvsentinel.HealthEvent) bool {
+		return ev.CheckName == "SysLogsSXIDError"
+	}))
+}
+
+func TestNVSentinelSXidInsertFailureDoesNotCover(t *testing.T) {
+	// Regression: when the event-store insert fails, the data point is not
+	// durable, so the event must not cover and suppress a native incident.
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	// Force every insert to fail: no data point becomes durable.
+	c.eventBucket = &mockEventBucket{insertErr: errors.New("insert failed")}
+
+	kmsgCh := make(chan kmsg.Message, 1)
+	go c.start(kmsgCh, time.Hour)
+
+	src.Send(newNVSentinelSXidEvent("12028"))
+
+	// Give the pipeline a chance to attempt (and fail) the insert.
+	time.Sleep(500 * time.Millisecond)
+
+	assert.False(t, c.nvsentinelCoversSXid(&Error{SXid: 12028, DeviceUUID: "PCI:0000:05:00.0"}))
+	assert.False(t, src.Covers(time.Hour, func(ev nvsentinel.HealthEvent) bool {
+		return ev.CheckName == "SysLogsSXIDError"
+	}))
 }

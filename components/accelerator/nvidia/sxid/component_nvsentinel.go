@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,16 @@ const (
 	// cross-reference it with the NVSentinel datastore.
 	EventKeyNVSentinelEventID = "nvsentinel_event_id"
 )
+
+// pendingEvent is one event queued for insertion into the event bucket.
+// nvsEvent, when non-nil, is the NVSentinel health event the entry was
+// translated from. Coverage is reported to the NVSentinel source only after
+// the bucket insert succeeds, so a failed insert never suppresses GPUd's
+// native detection of the same incident.
+type pendingEvent struct {
+	event    *eventstore.Event
+	nvsEvent *nvsentinel.HealthEvent
+}
 
 // watchNVSentinel subscribes the component to the NVSentinel event source
 // and starts a goroutine that forwards matching SXid events into the
@@ -126,15 +137,21 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 
 	// When GPUd's kmsg detection won the delivery race, its copy is
 	// already in the bucket. Skip this NVSentinel copy so the incident
-	// stays at one event.
+	// stays at one event. The data point is already durable, so coverage
+	// is safe to claim.
 	if c.hasStoredSXidTwin(sxidNum, deviceUUID, ev.GeneratedTimestamp) {
 		log.Logger.Infow("gpud already stored this sxid data point, skipping nvsentinel copy",
 			"sxid", sxidNum, "deviceUUID", deviceUUID, "checkName", ev.CheckName)
+		if c.nvsSource != nil {
+			c.nvsSource.RecordCoverage(ev)
+		}
 		return
 	}
 
+	// Coverage is reported by the start loop only after the bucket insert
+	// succeeds. Until then the kmsg path stays free to store its own copy.
 	select {
-	case c.extraEventCh <- event:
+	case c.extraEventCh <- pendingEvent{event: event, nvsEvent: &ev}:
 	case <-c.ctx.Done():
 	}
 }
@@ -175,18 +192,46 @@ func (c *component) nvsentinelCoversSXid(sxidErr *Error) bool {
 		return false
 	}
 
+	// The native kmsg report names the switch by PCI address
+	// ("PCI:0000:05:00.0"); NVSentinel carries the same address in its PCI
+	// entity ("0000:05:00.0").
+	nativePCI := normalizePCIAddress(sxidErr.DeviceUUID)
+
 	return c.nvsSource.Covers(c.nvsDedupWindow, func(ev nvsentinel.HealthEvent) bool {
-		evSXid, _, ok := c.matchNVSentinelSXid(ev)
-		if !ok {
+		// A healthy event carries no new data point: it must never
+		// suppress a native incident. The source already excludes healthy
+		// events from coverage; this guard keeps the intent explicit here.
+		if ev.IsHealthy {
 			return false
 		}
-		// SXid events describe an NVSwitch link. The kmsg device UUID does
-		// not appear in the NVSentinel entity list as a UUID, so the
-		// comparison uses only the SXid number. Both detectors read the
-		// same kernel report — a repeated number within the window is
-		// the same incident.
-		return evSXid == sxidErr.SXid
+		evSXid, _, ok := c.matchNVSentinelSXid(ev)
+		if !ok || evSXid != sxidErr.SXid {
+			return false
+		}
+		// The SXid number alone does not identify the incident on a
+		// multi-switch node: two NVSwitches can emit the same code within
+		// the dedup window. When both sides name the switch PCI address,
+		// only the same switch covers. When either side lacks the address,
+		// deliberately fall back to the number-only match — both detectors
+		// read the same kernel report.
+		evPCI, _ := ev.EntityValue("PCI")
+		evPCI = normalizePCIAddress(evPCI)
+		if nativePCI != "" && evPCI != "" {
+			return nativePCI == evPCI
+		}
+		return true
 	})
+}
+
+// normalizePCIAddress canonicalizes a PCI BDF address for comparison. The
+// kmsg report carries "PCI:0000:05:00.0" while the NVSentinel PCI entity
+// carries "0000:05:00.0".
+func normalizePCIAddress(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if len(addr) >= 4 && strings.EqualFold(addr[:4], "PCI:") {
+		addr = addr[4:]
+	}
+	return strings.ToLower(addr)
 }
 
 // hasStoredSXidTwin reports whether the bucket already holds an event for the

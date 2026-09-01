@@ -28,6 +28,16 @@ const (
 	EventKeyNVSentinelEventID = "nvsentinel_event_id"
 )
 
+// pendingEvent is one event queued for insertion into the event bucket.
+// nvsEvent, when non-nil, is the NVSentinel health event the entry was
+// translated from. Coverage is reported to the NVSentinel source only after
+// the bucket insert succeeds, so a failed insert never suppresses GPUd's
+// native detection of the same incident.
+type pendingEvent struct {
+	event    *eventstore.Event
+	nvsEvent *nvsentinel.HealthEvent
+}
+
 // watchNVSentinel subscribes the component to the NVSentinel event source
 // and starts a goroutine that forwards matching Xid events into the
 // component's event bucket. The bucket is the same one kmsg-detected
@@ -126,10 +136,14 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 
 	// When GPUd's kmsg detection won the delivery race, its copy is
 	// already in the bucket. Skip this NVSentinel copy so the incident
-	// stays at one event.
+	// stays at one event. The data point is already durable, so coverage
+	// is safe to claim.
 	if c.hasStoredXidTwin(xidNum, deviceUUID, ev.GeneratedTimestamp) {
 		log.Logger.Infow("gpud already stored this xid data point, skipping nvsentinel copy",
 			"xid", xidNum, "deviceUUID", deviceUUID, "checkName", ev.CheckName)
+		if c.nvsSource != nil {
+			c.nvsSource.RecordCoverage(ev)
+		}
 		return
 	}
 
@@ -140,8 +154,10 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 		"xid":  strconv.Itoa(xidNum),
 	}).Inc()
 
+	// Coverage is reported by the start loop only after the bucket insert
+	// succeeds. Until then the kmsg path stays free to store its own copy.
 	select {
-	case c.extraEventCh <- event:
+	case c.extraEventCh <- pendingEvent{event: event, nvsEvent: &ev}:
 	case <-c.ctx.Done():
 	}
 }
@@ -206,6 +222,12 @@ func (c *component) nvsentinelCoversXid(xidErr *Error) bool {
 	}
 
 	return c.nvsSource.Covers(c.nvsDedupWindow, func(ev nvsentinel.HealthEvent) bool {
+		// A healthy event carries no new data point: it must never
+		// suppress a native incident. The source already excludes healthy
+		// events from coverage; this guard keeps the intent explicit here.
+		if ev.IsHealthy {
+			return false
+		}
 		evXid, evUUID, ok := c.matchNVSentinelXid(ev)
 		if !ok || evXid != xidErr.Xid {
 			return false

@@ -2,6 +2,7 @@ package infiniband
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -159,9 +160,10 @@ func TestMatchPreferNVSentinel(t *testing.T) {
 	assert.Equal(t, eventPCIPowerInsufficient, name)
 	assert.NotEmpty(t, message)
 
-	// With a recent NVSentinel event for the same pattern, the kmsg line is
-	// suppressed.
-	src.Send(newNVSentinelNICEvent("pci_power_insufficient", "mlx5_0"))
+	// With a persisted NVSentinel event for the same pattern, the kmsg line
+	// is suppressed. Coverage is reported by the persisting component; the
+	// test reports it directly to stay deterministic.
+	src.RecordCoverage(newNVSentinelNICEvent("pci_power_insufficient", "mlx5_0"))
 	name, message = c.matchPreferNVSentinel(line)
 	assert.Empty(t, name)
 	assert.Empty(t, message)
@@ -246,7 +248,7 @@ func TestHasStoredEventTwinOutsideWindow(t *testing.T) {
 		Name: eventPCIPowerInsufficient,
 	}))
 
-	assert.False(t, c.hasStoredEventTwin(eventPCIPowerInsufficient, time.Now().UTC()))
+	assert.False(t, c.hasStoredEventTwin(eventPCIPowerInsufficient, "", time.Now().UTC()))
 }
 
 func TestHasStoredEventTwinDifferentName(t *testing.T) {
@@ -260,9 +262,9 @@ func TestHasStoredEventTwinDifferentName(t *testing.T) {
 	}))
 
 	// A different event name is not a twin.
-	assert.False(t, c.hasStoredEventTwin(eventPCIPowerInsufficient, now))
+	assert.False(t, c.hasStoredEventTwin(eventPCIPowerInsufficient, "", now))
 	// The same event name within the window is a twin.
-	assert.True(t, c.hasStoredEventTwin(eventPortModuleHighTemperature, now))
+	assert.True(t, c.hasStoredEventTwin(eventPortModuleHighTemperature, "", now))
 }
 func TestNVSentinelIBNonMatchingEvent(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
@@ -369,17 +371,125 @@ func TestNVSentinelIBEventSkippedWhenGPUdTwinStoredWithEventName(t *testing.T) {
 	assert.Len(t, events, 1)
 }
 func TestMatchPreferNVSentinelWithUnrelatedEventInSource(t *testing.T) {
-	// An unrelated event in the source (wrong check name) does not cover
-	// the kmsg data point, so the matcher still returns the event.
+	// An unrelated persisted event (wrong check name) does not cover the
+	// kmsg data point, so the matcher still returns the event.
 	src := nvsentineltest.NewFakeSource()
 	c := newTestComponentWithNVSentinel(t, src)
 
 	ev := newNVSentinelNICEvent("pci_power_insufficient", "mlx5_0")
 	ev.CheckName = "SomeOtherCheck"
-	src.Send(ev)
+	src.RecordCoverage(ev)
 
 	const line = "mlx5_core 0000:5c:00.0: mlx5_pcie_event:299:(pid 268269): Detected insufficient power on the PCIe slot (27W)."
 	name, message := c.matchPreferNVSentinel(line)
 	assert.Equal(t, eventPCIPowerInsufficient, name)
 	assert.NotEmpty(t, message)
+}
+
+func TestNVSentinelIBAccessRegFailedPerDevice(t *testing.T) {
+	// Regression: ACCESS_REG dedup is per-device (see kmsgEventDedupWindow).
+	// Two NVSentinel ACCESS_REG failures from different NICs within the
+	// dedup window are distinct incidents and must both be stored.
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	src.Send(newNVSentinelNICEvent("access_reg_failed", "mlx5_0"))
+	src.Send(newNVSentinelNICEvent("access_reg_failed", "mlx5_1"))
+
+	ctx := context.Background()
+	require.Eventually(t, func() bool {
+		events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+		return err == nil && len(events) == 2
+	}, 10*time.Second, 50*time.Millisecond)
+
+	// A repeated failure on the SAME device within the window is a twin
+	// and stays suppressed.
+	src.Send(newNVSentinelNICEvent("access_reg_failed", "mlx5_0"))
+	time.Sleep(500 * time.Millisecond)
+
+	events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.Len(t, events, 2)
+}
+
+func TestNVSentinelIBAccessRegFailedTwinFallbackWithoutDevice(t *testing.T) {
+	// A native kmsg copy carries no NVSentinel NIC device key: the twin
+	// check deliberately falls back to the name-only match.
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	require.NoError(t, c.eventBucket.Insert(context.Background(), eventstore.Event{
+		Time: time.Now().UTC(),
+		Name: eventAccessRegFailed,
+		Type: string(apiv1.EventTypeCritical),
+	}))
+
+	src.Send(newNVSentinelNICEvent("access_reg_failed", "mlx5_1"))
+	time.Sleep(500 * time.Millisecond)
+
+	events, err := c.eventBucket.Get(context.Background(), time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.Len(t, events, 1)
+}
+
+func TestNVSentinelIBHealthyEventDoesNotCover(t *testing.T) {
+	// Regression: a healthy event stores no data point, so it must never
+	// enter the coverage index and suppress a later native incident.
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	ev := newNVSentinelNICEvent("pci_power_insufficient", "mlx5_0")
+	ev.IsFatal = false
+	ev.IsHealthy = true
+	src.Send(ev)
+
+	// Give the forwarder a chance to process (and skip) the event.
+	time.Sleep(500 * time.Millisecond)
+
+	const line = "mlx5_core 0000:5c:00.0: mlx5_pcie_event:299:(pid 268269): Detected insufficient power on the PCIe slot (27W)."
+	name, message := c.matchPreferNVSentinel(line)
+	assert.Equal(t, eventPCIPowerInsufficient, name)
+	assert.NotEmpty(t, message)
+}
+
+func TestNVSentinelIBInsertFailureDoesNotCover(t *testing.T) {
+	// Regression: when the event-store insert fails, the data point is not
+	// durable, so the event must not cover and suppress a native incident.
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	// Force every insert to fail: no data point becomes durable.
+	c.eventBucket = &mockEventBucket{insertErr: errors.New("insert failed")}
+
+	src.Send(newNVSentinelNICEvent("pci_power_insufficient", "mlx5_0"))
+
+	// Give the pipeline a chance to attempt (and fail) the insert.
+	time.Sleep(500 * time.Millisecond)
+
+	const line = "mlx5_core 0000:5c:00.0: mlx5_pcie_event:299:(pid 268269): Detected insufficient power on the PCIe slot (27W)."
+	name, message := c.matchPreferNVSentinel(line)
+	assert.Equal(t, eventPCIPowerInsufficient, name)
+	assert.NotEmpty(t, message)
+}
+
+func TestNVSentinelIBEventCoveredAfterPersist(t *testing.T) {
+	// The happy path: once the NVSentinel copy is durably stored, the
+	// native kmsg twin is covered and suppressed.
+	src := nvsentineltest.NewFakeSource()
+	c := newTestComponentWithNVSentinel(t, src)
+
+	src.Send(newNVSentinelNICEvent("pci_power_insufficient", "mlx5_0"))
+
+	// Coverage is reported after the bucket insert succeeds.
+	require.Eventually(t, func() bool {
+		return src.Covers(c.nvsDedupWindow, func(ev nvsentinel.HealthEvent) bool {
+			return ev.CheckName == checkNameSyslogsNICDriverError &&
+				len(ev.ErrorCodes) > 0 && ev.ErrorCodes[0] == "pci_power_insufficient"
+		})
+	}, 10*time.Second, 50*time.Millisecond)
+
+	const line = "mlx5_core 0000:5c:00.0: mlx5_pcie_event:299:(pid 268269): Detected insufficient power on the PCIe slot (27W)."
+	name, message := c.matchPreferNVSentinel(line)
+	assert.Empty(t, name)
+	assert.Empty(t, message)
 }

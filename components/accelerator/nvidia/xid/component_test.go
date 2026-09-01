@@ -317,7 +317,7 @@ func TestXIDComponent_Events(t *testing.T) {
 	// insert test events
 	for _, event := range testEvents {
 		select {
-		case c.extraEventCh <- &event:
+		case c.extraEventCh <- pendingEvent{event: &event}:
 		default:
 			require.FailNow(t, "failed to insert event into channel")
 		}
@@ -1307,10 +1307,10 @@ func TestHandleEventChannel(t *testing.T) {
 	assert.GreaterOrEqual(t, len(events), 1)
 
 	// Send a test event directly to the extraEventCh
-	c.extraEventCh <- &eventstore.Event{
+	c.extraEventCh <- pendingEvent{event: &eventstore.Event{
 		Time: time.Now(),
 		Name: "SetHealthy",
-	}
+	}}
 
 	// Wait a bit to allow processing
 	time.Sleep(300 * time.Millisecond)

@@ -29,13 +29,16 @@ const (
 	DefaultEventDedupWindow = 2 * time.Minute
 
 	// maxRecentEvents caps the in-memory recent-event index. The index
-	// answers Covers queries for duplicate suppression. It stays small
-	// because Covers queries always use a short time window.
+	// answers Covers queries for duplicate suppression; entries are added
+	// by RecordCoverage only after a component persisted the data point.
+	// It stays small because Covers queries always use a short time window.
 	maxRecentEvents = 4096
 
 	// subscriberBufferSize bounds each subscriber channel. Subscribers are
 	// component-internal forwarders that drain events immediately. A full
-	// channel means a subscriber is stuck. The event is dropped and logged.
+	// channel means a subscriber is stuck. The event is dropped and logged;
+	// the stuck subscriber never reports coverage for it, so the drop
+	// cannot suppress GPUd's native detection of the same incident.
 	subscriberBufferSize = 256
 )
 
@@ -48,7 +51,17 @@ type Source interface {
 	// The channel is closed when the source is closed.
 	Subscribe() (<-chan HealthEvent, func())
 
-	// Covers reports whether a received event satisfied the predicate
+	// RecordCoverage marks a received event as durably handled by a
+	// component. Components call it only after the event's data point is
+	// persisted (or an identical data point is already stored). Covers
+	// matches only events reported through RecordCoverage, so coverage
+	// always represents successful component persistence: a dropped
+	// broadcast or a failed event-store insert never suppresses GPUd's
+	// native detection of the same incident. Healthy events carry no new
+	// data point and are ignored.
+	RecordCoverage(ev HealthEvent)
+
+	// Covers reports whether a persisted event satisfied the predicate
 	// within the given window. Components call it to decide whether to
 	// suppress their own duplicate detection.
 	Covers(window time.Duration, match func(HealthEvent) bool) bool
@@ -199,28 +212,43 @@ func (s *source) Close() error {
 	return nil
 }
 
-// record stores an event in the recent index and forwards it to every
-// subscriber.
+// record forwards an event to every subscriber. The sends run under the
+// mutex so unsubscribe and Close cannot close a channel mid-broadcast;
+// each send is non-blocking, so the lock is never held waiting on a
+// subscriber. A full channel drops the event for that subscriber — the
+// subscriber then never persists it and never reports coverage, so the
+// drop cannot suppress native detection of the same incident.
 func (s *source) record(ev HealthEvent) {
 	s.mu.Lock()
-	s.lastReceived = time.Now().UTC()
-	s.recent = append(s.recent, ev)
-	if len(s.recent) > maxRecentEvents {
-		s.recent = s.recent[len(s.recent)-maxRecentEvents:]
-	}
-	subs := make([]chan HealthEvent, 0, len(s.subs))
-	for _, ch := range s.subs {
-		subs = append(subs, ch)
-	}
-	s.mu.Unlock()
+	defer s.mu.Unlock()
 
-	for _, ch := range subs {
+	s.lastReceived = time.Now().UTC()
+	for _, ch := range s.subs {
 		select {
 		case ch <- ev:
 		default:
 			log.Logger.Errorw("nvsentinel subscriber channel full, dropping event",
 				"checkName", ev.CheckName, "componentClass", ev.ComponentClass)
 		}
+	}
+}
+
+// RecordCoverage implements Source.RecordCoverage.
+func (s *source) RecordCoverage(ev HealthEvent) {
+	if ev.IsHealthy {
+		// A healthy event carries no new data point. It must never
+		// suppress native detection of a later unhealthy incident.
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	s.recent = append(s.recent, ev)
+	if len(s.recent) > maxRecentEvents {
+		s.recent = s.recent[len(s.recent)-maxRecentEvents:]
 	}
 }
 

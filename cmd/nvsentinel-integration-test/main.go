@@ -175,12 +175,17 @@ func assertEvent(ev nvsentinel.HealthEvent, src nvsentinel.Source) error {
 		return fmt.Errorf("lastReceived is zero")
 	}
 
-	// Verify Covers reports the event.
+	// This harness plays the component role: it "persisted" the event by
+	// receiving and validating it, so it reports coverage the same way a
+	// component does after a successful event-store insert.
+	src.RecordCoverage(ev)
+
+	// Verify Covers reports the persisted event.
 	matchXid79 := func(ev nvsentinel.HealthEvent) bool {
 		return ev.CheckName == "SysLogsXIDError" && len(ev.ErrorCodes) > 0 && ev.ErrorCodes[0] == "79"
 	}
 	if !src.Covers(2*time.Minute, matchXid79) {
-		return fmt.Errorf("covers returned false for the event we just received")
+		return fmt.Errorf("covers returned false for the event we just persisted")
 	}
 	return nil
 }

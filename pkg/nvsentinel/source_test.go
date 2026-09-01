@@ -117,6 +117,13 @@ func TestSourceCovers(t *testing.T) {
 	_, err = client.HealthEventOccurredV1(ctx, &datamodels.HealthEvents{Version: 1, Events: []*datamodels.HealthEvent{old}})
 	require.NoError(t, err)
 
+	// Receiving an event alone must not cover it: coverage represents
+	// successful component persistence, reported via RecordCoverage.
+	assert.False(t, src.Covers(2*time.Hour, matchXid79))
+
+	// Simulate the component persisting the old event.
+	src.RecordCoverage(healthEventFromProto(old, time.Now()))
+
 	// An event older than the window does not cover.
 	assert.False(t, src.Covers(2*time.Minute, matchXid79))
 	// The same event covers when the window includes it.
@@ -131,9 +138,55 @@ func TestSourceCovers(t *testing.T) {
 	_, err = client.HealthEventOccurredV1(ctx, &datamodels.HealthEvents{Version: 1, Events: []*datamodels.HealthEvent{fresh}})
 	require.NoError(t, err)
 
+	// The fresh event is received but not yet persisted: still no new
+	// coverage within the short window (the old event is outside it).
+	assert.False(t, src.Covers(2*time.Minute, matchXid79))
+
+	// Once the component persists the fresh event, it covers.
+	src.RecordCoverage(healthEventFromProto(fresh, time.Now()))
 	assert.True(t, src.Covers(2*time.Minute, matchXid79))
 	// A non-matching predicate stays uncovered.
 	assert.False(t, src.Covers(2*time.Minute, func(ev HealthEvent) bool { return ev.CheckName == "SysLogsSXIDError" }))
+}
+
+func TestSourceRecordCoverageIgnoresHealthyEvents(t *testing.T) {
+	socketPath := shortSocketPath(t)
+
+	src, err := New(socketPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = src.Close() })
+
+	// A healthy event carries no new data point: it must never suppress
+	// native detection of a later unhealthy incident.
+	src.RecordCoverage(HealthEvent{
+		CheckName:          "SysLogsXIDError",
+		ComponentClass:     "GPU",
+		ErrorCodes:         []string{"79"},
+		IsHealthy:          true,
+		GeneratedTimestamp: time.Now(),
+	})
+
+	assert.False(t, src.Covers(2*time.Minute, func(ev HealthEvent) bool {
+		return ev.CheckName == "SysLogsXIDError"
+	}))
+}
+
+func TestSourceRecordCoverageAfterClose(t *testing.T) {
+	socketPath := shortSocketPath(t)
+
+	src, err := New(socketPath)
+	require.NoError(t, err)
+	require.NoError(t, src.Close())
+
+	// Coverage reported after Close is dropped without panic.
+	src.RecordCoverage(HealthEvent{
+		CheckName:          "SysLogsXIDError",
+		ErrorCodes:         []string{"79"},
+		GeneratedTimestamp: time.Now(),
+	})
+	assert.False(t, src.Covers(2*time.Minute, func(ev HealthEvent) bool {
+		return ev.CheckName == "SysLogsXIDError"
+	}))
 }
 
 func TestSourceSubscriberUnsubscribeAndClose(t *testing.T) {
@@ -164,7 +217,7 @@ func TestSourceRecentIndexIsCapped(t *testing.T) {
 
 	s := src.(*source)
 	for i := 0; i < maxRecentEvents+100; i++ {
-		s.record(HealthEvent{
+		s.RecordCoverage(HealthEvent{
 			CheckName:          "SysLogsXIDError",
 			ErrorCodes:         []string{fmt.Sprintf("%d", i)},
 			GeneratedTimestamp: time.Now(),
@@ -225,6 +278,43 @@ func TestSourceSubscriberChannelFullDropsEvent(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("channel should have buffered events")
 	}
+
+	// The dropped event must not cover anything: the subscriber never
+	// received it, so no component could persist it and report coverage.
+	assert.False(t, src.Covers(time.Hour, func(ev HealthEvent) bool {
+		return ev.CheckName == "dropped"
+	}))
+}
+
+// TestSourceConcurrentBroadcastUnsubscribeAndClose exercises the subscriber
+// lifetime race: broadcast (record) must never send on a channel that
+// unsubscribe or Close already closed. Run with -race.
+func TestSourceConcurrentBroadcastUnsubscribeAndClose(t *testing.T) {
+	socketPath := shortSocketPath(t)
+
+	src, err := New(socketPath)
+	require.NoError(t, err)
+
+	s := src.(*source)
+	done := make(chan struct{})
+
+	// Broadcast events continuously.
+	go func() {
+		defer close(done)
+		for i := 0; i < 1000; i++ {
+			s.record(HealthEvent{CheckName: "SysLogsXIDError"})
+		}
+	}()
+
+	// Subscribe and unsubscribe in a loop while the broadcast is in flight.
+	for i := 0; i < 100; i++ {
+		_, unsubscribe := src.Subscribe()
+		unsubscribe()
+	}
+
+	<-done
+	// Close races with any residual broadcast; must not panic.
+	require.NoError(t, src.Close())
 }
 
 func TestSourceCloseIsIdempotent(t *testing.T) {

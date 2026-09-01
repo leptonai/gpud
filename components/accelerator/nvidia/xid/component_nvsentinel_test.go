@@ -3,6 +3,7 @@ package xid
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -464,8 +465,8 @@ func TestNVSentinelXidCoversMatchingEvent(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
-	// Send an Xid event to the source.
-	src.Send(newNVSentinelXidEvent("79", "GPU-abc"))
+	// Report coverage for an Xid event the way a persisting component does.
+	src.RecordCoverage(newNVSentinelXidEvent("79", "GPU-abc"))
 
 	// The Covers check should find the matching event.
 	xidErr := &Error{Xid: 79, DeviceUUID: "GPU-abc"}
@@ -554,8 +555,8 @@ func TestNVSentinelXidCoversDifferentDevice(t *testing.T) {
 	src := nvsentineltest.NewFakeSource()
 	c, _ := newTestComponentWithNVSentinel(t, src)
 
-	// Source has Xid 79 on GPU-abc.
-	src.Send(newNVSentinelXidEvent("79", "GPU-abc"))
+	// Source has persisted Xid 79 on GPU-abc.
+	src.RecordCoverage(newNVSentinelXidEvent("79", "GPU-abc"))
 
 	// Same xid, same device: covered.
 	assert.True(t, c.nvsentinelCoversXid(&Error{Xid: 79, DeviceUUID: "GPU-abc"}))
@@ -641,5 +642,72 @@ func TestNVSentinelEventsProcessedWithoutKmsgWatcher(t *testing.T) {
 	require.Eventually(t, func() bool {
 		events, err := c.eventBucket.Get(ctx, time.Now().Add(-time.Hour))
 		return err == nil && len(events) == 1
+	}, 10*time.Second, 50*time.Millisecond)
+}
+
+func TestNVSentinelXidHealthyEventDoesNotCover(t *testing.T) {
+	// Regression: a healthy event stores no data point, so it must never
+	// enter the coverage index. Otherwise a healthy event carrying Xid N
+	// could suppress a real native Xid N within the dedup window.
+	src := nvsentineltest.NewFakeSource()
+	c, _ := newTestComponentWithNVSentinel(t, src)
+
+	kmsgCh := make(chan kmsg.Message, 1)
+	go c.start(kmsgCh, time.Hour)
+
+	ev := newNVSentinelXidEvent("79", "GPU-abc")
+	ev.IsFatal = false
+	ev.IsHealthy = true
+	ev.Action = nvsentinel.RecommendedActionNone
+	src.Send(ev)
+
+	// Give the forwarder a chance to process (and skip) the event.
+	time.Sleep(500 * time.Millisecond)
+
+	assert.False(t, c.nvsentinelCoversXid(&Error{Xid: 79, DeviceUUID: "GPU-abc"}))
+	assert.False(t, src.Covers(time.Hour, func(ev nvsentinel.HealthEvent) bool {
+		return ev.CheckName == "SysLogsXIDError"
+	}))
+}
+
+func TestNVSentinelXidInsertFailureDoesNotCover(t *testing.T) {
+	// Regression: when the event-store insert fails, the data point is not
+	// durable, so the event must not cover. Otherwise a later native Xid
+	// would be suppressed and the incident permanently lost.
+	src := nvsentineltest.NewFakeSource()
+	c, _ := newTestComponentWithNVSentinel(t, src)
+
+	// Force every insert to fail: no data point becomes durable.
+	c.eventBucket = &stubEventBucket{insertErr: errors.New("insert failed")}
+
+	kmsgCh := make(chan kmsg.Message, 1)
+	go c.start(kmsgCh, time.Hour)
+
+	src.Send(newNVSentinelXidEvent("79", "GPU-abc"))
+
+	// Give the pipeline a chance to attempt (and fail) the insert.
+	time.Sleep(500 * time.Millisecond)
+
+	assert.False(t, c.nvsentinelCoversXid(&Error{Xid: 79, DeviceUUID: "GPU-abc"}))
+	assert.False(t, src.Covers(time.Hour, func(ev nvsentinel.HealthEvent) bool {
+		return ev.CheckName == "SysLogsXIDError"
+	}))
+}
+
+func TestNVSentinelXidEventCoveredAfterPersist(t *testing.T) {
+	// The happy path: once the NVSentinel copy is durably stored, the
+	// native kmsg twin is covered and suppressed.
+	src := nvsentineltest.NewFakeSource()
+	c, _ := newTestComponentWithNVSentinel(t, src)
+
+	kmsgCh := make(chan kmsg.Message, 1)
+	go c.start(kmsgCh, time.Hour)
+
+	src.Send(newNVSentinelXidEvent("79", "GPU-abc"))
+
+	// Coverage lags persistence slightly: the start loop reports it after
+	// the bucket insert succeeds.
+	require.Eventually(t, func() bool {
+		return c.nvsentinelCoversXid(&Error{Xid: 79, DeviceUUID: "GPU-abc"})
 	}, 10*time.Second, 50*time.Millisecond)
 }

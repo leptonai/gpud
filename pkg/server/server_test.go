@@ -264,6 +264,8 @@ func (failingNVSentinelSource) Subscribe() (<-chan nvsentinel.HealthEvent, func(
 	return ch, func() {}
 }
 
+func (failingNVSentinelSource) RecordCoverage(nvsentinel.HealthEvent) {}
+
 func (failingNVSentinelSource) Covers(time.Duration, func(nvsentinel.HealthEvent) bool) bool {
 	return false
 }

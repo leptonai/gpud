@@ -125,15 +125,28 @@ func (c *component) onNVSentinelEvent(ev nvsentinel.HealthEvent) {
 
 	// When GPUd's kmsg detection won the delivery race, its copy is
 	// already in the bucket. Skip this copy so the incident stays at
-	// one event.
-	if c.hasStoredEventTwin(eventName, ev.GeneratedTimestamp) {
+	// one event. The data point is already durable, so coverage is safe
+	// to claim.
+	if c.hasStoredEventTwin(eventName, device, ev.GeneratedTimestamp) {
 		log.Logger.Infow("gpud already stored this infiniband data point, skipping nvsentinel copy",
-			"eventName", eventName, "checkName", ev.CheckName)
+			"eventName", eventName, "checkName", ev.CheckName, "device", device)
+		if c.nvsSource != nil {
+			c.nvsSource.RecordCoverage(ev)
+		}
 		return
 	}
 
 	if err := c.eventBucket.Insert(c.ctx, event); err != nil {
+		// The insert failed, so no coverage is reported: the native kmsg
+		// path stays free to store its own copy of this incident.
 		log.Logger.Errorw("failed to insert nvsentinel infiniband event", "error", err)
+		return
+	}
+
+	// Coverage is reported only after the insert succeeds, so a failed
+	// insert never suppresses native detection of this incident.
+	if c.nvsSource != nil {
+		c.nvsSource.RecordCoverage(ev)
 	}
 }
 
@@ -152,6 +165,12 @@ func (c *component) matchPreferNVSentinel(line string) (string, string) {
 	}
 
 	covered := c.nvsSource.Covers(c.nvsDedupWindow, func(ev nvsentinel.HealthEvent) bool {
+		// A healthy event carries no new data point: it must never
+		// suppress a native incident. The source already excludes healthy
+		// events from coverage; this guard keeps the intent explicit here.
+		if ev.IsHealthy {
+			return false
+		}
 		if ev.CheckName != checkNameSyslogsNICDriverError || len(ev.ErrorCodes) == 0 {
 			return false
 		}
@@ -167,8 +186,12 @@ func (c *component) matchPreferNVSentinel(line string) (string, string) {
 }
 
 // hasStoredEventTwin reports whether the bucket already holds an event
-// with the same name within the dedup window around ts.
-func (c *component) hasStoredEventTwin(eventName string, ts time.Time) bool {
+// with the same name within the dedup window around ts. ACCESS_REG events
+// are additionally correlated by NIC device: two adapters can fail within
+// the window, and the component's dedup policy for ACCESS_REG is
+// per-device (see kmsgEventDedupWindow). When either side has no device,
+// the match deliberately falls back to the name-only policy.
+func (c *component) hasStoredEventTwin(eventName string, device string, ts time.Time) bool {
 	ctx, cancel := context.WithTimeout(c.ctx, 5*time.Second)
 	events, err := c.eventBucket.Get(ctx, ts.Add(-c.nvsDedupWindow))
 	cancel()
@@ -178,9 +201,17 @@ func (c *component) hasStoredEventTwin(eventName string, ts time.Time) bool {
 	}
 
 	for _, stored := range events {
-		if stored.Name == eventName && !stored.Time.After(ts.Add(c.nvsDedupWindow)) {
-			return true
+		if stored.Name != eventName || stored.Time.After(ts.Add(c.nvsDedupWindow)) {
+			continue
 		}
+		if eventName == eventAccessRegFailed && device != "" {
+			// Both sides must name the same NIC; a stored event without a
+			// device (e.g. a native kmsg copy) keeps the name-only match.
+			if storedDevice := stored.ExtraInfo[EventKeyNVSentinelNICDevice]; storedDevice != "" && storedDevice != device {
+				continue
+			}
+		}
+		return true
 	}
 	return false
 }

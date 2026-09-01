@@ -370,11 +370,15 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 				continue
 			}
 			log.Logger.Errorf("[package controller]: %v status not ok, restarting", pkg.Name)
-			if err = runCommand(ctx, pkg.ScriptPath, "stop", nil); err != nil {
+			// Use the scriptPath snapshot taken under the read lock above:
+			// reconcileLoop can update pkg.ScriptPath concurrently under the
+			// write lock, so reading the field here without the lock is a
+			// data race.
+			if err = runCommand(ctx, scriptPath, "stop", nil); err != nil {
 				log.Logger.Errorf("[package controller]: %v unexpected stop failure: %v", pkg.Name, err)
 				continue
 			}
-			if err = runCommand(ctx, pkg.ScriptPath, "start", nil); err != nil {
+			if err = runCommand(ctx, scriptPath, "start", nil); err != nil {
 				log.Logger.Errorf("[package controller]: %v unexpected start failure: %v", pkg.Name, err)
 			}
 		}
