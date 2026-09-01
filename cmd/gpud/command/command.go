@@ -207,6 +207,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Hidden: true,
 					Usage:  "(optional) re-run login on start to fetch the current session token. Use only for BYOK deployments that supply a valid registration token on every start.",
 				},
+				&cli.BoolFlag{
+					Name:  "require-nvidia-driver",
+					Usage: "when login is configured, fail before registration if NVIDIA GPU hardware is present but the NVIDIA driver or NVML is unavailable",
+				},
 				&cli.StringFlag{
 					Name:   "token",
 					Hidden: true,

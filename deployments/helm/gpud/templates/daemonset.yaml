@@ -420,6 +420,10 @@ spec:
                 set -- "$@" --refresh-session-token
               fi
 
+              if [ "${GPUD_REQUIRE_NVIDIA_DRIVER:-}" = "true" ]; then
+                set -- "$@" --require-nvidia-driver
+              fi
+
               set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
               set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
 
@@ -494,6 +498,12 @@ spec:
             # BYOK only: re-login on startup using the injected registration token.
             # Consumed as $GPUD_REFRESH_SESSION_TOKEN.
             - name: GPUD_REFRESH_SESSION_TOKEN
+              value: "true"
+            {{- end }}
+            {{- if .Values.gpud.requireNVIDIADriver }}
+            # BYOK: do not register NVIDIA GPU hardware until the driver and
+            # NVML are available. CPU-only nodes are unaffected.
+            - name: GPUD_REQUIRE_NVIDIA_DRIVER
               value: "true"
             {{- end }}
             {{- if .Values.gpud.rebootCommands }}

@@ -74,6 +74,11 @@ gpud:
   # token on every start and needs to recover a stale session token.
   refreshSessionToken: false
 
+  # Refuse to register an NVIDIA GPU node until its driver and NVML are ready.
+  # CPU-only nodes continue normally. Enable this for BYOK, where administrators
+  # must install a working NVIDIA driver before the node joins Lepton.
+  requireNVIDIADriver: true
+
   # Enable auto update of gpud.
   enableAutoUpdate: false
 
