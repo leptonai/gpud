@@ -60,3 +60,11 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Render gpud.components (a list) as the comma-separated value for
+"gpud run --components". Empty list renders empty (all components enabled).
+*/}}
+{{- define "gpud.componentsArg" -}}
+{{- join "," .Values.gpud.components -}}
+{{- end }}

@@ -110,6 +110,11 @@ type Config struct {
 	Components         []string       `json:"components"`
 	selectedComponents map[string]any `json:"-"`
 	disabledComponents map[string]any `json:"-"`
+	// allComponentsSelected is true when Components contains "*" or "all".
+	allComponentsSelected bool `json:"-"`
+	// hasComponentAllowlist is true when Components contains at least one
+	// positive (non-"-") entry other than "*" / "all".
+	hasComponentAllowlist bool `json:"-"`
 
 	// FailureInjector is the failure injector.
 	FailureInjector *components.FailureInjector `json:"failure_injector,omitempty"`
@@ -195,61 +200,92 @@ func (config *Config) Validate() error {
 	return nil
 }
 
+// parseComponentSelectors lazily builds the allowlist and denylist lookup
+// maps from Config.Components. Entries prefixed with "-" form the denylist,
+// stored under their bare component names because callers (e.g. pkg/server)
+// look components up by bare name. All other entries form the allowlist,
+// where "*" and "all" select every component. A list containing only
+// "-"-prefixed entries enables every component except the denylisted ones.
+//
+// Why stored bare (LEP-6439): the only production caller,
+// pkg/server/server.go, invokes ShouldDisable(name) with the bare registered
+// component name (e.g. "library"). The previous implementation stored the key
+// as "-library" -- prefix included -- so the lookup could never match and the
+// entire disable path was dead code. The old unit tests masked this by
+// querying ShouldDisable("-comp1") with the prefix still attached, i.e. not
+// mirroring the production call. Bug found in production on the AWS BYOK
+// cluster aws-iad-nkxdev-1, where there was no working way to silence
+// individual noisy components.
+func (config *Config) parseComponentSelectors() {
+	if config.selectedComponents != nil {
+		return
+	}
+	config.selectedComponents = make(map[string]any)
+	config.disabledComponents = make(map[string]any)
+	for _, c := range config.Components {
+		if name, ok := strings.CutPrefix(c, "-"); ok {
+			config.disabledComponents[name] = struct{}{}
+			continue
+		}
+		if c == "*" || c == "all" {
+			config.allComponentsSelected = true
+			continue
+		}
+		config.hasComponentAllowlist = true
+		config.selectedComponents[c] = struct{}{}
+	}
+}
+
 // ShouldEnable returns true if the component should be enabled.
-// If the enable component sets are not specified, it will return true,
-// meaning it should be enabled by default.
+// If the component list is not specified, it returns true, meaning every
+// component is enabled by default. A list containing only "-"-prefixed
+// entries enables every component except the denylisted ones. Otherwise the
+// positive entries form an allowlist ("*" and "all" select every component),
+// and "-"-prefixed entries subtract from the result in both modes.
 func (config *Config) ShouldEnable(componentName string) bool {
 	// not specified, thus enable all components
-	if len(config.Components) == 0 || config.Components[0] == "*" || config.Components[0] == "all" {
+	if len(config.Components) == 0 {
 		return true
 	}
 
-	if config.selectedComponents == nil {
-		config.selectedComponents = make(map[string]any)
+	config.parseComponentSelectors()
 
-		for _, c := range config.Components {
-			if c == "*" || c == "all" {
-				// enable all components
-				return true
-			}
-
-			// prefix "-" is used to disable a component
-			if strings.HasPrefix(c, "-") {
-				continue
-			}
-			config.selectedComponents[c] = struct{}{}
-		}
+	// the denylist wins in both allowlist and denylist-only modes:
+	// "--components=all,-foo" and "--components=-foo" both disable "foo".
+	// (LEP-6439: the old "all"/"*" early return bailed out before "-" entries
+	// were ever read, so "--components=all,-library" silently kept library
+	// enabled -- exactly the combination the aws-iad-nkxdev-1 BYOK hot-fix
+	// needed.)
+	if _, disabled := config.disabledComponents[componentName]; disabled {
+		return false
 	}
 
+	// "all"/"*", or a denylist-only list ("--components=-foo,-bar"):
+	// everything not denylisted stays enabled. (LEP-6439: previously a
+	// denylist-only list produced an EMPTY allowlist, so ShouldEnable returned
+	// false for every component and pkg/server registered zero components --
+	// the flag's own help text promises "-name" disables just that component.
+	// Note "none" is a positive, non-matching entry, so the documented
+	// "disable all components" escape hatch still works.)
+	if config.allComponentsSelected || !config.hasComponentAllowlist {
+		return true
+	}
+
+	// allowlist mode: only the listed components are enabled
 	_, shouldEnable := config.selectedComponents[componentName]
 	return shouldEnable
 }
 
 // ShouldDisable returns true if the component should be disabled.
-// If the disable component sets are not specified, it will return false,
-// meaning it should not be disabled, instead enabled by default.
+// If the component list is not specified, it returns false, meaning no
+// component is disabled by default.
 func (config *Config) ShouldDisable(componentName string) bool {
 	// not specified, thus enable all components (meaning should NOT disable any component)
-	if len(config.Components) == 0 || config.Components[0] == "*" || config.Components[0] == "all" {
+	if len(config.Components) == 0 {
 		return false
 	}
 
-	if config.disabledComponents == nil {
-		config.disabledComponents = make(map[string]any)
-
-		for _, c := range config.Components {
-			if c == "*" || c == "all" {
-				// enable all components
-				return false
-			}
-
-			// prefix "-" is used to disable a component
-			if !strings.HasPrefix(c, "-") {
-				continue
-			}
-			config.disabledComponents[c] = struct{}{}
-		}
-	}
+	config.parseComponentSelectors()
 
 	_, shouldDisable := config.disabledComponents[componentName]
 	return shouldDisable

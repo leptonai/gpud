@@ -205,6 +205,60 @@ func TestConfig_ShouldEnable(t *testing.T) {
 			componentName:    "any-component",
 			expected:         true,
 		},
+		{
+			name:             "Denylist only - denylisted component is disabled",
+			enableComponents: []string{"-component1", "-component2"},
+			componentName:    "component1",
+			expected:         false,
+		},
+		{
+			name:             "Denylist only - other component stays enabled",
+			enableComponents: []string{"-component1", "-component2"},
+			componentName:    "component3",
+			expected:         true,
+		},
+		{
+			name:             "All with denylist - denylisted component is disabled",
+			enableComponents: []string{"all", "-component1"},
+			componentName:    "component1",
+			expected:         false,
+		},
+		{
+			name:             "All with denylist - other component stays enabled",
+			enableComponents: []string{"all", "-component1"},
+			componentName:    "component2",
+			expected:         true,
+		},
+		{
+			name:             "Wildcard with denylist - denylisted component is disabled",
+			enableComponents: []string{"*", "-component1"},
+			componentName:    "component1",
+			expected:         false,
+		},
+		{
+			name:             "None keyword - disables all components",
+			enableComponents: []string{"none"},
+			componentName:    "any-component",
+			expected:         false,
+		},
+		{
+			name:             "Mixed allowlist and denylist - allowlisted component enabled",
+			enableComponents: []string{"component1", "-component2"},
+			componentName:    "component1",
+			expected:         true,
+		},
+		{
+			name:             "Mixed allowlist and denylist - denylisted component disabled even if not allowlisted",
+			enableComponents: []string{"component1", "-component2"},
+			componentName:    "component2",
+			expected:         false,
+		},
+		{
+			name:             "Mixed allowlist and denylist - unlisted component disabled",
+			enableComponents: []string{"component1", "-component2"},
+			componentName:    "component3",
+			expected:         false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -248,9 +302,9 @@ func TestConfig_ShouldDisable(t *testing.T) {
 			expected:      false,
 		},
 		{
-			name:          "Component with disable prefix - should disable",
+			name:          "Component with disable prefix - should disable (bare name lookup, as pkg/server calls it)",
 			components:    []string{"-component1", "component2"},
-			componentName: "-component1",
+			componentName: "component1",
 			expected:      true,
 		},
 		{
@@ -263,6 +317,30 @@ func TestConfig_ShouldDisable(t *testing.T) {
 			name:          "Component not in list - should not disable",
 			components:    []string{"-component1", "component2"},
 			componentName: "component3",
+			expected:      false,
+		},
+		{
+			name:          "Denylist only - denylisted component",
+			components:    []string{"-component1", "-component2"},
+			componentName: "component2",
+			expected:      true,
+		},
+		{
+			name:          "Denylist only - non-denylisted component",
+			components:    []string{"-component1", "-component2"},
+			componentName: "component3",
+			expected:      false,
+		},
+		{
+			name:          "All with denylist - denylisted component",
+			components:    []string{"all", "-component1"},
+			componentName: "component1",
+			expected:      true,
+		},
+		{
+			name:          "All with denylist - non-denylisted component",
+			components:    []string{"all", "-component1"},
+			componentName: "component2",
 			expected:      false,
 		},
 		{
@@ -339,10 +417,10 @@ func TestConfig_ShouldEnableDisable_MapInitialization(t *testing.T) {
 			Components: []string{"-comp1", "-comp2", "-comp3"},
 		}
 
-		// First call should initialize the map
-		result1 := cfg.ShouldDisable("-comp1")
+		// First call should initialize the map (bare name lookup, as pkg/server calls it)
+		result1 := cfg.ShouldDisable("comp1")
 		if !result1 {
-			t.Errorf("Expected -comp1 to be disabled")
+			t.Errorf("Expected comp1 to be disabled")
 		}
 
 		// Verify map was initialized
@@ -356,14 +434,14 @@ func TestConfig_ShouldEnableDisable_MapInitialization(t *testing.T) {
 		}
 
 		// Test different components
-		if !cfg.ShouldDisable("-comp2") {
-			t.Errorf("Expected -comp2 to be disabled")
+		if !cfg.ShouldDisable("comp2") {
+			t.Errorf("Expected comp2 to be disabled")
 		}
-		if !cfg.ShouldDisable("-comp3") {
-			t.Errorf("Expected -comp3 to be disabled")
+		if !cfg.ShouldDisable("comp3") {
+			t.Errorf("Expected comp3 to be disabled")
 		}
-		if cfg.ShouldDisable("-comp4") {
-			t.Errorf("Expected -comp4 to not be disabled")
+		if cfg.ShouldDisable("comp4") {
+			t.Errorf("Expected comp4 to not be disabled")
 		}
 	})
 }
@@ -564,44 +642,44 @@ func TestConfig_ShouldDisable_WildcardAndAllConditions(t *testing.T) {
 		{
 			name:          "Wildcard with disabled components",
 			components:    []string{"*", "-comp1", "-comp2"},
-			componentName: "-comp1",
-			expected:      false,
-			description:   "Should not disable any component when '*' is the first element, even with disabled components",
+			componentName: "comp1",
+			expected:      true,
+			description:   "Should still disable the denylisted component when '*' enables all (bare name lookup)",
 		},
 		{
 			name:          "All with disabled components",
 			components:    []string{"all", "-comp1", "-comp2"},
-			componentName: "-comp1",
-			expected:      false,
-			description:   "Should not disable any component when 'all' is the first element, even with disabled components",
+			componentName: "comp1",
+			expected:      true,
+			description:   "Should still disable the denylisted component when 'all' enables all (bare name lookup)",
 		},
 		{
 			name:          "Wildcard in middle of list",
 			components:    []string{"-comp1", "*", "-comp2"},
-			componentName: "-comp1",
-			expected:      false,
-			description:   "Should not disable any component when '*' is found anywhere in the list during map initialization",
+			componentName: "comp1",
+			expected:      true,
+			description:   "Should still disable the denylisted component regardless of '*' position",
 		},
 		{
 			name:          "All in middle of list",
 			components:    []string{"-comp1", "all", "-comp2"},
-			componentName: "-comp1",
-			expected:      false,
-			description:   "Should not disable any component when 'all' is found anywhere in the list during map initialization",
+			componentName: "comp1",
+			expected:      true,
+			description:   "Should still disable the denylisted component regardless of 'all' position",
 		},
 		{
 			name:          "Wildcard at end of list",
 			components:    []string{"-comp1", "-comp2", "*"},
-			componentName: "-comp1",
-			expected:      false,
-			description:   "Should not disable any component when '*' is found anywhere in the list during map initialization",
+			componentName: "comp1",
+			expected:      true,
+			description:   "Should still disable the denylisted component regardless of '*' position",
 		},
 		{
 			name:          "All at end of list",
 			components:    []string{"-comp1", "-comp2", "all"},
-			componentName: "-comp1",
-			expected:      false,
-			description:   "Should not disable any component when 'all' is found anywhere in the list during map initialization",
+			componentName: "comp1",
+			expected:      true,
+			description:   "Should still disable the denylisted component regardless of 'all' position",
 		},
 		{
 			name:          "Multiple wildcards",
@@ -655,16 +733,16 @@ func TestConfig_ShouldDisable_WildcardAndAllConditions(t *testing.T) {
 		{
 			name:          "Wildcard not first - specific disabled component in list",
 			components:    []string{"-comp1", "*", "-comp2"},
-			componentName: "-comp1",
-			expected:      false,
-			description:   "Should not disable any component when '*' is found during map initialization",
+			componentName: "comp1",
+			expected:      true,
+			description:   "Should disable the denylisted component even when '*' appears later in the list",
 		},
 		{
 			name:          "All not first - specific disabled component in list",
 			components:    []string{"-comp1", "all", "-comp2"},
-			componentName: "-comp1",
-			expected:      false,
-			description:   "Should not disable any component when 'all' is found during map initialization",
+			componentName: "comp1",
+			expected:      true,
+			description:   "Should disable the denylisted component even when 'all' appears later in the list",
 		},
 	}
 
@@ -680,37 +758,32 @@ func TestConfig_ShouldDisable_WildcardAndAllConditions(t *testing.T) {
 				t.Errorf("Config.ShouldDisable() = %v, want %v. %s", result, tt.expected, tt.description)
 			}
 
-			// Test multiple calls to ensure consistency
-			// Note: For cases where wildcard/all is not first, the first call may return false due to early return in loop,
-			// but subsequent calls will use the map which may contain the disabled component
-			if tt.components[0] == "*" || tt.components[0] == "all" {
-				// Only test multiple calls for early return cases
-				for i := 0; i < 3; i++ {
-					result2 := cfg.ShouldDisable(tt.componentName)
-					if result2 != tt.expected {
-						t.Errorf("Config.ShouldDisable() call %d = %v, want %v", i+2, result2, tt.expected)
-					}
+			// Test multiple calls to ensure consistency (lazy parse runs once; all calls agree)
+			for i := 0; i < 3; i++ {
+				result2 := cfg.ShouldDisable(tt.componentName)
+				if result2 != tt.expected {
+					t.Errorf("Config.ShouldDisable() call %d = %v, want %v", i+2, result2, tt.expected)
 				}
 			}
 		})
 	}
 }
 
-func TestConfig_ShouldEnable_EarlyReturnBehavior(t *testing.T) {
+func TestConfig_ShouldEnable_WildcardAllBehavior(t *testing.T) {
 	tests := []struct {
 		name        string
 		components  []string
 		description string
 	}{
 		{
-			name:        "First element is wildcard - early return",
+			name:        "First element is wildcard",
 			components:  []string{"*", "comp1", "comp2"},
-			description: "Should return true immediately when first element is '*'",
+			description: "Should return true when first element is '*'",
 		},
 		{
-			name:        "First element is all - early return",
+			name:        "First element is all",
 			components:  []string{"all", "comp1", "comp2"},
-			description: "Should return true immediately when first element is 'all'",
+			description: "Should return true when first element is 'all'",
 		},
 	}
 
@@ -720,35 +793,57 @@ func TestConfig_ShouldEnable_EarlyReturnBehavior(t *testing.T) {
 				Components: tt.components,
 			}
 
-			// Call ShouldEnable - should return true immediately without initializing map
 			result := cfg.ShouldEnable("test-component")
 			if !result {
-				t.Errorf("Expected ShouldEnable to return true for early return case")
+				t.Errorf("Expected ShouldEnable to return true when '*'/'all' is present")
 			}
 
-			// Verify that selectedComponents map was NOT initialized due to early return
-			if cfg.selectedComponents != nil {
-				t.Errorf("selectedComponents map should not be initialized when early return occurs")
+			// selectors are parsed lazily on the first call, regardless of position
+			if cfg.selectedComponents == nil {
+				t.Errorf("selectedComponents map should be initialized after first call")
+			}
+			if !cfg.allComponentsSelected {
+				t.Errorf("allComponentsSelected should be true when '*'/'all' is present")
 			}
 		})
 	}
 }
 
-func TestConfig_ShouldDisable_EarlyReturnBehavior(t *testing.T) {
+func TestConfig_ShouldDisable_WildcardAllBehavior(t *testing.T) {
 	tests := []struct {
-		name        string
-		components  []string
-		description string
+		name          string
+		components    []string
+		componentName string
+		expected      bool
+		description   string
 	}{
 		{
-			name:        "First element is wildcard - early return",
-			components:  []string{"*", "-comp1", "-comp2"},
-			description: "Should return false immediately when first element is '*'",
+			name:          "Wildcard with denylist - non-denylisted component",
+			components:    []string{"*", "-comp1", "-comp2"},
+			componentName: "test-component",
+			expected:      false,
+			description:   "Should not disable a component that is not denylisted, even with '*'",
 		},
 		{
-			name:        "First element is all - early return",
-			components:  []string{"all", "-comp1", "-comp2"},
-			description: "Should return false immediately when first element is 'all'",
+			name:          "All with denylist - non-denylisted component",
+			components:    []string{"all", "-comp1", "-comp2"},
+			componentName: "test-component",
+			expected:      false,
+			description:   "Should not disable a component that is not denylisted, even with 'all'",
+		},
+		{
+			name:          "Wildcard with denylist - denylisted component",
+			components:    []string{"*", "-comp1", "-comp2"},
+			componentName: "comp1",
+			expected:      true,
+			description:   "Should disable the denylisted component even when '*' is present",
+		},
+		{
+			name:          "All with denylist - denylisted component",
+			components:    []string{"all", "-comp1", "-comp2"},
+			componentName: "comp2",
+			expected:      true,
+			description:   "Should disable the denylisted component even when 'all' is present",
 		},
 	}
 
@@ -758,15 +853,14 @@ func TestConfig_ShouldDisable_EarlyReturnBehavior(t *testing.T) {
 				Components: tt.components,
 			}
 
-			// Call ShouldDisable - should return false immediately without initializing map
-			result := cfg.ShouldDisable("test-component")
-			if result {
-				t.Errorf("Expected ShouldDisable to return false for early return case")
+			result := cfg.ShouldDisable(tt.componentName)
+			if result != tt.expected {
+				t.Errorf("Config.ShouldDisable() = %v, want %v. %s", result, tt.expected, tt.description)
 			}
 
-			// Verify that disabledComponents map was NOT initialized due to early return
-			if cfg.disabledComponents != nil {
-				t.Errorf("disabledComponents map should not be initialized when early return occurs")
+			// selectors are parsed lazily on the first call
+			if cfg.disabledComponents == nil {
+				t.Errorf("disabledComponents map should be initialized after first call")
 			}
 		})
 	}
@@ -795,15 +889,22 @@ func TestConfig_WildcardAndAll_EdgeCases(t *testing.T) {
 			Components: []string{"-comp1", "*", "-comp2", "all", "enabled"},
 		}
 
-		// First call should trigger early return due to "*" in the loop
-		result := cfg.ShouldDisable("-comp1")
-		if result {
-			t.Errorf("Expected ShouldDisable to return false when '*' is found in loop")
+		// the denylist applies even when "*"/"all" is present (bare name lookup)
+		if !cfg.ShouldDisable("comp1") {
+			t.Errorf("Expected ShouldDisable to return true for denylisted comp1")
+		}
+		if !cfg.ShouldDisable("comp2") {
+			t.Errorf("Expected ShouldDisable to return true for denylisted comp2")
+		}
+		if cfg.ShouldDisable("enabled") {
+			t.Errorf("Expected ShouldDisable to return false for non-denylisted component")
 		}
 
-		// Map should be initialized because we start the loop before hitting the early return
 		if cfg.disabledComponents == nil {
-			t.Errorf("disabledComponents map should be initialized when loop starts")
+			t.Errorf("disabledComponents map should be initialized after first call")
+		}
+		if len(cfg.disabledComponents) != 2 {
+			t.Errorf("disabledComponents map should have 2 entries, got %d", len(cfg.disabledComponents))
 		}
 	})
 
@@ -812,13 +913,18 @@ func TestConfig_WildcardAndAll_EdgeCases(t *testing.T) {
 			Components: []string{"-comp1", "-comp2", "-comp3"},
 		}
 
-		// Should return false since no enabled components are specified
-		result := cfg.ShouldEnable("any-component")
-		if result {
-			t.Errorf("Expected ShouldEnable to return false when only disabled components are specified")
+		// denylist-only list: every component except the denylisted ones stays enabled
+		if !cfg.ShouldEnable("any-component") {
+			t.Errorf("Expected ShouldEnable to return true for non-denylisted component with denylist-only configuration")
+		}
+		if cfg.ShouldEnable("comp1") {
+			t.Errorf("Expected ShouldEnable to return false for denylisted comp1")
+		}
+		if cfg.ShouldEnable("comp2") {
+			t.Errorf("Expected ShouldEnable to return false for denylisted comp2")
 		}
 
-		// Map should be initialized and empty
+		// no positive entries: the allowlist map stays empty
 		if cfg.selectedComponents == nil {
 			t.Errorf("selectedComponents map should be initialized")
 		}
@@ -833,7 +939,7 @@ func TestConfig_WildcardAndAll_EdgeCases(t *testing.T) {
 		}
 
 		// Should return false since no disabled components are specified
-		result := cfg.ShouldDisable("-any-component")
+		result := cfg.ShouldDisable("any-component")
 		if result {
 			t.Errorf("Expected ShouldDisable to return false when only enabled components are specified")
 		}
@@ -864,10 +970,74 @@ func TestConfig_WildcardAndAll_EdgeCases(t *testing.T) {
 			Components: []string{"-COMP1", "all", "-comp2"},
 		}
 
-		// Should return false due to "all" in the list
-		result := cfg.ShouldDisable("-comp1")
+		// denylist is case-sensitive: "comp1" does not match the "-COMP1" entry
+		result := cfg.ShouldDisable("comp1")
 		if result {
-			t.Errorf("Expected ShouldDisable to return false due to 'all' in list")
+			t.Errorf("Expected ShouldDisable to return false due to case-sensitive matching")
+		}
+		if !cfg.ShouldDisable("comp2") {
+			t.Errorf("Expected ShouldDisable to return true for denylisted comp2")
 		}
 	})
+}
+
+// TestConfig_Components_Denylist_LEP6439 is a regression test for LEP-6439:
+// "gpud run --components=-a,-b" must disable exactly the denylisted
+// components. Previously a denylist-only list disabled ALL components
+// (ShouldEnable treated the list as a pure allowlist and skipped "-" entries,
+// leaving the selected set empty), and ShouldDisable never matched because it
+// stored "-"-prefixed keys while pkg/server looks up bare component names.
+func TestConfig_Components_Denylist_LEP6439(t *testing.T) {
+	cfg := &Config{
+		Components: []string{
+			"-accelerator-nvidia-fabric-manager",
+			"-accelerator-nvidia-persistence-mode",
+			"-library",
+			"-docker",
+		},
+	}
+
+	for _, name := range []string{
+		"accelerator-nvidia-fabric-manager",
+		"accelerator-nvidia-persistence-mode",
+		"library",
+		"docker",
+	} {
+		if cfg.ShouldEnable(name) {
+			t.Errorf("Expected ShouldEnable(%q) = false (denylisted)", name)
+		}
+		if !cfg.ShouldDisable(name) {
+			t.Errorf("Expected ShouldDisable(%q) = true (denylisted)", name)
+		}
+	}
+
+	for _, name := range []string{
+		"accelerator-nvidia-gpu-counts",
+		"accelerator-nvidia-error-xid",
+		"containerd",
+		"os",
+		"network-latency",
+	} {
+		if !cfg.ShouldEnable(name) {
+			t.Errorf("Expected ShouldEnable(%q) = true (not denylisted)", name)
+		}
+		if cfg.ShouldDisable(name) {
+			t.Errorf("Expected ShouldDisable(%q) = false (not denylisted)", name)
+		}
+	}
+
+	// "all" combined with a denylist subtracts the denylisted components
+	cfgAll := &Config{Components: []string{"all", "-library"}}
+	if cfgAll.ShouldEnable("library") {
+		t.Errorf("Expected ShouldEnable(\"library\") = false with all,-library")
+	}
+	if !cfgAll.ShouldEnable("containerd") {
+		t.Errorf("Expected ShouldEnable(\"containerd\") = true with all,-library")
+	}
+
+	// documented escape hatch: a non-matching positive entry disables everything
+	cfgNone := &Config{Components: []string{"none"}}
+	if cfgNone.ShouldEnable("os") {
+		t.Errorf("Expected ShouldEnable to return false with --components=none")
+	}
 }

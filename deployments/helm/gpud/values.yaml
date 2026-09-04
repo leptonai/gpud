@@ -27,6 +27,21 @@ gpud:
   # The log level for gpud.
   logLevel: "info"
 
+  # Components to run, as a list, rendered to "gpud run --components".
+  # Empty (default) enables ALL components -- nothing is disabled.
+  #
+  # HOW TO USE:
+  #   select (allowlist): list bare component names; ONLY those run.
+  #     components: ["containerd", "os", "accelerator-nvidia-error-xid"]
+  #   disable (denylist): prefix names with "-"; everything else still runs.
+  #     components: ["-docker", "-library"]
+  #   disable everything: ["none"]
+  #
+  # The denylist ("-name") form requires a gpud image with the LEP-6439 fix;
+  # on older images a denylist-only list disables ALL components -- use an
+  # explicit allowlist there instead.
+  components: []
+
   # The endpoint for the control plane.
   endpoint: "gpud-manager-prod01.dgxc-lepton.nvidia.com"
 
