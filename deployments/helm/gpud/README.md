@@ -191,22 +191,6 @@ the containerd check behaves as before. On nodes that run neither containerd
 nor CRI-O, set `gpud.mountContainerd: false` and
 `gpud.containerdServiceActiveCommands: ""`.
 
-### Enabling or Disabling Components
-
-Set `gpud.components` to control which components run (passed through to
-`gpud run --components`). Empty (the default) enables all components. Prefix a
-component name with `-` to denylist it while keeping everything else:
-
-```yaml
-gpud:
-  # Disable the docker check on containerd-only nodes, keep everything else:
-  components: "-docker"
-```
-
-The denylist (`-name`) form requires a gpud image with the LEP-6439 fix; on
-older images a denylist-only list disables ALL components, so use an explicit
-comma-separated allowlist there instead.
-
 ### Session Token from a Secret
 
 When `nodeLabelExporter.enabled=true`, the chart's init container can read the

@@ -27,14 +27,6 @@ gpud:
   # The log level for gpud.
   logLevel: "info"
 
-  # Components to enable, passed through to "gpud run --components".
-  # Empty (default) enables all components. Prefix a component name with "-"
-  # to denylist it, e.g. "-accelerator-nvidia-fabric-manager,-docker".
-  # The denylist ("-name") form requires a gpud image with the LEP-6439 fix;
-  # on older images a denylist-only list disables ALL components, so use an
-  # explicit allowlist there instead.
-  components: ""
-
   # The endpoint for the control plane.
   endpoint: "gpud-manager-prod01.dgxc-lepton.nvidia.com"
 
