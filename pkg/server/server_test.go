@@ -94,7 +94,7 @@ func TestNew_DBInMemory_SeedsSessionCredentialsBeforeAddressValidation(t *testin
 		Address:                "invalid address",
 		DataDir:                tmpDir,
 		MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
-		Components:             []string{"-disable-all"},
+		Components:             []string{"none"},
 
 		DBInMemory:          true,
 		SessionToken:        "session-token",
@@ -313,7 +313,7 @@ func TestNewNVSentinelDisabledDoesNotCreateSource(t *testing.T) {
 		Address:                "invalid address",
 		DataDir:                tmpDir,
 		MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
-		Components:             []string{"-disable-all"},
+		Components:             []string{"none"},
 		DBInMemory:             true,
 		NVSentinel: &config.NVSentinelConfig{
 			Enabled:          false,
@@ -344,7 +344,7 @@ func TestNewNVSentinelEnabledWithCustomDedupWindow(t *testing.T) {
 		Address:                "invalid address",
 		DataDir:                tmpDir,
 		MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
-		Components:             []string{"-disable-all"},
+		Components:             []string{"none"},
 		DBInMemory:             true,
 		NVSentinel: &config.NVSentinelConfig{
 			Enabled:          true,
@@ -378,7 +378,7 @@ func TestNewNVSentinelEnabledWithInvalidSocketPath(t *testing.T) {
 		Address:                "invalid address",
 		DataDir:                tmpDir,
 		MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
-		Components:             []string{"-disable-all"},
+		Components:             []string{"none"},
 		DBInMemory:             true,
 		NVSentinel: &config.NVSentinelConfig{
 			Enabled:    true,
@@ -412,7 +412,7 @@ func TestNewNVSentinelEnabledWithDefaultSocketPath(t *testing.T) {
 		Address:                "invalid address",
 		DataDir:                tmpDir,
 		MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
-		Components:             []string{"-disable-all"},
+		Components:             []string{"none"},
 		DBInMemory:             true,
 		NVSentinel: &config.NVSentinelConfig{
 			Enabled: true,
@@ -445,7 +445,7 @@ func TestNewNVSentinelWithCustomDedupWindowApplied(t *testing.T) {
 		Address:                "invalid address",
 		DataDir:                tmpDir,
 		MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute},
-		Components:             []string{"-disable-all"},
+		Components:             []string{"none"},
 		DBInMemory:             true,
 		NVSentinel: &config.NVSentinelConfig{
 			Enabled:          true,
