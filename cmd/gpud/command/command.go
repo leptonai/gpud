@@ -22,6 +22,7 @@ import (
 	cmdstatus "github.com/leptonai/gpud/cmd/gpud/status"
 	cmdup "github.com/leptonai/gpud/cmd/gpud/up"
 	cmdupdate "github.com/leptonai/gpud/cmd/gpud/update"
+	componentsnvidiapersistencemode "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode"
 	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	componentsnvidiatemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
@@ -327,6 +328,11 @@ sudo rm /etc/systemd/system/gpud.service
 				&cli.StringFlag{
 					Name:  "nvlink-expected-link-states",
 					Usage: "set the nvlink expected link states in JSON (leave empty for default, useful for testing)",
+				},
+				&cli.StringFlag{
+					Name:  "persistence-mode-expected",
+					Usage: "set the expected NVIDIA persistence mode state: \"enabled\" (default) reports unhealthy when a GPU supports but has not enabled persistence mode; \"any\" records the state without failing (useful for GPU Operator-managed clusters where no component enables persistence mode)",
+					Value: string(componentsnvidiapersistencemode.ExpectedModeEnabled),
 				},
 				&cli.StringFlag{
 					Name:  "nfs-checker-configs",

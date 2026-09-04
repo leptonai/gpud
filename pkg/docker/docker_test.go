@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	docker_types "github.com/moby/moby/api/types/container"
@@ -181,4 +183,33 @@ func TestConvertToDockerContainer(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestCheckDockerInstalledOnHost(t *testing.T) {
+	// host root without docker: not installed (the containerd-node case from
+	// LEP-6440 -- the gpud image's own bundled CLI must not count)
+	hostRoot := t.TempDir()
+	assert.False(t, checkDockerInstalledOnHost(hostRoot))
+
+	// host root with docker at /usr/bin/docker: installed
+	dockerPath := filepath.Join(hostRoot, "usr", "bin", "docker")
+	require.NoError(t, os.MkdirAll(filepath.Dir(dockerPath), 0o755))
+	require.NoError(t, os.WriteFile(dockerPath, []byte("#!/bin/sh\n"), 0o755))
+	assert.True(t, checkDockerInstalledOnHost(hostRoot))
+
+	// docker under /usr/local/bin on the host also counts
+	hostRoot2 := t.TempDir()
+	dockerPath2 := filepath.Join(hostRoot2, "usr", "local", "bin", "docker")
+	require.NoError(t, os.MkdirAll(filepath.Dir(dockerPath2), 0o755))
+	require.NoError(t, os.WriteFile(dockerPath2, []byte("#!/bin/sh\n"), 0o755))
+	assert.True(t, checkDockerInstalledOnHost(hostRoot2))
+
+	// a directory named docker must not count
+	hostRoot3 := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(hostRoot3, "usr", "bin", "docker"), 0o755))
+	assert.False(t, checkDockerInstalledOnHost(hostRoot3))
+
+	// no host root (bare-metal/systemd): falls back to the PATH lookup;
+	// just assert it does not panic and returns a boolean
+	_ = checkDockerInstalledOnHost(filepath.Join(hostRoot, "does-not-exist"))
 }
