@@ -47,6 +47,10 @@ type component struct {
 	nvmlInstance           nvidianvml.Instance
 	getPersistenceModeFunc func(uuid string, dev device.Device) (PersistenceMode, error)
 
+	// expectedMode controls whether disabled persistence mode fails the check
+	// (ExpectedModeEnabled, default) or is only recorded (ExpectedModeAny).
+	expectedMode ExpectedMode
+
 	eventBucket eventstore.Bucket
 
 	lastMu          sync.RWMutex
@@ -64,6 +68,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		},
 		nvmlInstance:           gpudInstance.NVMLInstance,
 		getPersistenceModeFunc: GetPersistenceMode,
+		expectedMode:           GetDefaultExpectedMode(),
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -259,11 +264,21 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	if len(notEnabled) > 0 {
-		cr.health = apiv1.HealthStateTypeUnhealthy
+		reason := strings.Join(notEnabled, ", ")
 		if len(notEnabled) == len(cr.PersistenceModes) {
-			cr.reason = fmt.Sprintf("all %d GPU(s) disabled persistence mode", len(devs))
+			reason = fmt.Sprintf("all %d GPU(s) disabled persistence mode", len(devs))
+		}
+
+		// ExpectedModeAny tolerates disabled persistence mode (e.g. GPU
+		// Operator-managed clusters where nothing enables it) while still
+		// recording the state; ExpectedModeEnabled keeps the historical
+		// unhealthy behavior (LEP-6440).
+		if c.expectedMode == ExpectedModeAny {
+			cr.health = apiv1.HealthStateTypeHealthy
+			cr.reason = reason + " (expected mode: any, tolerated)"
 		} else {
-			cr.reason = strings.Join(notEnabled, ", ")
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = reason
 		}
 	} else {
 		cr.health = apiv1.HealthStateTypeHealthy

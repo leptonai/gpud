@@ -1582,3 +1582,53 @@ func TestCheck_FabricStateUnhealthyLogging(t *testing.T) {
 	assert.True(t, cr.FabricStateSupported)
 	assert.Equal(t, "test unhealthy reason", cr.FabricStateReason)
 }
+
+func TestCheckFMExistsInRoots(t *testing.T) {
+	// no driver roots mounted (bare metal without the binary): not found
+	assert.False(t, checkFMExistsInRoots(nil))
+
+	tmp := t.TempDir()
+
+	// driver root without the binary: not found
+	assert.False(t, checkFMExistsInRoots([]string{tmp}))
+
+	// GPU Operator layout: <root>/usr/bin/nv-fabricmanager (LEP-6440: this is
+	// where the operator's driver DaemonSet installs it, mounted at
+	// /run/nvidia/driver by the gpud chart)
+	fmPath := filepath.Join(tmp, "usr", "bin", "nv-fabricmanager")
+	require.NoError(t, os.MkdirAll(filepath.Dir(fmPath), 0o755))
+	require.NoError(t, os.WriteFile(fmPath, []byte("#!/bin/sh\n"), 0o755))
+	assert.True(t, checkFMExistsInRoots([]string{tmp}))
+
+	// a directory named nv-fabricmanager must not count
+	other := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(other, "usr", "bin", "nv-fabricmanager"), 0o755))
+	assert.False(t, checkFMExistsInRoots([]string{other}))
+}
+
+func TestFabricManagerProcessRunning(t *testing.T) {
+	// empty proc root: not running
+	tmp := t.TempDir()
+	assert.False(t, fabricManagerProcessRunning(tmp))
+
+	// a non-FM process: not running
+	pidDir := filepath.Join(tmp, "1234")
+	require.NoError(t, os.MkdirAll(pidDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(pidDir, "cmdline"), []byte("/usr/bin/kubelet\x00--v=2\x00"), 0o644))
+	assert.False(t, fabricManagerProcessRunning(tmp))
+
+	// non-numeric entries are skipped
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "bus"), []byte{}, 0o644))
+	assert.False(t, fabricManagerProcessRunning(tmp))
+
+	// FM running inside another container with an absolute argv[0]:
+	// nv-fabricmanager -c /usr/share/nvidia/nvswitch/fabricmanager.cfg
+	// (the exact shape observed on aws-iad-nkxdev-1, LEP-6440)
+	fmPidDir := filepath.Join(tmp, "39063")
+	require.NoError(t, os.MkdirAll(fmPidDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(fmPidDir, "cmdline"), []byte("nv-fabricmanager\x00-c\x00/usr/share/nvidia/nvswitch/fabricmanager.cfg\x00"), 0o644))
+	assert.True(t, fabricManagerProcessRunning(tmp))
+
+	// nonexistent proc root: not running, no error propagation
+	assert.False(t, fabricManagerProcessRunning(filepath.Join(tmp, "does-not-exist")))
+}

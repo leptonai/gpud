@@ -424,6 +424,10 @@ spec:
                 set -- "$@" --require-nvidia-driver
               fi
 
+              if [ -n "${GPUD_COMPONENTS:-}" ]; then
+                set -- "$@" --components="$GPUD_COMPONENTS"
+              fi
+
               set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
               set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
 
@@ -505,6 +509,12 @@ spec:
             # NVML are available. CPU-only nodes are unaffected.
             - name: GPUD_REQUIRE_NVIDIA_DRIVER
               value: "true"
+            {{- end }}
+            {{- if .Values.gpud.components }}
+            # Component allowlist/denylist, consumed by the startup script as
+            # $GPUD_COMPONENTS and passed to "gpud run --components".
+            - name: GPUD_COMPONENTS
+              value: {{ .Values.gpud.components | quote }}
             {{- end }}
             {{- if .Values.gpud.rebootCommands }}
             - name: GPUD_REBOOT_COMMANDS

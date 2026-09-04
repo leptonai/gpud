@@ -2,6 +2,8 @@ package docker
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 
 	dockerapitypescontainer "github.com/moby/moby/api/types/container"
@@ -71,6 +73,38 @@ func CheckDockerInstalled() bool {
 		return true
 	}
 	log.Logger.Debugw("docker not found in PATH", "error", err)
+	return false
+}
+
+// CheckDockerInstalledHostAware reports whether docker is installed on the
+// node. When gpud runs inside a container with the host root filesystem
+// mounted (the gpud DaemonSet's gpud.mountHostRoot, default on), a docker CLI
+// bundled in the container image itself must not count: the node only "has
+// docker" if the HOST has the binary. (LEP-6440: the gpud image ships
+// /usr/bin/docker, so the PATH-only check reported "docker installed but
+// docker is not running" on containerd-only nodes such as aws-iad-nkxdev-1.)
+// Without the host-root mount (bare-metal/systemd installs) it falls back to
+// the PATH lookup, preserving the previous behavior.
+func CheckDockerInstalledHostAware() bool {
+	return checkDockerInstalledOnHost("/host")
+}
+
+// checkDockerInstalledOnHost probes for the docker binary under the given
+// host root. It takes the root as a parameter so tests can point the probe at
+// a temporary directory. When the host root does not exist (not containerized
+// or mountHostRoot disabled), it defers to the PATH lookup.
+func checkDockerInstalledOnHost(hostRoot string) bool {
+	st, err := os.Stat(hostRoot)
+	if err != nil || !st.IsDir() {
+		return CheckDockerInstalled()
+	}
+	for _, dir := range []string{"usr/bin", "usr/local/bin", "usr/sbin", "bin", "sbin"} {
+		if st, err := os.Stat(filepath.Join(hostRoot, dir, "docker")); err == nil && !st.IsDir() {
+			log.Logger.Debugw("docker found on host", "path", filepath.Join(hostRoot, dir, "docker"))
+			return true
+		}
+	}
+	log.Logger.Debugw("docker not found on host; skipping container PATH result", "hostRoot", hostRoot)
 	return false
 }
 

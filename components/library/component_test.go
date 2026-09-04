@@ -151,3 +151,32 @@ func TestDataMethods(t *testing.T) {
 	assert.Empty(t, nilData.HealthStateType())
 	assert.Empty(t, nilData.getError())
 }
+
+func TestCheck_NoNVML(t *testing.T) {
+	// CPU-only node: no NVML and no NVIDIA hardware -> healthy skip, must NOT
+	// vacuously claim "all libraries exist" (LEP-6440 silent-gap fix)
+	comp := createTestComponent()
+	comp.libraries = nil
+	comp.hasNVIDIAGPUFunc = func() (bool, error) { return false, nil }
+
+	result := comp.Check()
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+	assert.Equal(t, "NVML not loaded; no NVIDIA libraries to check", result.Summary())
+
+	// GPU node without NVML: real problem, must be reported (this is how the
+	// empty gpuInfo on aws-iad-nkxdev-1 went unnoticed)
+	comp.hasNVIDIAGPUFunc = func() (bool, error) { return true, nil }
+	result = comp.Check()
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
+	assert.Contains(t, result.Summary(), "NVML library is not loaded")
+
+	// GPU detection failure: log-and-skip, stay healthy (availability-first)
+	comp.hasNVIDIAGPUFunc = func() (bool, error) { return false, errors.New("sysfs error") }
+	result = comp.Check()
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+
+	// nil detector (component constructed without New): no panic, healthy skip
+	comp.hasNVIDIAGPUFunc = nil
+	result = comp.Check()
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.HealthStateType())
+}
