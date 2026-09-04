@@ -88,7 +88,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -99,6 +103,7 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 	"github.com/leptonai/gpud/pkg/log"
 	netutil "github.com/leptonai/gpud/pkg/netutil"
+	"github.com/leptonai/gpud/pkg/nvidia/driverroot"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
@@ -553,12 +558,34 @@ func (c *component) hasNothingToDoEvent() bool {
 }
 
 // checkFMExists returns true if the fabric manager executable is found in the system.
+// In addition to PATH, it probes the well-known driver roots that the gpud
+// DaemonSet mounts by default: on GPU Operator-managed nodes the
+// nv-fabricmanager binary is installed under the Operator's driver tree
+// (/run/nvidia/driver/usr/bin) rather than on the host system paths, so a
+// PATH-only lookup reports a false "executable not found" (LEP-6440, verified
+// on aws-iad-nkxdev-1 with GPU Operator 26.3.2: binary absent from
+// /host/usr/bin and /host/usr/sbin, present at
+// /run/nvidia/driver/usr/bin/nv-fabricmanager inside the same gpud pod that
+// reported it missing).
 func checkFMExists() bool {
 	p, err := exec.LookPath("nv-fabricmanager")
-	if err != nil {
-		return false
+	if err == nil && p != "" {
+		return true
 	}
-	return p != ""
+	return checkFMExistsInRoots(driverroot.Existing())
+}
+
+// checkFMExistsInRoots returns true if the nv-fabricmanager executable exists
+// under any of the given driver roots. It takes the roots as a parameter (so
+// tests can point the probe at temporary directories) and is a no-op when no
+// driver root is mounted, preserving the bare-metal/systemd behavior.
+func checkFMExistsInRoots(roots []string) bool {
+	for _, dir := range driverroot.BinDirs(roots...) {
+		if st, err := os.Stat(filepath.Join(dir, "nv-fabricmanager")); err == nil && !st.IsDir() {
+			return true
+		}
+	}
+	return false
 }
 
 // checkFMActive returns true if the traditional fabric manager is active by checking its listening port.
@@ -580,7 +607,49 @@ func checkFMExists() bool {
 // Alternative implementation: We could check dbus connection to see if the systemd
 // "nvidia-fabricmanager" service is active, but port checking is simpler and sufficient.
 func checkFMActive() bool {
-	return netutil.IsPortOpen(defaultFabricManagerPort)
+	if netutil.IsPortOpen(defaultFabricManagerPort) {
+		return true
+	}
+
+	// The port check alone is insufficient when the GPU Operator runs fabric
+	// manager inside its driver container: the FM process is alive (started by
+	// the driver DaemonSet with the nvswitch fabricmanager.cfg) but does not
+	// listen on port 6666 on the host (LEP-6440, verified on aws-iad-nkxdev-1:
+	// "nv-fabricmanager -c /usr/share/nvidia/nvswitch/fabricmanager.cfg" alive
+	// as host pid 39063, no :6666 listener in /proc/net/tcp, systemd unit
+	// nvidia-fabricmanager.service inactive). gpud's DaemonSet runs with
+	// hostPID, and on bare metal /proc is the host's, so scanning /proc covers
+	// both deployment modes.
+	return fabricManagerProcessRunning("/proc")
+}
+
+// fabricManagerProcessRunning returns true if an nv-fabricmanager process is
+// found under the given proc root ("/proc" in production; a temporary
+// directory in tests). It matches on the basename of argv[0], which is more
+// precise than /proc/<pid>/comm (comm is truncated to 15 bytes and would read
+// "nv-fabricmanage").
+func fabricManagerProcessRunning(procRoot string) bool {
+	entries, err := os.ReadDir(procRoot)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if _, err := strconv.Atoi(entry.Name()); err != nil {
+			continue
+		}
+		cmdline, err := os.ReadFile(filepath.Join(procRoot, entry.Name(), "cmdline"))
+		if err != nil || len(cmdline) == 0 {
+			continue
+		}
+		argv0 := strings.SplitN(string(cmdline), "\x00", 2)[0]
+		if filepath.Base(argv0) == "nv-fabricmanager" {
+			return true
+		}
+	}
+	return false
 }
 
 var _ components.CheckResult = &checkResult{}

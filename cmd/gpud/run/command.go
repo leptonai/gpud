@@ -22,6 +22,7 @@ import (
 	componentsinfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	componentsnvidiainfinibanditypes "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	componentsnvlink "github.com/leptonai/gpud/components/accelerator/nvidia/nvlink"
+	componentsnvidiapersistencemode "github.com/leptonai/gpud/components/accelerator/nvidia/persistence-mode"
 	componentssxid "github.com/leptonai/gpud/components/accelerator/nvidia/sxid"
 	componentstemperature "github.com/leptonai/gpud/components/accelerator/nvidia/temperature"
 	componentsxid "github.com/leptonai/gpud/components/accelerator/nvidia/xid"
@@ -230,6 +231,18 @@ func Command(cliContext *cli.Context) error {
 		componentsnvlink.SetDefaultExpectedLinkStates(expectedLinkStates)
 
 		log.Logger.Infow("set nvlink expected link states", "nvlinkExpectedLinkStates", nvlinkExpectedLinkStates)
+	}
+
+	// Empty means the flag was not registered in this invocation (e.g. tests or
+	// programmatic callers that build their own flag sets); keep the default.
+	persistenceModeExpected := componentsnvidiapersistencemode.ExpectedMode(cliContext.String("persistence-mode-expected"))
+	switch persistenceModeExpected {
+	case "":
+	case componentsnvidiapersistencemode.ExpectedModeEnabled, componentsnvidiapersistencemode.ExpectedModeAny:
+		componentsnvidiapersistencemode.SetDefaultExpectedMode(persistenceModeExpected)
+		log.Logger.Infow("set persistence mode expectation", "persistenceModeExpected", persistenceModeExpected)
+	default:
+		return fmt.Errorf("invalid --persistence-mode-expected %q: must be %q or %q", persistenceModeExpected, componentsnvidiapersistencemode.ExpectedModeEnabled, componentsnvidiapersistencemode.ExpectedModeAny)
 	}
 
 	if len(nfsCheckerConfigs) > 0 {

@@ -48,7 +48,9 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		ctx:    cctx,
 		cancel: ccancel,
 
-		checkDependencyInstalledFunc: pkgdocker.CheckDockerInstalled,
+		// Host-aware: a docker CLI bundled in the gpud container image must not
+		// count as "docker installed" (LEP-6440); only the host's binaries do.
+		checkDependencyInstalledFunc: pkgdocker.CheckDockerInstalledHostAware,
 		checkServiceActiveFunc: func() (bool, error) {
 			return systemd.IsActive("docker")
 		},

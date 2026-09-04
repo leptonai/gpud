@@ -1261,3 +1261,54 @@ func TestCheck_GPURequiresResetSuggestedActions(t *testing.T) {
 	assert.NotNil(t, states[0].SuggestedActions)
 	assert.Contains(t, states[0].SuggestedActions.RepairActions, apiv1.RepairActionTypeRebootSystem)
 }
+
+// TestCheck_ExpectedModeAny covers LEP-6440: on GPU Operator-managed clusters
+// nothing enables persistence mode (observed on aws-iad-nkxdev-1 with GPU
+// Operator 26.3.2, all 8 H100s supported-but-disabled), and the
+// "--persistence-mode-expected=any" configuration must record the state
+// without reporting unhealthy.
+func TestCheck_ExpectedModeAny(t *testing.T) {
+	ctx := context.Background()
+
+	uuid := "gpu-uuid-any"
+	busID := "0000:53:00.0"
+	mockDeviceObj := &mock.Device{
+		GetUUIDFunc: func() (string, nvml.Return) {
+			return uuid, nvml.SUCCESS
+		},
+	}
+	mockDev := testutil.NewMockDevice(mockDeviceObj, "test-arch", "test-brand", "test-cuda", busID)
+	devs := map[string]device.Device{uuid: mockDev}
+
+	newComp := func(mode ExpectedMode) *component {
+		comp := mustComponent(t, mockComponent(
+			ctx,
+			func() map[string]device.Device { return devs },
+			func(u string, _ device.Device) (PersistenceMode, error) {
+				return PersistenceMode{UUID: u, BusID: busID, Supported: true, Enabled: false}, nil
+			},
+		))
+		comp.expectedMode = mode
+		return comp
+	}
+
+	// default (enabled): unhealthy, historical behavior
+	comp := newComp(ExpectedModeEnabled)
+	cr := comp.Check().(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Contains(t, cr.reason, "persistence mode")
+
+	// zero value behaves like "enabled" (components constructed without New)
+	comp = newComp("")
+	cr = comp.Check().(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+
+	// "any": tolerated, but the per-GPU state is still collected and reported
+	comp = newComp(ExpectedModeAny)
+	cr = comp.Check().(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
+	assert.Contains(t, cr.reason, "disabled persistence mode")
+	assert.Contains(t, cr.reason, "tolerated")
+	require.Len(t, cr.PersistenceModes, 1)
+	assert.False(t, cr.PersistenceModes[0].Enabled)
+}
