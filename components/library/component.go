@@ -121,7 +121,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		// by the GPU Operator (/run/nvidia/driver/usr/lib/...) or pre-installed on the
 		// host (/host/usr/lib/...), producing false "library does not exist" unhealthy
 		// reports even though gpud's own NVML loader already loads them from those
-		// trees (LEP-6440, observed on aws-iad-nkxdev-1 with GPU Operator 26.3.2).
+		// trees (LEP-6440, observed on aws-iad-nkxdev-1 with GPU Operator 26.3.2:
+		// both p5.48xlarge nodes reported 'library "libcuda.so" does not exist;
+		// library "libnvidia-ml.so" does not exist' while
+		// /run/nvidia/driver/usr/lib/x86_64-linux-gnu/libcuda.so.580.95.05 and
+		// libnvidia-ml.so.580.95.05 were present inside the same pod).
 		for _, dir := range driverroot.LibraryDirs(driverroot.Existing()...) {
 			searchDirs[dir] = struct{}{}
 		}
@@ -203,7 +207,9 @@ func (c *component) Check() components.CheckResult {
 	// report it instead of vacuously passing with "all libraries exist".
 	// (LEP-6440: this silent gap is how the empty gpuInfo on aws-iad-nkxdev-1
 	// went unnoticed; the control plane recorded empty GPU fields with no
-	// unhealthy signal from gpud.)
+	// unhealthy signal from gpud. Verified live 2026-09-03: the m6i.xlarge
+	// CPU nodes reported Healthy "all libraries exist" precisely because the
+	// libraries map was nil.)
 	if len(c.libraries) == 0 {
 		hasGPU := false
 		if c.hasNVIDIAGPUFunc != nil {

@@ -80,9 +80,11 @@ func CheckDockerInstalled() bool {
 // node. When gpud runs inside a container with the host root filesystem
 // mounted (the gpud DaemonSet's gpud.mountHostRoot, default on), a docker CLI
 // bundled in the container image itself must not count: the node only "has
-// docker" if the HOST has the binary. (LEP-6440: the gpud image ships
-// /usr/bin/docker, so the PATH-only check reported "docker installed but
-// docker is not running" on containerd-only nodes such as aws-iad-nkxdev-1.)
+// docker" if the HOST has the binary. (LEP-6440, verified on aws-iad-nkxdev-1:
+// the host has no docker at all -- no /host/usr/bin/docker, no
+// /var/run/docker.sock, containerd 2.2.1 is the runtime -- yet the PATH-only
+// check matched /usr/bin/docker bundled in the gpud image and reported
+// "docker installed but docker is not running" on all 5 nodes.)
 // Without the host-root mount (bare-metal/systemd installs) it falls back to
 // the PATH lookup, preserving the previous behavior.
 func CheckDockerInstalledHostAware() bool {

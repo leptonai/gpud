@@ -19,9 +19,10 @@ const (
 	// unhealthy for disabled persistence mode. Intended for GPU
 	// Operator-managed clusters where no component enables persistence mode
 	// and long-running GPU clients (DCGM, device plugin) already keep the
-	// driver initialized (LEP-6440, observed on aws-iad-nkxdev-1 where the
-	// GPU Operator 26.3.2 driver DaemonSet leaves persistence mode off on all
-	// GPUs).
+	// driver initialized, making PM-off functionally benign there (LEP-6440,
+	// verified on aws-iad-nkxdev-1 with GPU Operator 26.3.2: all 8 H100s on
+	// both p5.48xlarge nodes reported supported=true, enabled=false, and
+	// neither the driver DaemonSet nor anything else enables it).
 	ExpectedModeAny ExpectedMode = "any"
 )
 
