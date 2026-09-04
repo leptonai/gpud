@@ -562,8 +562,11 @@ func (c *component) hasNothingToDoEvent() bool {
 // DaemonSet mounts by default: on GPU Operator-managed nodes the
 // nv-fabricmanager binary is installed under the Operator's driver tree
 // (/run/nvidia/driver/usr/bin) rather than on the host system paths, so a
-// PATH-only lookup reports a false "executable not found" (LEP-6440, observed
-// on aws-iad-nkxdev-1 with GPU Operator 26.3.2).
+// PATH-only lookup reports a false "executable not found" (LEP-6440, verified
+// on aws-iad-nkxdev-1 with GPU Operator 26.3.2: binary absent from
+// /host/usr/bin and /host/usr/sbin, present at
+// /run/nvidia/driver/usr/bin/nv-fabricmanager inside the same gpud pod that
+// reported it missing).
 func checkFMExists() bool {
 	p, err := exec.LookPath("nv-fabricmanager")
 	if err == nil && p != "" {
@@ -611,8 +614,10 @@ func checkFMActive() bool {
 	// The port check alone is insufficient when the GPU Operator runs fabric
 	// manager inside its driver container: the FM process is alive (started by
 	// the driver DaemonSet with the nvswitch fabricmanager.cfg) but does not
-	// listen on port 6666 on the host (LEP-6440, observed on aws-iad-nkxdev-1:
-	// nv-fabricmanager pid present, :6666 closed). gpud's DaemonSet runs with
+	// listen on port 6666 on the host (LEP-6440, verified on aws-iad-nkxdev-1:
+	// "nv-fabricmanager -c /usr/share/nvidia/nvswitch/fabricmanager.cfg" alive
+	// as host pid 39063, no :6666 listener in /proc/net/tcp, systemd unit
+	// nvidia-fabricmanager.service inactive). gpud's DaemonSet runs with
 	// hostPID, and on bare metal /proc is the host's, so scanning /proc covers
 	// both deployment modes.
 	return fabricManagerProcessRunning("/proc")
