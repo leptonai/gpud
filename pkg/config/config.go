@@ -206,6 +206,16 @@ func (config *Config) Validate() error {
 // look components up by bare name. All other entries form the allowlist,
 // where "*" and "all" select every component. A list containing only
 // "-"-prefixed entries enables every component except the denylisted ones.
+//
+// Why stored bare (LEP-6439): the only production caller,
+// pkg/server/server.go, invokes ShouldDisable(name) with the bare registered
+// component name (e.g. "library"). The previous implementation stored the key
+// as "-library" -- prefix included -- so the lookup could never match and the
+// entire disable path was dead code. The old unit tests masked this by
+// querying ShouldDisable("-comp1") with the prefix still attached, i.e. not
+// mirroring the production call. Bug found in production on the AWS BYOK
+// cluster aws-iad-nkxdev-1, where there was no working way to silence
+// individual noisy components.
 func (config *Config) parseComponentSelectors() {
 	if config.selectedComponents != nil {
 		return
@@ -241,13 +251,22 @@ func (config *Config) ShouldEnable(componentName string) bool {
 	config.parseComponentSelectors()
 
 	// the denylist wins in both allowlist and denylist-only modes:
-	// "--components=all,-foo" and "--components=-foo" both disable "foo"
+	// "--components=all,-foo" and "--components=-foo" both disable "foo".
+	// (LEP-6439: the old "all"/"*" early return bailed out before "-" entries
+	// were ever read, so "--components=all,-library" silently kept library
+	// enabled -- exactly the combination the aws-iad-nkxdev-1 BYOK hot-fix
+	// needed.)
 	if _, disabled := config.disabledComponents[componentName]; disabled {
 		return false
 	}
 
 	// "all"/"*", or a denylist-only list ("--components=-foo,-bar"):
-	// everything not denylisted stays enabled
+	// everything not denylisted stays enabled. (LEP-6439: previously a
+	// denylist-only list produced an EMPTY allowlist, so ShouldEnable returned
+	// false for every component and pkg/server registered zero components --
+	// the flag's own help text promises "-name" disables just that component.
+	// Note "none" is a positive, non-matching entry, so the documented
+	// "disable all components" escape hatch still works.)
 	if config.allComponentsSelected || !config.hasComponentAllowlist {
 		return true
 	}
