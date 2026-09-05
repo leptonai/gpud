@@ -198,38 +198,6 @@ func (c *PackageController) installRunner(ctx context.Context) {
 			dependency := pkg.Dependency
 			scriptPath := pkg.ScriptPath
 			c.RUnlock()
-			var skipCheck bool
-			for _, dep := range dependency {
-				// Read the dependency's mutable fields under the read lock;
-				// updateRunner and the async install goroutine mutate them
-				// under the write lock.
-				c.RLock()
-				depPkg, depFound := c.packageStatus[dep[0]]
-				depInstalled := depFound && depPkg.IsInstalled
-				depVersion := ""
-				if depFound {
-					depVersion = depPkg.CurrentVersion
-				}
-				c.RUnlock()
-				if !depFound {
-					log.Logger.Infof("[package controller]: %v dependency %v not found, skipping", pkg.Name, dep[0])
-					skipCheck = true
-					break
-				}
-				if !depInstalled {
-					log.Logger.Infof("[package controller]: %v dependency %v not installed, skipping", pkg.Name, dep[0])
-					skipCheck = true
-					break
-				}
-				if dep[1] != "*" && (depVersion == "" || depVersion < dep[1]) {
-					log.Logger.Infof("[package controller]: %v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], depVersion, dep[1])
-					skipCheck = true
-					break
-				}
-			}
-			if skipCheck {
-				continue
-			}
 
 			var shouldSkipResult string
 			if err := runCommand(ctx, scriptPath, "shouldSkip", &shouldSkipResult); err == nil {
@@ -258,6 +226,39 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				c.packageStatus[pkg.Name].IsInstalled = true
 				c.Unlock()
 				log.Logger.Debugw("[package controller] already installed", "name", pkg.Name)
+				continue
+			}
+
+			var skipInstall bool
+			for _, dep := range dependency {
+				// Read the dependency's mutable fields under the read lock;
+				// updateRunner and the async install goroutine mutate them
+				// under the write lock.
+				c.RLock()
+				depPkg, depFound := c.packageStatus[dep[0]]
+				depInstalled := depFound && depPkg.IsInstalled
+				depVersion := ""
+				if depFound {
+					depVersion = depPkg.CurrentVersion
+				}
+				c.RUnlock()
+				if !depFound {
+					log.Logger.Infof("[package controller]: %v dependency %v not found, skipping", pkg.Name, dep[0])
+					skipInstall = true
+					break
+				}
+				if !depInstalled {
+					log.Logger.Infof("[package controller]: %v dependency %v not installed, skipping", pkg.Name, dep[0])
+					skipInstall = true
+					break
+				}
+				if dep[1] != "*" && (depVersion == "" || depVersion < dep[1]) {
+					log.Logger.Infof("[package controller]: %v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], depVersion, dep[1])
+					skipInstall = true
+					break
+				}
+			}
+			if skipInstall {
 				continue
 			}
 
