@@ -161,6 +161,7 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 			Name:           "dep",
 			IsInstalled:    true,
 			CurrentVersion: "2.0.0",
+			ScriptPath:     "/tmp/dep.sh",
 		}
 
 		controller.packageStatus["needs-missing-dep"] = &packages.PackageStatus{
@@ -175,19 +176,39 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 			ScriptPath: "/tmp/version.sh",
 			TotalTime:  200 * time.Millisecond,
 		}
+		controller.packageStatus["uninstalled-dep"] = &packages.PackageStatus{
+			Name:       "uninstalled-dep",
+			Dependency: [][]string{{"missing", "*"}},
+			ScriptPath: "/tmp/uninstalled-dep.sh",
+			TotalTime:  200 * time.Millisecond,
+		}
+		controller.packageStatus["needs-uninstalled-dep"] = &packages.PackageStatus{
+			Name:       "needs-uninstalled-dep",
+			Dependency: [][]string{{"uninstalled-dep", "*"}},
+			ScriptPath: "/tmp/needs-uninstalled-dep.sh",
+			TotalTime:  200 * time.Millisecond,
+		}
 		controller.packageStatus["skip"] = &packages.PackageStatus{
 			Name:       "skip",
 			ScriptPath: "/tmp/skip-install.sh",
 			TotalTime:  200 * time.Millisecond,
 		}
-		controller.packageStatus["installed"] = &packages.PackageStatus{
-			Name:       "installed",
-			ScriptPath: "/tmp/installed.sh",
+		controller.packageStatus["installed-with-missing-dep"] = &packages.PackageStatus{
+			Name:       "installed-with-missing-dep",
+			Dependency: [][]string{{"missing", "*"}},
+			ScriptPath: "/tmp/installed-with-missing-dep.sh",
 			TotalTime:  200 * time.Millisecond,
 		}
 		controller.packageStatus["install"] = &packages.PackageStatus{
 			Name:       "install",
+			Dependency: [][]string{{"dep", "2.0.0"}},
 			ScriptPath: "/tmp/install.sh",
+			TotalTime:  200 * time.Millisecond,
+		}
+		controller.packageStatus["installing"] = &packages.PackageStatus{
+			Name:       "installing",
+			Installing: true,
+			ScriptPath: "/tmp/installing.sh",
 			TotalTime:  200 * time.Millisecond,
 		}
 
@@ -195,19 +216,110 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 		startCalled := make(chan struct{}, 1)
 
 		var mockCalls atomic.Int64
+		var unexpectedCalls atomic.Int64
+		var installedProbeCalls atomic.Int64
+		var installedInstallCalls atomic.Int64
+		var installedStartCalls atomic.Int64
+		var missingProbeCalls atomic.Int64
+		var missingInstallCalls atomic.Int64
+		var missingStartCalls atomic.Int64
+		var oldVersionProbeCalls atomic.Int64
+		var oldVersionInstallCalls atomic.Int64
+		var oldVersionStartCalls atomic.Int64
+		var uninstalledDepProbeCalls atomic.Int64
+		var uninstalledDepInstallCalls atomic.Int64
+		var uninstalledDepStartCalls atomic.Int64
+		var dependentProbeCalls atomic.Int64
+		var dependentInstallCalls atomic.Int64
+		var dependentStartCalls atomic.Int64
+		var installingShouldSkipCalls atomic.Int64
+		var installingProbeCalls atomic.Int64
+		var installingInstallCalls atomic.Int64
+		var installingStartCalls atomic.Int64
 		mockey.Mock(runCommand).To(func(ctx context.Context, script, arg string, result *string) error {
 			mockCalls.Add(1)
 			switch filepath.Base(script) {
+			case "dep.sh":
+				switch arg {
+				case "shouldSkip":
+					return errors.New("no skip")
+				case "isInstalled":
+					return nil
+				}
+			case "missing.sh":
+				switch arg {
+				case "shouldSkip":
+					return errors.New("no skip")
+				case "isInstalled":
+					missingProbeCalls.Add(1)
+					return errors.New("not installed")
+				case "install":
+					missingInstallCalls.Add(1)
+					return nil
+				case "start":
+					missingStartCalls.Add(1)
+					return nil
+				}
+			case "version.sh":
+				switch arg {
+				case "shouldSkip":
+					return errors.New("no skip")
+				case "isInstalled":
+					oldVersionProbeCalls.Add(1)
+					return errors.New("not installed")
+				case "install":
+					oldVersionInstallCalls.Add(1)
+					return nil
+				case "start":
+					oldVersionStartCalls.Add(1)
+					return nil
+				}
+			case "uninstalled-dep.sh":
+				switch arg {
+				case "shouldSkip":
+					return errors.New("no skip")
+				case "isInstalled":
+					uninstalledDepProbeCalls.Add(1)
+					return errors.New("not installed")
+				case "install":
+					uninstalledDepInstallCalls.Add(1)
+					return nil
+				case "start":
+					uninstalledDepStartCalls.Add(1)
+					return nil
+				}
+			case "needs-uninstalled-dep.sh":
+				switch arg {
+				case "shouldSkip":
+					return errors.New("no skip")
+				case "isInstalled":
+					dependentProbeCalls.Add(1)
+					return errors.New("not installed")
+				case "install":
+					dependentInstallCalls.Add(1)
+					return nil
+				case "start":
+					dependentStartCalls.Add(1)
+					return nil
+				}
 			case "skip-install.sh":
 				if arg == "shouldSkip" {
 					return nil
 				}
-				return errors.New("unexpected")
-			case "installed.sh":
+			case "installed-with-missing-dep.sh":
 				if arg == "shouldSkip" {
 					return errors.New("no skip")
 				}
 				if arg == "isInstalled" {
+					installedProbeCalls.Add(1)
+					return nil
+				}
+				if arg == "install" {
+					installedInstallCalls.Add(1)
+					return nil
+				}
+				if arg == "start" {
+					installedStartCalls.Add(1)
 					return nil
 				}
 			case "install.sh":
@@ -231,8 +343,24 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 					}
 					return errors.New("start failed")
 				}
+			case "installing.sh":
+				switch arg {
+				case "shouldSkip":
+					installingShouldSkipCalls.Add(1)
+					return errors.New("no skip")
+				case "isInstalled":
+					installingProbeCalls.Add(1)
+					return nil
+				case "install":
+					installingInstallCalls.Add(1)
+					return nil
+				case "start":
+					installingStartCalls.Add(1)
+					return nil
+				}
 			}
-			return nil
+			unexpectedCalls.Add(1)
+			return errors.New("unexpected command")
 		}).Build()
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -262,7 +390,8 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 		require.Eventually(t, func() bool {
 			controller.RLock()
 			defer controller.RUnlock()
-			return controller.packageStatus["installed"].IsInstalled
+			installed := controller.packageStatus["installed-with-missing-dep"]
+			return installed.IsInstalled && installed.Progress == 100
 		}, 10*time.Second, 10*time.Millisecond)
 
 		require.Eventually(t, func() bool {
@@ -271,18 +400,50 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 			return controller.packageStatus["install"].Progress == 100
 		}, 10*time.Second, 10*time.Millisecond)
 
+		require.Eventually(t, func() bool {
+			return missingProbeCalls.Load() > 0 &&
+				oldVersionProbeCalls.Load() > 0 &&
+				uninstalledDepProbeCalls.Load() > 0 &&
+				dependentProbeCalls.Load() > 0 &&
+				installingShouldSkipCalls.Load() > 0
+		}, 10*time.Second, 10*time.Millisecond)
+
 		cancel()
 		// Ensure the runner goroutine has left the patched runCommand before
 		// PatchConvey unpatches it on scope exit (avoids a teardown data race).
 		waitMockQuiescent(t, &mockCalls)
 
 		controller.RLock()
-		missing := controller.packageStatus["needs-missing-dep"]
-		version := controller.packageStatus["needs-version-dep"]
+		missingInstalled := controller.packageStatus["needs-missing-dep"].IsInstalled
+		versionInstalled := controller.packageStatus["needs-version-dep"].IsInstalled
+		uninstalledDependencyInstalled := controller.packageStatus["uninstalled-dep"].IsInstalled
+		dependentInstalled := controller.packageStatus["needs-uninstalled-dep"].IsInstalled
 		controller.RUnlock()
 
-		assert.False(t, missing.IsInstalled)
-		assert.False(t, version.IsInstalled)
+		assert.False(t, missingInstalled)
+		assert.False(t, versionInstalled)
+		assert.False(t, uninstalledDependencyInstalled)
+		assert.False(t, dependentInstalled)
+		assert.Positive(t, installedProbeCalls.Load())
+		assert.Zero(t, installedInstallCalls.Load())
+		assert.Zero(t, installedStartCalls.Load())
+		assert.Zero(t, missingInstallCalls.Load())
+		assert.Zero(t, missingStartCalls.Load())
+		assert.Positive(t, missingProbeCalls.Load())
+		assert.Zero(t, oldVersionInstallCalls.Load())
+		assert.Zero(t, oldVersionStartCalls.Load())
+		assert.Positive(t, oldVersionProbeCalls.Load())
+		assert.Zero(t, uninstalledDepInstallCalls.Load())
+		assert.Zero(t, uninstalledDepStartCalls.Load())
+		assert.Positive(t, uninstalledDepProbeCalls.Load())
+		assert.Zero(t, dependentInstallCalls.Load())
+		assert.Zero(t, dependentStartCalls.Load())
+		assert.Positive(t, dependentProbeCalls.Load())
+		assert.Positive(t, installingShouldSkipCalls.Load())
+		assert.Zero(t, installingProbeCalls.Load())
+		assert.Zero(t, installingInstallCalls.Load())
+		assert.Zero(t, installingStartCalls.Load())
+		assert.Zero(t, unexpectedCalls.Load())
 	})
 }
 
