@@ -68,21 +68,16 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 		IMDSDetected: pkgproviders.SupportsIMDS(detector),
 	}
 
-	// Metadata fields are best-effort: provider detection has already succeeded,
-	// so one failed optional fetch should not discard provider identity.
-	publicIP, err := detector.PublicIPv4(ctx)
+	// Fetch the required identity fields first: when the metadata service is
+	// slow or hanging, the optional best-effort fetches (public IP, VM
+	// environment, private IP) must not consume the shared context budget
+	// that the login-gating instance ID and region need.
+	instanceID, err := fetchRequiredMetadata(ctx, detector, "instance ID", detector.InstanceID)
 	if err != nil {
-		log.Logger.Warnw("failed to get public IP", "provider", detector.Name(), "error", err)
+		log.Logger.Warnw("failed to get instance ID", "provider", detector.Name(), "error", err)
 	} else {
-		info.PublicIP = publicIP
-	}
-
-	privateIP, err := fetchPrivateIPv4(ctx, detector)
-	if err != nil {
-		log.Logger.Warnw("failed to get private IP", "provider", detector.Name(), "error", err)
-	} else {
-		info.PrivateIP = privateIP
-		log.Logger.Infow("successfully detected private IP", "provider", detector.Name(), "privateIP", privateIP)
+		info.InstanceID = instanceID
+		log.Logger.Infow("successfully detected instance ID", "provider", detector.Name(), "instanceID", instanceID)
 	}
 
 	if regionOverride = strings.TrimSpace(regionOverride); regionOverride != "" {
@@ -96,6 +91,16 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 		}
 	}
 
+	// Metadata fields below are best-effort: provider detection has already
+	// succeeded, so one failed optional fetch should not discard provider
+	// identity.
+	publicIP, err := detector.PublicIPv4(ctx)
+	if err != nil {
+		log.Logger.Warnw("failed to get public IP", "provider", detector.Name(), "error", err)
+	} else {
+		info.PublicIP = publicIP
+	}
+
 	vmEnvironment, err := detector.VMEnvironment(ctx)
 	if err != nil {
 		log.Logger.Warnw("failed to get VM environment", "provider", detector.Name(), "error", err)
@@ -103,12 +108,15 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 		info.VMEnvironment = vmEnvironment
 	}
 
-	instanceID, err := fetchRequiredMetadata(ctx, detector, "instance ID", detector.InstanceID)
+	// Private IP comes last: it is optional, and detectors that opted into
+	// retries (WithPrivateIPv4Retry) may spend a large share of the shared
+	// budget on it, so it must not run ahead of the required identity fields.
+	privateIP, err := fetchPrivateIPv4(ctx, detector)
 	if err != nil {
-		log.Logger.Warnw("failed to get instance ID", "provider", detector.Name(), "error", err)
+		log.Logger.Warnw("failed to get private IP", "provider", detector.Name(), "error", err)
 	} else {
-		info.InstanceID = instanceID
-		log.Logger.Infow("successfully detected instance ID", "provider", detector.Name(), "instanceID", instanceID)
+		info.PrivateIP = privateIP
+		log.Logger.Infow("successfully detected private IP", "provider", detector.Name(), "privateIP", privateIP)
 	}
 
 	return info, nil

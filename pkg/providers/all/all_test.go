@@ -574,6 +574,51 @@ func TestDetect_IMDSRetriesPrivateIPv4(t *testing.T) {
 	})
 }
 
+func TestDetect_PrivateIPv4RetryDoesNotStarveRequiredFields(t *testing.T) {
+	// The private IPv4 fetch hangs until the shared context expires (a
+	// metadata service that accepts no connections). The required identity
+	// fields must still be populated because they are fetched first — their
+	// mocks fail on a canceled context, so a wrong fetch order would leave
+	// them empty and fail the test.
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		func(ctx context.Context) (string, error) {
+			<-ctx.Done()
+			return "", ctx.Err()
+		},
+		func(ctx context.Context) (string, error) {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			default:
+			}
+			return "eu-west-2", nil
+		},
+		nil,
+		func(ctx context.Context) (string, error) {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			default:
+			}
+			return "instance-1", nil
+		},
+		providers.WithPrivateIPv4Retry(),
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		info, err := Detect(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, "instance-1", info.InstanceID)
+		assert.Equal(t, "eu-west-2", info.Region)
+		assert.Empty(t, info.PrivateIP)
+	})
+}
+
 func TestDetect_IMDSPrivateIPv4RetryExhaustion(t *testing.T) {
 	originalBackoffs := imdsRetryBackoffs
 	imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
