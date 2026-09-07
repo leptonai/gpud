@@ -371,7 +371,20 @@ func TestMachineInfoDiskCommands_WithMockey(t *testing.T) {
 		SetDiskCommands(findmnt, lsblk, df)
 		defer SetDiskCommands("", "", "")
 
-		info, err := GetMachineDiskInfo(context.Background())
+		// The configured commands run as short-lived shell fixtures; under the
+		// full CI suite such a process can sporadically produce no parsed rows
+		// (the same failure class as the df fixture documented below, observed
+		// on the findmnt fixture as "unexpected end of JSON input" with an empty
+		// ContainerRootDisk). The probe is read-only and idempotent, so retry a
+		// few times to assert the command wiring rather than the subprocess race.
+		var info *apiv1.MachineDiskInfo
+		var err error
+		for range 3 {
+			info, err = GetMachineDiskInfo(context.Background())
+			if err == nil && info.ContainerRootDisk != "" {
+				break
+			}
+		}
 		require.NoError(t, err)
 		require.Len(t, info.BlockDevices, 2)
 		assert.Equal(t, "/dev/sda1", info.ContainerRootDisk)
