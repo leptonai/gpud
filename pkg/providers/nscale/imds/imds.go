@@ -51,7 +51,12 @@ func fetchMetadataByPath(ctx context.Context, metadataURL string) (string, error
 
 func fetchMetadataByPathWithStatusCode(ctx context.Context, metadataURL string) (string, int, error) {
 	client := &http.Client{
-		Timeout: 5 * time.Second,
+		// The first TCP connection to the metadata service after an idle
+		// period can take several seconds to establish on nscale (observed
+		// >5s on production nodes; warm connects are sub-millisecond).
+		// A 5s timeout loses that race; 10s covers the cold connect while
+		// staying well within the caller's overall detection budget.
+		Timeout: 10 * time.Second,
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, nil)
