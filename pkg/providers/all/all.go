@@ -77,7 +77,12 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 		info.PublicIP = publicIP
 	}
 
-	privateIP, err := detector.PrivateIPv4(ctx)
+	// Private IP goes through the same IMDS retry path as region and instance ID:
+	// on some providers (e.g., nscale) the first metadata request after an idle
+	// period can exceed the HTTP client timeout while the connection path warms
+	// up, and a single attempt would return empty even though a retry succeeds
+	// immediately.
+	privateIP, err := fetchRequiredMetadata(ctx, detector, "private IP", detector.PrivateIPv4)
 	if err != nil {
 		log.Logger.Warnw("failed to get private IP", "provider", detector.Name(), "error", err)
 	} else {
