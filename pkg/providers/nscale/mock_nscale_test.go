@@ -102,19 +102,12 @@ func TestFetchPrivateIPv4_WithMockey(t *testing.T) {
 		require.Equal(t, "7.247.195.201", privateIP)
 	})
 
-	mockey.PatchConvey("fetchPrivateIPv4 drops invalid IP", t, func() {
+	mockey.PatchConvey("fetchPrivateIPv4 returns empty when metadata value is invalid and route fallback fails", t, func() {
 		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
 			return "not-an-ip", nil
 		}).Build()
-
-		privateIP, err := fetchPrivateIPv4(context.Background())
-		require.NoError(t, err)
-		require.Empty(t, privateIP)
-	})
-
-	mockey.PatchConvey("fetchPrivateIPv4 drops IPv6 addresses", t, func() {
-		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
-			return "2600:1f18:b1::1", nil
+		mockey.Mock(routeSourceIPv4).To(func() (string, error) {
+			return "", errors.New("no route")
 		}).Build()
 
 		privateIP, err := fetchPrivateIPv4(context.Background())
@@ -122,14 +115,100 @@ func TestFetchPrivateIPv4_WithMockey(t *testing.T) {
 		require.Empty(t, privateIP)
 	})
 
-	mockey.PatchConvey("fetchPrivateIPv4 returns metadata error", t, func() {
+	mockey.PatchConvey("fetchPrivateIPv4 returns empty for IPv6 metadata value when route fallback fails", t, func() {
+		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
+			return "2600:1f18:b1::1", nil
+		}).Build()
+		mockey.Mock(routeSourceIPv4).To(func() (string, error) {
+			return "", errors.New("no route")
+		}).Build()
+
+		privateIP, err := fetchPrivateIPv4(context.Background())
+		require.NoError(t, err)
+		require.Empty(t, privateIP)
+	})
+
+	mockey.PatchConvey("fetchPrivateIPv4 returns metadata error when route fallback also fails", t, func() {
 		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
 			return "", errors.New("metadata unavailable")
+		}).Build()
+		mockey.Mock(routeSourceIPv4).To(func() (string, error) {
+			return "", errors.New("no route")
 		}).Build()
 
 		_, err := fetchPrivateIPv4(context.Background())
 		require.Error(t, err)
+		require.Contains(t, err.Error(), "metadata unavailable")
 	})
+
+	mockey.PatchConvey("fetchPrivateIPv4 falls back to route source when metadata errors", t, func() {
+		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
+			return "", errors.New("metadata unavailable")
+		}).Build()
+		mockey.Mock(routeSourceIPv4).To(func() (string, error) {
+			return "7.247.35.250", nil
+		}).Build()
+
+		privateIP, err := fetchPrivateIPv4(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "7.247.35.250", privateIP)
+	})
+
+	mockey.PatchConvey("fetchPrivateIPv4 falls back to route source when metadata value is invalid", t, func() {
+		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
+			return "not-an-ip", nil
+		}).Build()
+		mockey.Mock(routeSourceIPv4).To(func() (string, error) {
+			return "7.247.35.250", nil
+		}).Build()
+
+		privateIP, err := fetchPrivateIPv4(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "7.247.35.250", privateIP)
+	})
+
+	mockey.PatchConvey("fetchPrivateIPv4 prefers metadata value over route source", t, func() {
+		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
+			return "7.247.195.201", nil
+		}).Build()
+		mockey.Mock(routeSourceIPv4).To(func() (string, error) {
+			return "10.0.0.1", nil
+		}).Build()
+
+		privateIP, err := fetchPrivateIPv4(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "7.247.195.201", privateIP)
+	})
+}
+
+func TestParseRouteSourceIPv4(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{name: "accepts publicly routable fabric IPv4", input: "7.247.35.250", want: "7.247.35.250"},
+		{name: "accepts RFC1918 IPv4", input: "10.50.85.108", want: "10.50.85.108"},
+		{name: "rejects link-local", input: "169.254.169.254", wantErr: true},
+		{name: "rejects loopback", input: "127.0.0.1", wantErr: true},
+		{name: "rejects unspecified", input: "0.0.0.0", wantErr: true},
+		{name: "rejects IPv6", input: "2600:1f18:b1::1", wantErr: true},
+		{name: "rejects IPv6 loopback", input: "::1", wantErr: true},
+		{name: "rejects non-IP", input: "not-an-ip", wantErr: true},
+		{name: "rejects empty", input: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseRouteSourceIPv4(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestFetchVMEnvironment_WithMockey(t *testing.T) {
