@@ -77,12 +77,7 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 		info.PublicIP = publicIP
 	}
 
-	// Private IP goes through the same IMDS retry path as region and instance ID:
-	// on some providers (e.g., nscale) the first metadata request after an idle
-	// period can exceed the HTTP client timeout while the connection path warms
-	// up, and a single attempt would return empty even though a retry succeeds
-	// immediately.
-	privateIP, err := fetchRequiredMetadata(ctx, detector, "private IP", detector.PrivateIPv4)
+	privateIP, err := fetchPrivateIPv4(ctx, detector)
 	if err != nil {
 		log.Logger.Warnw("failed to get private IP", "provider", detector.Name(), "error", err)
 	} else {
@@ -117,6 +112,22 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 	}
 
 	return info, nil
+}
+
+// fetchPrivateIPv4 reads the machine's private IPv4 from the detector.
+// IMDS-backed detectors with a private-IP fetcher get the same
+// retry-with-backoff path as region and instance ID: on some providers
+// (e.g., nscale) the first metadata request after an idle period can exceed
+// the HTTP client timeout while the connection path warms up, and a single
+// attempt would return empty even though a retry succeeds immediately.
+// Detectors without a private-IP fetcher (e.g., azure, gcp, nebius) keep a
+// single attempt, so they do not burn the retry budget on a permanently
+// empty result on every login.
+func fetchPrivateIPv4(ctx context.Context, detector pkgproviders.Detector) (string, error) {
+	if !pkgproviders.SupportsPrivateIPv4(detector) {
+		return detector.PrivateIPv4(ctx)
+	}
+	return fetchRequiredMetadata(ctx, detector, "private IP", detector.PrivateIPv4)
 }
 
 func fetchRequiredMetadata(ctx context.Context, detector pkgproviders.Detector, field string, fetch func(context.Context) (string, error)) (string, error) {

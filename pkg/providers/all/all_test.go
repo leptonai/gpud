@@ -494,9 +494,7 @@ func TestDetect_IMDSRetryStopsOnContextCancellation(t *testing.T) {
 		"test-cloud",
 		func(context.Context) (string, error) { return "detected", nil },
 		nil,
-		// private IP succeeds on the first attempt so the test reaches the
-		// instance ID fetch that drives the cancellation
-		func(context.Context) (string, error) { return "10.0.0.1", nil },
+		nil,
 		func(context.Context) (string, error) { return "eu-west-2", nil },
 		nil,
 		func(context.Context) (string, error) {
@@ -511,6 +509,33 @@ func TestDetect_IMDSRetryStopsOnContextCancellation(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Empty(t, info.InstanceID)
 		assert.Equal(t, 1, instanceIDCalls)
+	})
+}
+
+func TestDetect_IMDSWithoutPrivateIPv4FetcherDoesNotRetry(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, time.Hour}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	// No private IPv4 fetcher (like azure, gcp, nebius): a retry loop would
+	// block for an hour on the second attempt, so completing at all proves
+	// the detector was called only once.
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		nil,
+		func(context.Context) (string, error) { return "eu-west-2", nil },
+		nil,
+		func(context.Context) (string, error) { return "instance-1", nil },
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Empty(t, info.PrivateIP)
+		assert.Equal(t, "eu-west-2", info.Region)
+		assert.Equal(t, "instance-1", info.InstanceID)
 	})
 }
 

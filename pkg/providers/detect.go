@@ -14,6 +14,10 @@ type imdsDetector interface {
 	supportsIMDS() bool
 }
 
+type privateIPv4Detector interface {
+	supportsPrivateIPv4() bool
+}
+
 type detector struct {
 	providerName           string
 	detectProviderFunc     func(ctx context.Context) (string, error)
@@ -77,6 +81,16 @@ func SupportsIMDS(d Detector) bool {
 	return ok && imds.supportsIMDS()
 }
 
+// SupportsPrivateIPv4 returns true if the detector fetches the machine's
+// private IPv4 from the metadata service (i.e., it was constructed with a
+// non-nil private IPv4 fetch function). Detectors without one (e.g., azure,
+// gcp, nebius) report false so callers can skip retrying a permanently
+// empty result.
+func SupportsPrivateIPv4(d Detector) bool {
+	pd, ok := d.(privateIPv4Detector)
+	return ok && pd.supportsPrivateIPv4()
+}
+
 func newDetector(
 	name string,
 	detectProviderFunc func(ctx context.Context) (string, error),
@@ -101,6 +115,10 @@ func (d *detector) Name() string {
 
 func (d *detector) supportsIMDS() bool {
 	return d.imds
+}
+
+func (d *detector) supportsPrivateIPv4() bool {
+	return d.fetchPrivateIPv4Func != nil
 }
 
 func (d *detector) Provider(ctx context.Context) (string, error) {
