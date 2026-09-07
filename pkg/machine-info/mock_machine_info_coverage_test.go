@@ -374,14 +374,14 @@ func TestMachineInfoDiskCommands_WithMockey(t *testing.T) {
 		// The configured commands run as short-lived shell fixtures; under the
 		// full CI suite such a process can sporadically produce no parsed rows
 		// (the same failure class as the df fixture documented below, observed
-		// on the findmnt fixture as "unexpected end of JSON input" with an empty
-		// ContainerRootDisk). The probe is read-only and idempotent, so retry a
-		// few times to assert the command wiring rather than the subprocess race.
+		// on findmnt or df fixtures under heavy test runner load). The probe is
+		// read-only and idempotent, so retry a few times to assert the command
+		// wiring rather than the subprocess race.
 		var info *apiv1.MachineDiskInfo
 		var err error
-		for range 3 {
+		for range 5 {
 			info, err = GetMachineDiskInfo(context.Background())
-			if err == nil && info.ContainerRootDisk != "" {
+			if err == nil && info != nil && info.ContainerRootDisk != "" && len(info.BlockDevices) == 2 {
 				break
 			}
 		}
