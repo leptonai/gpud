@@ -18,7 +18,9 @@ import (
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/nvidia/driverroot"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
 )
 
 // Name is the name of the library component.
@@ -85,6 +87,11 @@ type component struct {
 	searchOpts  []file.OpOption
 	findLibrary func(string, ...file.OpOption) (string, error)
 
+	// hasNVIDIAGPUFunc reports whether the node has NVIDIA GPU hardware,
+	// used to distinguish a real NVML/library problem on a GPU node from a
+	// legitimate CPU-only node. Injectable for tests.
+	hasNVIDIAGPUFunc func() (bool, error)
+
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
 }
@@ -97,12 +104,29 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		cancel:       ccancel,
 		nvmlInstance: gpudInstance.NVMLInstance,
 		findLibrary:  file.FindLibrary,
+		hasNVIDIAGPUFunc: func() (bool, error) {
+			return nvidiapci.HasNVIDIAGPU(nvidiapci.DefaultSysfsPCIDevicesDir)
+		},
 	}
 
 	searchDirs := make(map[string]any)
 	if c.nvmlInstance != nil && c.nvmlInstance.NVMLExists() {
 		c.libraries = defaultNVIDIALibraries
 		for _, dir := range defaultNVIDIALibrariesSearchDirs {
+			searchDirs[dir] = struct{}{}
+		}
+		// Also probe the well-known driver roots that the gpud DaemonSet mounts
+		// by default (helm values gpud.mountHostRoot and gpud.mountNVIDIADriverRoot).
+		// Without these, containerized gpud cannot see libnvidia-ml/libcuda installed
+		// by the GPU Operator (/run/nvidia/driver/usr/lib/...) or pre-installed on the
+		// host (/host/usr/lib/...), producing false "library does not exist" unhealthy
+		// reports even though gpud's own NVML loader already loads them from those
+		// trees (LEP-6440, observed on GPU Operator-managed clusters with GPU Operator 26.3.2:
+		// nodes reported 'library "libcuda.so" does not exist;
+		// library "libnvidia-ml.so" does not exist' while
+		// /run/nvidia/driver/usr/lib/x86_64-linux-gnu/libcuda.so and
+		// libnvidia-ml.so were present inside the same pod).
+		for _, dir := range driverroot.LibraryDirs(driverroot.Existing()...) {
 			searchDirs[dir] = struct{}{}
 		}
 	}
@@ -166,7 +190,7 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking library")
+	log.Logger.Infow("checking libraries")
 
 	cr := &checkResult{
 		ts: time.Now().UTC(),
@@ -177,10 +201,44 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
+	// When NVML is absent, no libraries are configured for checking. On a
+	// CPU-only node that is correct ("nothing to check"), but on a node with
+	// NVIDIA GPU hardware it means gpud cannot monitor its GPUs at all --
+	// report it instead of vacuously passing with "all libraries exist".
+	// (LEP-6440: this silent gap is how an empty gpuInfo on GPU Operator clusters
+	// can go unnoticed; the control plane records empty GPU fields with no
+	// unhealthy signal from gpud. CPU-only nodes report Healthy "all libraries exist"
+	// vacuously when the libraries map is nil.)
+	if len(c.libraries) == 0 {
+		hasGPU := false
+		if c.hasNVIDIAGPUFunc != nil {
+			var err error
+			hasGPU, err = c.hasNVIDIAGPUFunc()
+			if err != nil {
+				log.Logger.Warnw("failed to detect NVIDIA GPU devices for library check", "error", err)
+				hasGPU = false
+			}
+		}
+		if hasGPU {
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = "NVIDIA GPU detected but the NVIDIA NVML library is not loaded; cannot verify NVIDIA libraries"
+			return cr
+		}
+		cr.health = apiv1.HealthStateTypeHealthy
+		cr.reason = "NVML not loaded; no NVIDIA libraries to check"
+		return cr
+	}
+
+	driverRootOpts := []file.OpOption{}
+	for _, dir := range driverroot.LibraryDirs(driverroot.Existing()...) {
+		driverRootOpts = append(driverRootOpts, file.WithSearchDirs(dir))
+	}
+
 	notFounds := []string{}
 	for lib, alternatives := range c.libraries {
 		opts := []file.OpOption{}
 		opts = append(opts, c.searchOpts...)
+		opts = append(opts, driverRootOpts...)
 		for _, alt := range alternatives {
 			opts = append(opts, file.WithAlternativeLibraryName(alt))
 		}

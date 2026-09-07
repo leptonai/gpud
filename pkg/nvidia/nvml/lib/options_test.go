@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/leptonai/gpud/pkg/nvidia/driverroot"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
 
@@ -108,15 +109,18 @@ func TestResolveFromDriverRootsHostRootOnly(t *testing.T) {
 	assert.Equal(t, libraryPath, resolveFromDriverRoots(hostRoot, t.TempDir()))
 }
 
-// TestProbeDriverReadyContract covers the GPU Operator driver-ready contract
-// discovery: missing contract, host-driver selection ("/"), rejected relative
-// paths, quoted values, and a custom driver install directory.
-func TestProbeDriverReadyContract(t *testing.T) {
+// TestResolveFromDriverRootsDriverReadyContractParsing covers the GPU
+// Operator driver-ready contract discovery through the resolver: missing
+// contract, host-driver selection ("/"), rejected relative paths, quoted
+// values, and a custom driver install directory. The contract parsing itself
+// lives in pkg/nvidia/driverroot (shared with the other driver-root
+// consumers) and has its own unit tests there.
+func TestResolveFromDriverRootsDriverReadyContractParsing(t *testing.T) {
 	// Missing contract file.
-	assert.Empty(t, probeDriverReadyContract(t.TempDir()))
+	assert.Empty(t, resolveFromDriverRoots(t.TempDir(), t.TempDir()))
 
 	writeContract := func(hostRoot, contents string) {
-		contractPath := filepath.Join(hostRoot, driverReadyContractPath)
+		contractPath := filepath.Join(hostRoot, driverroot.DriverReadyContractPath)
 		require.NoError(t, os.MkdirAll(filepath.Dir(contractPath), 0o755))
 		require.NoError(t, os.WriteFile(contractPath, []byte(contents), 0o644))
 	}
@@ -124,24 +128,24 @@ func TestProbeDriverReadyContract(t *testing.T) {
 	hostRoot := t.TempDir()
 
 	// The contract selecting the host driver ("/") is covered by the
-	// standard host-root probes, so the contract probe returns empty.
+	// standard host-root probes, so the contract contributes no candidate.
 	writeContract(hostRoot, "NVIDIA_DRIVER_ROOT=/\n")
-	assert.Empty(t, probeDriverReadyContract(hostRoot))
+	assert.Empty(t, resolveFromDriverRoots(hostRoot, t.TempDir()))
 
 	// Relative paths are rejected.
 	writeContract(hostRoot, "NVIDIA_DRIVER_ROOT=run/nvidia/driver\n")
-	assert.Empty(t, probeDriverReadyContract(hostRoot))
+	assert.Empty(t, resolveFromDriverRoots(hostRoot, t.TempDir()))
 
 	// A custom install directory without the NVML library yields empty.
 	writeContract(hostRoot, "NVIDIA_DRIVER_ROOT=\"/opt/nvidia/driver\"\n")
-	assert.Empty(t, probeDriverReadyContract(hostRoot))
+	assert.Empty(t, resolveFromDriverRoots(hostRoot, t.TempDir()))
 
 	// A custom install directory with the NVML library resolves under the
 	// host root.
 	libraryPath := filepath.Join(hostRoot, "opt", "nvidia", "driver", "usr", "lib", nvmlArchLibraryDir(runtime.GOARCH), "libnvidia-ml.so.1")
 	require.NoError(t, os.MkdirAll(filepath.Dir(libraryPath), 0o755))
 	require.NoError(t, os.WriteFile(libraryPath, nil, 0o644))
-	assert.Equal(t, libraryPath, probeDriverReadyContract(hostRoot))
+	assert.Equal(t, libraryPath, resolveFromDriverRoots(hostRoot, t.TempDir()))
 }
 
 // TestResolveFromDriverRootsDriverReadyContract verifies the GPU Operator's
@@ -151,7 +155,7 @@ func TestProbeDriverReadyContract(t *testing.T) {
 // contract the static driver root is used.
 func TestResolveFromDriverRootsDriverReadyContract(t *testing.T) {
 	hostRoot := t.TempDir()
-	contractPath := filepath.Join(hostRoot, driverReadyContractPath)
+	contractPath := filepath.Join(hostRoot, driverroot.DriverReadyContractPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(contractPath), 0o755))
 	require.NoError(t, os.WriteFile(contractPath, []byte("NVIDIA_DRIVER_ROOT=/opt/nvidia/driver\nDRIVER_ROOT_CTR_PATH=/driver-root\n"), 0o644))
 	contractLibrary := filepath.Join(hostRoot, "opt", "nvidia", "driver", "usr", "lib64", "libnvidia-ml.so.1")
