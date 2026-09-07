@@ -213,8 +213,8 @@ func (config *Config) Validate() error {
 // as "-library" -- prefix included -- so the lookup could never match and the
 // entire disable path was dead code. The old unit tests masked this by
 // querying ShouldDisable("-comp1") with the prefix still attached, i.e. not
-// mirroring the production call. Bug found in production on the AWS BYOK
-// cluster aws-iad-nkxdev-1, where there was no working way to silence
+// mirroring the production call. Bug found in production on containerized
+// AWS BYOK clusters, where there was no working way to silence
 // individual noisy components.
 func (config *Config) parseComponentSelectors() {
 	if config.selectedComponents != nil {
