@@ -1040,4 +1040,16 @@ func TestConfig_Components_Denylist_LEP6439(t *testing.T) {
 	if cfgNone.ShouldEnable("os") {
 		t.Errorf("Expected ShouldEnable to return false with --components=none")
 	}
+
+	// whitespace tolerance: space around commas like "--components=all, -library"
+	cfgWhitespace := &Config{Components: []string{" all ", " -library ", "  "}}
+	if cfgWhitespace.ShouldEnable("library") {
+		t.Errorf("Expected ShouldEnable(\"library\") = false with whitespace in components")
+	}
+	if !cfgWhitespace.ShouldEnable("containerd") {
+		t.Errorf("Expected ShouldEnable(\"containerd\") = true with whitespace in components")
+	}
+	if !cfgWhitespace.ShouldDisable("library") {
+		t.Errorf("Expected ShouldDisable(\"library\") = true with whitespace in components")
+	}
 }

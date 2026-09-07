@@ -223,8 +223,12 @@ func (config *Config) parseComponentSelectors() {
 	config.selectedComponents = make(map[string]any)
 	config.disabledComponents = make(map[string]any)
 	for _, c := range config.Components {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
 		if name, ok := strings.CutPrefix(c, "-"); ok {
-			config.disabledComponents[name] = struct{}{}
+			config.disabledComponents[strings.TrimSpace(name)] = struct{}{}
 			continue
 		}
 		if c == "*" || c == "all" {
