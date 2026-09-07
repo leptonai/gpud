@@ -39,6 +39,107 @@ func TestExistingOrder(t *testing.T) {
 	}
 }
 
+func TestContractRoots(t *testing.T) {
+	// Missing contract file.
+	if got := ContractRoots(t.TempDir()); len(got) != 0 {
+		t.Fatalf("Expected no roots without a contract, got %v", got)
+	}
+
+	hostRoot := t.TempDir()
+	writeContract := func(contents string) {
+		t.Helper()
+		contractPath := filepath.Join(hostRoot, DriverReadyContractPath)
+		if err := os.MkdirAll(filepath.Dir(contractPath), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(contractPath, []byte(contents), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// The host-driver selection ("/") is covered by the standard host-root
+	// probe, so it contributes no contract root.
+	writeContract("NVIDIA_DRIVER_ROOT=/\n")
+	if got := ContractRoots(hostRoot); len(got) != 0 {
+		t.Fatalf("Expected no roots for the host-driver selection, got %v", got)
+	}
+
+	// Relative paths are rejected.
+	writeContract("NVIDIA_DRIVER_ROOT=run/nvidia/driver\n")
+	if got := ContractRoots(hostRoot); len(got) != 0 {
+		t.Fatalf("Expected no roots for a relative path, got %v", got)
+	}
+
+	// A quoted custom install directory resolves under the host root.
+	writeContract("NVIDIA_DRIVER_ROOT=\"/opt/nvidia/driver\"\n")
+	got := ContractRoots(hostRoot)
+	if len(got) != 1 || got[0] != filepath.Join(hostRoot, "opt", "nvidia", "driver") {
+		t.Fatalf("Expected the custom install directory under the host root, got %v", got)
+	}
+
+	// Multiple selections are returned in file order.
+	writeContract("NVIDIA_DRIVER_ROOT=/opt/nvidia/driver\nDRIVER_ROOT_CTR_PATH=/driver-root\nNVIDIA_DRIVER_ROOT=/alt/driver\n")
+	got = ContractRoots(hostRoot)
+	if len(got) != 2 ||
+		got[0] != filepath.Join(hostRoot, "opt", "nvidia", "driver") ||
+		got[1] != filepath.Join(hostRoot, "alt", "driver") {
+		t.Fatalf("Expected both contract roots in file order, got %v", got)
+	}
+}
+
+func TestCandidatesOrder(t *testing.T) {
+	hostRoot := t.TempDir()
+	operatorRoot := t.TempDir()
+
+	// Without a contract: host root, then operator root.
+	got := Candidates(hostRoot, operatorRoot)
+	if len(got) != 2 || got[0] != hostRoot || got[1] != operatorRoot {
+		t.Fatalf("Expected [host operator], got %v", got)
+	}
+
+	// A contract-selected install directory sorts between the two.
+	contractPath := filepath.Join(hostRoot, DriverReadyContractPath)
+	if err := os.MkdirAll(filepath.Dir(contractPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(contractPath, []byte("NVIDIA_DRIVER_ROOT=/opt/nvidia/driver\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got = Candidates(hostRoot, operatorRoot)
+	if len(got) != 3 ||
+		got[0] != hostRoot ||
+		got[1] != filepath.Join(hostRoot, "opt", "nvidia", "driver") ||
+		got[2] != operatorRoot {
+		t.Fatalf("Expected [host contract operator], got %v", got)
+	}
+}
+
+func TestExistingWithContract(t *testing.T) {
+	hostRoot := t.TempDir()
+	operatorRoot := t.TempDir()
+
+	// The contract-selected root only surfaces in Existing once it exists.
+	contractPath := filepath.Join(hostRoot, DriverReadyContractPath)
+	if err := os.MkdirAll(filepath.Dir(contractPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(contractPath, []byte("NVIDIA_DRIVER_ROOT=/opt/nvidia/driver\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ExistingFrom(Candidates(hostRoot, operatorRoot)...); len(got) != 2 {
+		t.Fatalf("Expected contract root to be existence-filtered, got %v", got)
+	}
+
+	contractRoot := filepath.Join(hostRoot, "opt", "nvidia", "driver")
+	if err := os.MkdirAll(contractRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := ExistingFrom(Candidates(hostRoot, operatorRoot)...)
+	if len(got) != 3 || got[1] != contractRoot {
+		t.Fatalf("Expected the existing contract root in probe order, got %v", got)
+	}
+}
+
 func TestLibraryDirs(t *testing.T) {
 	dirs := LibraryDirs("/host")
 	expected := []string{

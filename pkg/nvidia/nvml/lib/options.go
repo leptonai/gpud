@@ -12,6 +12,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/nvidia/driverroot"
 )
 
 const (
@@ -91,30 +92,24 @@ func resolveNVMLLibraryPath() string {
 	return resolveFromDriverRoots(defaultHostRoot, defaultDriverRoot)
 }
 
-// resolveFromDriverRoots probes the host root and the GPU Operator driver
-// root for a usable NVML library. It takes the roots as parameters (rather
-// than reading the package constants) so tests can point the probes at
-// temporary directories.
+// resolveFromDriverRoots probes the candidate driver roots for a usable NVML
+// library. It takes the roots as parameters (rather than reading the package
+// constants) so tests can point the probes at temporary directories.
 //
 // The probe order mirrors the GPU Operator's own driver-validation order: a
 // pre-installed host driver wins over the Operator-managed driver root when
-// both are present. Loading the host's own libnvidia-ml guarantees the
-// userspace library matches the loaded kernel module.
+// both are present, with any driver-ready-contract-selected install directory
+// in between. Loading the host's own libnvidia-ml guarantees the userspace
+// library matches the loaded kernel module. The candidate list comes from
+// pkg/nvidia/driverroot so every consumer (this loader, the library and
+// fabric-manager components) discovers the same driver tree.
 func resolveFromDriverRoots(hostRoot, driverRoot string) string {
-	if libraryPath := probeNVMLLibrary(hostRoot); libraryPath != "" {
-		return libraryPath
+	for _, root := range driverroot.Candidates(hostRoot, driverRoot) {
+		if libraryPath := probeNVMLLibrary(root); libraryPath != "" {
+			return libraryPath
+		}
 	}
-
-	// The GPU Operator records its validated driver root in the
-	// driver-ready contract; honor it to cover a non-default driver
-	// install directory (spec.hostPaths.driverInstallDir). The contract
-	// file lives on the host, so it is only readable through the host-root
-	// mount.
-	if libraryPath := probeDriverReadyContract(hostRoot); libraryPath != "" {
-		return libraryPath
-	}
-
-	return probeNVMLLibrary(driverRoot)
+	return ""
 }
 
 // probeNVMLLibrary returns the first existing NVML shared library under the
@@ -131,41 +126,6 @@ func probeNVMLLibrary(root string) string {
 	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
-		}
-	}
-	return ""
-}
-
-// driverReadyContractPath is the GPU Operator's driver validation contract,
-// relative to the host root. The Operator's driver-validation step records
-// the selected NVIDIA_DRIVER_ROOT here after the driver validates, so it
-// reflects a non-default driver install directory
-// (spec.hostPaths.driverInstallDir).
-const driverReadyContractPath = "run/nvidia/validations/driver-ready"
-
-// probeDriverReadyContract reads the GPU Operator's driver-ready contract
-// under the given host root and probes the NVIDIA_DRIVER_ROOT it selects,
-// resolved under the same host root. It returns empty when the contract is
-// absent, unparseable, names a non-absolute path, or selects the host driver
-// ("/", already covered by the standard host-root probes). The contract's
-// DRIVER_ROOT_CTR_PATH is the DRA container's own mount path and does not
-// apply to gpud's mount layout.
-func probeDriverReadyContract(hostRoot string) string {
-	b, err := os.ReadFile(filepath.Join(hostRoot, driverReadyContractPath))
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(b), "\n") {
-		value, ok := strings.CutPrefix(strings.TrimSpace(line), "NVIDIA_DRIVER_ROOT=")
-		if !ok {
-			continue
-		}
-		value = strings.Trim(strings.TrimSpace(value), `"'`)
-		if value == "" || value == "/" || !filepath.IsAbs(value) {
-			continue
-		}
-		if libraryPath := probeNVMLLibrary(filepath.Join(hostRoot, value)); libraryPath != "" {
-			return libraryPath
 		}
 	}
 	return ""
