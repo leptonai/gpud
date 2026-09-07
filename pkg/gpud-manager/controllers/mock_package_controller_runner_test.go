@@ -152,10 +152,63 @@ func TestUpdateRunner_WithMockedRunCommand(t *testing.T) {
 	})
 }
 
+func TestUpdateRunner_UpgradesRecoveredPackageWithoutInstallDependencies(t *testing.T) {
+	mockey.PatchConvey("update runner upgrades a recovered package without install dependencies", t, func() {
+		controller := NewPackageController(make(chan packages.PackageInfo))
+		controller.syncPeriod = 10 * time.Millisecond
+		controller.packageStatus["kubelet"] = &packages.PackageStatus{
+			Name:          "kubelet",
+			TargetVersion: "2.0.0",
+			ScriptPath:    "/tmp/kubelet.sh",
+			Dependency:    [][]string{{"missing-install-dependency", "*"}},
+			TotalTime:     200 * time.Millisecond,
+		}
+		controller.recoveredInstalled["kubelet"] = true
+
+		upgradeCalled := make(chan struct{}, 1)
+		var mockCalls atomic.Int64
+		mockey.Mock(runCommand).To(func(ctx context.Context, script, arg string, result *string) error {
+			mockCalls.Add(1)
+			switch arg {
+			case "version":
+				*result = "1.0.0"
+				return nil
+			case "shouldSkip":
+				return errors.New("no skip")
+			case "upgrade":
+				select {
+				case upgradeCalled <- struct{}{}:
+				default:
+				}
+				return nil
+			default:
+				return errors.New("unexpected command")
+			}
+		}).Build()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go controller.updateRunner(ctx)
+
+		select {
+		case <-upgradeCalled:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for recovered package upgrade")
+		}
+		cancel()
+		waitMockQuiescent(t, &mockCalls)
+
+		controller.RLock()
+		progress := controller.packageStatus["kubelet"].Progress
+		controller.RUnlock()
+		assert.Equal(t, 100, progress)
+	})
+}
+
 func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 	mockey.PatchConvey("install runner handles deps/skip/install paths", t, func() {
 		controller := NewPackageController(make(chan packages.PackageInfo))
 		controller.syncPeriod = 10 * time.Millisecond
+		controller.recoveryProbeTimeout = 100 * time.Millisecond
 
 		controller.packageStatus["dep"] = &packages.PackageStatus{
 			Name:           "dep",
@@ -182,10 +235,10 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 			ScriptPath: "/tmp/uninstalled-dep.sh",
 			TotalTime:  200 * time.Millisecond,
 		}
-		controller.packageStatus["needs-uninstalled-dep"] = &packages.PackageStatus{
-			Name:       "needs-uninstalled-dep",
-			Dependency: [][]string{{"uninstalled-dep", "*"}},
-			ScriptPath: "/tmp/needs-uninstalled-dep.sh",
+		controller.packageStatus["needs-recovered-dep"] = &packages.PackageStatus{
+			Name:       "needs-recovered-dep",
+			Dependency: [][]string{{"installed-with-missing-dep", "*"}},
+			ScriptPath: "/tmp/needs-recovered-dep.sh",
 			TotalTime:  200 * time.Millisecond,
 		}
 		controller.packageStatus["skip"] = &packages.PackageStatus{
@@ -229,9 +282,9 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 		var uninstalledDepProbeCalls atomic.Int64
 		var uninstalledDepInstallCalls atomic.Int64
 		var uninstalledDepStartCalls atomic.Int64
-		var dependentProbeCalls atomic.Int64
-		var dependentInstallCalls atomic.Int64
-		var dependentStartCalls atomic.Int64
+		var recoveredDependentProbeCalls atomic.Int64
+		var recoveredDependentInstallCalls atomic.Int64
+		var recoveredDependentStartCalls atomic.Int64
 		var installingShouldSkipCalls atomic.Int64
 		var installingProbeCalls atomic.Int64
 		var installingInstallCalls atomic.Int64
@@ -288,23 +341,26 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 					uninstalledDepStartCalls.Add(1)
 					return nil
 				}
-			case "needs-uninstalled-dep.sh":
+			case "needs-recovered-dep.sh":
 				switch arg {
 				case "shouldSkip":
 					return errors.New("no skip")
 				case "isInstalled":
-					dependentProbeCalls.Add(1)
+					recoveredDependentProbeCalls.Add(1)
 					return errors.New("not installed")
 				case "install":
-					dependentInstallCalls.Add(1)
+					recoveredDependentInstallCalls.Add(1)
 					return nil
 				case "start":
-					dependentStartCalls.Add(1)
+					recoveredDependentStartCalls.Add(1)
 					return nil
 				}
 			case "skip-install.sh":
-				if arg == "shouldSkip" {
+				switch arg {
+				case "shouldSkip":
 					return nil
+				case "isInstalled":
+					return errors.New("not installed")
 				}
 			case "installed-with-missing-dep.sh":
 				if arg == "shouldSkip" {
@@ -388,10 +444,16 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 		}, 10*time.Second, 10*time.Millisecond)
 
 		require.Eventually(t, func() bool {
-			controller.RLock()
-			defer controller.RUnlock()
-			installed := controller.packageStatus["installed-with-missing-dep"]
-			return installed.IsInstalled && installed.Progress == 100
+			statuses, err := controller.Status(context.Background())
+			if err != nil {
+				return false
+			}
+			for _, status := range statuses {
+				if status.Name == "installed-with-missing-dep" {
+					return status.IsInstalled && status.Progress == 100
+				}
+			}
+			return false
 		}, 10*time.Second, 10*time.Millisecond)
 
 		require.Eventually(t, func() bool {
@@ -401,11 +463,10 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 		}, 10*time.Second, 10*time.Millisecond)
 
 		require.Eventually(t, func() bool {
-			return missingProbeCalls.Load() > 0 &&
-				oldVersionProbeCalls.Load() > 0 &&
-				uninstalledDepProbeCalls.Load() > 0 &&
-				dependentProbeCalls.Load() > 0 &&
-				installingShouldSkipCalls.Load() > 0
+			return missingProbeCalls.Load() == 1 &&
+				oldVersionProbeCalls.Load() == 1 &&
+				uninstalledDepProbeCalls.Load() == 1 &&
+				recoveredDependentProbeCalls.Load() == 1
 		}, 10*time.Second, 10*time.Millisecond)
 
 		cancel()
@@ -417,33 +478,145 @@ func TestInstallRunner_WithMockedRunCommand(t *testing.T) {
 		missingInstalled := controller.packageStatus["needs-missing-dep"].IsInstalled
 		versionInstalled := controller.packageStatus["needs-version-dep"].IsInstalled
 		uninstalledDependencyInstalled := controller.packageStatus["uninstalled-dep"].IsInstalled
-		dependentInstalled := controller.packageStatus["needs-uninstalled-dep"].IsInstalled
+		recoveredDependentInstalled := controller.packageStatus["needs-recovered-dep"].IsInstalled
+		recoveredInstalled := controller.packageStatus["installed-with-missing-dep"].IsInstalled
 		controller.RUnlock()
 
 		assert.False(t, missingInstalled)
 		assert.False(t, versionInstalled)
 		assert.False(t, uninstalledDependencyInstalled)
-		assert.False(t, dependentInstalled)
-		assert.Positive(t, installedProbeCalls.Load())
+		assert.False(t, recoveredDependentInstalled)
+		assert.False(t, recoveredInstalled)
+		assert.EqualValues(t, 1, installedProbeCalls.Load())
 		assert.Zero(t, installedInstallCalls.Load())
 		assert.Zero(t, installedStartCalls.Load())
 		assert.Zero(t, missingInstallCalls.Load())
 		assert.Zero(t, missingStartCalls.Load())
-		assert.Positive(t, missingProbeCalls.Load())
+		assert.EqualValues(t, 1, missingProbeCalls.Load())
 		assert.Zero(t, oldVersionInstallCalls.Load())
 		assert.Zero(t, oldVersionStartCalls.Load())
-		assert.Positive(t, oldVersionProbeCalls.Load())
+		assert.EqualValues(t, 1, oldVersionProbeCalls.Load())
 		assert.Zero(t, uninstalledDepInstallCalls.Load())
 		assert.Zero(t, uninstalledDepStartCalls.Load())
-		assert.Positive(t, uninstalledDepProbeCalls.Load())
-		assert.Zero(t, dependentInstallCalls.Load())
-		assert.Zero(t, dependentStartCalls.Load())
-		assert.Positive(t, dependentProbeCalls.Load())
-		assert.Positive(t, installingShouldSkipCalls.Load())
+		assert.EqualValues(t, 1, uninstalledDepProbeCalls.Load())
+		assert.Zero(t, recoveredDependentInstallCalls.Load())
+		assert.Zero(t, recoveredDependentStartCalls.Load())
+		assert.EqualValues(t, 1, recoveredDependentProbeCalls.Load())
+		assert.Zero(t, installingShouldSkipCalls.Load())
 		assert.Zero(t, installingProbeCalls.Load())
 		assert.Zero(t, installingInstallCalls.Load())
 		assert.Zero(t, installingStartCalls.Load())
 		assert.Zero(t, unexpectedCalls.Load())
+	})
+}
+
+func TestInstallRunner_RecoveryProbeTimeoutDoesNotBlockFollowingPackage(t *testing.T) {
+	mockey.PatchConvey("a timed out recovery probe does not block later packages", t, func() {
+		controller := NewPackageController(make(chan packages.PackageInfo))
+		controller.syncPeriod = 10 * time.Millisecond
+		controller.recoveryProbeTimeout = 50 * time.Millisecond
+		controller.packageStatus["blocked"] = &packages.PackageStatus{
+			Name:       "blocked",
+			Dependency: [][]string{{"missing", "*"}},
+			ScriptPath: "/tmp/blocked.sh",
+			TotalTime:  200 * time.Millisecond,
+		}
+
+		probeStarted := make(chan struct{}, 1)
+		installCalled := make(chan struct{}, 1)
+		var mockCalls atomic.Int64
+		var blockedProbeCalls atomic.Int64
+		var installComplete atomic.Bool
+		mockey.Mock(runCommand).To(func(ctx context.Context, script, arg string, result *string) error {
+			mockCalls.Add(1)
+			switch filepath.Base(script) {
+			case "blocked.sh":
+				if arg != "isInstalled" {
+					return errors.New("unexpected blocked command")
+				}
+				blockedProbeCalls.Add(1)
+				select {
+				case probeStarted <- struct{}{}:
+				default:
+				}
+				<-ctx.Done()
+				return ctx.Err()
+			case "installable.sh":
+				switch arg {
+				case "isInstalled":
+					if installComplete.Load() {
+						return nil
+					}
+					return errors.New("not installed")
+				case "shouldSkip":
+					return errors.New("no skip")
+				case "install":
+					installComplete.Store(true)
+					select {
+					case installCalled <- struct{}{}:
+					default:
+					}
+					return nil
+				case "start":
+					return nil
+				}
+			}
+			return errors.New("unexpected command")
+		}).Build()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go controller.installRunner(ctx)
+
+		select {
+		case <-probeStarted:
+		case <-time.After(5 * time.Second):
+			cancel()
+			t.Fatal("timed out waiting for blocked recovery probe")
+		}
+
+		controller.Lock()
+		controller.packageStatus["installable"] = &packages.PackageStatus{
+			Name:       "installable",
+			ScriptPath: "/tmp/installable.sh",
+			TotalTime:  200 * time.Millisecond,
+		}
+		controller.Unlock()
+
+		select {
+		case <-installCalled:
+		case <-time.After(time.Second):
+			cancel()
+			t.Fatal("timed out recovery probe blocked the following package")
+		}
+
+		cancel()
+		waitMockQuiescent(t, &mockCalls)
+		assert.EqualValues(t, 1, blockedProbeCalls.Load())
+	})
+}
+
+func TestStatusRunner_DoesNotRestartRecoveryOnlyPackage(t *testing.T) {
+	mockey.PatchConvey("status runner ignores recovery-only packages", t, func() {
+		controller := NewPackageController(make(chan packages.PackageInfo))
+		controller.syncPeriod = 10 * time.Millisecond
+		controller.packageStatus["recovered"] = &packages.PackageStatus{
+			Name:       "recovered",
+			ScriptPath: "/tmp/recovered.sh",
+		}
+		controller.recoveredInstalled["recovered"] = true
+
+		var mockCalls atomic.Int64
+		mockey.Mock(runCommand).To(func(ctx context.Context, script, arg string, result *string) error {
+			mockCalls.Add(1)
+			return errors.New("unexpected command")
+		}).Build()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go controller.statusRunner(ctx)
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+		waitMockQuiescent(t, &mockCalls)
+		assert.Zero(t, mockCalls.Load())
 	})
 }
 
