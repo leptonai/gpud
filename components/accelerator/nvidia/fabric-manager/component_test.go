@@ -1623,7 +1623,7 @@ func TestFabricManagerProcessRunning(t *testing.T) {
 
 	// FM running inside another container with an absolute argv[0]:
 	// nv-fabricmanager -c /usr/share/nvidia/nvswitch/fabricmanager.cfg
-	// (the exact shape observed on aws-iad-nkxdev-1, LEP-6440)
+	// (the shape observed on GPU Operator-managed clusters, LEP-6440)
 	fmPidDir := filepath.Join(tmp, "39063")
 	require.NoError(t, os.MkdirAll(fmPidDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(fmPidDir, "cmdline"), []byte("nv-fabricmanager\x00-c\x00/usr/share/nvidia/nvswitch/fabricmanager.cfg\x00"), 0o644))

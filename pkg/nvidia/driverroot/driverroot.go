@@ -11,7 +11,7 @@
 // (library: "libcuda.so does not exist" while the library was present under
 // /run/nvidia/driver/usr/lib; fabric-manager: "executable not found" while
 // /run/nvidia/driver/usr/bin/nv-fabricmanager existed -- both verified on
-// aws-iad-nkxdev-1, GPU Operator 26.3.2). Host root sorts before the Operator
+// containerized GPU Operator clusters). Host root sorts before the Operator
 // root to mirror the Operator's own driver-validation order: a pre-installed
 // host driver wins because its userspace libraries are guaranteed to match
 // the loaded kernel module.

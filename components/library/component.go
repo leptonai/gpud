@@ -121,11 +121,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		// by the GPU Operator (/run/nvidia/driver/usr/lib/...) or pre-installed on the
 		// host (/host/usr/lib/...), producing false "library does not exist" unhealthy
 		// reports even though gpud's own NVML loader already loads them from those
-		// trees (LEP-6440, observed on aws-iad-nkxdev-1 with GPU Operator 26.3.2:
-		// both p5.48xlarge nodes reported 'library "libcuda.so" does not exist;
+		// trees (LEP-6440, observed on GPU Operator-managed clusters with GPU Operator 26.3.2:
+		// nodes reported 'library "libcuda.so" does not exist;
 		// library "libnvidia-ml.so" does not exist' while
-		// /run/nvidia/driver/usr/lib/x86_64-linux-gnu/libcuda.so.580.95.05 and
-		// libnvidia-ml.so.580.95.05 were present inside the same pod).
+		// /run/nvidia/driver/usr/lib/x86_64-linux-gnu/libcuda.so and
+		// libnvidia-ml.so were present inside the same pod).
 		for _, dir := range driverroot.LibraryDirs(driverroot.Existing()...) {
 			searchDirs[dir] = struct{}{}
 		}
@@ -190,7 +190,7 @@ func (c *component) Close() error {
 }
 
 func (c *component) Check() components.CheckResult {
-	log.Logger.Infow("checking library")
+	log.Logger.Infow("checking libraries")
 
 	cr := &checkResult{
 		ts: time.Now().UTC(),
@@ -205,11 +205,10 @@ func (c *component) Check() components.CheckResult {
 	// CPU-only node that is correct ("nothing to check"), but on a node with
 	// NVIDIA GPU hardware it means gpud cannot monitor its GPUs at all --
 	// report it instead of vacuously passing with "all libraries exist".
-	// (LEP-6440: this silent gap is how the empty gpuInfo on aws-iad-nkxdev-1
-	// went unnoticed; the control plane recorded empty GPU fields with no
-	// unhealthy signal from gpud. Verified live 2026-09-03: the m6i.xlarge
-	// CPU nodes reported Healthy "all libraries exist" precisely because the
-	// libraries map was nil.)
+	// (LEP-6440: this silent gap is how an empty gpuInfo on GPU Operator clusters
+	// can go unnoticed; the control plane records empty GPU fields with no
+	// unhealthy signal from gpud. CPU-only nodes report Healthy "all libraries exist"
+	// vacuously when the libraries map is nil.)
 	if len(c.libraries) == 0 {
 		hasGPU := false
 		if c.hasNVIDIAGPUFunc != nil {
@@ -230,10 +229,16 @@ func (c *component) Check() components.CheckResult {
 		return cr
 	}
 
+	driverRootOpts := []file.OpOption{}
+	for _, dir := range driverroot.LibraryDirs(driverroot.Existing()...) {
+		driverRootOpts = append(driverRootOpts, file.WithSearchDirs(dir))
+	}
+
 	notFounds := []string{}
 	for lib, alternatives := range c.libraries {
 		opts := []file.OpOption{}
 		opts = append(opts, c.searchOpts...)
+		opts = append(opts, driverRootOpts...)
 		for _, alt := range alternatives {
 			opts = append(opts, file.WithAlternativeLibraryName(alt))
 		}

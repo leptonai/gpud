@@ -164,7 +164,7 @@ func TestCheck_NoNVML(t *testing.T) {
 	assert.Equal(t, "NVML not loaded; no NVIDIA libraries to check", result.Summary())
 
 	// GPU node without NVML: real problem, must be reported (this is how the
-	// empty gpuInfo on aws-iad-nkxdev-1 went unnoticed)
+	// empty gpuInfo on GPU Operator clusters went unnoticed)
 	comp.hasNVIDIAGPUFunc = func() (bool, error) { return true, nil }
 	result = comp.Check()
 	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.HealthStateType())
