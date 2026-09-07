@@ -511,3 +511,138 @@ func TestDetect_IMDSRetryStopsOnContextCancellation(t *testing.T) {
 		assert.Equal(t, 1, instanceIDCalls)
 	})
 }
+
+func TestDetect_IMDSPrivateIPv4SingleAttemptWithoutOptIn(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, time.Hour}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	// The detector has a private IPv4 fetcher but did not opt into retries:
+	// a second attempt would block for an hour, so completing proves the
+	// fetch happened exactly once.
+	privateCalls := 0
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		func(context.Context) (string, error) {
+			privateCalls++
+			return "", errors.New("metadata unavailable")
+		},
+		func(context.Context) (string, error) { return "eu-west-2", nil },
+		nil,
+		func(context.Context) (string, error) { return "instance-1", nil },
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Empty(t, info.PrivateIP)
+		assert.Equal(t, 1, privateCalls)
+	})
+}
+
+func TestDetect_IMDSRetriesPrivateIPv4(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	privateCalls := 0
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		func(context.Context) (string, error) {
+			privateCalls++
+			if privateCalls < 3 {
+				return "", errors.New("metadata unavailable")
+			}
+			return "7.247.35.250", nil
+		},
+		func(context.Context) (string, error) { return "eu-west-2", nil },
+		nil,
+		func(context.Context) (string, error) { return "instance-1", nil },
+		providers.WithPrivateIPv4Retry(),
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, info.IMDSDetected)
+		assert.Equal(t, "7.247.35.250", info.PrivateIP)
+		assert.Equal(t, 3, privateCalls)
+	})
+}
+
+func TestDetect_PrivateIPv4RetryDoesNotStarveRequiredFields(t *testing.T) {
+	// The private IPv4 fetch hangs until the shared context expires (a
+	// metadata service that accepts no connections). The required identity
+	// fields must still be populated because they are fetched first — their
+	// mocks fail on a canceled context, so a wrong fetch order would leave
+	// them empty and fail the test.
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		func(ctx context.Context) (string, error) {
+			<-ctx.Done()
+			return "", ctx.Err()
+		},
+		func(ctx context.Context) (string, error) {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			default:
+			}
+			return "eu-west-2", nil
+		},
+		nil,
+		func(ctx context.Context) (string, error) {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			default:
+			}
+			return "instance-1", nil
+		},
+		providers.WithPrivateIPv4Retry(),
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		info, err := Detect(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, "instance-1", info.InstanceID)
+		assert.Equal(t, "eu-west-2", info.Region)
+		assert.Empty(t, info.PrivateIP)
+	})
+}
+
+func TestDetect_IMDSPrivateIPv4RetryExhaustion(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	privateCalls := 0
+	detector := providers.NewIMDSWithRegion(
+		"test-cloud",
+		func(context.Context) (string, error) { return "detected", nil },
+		nil,
+		func(context.Context) (string, error) {
+			privateCalls++
+			return "", nil
+		},
+		func(context.Context) (string, error) { return "eu-west-2", nil },
+		nil,
+		func(context.Context) (string, error) { return "instance-1", nil },
+		providers.WithPrivateIPv4Retry(),
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.Empty(t, info.PrivateIP)
+		assert.Equal(t, 4, privateCalls)
+	})
+}
