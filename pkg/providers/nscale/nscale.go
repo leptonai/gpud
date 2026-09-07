@@ -26,6 +26,11 @@ func New() providers.Detector {
 		imds.FetchRegion,
 		fetchVMEnvironment,
 		imds.FetchInstanceID,
+		// the nscale metadata service can be slow to accept the first
+		// connection after an idle period (observed >5s on production nodes),
+		// and its fabric IPs are not RFC1918 so a missed private-IP fetch has
+		// no NIC-based fallback — retry it like region and instance ID
+		providers.WithPrivateIPv4Retry(),
 	)
 }
 

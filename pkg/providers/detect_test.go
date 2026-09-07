@@ -185,19 +185,19 @@ func TestIMDSDetectorCapability(t *testing.T) {
 	assert.Equal(t, "us-east-1", region)
 }
 
-func TestSupportsPrivateIPv4(t *testing.T) {
-	// nil detector and detectors built without a private IPv4 fetcher
-	assert.False(t, SupportsPrivateIPv4(nil))
-	assert.False(t, SupportsPrivateIPv4(New("plain", nil, nil, nil, nil, nil)))
-	assert.False(t, SupportsPrivateIPv4(NewIMDSWithRegion("imds-no-private", nil, nil, nil, nil, nil, nil)))
-
-	// detectors built with a private IPv4 fetcher
-	assert.True(t, SupportsPrivateIPv4(New("with-private", nil, nil, func(context.Context) (string, error) {
-		return "10.0.0.1", nil
-	}, nil, nil)))
-	assert.True(t, SupportsPrivateIPv4(NewIMDSWithRegion("imds-with-private", nil, nil, func(context.Context) (string, error) {
+func TestSupportsPrivateIPv4Retry(t *testing.T) {
+	// nil detector and detectors that did not opt in
+	assert.False(t, SupportsPrivateIPv4Retry(nil))
+	assert.False(t, SupportsPrivateIPv4Retry(New("plain", nil, nil, nil, nil, nil)))
+	assert.False(t, SupportsPrivateIPv4Retry(NewIMDSWithRegion("imds-no-retry", nil, nil, func(context.Context) (string, error) {
 		return "10.0.0.1", nil
 	}, nil, nil, nil)))
+
+	// detector that opted in via WithPrivateIPv4Retry
+	d := NewIMDSWithRegion("imds-retry", nil, nil, func(context.Context) (string, error) {
+		return "10.0.0.1", nil
+	}, nil, nil, nil, WithPrivateIPv4Retry())
+	assert.True(t, SupportsPrivateIPv4Retry(d))
 }
 
 func TestDetector_VMEnvironment(t *testing.T) {

@@ -14,8 +14,8 @@ type imdsDetector interface {
 	supportsIMDS() bool
 }
 
-type privateIPv4Detector interface {
-	supportsPrivateIPv4() bool
+type privateIPv4RetryDetector interface {
+	retriesPrivateIPv4() bool
 }
 
 type detector struct {
@@ -26,6 +26,7 @@ type detector struct {
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error)
 	fetchInstanceIDFunc    func(ctx context.Context) (string, error)
 	imds                   bool
+	retryPrivateIPv4       bool
 }
 
 type regionDetector struct {
@@ -67,12 +68,16 @@ func NewIMDSWithRegion(
 	fetchRegionFunc func(ctx context.Context) (string, error),
 	fetchVMEnvironmentFunc func(ctx context.Context) (string, error),
 	fetchInstanceIDFunc func(ctx context.Context) (string, error),
+	opts ...DetectorOption,
 ) Detector {
 	d := &regionDetector{
 		detector:        newDetector(name, detectProviderFunc, fetchPublicIPv4Func, fetchPrivateIPv4Func, fetchVMEnvironmentFunc, fetchInstanceIDFunc),
 		fetchRegionFunc: fetchRegionFunc,
 	}
 	d.imds = true
+	for _, opt := range opts {
+		opt(d.detector)
+	}
 	return d
 }
 
@@ -81,14 +86,25 @@ func SupportsIMDS(d Detector) bool {
 	return ok && imds.supportsIMDS()
 }
 
-// SupportsPrivateIPv4 returns true if the detector fetches the machine's
-// private IPv4 from the metadata service (i.e., it was constructed with a
-// non-nil private IPv4 fetch function). Detectors without one (e.g., azure,
-// gcp, nebius) report false so callers can skip retrying a permanently
-// empty result.
-func SupportsPrivateIPv4(d Detector) bool {
-	pd, ok := d.(privateIPv4Detector)
-	return ok && pd.supportsPrivateIPv4()
+// SupportsPrivateIPv4Retry returns true if the detector opted into retrying
+// the private IPv4 fetch (see WithPrivateIPv4Retry).
+func SupportsPrivateIPv4Retry(d Detector) bool {
+	rd, ok := d.(privateIPv4RetryDetector)
+	return ok && rd.retriesPrivateIPv4()
+}
+
+// DetectorOption customizes an IMDS-backed detector.
+type DetectorOption func(*detector)
+
+// WithPrivateIPv4Retry opts the detector into retry-with-backoff for the
+// private IPv4 metadata fetch when it fails or returns empty. Use it only
+// for providers whose metadata service is known to be slow to accept the
+// first connection after an idle period (e.g., nscale); detectors without
+// the option keep single-attempt behavior.
+func WithPrivateIPv4Retry() DetectorOption {
+	return func(d *detector) {
+		d.retryPrivateIPv4 = true
+	}
 }
 
 func newDetector(
@@ -117,8 +133,8 @@ func (d *detector) supportsIMDS() bool {
 	return d.imds
 }
 
-func (d *detector) supportsPrivateIPv4() bool {
-	return d.fetchPrivateIPv4Func != nil
+func (d *detector) retriesPrivateIPv4() bool {
+	return d.retryPrivateIPv4
 }
 
 func (d *detector) Provider(ctx context.Context) (string, error) {
