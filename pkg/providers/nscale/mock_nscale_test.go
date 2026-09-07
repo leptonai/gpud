@@ -3,6 +3,7 @@ package nscale
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 
 	"github.com/bytedance/mockey"
@@ -10,6 +11,16 @@ import (
 
 	"github.com/leptonai/gpud/pkg/providers/nscale/imds"
 )
+
+// fakeAddrConn is a net.Conn whose LocalAddr is fixed, so route-source
+// lookups can be tested without real network access.
+type fakeAddrConn struct {
+	net.Conn
+	addr net.Addr
+}
+
+func (f *fakeAddrConn) LocalAddr() net.Addr { return f.addr }
+func (f *fakeAddrConn) Close() error        { return nil }
 
 func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 	mockey.PatchConvey("New and detectProvider succeed when OpenStack metadata has nscale fields", t, func() {
@@ -209,6 +220,55 @@ func TestParseRouteSourceIPv4(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestRouteSourceIPv4_WithMockey(t *testing.T) {
+	mockey.PatchConvey("routeSourceIPv4 returns error when dial fails", t, func() {
+		mockey.Mock(net.Dial).To(func(network, address string) (net.Conn, error) {
+			return nil, errors.New("no route to host")
+		}).Build()
+
+		_, err := routeSourceIPv4()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "failed to resolve route to metadata service")
+	})
+
+	mockey.PatchConvey("routeSourceIPv4 returns source IPv4 from the UDP local address", t, func() {
+		mockey.Mock(net.Dial).To(func(network, address string) (net.Conn, error) {
+			return &fakeAddrConn{addr: &net.UDPAddr{IP: net.ParseIP("7.247.35.250"), Port: 12345}}, nil
+		}).Build()
+
+		ip, err := routeSourceIPv4()
+		require.NoError(t, err)
+		require.Equal(t, "7.247.35.250", ip)
+	})
+
+	mockey.PatchConvey("routeSourceIPv4 rejects non-UDP local address", t, func() {
+		mockey.Mock(net.Dial).To(func(network, address string) (net.Conn, error) {
+			return &fakeAddrConn{addr: &net.TCPAddr{IP: net.ParseIP("7.247.35.250"), Port: 12345}}, nil
+		}).Build()
+
+		_, err := routeSourceIPv4()
+		require.Error(t, err)
+	})
+
+	mockey.PatchConvey("routeSourceIPv4 rejects nil IP local address", t, func() {
+		mockey.Mock(net.Dial).To(func(network, address string) (net.Conn, error) {
+			return &fakeAddrConn{addr: &net.UDPAddr{}}, nil
+		}).Build()
+
+		_, err := routeSourceIPv4()
+		require.Error(t, err)
+	})
+
+	mockey.PatchConvey("routeSourceIPv4 rejects loopback source address", t, func() {
+		mockey.Mock(net.Dial).To(func(network, address string) (net.Conn, error) {
+			return &fakeAddrConn{addr: &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 12345}}, nil
+		}).Build()
+
+		_, err := routeSourceIPv4()
+		require.Error(t, err)
+	})
 }
 
 func TestFetchVMEnvironment_WithMockey(t *testing.T) {
