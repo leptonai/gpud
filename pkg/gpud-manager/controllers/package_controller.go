@@ -388,9 +388,10 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 		for _, pkg := range c.packageStatusSnapshot() {
 			c.RLock()
 			installed := pkg.IsInstalled
+			recovered := c.recoveredInstalled[pkg.Name]
 			scriptPath := pkg.ScriptPath
 			c.RUnlock()
-			if !installed {
+			if !installed && !recovered {
 				continue
 			}
 
@@ -410,6 +411,14 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 				c.packageStatus[pkg.Name].Status = true
 				c.Unlock()
 				log.Logger.Debugf("[package controller]: %v status ok", pkg.Name)
+				continue
+			}
+			// Recovery establishes that the package exists on disk, but its
+			// dependencies have not passed the install gate. Report the package's
+			// actual health without restarting it until normal installed state is
+			// established, avoiding a restart loop when a dependency is unavailable.
+			if recovered && !installed {
+				log.Logger.Warnw("[package controller] recovered package status not ok; skipping restart", "name", pkg.Name, "error", err)
 				continue
 			}
 			log.Logger.Errorf("[package controller]: %v status not ok, restarting", pkg.Name)

@@ -595,28 +595,62 @@ func TestInstallRunner_RecoveryProbeTimeoutDoesNotBlockFollowingPackage(t *testi
 	})
 }
 
-func TestStatusRunner_DoesNotRestartRecoveryOnlyPackage(t *testing.T) {
-	mockey.PatchConvey("status runner ignores recovery-only packages", t, func() {
+func TestStatusRunner_ChecksRecoveryOnlyPackageWithoutRestart(t *testing.T) {
+	mockey.PatchConvey("status runner checks recovery-only packages without restarting them", t, func() {
 		controller := NewPackageController(make(chan packages.PackageInfo))
 		controller.syncPeriod = 10 * time.Millisecond
-		controller.packageStatus["recovered"] = &packages.PackageStatus{
-			Name:       "recovered",
-			ScriptPath: "/tmp/recovered.sh",
+		controller.packageStatus["recovered-ok"] = &packages.PackageStatus{
+			Name:       "recovered-ok",
+			ScriptPath: "/tmp/recovered-ok.sh",
 		}
-		controller.recoveredInstalled["recovered"] = true
+		controller.recoveredInstalled["recovered-ok"] = true
+		controller.packageStatus["recovered-failed"] = &packages.PackageStatus{
+			Name:       "recovered-failed",
+			ScriptPath: "/tmp/recovered-failed.sh",
+		}
+		controller.recoveredInstalled["recovered-failed"] = true
 
 		var mockCalls atomic.Int64
+		var okStatusCalls atomic.Int64
+		var failedStatusCalls atomic.Int64
+		var restartCalls atomic.Int64
 		mockey.Mock(runCommand).To(func(ctx context.Context, script, arg string, result *string) error {
 			mockCalls.Add(1)
+			switch arg {
+			case "shouldSkip":
+				return errors.New("no skip")
+			case "status":
+				switch filepath.Base(script) {
+				case "recovered-ok.sh":
+					okStatusCalls.Add(1)
+					return nil
+				case "recovered-failed.sh":
+					failedStatusCalls.Add(1)
+					return errors.New("status failed")
+				}
+			case "stop", "start":
+				restartCalls.Add(1)
+				return nil
+			}
 			return errors.New("unexpected command")
 		}).Build()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		go controller.statusRunner(ctx)
-		time.Sleep(50 * time.Millisecond)
+		require.Eventually(t, func() bool {
+			controller.RLock()
+			defer controller.RUnlock()
+			return controller.packageStatus["recovered-ok"].Status && failedStatusCalls.Load() > 0
+		}, 5*time.Second, 10*time.Millisecond)
 		cancel()
 		waitMockQuiescent(t, &mockCalls)
-		assert.Zero(t, mockCalls.Load())
+		assert.Positive(t, okStatusCalls.Load())
+		assert.Positive(t, failedStatusCalls.Load())
+		assert.Zero(t, restartCalls.Load())
+		controller.RLock()
+		defer controller.RUnlock()
+		assert.True(t, controller.packageStatus["recovered-ok"].Status)
+		assert.False(t, controller.packageStatus["recovered-failed"].Status)
 	})
 }
 
