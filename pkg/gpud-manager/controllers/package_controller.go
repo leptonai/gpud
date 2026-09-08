@@ -17,17 +17,23 @@ import (
 )
 
 type PackageController struct {
-	fileWatcher   chan packages.PackageInfo
-	packageStatus map[string]*packages.PackageStatus
-	syncPeriod    time.Duration
+	fileWatcher          chan packages.PackageInfo
+	packageStatus        map[string]*packages.PackageStatus
+	recoveryProbed       map[string]bool
+	recoveredInstalled   map[string]bool
+	syncPeriod           time.Duration
+	recoveryProbeTimeout time.Duration
 	sync.RWMutex
 }
 
 func NewPackageController(watcher chan packages.PackageInfo) *PackageController {
 	r := &PackageController{
-		fileWatcher:   watcher,
-		packageStatus: make(map[string]*packages.PackageStatus),
-		syncPeriod:    3 * time.Second,
+		fileWatcher:          watcher,
+		packageStatus:        make(map[string]*packages.PackageStatus),
+		recoveryProbed:       make(map[string]bool),
+		recoveredInstalled:   make(map[string]bool),
+		syncPeriod:           3 * time.Second,
+		recoveryProbeTimeout: 10 * time.Second,
 	}
 	return r
 }
@@ -36,8 +42,12 @@ func (c *PackageController) Status(ctx context.Context) ([]packages.PackageStatu
 	c.RLock()
 	defer c.RUnlock()
 	var ret []packages.PackageStatus
-	for _, pkg := range c.packageStatus {
-		ret = append(ret, *pkg)
+	for name, pkg := range c.packageStatus {
+		status := *pkg
+		// A recovered installation is real state on disk, but it does not
+		// satisfy dependency gates until the dependencies have been validated.
+		status.IsInstalled = status.IsInstalled || c.recoveredInstalled[name]
+		ret = append(ret, status)
 	}
 	sort.Sort(packages.PackageStatuses(ret))
 	return ret, nil
@@ -109,7 +119,7 @@ func (c *PackageController) updateRunner(ctx context.Context) {
 		}
 		for _, pkg := range c.packageStatusSnapshot() {
 			c.RLock()
-			installed := pkg.IsInstalled
+			installed := pkg.IsInstalled || c.recoveredInstalled[pkg.Name]
 			scriptPath := pkg.ScriptPath
 			targetVersion := pkg.TargetVersion
 			c.RUnlock()
@@ -197,8 +207,40 @@ func (c *PackageController) installRunner(ctx context.Context) {
 			c.RLock()
 			dependency := pkg.Dependency
 			scriptPath := pkg.ScriptPath
+			installing := pkg.Installing
+			installed := pkg.IsInstalled
+			recoveryProbed := c.recoveryProbed[pkg.Name]
 			c.RUnlock()
-			var skipCheck bool
+
+			if installing {
+				log.Logger.Infof("[package controller]: %v installing...", pkg.Name)
+				continue
+			}
+
+			// Probe once before the dependency gate so a controller restart can
+			// recover packages that already exist on disk. Keep that state
+			// separate from IsInstalled: package dependencies only gate a fresh
+			// install, while an existing package must remain eligible for upgrade.
+			if !installed && !recoveryProbed {
+				c.Lock()
+				c.recoveryProbed[pkg.Name] = true
+				c.Unlock()
+
+				probeCtx, cancel := context.WithTimeout(ctx, c.recoveryProbeTimeout)
+				err := runCommand(probeCtx, scriptPath, "isInstalled", nil)
+				cancel()
+				if err == nil {
+					c.Lock()
+					c.recoveredInstalled[pkg.Name] = true
+					c.packageStatus[pkg.Name].Progress = 100
+					c.Unlock()
+					log.Logger.Debugw("[package controller] recovered existing installation", "name", pkg.Name)
+				} else if errors.Is(err, context.DeadlineExceeded) {
+					log.Logger.Warnw("[package controller] recovery probe timed out", "name", pkg.Name, "timeout", c.recoveryProbeTimeout)
+				}
+			}
+
+			var skipInstall bool
 			for _, dep := range dependency {
 				// Read the dependency's mutable fields under the read lock;
 				// updateRunner and the async install goroutine mutate them
@@ -213,21 +255,31 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				c.RUnlock()
 				if !depFound {
 					log.Logger.Infof("[package controller]: %v dependency %v not found, skipping", pkg.Name, dep[0])
-					skipCheck = true
+					skipInstall = true
 					break
 				}
 				if !depInstalled {
 					log.Logger.Infof("[package controller]: %v dependency %v not installed, skipping", pkg.Name, dep[0])
-					skipCheck = true
+					skipInstall = true
 					break
 				}
 				if dep[1] != "*" && (depVersion == "" || depVersion < dep[1]) {
 					log.Logger.Infof("[package controller]: %v dependency %v version %v does not meet required %v, skipping", pkg.Name, dep[0], depVersion, dep[1])
-					skipCheck = true
+					skipInstall = true
 					break
 				}
 			}
-			if skipCheck {
+			if skipInstall {
+				continue
+			}
+
+			c.RLock()
+			recovered := c.recoveredInstalled[pkg.Name]
+			c.RUnlock()
+			if recovered {
+				c.Lock()
+				c.packageStatus[pkg.Name].IsInstalled = true
+				c.Unlock()
 				continue
 			}
 
@@ -242,15 +294,6 @@ func (c *PackageController) installRunner(ctx context.Context) {
 				continue
 			}
 
-			c.RLock()
-			installing := pkg.Installing
-			c.RUnlock()
-			if installing {
-				log.Logger.Infof("[package controller]: %v installing...", pkg.Name)
-				continue
-			}
-
-			// if installing, then skip
 			err := runCommand(ctx, scriptPath, "isInstalled", nil)
 			if err == nil {
 				c.Lock()
@@ -345,9 +388,10 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 		for _, pkg := range c.packageStatusSnapshot() {
 			c.RLock()
 			installed := pkg.IsInstalled
+			recovered := c.recoveredInstalled[pkg.Name]
 			scriptPath := pkg.ScriptPath
 			c.RUnlock()
-			if !installed {
+			if !installed && !recovered {
 				continue
 			}
 
@@ -367,6 +411,14 @@ func (c *PackageController) statusRunner(ctx context.Context) {
 				c.packageStatus[pkg.Name].Status = true
 				c.Unlock()
 				log.Logger.Debugf("[package controller]: %v status ok", pkg.Name)
+				continue
+			}
+			// Recovery establishes that the package exists on disk, but its
+			// dependencies have not passed the install gate. Report the package's
+			// actual health without restarting it until normal installed state is
+			// established, avoiding a restart loop when a dependency is unavailable.
+			if recovered && !installed {
+				log.Logger.Warnw("[package controller] recovered package status not ok; skipping restart", "name", pkg.Name, "error", err)
 				continue
 			}
 			log.Logger.Errorf("[package controller]: %v status not ok, restarting", pkg.Name)
