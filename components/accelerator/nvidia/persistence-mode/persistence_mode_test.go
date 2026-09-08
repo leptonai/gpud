@@ -1,8 +1,9 @@
 package persistencemode
 
 import (
-	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -13,32 +14,43 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
 
-func TestParsePersistenceModeCSV(t *testing.T) {
-	states, err := parsePersistenceModeCSV([]byte("GPU-1, Enabled\nGPU-2, Disabled\n"))
+func TestDaemonPersistenceModes(t *testing.T) {
+	procRoot := t.TempDir()
+	firstPIDRoot := filepath.Join(procRoot, "122")
+	require.NoError(t, os.MkdirAll(filepath.Join(firstPIDRoot, "fd"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(firstPIDRoot, "cmdline"), []byte("nvidia-persistenced\x00"), 0o644))
+	require.NoError(t, os.Symlink("/dev/nvidia2", filepath.Join(firstPIDRoot, "fd", "3")))
+
+	pidRoot := filepath.Join(procRoot, "123")
+	require.NoError(t, os.MkdirAll(filepath.Join(pidRoot, "fd"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(pidRoot, "cmdline"), []byte("/usr/bin/nvidia-persistenced\x00--persistence-mode\x00"), 0o644))
+	require.NoError(t, os.Symlink("/dev/nvidia0", filepath.Join(pidRoot, "fd", "3")))
+	require.NoError(t, os.Symlink("/dev/nvidia3", filepath.Join(pidRoot, "fd", "4")))
+	require.NoError(t, os.Symlink("/dev/nvidiactl", filepath.Join(pidRoot, "fd", "5")))
+	require.NoError(t, os.Symlink("/tmp/nvidia4", filepath.Join(pidRoot, "fd", "6")))
+
+	modes, err := daemonPersistenceModes(procRoot)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]bool{"GPU-1": true, "GPU-2": false}, states)
+	assert.Equal(t, map[int]bool{0: true, 2: true, 3: true}, modes)
 }
 
-func TestParsePersistenceModeCSVErrors(t *testing.T) {
-	tests := map[string]string{
-		"empty":            "",
-		"missing field":    "GPU-1\n",
-		"unexpected state": "GPU-1, N/A\n",
-		"empty UUID":       ", Enabled\n",
-		"duplicate UUID":   "GPU-1, Enabled\nGPU-1, Disabled\n",
-	}
-	for name, input := range tests {
-		t.Run(name, func(t *testing.T) {
-			_, err := parsePersistenceModeCSV([]byte(input))
-			require.Error(t, err)
-		})
-	}
-}
+func TestDaemonPersistenceModesErrors(t *testing.T) {
+	_, err := daemonPersistenceModes(filepath.Join(t.TempDir(), "missing"))
+	require.Error(t, err)
 
-func TestRunPersistenceModeQueryHonorsCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	_, err := runPersistenceModeQuery(ctx, "sh", "-c", "sleep 60")
+	procRoot := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(procRoot, "456"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(procRoot, "456", "cmdline"), []byte("unrelated\x00"), 0o644))
+	_, err = daemonPersistenceModes(procRoot)
+	require.Error(t, err)
+
+	partialRoot := t.TempDir()
+	partialPIDRoot := filepath.Join(partialRoot, "789")
+	require.NoError(t, os.MkdirAll(filepath.Join(partialPIDRoot, "fd"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(partialPIDRoot, "cmdline"), []byte("nvidia-persistenced\x00"), 0o644))
+	// Verify that a missing fd directory makes the entire snapshot indeterminate.
+	require.NoError(t, os.Remove(filepath.Join(partialPIDRoot, "fd")))
+	_, err = daemonPersistenceModes(partialRoot)
 	require.Error(t, err)
 }
 

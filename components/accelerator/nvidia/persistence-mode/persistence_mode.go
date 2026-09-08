@@ -1,18 +1,14 @@
 package persistencemode
 
 import (
-	"context"
-	"encoding/csv"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/leptonai/gpud/pkg/nvidia/driverroot"
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 )
@@ -37,16 +33,17 @@ type PersistenceMode struct {
 	BusID string `json:"bus_id"`
 	// Enabled is the effective persistence state. It normally comes directly
 	// from NVML; on daemon-managed systems where NVML reports disabled, gpud
-	// verifies the state through nvidia-smi's per-GPU daemon RPC query.
+	// verifies that nvidia-persistenced holds the GPU device open.
 	Enabled bool `json:"enabled"`
 	// Supported is true if the persistence mode is supported by the device.
 	Supported bool `json:"supported"`
 	// NVMLReportedEnabled preserves the raw nvmlDeviceGetPersistenceMode
-	// result when nvidia-smi was needed to determine the effective state.
+	// result when daemon device handles determined the effective state.
 	NVMLReportedEnabled *bool `json:"nvml_reported_enabled,omitempty"`
-	// EffectiveStateSource is "nvidia-smi" when Enabled was verified through
-	// the persistence daemon RPC rather than taken directly from NVML.
+	// EffectiveStateSource is "nvidia-persistenced" when Enabled was verified
+	// from the daemon's open GPU device handles rather than taken from NVML.
 	EffectiveStateSource string `json:"effective_state_source,omitempty"`
+	minorNumber          int
 }
 
 // GetPersistenceMode returns the persistence mode for a device.
@@ -55,6 +52,12 @@ func GetPersistenceMode(uuid string, dev device.Device) (PersistenceMode, error)
 		UUID:      uuid,
 		BusID:     dev.PCIBusID(),
 		Supported: true,
+	}
+	minorNumber, ret := dev.GetMinorNumber()
+	if ret == nvml.SUCCESS {
+		mode.minorNumber = minorNumber
+	} else {
+		mode.minorNumber = -1
 	}
 
 	// ref. https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g1224ad7b15d7407bebfff034ec094c6b
@@ -78,73 +81,54 @@ func GetPersistenceMode(uuid string, dev device.Device) (PersistenceMode, error)
 	return mode, nil
 }
 
-// queryEffectivePersistenceModes asks nvidia-smi for the effective per-GPU
-// state. NVIDIA documents that nvidia-smi uses nvidia-persistenced's RPC
-// interface when the daemon is running, so this observes runtime per-device
-// changes that cannot be inferred from the daemon process or its startup argv.
-//
-// The driver-root chroot path is required for GPU Operator installations:
-// nvidia-smi and its matching libraries live inside that root. Bare-metal
-// installations use nvidia-smi from PATH.
-func queryEffectivePersistenceModes(ctx context.Context) (map[string]bool, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	args := []string{"--query-gpu=uuid,persistence_mode", "--format=csv,noheader,nounits"}
-	var lastErr error
-	for _, root := range driverroot.Existing() {
-		executable := filepath.Join(root, "usr", "bin", "nvidia-smi")
-		if st, err := os.Stat(executable); err != nil || !st.Mode().IsRegular() || st.Mode().Perm()&0o111 == 0 {
-			continue
-		}
-		out, err := runPersistenceModeQuery(queryCtx, "chroot", root, "/usr/bin/nvidia-smi", args[0], args[1])
-		if err != nil {
-			lastErr = fmt.Errorf("failed to query persistence mode with %s: %w", executable, err)
-			continue
-		}
-		return parsePersistenceModeCSV(out)
-	}
-
-	executable, err := exec.LookPath("nvidia-smi")
-	if err == nil {
-		out, runErr := runPersistenceModeQuery(queryCtx, executable, args...)
-		if runErr == nil {
-			return parsePersistenceModeCSV(out)
-		}
-		lastErr = fmt.Errorf("failed to query persistence mode with %s: %w", executable, runErr)
-	}
-	if lastErr != nil {
-		return nil, lastErr
-	}
-	return nil, fmt.Errorf("nvidia-smi not found in PATH or NVIDIA driver roots")
-}
-
-func runPersistenceModeQuery(ctx context.Context, executable string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, executable, args...).Output()
-}
-
-func parsePersistenceModeCSV(data []byte) (map[string]bool, error) {
-	records, err := csv.NewReader(strings.NewReader(string(data))).ReadAll()
+// daemonPersistenceModes returns the GPU minor numbers that a live
+// nvidia-persistenced process currently holds open. NVIDIA's daemon
+// implementation opens a GPU device when persistence is enabled and closes
+// it when disabled; those handles are the mechanism that keeps driver state
+// loaded. Reading them from proc therefore observes current per-GPU state
+// without executing nvidia-smi or inferring state from startup arguments.
+func daemonPersistenceModes(procRoot string) (map[int]bool, error) {
+	entries, err := os.ReadDir(procRoot)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse nvidia-smi persistence output: %w", err)
+		return nil, err
 	}
-	if len(records) == 0 {
-		return nil, fmt.Errorf("nvidia-smi returned no persistence mode rows")
+	modes := make(map[int]bool)
+	foundDaemon := false
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if _, err := strconv.Atoi(entry.Name()); err != nil {
+			continue
+		}
+		pidRoot := filepath.Join(procRoot, entry.Name())
+		cmdline, err := os.ReadFile(filepath.Join(pidRoot, "cmdline"))
+		if err != nil || filepath.Base(strings.SplitN(string(cmdline), "\x00", 2)[0]) != "nvidia-persistenced" {
+			continue
+		}
+		foundDaemon = true
+		fds, err := os.ReadDir(filepath.Join(pidRoot, "fd"))
+		if err != nil {
+			return nil, fmt.Errorf("failed to read nvidia-persistenced file descriptors for pid %s: %w", entry.Name(), err)
+		}
+		for _, fd := range fds {
+			target, err := os.Readlink(filepath.Join(pidRoot, "fd", fd.Name()))
+			if err != nil {
+				return nil, fmt.Errorf("failed to read nvidia-persistenced file descriptor %s for pid %s: %w", fd.Name(), entry.Name(), err)
+			}
+			target = strings.TrimSuffix(target, " (deleted)")
+			if !strings.HasPrefix(target, "/dev/nvidia") {
+				continue
+			}
+			name := filepath.Base(target)
+			minor, err := strconv.Atoi(strings.TrimPrefix(name, "nvidia"))
+			if err == nil && name == "nvidia"+strconv.Itoa(minor) {
+				modes[minor] = true
+			}
+		}
 	}
-	states := make(map[string]bool, len(records))
-	for _, record := range records {
-		if len(record) != 2 {
-			return nil, fmt.Errorf("unexpected nvidia-smi persistence row with %d fields", len(record))
-		}
-		uuid := strings.TrimSpace(record[0])
-		state := strings.ToLower(strings.TrimSpace(record[1]))
-		if uuid == "" || (state != "enabled" && state != "disabled") {
-			return nil, fmt.Errorf("unexpected nvidia-smi persistence row %q", record)
-		}
-		if _, exists := states[uuid]; exists {
-			return nil, fmt.Errorf("duplicate nvidia-smi persistence row for GPU %q", uuid)
-		}
-		states[uuid] = state == "enabled"
+	if foundDaemon {
+		return modes, nil
 	}
-	return states, nil
+	return nil, fmt.Errorf("nvidia-persistenced process not found")
 }
