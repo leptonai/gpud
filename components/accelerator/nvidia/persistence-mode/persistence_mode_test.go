@@ -1,15 +1,46 @@
 package persistencemode
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	nvmlerrors "github.com/leptonai/gpud/pkg/nvidia/errors"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
+
+func TestParsePersistenceModeCSV(t *testing.T) {
+	states, err := parsePersistenceModeCSV([]byte("GPU-1, Enabled\nGPU-2, Disabled\n"))
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{"GPU-1": true, "GPU-2": false}, states)
+}
+
+func TestParsePersistenceModeCSVErrors(t *testing.T) {
+	tests := map[string]string{
+		"empty":            "",
+		"missing field":    "GPU-1\n",
+		"unexpected state": "GPU-1, N/A\n",
+		"empty UUID":       ", Enabled\n",
+		"duplicate UUID":   "GPU-1, Enabled\nGPU-1, Disabled\n",
+	}
+	for name, input := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := parsePersistenceModeCSV([]byte(input))
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestRunPersistenceModeQueryHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := runPersistenceModeQuery(ctx, "sh", "-c", "sleep 60")
+	require.Error(t, err)
+}
 
 func TestGetPersistenceMode(t *testing.T) {
 	testCases := []struct {

@@ -131,19 +131,22 @@ func probeNVMLLibrary(root string) string {
 	return ""
 }
 
-// nvmlCompanionLibraryGlobs are the shared libraries that a driver-root
-// libnvidia-ml.so.1 needs at run time, expressed as globs against the
-// directory that libnvidia-ml.so.1 was resolved from.
+// nvmlCompanionLibraries are the shared libraries that a driver-root
+// libnvidia-ml.so.1 needs at run time, matched as globs against the
+// directory that libnvidia-ml.so.1 was resolved from (with stat-based
+// fallbacks for directories whose listing is broken).
 //
 // WHY these families: libnvidia-ml.so.1 dlopens libcuda.so.1 BY SONAME at
 // run time (confirmed by the SONAME strings embedded in the 580.x binary and
 // by runtime A/B tests on AKS A100 and NSCALE B200 nodes): when libcuda.so.1
-// cannot be found, every NVML query fails with NVML_ERROR_NOT_FOUND -- e.g.
-// "failed to get driver version: Not Found" -- even though libnvidia-ml
-// itself dlopened successfully. On 560+ driver trees, libcuda in turn loads
-// libnvidia-gpucomp.so.<version> for compute-related NVML queries, and NVML
-// uses libnvidia-cfg.so.1 for configuration queries. All three are therefore
-// preloaded whenever they exist alongside the resolved libnvidia-ml.
+// cannot be found, NVML queries that need it fail with NVML_ERROR_NOT_FOUND
+// -- e.g. "failed to get CUDA driver version: Not Found" -- even though
+// libnvidia-ml itself dlopened successfully and libcuda-independent queries
+// like SystemGetDriverVersion still work. On 560+ driver trees, libcuda in
+// turn loads libnvidia-gpucomp.so.<version> for compute-related NVML
+// queries, and NVML uses libnvidia-cfg.so.1 for configuration queries. All
+// three are therefore preloaded whenever they exist alongside the resolved
+// libnvidia-ml.
 //
 // WHY an explicit allowlist instead of LD_LIBRARY_PATH=<driver lib dir>: the
 // GPU Operator's driver tree bundles its OWN glibc in the same directory
@@ -154,10 +157,33 @@ func probeNVMLLibrary(root string) string {
 // NVIDIA companions by absolute path never touches libc/libpthread/libm: the
 // companions' own DT_NEEDED entries dedup against the glibc already loaded
 // in the gpud process.
-var nvmlCompanionLibraryGlobs = []string{
-	"libcuda.so*",
-	"libnvidia-cfg.so*",
-	"libnvidia-gpucomp.so*",
+
+// nvmlCompanionLibrary describes one NVML companion library family to
+// preload from the driver tree.
+type nvmlCompanionLibrary struct {
+	// glob matches the family in the directory of the resolved libnvidia-ml
+	// (preferred path; covers versioned files).
+	glob string
+	// sonames are the stable names probed with os.Stat when the glob matches
+	// nothing. filepath.Glob reads the directory, so it silently returns no
+	// matches when the directory LISTING is broken even though the files
+	// exist and open fine -- observed on a BYOK node where the GPU Operator
+	// driver root (/run/nvidia/driver) was a stale driver-container rootfs:
+	// "ls" showed an empty directory while stat/open of libcuda.so.1 worked.
+	// Missing the libcuda companion makes every NVML query that needs it fail
+	// with NVML_ERROR_NOT_FOUND, so the fallback must not rely on readdir.
+	sonames []string
+	// versionedPrefix, when non-empty, names a library that ships only as a
+	// versioned file (e.g. libnvidia-gpucomp); the probed name is derived
+	// from the resolved libnvidia-ml version
+	// (libnvidia-ml.so.<ver> -> "<versionedPrefix><ver>").
+	versionedPrefix string
+}
+
+var nvmlCompanionLibraries = []nvmlCompanionLibrary{
+	{glob: "libcuda.so*", sonames: []string{"libcuda.so.1", "libcuda.so"}},
+	{glob: "libnvidia-cfg.so*", sonames: []string{"libnvidia-cfg.so.1", "libnvidia-cfg.so"}},
+	{glob: "libnvidia-gpucomp.so*", versionedPrefix: "libnvidia-gpucomp.so."},
 }
 
 // findNVMLCompanionLibraries returns, for each companion family, the single
@@ -175,32 +201,77 @@ func findNVMLCompanionLibraries(libraryPath string) []string {
 	}
 
 	var selected []string
-	for _, pattern := range nvmlCompanionLibraryGlobs {
+	for _, family := range nvmlCompanionLibraries {
 		// filepath.Glob returns sorted matches; a missing family is not an
 		// error (existence-based, mirroring the driver-root probes: older
 		// drivers ship no libnvidia-gpucomp, and that is fine).
-		matches, err := filepath.Glob(filepath.Join(dir, pattern))
-		if err != nil || len(matches) == 0 {
+		matches, err := filepath.Glob(filepath.Join(dir, family.glob))
+		if err == nil && len(matches) > 0 {
+			// Prefer the SONAME symlink (e.g., "libcuda.so.1") over the dev
+			// symlink ("libcuda.so") and the versioned file
+			// ("libcuda.so.580.82.07"): the SONAME is the name libnvidia-ml
+			// looks up, and dlopening the symlink still registers the target's
+			// DT_SONAME, which is what makes the later by-SONAME lookup bind to
+			// this exact copy. libnvidia-gpucomp ships only as the versioned
+			// file, so "first sorted match" is the fallback.
+			pick := matches[0]
+			for _, m := range matches {
+				if strings.HasSuffix(m, ".so.1") {
+					pick = m
+					break
+				}
+			}
+			selected = append(selected, pick)
 			continue
 		}
 
-		// Prefer the SONAME symlink (e.g., "libcuda.so.1") over the dev
-		// symlink ("libcuda.so") and the versioned file
-		// ("libcuda.so.580.82.07"): the SONAME is the name libnvidia-ml
-		// looks up, and dlopening the symlink still registers the target's
-		// DT_SONAME, which is what makes the later by-SONAME lookup bind to
-		// this exact copy. libnvidia-gpucomp ships only as the versioned
-		// file, so "first sorted match" is the fallback.
-		pick := matches[0]
-		for _, m := range matches {
-			if strings.HasSuffix(m, ".so.1") {
-				pick = m
-				break
-			}
+		// The glob found nothing. Fall back to probing the family's stable
+		// names with os.Stat: directory reads can fail or return empty on a
+		// stale/corrupt driver-root mount while plain lookups still work.
+		if pick := probeCompanionLibrary(dir, family, libraryPath); pick != "" {
+			selected = append(selected, pick)
 		}
-		selected = append(selected, pick)
 	}
 	return selected
+}
+
+// probeCompanionLibrary finds a companion library by stat-ing its stable
+// names (or its version-derived name) instead of reading the directory. It
+// returns empty when no candidate exists.
+func probeCompanionLibrary(dir string, family nvmlCompanionLibrary, libraryPath string) string {
+	candidates := family.sonames
+	if family.versionedPrefix != "" {
+		if version := nvmlLibraryVersion(libraryPath); version != "" {
+			candidates = []string{family.versionedPrefix + version}
+		}
+	}
+	for _, name := range candidates {
+		candidate := filepath.Join(dir, name)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// nvmlLibraryVersion extracts the driver version suffix from the NVML
+// library path, following the SONAME symlink when present:
+// "libnvidia-ml.so.1" -> "libnvidia-ml.so.580.82.07" -> "580.82.07".
+// It returns empty when no versioned name can be determined.
+func nvmlLibraryVersion(libraryPath string) string {
+	const prefix = "libnvidia-ml.so."
+
+	resolvedPath, err := filepath.EvalSymlinks(libraryPath)
+	if err != nil {
+		resolvedPath = libraryPath
+	}
+	name := filepath.Base(resolvedPath)
+	if strings.HasPrefix(name, prefix) {
+		if version := strings.TrimPrefix(name, prefix); version != "" && version != "1" {
+			return version
+		}
+	}
+	return ""
 }
 
 // preloadNVMLCompanionLibraries dlopens the NVML companion libraries from
