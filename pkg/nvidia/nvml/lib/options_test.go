@@ -9,6 +9,7 @@ import (
 	nvinfo "github.com/NVIDIA/go-nvlib/pkg/nvlib/info"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
+	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -249,6 +250,79 @@ func TestFindNVMLCompanionLibraries(t *testing.T) {
 func TestPreloadNVMLCompanionLibrariesNoCompanions(t *testing.T) {
 	preloadNVMLCompanionLibraries("libnvidia-ml.so.1")
 	preloadNVMLCompanionLibraries(filepath.Join(t.TempDir(), "libnvidia-ml.so.1"))
+}
+
+// TestFindNVMLCompanionLibrariesBrokenDirectoryListing covers the stale GPU
+// Operator driver-root case: the directory LISTING returns nothing (broken
+// readdir on a leftover driver-container overlay) while file lookups still
+// work. The stat-based fallback must still find the companions.
+func TestFindNVMLCompanionLibrariesBrokenDirectoryListing(t *testing.T) {
+	dir := t.TempDir()
+	writeFile := func(name string) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), nil, 0o644))
+	}
+	writeFile("libnvidia-ml.so.580.126.20")
+	require.NoError(t, os.Symlink("libnvidia-ml.so.580.126.20", filepath.Join(dir, "libnvidia-ml.so.1")))
+	writeFile("libcuda.so.580.126.20")
+	require.NoError(t, os.Symlink("libcuda.so.580.126.20", filepath.Join(dir, "libcuda.so.1")))
+	writeFile("libnvidia-cfg.so.580.126.20")
+	require.NoError(t, os.Symlink("libnvidia-cfg.so.580.126.20", filepath.Join(dir, "libnvidia-cfg.so.1")))
+	writeFile("libnvidia-gpucomp.so.580.126.20")
+
+	mockey.PatchConvey("directory listing returns nothing but lookups work", t, func() {
+		mockey.Mock(filepath.Glob).To(func(pattern string) ([]string, error) {
+			return nil, nil
+		}).Build()
+
+		assert.Equal(t, []string{
+			filepath.Join(dir, "libcuda.so.1"),
+			filepath.Join(dir, "libnvidia-cfg.so.1"),
+			filepath.Join(dir, "libnvidia-gpucomp.so.580.126.20"),
+		}, findNVMLCompanionLibraries(filepath.Join(dir, "libnvidia-ml.so.1")))
+	})
+}
+
+func TestProbeCompanionLibrary(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "libcuda.so.1"), nil, 0o644))
+
+	// SONAME probe finds the library
+	assert.Equal(t, filepath.Join(dir, "libcuda.so.1"),
+		probeCompanionLibrary(dir, nvmlCompanionLibrary{sonames: []string{"libcuda.so.1", "libcuda.so"}}, ""))
+
+	// missing library returns empty
+	assert.Empty(t, probeCompanionLibrary(dir, nvmlCompanionLibrary{sonames: []string{"libnvidia-cfg.so.1"}}, ""))
+
+	// versioned family with an underivable version returns empty
+	assert.Empty(t, probeCompanionLibrary(dir, nvmlCompanionLibrary{versionedPrefix: "libnvidia-gpucomp.so."}, filepath.Join(dir, "libnvidia-ml.so.1")))
+}
+
+func TestNVMLLibraryVersion(t *testing.T) {
+	dir := t.TempDir()
+
+	// versioned filename directly
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "libnvidia-ml.so.580.126.20"), nil, 0o644))
+	assert.Equal(t, "580.126.20", nvmlLibraryVersion(filepath.Join(dir, "libnvidia-ml.so.580.126.20")))
+
+	// SONAME symlink to a versioned file
+	require.NoError(t, os.Symlink("libnvidia-ml.so.580.126.20", filepath.Join(dir, "libnvidia-ml.so.1")))
+	assert.Equal(t, "580.126.20", nvmlLibraryVersion(filepath.Join(dir, "libnvidia-ml.so.1")))
+
+	// absolute symlink to a versioned file
+	absDir := t.TempDir()
+	absTarget := filepath.Join(absDir, "libnvidia-ml.so.580.126.20")
+	require.NoError(t, os.WriteFile(absTarget, nil, 0o644))
+	require.NoError(t, os.Symlink(absTarget, filepath.Join(absDir, "libnvidia-ml.so.1")))
+	assert.Equal(t, "580.126.20", nvmlLibraryVersion(filepath.Join(absDir, "libnvidia-ml.so.1")))
+
+	// bare SONAME file (no version) yields nothing
+	plainDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(plainDir, "libnvidia-ml.so.1"), nil, 0o644))
+	assert.Equal(t, "", nvmlLibraryVersion(filepath.Join(plainDir, "libnvidia-ml.so.1")))
+
+	// nonexistent path yields nothing
+	assert.Equal(t, "", nvmlLibraryVersion(filepath.Join(plainDir, "does-not-exist.so.1")))
 }
 
 func TestNVMLArchLibraryDir(t *testing.T) {

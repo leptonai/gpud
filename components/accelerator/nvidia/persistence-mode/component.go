@@ -47,6 +47,11 @@ type component struct {
 	nvmlInstance           nvidianvml.Instance
 	getPersistenceModeFunc func(uuid string, dev device.Device) (PersistenceMode, error)
 
+	// daemonPersistenceModesFunc returns GPU minor numbers currently held open
+	// by nvidia-persistenced when raw NVML reports disabled.
+	daemonPersistenceModesFunc func(string) (map[int]bool, error)
+	procRoot                   string
+
 	eventBucket eventstore.Bucket
 
 	lastMu          sync.RWMutex
@@ -62,8 +67,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getTimeNowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		nvmlInstance:           gpudInstance.NVMLInstance,
-		getPersistenceModeFunc: GetPersistenceMode,
+		nvmlInstance:               gpudInstance.NVMLInstance,
+		getPersistenceModeFunc:     GetPersistenceMode,
+		daemonPersistenceModesFunc: daemonPersistenceModes,
+		procRoot:                   "/proc",
 	}
 
 	if gpudInstance.EventStore != nil {
@@ -221,6 +228,39 @@ func (c *component) Check() components.CheckResult {
 		cr.PersistenceModes = append(cr.PersistenceModes, persistenceMode)
 	}
 
+	// Effective persistence fallback (LEP-6504): on daemon-managed platforms,
+	// nvmlDeviceGetPersistenceMode can report DISABLED while the persistence
+	// daemon actively holds that GPU open. Inspect the daemon's file descriptors
+	// once, only when needed, and match the open /dev/nvidiaN handle to the
+	// device's NVML minor number.
+	var daemonModes map[int]bool
+	var daemonModesErr error
+	daemonModesChecked := false
+	for i := range cr.PersistenceModes {
+		pm := &cr.PersistenceModes[i]
+		if !pm.Supported || pm.Enabled || pm.minorNumber < 0 {
+			continue
+		}
+		if !daemonModesChecked && c.daemonPersistenceModesFunc != nil {
+			daemonModes, daemonModesErr = c.daemonPersistenceModesFunc(c.procRoot)
+			daemonModesChecked = true
+			if daemonModesErr != nil {
+				log.Logger.Debugw("failed to inspect nvidia-persistenced device handles; retaining NVML result", "error", daemonModesErr)
+			}
+		}
+		if c.daemonPersistenceModesFunc == nil || daemonModesErr != nil {
+			continue
+		}
+		if daemonModes[pm.minorNumber] {
+			rawEnabled := pm.Enabled
+			pm.NVMLReportedEnabled = &rawEnabled
+			pm.Enabled = true
+			pm.EffectiveStateSource = "nvidia-persistenced"
+			log.Logger.Infow("verified daemon-managed persistence from open GPU device handle",
+				"uuid", pm.UUID, "busID", pm.BusID, "minorNumber", pm.minorNumber)
+		}
+	}
+
 	notEnabled := []string{}
 	for _, pm := range cr.PersistenceModes {
 		if pm.Supported && !pm.Enabled {
@@ -268,6 +308,15 @@ func (c *component) Check() components.CheckResult {
 	} else {
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = fmt.Sprintf("all %d GPU(s) were checked, no persistence mode issue found", len(devs))
+		daemonManagedCount := 0
+		for _, pm := range cr.PersistenceModes {
+			if pm.EffectiveStateSource == "nvidia-persistenced" && pm.Enabled {
+				daemonManagedCount++
+			}
+		}
+		if daemonManagedCount > 0 {
+			cr.reason = fmt.Sprintf("%s (%d GPU(s) verified via nvidia-persistenced)", cr.reason, daemonManagedCount)
+		}
 	}
 
 	return cr

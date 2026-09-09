@@ -304,6 +304,31 @@ livenessProbe:
     scheme: HTTPS
 # No readinessProbe is defined
 
+# Startup probe. gpud performs control-plane login (when a token is
+# configured) and machine-info collection BEFORE it opens its HTTPS listener.
+# Cloud-provider metadata detection can consume full per-provider timeout
+# budgets when IMDS (169.254.169.254) is silently dropped, pushing startup
+# past the ~30s liveness budget (periodSeconds 10 x failureThreshold 3) and
+# into a kill/restart loop. A startup probe disables the liveness probe until
+# the first successful check (Kubernetes semantics), giving gpud up to
+# roughly failureThreshold x periodSeconds (default ~300s) to finish login
+# and boot.
+# The probe uses the fixed gpud listener port below. If gpud.listenAddress is
+# changed from :15132, update both livenessProbe.httpGet.port and
+# startupProbe.httpGet.port to match. To replace httpGet with exec, tcpSocket,
+# or grpc, set startupProbe.httpGet: null as part of the same values override;
+# Helm otherwise deep-merges the new handler with this default httpGet map,
+# and Kubernetes rejects a probe with more than one handler.
+# Set to null to disable.
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: 15132
+    scheme: HTTPS
+  periodSeconds: 10
+  failureThreshold: 30
+  timeoutSeconds: 5
+
 updateStrategy:
   rollingUpdate:
     # This MUST be an integer for a DaemonSet. It cannot be a percentage.

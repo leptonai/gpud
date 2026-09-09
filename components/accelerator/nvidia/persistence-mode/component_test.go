@@ -255,6 +255,111 @@ func TestCheck_Success(t *testing.T) {
 	assert.Equal(t, persistenceMode, data.PersistenceModes[0])
 }
 
+func TestCheck_PersistenceDaemonHoldsDeviceOpen(t *testing.T) {
+	ctx := context.Background()
+	uuid := "gpu-uuid-daemon-managed"
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+
+	c := mustComponent(t, mockComponent(ctx,
+		func() map[string]device.Device { return map[string]device.Device{uuid: mockDev} },
+		func(_ string, _ device.Device) (PersistenceMode, error) {
+			return PersistenceMode{UUID: uuid, BusID: "0000:01:00.0", Supported: true, Enabled: false}, nil
+		},
+	))
+	c.getPersistenceModeFunc = func(_ string, _ device.Device) (PersistenceMode, error) {
+		return PersistenceMode{UUID: uuid, BusID: "0000:01:00.0", Supported: true, Enabled: false, minorNumber: 3}, nil
+	}
+	c.daemonPersistenceModesFunc = func(string) (map[int]bool, error) {
+		return map[int]bool{3: true}, nil
+	}
+
+	result := c.Check().(*checkResult)
+	require.Len(t, result.PersistenceModes, 1)
+	assert.Equal(t, apiv1.HealthStateTypeHealthy, result.health)
+	assert.Contains(t, result.reason, "1 GPU(s) verified via nvidia-persistenced")
+	assert.True(t, result.PersistenceModes[0].Enabled)
+	assert.Equal(t, "nvidia-persistenced", result.PersistenceModes[0].EffectiveStateSource)
+	require.NotNil(t, result.PersistenceModes[0].NVMLReportedEnabled)
+	assert.False(t, *result.PersistenceModes[0].NVMLReportedEnabled)
+	states := result.HealthStates()
+	assert.Contains(t, states[0].ExtraInfo["data"], `"nvml_reported_enabled":false`)
+	assert.Contains(t, states[0].ExtraInfo["data"], `"effective_state_source":"nvidia-persistenced"`)
+}
+
+func TestCheck_PersistenceDaemonDoesNotHoldDeviceOpen(t *testing.T) {
+	ctx := context.Background()
+	uuid := "gpu-uuid-daemon-disabled"
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+
+	c := mustComponent(t, mockComponent(ctx,
+		func() map[string]device.Device { return map[string]device.Device{uuid: mockDev} },
+		func(_ string, _ device.Device) (PersistenceMode, error) {
+			return PersistenceMode{UUID: uuid, BusID: "0000:01:00.0", Supported: true, Enabled: false}, nil
+		},
+	))
+	c.getPersistenceModeFunc = func(_ string, _ device.Device) (PersistenceMode, error) {
+		return PersistenceMode{UUID: uuid, BusID: "0000:01:00.0", Supported: true, Enabled: false, minorNumber: 3}, nil
+	}
+	c.daemonPersistenceModesFunc = func(string) (map[int]bool, error) {
+		return map[int]bool{}, nil
+	}
+
+	result := c.Check().(*checkResult)
+	require.Len(t, result.PersistenceModes, 1)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.health)
+	assert.False(t, result.PersistenceModes[0].Enabled)
+	assert.Empty(t, result.PersistenceModes[0].EffectiveStateSource)
+}
+
+func TestCheck_PersistenceDaemonInspectionFailureRetainsNVMLResult(t *testing.T) {
+	ctx := context.Background()
+	uuid := "gpu-uuid-zombie-daemon"
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+
+	c := mustComponent(t, mockComponent(ctx,
+		func() map[string]device.Device { return map[string]device.Device{uuid: mockDev} },
+		func(_ string, _ device.Device) (PersistenceMode, error) {
+			return PersistenceMode{UUID: uuid, BusID: "0000:01:00.0", Supported: true, Enabled: false}, nil
+		},
+	))
+	c.getPersistenceModeFunc = func(_ string, _ device.Device) (PersistenceMode, error) {
+		return PersistenceMode{UUID: uuid, BusID: "0000:01:00.0", Supported: true, Enabled: false, minorNumber: 3}, nil
+	}
+	c.daemonPersistenceModesFunc = func(string) (map[int]bool, error) {
+		return nil, errors.New("proc inspection failed")
+	}
+
+	result := c.Check().(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.health)
+	assert.False(t, result.PersistenceModes[0].Enabled)
+	assert.Empty(t, result.PersistenceModes[0].EffectiveStateSource)
+	assert.Nil(t, result.PersistenceModes[0].NVMLReportedEnabled)
+}
+
+func TestCheck_UnknownMinorNumberRetainsNVMLResult(t *testing.T) {
+	ctx := context.Background()
+	uuid := "gpu-uuid-unknown-minor"
+	mockDev := testutil.NewMockDevice(&mock.Device{}, "test-arch", "test-brand", "test-cuda", "0000:01:00.0")
+
+	c := mustComponent(t, mockComponent(ctx,
+		func() map[string]device.Device { return map[string]device.Device{uuid: mockDev} },
+		func(_ string, _ device.Device) (PersistenceMode, error) {
+			return PersistenceMode{UUID: uuid, BusID: "0000:01:00.0", Supported: true, Enabled: false}, nil
+		},
+	))
+	c.getPersistenceModeFunc = func(_ string, _ device.Device) (PersistenceMode, error) {
+		return PersistenceMode{UUID: uuid, BusID: "0000:01:00.0", Supported: true, Enabled: false, minorNumber: -1}, nil
+	}
+	c.daemonPersistenceModesFunc = func(string) (map[int]bool, error) {
+		return map[int]bool{3: true}, nil
+	}
+
+	result := c.Check().(*checkResult)
+	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, result.health)
+	assert.False(t, result.PersistenceModes[0].Enabled)
+	assert.Empty(t, result.PersistenceModes[0].EffectiveStateSource)
+}
+
 func TestCheck_PersistenceModeError(t *testing.T) {
 	ctx := context.Background()
 

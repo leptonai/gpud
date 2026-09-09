@@ -556,6 +556,13 @@ spec:
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           # No readinessProbe is defined
+          {{- with .Values.startupProbe }}
+          # Gives slow control-plane login/machine-info time to finish before
+          # the liveness probe starts (liveness stays off until the first
+          # successful startup probe). Set startupProbe: null to disable.
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.resources }}
           # Omitted entirely when values sets "resources: null", so the
           # DaemonSet consumes none of the node's allocatable resources.
