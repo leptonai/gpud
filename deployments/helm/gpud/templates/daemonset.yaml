@@ -553,8 +553,13 @@ spec:
               protocol: TCP
           {{- end }}
 
+          {{- if .Values.livenessProbe }}
+          {{- if not .Values.startupProbe }}
+          {{- fail "startupProbe is required when livenessProbe is enabled; gpud performs login and machine-info collection before /healthz starts" }}
+          {{- end }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
+          {{- end }}
           # No readinessProbe is defined
           {{- with .Values.startupProbe }}
           # Gives slow control-plane login/machine-info time to finish before
