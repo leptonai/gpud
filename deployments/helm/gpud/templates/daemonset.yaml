@@ -221,6 +221,20 @@ spec:
             path: /run/crio
             type: DirectoryOrCreate
         {{- end }}
+
+        {{- if .Values.gpud.nvsentinel.enabled }}
+        # Host NVSentinel directory, shared with the NVSentinel
+        # platform-connector pod (which mounts the same host directory). gpud
+        # creates its PlatformConnector gRPC unix socket at
+        # gpud.nvsentinel.socketPath here; the connector dials it. Requires
+        # gpud v0.13.0+ (LEP-6075). DirectoryOrCreate so the pod starts on
+        # nodes without NVSentinel: gpud then idles on the socket and the
+        # connector, when it appears, finds and dials it.
+        - name: nvsentinel-run
+          hostPath:
+            path: {{ dir .Values.gpud.nvsentinel.socketPath }}
+            type: DirectoryOrCreate
+        {{- end }}
       {{- if .Values.extraVolumes }}
       {{- toYaml .Values.extraVolumes | nindent 8 }}
       {{- end }}
@@ -430,6 +444,14 @@ spec:
 
               set -- "$@" --enable-auto-update={{ .Values.gpud.enableAutoUpdate }}
               set -- "$@" --auto-update-exit-code={{ .Values.gpud.autoUpdateExitCode }}
+
+              {{- if .Values.gpud.nvsentinel.enabled }}
+              # NVSentinel sink: serve the PlatformConnector gRPC API on this unix
+              # socket. This is a pure listener -- it never dials NVSentinel, so it
+              # is safe on nodes without NVSentinel and simply receives events
+              # whenever a platform-connector comes online and starts forwarding.
+              set -- "$@" --nvsentinel-endpoint="{{ .Values.gpud.nvsentinel.socketPath }}"
+              {{- end }}
 
               # Log the command for debugging, then exec to replace shell with gpud.
               # Keep the multi-line reboot script out of the startup log; gpud logs it
@@ -684,6 +706,13 @@ spec:
             # socket requires write access (same reason /run/containerd is rw).
             - name: host-run-crio
               mountPath: /run/crio
+            {{- end }}
+
+            {{- if .Values.gpud.nvsentinel.enabled }}
+            # Host NVSentinel directory shared with the platform-connector pod.
+            # Not read-only: gpud creates/removes its unix socket file here.
+            - name: nvsentinel-run
+              mountPath: {{ dir .Values.gpud.nvsentinel.socketPath }}
             {{- end }}
           {{- if .Values.extraVolumeMounts }}
           {{- toYaml .Values.extraVolumeMounts | nindent 12 }}

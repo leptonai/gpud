@@ -191,6 +191,37 @@ the containerd check behaves as before. On nodes that run neither containerd
 nor CRI-O, set `gpud.mountContainerd: false` and
 `gpud.containerdServiceActiveCommands: ""`.
 
+### NVSentinel Integration
+
+By default the chart enables GPUd's NVSentinel sink: GPUd serves the
+NVSentinel PlatformConnector gRPC API on a unix socket, and the node's
+NVSentinel platform-connector dials it to forward health events
+(Xid/SXid/InfiniBand), which GPUd components then deduplicate against their
+own detection:
+
+```yaml
+gpud:
+  nvsentinel:
+    enabled: true
+    socketPath: /var/run/nvsentinel/gpud.sock
+```
+
+GPUd only listens — it never dials NVSentinel — so nodes without NVSentinel
+are unaffected: the listener idles and components keep using their native
+detection (kmsg, NVML, ...). GPUd is simply ready whenever NVSentinel comes
+online. The socket's parent directory (`/var/run/nvsentinel`) is bind-mounted
+from the host with `DirectoryOrCreate`, which is what lets the
+platform-connector pod — it mounts the same host directory at its own
+`/var/run` — reach the socket at `/var/run/gpud.sock`. On nodes without
+NVSentinel this leaves only an empty host directory.
+
+Requires a gpud image with the LEP-6075 NVSentinel sink (v0.13.0+). On older
+images the unknown `--nvsentinel-endpoint` flag fails startup — set
+`gpud.nvsentinel.enabled: false` when pinning an older `image.tag`. As with
+the other startup flags, if `gpud.commandOverride` is set the default startup
+wrapper is bypassed, so include `--nvsentinel-endpoint` in the override when
+the sink is needed.
+
 ### Enabling or Disabling Components
 
 Set `gpud.components` (a list) to control which components run; it is rendered
