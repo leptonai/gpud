@@ -232,6 +232,30 @@ gpud:
   # Set to false only if the node group uses a non-standard CRI-O socket path.
   mountCrio: true
 
+  # NVSentinel integration: gpud serves the NVSentinel PlatformConnector gRPC
+  # API on a local unix socket, and the node's NVSentinel platform-connector
+  # dials it to forward health events (Xid/SXid/InfiniBand). gpud only
+  # listens -- it never dials NVSentinel -- so a node without NVSentinel is
+  # unaffected: the listener idles and components keep using their native
+  # detection (kmsg, NVML, ...). Enabled by default so gpud is ready to
+  # receive events whenever NVSentinel comes online; events that arrive
+  # before components finish starting are queued, not dropped.
+  #
+  # Requires a gpud image with the LEP-6075 NVSentinel sink (v0.13.0+); on
+  # older images the unknown --nvsentinel-endpoint flag fails startup, so set
+  # enabled=false when pinning an older image.tag.
+  nvsentinel:
+    enabled: true
+    # The unix socket gpud serves (passed to --nvsentinel-endpoint). Its
+    # parent directory is bind-mounted from the host with DirectoryOrCreate,
+    # which is what lets the NVSentinel platform-connector pod -- it mounts
+    # the same host directory -- reach the socket. The default matches the
+    # stock NVSentinel DaemonSet contract: host /var/run/nvsentinel is
+    # mounted at the connector's /var/run, so it dials /var/run/gpud.sock.
+    # On nodes without NVSentinel the mount just creates an empty, unused
+    # /var/run/nvsentinel directory on the host.
+    socketPath: /var/run/nvsentinel/gpud.sock
+
   # Mount /dev/mem for deep hardware inspection and memory diagnostics (e.g., PCIe config space).
   # Defaults to false for maximum compatibility across platforms (addresses issue #1144).
   # Set to true if you need deep memory inspection and your environment supports /dev/mem.
