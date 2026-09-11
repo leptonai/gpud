@@ -19,6 +19,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
@@ -26,6 +27,8 @@ import (
 // Name is the ID of the containerd component.
 const (
 	Name                        = "containerd"
+	danglingDegradedThreshold   = 5
+	danglingUnhealthyThreshold  = 10
 	defaultContainerdConfigPath = "/etc/containerd/config.toml"
 
 	defaultActivenssCheckUptimeThreshold = 5 * time.Minute
@@ -71,6 +74,9 @@ type component struct {
 	activenssCheckUptimeThreshold time.Duration
 
 	listAllSandboxesFunc func(ctx context.Context, endpoint string) ([]PodSandbox, error)
+
+	isKubeletReadOnlyPortOpenFunc func() bool
+	listKubeletPodsFunc           func(ctx context.Context) ([]kubeletPodStatus, error)
 
 	endpoint string
 
@@ -130,6 +136,13 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		activenssCheckUptimeThreshold: defaultActivenssCheckUptimeThreshold,
 
 		listAllSandboxesFunc: ListAllSandboxes,
+
+		isKubeletReadOnlyPortOpenFunc: func() bool {
+			return netutil.IsPortOpen(defaultKubeletReadOnlyPort)
+		},
+		listKubeletPodsFunc: func(ctx context.Context) ([]kubeletPodStatus, error) {
+			return listPodsFromKubeletReadOnlyPort(ctx, defaultKubeletReadOnlyPort)
+		},
 
 		endpoint: DefaultContainerRuntimeEndpoint,
 	}
@@ -344,6 +357,34 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 
+		var danglingCount int
+		// skip dangling-pod check if kubelet read-only port is closed
+		if c.isKubeletReadOnlyPortOpenFunc != nil && c.isKubeletReadOnlyPortOpenFunc() && c.listKubeletPodsFunc != nil {
+			cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+			kubeletPods, err := c.listKubeletPodsFunc(cctx)
+			ccancel()
+			if err != nil {
+				log.Logger.Errorf("error listing pods from kubelet: %v", err)
+			} else {
+				danglingCount = danglingPodCount(cr.Pods, kubeletPods)
+			}
+		}
+		switch {
+		case danglingCount > danglingUnhealthyThreshold:
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("node has %v dangling pods, unhealthy threshold %v", danglingCount, danglingUnhealthyThreshold)
+			cr.suggestedAction = &apiv1.SuggestedActions{
+				Description:   "too many dangling pod",
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+			}
+			return cr
+		case danglingCount > danglingDegradedThreshold:
+			cr.health = apiv1.HealthStateTypeDegraded
+			cr.reason = fmt.Sprintf("node has %v dangling pods, consider reboot system to recover, degraded threshold %v", danglingCount, danglingDegradedThreshold)
+			return cr
+		case danglingCount != 0:
+			cr.reason = fmt.Sprintf("node has %v dangling pods", danglingCount)
+		}
 	}
 	log.Logger.Debugw(cr.reason, "count", len(cr.Pods))
 
@@ -561,4 +602,27 @@ func appendImportedContainerdConfigs(config []byte) []byte {
 		}
 	}
 	return out
+}
+
+func danglingPodCount(containerdPods []PodSandbox, kubeletPods []kubeletPodStatus) int {
+	var danglingCount int
+	if len(kubeletPods) == 0 {
+		return danglingCount
+	}
+	podMap := make(map[string]struct{})
+	for _, pod := range kubeletPods {
+		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		podMap[podKey] = struct{}{}
+	}
+	for _, pod := range containerdPods {
+		if pod.State != "SANDBOX_READY" {
+			continue
+		}
+		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		if _, ok := podMap[podKey]; !ok {
+			danglingCount++
+		}
+	}
+
+	return danglingCount
 }
