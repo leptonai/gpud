@@ -4180,3 +4180,129 @@ func TestContainerdSocketMissingRecovery(t *testing.T) {
 	assert.Contains(t, cr.reason, "detected 1/5 consecutive checks",
 		"Counter should have reset to 1")
 }
+
+func TestDanglingPodCount(t *testing.T) {
+	kubeletPods := []kubeletPodStatus{
+		{Name: "pod", Namespace: "default"},
+	}
+	containerdPods := []PodSandbox{
+		{Name: "pod", Namespace: "default", State: "SANDBOX_READY"},
+		{Name: "dangling", Namespace: "default", State: "SANDBOX_READY"},
+	}
+	assert.Equal(t, 1, danglingPodCount(containerdPods, kubeletPods))
+
+	// no kubelet pods means no dangling pods
+	assert.Equal(t, 0, danglingPodCount(containerdPods, nil))
+
+	// non-ready sandboxes are not counted as dangling
+	notReadyPods := []PodSandbox{
+		{Name: "pod", Namespace: "default", State: "SANDBOX_READY"},
+		{Name: "not-ready", Namespace: "default", State: "SANDBOX_NOTREADY"},
+	}
+	assert.Equal(t, 0, danglingPodCount(notReadyPods, kubeletPods))
+}
+
+func TestCheckDanglingPods(t *testing.T) {
+	readyPod := func(name string) PodSandbox {
+		return PodSandbox{Name: name, Namespace: "default", State: "SANDBOX_READY"}
+	}
+
+	tests := []struct {
+		name                   string
+		portOpen               bool
+		kubeletPods            []kubeletPodStatus
+		kubeletListErr         error
+		containerdPods         []PodSandbox
+		expectedHealth         apiv1.HealthStateType
+		expectedReasonContains string
+		expectRebootAction     bool
+	}{
+		{
+			name:                   "kubelet read-only port closed skips dangling check",
+			portOpen:               false,
+			containerdPods:         []PodSandbox{readyPod("pod")},
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReasonContains: "ok",
+		},
+		{
+			name:                   "kubelet list error keeps healthy",
+			portOpen:               true,
+			kubeletListErr:         errors.New("connection refused"),
+			containerdPods:         []PodSandbox{readyPod("pod")},
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReasonContains: "ok",
+		},
+		{
+			name:                   "no dangling pods",
+			portOpen:               true,
+			kubeletPods:            []kubeletPodStatus{{Name: "pod", Namespace: "default"}},
+			containerdPods:         []PodSandbox{readyPod("pod")},
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReasonContains: "ok",
+		},
+		{
+			name:                   "dangling pods below degraded threshold",
+			portOpen:               true,
+			kubeletPods:            []kubeletPodStatus{{Name: "pod", Namespace: "default"}},
+			containerdPods:         []PodSandbox{readyPod("pod"), readyPod("dangling")},
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReasonContains: "node has 1 dangling pods",
+		},
+		{
+			name:        "dangling pods above degraded threshold",
+			portOpen:    true,
+			kubeletPods: []kubeletPodStatus{{Name: "pod", Namespace: "default"}},
+			containerdPods: append([]PodSandbox{readyPod("pod")},
+				[]PodSandbox{readyPod("d1"), readyPod("d2"), readyPod("d3"), readyPod("d4"), readyPod("d5"), readyPod("d6")}...),
+			expectedHealth:         apiv1.HealthStateTypeDegraded,
+			expectedReasonContains: "degraded threshold",
+		},
+		{
+			name:        "dangling pods above unhealthy threshold",
+			portOpen:    true,
+			kubeletPods: []kubeletPodStatus{{Name: "pod", Namespace: "default"}},
+			containerdPods: append([]PodSandbox{readyPod("pod")},
+				[]PodSandbox{readyPod("d1"), readyPod("d2"), readyPod("d3"), readyPod("d4"), readyPod("d5"), readyPod("d6"), readyPod("d7"), readyPod("d8"), readyPod("d9"), readyPod("d10"), readyPod("d11")}...),
+			expectedHealth:         apiv1.HealthStateTypeUnhealthy,
+			expectedReasonContains: "unhealthy threshold",
+			expectRebootAction:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			comp := &component{
+				ctx:                          ctx,
+				cancel:                       func() {},
+				checkDependencyInstalledFunc: func() bool { return true },
+				checkSocketExistsFunc:        func() bool { return true },
+				checkContainerdRunningFunc:   func(ctx context.Context) bool { return true },
+				checkServiceActiveFunc:       func(ctx context.Context) (bool, error) { return true, nil },
+				listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
+					return tt.containerdPods, nil
+				},
+				isKubeletReadOnlyPortOpenFunc: func() bool { return tt.portOpen },
+				listKubeletPodsFunc: func(ctx context.Context) ([]kubeletPodStatus, error) {
+					return tt.kubeletPods, tt.kubeletListErr
+				},
+				getTimeNowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
+				endpoint: "unix:///mock/endpoint",
+			}
+
+			comp.Check()
+
+			require.NotNil(t, comp.lastCheckResult)
+			assert.Equal(t, tt.expectedHealth, comp.lastCheckResult.health)
+			assert.Contains(t, comp.lastCheckResult.reason, tt.expectedReasonContains)
+			if tt.expectRebootAction {
+				require.NotNil(t, comp.lastCheckResult.suggestedAction)
+				assert.Contains(t, comp.lastCheckResult.suggestedAction.RepairActions, apiv1.RepairActionTypeRebootSystem)
+			} else {
+				assert.Nil(t, comp.lastCheckResult.suggestedAction)
+			}
+		})
+	}
+}
