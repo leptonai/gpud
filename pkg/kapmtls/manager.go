@@ -24,9 +24,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/leptonai/gpud/pkg/packagelock"
 )
 
 const (
+	PackageName = "kap-mtls-agent"
+
 	DefaultAgentBinaryPath = "/usr/local/bin/kaproxy-mtls-agent"
 	DefaultAgentUnitPath   = "/etc/systemd/system/kaproxy-mtls-agent.service"
 
@@ -111,8 +115,6 @@ type Manager struct {
 	updateMu   *sync.Mutex
 }
 
-var stateDirectoryLocks sync.Map
-
 func NewManager(paths Paths) *Manager {
 	return &Manager{
 		paths:      paths,
@@ -120,19 +122,16 @@ func NewManager(paths Paths) *Manager {
 		httpClient: &http.Client{Timeout: readyTimeout},
 		readyURL:   AgentReadyURL,
 		now:        time.Now,
-		updateMu:   lockForStateDirectory(paths.StateDir),
+		updateMu:   packagelock.For(PackageName),
 	}
-}
-
-func lockForStateDirectory(stateDir string) *sync.Mutex {
-	key := filepath.Clean(stateDir)
-	lock, _ := stateDirectoryLocks.LoadOrStore(key, &sync.Mutex{})
-	return lock.(*sync.Mutex)
 }
 
 func (m *Manager) Status(ctx context.Context, machineID string) (*Status, error) {
 	m.updateMu.Lock()
 	defer m.updateMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	credentials, err := m.inspectCredentials(machineID)
 	if err != nil {
@@ -176,6 +175,9 @@ func (m *Manager) Status(ctx context.Context, machineID string) (*Status, error)
 func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, credentials Credentials) error {
 	m.updateMu.Lock()
 	defer m.updateMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	if !m.agentInstalled() {
 		return fmt.Errorf("KAP mTLS agent is not installed")
@@ -212,6 +214,9 @@ func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, crede
 func (m *Manager) Activate(ctx context.Context) error {
 	m.updateMu.Lock()
 	defer m.updateMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	if !m.agentInstalled() {
 		return fmt.Errorf("KAP mTLS agent is not installed")
