@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,7 +20,6 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
 	"github.com/leptonai/gpud/pkg/log"
-	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/systemd"
 )
@@ -30,6 +30,15 @@ const (
 	danglingDegradedThreshold   = 5
 	danglingUnhealthyThreshold  = 10
 	defaultContainerdConfigPath = "/etc/containerd/config.toml"
+
+	// danglingPodMinSandboxAge is the minimum age of a CRI sandbox before it
+	// can be counted as dangling. The reference pod list comes from the API
+	// server; a sandbox still being torn down after a pod deletion (notably a
+	// force deletion, which removes the API pod object before kubelet finishes
+	// container teardown) can briefly look dangling, so young sandboxes are
+	// excluded. Genuinely leaked sandboxes persist for hours and are
+	// unaffected.
+	danglingPodMinSandboxAge = 10 * time.Minute
 
 	defaultActivenssCheckUptimeThreshold = 5 * time.Minute
 
@@ -75,8 +84,7 @@ type component struct {
 
 	listAllSandboxesFunc func(ctx context.Context, endpoint string) ([]PodSandbox, error)
 
-	isKubeletReadOnlyPortOpenFunc func() bool
-	listKubeletPodsFunc           func(ctx context.Context) ([]kubeletPodStatus, error)
+	listKubeletPodsFunc func(ctx context.Context) ([]kubeletPodStatus, error)
 
 	endpoint string
 
@@ -137,11 +145,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 
 		listAllSandboxesFunc: ListAllSandboxes,
 
-		isKubeletReadOnlyPortOpenFunc: func() bool {
-			return netutil.IsPortOpen(defaultKubeletReadOnlyPort)
-		},
 		listKubeletPodsFunc: func(ctx context.Context) ([]kubeletPodStatus, error) {
-			return listPodsFromKubeletReadOnlyPort(ctx, defaultKubeletReadOnlyPort)
+			return listPodsUsingKubeletIdentity(ctx, defaultKubeletKubeconfigPath, defaultKubeletClientCertPath, defaultKubeletCAPath)
 		},
 
 		endpoint: DefaultContainerRuntimeEndpoint,
@@ -358,15 +363,26 @@ func (c *component) Check() components.CheckResult {
 		}
 
 		var danglingCount int
-		// skip dangling-pod check if kubelet read-only port is closed
-		if c.isKubeletReadOnlyPortOpenFunc != nil && c.isKubeletReadOnlyPortOpenFunc() && c.listKubeletPodsFunc != nil {
+		if c.listKubeletPodsFunc != nil {
 			cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
 			kubeletPods, err := c.listKubeletPodsFunc(cctx)
 			ccancel()
-			if err != nil {
-				log.Logger.Errorf("error listing pods from kubelet: %v", err)
-			} else {
-				danglingCount = danglingPodCount(cr.Pods, kubeletPods)
+			switch {
+			case errors.Is(err, errKubeletIdentityNotFound):
+				// Not a Kubernetes node (or kubelet identity not provisioned
+				// yet): detection does not apply, and the skip must be explicit
+				// rather than indistinguishable from a successful comparison
+				// with zero dangling pods.
+				log.Logger.Debugw("kubelet client identity not found; dangling pod detection unavailable")
+				cr.appendReason("kubelet client identity not found; dangling pod detection unavailable")
+			case err != nil:
+				// Auth/network failures surface as unavailability of the
+				// detection itself; they must never read as a dangling-pod
+				// verdict (and thus never trigger a reboot).
+				log.Logger.Errorw("failed to list pods using kubelet client identity", "error", err)
+				cr.appendReason(fmt.Sprintf("dangling pod detection unavailable: %v", err))
+			default:
+				danglingCount = danglingPodCount(cr.Pods, kubeletPods, danglingPodMinSandboxAge, c.getTimeNowFunc())
 			}
 		}
 		switch {
@@ -604,7 +620,7 @@ func appendImportedContainerdConfigs(config []byte) []byte {
 	return out
 }
 
-func danglingPodCount(containerdPods []PodSandbox, kubeletPods []kubeletPodStatus) int {
+func danglingPodCount(containerdPods []PodSandbox, kubeletPods []kubeletPodStatus, minSandboxAge time.Duration, now time.Time) int {
 	var danglingCount int
 	if len(kubeletPods) == 0 {
 		return danglingCount
@@ -616,6 +632,13 @@ func danglingPodCount(containerdPods []PodSandbox, kubeletPods []kubeletPodStatu
 	}
 	for _, pod := range containerdPods {
 		if pod.State != "SANDBOX_READY" {
+			continue
+		}
+		// Skip sandboxes younger than minSandboxAge: the reference pod list
+		// comes from the API server, and a sandbox still being torn down after
+		// a pod deletion (in particular a force deletion) must not count as
+		// dangling. A missing timestamp errs on the side of counting.
+		if pod.CreatedAt > 0 && now.Sub(time.Unix(0, pod.CreatedAt)) < minSandboxAge {
 			continue
 		}
 		podKey := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)

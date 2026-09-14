@@ -4182,6 +4182,7 @@ func TestContainerdSocketMissingRecovery(t *testing.T) {
 }
 
 func TestDanglingPodCount(t *testing.T) {
+	now := time.Now().UTC()
 	kubeletPods := []kubeletPodStatus{
 		{Name: "pod", Namespace: "default"},
 	}
@@ -4189,17 +4190,32 @@ func TestDanglingPodCount(t *testing.T) {
 		{Name: "pod", Namespace: "default", State: "SANDBOX_READY"},
 		{Name: "dangling", Namespace: "default", State: "SANDBOX_READY"},
 	}
-	assert.Equal(t, 1, danglingPodCount(containerdPods, kubeletPods))
+	assert.Equal(t, 1, danglingPodCount(containerdPods, kubeletPods, danglingPodMinSandboxAge, now))
 
 	// no kubelet pods means no dangling pods
-	assert.Equal(t, 0, danglingPodCount(containerdPods, nil))
+	assert.Equal(t, 0, danglingPodCount(containerdPods, nil, danglingPodMinSandboxAge, now))
 
 	// non-ready sandboxes are not counted as dangling
 	notReadyPods := []PodSandbox{
 		{Name: "pod", Namespace: "default", State: "SANDBOX_READY"},
 		{Name: "not-ready", Namespace: "default", State: "SANDBOX_NOTREADY"},
 	}
-	assert.Equal(t, 0, danglingPodCount(notReadyPods, kubeletPods))
+	assert.Equal(t, 0, danglingPodCount(notReadyPods, kubeletPods, danglingPodMinSandboxAge, now))
+
+	// young sandboxes (e.g. still being torn down after a force-deleted pod)
+	// are not counted as dangling
+	youngPods := []PodSandbox{
+		{Name: "pod", Namespace: "default", State: "SANDBOX_READY", CreatedAt: now.Add(-time.Hour).UnixNano()},
+		{Name: "young", Namespace: "default", State: "SANDBOX_READY", CreatedAt: now.Add(-time.Minute).UnixNano()},
+	}
+	assert.Equal(t, 0, danglingPodCount(youngPods, kubeletPods, danglingPodMinSandboxAge, now))
+
+	// old sandboxes unknown to the API server are counted as dangling
+	oldPods := []PodSandbox{
+		{Name: "pod", Namespace: "default", State: "SANDBOX_READY", CreatedAt: now.Add(-time.Hour).UnixNano()},
+		{Name: "old", Namespace: "default", State: "SANDBOX_READY", CreatedAt: now.Add(-time.Hour).UnixNano()},
+	}
+	assert.Equal(t, 1, danglingPodCount(oldPods, kubeletPods, danglingPodMinSandboxAge, now))
 }
 
 func TestCheckDanglingPods(t *testing.T) {
@@ -4209,7 +4225,6 @@ func TestCheckDanglingPods(t *testing.T) {
 
 	tests := []struct {
 		name                   string
-		portOpen               bool
 		kubeletPods            []kubeletPodStatus
 		kubeletListErr         error
 		containerdPods         []PodSandbox
@@ -4218,23 +4233,28 @@ func TestCheckDanglingPods(t *testing.T) {
 		expectRebootAction     bool
 	}{
 		{
-			name:                   "kubelet read-only port closed skips dangling check",
-			portOpen:               false,
+			name:                   "kubelet identity not found skips dangling check with explicit reason",
+			kubeletListErr:         errKubeletIdentityNotFound,
 			containerdPods:         []PodSandbox{readyPod("pod")},
 			expectedHealth:         apiv1.HealthStateTypeHealthy,
-			expectedReasonContains: "ok",
+			expectedReasonContains: "dangling pod detection unavailable",
 		},
 		{
-			name:                   "kubelet list error keeps healthy",
-			portOpen:               true,
+			name:                   "kubelet list error keeps healthy and never reboots",
 			kubeletListErr:         errors.New("connection refused"),
 			containerdPods:         []PodSandbox{readyPod("pod")},
 			expectedHealth:         apiv1.HealthStateTypeHealthy,
-			expectedReasonContains: "ok",
+			expectedReasonContains: "dangling pod detection unavailable",
+		},
+		{
+			name:                   "kubelet authorization failure keeps healthy and never reboots",
+			kubeletListErr:         errors.New(`listing pods for node "test-node" failed with status code 403`),
+			containerdPods:         []PodSandbox{readyPod("pod")},
+			expectedHealth:         apiv1.HealthStateTypeHealthy,
+			expectedReasonContains: "dangling pod detection unavailable",
 		},
 		{
 			name:                   "no dangling pods",
-			portOpen:               true,
 			kubeletPods:            []kubeletPodStatus{{Name: "pod", Namespace: "default"}},
 			containerdPods:         []PodSandbox{readyPod("pod")},
 			expectedHealth:         apiv1.HealthStateTypeHealthy,
@@ -4242,7 +4262,6 @@ func TestCheckDanglingPods(t *testing.T) {
 		},
 		{
 			name:                   "dangling pods below degraded threshold",
-			portOpen:               true,
 			kubeletPods:            []kubeletPodStatus{{Name: "pod", Namespace: "default"}},
 			containerdPods:         []PodSandbox{readyPod("pod"), readyPod("dangling")},
 			expectedHealth:         apiv1.HealthStateTypeHealthy,
@@ -4250,7 +4269,6 @@ func TestCheckDanglingPods(t *testing.T) {
 		},
 		{
 			name:        "dangling pods above degraded threshold",
-			portOpen:    true,
 			kubeletPods: []kubeletPodStatus{{Name: "pod", Namespace: "default"}},
 			containerdPods: append([]PodSandbox{readyPod("pod")},
 				[]PodSandbox{readyPod("d1"), readyPod("d2"), readyPod("d3"), readyPod("d4"), readyPod("d5"), readyPod("d6")}...),
@@ -4259,7 +4277,6 @@ func TestCheckDanglingPods(t *testing.T) {
 		},
 		{
 			name:        "dangling pods above unhealthy threshold",
-			portOpen:    true,
 			kubeletPods: []kubeletPodStatus{{Name: "pod", Namespace: "default"}},
 			containerdPods: append([]PodSandbox{readyPod("pod")},
 				[]PodSandbox{readyPod("d1"), readyPod("d2"), readyPod("d3"), readyPod("d4"), readyPod("d5"), readyPod("d6"), readyPod("d7"), readyPod("d8"), readyPod("d9"), readyPod("d10"), readyPod("d11")}...),
@@ -4282,7 +4299,6 @@ func TestCheckDanglingPods(t *testing.T) {
 				listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
 					return tt.containerdPods, nil
 				},
-				isKubeletReadOnlyPortOpenFunc: func() bool { return tt.portOpen },
 				listKubeletPodsFunc: func(ctx context.Context) ([]kubeletPodStatus, error) {
 					return tt.kubeletPods, tt.kubeletListErr
 				},
