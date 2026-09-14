@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,7 +27,18 @@ import (
 // Name is the ID of the containerd component.
 const (
 	Name                        = "containerd"
+	danglingDegradedThreshold   = 5
+	danglingUnhealthyThreshold  = 10
 	defaultContainerdConfigPath = "/etc/containerd/config.toml"
+
+	// danglingPodAbsentGrace is how long a READY sandbox's pod must be
+	// continuously absent from the API server pod list before the sandbox
+	// counts as dangling. The API-server view diverges from kubelet's local
+	// view while a (force-)deleted pod is still tearing down; requiring
+	// sustained, successfully observed absence absorbs that window. Sandbox
+	// lifetime must NOT substitute for absence duration: a day-old pod
+	// force-deleted just now is still tearing down and is not dangling.
+	danglingPodAbsentGrace = 10 * time.Minute
 
 	defaultActivenssCheckUptimeThreshold = 5 * time.Minute
 
@@ -72,10 +84,19 @@ type component struct {
 
 	listAllSandboxesFunc func(ctx context.Context, endpoint string) ([]PodSandbox, error)
 
+	listKubeletPodsFunc func(ctx context.Context) ([]kubeletPodStatus, error)
+
 	endpoint string
 
 	socketMissingMu    sync.Mutex
 	socketMissingCount int
+
+	// danglingAbsentSince tracks, per sandbox ID, when the sandbox's pod was
+	// first observed missing from a successfully fetched API server pod list.
+	// Only successful listings update it; query failures are not evidence of
+	// absence.
+	danglingMu          sync.Mutex
+	danglingAbsentSince map[string]time.Time
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -130,6 +151,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		activenssCheckUptimeThreshold: defaultActivenssCheckUptimeThreshold,
 
 		listAllSandboxesFunc: ListAllSandboxes,
+
+		listKubeletPodsFunc: func(ctx context.Context) ([]kubeletPodStatus, error) {
+			return listPodsUsingKubeletIdentity(ctx, defaultKubeletKubeconfigPath, defaultKubeletClientCertPath, defaultKubeletCAPath)
+		},
 
 		endpoint: DefaultContainerRuntimeEndpoint,
 	}
@@ -344,6 +369,45 @@ func (c *component) Check() components.CheckResult {
 			return cr
 		}
 
+		var danglingCount int
+		if c.listKubeletPodsFunc != nil {
+			cctx, ccancel := context.WithTimeout(c.ctx, 30*time.Second)
+			kubeletPods, err := c.listKubeletPodsFunc(cctx)
+			ccancel()
+			switch {
+			case errors.Is(err, errKubeletIdentityNotFound):
+				// Not a Kubernetes node (or kubelet identity not provisioned
+				// yet): detection does not apply, and the skip must be explicit
+				// rather than indistinguishable from a successful comparison
+				// with zero dangling pods.
+				log.Logger.Debugw("kubelet client identity not found; dangling pod detection unavailable")
+				cr.appendReason("kubelet client identity not found; dangling pod detection unavailable")
+			case err != nil:
+				// Auth/network failures surface as unavailability of the
+				// detection itself; they must never read as a dangling-pod
+				// verdict (and thus never trigger a reboot).
+				log.Logger.Errorw("failed to list pods using kubelet client identity", "error", err)
+				cr.appendReason(fmt.Sprintf("dangling pod detection unavailable: %v", err))
+			default:
+				danglingCount = c.danglingPodCount(cr.Pods, kubeletPods, c.getTimeNowFunc())
+			}
+		}
+		switch {
+		case danglingCount > danglingUnhealthyThreshold:
+			cr.health = apiv1.HealthStateTypeUnhealthy
+			cr.reason = fmt.Sprintf("node has %v dangling pods, unhealthy threshold %v", danglingCount, danglingUnhealthyThreshold)
+			cr.suggestedAction = &apiv1.SuggestedActions{
+				Description:   "too many dangling pod",
+				RepairActions: []apiv1.RepairActionType{apiv1.RepairActionTypeRebootSystem},
+			}
+			return cr
+		case danglingCount > danglingDegradedThreshold:
+			cr.health = apiv1.HealthStateTypeDegraded
+			cr.reason = fmt.Sprintf("node has %v dangling pods, consider reboot system to recover, degraded threshold %v", danglingCount, danglingDegradedThreshold)
+			return cr
+		case danglingCount != 0:
+			cr.reason = fmt.Sprintf("node has %v dangling pods", danglingCount)
+		}
 	}
 	log.Logger.Debugw(cr.reason, "count", len(cr.Pods))
 
@@ -561,4 +625,68 @@ func appendImportedContainerdConfigs(config []byte) []byte {
 		}
 	}
 	return out
+}
+
+// danglingPodCount returns the number of READY sandboxes whose pods have been
+// continuously absent from the API server pod list for at least
+// danglingPodAbsentGrace.
+//
+// Absence is measured from sustained, successfully observed pod lists, keyed
+// by sandbox ID -- not from sandbox creation time. The observation resets when
+// the pod reappears in the API list, and is forgotten when the sandbox leaves
+// the READY state or disappears. A successfully fetched but empty pod list is
+// authoritative: every READY sandbox is absent then, and each becomes eligible
+// after the grace period. Callers must not invoke this with the result of a
+// failed pod-list query: a failed query is not evidence of absence.
+func (c *component) danglingPodCount(containerdPods []PodSandbox, kubeletPods []kubeletPodStatus, now time.Time) int {
+	c.danglingMu.Lock()
+	defer c.danglingMu.Unlock()
+
+	if c.danglingAbsentSince == nil {
+		c.danglingAbsentSince = make(map[string]time.Time)
+	}
+
+	present := make(map[string]struct{}, len(kubeletPods))
+	for _, pod := range kubeletPods {
+		present[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)] = struct{}{}
+	}
+
+	ready := make(map[string]struct{}, len(containerdPods))
+	danglingCount := 0
+	for _, pod := range containerdPods {
+		if pod.State != "SANDBOX_READY" {
+			continue
+		}
+		// CRI sandboxes always carry an ID; fall back to namespace/name for
+		// defensive completeness.
+		key := pod.ID
+		if key == "" {
+			key = fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+		}
+		ready[key] = struct{}{}
+
+		if _, ok := present[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)]; ok {
+			// the pod is known to the API server again: reset the observation
+			delete(c.danglingAbsentSince, key)
+			continue
+		}
+		absentSince, ok := c.danglingAbsentSince[key]
+		if !ok {
+			// first observed absence: not dangling yet
+			c.danglingAbsentSince[key] = now
+			continue
+		}
+		if now.Sub(absentSince) >= danglingPodAbsentGrace {
+			danglingCount++
+		}
+	}
+
+	// forget sandboxes that disappeared or left the READY state
+	for key := range c.danglingAbsentSince {
+		if _, ok := ready[key]; !ok {
+			delete(c.danglingAbsentSince, key)
+		}
+	}
+
+	return danglingCount
 }
