@@ -240,8 +240,8 @@ func listPodsUsingKubeletIdentity(ctx context.Context, kubeconfigPath, clientCer
 // listPodsFromKubeletAPI lists this node's pods from the API server using
 // kubelet's client identity. The API server view substitutes for kubelet's
 // local pod view: graceful deletions keep the pod object until kubelet
-// confirms teardown, and the young-sandbox age guard in danglingPodCount
-// absorbs the force-delete divergence window.
+// confirms teardown, and the sustained-absence grace period in
+// danglingPodCount absorbs the force-delete divergence window.
 func listPodsFromKubeletAPI(ctx context.Context, cfg *kubeletAPIConfig, timeout time.Duration) ([]kubeletPodStatus, error) {
 	podsURL := url.URL{
 		Scheme:   cfg.server.Scheme,
