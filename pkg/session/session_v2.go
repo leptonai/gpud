@@ -120,7 +120,7 @@ func (s *Session) runV2Connection(ctx context.Context) reconnectSignal {
 		MaxProtocolRevision:    sessionv2.ProtocolRevision,
 		AgentVersion:           version.Version,
 		MaxReceiveMessageBytes: sessionv2.DefaultMaxMessageBytes,
-		Capabilities:           []string{"typed-requests", "bootstrap-script-audit-redaction-v1"},
+		Capabilities:           []string{"typed-requests"},
 	}}}
 	if err := stream.Send(hello); err != nil {
 		return classifyV2Error(err)
