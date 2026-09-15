@@ -231,6 +231,24 @@ func TestReloadPendingRejectsInvalidMarkerWithoutFollowingSymlinks(t *testing.T)
 			}
 			current, err := m.currentReleaseID()
 			require.NoError(t, err)
+			for _, method := range []string{"Status", "Activate"} {
+				t.Run(method, func(t *testing.T) {
+					before := contractSnapshot(t, paths.StateDir)
+					runner.calls = nil
+					var err error
+					if method == "Status" {
+						var status *Status
+						status, err = m.Status(context.Background(), "machine-1")
+						assert.Nil(t, status)
+					} else {
+						err = m.Activate(context.Background())
+					}
+					require.ErrorContains(t, err, "invalid KAP mTLS reload notification")
+					assert.Equal(t, []string{"systemctl is-active " + AgentService}, runner.calls)
+					assert.Equal(t, before, contractSnapshot(t, paths.StateDir))
+					assertContractLockReleased(t)
+				})
+			}
 			runner.calls = nil
 			require.ErrorContains(t, m.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 2)), "invalid KAP mTLS reload notification")
 			selected, err := m.currentReleaseID()
