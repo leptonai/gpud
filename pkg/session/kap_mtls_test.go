@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	pkgkapmtls "github.com/leptonai/gpud/pkg/kapmtls"
+	"github.com/leptonai/gpud/pkg/log"
+	"github.com/leptonai/gpud/pkg/process"
 )
 
 type fakeKAPMTLSManager struct {
@@ -177,6 +179,76 @@ func TestAuditSessionRequestDataRedactsRetiredNodeCredentials(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(redacted), "very-secret-private-key")
 	assert.Contains(t, string(redacted), "redacted")
+}
+
+type bootstrapAuditRecorder struct {
+	entries []log.AuditLog
+}
+
+func (r *bootstrapAuditRecorder) Log(options ...log.AuditOption) {
+	entry := log.AuditLog{}
+	for _, option := range options {
+		option(&entry)
+	}
+	r.entries = append(r.entries, entry)
+}
+
+type bootstrapAuditRunner func(context.Context, string, ...process.OpOption) ([]byte, int32, error)
+
+func (r bootstrapAuditRunner) RunUntilCompletion(ctx context.Context, script string, options ...process.OpOption) ([]byte, int32, error) {
+	return r(ctx, script, options...)
+}
+
+func TestBootstrapAuditStagesRedactScript(t *testing.T) {
+	script := "echo bootstrap-private-key-material"
+	encoded := base64.StdEncoding.EncodeToString([]byte(script))
+	data, err := json.Marshal(Request{Method: "bootstrap", Bootstrap: &BootstrapRequest{TimeoutInSeconds: 15, ScriptBase64: encoded}})
+	require.NoError(t, err)
+	audit := &bootstrapAuditRecorder{}
+	ran := false
+	session := &Session{
+		ctx: context.Background(), machineID: "machine-a", auditLogger: audit,
+		closer: &closeOnce{closer: make(chan any)}, reader: make(chan Body, 1), writer: make(chan Body, 1),
+		processRunner: bootstrapAuditRunner(func(_ context.Context, actual string, _ ...process.OpOption) ([]byte, int32, error) {
+			ran = true
+			assert.Equal(t, script, actual, "redaction must not modify the execution payload")
+			return []byte("installed"), 0, nil
+		}),
+	}
+	require.True(t, session.tryWriteToReader(Body{ReqID: "bootstrap-audit", Data: data}))
+	close(session.reader)
+	session.serve()
+	require.True(t, ran)
+	require.Len(t, audit.entries, 3)
+	for index, stage := range []string{"RequestReceived", "RequestDecoded"} {
+		entry := audit.entries[index]
+		assert.Equal(t, stage, entry.Stage)
+		payload, ok := entry.Data.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "bootstrap", payload["method"])
+		bootstrap := payload["bootstrap"].(map[string]any)
+		assert.Equal(t, float64(15), bootstrap["timeout_in_seconds"])
+		assert.Equal(t, "<redacted>", bootstrap["script_base64"])
+	}
+	logged, err := json.Marshal(audit.entries)
+	require.NoError(t, err)
+	assert.NotContains(t, string(logged), encoded)
+	assert.NotContains(t, string(logged), "bootstrap-private-key-material")
+}
+
+func TestAuditSessionRequestDataRedactsNestedBootstrapScripts(t *testing.T) {
+	input := []byte(`{"method":"bootstrap","children":[{"BOOTSTRAP":{"SCRIPT_BASE64":"first-secret","script_base64":"second-secret","timeout_in_seconds":30}}]}`)
+	redacted := auditSessionRequestData(input).(map[string]any)
+	assert.Equal(t, "bootstrap", redacted["method"])
+	nested := redacted["children"].([]any)[0].(map[string]any)["BOOTSTRAP"].(map[string]any)
+	assert.Equal(t, "<redacted>", nested["SCRIPT_BASE64"])
+	assert.Equal(t, "<redacted>", nested["script_base64"])
+	assert.Equal(t, float64(30), nested["timeout_in_seconds"])
+	assert.Contains(t, string(input), "first-secret", "audit redaction must not change the received bytes")
+
+	malformed := auditSessionRequestData([]byte(`{"method":"bootstrap","bootstrap":"invalid-secret-payload"}`)).(map[string]any)
+	assert.Equal(t, "<redacted>", malformed["bootstrap"])
+	assert.Equal(t, "bootstrap", malformed["method"])
 }
 
 func TestKAPMTLSWireTypesRoundTrip(t *testing.T) {
