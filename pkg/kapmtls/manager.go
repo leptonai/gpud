@@ -15,8 +15,12 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
+	"math"
+	"math/big"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,6 +29,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/expfmt"
+
+	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/packagelock"
 )
 
@@ -41,6 +48,7 @@ const (
 	retryInterval   = 250 * time.Millisecond
 	rollbackTimeout = 30 * time.Second
 	sha256HexLength = sha256.Size * 2
+	maxMetricsBytes = 1 << 20
 
 	ReleasesDirectoryName     = "releases"
 	CurrentSymlinkName        = "current"
@@ -107,22 +115,28 @@ func (execRunner) Run(ctx context.Context, command string, args ...string) ([]by
 }
 
 type Manager struct {
-	paths      Paths
-	runner     commandRunner
-	httpClient *http.Client
-	readyURL   string
-	now        func() time.Time
-	updateMu   *sync.Mutex
+	paths          Paths
+	runner         commandRunner
+	httpClient     *http.Client
+	readyURL       string
+	now            func() time.Time
+	updateMu       *sync.Mutex
+	runtimeTimeout time.Duration
+	reloadTimeout  time.Duration
+	syncDir        func(string) error
 }
 
 func NewManager(paths Paths) *Manager {
 	return &Manager{
-		paths:      paths,
-		runner:     execRunner{},
-		httpClient: &http.Client{Timeout: readyTimeout},
-		readyURL:   AgentReadyURL,
-		now:        time.Now,
-		updateMu:   packagelock.For(PackageName),
+		paths:          paths,
+		runner:         execRunner{},
+		httpClient:     &http.Client{Timeout: readyTimeout},
+		readyURL:       AgentReadyURL,
+		now:            time.Now,
+		updateMu:       packagelock.For(PackageName),
+		runtimeTimeout: readyTimeout,
+		reloadTimeout:  rollbackTimeout,
+		syncDir:        syncDirectory,
 	}
 }
 
@@ -147,6 +161,16 @@ func (m *Manager) Status(ctx context.Context, machineID string) (*Status, error)
 		active = m.serviceActive(ctx)
 		if active {
 			ready = m.probeReady(ctx)
+			if ready {
+				observed, err := m.runtimeCertificate(ctx)
+				var loaded credentialStatus
+				if err == nil {
+					loaded, err = m.loadedRelease(machineID, observed)
+				}
+				if err != nil || !observed.matches(credentials) || loaded.releaseID != credentials.releaseID {
+					credentials = credentialStatus{}
+				}
+			}
 		}
 	}
 	version, err := m.agentVersion()
@@ -168,10 +192,8 @@ func (m *Manager) Status(ctx context.Context, machineID string) (*Status, error)
 	}, nil
 }
 
-// UpdateCredentials commits one complete immutable generation, atomically points
-// current at it, and restarts the agent. Restarting on each five-day certificate
-// rotation is intentionally simpler than coordinating hot reload and rollback:
-// agent startup validates the selected cert/key before readiness can succeed.
+// UpdateCredentials atomically selects an immutable generation. A healthy agent
+// reloads leaf-only changes; startup configuration changes retain restart recovery.
 func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, credentials Credentials) error {
 	m.updateMu.Lock()
 	defer m.updateMu.Unlock()
@@ -186,12 +208,47 @@ func (m *Manager) UpdateCredentials(ctx context.Context, machineID string, crede
 	if err != nil {
 		return err
 	}
+	var loaded credentialStatus
+	if hadPreviousRelease && m.serviceActive(ctx) {
+		var observeErr error
+		loaded, observeErr = m.observeLoadedRelease(ctx, machineID)
+		if observeErr != nil && ctx.Err() == nil {
+			log.Logger.Warnw("KAP mTLS runtime credentials are unavailable or ambiguous; using restart recovery", "error", observeErr)
+		}
+	}
+	if loaded.installed {
+		previousReleaseID, hadPreviousRelease = loaded.releaseID, true
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	releaseID, err := m.stageCredentials(machineID, credentials)
 	if err != nil {
 		return err
 	}
-	if err := m.swapCurrentSymlink(releaseID); err != nil {
+	selected, err := m.inspectRelease(machineID, releaseID)
+	if err != nil {
 		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := m.swapCurrentSymlink(releaseID); err != nil {
+		if loaded.installed {
+			if current, readErr := m.currentReleaseID(); readErr != nil || current != loaded.releaseID {
+				return m.rollbackReload(ctx, loaded, err)
+			}
+		}
+		return err
+	}
+	if loaded.installed && loaded.sameStartupConfig(selected) &&
+		(loaded.releaseID == releaseID || loaded.serial != selected.serial || !loaded.notAfter.Equal(selected.notAfter)) {
+		if loaded.releaseID != releaseID {
+			if err := m.reloadAndWait(ctx, selected); err != nil {
+				return m.rollbackReload(ctx, loaded, err)
+			}
+		}
+		return m.removeInactiveReleases(releaseID)
 	}
 	if _, err := m.runSystemctl(ctx, "enable", AgentService); err != nil {
 		return m.rollbackActivation(ctx, previousReleaseID, hadPreviousRelease, fmt.Errorf("enable KAP mTLS agent: %w", err))
@@ -270,6 +327,7 @@ func (m *Manager) rollbackActivation(ctx context.Context, previousReleaseID stri
 }
 
 type credentialStatus struct {
+	releaseID            string
 	installed            bool
 	serial               string
 	notAfter             time.Time
@@ -277,6 +335,11 @@ type credentialStatus struct {
 	serverName           string
 	clientCAFingerprint  string
 	gatewayCAFingerprint string
+}
+
+func (c credentialStatus) sameStartupConfig(other credentialStatus) bool {
+	return c.gatewayEndpoint == other.gatewayEndpoint && c.serverName == other.serverName &&
+		c.clientCAFingerprint == other.clientCAFingerprint && c.gatewayCAFingerprint == other.gatewayCAFingerprint
 }
 
 type agentEnvironment struct {
@@ -356,6 +419,18 @@ func (m *Manager) inspectCredentials(machineID string) (credentialStatus, error)
 	} else if err != nil {
 		return credentialStatus{}, fmt.Errorf("inspect active KAP mTLS credentials: %w", err)
 	}
+	releaseID, err := m.currentReleaseID()
+	if err != nil {
+		return credentialStatus{}, err
+	}
+	return m.inspectRelease(machineID, releaseID)
+}
+
+func (m *Manager) inspectRelease(machineID, releaseID string) (credentialStatus, error) {
+	if _, err := validateFingerprint("release ID", releaseID); err != nil {
+		return credentialStatus{}, err
+	}
+	current := filepath.Join(m.paths.StateDir, ReleasesDirectoryName, releaseID)
 	certificatePEM, err := os.ReadFile(filepath.Join(current, ClientCertificateFileName))
 	if err != nil {
 		return credentialStatus{}, fmt.Errorf("read active KAP mTLS certificate: %w", err)
@@ -384,7 +459,11 @@ func (m *Manager) inspectCredentials(machineID string) (credentialStatus, error)
 	if err != nil {
 		return credentialStatus{}, fmt.Errorf("validate active KAP mTLS credentials: %w", err)
 	}
+	if validated.releaseID != releaseID {
+		return credentialStatus{}, fmt.Errorf("KAP mTLS release does not match its generation ID")
+	}
 	return credentialStatus{
+		releaseID:            releaseID,
 		installed:            true,
 		serial:               validated.leaf.SerialNumber.Text(16),
 		notAfter:             validated.leaf.NotAfter,
@@ -647,7 +726,7 @@ func (m *Manager) swapCurrentSymlink(releaseID string) error {
 	if err := os.Rename(tempPath, currentPath); err != nil {
 		return fmt.Errorf("commit KAP mTLS current symlink: %w", err)
 	}
-	return syncDirectory(m.paths.StateDir)
+	return m.syncDir(m.paths.StateDir)
 }
 
 func (m *Manager) currentReleaseID() (string, error) {
@@ -740,6 +819,8 @@ func (m *Manager) waitReady(ctx context.Context) bool {
 }
 
 func (m *Manager) probeReady(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, readyTimeout)
+	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, m.readyURL, nil)
 	if err != nil {
 		return false
@@ -750,6 +831,154 @@ func (m *Manager) probeReady(ctx context.Context) bool {
 	}
 	defer func() { _ = response.Body.Close() }()
 	return response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
+}
+
+type runtimeCertificate struct {
+	serial   string
+	notAfter time.Time
+}
+
+func (c runtimeCertificate) matches(expected credentialStatus) bool {
+	return expected.installed && c.serial == expected.serial && c.notAfter.Equal(expected.notAfter)
+}
+
+func (m *Manager) runtimeCertificate(ctx context.Context) (runtimeCertificate, error) {
+	ctx, cancel := context.WithTimeout(ctx, readyTimeout)
+	defer cancel()
+	endpoint, err := url.Parse(m.readyURL)
+	if err != nil {
+		return runtimeCertificate{}, fmt.Errorf("invalid KAP mTLS metrics endpoint")
+	}
+	endpoint.Path, endpoint.RawPath, endpoint.RawQuery, endpoint.Fragment = "/metrics", "", "", ""
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
+	if err != nil {
+		return runtimeCertificate{}, fmt.Errorf("invalid KAP mTLS metrics request")
+	}
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return runtimeCertificate{}, fmt.Errorf("read KAP mTLS runtime certificate metrics")
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return runtimeCertificate{}, fmt.Errorf("KAP mTLS runtime certificate metrics unavailable")
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxMetricsBytes+1))
+	if err != nil || len(body) > maxMetricsBytes {
+		return runtimeCertificate{}, fmt.Errorf("invalid KAP mTLS runtime metrics body")
+	}
+	var parser expfmt.TextParser
+	families, err := parser.TextToMetricFamilies(bytes.NewReader(body))
+	if err != nil {
+		return runtimeCertificate{}, fmt.Errorf("invalid KAP mTLS runtime certificate metrics")
+	}
+	info := families["kaproxy_mtls_agent_cert_info"].GetMetric()
+	expiry := families["kaproxy_mtls_agent_cert_not_after_timestamp_seconds"].GetMetric()
+	if len(info) != 1 || len(expiry) != 1 || info[0].Gauge == nil || info[0].GetGauge().GetValue() != 1 ||
+		expiry[0].Gauge == nil || len(expiry[0].Label) != 0 || len(info[0].Label) != 1 || info[0].Label[0].GetName() != "serial" {
+		return runtimeCertificate{}, fmt.Errorf("missing or ambiguous KAP mTLS runtime certificate metrics")
+	}
+	serial := info[0].Label[0].GetValue()
+	number, ok := new(big.Int).SetString(serial, 16)
+	seconds := expiry[0].GetGauge().GetValue()
+	if !ok || number.Sign() <= 0 || number.Text(16) != serial || math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 || seconds >= math.MaxInt64 || seconds != math.Trunc(seconds) {
+		return runtimeCertificate{}, fmt.Errorf("invalid KAP mTLS runtime certificate identity")
+	}
+	return runtimeCertificate{serial: serial, notAfter: time.Unix(int64(seconds), 0).UTC()}, nil
+}
+
+func (m *Manager) loadedRelease(machineID string, loaded runtimeCertificate) (credentialStatus, error) {
+	entries, err := os.ReadDir(filepath.Join(m.paths.StateDir, ReleasesDirectoryName))
+	if err != nil {
+		return credentialStatus{}, err
+	}
+	var found credentialStatus
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		candidate, err := m.inspectRelease(machineID, entry.Name())
+		if err != nil || !loaded.matches(candidate) {
+			continue
+		}
+		if found.installed {
+			return credentialStatus{}, fmt.Errorf("ambiguous loaded KAP mTLS credential generation")
+		}
+		found = candidate
+	}
+	if !found.installed {
+		return credentialStatus{}, fmt.Errorf("loaded KAP mTLS credential generation is unavailable")
+	}
+	return found, nil
+}
+
+func (m *Manager) observeLoadedRelease(ctx context.Context, machineID string) (credentialStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, m.runtimeTimeout)
+	defer cancel()
+	var loaded credentialStatus
+	err := m.waitFor(ctx, func() bool {
+		if !m.probeReady(ctx) {
+			return false
+		}
+		observed, err := m.runtimeCertificate(ctx)
+		if err != nil {
+			return false
+		}
+		loaded, err = m.loadedRelease(machineID, observed)
+		return err == nil
+	})
+	return loaded, err
+}
+
+func (m *Manager) reloadAndWait(ctx context.Context, expected credentialStatus) error {
+	ctx, cancel := context.WithTimeout(ctx, m.reloadTimeout)
+	defer cancel()
+	if _, err := m.runSystemctl(ctx, "kill", "--signal=HUP", "--kill-who=main", AgentService); err != nil {
+		return fmt.Errorf("reload KAP mTLS agent: %w", err)
+	}
+	if err := m.waitFor(ctx, func() bool {
+		if !m.probeReady(ctx) {
+			return false
+		}
+		loaded, err := m.runtimeCertificate(ctx)
+		return err == nil && loaded.matches(expected)
+	}); err != nil {
+		return fmt.Errorf("KAP mTLS agent did not load selected certificate: %w", err)
+	}
+	return nil
+}
+
+func (m *Manager) rollbackReload(ctx context.Context, previous credentialStatus, reloadErr error) error {
+	var restoreErr error
+	if err := m.swapCurrentSymlink(previous.releaseID); err != nil {
+		restoreErr = fmt.Errorf("restore loaded KAP mTLS credentials: %w", err)
+		// A failed directory sync can leave the rename visible. Reload the known
+		// generation when it is selected, while still reporting durability failure.
+		if current, readErr := m.currentReleaseID(); readErr != nil || current != previous.releaseID {
+			return errors.Join(reloadErr, restoreErr)
+		}
+	}
+	if err := m.reloadAndWait(context.WithoutCancel(ctx), previous); err != nil {
+		return errors.Join(reloadErr, restoreErr, fmt.Errorf("restore loaded KAP mTLS agent certificate: %w", err))
+	}
+	return errors.Join(reloadErr, restoreErr)
+}
+
+func (m *Manager) waitFor(ctx context.Context, probe func() bool) error {
+	ticker := time.NewTicker(retryInterval)
+	defer ticker.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if probe() {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func syncDirectory(path string) error {

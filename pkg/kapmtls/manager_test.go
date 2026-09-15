@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -38,9 +39,15 @@ type fakeRunner struct {
 	enableErr       error
 	restartErr      error
 	restartFailures int
+	stateDir        string
+	loaded          atomic.Pointer[runtimeCertificate]
+	killErr         error
+	killFailures    int
+	skipReload      bool
+	afterSignal     func(context.Context)
 }
 
-func (r *fakeRunner) Run(_ context.Context, command string, args ...string) ([]byte, error) {
+func (r *fakeRunner) Run(ctx context.Context, command string, args ...string) ([]byte, error) {
 	call := strings.Join(append([]string{command}, args...), " ")
 	r.calls = append(r.calls, call)
 	if len(args) >= 1 && args[0] == "is-active" {
@@ -61,8 +68,40 @@ func (r *fakeRunner) Run(_ context.Context, command string, args ...string) ([]b
 			return []byte("restart failed"), r.restartErr
 		}
 		r.active = true
+		r.loadSelectedCertificate()
+	}
+	if len(args) >= 1 && args[0] == "kill" {
+		if r.afterSignal != nil {
+			r.afterSignal(ctx)
+		}
+		if r.killFailures > 0 {
+			r.killFailures--
+			return nil, errors.New("signal failed")
+		}
+		if r.killErr != nil {
+			return nil, r.killErr
+		}
+		if !r.skipReload {
+			r.loadSelectedCertificate()
+		}
 	}
 	return nil, nil
+}
+
+func (r *fakeRunner) loadSelectedCertificate() {
+	data, err := os.ReadFile(filepath.Join(r.stateDir, CurrentSymlinkName, ClientCertificateFileName))
+	if err != nil {
+		return
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return
+	}
+	r.loaded.Store(&runtimeCertificate{serial: cert.SerialNumber.Text(16), notAfter: cert.NotAfter})
 }
 
 func TestDefaultPaths(t *testing.T) {
@@ -196,13 +235,19 @@ func TestUpdateCredentialsRollsBackOnEnableAndReadinessFailures(t *testing.T) {
 	})
 
 	t.Run("readiness", func(t *testing.T) {
-		manager, _, paths := newTestManager(t)
+		manager, runner, paths := newTestManager(t)
 		require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
 		previousTarget, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
 		require.NoError(t, err)
-		manager.readyURL = "http://127.0.0.1:1"
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		runner.active = false
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		readyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			cancel()
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		defer readyServer.Close()
+		manager.readyURL = readyServer.URL
 
 		err = manager.UpdateCredentials(ctx, "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2))
 		require.ErrorContains(t, err, "did not become ready")
@@ -745,16 +790,24 @@ func newTestManager(t *testing.T) (*Manager, *fakeRunner, Paths) {
 	require.NoError(t, os.WriteFile(paths.AgentUnitFile, []byte("unit"), 0644))
 	require.NoError(t, os.WriteFile(paths.AgentVersionFile, []byte("0.1.0\n"), 0600))
 
-	readyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	runner := &fakeRunner{stateDir: paths.StateDir}
+	readyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/metrics" {
+			if loaded := runner.loaded.Load(); loaded != nil {
+				_, _ = fmt.Fprintf(w, "# TYPE kaproxy_mtls_agent_cert_info gauge\nkaproxy_mtls_agent_cert_info{serial=%q} 1\n# TYPE kaproxy_mtls_agent_cert_not_after_timestamp_seconds gauge\nkaproxy_mtls_agent_cert_not_after_timestamp_seconds %d\n", loaded.serial, loaded.notAfter.Unix())
+			}
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(readyServer.Close)
-	runner := &fakeRunner{}
 	manager := NewManager(paths)
 	manager.runner = runner
 	manager.httpClient = readyServer.Client()
 	manager.readyURL = readyServer.URL
 	manager.now = func() time.Time { return testNow }
+	manager.runtimeTimeout = 20 * time.Millisecond
+	manager.reloadTimeout = 50 * time.Millisecond
 	return manager, runner, paths
 }
 

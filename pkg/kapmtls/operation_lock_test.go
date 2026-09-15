@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,4 +112,43 @@ func TestManagerOperationsSharePackageLockAndHonorCancellation(t *testing.T) {
 	assert.Empty(t, runner.calls)
 	_, err := os.Lstat(filepath.Join(paths.StateDir, CurrentSymlinkName))
 	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestHotReloadBlocksConcurrentPackageOperation(t *testing.T) {
+	manager, runner, _ := newTestManager(t)
+	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
+	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", initial))
+	manager.reloadTimeout = time.Second
+	signaling := make(chan struct{})
+	resume := make(chan struct{})
+	runner.afterSignal = func(context.Context) {
+		assertPackageLocked(t)
+		close(signaling)
+		<-resume
+	}
+	next := renewedCredentials(t, initial, 2)
+	updated := make(chan error, 1)
+	go func() {
+		updated <- manager.UpdateCredentials(context.Background(), "machine-1", next)
+	}()
+	<-signaling
+	packageOperation := make(chan struct{})
+	go func() {
+		mu := packagelock.For(PackageName)
+		mu.Lock()
+		defer mu.Unlock()
+		close(packageOperation)
+	}()
+	select {
+	case <-packageOperation:
+		t.Error("package operation entered during hot reload")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(resume)
+	require.NoError(t, <-updated)
+	select {
+	case <-packageOperation:
+	case <-time.After(time.Second):
+		t.Fatal("hot reload leaked package lock")
+	}
 }
