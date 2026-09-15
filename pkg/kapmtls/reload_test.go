@@ -5,6 +5,7 @@ package kapmtls
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
@@ -41,6 +42,7 @@ func TestLeafRenewalHotReloadsWithoutRestart(t *testing.T) {
 	m, runner, paths := newTestManager(t)
 	credentials := newTestCredentials(t, "worker-1", "machine-1", 1)
 	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", credentials))
+	runner.startAgent()
 	runner.calls = nil
 	for serial := int64(2); serial <= 3; serial++ {
 		credentials = renewedCredentials(t, credentials, serial)
@@ -59,10 +61,10 @@ func TestLeafRenewalHotReloadsWithoutRestart(t *testing.T) {
 
 	runner.calls = nil
 	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", credentials))
-	assert.NotContains(t, strings.Join(runner.calls, "\n"), hupCommand, "already loaded identical generation needs no signal")
+	assert.Contains(t, runner.calls, hupCommand, "idempotent retries must cover a crash before the previous HUP")
 }
 
-func TestStartupConfigurationDriftRestarts(t *testing.T) {
+func TestStartupConfigurationDriftRejectedBeforeWriting(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		mutate func(*Credentials)
@@ -79,213 +81,255 @@ func TestStartupConfigurationDriftRestarts(t *testing.T) {
 			c.ServerName = "other.example.test"
 		}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			m, runner, _ := newTestManager(t)
-			initial := newTestCredentials(t, "worker-1", "machine-1", 1)
-			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
-			runner.calls = nil
-			next := renewedCredentials(t, initial, 2)
-			tc.mutate(&next)
-			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", next))
-			assert.Contains(t, runner.calls, "systemctl restart "+AgentService)
-			assert.NotContains(t, runner.calls, hupCommand)
-		})
+		for _, active := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/active=%t", tc.name, active), func(t *testing.T) {
+				m, runner, paths := newTestManager(t)
+				initial := newTestCredentials(t, "worker-1", "machine-1", 1)
+				require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
+				if active {
+					runner.startAgent()
+				}
+				before, err := m.currentReleaseID()
+				require.NoError(t, err)
+				runner.calls = nil
+				next := renewedCredentials(t, initial, 2)
+				tc.mutate(&next)
+				require.ErrorContains(t, m.UpdateCredentials(context.Background(), "machine-1", next), "requires explicit maintenance/restart")
+				current, err := m.currentReleaseID()
+				require.NoError(t, err)
+				assert.Equal(t, before, current)
+				entries, err := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
+				require.NoError(t, err)
+				assert.Len(t, entries, 1, "rejected drift must not stage a generation")
+				assert.Empty(t, runner.calls)
+			})
+		}
 	}
 }
 
-func TestCrashSelectedGenerationUsesLoadedRelease(t *testing.T) {
-	for _, drift := range []bool{false, true} {
-		t.Run(fmt.Sprintf("startup drift %t", drift), func(t *testing.T) {
-			m, runner, _ := newTestManager(t)
-			initial := newTestCredentials(t, "worker-1", "machine-1", 1)
-			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
-			next := renewedCredentials(t, initial, 2)
-			if drift {
-				next.GatewayEndpoint = "kap.example.test:9443"
-			}
-			pending, err := m.stageCredentials("machine-1", next)
-			require.NoError(t, err)
-			require.NoError(t, m.swapCurrentSymlink(pending))
-			status, err := m.Status(context.Background(), "machine-1")
-			require.NoError(t, err)
-			assert.False(t, status.CredentialsInstalled)
-			assert.Empty(t, status.CertificateSerial, "disk selection is not runtime evidence")
-			runner.calls = nil
-			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", next))
-			if drift {
-				assert.Contains(t, runner.calls, "systemctl restart "+AgentService)
-				assert.NotContains(t, runner.calls, hupCommand)
-			} else {
-				assert.Contains(t, runner.calls, hupCommand)
-				assert.NotContains(t, runner.calls, "systemctl restart "+AgentService)
-			}
-		})
-	}
-}
-
-func TestCrashRestartFailureRestoresLoadedNotSelectedRelease(t *testing.T) {
+func TestCrashSelectedLeafRetriesHUP(t *testing.T) {
 	m, runner, _ := newTestManager(t)
 	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
-	loaded, err := m.currentReleaseID()
-	require.NoError(t, err)
+	runner.startAgent()
 	next := renewedCredentials(t, initial, 2)
-	next.GatewayEndpoint = "kap.example.test:9443"
 	pending, err := m.stageCredentials("machine-1", next)
 	require.NoError(t, err)
 	require.NoError(t, m.swapCurrentSymlink(pending))
-	runner.restartFailures = 1
-	require.ErrorContains(t, m.UpdateCredentials(context.Background(), "machine-1", next), "restart KAP mTLS agent")
-	current, err := m.currentReleaseID()
-	require.NoError(t, err)
-	assert.Equal(t, loaded, current)
-}
 
-func TestAmbiguousLoadedGenerationUsesRestartRecovery(t *testing.T) {
-	m, runner, _ := newTestManager(t)
-	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
-	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
-	ambiguous := initial
-	ambiguous.GatewayEndpoint = "kap.example.test:9443"
-	pending, err := m.stageCredentials("machine-1", ambiguous)
-	require.NoError(t, err)
-	require.NoError(t, m.swapCurrentSymlink(pending))
 	status, err := m.Status(context.Background(), "machine-1")
 	require.NoError(t, err)
 	assert.False(t, status.CredentialsInstalled)
+	assert.Equal(t, "2", status.CertificateSerial, "certificate fields describe persisted selection")
 	runner.calls = nil
-	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", ambiguous))
-	assert.Contains(t, runner.calls, "systemctl restart "+AgentService)
-	assert.NotContains(t, runner.calls, hupCommand)
+	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", next))
+	assert.Contains(t, runner.calls, hupCommand)
+	assert.Equal(t, "2", runner.loaded.Load().serial)
 }
 
-func TestSameSerialDifferentGenerationCannotAcknowledgeHotReload(t *testing.T) {
-	m, runner, _ := newTestManager(t)
+func TestSameSerialAndExpiryReplacementCannotAcknowledgeReload(t *testing.T) {
+	m, runner, paths := newTestManager(t)
 	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
+	runner.startAgent()
+	before, err := m.currentReleaseID()
+	require.NoError(t, err)
 	runner.calls = nil
-	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 1)))
-	assert.Contains(t, runner.calls, "systemctl restart "+AgentService)
-	assert.NotContains(t, runner.calls, hupCommand)
+	require.ErrorContains(t, m.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 1)), "distinct certificate serial or expiry")
+	current, err := m.currentReleaseID()
+	require.NoError(t, err)
+	assert.Equal(t, before, current)
+	entries, err := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
+	require.NoError(t, err)
+	assert.Len(t, entries, 1)
+	assert.Empty(t, runner.calls)
 }
 
-func TestHotReloadFailuresRestoreLoadedGenerationWithoutRestart(t *testing.T) {
-	for _, mode := range []string{"signal error", "stale metrics", "new serial wrong expiry", "canceled", "rollback error"} {
+func TestFailedReloadCannotReuseRetainedCertificateIdentity(t *testing.T) {
+	m, runner, paths := newTestManager(t)
+	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
+	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
+	runner.startAgent()
+	loaded, err := m.currentReleaseID()
+	require.NoError(t, err)
+	runner.killErr = errors.New("signal unavailable")
+	require.ErrorContains(t, m.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 2)), "signal unavailable")
+	selected, err := m.currentReleaseID()
+	require.NoError(t, err)
+	require.NotEqual(t, loaded, selected)
+	assert.Equal(t, "1", runner.loaded.Load().serial)
+
+	runner.killErr = nil
+	runner.skipReload = true
+	runner.calls = nil
+	replacement := renewedCredentials(t, initial, 1)
+	require.ErrorContains(t, m.UpdateCredentials(context.Background(), "machine-1", replacement), "distinct certificate serial or expiry")
+	current, err := m.currentReleaseID()
+	require.NoError(t, err)
+	assert.Equal(t, selected, current)
+	entries, err := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
+	require.NoError(t, err)
+	assert.Len(t, entries, 2, "rejected replacement must not stage or clean up retained generations")
+	for _, id := range []string{loaded, selected} {
+		_, err := m.inspectRelease("machine-1", id)
+		require.NoError(t, err, "retained generations must remain complete and unchanged")
+	}
+	assert.Empty(t, runner.calls, "ambiguous replacement must fail before signaling")
+}
+
+func TestExpiredSelectedLeafCanRenewWithSameStartupConfig(t *testing.T) {
+	m, runner, _ := newTestManager(t)
+	initial := newTestCredentialsWithLeaf(t, "worker-1", "machine-1", 1, func(c *x509.Certificate) {
+		c.NotAfter = testNow.Add(time.Hour)
+	})
+	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
+	runner.startAgent()
+	m.now = func() time.Time { return testNow.Add(2 * time.Hour) }
+	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 2)))
+	assert.Equal(t, "2", runner.loaded.Load().serial)
+}
+
+func TestConflictingRetainedStartupConfigRequiresMaintenance(t *testing.T) {
+	for _, loadedNewLeaf := range []bool{false, true} {
+		for _, sameLeaf := range []bool{false, true} {
+			t.Run(fmt.Sprintf("new-leaf-loaded=%t/same-leaf=%t", loadedNewLeaf, sameLeaf), func(t *testing.T) {
+				m, runner, paths := newTestManager(t)
+				initial := newTestCredentials(t, "worker-1", "machine-1", 1)
+				require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
+				runner.startAgent()
+				next := renewedCredentials(t, initial, 2)
+				if sameLeaf {
+					next = initial
+				}
+				next.GatewayEndpoint = "kap.example.test:9443"
+				pending, err := m.stageCredentials("machine-1", next)
+				require.NoError(t, err)
+				require.NoError(t, m.swapCurrentSymlink(pending))
+				if loadedNewLeaf {
+					// HUP reloads only the leaf, not the persisted startup settings.
+					runner.loadSelectedCertificate()
+				}
+				runner.calls = nil
+				_, err = m.Status(context.Background(), "machine-1")
+				require.ErrorContains(t, err, "explicit maintenance/restart")
+				require.ErrorContains(t, m.UpdateCredentials(context.Background(), "machine-1", next), "explicit maintenance/restart")
+				require.ErrorContains(t, m.Activate(context.Background()), "explicit maintenance/restart")
+				assert.Empty(t, runner.calls, "certificate metrics cannot resolve retained startup drift")
+				current, err := m.currentReleaseID()
+				require.NoError(t, err)
+				assert.Equal(t, pending, current)
+				entries, err := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
+				require.NoError(t, err)
+				assert.Len(t, entries, 2, "conflicting history is not cleaned away")
+			})
+		}
+	}
+}
+
+func TestHotReloadFailuresRetainSelectionAndRetryWithoutRestart(t *testing.T) {
+	for _, mode := range []string{"signal error", "stale metrics", "new serial wrong expiry", "canceled", "unready"} {
 		t.Run(mode, func(t *testing.T) {
 			m, runner, paths := newTestManager(t)
 			initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
-			loaded, err := m.currentReleaseID()
+			runner.startAgent()
+			previous, err := m.currentReleaseID()
 			require.NoError(t, err)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			signals := 0
-			runner.afterSignal = func(signalCtx context.Context) {
+			runner.afterSignal = func(context.Context) {
 				assertPackageLocked(t)
 				signals++
-				if mode == "canceled" && signals == 1 {
+				if mode == "canceled" {
 					cancel()
 				}
 				if mode == "new serial wrong expiry" {
-					if signals == 1 {
-						runner.loaded.Store(&runtimeCertificate{serial: "2", notAfter: testNow.Add(4 * 24 * time.Hour)})
-					} else {
-						runner.loadSelectedCertificate()
-					}
-				}
-				if signals == 2 {
-					assert.NoError(t, signalCtx.Err(), "rollback detaches from cancellation")
+					runner.loaded.Store(&runtimeCertificate{serial: "2", notAfter: testNow.Add(4 * 24 * time.Hour)})
 				}
 			}
+			readyURL := m.readyURL
 			switch mode {
 			case "signal error":
 				runner.killFailures = 1
 			case "stale metrics", "new serial wrong expiry":
 				runner.skipReload = true
-			case "rollback error":
-				runner.killErr = errors.New("signal unavailable")
+			case "unready":
+				m.readyURL = "http://127.0.0.1:1"
 			}
 			runner.calls = nil
-			err = m.UpdateCredentials(ctx, "machine-1", renewedCredentials(t, initial, 2))
+			next := renewedCredentials(t, initial, 2)
+			err = m.UpdateCredentials(ctx, "machine-1", next)
 			require.Error(t, err)
 			if mode == "canceled" {
 				require.ErrorIs(t, err, context.Canceled)
 			}
-			if mode == "rollback error" {
-				require.ErrorContains(t, err, "restore loaded KAP mTLS agent certificate")
-			}
 			current, readErr := m.currentReleaseID()
 			require.NoError(t, readErr)
-			assert.Equal(t, loaded, current)
-			assert.Equal(t, 2, signals)
+			assert.NotEqual(t, previous, current)
+			assert.Equal(t, 1, signals, "there is no rollback signal")
 			assert.NotContains(t, runner.calls, "systemctl restart "+AgentService)
 			entries, readErr := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
 			require.NoError(t, readErr)
 			assert.Len(t, entries, 2, "failed forward update retains evidence")
+
+			runner.afterSignal = nil
+			runner.skipReload = false
+			m.readyURL = readyURL
+			runner.calls = nil
+			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", next))
+			assert.Contains(t, runner.calls, hupCommand)
+			assert.Equal(t, "2", runner.loaded.Load().serial)
+			entries, err = os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
+			require.NoError(t, err)
+			assert.Len(t, entries, 1)
 		})
 	}
 }
 
-func TestSelectionFailurePreservesLoadedGeneration(t *testing.T) {
-	for _, mode := range []string{"before rename", "after rename", "rollback sync failure"} {
+func TestSelectionFailureRetainsCompleteGenerationsWithoutSignaling(t *testing.T) {
+	for _, mode := range []string{"before rename", "after rename"} {
 		t.Run(mode, func(t *testing.T) {
 			m, runner, paths := newTestManager(t)
 			initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
-			loaded, err := m.currentReleaseID()
+			runner.startAgent()
+			previous, err := m.currentReleaseID()
 			require.NoError(t, err)
 			next := renewedCredentials(t, initial, 2)
 			nextID, err := m.stageCredentials("machine-1", next)
 			require.NoError(t, err)
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 			selectionErr := errors.New("selection sync failed")
-			rollbackErr := errors.New("rollback sync failed")
-			syncs := 0
+			blocked := filepath.Join(paths.StateDir, ".current-"+nextID)
 			if mode == "before rename" {
-				blocked := filepath.Join(paths.StateDir, ".current-"+nextID)
 				require.NoError(t, os.MkdirAll(filepath.Join(blocked, "keep"), 0700))
 			} else {
-				m.syncDir = func(path string) error {
+				m.syncDir = func(string) error {
 					assertPackageLocked(t)
-					syncs++
-					if syncs == 1 {
-						cancel()
-						return selectionErr
-					}
-					if mode == "rollback sync failure" {
-						return rollbackErr
-					}
-					return syncDirectory(path)
+					return selectionErr
 				}
 			}
-			signals := 0
-			runner.afterSignal = func(signalCtx context.Context) {
-				assertPackageLocked(t)
-				assert.NoError(t, signalCtx.Err(), "rollback must detach from cancellation")
-				signals++
-			}
 			runner.calls = nil
-			err = m.UpdateCredentials(ctx, "machine-1", next)
+			err = m.UpdateCredentials(context.Background(), "machine-1", next)
 			require.Error(t, err)
-			if mode == "before rename" {
-				assert.Zero(t, signals, "failed selection leaves the known process untouched")
-			} else {
-				require.ErrorIs(t, err, selectionErr)
-				assert.Equal(t, 1, signals, "a visible rollback must reload even after a sync error")
-				assert.Equal(t, 2, syncs)
-			}
-			if mode == "rollback sync failure" {
-				require.ErrorIs(t, err, rollbackErr)
-			}
 			current, readErr := m.currentReleaseID()
 			require.NoError(t, readErr)
-			assert.Equal(t, loaded, current)
+			if mode == "before rename" {
+				assert.Equal(t, previous, current)
+				require.NoError(t, os.RemoveAll(blocked))
+			} else {
+				require.ErrorIs(t, err, selectionErr)
+				assert.Equal(t, nextID, current, "a failed sync may leave the complete selection visible")
+				require.ErrorIs(t, m.UpdateCredentials(context.Background(), "machine-1", next), selectionErr, "idempotent selection must retry the failed durability check")
+			}
 			assert.Equal(t, "1", runner.loaded.Load().serial)
-			assert.NotContains(t, runner.calls, "systemctl restart "+AgentService)
+			assert.NotContains(t, runner.calls, hupCommand)
 			entries, readErr := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
 			require.NoError(t, readErr)
 			assert.Len(t, entries, 2)
+			m.syncDir = syncDirectory
+			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", next))
+			assert.Equal(t, "2", runner.loaded.Load().serial)
 		})
 	}
 }
@@ -336,6 +380,7 @@ func TestStatusMissingOrStaleRuntimeMetricsDoesNotClaimDiskCredentials(t *testin
 		t.Run(body, func(t *testing.T) {
 			m, runner, _ := newTestManager(t)
 			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
+			runner.startAgent()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/metrics" {
 					_, _ = w.Write([]byte(body))
@@ -350,10 +395,8 @@ func TestStatusMissingOrStaleRuntimeMetricsDoesNotClaimDiskCredentials(t *testin
 			assert.True(t, status.AgentActive)
 			assert.True(t, status.AgentReady)
 			assert.False(t, status.CredentialsInstalled)
-			assert.Empty(t, status.CertificateSerial)
-			runner.calls = nil
-			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2)))
-			assert.Contains(t, runner.calls, "systemctl restart "+AgentService)
+			assert.Equal(t, "1", status.CertificateSerial)
+			assert.Equal(t, "kap.example.test:8443", status.GatewayEndpoint)
 		})
 	}
 }
@@ -362,6 +405,7 @@ func TestRuntimeObservationRetriesTransientMetricReset(t *testing.T) {
 	m, runner, _ := newTestManager(t)
 	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
+	runner.startAgent()
 	var probes atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertPackageLocked(t)
@@ -375,7 +419,7 @@ func TestRuntimeObservationRetriesTransientMetricReset(t *testing.T) {
 	}))
 	defer server.Close()
 	m.readyURL = server.URL
-	m.runtimeTimeout = time.Second
+	m.reloadTimeout = time.Second
 	runner.calls = nil
 	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 2)))
 	assert.Contains(t, runner.calls, hupCommand)
