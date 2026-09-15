@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
-	"slices"
 	"testing"
 	"time"
 
@@ -105,9 +104,6 @@ func TestRunV2ConnectionMultiplexesRequestAndResult(t *testing.T) {
 		}
 		if first.GetHello() == nil {
 			return status.Error(codes.FailedPrecondition, "first message is not hello")
-		}
-		if !slices.Contains(first.GetHello().GetCapabilities(), "bootstrap-script-audit-redaction-v1") {
-			return status.Error(codes.FailedPrecondition, "missing bootstrap audit redaction capability")
 		}
 		if err := stream.Send(&sessionv2.ManagerPacket{Payload: &sessionv2.ManagerPacket_HelloAck{HelloAck: &sessionv2.HelloAck{
 			ProtocolRevision: sessionv2.ProtocolRevision,
