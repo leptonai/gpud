@@ -35,7 +35,7 @@ func assertPackageLocked(t *testing.T) {
 	}
 }
 
-func TestCredentialReloadHoldsPackageLockThroughVerificationAndFailure(t *testing.T) {
+func TestCredentialReloadHoldsPackageLockThroughNotificationAndFailure(t *testing.T) {
 	for _, failSignal := range []bool{false, true} {
 		t.Run(fmt.Sprint(failSignal), func(t *testing.T) {
 			manager, runner, paths := newTestManager(t)
@@ -53,15 +53,6 @@ func TestCredentialReloadHoldsPackageLockThroughVerificationAndFailure(t *testin
 				}
 				return runner.Run(ctx, command, args...)
 			})
-			ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assertPackageLocked(t)
-				if r.URL.Path == "/metrics" {
-					loaded := runner.loaded.Load()
-					_, _ = w.Write([]byte(metricText(loaded.serial, loaded.notAfter)))
-				}
-			}))
-			defer ready.Close()
-			manager.readyURL = ready.URL
 			err := manager.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 2))
 			if failSignal {
 				require.ErrorContains(t, err, "signal failed")
@@ -131,7 +122,6 @@ func TestHotReloadBlocksConcurrentPackageOperation(t *testing.T) {
 	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", initial))
 	runner.startAgent()
-	manager.reloadTimeout = time.Second
 	signaling := make(chan struct{})
 	resume := make(chan struct{})
 	runner.afterSignal = func(context.Context) {

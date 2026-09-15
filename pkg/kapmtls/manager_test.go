@@ -36,11 +36,8 @@ var testNow = time.Date(2026, time.July, 10, 0, 0, 0, 0, time.UTC)
 type fakeRunner struct {
 	calls        []string
 	active       bool
-	stateDir     string
-	loaded       atomic.Pointer[runtimeCertificate]
 	killErr      error
 	killFailures int
-	skipReload   bool
 	afterSignal  func(context.Context)
 }
 
@@ -74,32 +71,12 @@ func (r *fakeRunner) Run(ctx context.Context, command string, args ...string) ([
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if !r.skipReload {
-		r.loadSelectedCertificate()
-	}
 	return nil, nil
 }
 
 // Simulate startup by the package controller, outside a credential operation.
 func (r *fakeRunner) startAgent() {
 	r.active = true
-	r.loadSelectedCertificate()
-}
-
-func (r *fakeRunner) loadSelectedCertificate() {
-	data, err := os.ReadFile(filepath.Join(r.stateDir, CurrentSymlinkName, ClientCertificateFileName))
-	if err != nil {
-		return
-	}
-	block, _ := pem.Decode(data)
-	if block == nil {
-		return
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return
-	}
-	r.loaded.Store(&runtimeCertificate{serial: cert.SerialNumber.Text(16), notAfter: cert.NotAfter})
 }
 
 func TestDefaultPaths(t *testing.T) {
@@ -117,7 +94,6 @@ func TestUpdateCredentialsStagesUntilPackageControllerStartsAgent(t *testing.T) 
 	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", credentials))
 	assert.Equal(t, []string{"systemctl is-active " + AgentService}, runner.calls)
 	assert.False(t, runner.active)
-	assert.Nil(t, runner.loaded.Load())
 
 	target, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
 	require.NoError(t, err)
@@ -145,6 +121,10 @@ func TestUpdateCredentialsStagesUntilPackageControllerStartsAgent(t *testing.T) 
 	require.NoError(t, err)
 	assert.True(t, status.CredentialsInstalled)
 	assert.True(t, status.AgentActive)
+	assert.False(t, status.AgentReady, "startup does not acknowledge the pending reload")
+	require.NoError(t, manager.Activate(context.Background()))
+	status, err = manager.Status(context.Background(), "machine-1")
+	require.NoError(t, err)
 	assert.True(t, status.AgentReady)
 }
 
@@ -247,6 +227,7 @@ func TestActivateOnlyProbesCurrentCredentials(t *testing.T) {
 	manager, runner, _ := newTestManager(t)
 	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
 	runner.startAgent()
+	require.NoError(t, manager.Activate(context.Background()))
 	runner.calls = nil
 
 	require.NoError(t, manager.Activate(context.Background()))
@@ -273,7 +254,7 @@ func TestServiceActiveRejectsUnexpectedSuccessfulQuery(t *testing.T) {
 }
 
 func TestActivateFailureModes(t *testing.T) {
-	for _, mode := range []string{"agent missing", "credentials missing", "inactive", "unready", "stale certificate", "expired certificate", "future certificate", "corrupt credentials"} {
+	for _, mode := range []string{"agent missing", "credentials missing", "inactive", "unready", "corrupt credentials"} {
 		t.Run(mode, func(t *testing.T) {
 			manager, runner, paths := newTestManager(t)
 			if mode != "credentials missing" {
@@ -284,19 +265,17 @@ func TestActivateFailureModes(t *testing.T) {
 			switch mode {
 			case "agent missing":
 				require.NoError(t, os.Remove(paths.AgentBinary))
+				want = "not installed"
+			case "credentials missing":
+				want = "not installed"
 			case "inactive":
 				runner.active = false
 			case "unready":
+				require.NoError(t, manager.Activate(context.Background()))
 				manager.readyURL = "http://127.0.0.1:1"
-			case "stale certificate":
-				runner.loaded.Store(&runtimeCertificate{serial: "2", notAfter: testNow.Add(5 * 24 * time.Hour)})
-			case "expired certificate":
-				manager.now = func() time.Time { return testNow.Add(6 * 24 * time.Hour) }
-			case "future certificate":
-				manager.now = func() time.Time { return testNow.Add(-24 * time.Hour) }
 			case "corrupt credentials":
 				require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName, ClientCertificateFileName), []byte("broken"), 0600))
-				want = "requires explicit maintenance/restart"
+				want = "validate active KAP mTLS credentials"
 			}
 			runner.calls = nil
 			require.ErrorContains(t, manager.Activate(context.Background()), want)
@@ -534,8 +513,9 @@ func TestFilesystemAndReadinessHelpers(t *testing.T) {
 	manager.readyURL = readyServer.URL
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	require.NoError(t, manager.waitFor(ctx, func() bool { return manager.probeReady(ctx) }))
-	assert.GreaterOrEqual(t, probes.Load(), int32(2))
+	assert.False(t, manager.probeReady(ctx))
+	assert.True(t, manager.probeReady(ctx))
+	assert.Equal(t, int32(2), probes.Load())
 
 	manager.readyURL = "://invalid"
 	assert.False(t, manager.probeReady(context.Background()))
@@ -731,23 +711,17 @@ func newTestManager(t *testing.T) (*Manager, *fakeRunner, Paths) {
 	require.NoError(t, os.WriteFile(paths.AgentUnitFile, []byte("unit"), 0644))
 	require.NoError(t, os.WriteFile(paths.AgentVersionFile, []byte("0.1.0\n"), 0600))
 
-	runner := &fakeRunner{stateDir: paths.StateDir}
+	runner := &fakeRunner{}
 	readyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/metrics" {
-			if loaded := runner.loaded.Load(); loaded != nil {
-				_, _ = fmt.Fprintf(w, "# TYPE kaproxy_mtls_agent_cert_info gauge\nkaproxy_mtls_agent_cert_info{serial=%q} 1\n# TYPE kaproxy_mtls_agent_cert_not_after_timestamp_seconds gauge\nkaproxy_mtls_agent_cert_not_after_timestamp_seconds %d\n", loaded.serial, loaded.notAfter.Unix())
-			}
-			return
-		}
+		assert.Equal(t, "/readyz", r.URL.Path, "credential operations must not request runtime metrics")
 		w.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(readyServer.Close)
 	manager := NewManager(paths)
 	manager.runner = runner
 	manager.httpClient = readyServer.Client()
-	manager.readyURL = readyServer.URL
+	manager.readyURL = readyServer.URL + "/readyz"
 	manager.now = func() time.Time { return testNow }
-	manager.reloadTimeout = 50 * time.Millisecond
 	return manager, runner, paths
 }
 

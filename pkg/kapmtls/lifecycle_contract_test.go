@@ -6,8 +6,7 @@ package kapmtls
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/x509"
-	"encoding/pem"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,24 +25,23 @@ import (
 	"github.com/leptonai/gpud/pkg/packagelock"
 )
 
+const contractHUP = "systemctl kill --signal=HUP --kill-who=main " + AgentService
+
 type contractInactiveError struct{}
 
 func (contractInactiveError) Error() string { return "inactive" }
 func (contractInactiveError) ExitCode() int { return 3 }
 
 type contractAgent struct {
-	paths        Paths
 	active       atomic.Bool
-	metrics      atomic.Value
 	requests     atomic.Int64
-	metricsCode  atomic.Int64
+	metrics      atomic.Int64
 	mu           sync.Mutex
 	commands     []string
-	beforeReload func() error
-	afterReload  func()
+	beforeReload func(context.Context) error
 }
 
-func (a *contractAgent) Run(_ context.Context, command string, args ...string) ([]byte, error) {
+func (a *contractAgent) Run(ctx context.Context, command string, args ...string) ([]byte, error) {
 	call := strings.Join(append([]string{command}, args...), " ")
 	a.mu.Lock()
 	a.commands = append(a.commands, call)
@@ -54,44 +52,29 @@ func (a *contractAgent) Run(_ context.Context, command string, args ...string) (
 		}
 		return []byte("inactive\n"), contractInactiveError{}
 	}
-	if call != "systemctl kill --signal=HUP --kill-who=main "+AgentService {
+	if call != contractHUP {
 		return nil, fmt.Errorf("credential manager issued forbidden command: %s", call)
 	}
 	if a.beforeReload != nil {
-		if err := a.beforeReload(); err != nil {
-			return nil, err
-		}
+		return nil, a.beforeReload(ctx)
 	}
-	certificate, err := os.ReadFile(filepath.Join(a.paths.StateDir, CurrentSymlinkName, ClientCertificateFileName))
-	if err != nil {
-		return nil, err
-	}
-	if err := a.load(certificate); err != nil {
-		return nil, err
-	}
-	if a.afterReload != nil {
-		a.afterReload()
-	}
-	return nil, nil
-}
-
-func (a *contractAgent) load(certificate []byte) error {
-	block, _ := pem.Decode(certificate)
-	if block == nil {
-		return errors.New("missing certificate PEM")
-	}
-	leaf, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return err
-	}
-	a.metrics.Store(fmt.Sprintf("# TYPE kaproxy_mtls_agent_cert_info gauge\nkaproxy_mtls_agent_cert_info{serial=%q} 1\n# TYPE kaproxy_mtls_agent_cert_not_after_timestamp_seconds gauge\nkaproxy_mtls_agent_cert_not_after_timestamp_seconds %d\n", leaf.SerialNumber.Text(16), leaf.NotAfter.Unix()))
-	return nil
+	return nil, ctx.Err()
 }
 
 func (a *contractAgent) calls() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]string(nil), a.commands...)
+}
+
+func (a *contractAgent) reloads() int {
+	count := 0
+	for _, call := range a.calls() {
+		if call == contractHUP {
+			count++
+		}
+	}
+	return count
 }
 
 func newContractManager(t *testing.T) (*Manager, *contractAgent, Paths) {
@@ -103,17 +86,15 @@ func newContractManager(t *testing.T) (*Manager, *contractAgent, Paths) {
 	require.NoError(t, os.MkdirAll(paths.StateDir, 0700))
 	require.NoError(t, os.WriteFile(paths.AgentBinary, []byte("test binary"), 0700))
 	require.NoError(t, os.WriteFile(paths.AgentUnitFile, []byte("test unit"), 0600))
-	a := &contractAgent{paths: paths}
-	a.metrics.Store("")
-	a.metricsCode.Store(http.StatusOK)
+	a := &contractAgent{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		a.requests.Add(1)
-		if r.URL.Path == "/metrics" {
-			w.WriteHeader(int(a.metricsCode.Load()))
-			_, _ = fmt.Fprint(w, a.metrics.Load().(string))
+		if r.URL.Path == "/readyz" {
+			w.WriteHeader(http.StatusOK)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		a.metrics.Add(1)
+		http.Error(w, "no certificate metrics available", http.StatusNotFound)
 	}))
 	t.Cleanup(server.Close)
 	m := NewManager(paths)
@@ -121,8 +102,14 @@ func newContractManager(t *testing.T) (*Manager, *contractAgent, Paths) {
 	m.httpClient = server.Client()
 	m.readyURL = server.URL + "/readyz"
 	m.now = func() time.Time { return testNow }
-	m.reloadTimeout = 150 * time.Millisecond
 	return m, a, paths
+}
+
+func reopenContractManager(m *Manager, paths Paths) *Manager {
+	reopened := NewManager(paths)
+	reopened.runner, reopened.httpClient = m.runner, m.httpClient
+	reopened.readyURL, reopened.now = m.readyURL, m.now
+	return reopened
 }
 
 func contractSnapshot(t *testing.T, root string) map[string]string {
@@ -171,8 +158,44 @@ func assertContractLockReleased(t *testing.T) {
 func assertContractOnlyProbesAndReloads(t *testing.T, a *contractAgent) {
 	t.Helper()
 	for _, call := range a.calls() {
-		assert.Contains(t, []string{"systemctl is-active " + AgentService, "systemctl kill --signal=HUP --kill-who=main " + AgentService}, call)
+		assert.Contains(t, []string{"systemctl is-active " + AgentService, contractHUP}, call)
 	}
+	assert.Zero(t, a.metrics.Load(), "certificate notification must not depend on runtime metrics")
+}
+
+func TestLifecycleContractActiveUpdateOnlyNotifies(t *testing.T) {
+	m, agent, paths := newContractManager(t)
+	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
+	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
+	agent.active.Store(true)
+	credentials := renewedCredentials(t, initial, 2)
+	agent.beforeReload = func(ctx context.Context) error {
+		deadline, bounded := ctx.Deadline()
+		assert.True(t, bounded, "HUP delivery must have a bounded deadline")
+		assert.True(t, deadline.After(time.Now()))
+		selected, err := os.ReadFile(filepath.Join(paths.StateDir, CurrentSymlinkName, ClientCertificateFileName))
+		require.NoError(t, err)
+		assert.Equal(t, credentials.CertificatePEM, selected, "complete credentials must be selected before notification")
+		key, err := os.ReadFile(filepath.Join(paths.StateDir, CurrentSymlinkName, ClientPrivateKeyFileName))
+		require.NoError(t, err)
+		_, err = tls.X509KeyPair(selected, key)
+		require.NoError(t, err)
+		return nil
+	}
+
+	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", credentials))
+	assert.Equal(t, 1, agent.reloads())
+	assert.Zero(t, agent.requests.Load(), "successful notification does not wait for ready or loaded proof")
+	before := contractSnapshot(t, paths.StateDir)
+	status, err := m.Status(context.Background(), "machine-1")
+	require.NoError(t, err)
+	assert.True(t, status.CredentialsInstalled)
+	assert.True(t, status.AgentReady)
+	require.NoError(t, m.Activate(context.Background()))
+	assert.Equal(t, 1, agent.reloads(), "healthy probes must not resend HUP")
+	assert.Equal(t, before, contractSnapshot(t, paths.StateDir))
+	assertContractLockReleased(t)
+	assertContractOnlyProbesAndReloads(t, agent)
 }
 
 func TestLifecycleContractInactiveStagingAndCanceledLockHandoff(t *testing.T) {
@@ -181,7 +204,8 @@ func TestLifecycleContractInactiveStagingAndCanceledLockHandoff(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	require.NoError(t, m.UpdateCredentials(ctx, "machine-1", credentials))
-	assert.Zero(t, agent.requests.Load(), "inactive staging must not wait for readiness or certificate metrics")
+	require.NoError(t, ctx.Err(), "inactive staging must return without waiting for package startup")
+	assert.Zero(t, agent.requests.Load())
 	assertContractLockReleased(t)
 	before := contractSnapshot(t, paths.StateDir)
 
@@ -192,9 +216,10 @@ func TestLifecycleContractInactiveStagingAndCanceledLockHandoff(t *testing.T) {
 	assert.False(t, status.AgentReady)
 	assert.Equal(t, "1", status.CertificateSerial)
 	require.Error(t, m.Activate(ctx))
+	require.NoError(t, ctx.Err())
 	assert.Equal(t, before, contractSnapshot(t, paths.StateDir))
 	assert.Zero(t, agent.requests.Load())
-	assert.NotContains(t, agent.calls(), "systemctl kill --signal=HUP --kill-who=main "+AgentService)
+	assert.Zero(t, agent.reloads())
 
 	mu := packagelock.For(PackageName)
 	mu.Lock()
@@ -211,6 +236,20 @@ func TestLifecycleContractInactiveStagingAndCanceledLockHandoff(t *testing.T) {
 	}
 	assert.Equal(t, before, contractSnapshot(t, paths.StateDir))
 	assertContractLockReleased(t)
+
+	// Package startup is external; the remaining notification is delivered once active.
+	agent.active.Store(true)
+	m = reopenContractManager(m, paths)
+	status, err = m.Status(context.Background(), "machine-1")
+	require.NoError(t, err)
+	assert.True(t, status.CredentialsInstalled)
+	assert.False(t, status.AgentReady)
+	assert.Zero(t, agent.reloads(), "Status must leave notification retries to Activate")
+	require.NoError(t, m.Activate(context.Background()))
+	assert.Equal(t, 1, agent.reloads())
+	status, err = m.Status(context.Background(), "machine-1")
+	require.NoError(t, err)
+	assert.True(t, status.AgentReady)
 	assertContractOnlyProbesAndReloads(t, agent)
 }
 
@@ -233,152 +272,113 @@ func TestLifecycleContractStartupDriftNeverWrites(t *testing.T) {
 				initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 				require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
 				agent.active.Store(active)
-				require.NoError(t, agent.load(initial.CertificatePEM))
 				next := renewedCredentials(t, initial, 2)
 				mutate(&next)
 				before := contractSnapshot(t, paths.StateDir)
-				callsBefore := len(agent.calls())
 				require.Error(t, m.UpdateCredentials(context.Background(), "machine-1", next))
 				assert.Equal(t, before, contractSnapshot(t, paths.StateDir))
-				for _, call := range agent.calls()[callsBefore:] {
-					assert.Equal(t, "systemctl is-active "+AgentService, call, "rejected drift must not signal or control the service")
-				}
+				assert.Zero(t, agent.reloads(), "rejected startup drift must not notify or control the service")
 				assertContractLockReleased(t)
+				assertContractOnlyProbesAndReloads(t, agent)
 			})
 		}
 	}
 }
 
-func TestLifecycleContractRetainedStartupConflictCannotBeAcknowledgedByLeaf(t *testing.T) {
+func TestLifecycleContractUnselectedHistoryDoesNotBlockRenewal(t *testing.T) {
 	m, agent, paths := newContractManager(t)
 	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
-	next := renewedCredentials(t, initial, 2)
-	next.GatewayEndpoint = "new-gateway.example.test:8443"
-	next.ServerName = "new-gateway.example.test"
-	other, _, otherPaths := newContractManager(t)
-	require.NoError(t, other.UpdateCredentials(context.Background(), "machine-1", next))
-	selected, err := os.Readlink(filepath.Join(otherPaths.StateDir, CurrentSymlinkName))
-	require.NoError(t, err)
-	copyContractRelease(t, filepath.Join(otherPaths.StateDir, selected), filepath.Join(paths.StateDir, selected))
-	require.NoError(t, os.Remove(filepath.Join(paths.StateDir, CurrentSymlinkName)))
-	require.NoError(t, os.Symlink(selected, filepath.Join(paths.StateDir, CurrentSymlinkName)))
+	retained := filepath.Join(paths.StateDir, ReleasesDirectoryName, "unselected-incomplete")
+	require.NoError(t, os.Mkdir(retained, 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(retained, ClientCertificateFileName), []byte("incomplete"), 0600))
 	agent.active.Store(true)
-	require.NoError(t, agent.load(next.CertificatePEM))
-	before := contractSnapshot(t, paths.StateDir)
 
-	require.Error(t, m.Activate(context.Background()), "B leaf metrics cannot prove B startup configuration")
-	_, err = m.Status(context.Background(), "machine-1")
-	require.Error(t, err, "retained A startup configuration conflicts with selected B")
-	require.Error(t, m.UpdateCredentials(context.Background(), "machine-1", next))
-	require.Error(t, m.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, next, 3)))
-	assert.Equal(t, before, contractSnapshot(t, paths.StateDir))
-	assertContractOnlyProbesAndReloads(t, agent)
-	assert.NotContains(t, agent.calls(), "systemctl kill --signal=HUP --kill-who=main "+AgentService)
-	assertContractLockReleased(t)
-}
-
-func copyContractRelease(t *testing.T, source, target string) {
-	t.Helper()
-	require.NoError(t, os.Mkdir(target, 0700))
-	entries, err := os.ReadDir(source)
+	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 2)))
+	status, err := m.Status(context.Background(), "machine-1")
 	require.NoError(t, err)
-	for _, entry := range entries {
-		data, err := os.ReadFile(filepath.Join(source, entry.Name()))
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(filepath.Join(target, entry.Name()), data, 0600))
-	}
-}
-
-func TestLifecycleContractCorruptRetainedGenerationNeedsMaintenance(t *testing.T) {
-	m, agent, paths := newContractManager(t)
-	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
-	require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
-	retained := filepath.Join(paths.StateDir, ReleasesDirectoryName, "retained-corrupt")
-	copyContractRelease(t, filepath.Join(paths.StateDir, CurrentSymlinkName), retained)
-	require.NoError(t, os.WriteFile(filepath.Join(retained, ClientCertificateFileName), []byte("incomplete certificate"), 0600))
-	before := contractSnapshot(t, paths.StateDir)
-	require.Error(t, m.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 2)))
-	require.Error(t, m.Activate(context.Background()))
-	_, err := m.Status(context.Background(), "machine-1")
-	require.Error(t, err)
-	assert.Equal(t, before, contractSnapshot(t, paths.StateDir))
+	assert.Equal(t, "2", status.CertificateSerial)
+	assert.True(t, status.AgentReady)
+	assert.Equal(t, 1, agent.reloads())
 	assertContractOnlyProbesAndReloads(t, agent)
-	assertContractLockReleased(t)
 }
 
-func TestLifecycleContractFailedReloadPreservesSelectionForRetry(t *testing.T) {
-	for _, failure := range []string{"signal failure", "metrics missing", "metrics invalid", "metrics expiry mismatch", "metrics outage", "cancel after selection"} {
+func TestLifecycleContractNotificationRetrySurvivesManagerRestart(t *testing.T) {
+	for _, failure := range []string{"signal failure", "cancel after selection", "crash after selection"} {
 		t.Run(failure, func(t *testing.T) {
 			m, agent, paths := newContractManager(t)
 			initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", initial))
 			agent.active.Store(true)
-			require.NoError(t, agent.load(initial.CertificatePEM))
+			require.NoError(t, m.Activate(context.Background()))
 			previous, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
 			require.NoError(t, err)
 			next := renewedCredentials(t, initial, 2)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			agent.beforeReload = func() error {
+			agent.beforeReload = func(context.Context) error {
 				switch failure {
-				case "signal failure":
-					return errors.New("injected signal failure")
-				case "metrics missing":
-					agent.metricsCode.Store(http.StatusNoContent)
-				case "metrics invalid":
-					agent.afterReload = func() {
-						agent.metrics.Store("kaproxy_mtls_agent_cert_info{serial=\"2\"} 1\nkaproxy_mtls_agent_cert_not_after_timestamp_seconds NaN\n")
-					}
-				case "metrics expiry mismatch":
-					agent.afterReload = func() {
-						agent.metrics.Store(fmt.Sprintf("kaproxy_mtls_agent_cert_info{serial=\"2\"} 1\nkaproxy_mtls_agent_cert_not_after_timestamp_seconds %d\n", testNow.Add(time.Hour).Unix()))
-					}
-				case "metrics outage":
-					agent.metricsCode.Store(http.StatusServiceUnavailable)
 				case "cancel after selection":
 					cancel()
 					return ctx.Err()
+				case "crash after selection":
+					panic("simulated process loss before HUP delivery")
+				default:
+					return errors.New("injected signal failure")
 				}
-				return nil
 			}
-			err = m.UpdateCredentials(ctx, "machine-1", next)
-			require.Error(t, err)
-			if failure == "cancel after selection" {
-				require.ErrorIs(t, err, context.Canceled)
+			if failure == "crash after selection" {
+				require.Panics(t, func() { _ = m.UpdateCredentials(ctx, "machine-1", next) })
+			} else {
+				err = m.UpdateCredentials(ctx, "machine-1", next)
+				require.Error(t, err)
+				if failure == "cancel after selection" {
+					require.ErrorIs(t, err, context.Canceled)
+				}
 			}
+			assertContractLockReleased(t)
 			selected, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
 			require.NoError(t, err)
-			assert.NotEqual(t, previous, selected, "failed reload must never select the previous generation")
-			selectedCertificate, err := os.ReadFile(filepath.Join(paths.StateDir, CurrentSymlinkName, ClientCertificateFileName))
-			require.NoError(t, err)
-			assert.Equal(t, next.CertificatePEM, selectedCertificate)
+			assert.NotEqual(t, previous, selected, "notification failure must not roll back selected credentials")
 			selectedFiles := contractSnapshot(t, filepath.Join(paths.StateDir, selected))
-			assertContractLockReleased(t)
 
 			agent.beforeReload = nil
-			agent.afterReload = nil
-			agent.metricsCode.Store(http.StatusOK)
-			require.NoError(t, agent.load(initial.CertificatePEM))
+			m = reopenContractManager(m, paths)
+			beforeStatus := contractSnapshot(t, paths.StateDir)
+			attempts := agent.reloads()
 			status, err := m.Status(context.Background(), "machine-1")
 			require.NoError(t, err)
-			assert.False(t, status.CredentialsInstalled, "running A cannot acknowledge selected B")
-			require.NoError(t, m.UpdateCredentials(context.Background(), "machine-1", next))
+			assert.True(t, status.CredentialsInstalled, "persisted credentials are not loaded-certificate proof")
+			assert.Equal(t, "2", status.CertificateSerial)
+			assert.True(t, status.AgentActive)
+			assert.False(t, status.AgentReady, "an undelivered notification must remain retryable")
+			assert.Equal(t, attempts, agent.reloads(), "Status must not deliver HUP")
+			assert.Equal(t, beforeStatus, contractSnapshot(t, paths.StateDir))
+
+			agent.beforeReload = func(context.Context) error { return errors.New("retry signal failed") }
+			require.Error(t, m.Activate(context.Background()))
+			assert.Equal(t, beforeStatus, contractSnapshot(t, paths.StateDir))
+			m = reopenContractManager(m, paths)
+			status, err = m.Status(context.Background(), "machine-1")
+			require.NoError(t, err)
+			assert.False(t, status.AgentReady, "a failed retry must retain the notification obligation")
+			attempts = agent.reloads()
+			agent.beforeReload = nil
+			require.NoError(t, m.Activate(context.Background()))
+			assert.Equal(t, attempts+1, agent.reloads())
 			afterRetry, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
 			require.NoError(t, err)
-			assert.Equal(t, selected, afterRetry, "retry should reuse its complete selected generation")
+			assert.Equal(t, selected, afterRetry, "retry must not issue or select another certificate")
 			assert.Equal(t, selectedFiles, contractSnapshot(t, filepath.Join(paths.StateDir, selected)))
-			beforeProbe := contractSnapshot(t, paths.StateDir)
-			callsBeforeProbe := len(agent.calls())
-			require.NoError(t, m.Activate(context.Background()))
-			assert.Equal(t, beforeProbe, contractSnapshot(t, paths.StateDir))
-			for _, call := range agent.calls()[callsBeforeProbe:] {
-				assert.Equal(t, "systemctl is-active "+AgentService, call, "activation is a side-effect-free probe")
-			}
+			selectedCertificate, err := os.ReadFile(filepath.Join(paths.StateDir, selected, ClientCertificateFileName))
+			require.NoError(t, err)
+			assert.Equal(t, next.CertificatePEM, selectedCertificate)
 			status, err = m.Status(context.Background(), "machine-1")
 			require.NoError(t, err)
 			assert.True(t, status.CredentialsInstalled)
-			assert.Equal(t, "2", status.CertificateSerial)
+			assert.True(t, status.AgentReady)
+			require.NoError(t, m.Activate(context.Background()))
+			assert.Equal(t, attempts+1, agent.reloads(), "delivered notification must not be retried again")
 			assertContractOnlyProbesAndReloads(t, agent)
 			assertContractLockReleased(t)
 		})

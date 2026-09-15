@@ -68,19 +68,24 @@ the `kap-mtls-agent` package's `init.sh` own installation, startup and recovery.
   returns without waiting for startup or holding the package lock across it.
 - Ordinary renewals preserve the existing CA and gateway configuration, select a
   complete immutable credential generation atomically, and signal a running
-  agent with SIGHUP. The certificate metrics confirm the loaded serial and
-  expiry only; they do not prove which startup configuration the process uses.
-- Failed reload acknowledgement preserves the staged generation for retry;
-  the credential handler does not restart the service or roll back activation.
-- A different credential generation must have a distinct leaf serial or expiry;
-  otherwise those metrics cannot distinguish it from the previous leaf.
-- The existing `activateKAPMTLS` command remains a compatibility probe. It does
-  not start or restart the service. An inactive, unready or unconfirmed agent
-  reports an error while the package controller handles recovery.
+  agent with SIGHUP. Success means files were selected and notification was
+  delivered, not proof that the agent finished loading the certificate.
+- A durable pending-notification marker is written before selecting credentials
+  and cleared only after successful SIGHUP delivery. It survives an inactive
+  agent, failed notification or GPUd exit so notification can be retried.
+- Status remains read-only. Certificate fields describe valid selected files;
+  agent readiness requires both a successful readiness probe and no pending
+  notification. Neither field proves which certificate the agent has loaded.
+- The existing `activateKAPMTLS` command retries a pending notification when the
+  agent is running. Otherwise it only checks readiness; it never starts or
+  restarts the service and does not wait for package-owned recovery.
 
 Changing the gateway CA, client-CA fingerprint, gateway endpoint or server name
 requires a separate maintenance procedure with an explicit agent restart. The
 renewal command rejects these changes before writing files, even while the
-agent is inactive. Conflicting or corrupt retained configuration also requires
-explicit maintenance rather than inferring activation from certificate metrics.
-Do not use readiness as proof that a changed endpoint or trust pool is active.
+agent is inactive. It compares the selected configuration, not historical
+generations or process state. Corrupt selected credentials require maintenance
+instead of silently treating their startup configuration as absent.
+Do not use readiness as proof that a changed
+endpoint or trust pool is active. This flow requires a SIGHUP-capable agent;
+asynchronous certificate reload failures remain visible in the agent's logs.
