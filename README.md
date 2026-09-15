@@ -37,7 +37,11 @@ curl -fsSL https://pkg.gpud.dev/install.sh | sh
 To install the latest published version explicitly:
 
 ```bash
-curl -fsSL https://pkg.gpud.dev/install.sh | sh -s -- "$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
+# latest stable release (recommended)
+curl -fsSL https://pkg.gpud.dev/install.sh | sh -s -- "$(curl -fsSL https://pkg.gpud.dev/stable_latest.txt)"
+
+# for the latest unstable (pre-release) version, use unstable_latest.txt instead:
+# curl -fsSL https://pkg.gpud.dev/install.sh | sh -s -- "$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
 ```
 
 The install script supports Linux on amd64 and arm64.
@@ -123,7 +127,9 @@ Install or upgrade to the latest published release from GitHub Pages:
 helm repo add gpud https://leptonai.github.io/gpud
 helm repo update gpud
 
-GPUD_VERSION="$(curl -fsSL https://pkg.gpud.dev/unstable_latest.txt)"
+# latest stable release (recommended)
+# for the latest unstable (pre-release) version, use unstable_latest.txt instead
+GPUD_VERSION="$(curl -fsSL https://pkg.gpud.dev/stable_latest.txt)"
 GPUD_VERSION="${GPUD_VERSION#v}"
 
 helm upgrade --install gpud gpud/gpud \
@@ -136,7 +142,10 @@ helm upgrade --install gpud gpud/gpud \
 Or pull the same chart from NGC:
 
 ```bash
-helm pull https://helm.ngc.nvidia.com/nvidia/lepton/charts/gpud-0.12.24.tgz
+# latest stable release (recommended)
+# for the latest unstable (pre-release) version, use unstable_latest.txt instead
+GPUD_VERSION="$(curl -fsSL https://pkg.gpud.dev/stable_latest.txt)"
+helm pull "https://helm.ngc.nvidia.com/nvidia/lepton/charts/gpud-${GPUD_VERSION#v}.tgz"
 ```
 
 ### Build with Docker
