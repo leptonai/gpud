@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -33,36 +34,49 @@ import (
 var testNow = time.Date(2026, time.July, 10, 0, 0, 0, 0, time.UTC)
 
 type fakeRunner struct {
-	calls           []string
-	active          bool
-	enableErr       error
-	restartErr      error
-	restartFailures int
+	calls        []string
+	active       bool
+	killErr      error
+	killFailures int
+	afterSignal  func(context.Context)
 }
 
-func (r *fakeRunner) Run(_ context.Context, command string, args ...string) ([]byte, error) {
+type inactiveServiceError struct{}
+
+func (inactiveServiceError) Error() string { return "inactive" }
+func (inactiveServiceError) ExitCode() int { return 3 }
+
+func (r *fakeRunner) Run(ctx context.Context, command string, args ...string) ([]byte, error) {
 	call := strings.Join(append([]string{command}, args...), " ")
 	r.calls = append(r.calls, call)
 	if len(args) >= 1 && args[0] == "is-active" {
 		if r.active {
 			return []byte("active\n"), nil
 		}
-		return []byte("inactive\n"), errors.New("inactive")
+		return []byte("inactive\n"), inactiveServiceError{}
 	}
-	if len(args) >= 1 && args[0] == "enable" && r.enableErr != nil {
-		return []byte("enable failed"), r.enableErr
+	if call != hupCommand {
+		return nil, fmt.Errorf("unexpected lifecycle command: %s", call)
 	}
-	if len(args) >= 1 && args[0] == "restart" {
-		if r.restartFailures > 0 {
-			r.restartFailures--
-			return []byte("restart failed"), errors.New("restart failed")
-		}
-		if r.restartErr != nil {
-			return []byte("restart failed"), r.restartErr
-		}
-		r.active = true
+	if r.afterSignal != nil {
+		r.afterSignal(ctx)
+	}
+	if r.killFailures > 0 {
+		r.killFailures--
+		return nil, errors.New("signal failed")
+	}
+	if r.killErr != nil {
+		return nil, r.killErr
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return nil, nil
+}
+
+// Simulate startup by the package controller, outside a credential operation.
+func (r *fakeRunner) startAgent() {
+	r.active = true
 }
 
 func TestDefaultPaths(t *testing.T) {
@@ -73,15 +87,13 @@ func TestDefaultPaths(t *testing.T) {
 	assert.Equal(t, DefaultAgentUnitPath, paths.AgentUnitFile)
 }
 
-func TestUpdateCredentialsActivatesAgent(t *testing.T) {
+func TestUpdateCredentialsStagesUntilPackageControllerStartsAgent(t *testing.T) {
 	manager, runner, paths := newTestManager(t)
 	credentials := newTestCredentials(t, "worker-1", "machine-1", 1)
 
 	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", credentials))
-	assert.Equal(t, []string{
-		"systemctl enable " + AgentService,
-		"systemctl restart " + AgentService,
-	}, runner.calls)
+	assert.Equal(t, []string{"systemctl is-active " + AgentService}, runner.calls)
+	assert.False(t, runner.active)
 
 	target, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
 	require.NoError(t, err)
@@ -98,17 +110,30 @@ func TestUpdateCredentialsActivatesAgent(t *testing.T) {
 	assert.True(t, status.CredentialsInstalled)
 	assert.Equal(t, "1", status.CertificateSerial)
 	assert.True(t, status.AgentInstalled)
-	assert.True(t, status.AgentActive)
-	assert.True(t, status.AgentReady)
+	assert.False(t, status.AgentActive)
+	assert.False(t, status.AgentReady)
 	assert.Equal(t, "0.1.0", status.AgentVersion)
 	assert.Equal(t, credentials.GatewayEndpoint, status.GatewayEndpoint)
 	assert.Equal(t, credentials.ServerName, status.ServerName)
+
+	runner.startAgent()
+	status, err = manager.Status(context.Background(), "machine-1")
+	require.NoError(t, err)
+	assert.True(t, status.CredentialsInstalled)
+	assert.True(t, status.AgentActive)
+	assert.False(t, status.AgentReady, "startup does not acknowledge the pending reload")
+	require.NoError(t, manager.Activate(context.Background()))
+	status, err = manager.Status(context.Background(), "machine-1")
+	require.NoError(t, err)
+	assert.True(t, status.AgentReady)
 }
 
 func TestUpdateCredentialsReplacesAndCleansGeneration(t *testing.T) {
-	manager, _, paths := newTestManager(t)
-	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
-	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2)))
+	manager, runner, paths := newTestManager(t)
+	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
+	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", initial))
+	runner.startAgent()
+	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 2)))
 
 	entries, err := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
 	require.NoError(t, err)
@@ -141,125 +166,124 @@ func TestUpdateCredentialsRejectsGatewayFingerprintMismatch(t *testing.T) {
 	require.ErrorContains(t, err, "does not match")
 }
 
-func TestUpdateCredentialsRollsBackFailedActivation(t *testing.T) {
+func TestUpdateCredentialsRejectsActiveAgentWithoutSelectedCredentials(t *testing.T) {
 	manager, runner, paths := newTestManager(t)
-	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
-	previousTarget, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
-	require.NoError(t, err)
-	runner.restartErr = errors.New("systemd unavailable")
-
-	err = manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2))
-	require.ErrorContains(t, err, "restart KAP mTLS agent")
-	currentTarget, readErr := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
-	require.NoError(t, readErr)
-	assert.Equal(t, previousTarget, currentTarget)
-
-	status, statusErr := manager.Status(context.Background(), "machine-1")
-	require.NoError(t, statusErr)
-	assert.Equal(t, "1", status.CertificateSerial)
-}
-
-func TestUpdateCredentialsRemovesFailedInitialSelection(t *testing.T) {
-	manager, runner, paths := newTestManager(t)
-	runner.restartErr = errors.New("systemd unavailable")
-
+	runner.active = true
 	err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
-	require.ErrorContains(t, err, "restart KAP mTLS agent")
-	_, statErr := os.Lstat(filepath.Join(paths.StateDir, CurrentSymlinkName))
-	require.ErrorIs(t, statErr, os.ErrNotExist)
+	require.ErrorContains(t, err, "requires explicit maintenance/restart")
+	_, err = os.Stat(filepath.Join(paths.StateDir, ReleasesDirectoryName))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	assert.NotContains(t, runner.calls, hupCommand)
 }
 
-func TestUpdateCredentialsRollsBackAndRestartsPreviousRelease(t *testing.T) {
-	manager, runner, paths := newTestManager(t)
-	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
-	previousTarget, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
-	require.NoError(t, err)
-	runner.restartFailures = 1
-
-	err = manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2))
-	require.ErrorContains(t, err, "restart KAP mTLS agent")
-	currentTarget, readErr := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
-	require.NoError(t, readErr)
-	assert.Equal(t, previousTarget, currentTarget)
-	assert.Equal(t, 0, runner.restartFailures)
+func TestUpdateCredentialsRejectsUnknownServiceStateWithoutWriting(t *testing.T) {
+	for _, canceled := range []bool{false, true} {
+		t.Run(fmt.Sprint(canceled), func(t *testing.T) {
+			manager, _, paths := newTestManager(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			manager.runner = operationLockRunner(func(context.Context, string, ...string) ([]byte, error) {
+				if canceled {
+					cancel()
+				}
+				return nil, errors.New("systemd unavailable")
+			})
+			err := manager.UpdateCredentials(ctx, "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
+			if canceled {
+				require.ErrorIs(t, err, context.Canceled)
+			} else {
+				require.ErrorContains(t, err, "query KAP mTLS agent state")
+			}
+			_, err = os.Stat(filepath.Join(paths.StateDir, ReleasesDirectoryName))
+			require.ErrorIs(t, err, os.ErrNotExist)
+		})
+	}
 }
 
-func TestUpdateCredentialsRollsBackOnEnableAndReadinessFailures(t *testing.T) {
-	t.Run("enable", func(t *testing.T) {
-		manager, runner, paths := newTestManager(t)
-		runner.enableErr = errors.New("enable unavailable")
-
-		err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
-		require.ErrorContains(t, err, "enable KAP mTLS agent")
-		_, statErr := os.Lstat(filepath.Join(paths.StateDir, CurrentSymlinkName))
-		require.ErrorIs(t, statErr, os.ErrNotExist)
-	})
-
-	t.Run("readiness", func(t *testing.T) {
-		manager, _, paths := newTestManager(t)
-		require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
-		previousTarget, err := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
-		require.NoError(t, err)
-		manager.readyURL = "http://127.0.0.1:1"
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-		defer cancel()
-
-		err = manager.UpdateCredentials(ctx, "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2))
-		require.ErrorContains(t, err, "did not become ready")
-		currentTarget, readErr := os.Readlink(filepath.Join(paths.StateDir, CurrentSymlinkName))
-		require.NoError(t, readErr)
-		assert.Equal(t, previousTarget, currentTarget)
-	})
+func TestUpdateCredentialsRequiresExplicitlyInactiveServiceForInitialStaging(t *testing.T) {
+	for _, state := range []string{"inactive", "failed", "activating", "deactivating", "reloading", "unknown", ""} {
+		t.Run(state, func(t *testing.T) {
+			manager, _, paths := newTestManager(t)
+			manager.runner = operationLockRunner(func(_ context.Context, command string, args ...string) ([]byte, error) {
+				assert.Equal(t, "systemctl", command)
+				assert.Equal(t, []string{"is-active", AgentService}, args)
+				return []byte(state + "\n"), inactiveServiceError{}
+			})
+			err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
+			if state == "inactive" || state == "failed" {
+				require.NoError(t, err)
+				_, err = manager.currentReleaseID()
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "query KAP mTLS agent state")
+				_, err = os.Stat(filepath.Join(paths.StateDir, ReleasesDirectoryName))
+				require.ErrorIs(t, err, os.ErrNotExist)
+			}
+		})
+	}
 }
 
-func TestActivateRestartsCurrentCredentials(t *testing.T) {
+func TestActivateOnlyProbesCurrentCredentials(t *testing.T) {
 	manager, runner, _ := newTestManager(t)
 	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
+	runner.startAgent()
+	require.NoError(t, manager.Activate(context.Background()))
 	runner.calls = nil
 
 	require.NoError(t, manager.Activate(context.Background()))
-	assert.Equal(t, []string{
-		"systemctl enable " + AgentService,
-		"systemctl restart " + AgentService,
-	}, runner.calls)
+	assert.Equal(t, []string{"systemctl is-active " + AgentService}, runner.calls)
+}
+
+func TestServiceActiveRejectsUnexpectedSuccessfulQuery(t *testing.T) {
+	for _, state := range []string{"active", "reloading", "activating", "unknown", ""} {
+		t.Run(state, func(t *testing.T) {
+			manager, _, _ := newTestManager(t)
+			manager.runner = operationLockRunner(func(context.Context, string, ...string) ([]byte, error) {
+				return []byte(state + "\n"), nil
+			})
+			active, err := manager.serviceActive(context.Background())
+			if state == "active" || state == "reloading" {
+				require.NoError(t, err)
+				assert.True(t, active)
+			} else {
+				require.ErrorContains(t, err, "unexpected service state")
+				assert.False(t, active)
+			}
+		})
+	}
 }
 
 func TestActivateFailureModes(t *testing.T) {
-	t.Run("agent missing", func(t *testing.T) {
-		manager, _, paths := newTestManager(t)
-		require.NoError(t, os.Remove(paths.AgentBinary))
-		require.ErrorContains(t, manager.Activate(context.Background()), "not installed")
-	})
-
-	t.Run("credentials missing", func(t *testing.T) {
-		manager, _, _ := newTestManager(t)
-		require.ErrorContains(t, manager.Activate(context.Background()), "credentials are not installed")
-	})
-
-	for _, test := range []struct {
-		name      string
-		configure func(*fakeRunner)
-		want      string
-	}{
-		{name: "enable", configure: func(r *fakeRunner) { r.enableErr = errors.New("enable failed") }, want: "enable KAP mTLS agent"},
-		{name: "restart", configure: func(r *fakeRunner) { r.restartErr = errors.New("restart failed") }, want: "restart KAP mTLS agent"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			manager, runner, _ := newTestManager(t)
-			require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
-			test.configure(runner)
-			require.ErrorContains(t, manager.Activate(context.Background()), test.want)
+	for _, mode := range []string{"agent missing", "credentials missing", "inactive", "unready", "corrupt credentials"} {
+		t.Run(mode, func(t *testing.T) {
+			manager, runner, paths := newTestManager(t)
+			if mode != "credentials missing" {
+				require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
+				runner.startAgent()
+			}
+			want := "package controller"
+			switch mode {
+			case "agent missing":
+				require.NoError(t, os.Remove(paths.AgentBinary))
+				want = "not installed"
+			case "credentials missing":
+				want = "not installed"
+			case "inactive":
+				runner.active = false
+			case "unready":
+				require.NoError(t, manager.Activate(context.Background()))
+				manager.readyURL = "http://127.0.0.1:1"
+			case "corrupt credentials":
+				require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName, ClientCertificateFileName), []byte("broken"), 0600))
+				want = "validate active KAP mTLS credentials"
+			}
+			runner.calls = nil
+			require.ErrorContains(t, manager.Activate(context.Background()), want)
+			for _, call := range runner.calls {
+				assert.Equal(t, "systemctl is-active "+AgentService, call)
+			}
 		})
 	}
-
-	t.Run("readiness", func(t *testing.T) {
-		manager, _, _ := newTestManager(t)
-		require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
-		manager.readyURL = "http://127.0.0.1:1"
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-		defer cancel()
-		require.ErrorContains(t, manager.Activate(ctx), "did not become ready")
-	})
 }
 
 func TestConcurrentManagersKeepCurrentRelease(t *testing.T) {
@@ -272,9 +296,10 @@ func TestConcurrentManagersKeepCurrentRelease(t *testing.T) {
 
 	var wg sync.WaitGroup
 	errs := make(chan error, 2)
+	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
 	credentials := map[int64]Credentials{
-		1: newTestCredentials(t, "worker-1", "machine-1", 1),
-		2: newTestCredentials(t, "worker-1", "machine-1", 2),
+		1: initial,
+		2: renewedCredentials(t, initial, 2),
 	}
 	for serial, manager := range map[int64]*Manager{1: managerA, 2: managerB} {
 		wg.Add(1)
@@ -295,18 +320,17 @@ func TestConcurrentManagersKeepCurrentRelease(t *testing.T) {
 	require.NoError(t, err)
 	entries, err := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
 	require.NoError(t, err)
-	assert.Len(t, entries, 1)
+	assert.Len(t, entries, 2, "inactive staging retains both complete generations")
 }
 
-func TestStatusTreatsCorruptGenerationAsMissing(t *testing.T) {
+func TestStatusRejectsCorruptGeneration(t *testing.T) {
 	manager, _, paths := newTestManager(t)
 	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
 	require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName, ClientCertificateFileName), []byte("broken"), 0600))
 
 	status, err := manager.Status(context.Background(), "machine-1")
-	require.NoError(t, err)
-	assert.False(t, status.CredentialsInstalled)
-	assert.True(t, status.AgentInstalled)
+	require.ErrorContains(t, err, "requires explicit maintenance/restart")
+	assert.Nil(t, status)
 }
 
 func TestStatusWithoutCredentialsOrAgentVersion(t *testing.T) {
@@ -489,8 +513,9 @@ func TestFilesystemAndReadinessHelpers(t *testing.T) {
 	manager.readyURL = readyServer.URL
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	assert.True(t, manager.waitReady(ctx))
-	assert.GreaterOrEqual(t, probes.Load(), int32(2))
+	assert.False(t, manager.probeReady(ctx))
+	assert.True(t, manager.probeReady(ctx))
+	assert.Equal(t, int32(2), probes.Load())
 
 	manager.readyURL = "://invalid"
 	assert.False(t, manager.probeReady(context.Background()))
@@ -525,36 +550,7 @@ func TestInspectCredentialsReportsIncompleteRelease(t *testing.T) {
 	}
 }
 
-func TestReleaseAndRollbackErrorBoundaries(t *testing.T) {
-	t.Run("update reports current selection failure after readiness", func(t *testing.T) {
-		manager, _, paths := newTestManager(t)
-		removeErr := make(chan error, 1)
-		readyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			select {
-			case removeErr <- os.Remove(filepath.Join(paths.StateDir, CurrentSymlinkName)):
-			default:
-			}
-			w.WriteHeader(http.StatusOK)
-		}))
-		t.Cleanup(readyServer.Close)
-		manager.readyURL = readyServer.URL
-
-		err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
-		require.NoError(t, <-removeErr)
-		require.ErrorContains(t, err, "read KAP mTLS current symlink")
-	})
-
-	t.Run("update reports current symlink swap failure", func(t *testing.T) {
-		manager, _, paths := newTestManager(t)
-		manager.now = func() time.Time {
-			require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName), []byte("regular"), 0600))
-			return testNow
-		}
-
-		err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1))
-		require.ErrorContains(t, err, "current path is not a symlink")
-	})
-
+func TestReleaseErrorBoundaries(t *testing.T) {
 	t.Run("update rejects invalid current selection", func(t *testing.T) {
 		manager, _, paths := newTestManager(t)
 		require.NoError(t, os.WriteFile(filepath.Join(paths.StateDir, CurrentSymlinkName), []byte("regular"), 0600))
@@ -670,36 +666,6 @@ func TestReleaseAndRollbackErrorBoundaries(t *testing.T) {
 		require.ErrorContains(t, err, "remove inactive KAP mTLS release")
 	})
 
-	t.Run("rollback cannot restore invalid previous release", func(t *testing.T) {
-		manager, _, _ := newTestManager(t)
-		err := manager.rollbackActivation(context.Background(), "invalid", true, errors.New("activation failed"))
-		require.ErrorContains(t, err, "restore previous KAP mTLS credentials")
-	})
-
-	t.Run("rollback cannot remove non-empty current directory", func(t *testing.T) {
-		manager, _, paths := newTestManager(t)
-		currentPath := filepath.Join(paths.StateDir, CurrentSymlinkName)
-		require.NoError(t, os.Mkdir(currentPath, 0700))
-		require.NoError(t, os.WriteFile(filepath.Join(currentPath, "child"), []byte("data"), 0600))
-		err := manager.rollbackActivation(context.Background(), "", false, errors.New("activation failed"))
-		require.ErrorContains(t, err, "remove failed KAP mTLS credential selection")
-	})
-
-	t.Run("rollback reports previous service restart failure", func(t *testing.T) {
-		manager, runner, _ := newTestManager(t)
-		require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
-		runner.restartFailures = 2
-
-		err := manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2))
-		require.ErrorContains(t, err, "restart KAP mTLS agent with previous credentials")
-	})
-
-	t.Run("rollback reports state directory sync failure", func(t *testing.T) {
-		manager := NewManager(Paths{StateDir: filepath.Join(t.TempDir(), "missing")})
-		err := manager.rollbackActivation(context.Background(), "", false, errors.New("activation failed"))
-		require.ErrorContains(t, err, "open directory")
-	})
-
 	t.Run("credential inspection reports filesystem errors", func(t *testing.T) {
 		if os.Geteuid() == 0 {
 			t.Skip("root bypasses directory search permissions")
@@ -745,15 +711,16 @@ func newTestManager(t *testing.T) (*Manager, *fakeRunner, Paths) {
 	require.NoError(t, os.WriteFile(paths.AgentUnitFile, []byte("unit"), 0644))
 	require.NoError(t, os.WriteFile(paths.AgentVersionFile, []byte("0.1.0\n"), 0600))
 
-	readyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	runner := &fakeRunner{}
+	readyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/readyz", r.URL.Path, "credential operations must not request runtime metrics")
 		w.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(readyServer.Close)
-	runner := &fakeRunner{}
 	manager := NewManager(paths)
 	manager.runner = runner
 	manager.httpClient = readyServer.Client()
-	manager.readyURL = readyServer.URL
+	manager.readyURL = readyServer.URL + "/readyz"
 	manager.now = func() time.Time { return testNow }
 	return manager, runner, paths
 }
