@@ -108,7 +108,6 @@ func redactSessionCredentials(value any) {
 						credentials[credentialKey] = "<redacted>"
 					}
 				}
-				continue
 			}
 			if strings.EqualFold(key, "node_credentials") {
 				// Every file under here is credential material, and the

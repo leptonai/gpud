@@ -249,6 +249,19 @@ func TestAuditSessionRequestDataRedactsNestedBootstrapScripts(t *testing.T) {
 	malformed := auditSessionRequestData([]byte(`{"method":"bootstrap","bootstrap":"invalid-secret-payload"}`)).(map[string]any)
 	assert.Equal(t, "<redacted>", malformed["bootstrap"])
 	assert.Equal(t, "bootstrap", malformed["method"])
+
+	for _, input := range []string{
+		`{"kap_mtls_credentials":{"script_base64":"nested-script-secret","gateway_endpoint":"gateway:8443"}}`,
+		`{"kap_mtls_credentials":{"children":[{"BOOTSTRAP":{"SCRIPT_BASE64":"nested-script-secret"}}],"gateway_endpoint":"gateway:8443"}}`,
+	} {
+		t.Run(input, func(t *testing.T) {
+			redacted, err := json.Marshal(auditSessionRequestData([]byte(input)))
+			require.NoError(t, err)
+			assert.NotContains(t, string(redacted), "nested-script-secret")
+			assert.Contains(t, string(redacted), "redacted")
+			assert.Contains(t, string(redacted), "gateway:8443")
+		})
+	}
 }
 
 func TestKAPMTLSWireTypesRoundTrip(t *testing.T) {
