@@ -156,6 +156,13 @@ host disk inspection is needed.
 
 ### Containerd Monitoring Inside DaemonSet Pods
 
+When the NVIDIA configuration check fails, GPUd adds live containerd details
+from a bounded verbose CRI status request: CDI support, the default handler,
+and configured handlers. If a READY local sandbox references a missing handler,
+the reason also names that pod and handler. These are supplemental diagnostics;
+they never change the existing health verdict, configuration checks, or startup
+grace period. Pending pods without a sandbox are not covered by these details.
+
 The containerd component checks the host's containerd socket and CRI endpoint,
 reads `/etc/containerd/config.toml` to verify the NVIDIA runtime is configured,
 and checks whether the containerd systemd service is active. Run from inside a
