@@ -2199,7 +2199,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 	tests := []struct {
 		name                              string
 		nvmlInstance                      nvidianvml.Instance
-		getRuntimeConfigFunc              func() ([]byte, error)
+		getContainerdConfigFunc           func() ([]byte, error)
 		pods                              []PodSandbox
 		getTimeNowFunc                    func() time.Time
 		containerToolkitCreationThreshold time.Duration
@@ -2212,8 +2212,11 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "nvidia", "runtimes": {"runc": {}, "nvidia": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []PodSandbox{
 				{
@@ -2239,8 +2242,11 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "nvidia", "runtimes": {"runc": {}, "nvidia": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []PodSandbox{
 				{
@@ -2266,8 +2272,14 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": true, "containerd": {"defaultRuntimeName": "runc", "runtimes": {"runc": {}, "nvidia": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `[plugins."io.containerd.cri.v1.runtime".containerd]
+  default_runtime_name = "runc"
+[plugins."io.containerd.cri.v1.runtime"]
+  enable_cdi = true
+[plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []PodSandbox{
 				{
@@ -2293,8 +2305,8 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "runc", "runtimes": {"runc": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("[plugins.\"io.containerd.grpc.v1.cri\".containerd.runtimes.runc]"), nil
 			},
 			pods: []PodSandbox{
 				{
@@ -2306,7 +2318,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
 			expectedHealth:                    apiv1.HealthStateTypeUnhealthy,
-			expectedReason:                    "native CDI is disabled and containerd's default runtime is not nvidia",
+			expectedReason:                    "nvidia-container-toolkit pod is running but /etc/containerd/config.toml is missing NVIDIA runtime configuration",
 		},
 		{
 			name: "nvml with container toolkit but not running long enough",
@@ -2314,8 +2326,11 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "nvidia", "runtimes": {"runc": {}, "nvidia": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []PodSandbox{
 				{
@@ -2341,8 +2356,11 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "nvidia", "runtimes": {"runc": {}, "nvidia": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []PodSandbox{
 				{
@@ -2368,8 +2386,11 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "nvidia", "runtimes": {"runc": {}, "nvidia": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []PodSandbox{
 				{
@@ -2389,8 +2410,11 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "nvidia", "runtimes": {"runc": {}, "nvidia": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			pods: []PodSandbox{
 				{
@@ -2409,7 +2433,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
+			getContainerdConfigFunc: func() ([]byte, error) {
 				return nil, errors.New("config read error")
 			},
 			pods: []PodSandbox{
@@ -2421,8 +2445,8 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 			},
 			getTimeNowFunc:                    time.Now,
 			containerToolkitCreationThreshold: 10 * time.Minute,
-			expectedHealth:                    apiv1.HealthStateTypeDegraded,
-			expectedReason:                    "containerd runtime configuration check unavailable",
+			expectedHealth:                    apiv1.HealthStateTypeHealthy,
+			expectedReason:                    "error getting containerd config",
 		},
 	}
 
@@ -2436,7 +2460,7 @@ func TestNVMLValidationWithContainerToolkit(t *testing.T) {
 				cancel: cancel,
 
 				nvmlInstance:                      tt.nvmlInstance,
-				getRuntimeConfigFunc:              tt.getRuntimeConfigFunc,
+				getContainerdConfigFunc:           tt.getContainerdConfigFunc,
 				getTimeNowFunc:                    tt.getTimeNowFunc,
 				containerToolkitCreationThreshold: tt.containerToolkitCreationThreshold,
 
@@ -3061,17 +3085,17 @@ func TestCheckWhenContainerdCRINotEnabled(t *testing.T) {
 
 func TestNVMLValidation(t *testing.T) {
 	tests := []struct {
-		name                 string
-		nvmlInstance         nvidianvml.Instance
-		getRuntimeConfigFunc func() ([]byte, error)
-		expectedHealth       apiv1.HealthStateType
-		expectedReason       string
+		name                    string
+		nvmlInstance            nvidianvml.Instance
+		getContainerdConfigFunc func() ([]byte, error)
+		expectedHealth          apiv1.HealthStateType
+		expectedReason          string
 	}{
 		{
 			name:         "nvml instance is nil",
 			nvmlInstance: nil,
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "runc", "runtimes": {"runc": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("nvidia"), nil
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedReason: "ok",
@@ -3082,8 +3106,8 @@ func TestNVMLValidation(t *testing.T) {
 				nvmlExists:  false,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "runc", "runtimes": {"runc": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("nvidia"), nil
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedReason: "ok",
@@ -3094,21 +3118,21 @@ func TestNVMLValidation(t *testing.T) {
 				nvmlExists:  true,
 				productName: "",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "runc", "runtimes": {"runc": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("nvidia"), nil
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedReason: "ok",
 		},
 		{
-			name: "getRuntimeConfigFunc is nil - skips config check",
+			name: "getContainerdConfigFunc is nil - skips config check",
 			nvmlInstance: &mockNVMLInstance{
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: nil,
-			expectedHealth:       apiv1.HealthStateTypeHealthy,
-			expectedReason:       "ok",
+			getContainerdConfigFunc: nil,
+			expectedHealth:          apiv1.HealthStateTypeHealthy,
+			expectedReason:          "ok",
 		},
 		{
 			name: "config read error",
@@ -3116,7 +3140,7 @@ func TestNVMLValidation(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
+			getContainerdConfigFunc: func() ([]byte, error) {
 				return nil, errors.New("config file not found")
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
@@ -3128,8 +3152,19 @@ func TestNVMLValidation(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "nvidia", "runtimes": {"runc": {}, "nvidia": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd]
+  default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"
+  runtime_engine = ""
+  runtime_root = ""
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  privileged_without_host_devices = false
+  runtime_engine = ""
+  runtime_root = ""
+  runtime_type = "io.containerd.runc.v2"`
+				return []byte(config), nil
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedReason: "ok",
@@ -3140,8 +3175,12 @@ func TestNVMLValidation(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "runc", "runtimes": {"runc": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				config := `[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"
+  runtime_engine = ""
+  runtime_root = ""`
+				return []byte(config), nil
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedReason: "ok",
@@ -3152,8 +3191,8 @@ func TestNVMLValidation(t *testing.T) {
 				nvmlExists:  true,
 				productName: "Tesla V100",
 			},
-			getRuntimeConfigFunc: func() ([]byte, error) {
-				return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "runc", "runtimes": {"runc": {}}}}`), nil
+			getContainerdConfigFunc: func() ([]byte, error) {
+				return []byte("some other config without that gpu runtime"), nil
 			},
 			expectedHealth: apiv1.HealthStateTypeHealthy,
 			expectedReason: "ok",
@@ -3169,8 +3208,8 @@ func TestNVMLValidation(t *testing.T) {
 				ctx:    ctx,
 				cancel: cancel,
 
-				nvmlInstance:         tt.nvmlInstance,
-				getRuntimeConfigFunc: tt.getRuntimeConfigFunc,
+				nvmlInstance:            tt.nvmlInstance,
+				getContainerdConfigFunc: tt.getContainerdConfigFunc,
 
 				// Mock all dependencies as successful to focus on NVML validation
 				checkDependencyInstalledFunc: func() bool {
@@ -3217,8 +3256,12 @@ func TestNVMLValidationIntegration(t *testing.T) {
 			nvmlExists:  true,
 			productName: "Tesla V100-SXM2-32GB",
 		},
-		getRuntimeConfigFunc: func() ([]byte, error) {
-			return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "runc", "runtimes": {"runc": {}}}}`), nil
+		getContainerdConfigFunc: func() ([]byte, error) {
+			// Return a config that doesn't contain "nvidia"
+			return []byte(`[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  runtime_type = "io.containerd.runc.v2"
+  runtime_engine = ""
+  runtime_root = ""`), nil
 		},
 
 		// All other checks pass
@@ -3651,8 +3694,12 @@ func TestContainerToolkitValidation(t *testing.T) {
 				nvmlInstance:                      tt.nvmlInstance,
 				getTimeNowFunc:                    tt.getTimeNowFunc,
 				containerToolkitCreationThreshold: tt.containerToolkitCreationThreshold,
-				getRuntimeConfigFunc: func() ([]byte, error) {
-					return []byte(`{"enableCDI": false, "containerd": {"defaultRuntimeName": "nvidia", "runtimes": {"runc": {}, "nvidia": {}}}}`), nil
+				getContainerdConfigFunc: func() ([]byte, error) {
+					// Return config with both nvidia settings to avoid the nvidia config warning
+					config := `default_runtime_name = "nvidia"
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+  runtime_type = "io.containerd.runc.v2"`
+					return []byte(config), nil
 				},
 
 				// Mock all dependencies as successful to focus on container toolkit validation

@@ -488,8 +488,8 @@ func IsErrUnimplemented(err error) bool {
 }
 
 // runtimeConfig is the subset of containerd's verbose CRI status needed for
-// runtime health. Query the running daemon so imports, defaults, and unapplied
-// config-file changes cannot produce a false health verdict.
+// diagnostics. The loaded settings supplement, rather than replace, the
+// on-disk configuration checks.
 type runtimeConfig struct {
 	EnableCDI  bool `json:"enableCDI"`
 	Containerd struct {

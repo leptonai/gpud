@@ -156,23 +156,24 @@ host disk inspection is needed.
 
 ### Containerd Monitoring Inside DaemonSet Pods
 
-Native CDI does not require a separate NVIDIA runtime handler. GPUd checks that
-every READY local CRI sandbox has its runtime handler loaded, and reports the
-pod and missing handler when it does not. This covers existing sandboxes, not
-pending pods that have never created one. Missing or invalid verbose CRI
-configuration is reported as Degraded.
+When the NVIDIA configuration check fails, GPUd adds live containerd details
+from a bounded verbose CRI status request: CDI support, the default handler,
+and configured handlers. If a READY local sandbox references a missing handler,
+the reason also names that pod and handler. These are supplemental diagnostics;
+they never change the existing health verdict, configuration checks, or startup
+grace period. Pending pods without a sandbox are not covered by these details.
 
 The containerd component checks the host's containerd socket and CRI endpoint,
-uses verbose CRI status to check the loaded runtime handlers and native CDI,
+reads `/etc/containerd/config.toml` to verify the NVIDIA runtime is configured,
 and checks whether the containerd systemd service is active. Run from inside a
-container, the host socket is not visible and the systemd check only sees the
+container, the socket/config are not visible and the systemd check only sees the
 container's own service manager. The chart addresses both:
 
 ```yaml
 gpud:
   # Bind-mount the host's containerd dirs (default true):
   #   /run/containerd (read-write)  -> socket + CRI endpoint
-  #   /etc/containerd (read-only)   -> retained for older GPUd images
+  #   /etc/containerd (read-only)   -> config.toml NVIDIA-runtime check
   # Both use hostPath DirectoryOrCreate, so the pod still starts without containerd.
   mountContainerd: true
 
