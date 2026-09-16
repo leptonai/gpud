@@ -198,8 +198,8 @@ spec:
             type: DirectoryOrCreate
 
         # Host containerd config directory (holds config.toml).
-        # Required by: components/containerd (read /etc/containerd/config.toml to
-        # verify the NVIDIA runtime is configured). Mounted read-only.
+        # Retained for older GPUd images that check the config file.
+        # Current runtime checks use verbose CRI status. Mounted read-only.
         - name: host-etc-containerd
           hostPath:
             path: /etc/containerd
@@ -692,8 +692,7 @@ spec:
             - name: host-run-containerd
               mountPath: /run/containerd
 
-            # Host containerd config for the NVIDIA-runtime check (read-only).
-            # Mounted at the same path gpud reads (/etc/containerd/config.toml).
+            # Host containerd config retained for older GPUd images (read-only).
             - name: host-etc-containerd
               mountPath: /etc/containerd
               readOnly: true

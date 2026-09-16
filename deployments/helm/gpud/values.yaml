@@ -206,9 +206,8 @@ gpud:
   # the node's containerd when gpud runs inside a container:
   #   - /run/containerd (read-write): stat the socket and reach the CRI endpoint
   #     at unix:///run/containerd/containerd.sock.
-  #   - /etc/containerd (read-only): read config.toml to verify the NVIDIA runtime
-  #     is configured. Without this, gpud sees only the container image's stub
-  #     config and falsely reports the NVIDIA runtime as missing.
+  #   - /etc/containerd (read-only): retained for older GPUd images. Current
+  #     runtime configuration checks use verbose CRI status over the socket.
   # Both use hostPath type DirectoryOrCreate, so the pod still starts on nodes
   # without containerd (the component then reports containerd as not installed).
   # Set to false on nodes that do not run containerd (e.g. docker/cri-o only).

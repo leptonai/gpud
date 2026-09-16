@@ -2,6 +2,7 @@ package containerd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -388,8 +389,9 @@ func convertToPodSandboxes(listPodSandboxResp *runtimeapi.ListPodSandboxResponse
 			Name:      podSandbox.Metadata.Name,
 			Namespace: podSandbox.Metadata.Namespace,
 
-			CreatedAt: podSandbox.CreatedAt,
-			State:     podSandbox.State.String(),
+			RuntimeHandler: podSandbox.RuntimeHandler,
+			CreatedAt:      podSandbox.CreatedAt,
+			State:          podSandbox.State.String(),
 
 			// to be filled in later
 			Containers: nil,
@@ -441,9 +443,11 @@ func convertToPodSandboxes(listPodSandboxResp *runtimeapi.ListPodSandboxResponse
 // Simplified version of k8s.io/cri-api/pkg/apis/runtime/v1.PodSandbox.
 // ref. https://pkg.go.dev/k8s.io/cri-api/pkg/apis/runtime/v1#ListPodSandboxResponse
 type PodSandbox struct {
-	ID        string `json:"id,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-	Name      string `json:"name,omitempty"`
+	// RuntimeHandler is the resolved CRI handler, not the Kubernetes RuntimeClass name.
+	RuntimeHandler string `json:"runtime_handler,omitempty"`
+	ID             string `json:"id,omitempty"`
+	Namespace      string `json:"namespace,omitempty"`
+	Name           string `json:"name,omitempty"`
 
 	// Creation time of the container in nanoseconds.
 	CreatedAt int64 `json:"created_at,omitempty"`
@@ -481,4 +485,39 @@ func IsErrUnimplemented(err error) bool {
 		return st.Code() == codes.Unimplemented
 	}
 	return false
+}
+
+// runtimeConfig is the subset of containerd's verbose CRI status needed for
+// runtime health. Query the running daemon so imports, defaults, and unapplied
+// config-file changes cannot produce a false health verdict.
+type runtimeConfig struct {
+	EnableCDI  bool `json:"enableCDI"`
+	Containerd struct {
+		DefaultRuntimeName string                     `json:"defaultRuntimeName"`
+		Runtimes           map[string]json.RawMessage `json:"runtimes"`
+	} `json:"containerd"`
+}
+
+func getRuntimeConfig(ctx context.Context, endpoint string) ([]byte, error) {
+	conn, err := connect(ctx, endpoint)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = conn.Close() }()
+	resp, err := runtimeapi.NewRuntimeServiceClient(conn).Status(ctx, &runtimeapi.StatusRequest{Verbose: true})
+	if err != nil {
+		return nil, err
+	}
+	return []byte(resp.GetInfo()["config"]), nil
+}
+
+func parseRuntimeConfig(data []byte) (runtimeConfig, error) {
+	var config runtimeConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return config, fmt.Errorf("decode containerd runtime configuration: %w", err)
+	}
+	if config.Containerd.DefaultRuntimeName == "" || len(config.Containerd.Runtimes) == 0 {
+		return config, errors.New("containerd CRI status omitted runtime configuration")
+	}
+	return config, nil
 }

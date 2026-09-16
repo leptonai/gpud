@@ -7,9 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -26,10 +23,9 @@ import (
 
 // Name is the ID of the containerd component.
 const (
-	Name                        = "containerd"
-	danglingDegradedThreshold   = 5
-	danglingUnhealthyThreshold  = 10
-	defaultContainerdConfigPath = "/etc/containerd/config.toml"
+	Name                       = "containerd"
+	danglingDegradedThreshold  = 5
+	danglingUnhealthyThreshold = 10
 
 	// danglingPodAbsentGrace is how long a READY sandbox's pod must be
 	// continuously absent from the API server pod list before the sandbox
@@ -43,24 +39,7 @@ const (
 	defaultActivenssCheckUptimeThreshold = 5 * time.Minute
 
 	socketMissingConsecutiveThreshold = 5
-
-	// Containerd config strings to check for NVIDIA runtime configuration.
-	// containerd 1.x uses the "io.containerd.grpc.v1.cri" plugin path; 2.x
-	// uses "io.containerd.cri.v1.runtime". Either is acceptable.
-	containerdConfigNvidiaDefaultRuntime  = `default_runtime_name = "nvidia"`
-	containerdConfigNvidiaRuntimePlugin   = `plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia`
-	containerdConfigNvidiaRuntimePluginV2 = `plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia`
 )
-
-// containerdConfigImportsRe matches `imports = [...]` directives in a
-// containerd config so any drop-in files (e.g. /etc/containerd/conf.d/*.toml
-// written by nvidia-container-toolkit-daemonset) can be inspected too.
-var containerdConfigImportsRe = regexp.MustCompile(`(?m)^\s*imports\s*=\s*\[([^\]]*)\]`)
-
-// containerdConfigCDIEnabledRe matches containerd's native CDI setting.
-// Native CDI allows runc to remain the default runtime while GPU workloads
-// select the configured NVIDIA runtime handler.
-var containerdConfigCDIEnabledRe = regexp.MustCompile(`(?m)^\s*enable_cdi\s*=\s*true\s*(?:#.*)?$`)
 
 var _ components.Component = &component{}
 
@@ -72,7 +51,7 @@ type component struct {
 
 	getTimeNowFunc                    func() time.Time
 	containerToolkitCreationThreshold time.Duration
-	getContainerdConfigFunc           func() ([]byte, error)
+	getRuntimeConfigFunc              func() ([]byte, error)
 
 	checkDependencyInstalledFunc  func() bool
 	checkSocketExistsFunc         func() bool
@@ -125,8 +104,10 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return time.Now().UTC()
 		},
 		containerToolkitCreationThreshold: 10 * time.Minute,
-		getContainerdConfigFunc: func() ([]byte, error) {
-			return os.ReadFile(defaultContainerdConfigPath)
+		getRuntimeConfigFunc: func() ([]byte, error) {
+			ctx, cancel := context.WithTimeout(cctx, 15*time.Second)
+			defer cancel()
+			return getRuntimeConfig(ctx, DefaultContainerRuntimeEndpoint)
 		},
 
 		checkDependencyInstalledFunc: checkContainerdInstalled,
@@ -415,7 +396,38 @@ func (c *component) Check() components.CheckResult {
 		c.nvmlInstance.NVMLExists() &&
 		c.nvmlInstance.ProductName() != "" &&
 		len(cr.Pods) > 0 &&
-		c.getContainerdConfigFunc != nil {
+		c.getRuntimeConfigFunc != nil {
+		data, err := c.getRuntimeConfigFunc()
+		var config runtimeConfig
+		if err == nil {
+			config, err = parseRuntimeConfig(data)
+		}
+		if err != nil {
+			cr.health = apiv1.HealthStateTypeDegraded
+			cr.appendReason("containerd runtime configuration check unavailable")
+			cr.err = err
+			return cr
+		}
+		for _, pod := range cr.Pods {
+			if pod.State != "SANDBOX_READY" {
+				continue
+			}
+			handler := pod.RuntimeHandler
+			if handler == "" {
+				handler = config.Containerd.DefaultRuntimeName
+			}
+			if _, ok := config.Containerd.Runtimes[handler]; !ok {
+				cr.health = apiv1.HealthStateTypeUnhealthy
+				cr.appendReason(fmt.Sprintf("pod %s/%s requires runtime handler %q, but containerd does not have it configured", pod.Namespace, pod.Name, handler))
+				return cr
+			}
+		}
+		// Native CDI injects devices through the normal OCI runtime; it does not
+		// require a separate NVIDIA handler or a toolkit DaemonSet.
+		if config.EnableCDI {
+			return cr
+		}
+
 		// check "nvidia-container-toolkit-daemonset" pod
 		// whose containers include "nvidia-container-toolkit-ctr"
 		// which performs containerd.toml configuration updates
@@ -443,22 +455,9 @@ func (c *component) Check() components.CheckResult {
 
 			// been running long enough
 			if elapsed > c.containerToolkitCreationThreshold {
-				config, err := c.getContainerdConfigFunc()
-				if err == nil {
-					config = appendImportedContainerdConfigs(config)
-				}
-				switch {
-				case err != nil:
-					reason := "error getting containerd config"
-					cr.appendReason(reason)
-					log.Logger.Warnw(reason)
-				case !hasNvidiaRuntimeConfiguration(config):
-					reason := fmt.Sprintf("nvidia-container-toolkit pod is running but %s is missing NVIDIA runtime configuration", defaultContainerdConfigPath)
-					cr.appendReason(reason)
-					log.Logger.Warnw(reason)
+				if config.Containerd.DefaultRuntimeName != "nvidia" {
+					cr.appendReason("native CDI is disabled and containerd's default runtime is not nvidia")
 					cr.health = apiv1.HealthStateTypeUnhealthy
-				default:
-					log.Logger.Debugw("containerd config contains nvidia")
 				}
 			} else {
 				log.Logger.Debugw("nvidia-container-toolkit pod is running but not long enough", "elapsed", elapsed)
@@ -580,51 +579,6 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 		state.ExtraInfo = map[string]string{"data": string(b)}
 	}
 	return apiv1.HealthStates{state}
-}
-
-// hasNvidiaRuntimeConfiguration accepts both supported toolkit layouts:
-// NVIDIA as containerd's default runtime, or containerd native CDI enabled
-// with an NVIDIA runtime handler. The handler is required in both cases.
-func hasNvidiaRuntimeConfiguration(config []byte) bool {
-	hasNvidiaRuntimePlugin := bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePlugin)) ||
-		bytes.Contains(config, []byte(containerdConfigNvidiaRuntimePluginV2))
-	if !hasNvidiaRuntimePlugin {
-		return false
-	}
-
-	return bytes.Contains(config, []byte(containerdConfigNvidiaDefaultRuntime)) ||
-		containerdConfigCDIEnabledRe.Match(config)
-}
-
-// appendImportedContainerdConfigs returns config with the contents of any
-// files referenced by an "imports = [...]" directive appended. Errors
-// reading individual imports are ignored so the substring checks still
-// run against whatever could be read.
-func appendImportedContainerdConfigs(config []byte) []byte {
-	m := containerdConfigImportsRe.FindSubmatch(config)
-	if len(m) < 2 {
-		return config
-	}
-	out := config
-	for _, raw := range strings.Split(string(m[1]), ",") {
-		pattern := strings.Trim(strings.TrimSpace(raw), `"'`)
-		if pattern == "" {
-			continue
-		}
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			continue
-		}
-		for _, f := range matches {
-			b, err := os.ReadFile(f)
-			if err != nil {
-				continue
-			}
-			out = append(out, '\n')
-			out = append(out, b...)
-		}
-	}
-	return out
 }
 
 // danglingPodCount returns the number of READY sandboxes whose pods have been
