@@ -6,11 +6,13 @@ package kapmtls
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,56 +35,58 @@ func assertPackageLocked(t *testing.T) {
 	}
 }
 
-func TestCredentialRotationHoldsPackageLockThroughReadinessAndRollback(t *testing.T) {
-	for _, failRestart := range []bool{false, true} {
-		name := "ready"
-		if failRestart {
-			name = "rollback"
-		}
-		t.Run(name, func(t *testing.T) {
+func TestCredentialReloadHoldsPackageLockThroughNotificationAndFailure(t *testing.T) {
+	for _, failSignal := range []bool{false, true} {
+		t.Run(fmt.Sprint(failSignal), func(t *testing.T) {
 			manager, runner, paths := newTestManager(t)
-			require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
-			previous, err := manager.currentReleaseID()
-			require.NoError(t, err)
-			restarts := 0
+			initial := newTestCredentials(t, "worker-1", "machine-1", 1)
+			require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", initial))
+			runner.startAgent()
+			signals := 0
 			manager.runner = operationLockRunner(func(ctx context.Context, command string, args ...string) ([]byte, error) {
 				assertPackageLocked(t)
-				if args[0] == "restart" {
-					restarts++
-					if failRestart && restarts == 1 {
-						return nil, errors.New("restart failed")
-					}
-					if failRestart {
-						current, readErr := manager.currentReleaseID()
-						assert.NoError(t, readErr)
-						assert.Equal(t, previous, current)
-						assert.NoError(t, ctx.Err(), "rollback has its own uncanceled context")
+				if args[0] == "kill" {
+					signals++
+					if failSignal {
+						return nil, errors.New("signal failed")
 					}
 				}
 				return runner.Run(ctx, command, args...)
 			})
-			ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assertPackageLocked(t)
-				w.WriteHeader(http.StatusOK)
-			}))
-			defer ready.Close()
-			manager.readyURL = ready.URL
-			err = manager.UpdateCredentials(context.Background(), "machine-1", newTestCredentials(t, "worker-1", "machine-1", 2))
-			if failRestart {
-				require.ErrorContains(t, err, "restart failed")
-				assert.Equal(t, 2, restarts)
+			err := manager.UpdateCredentials(context.Background(), "machine-1", renewedCredentials(t, initial, 2))
+			if failSignal {
+				require.ErrorContains(t, err, "signal failed")
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, 1, restarts)
 				entries, readErr := os.ReadDir(filepath.Join(paths.StateDir, ReleasesDirectoryName))
 				require.NoError(t, readErr)
 				assert.Len(t, entries, 1)
 			}
+			assert.Equal(t, 1, signals)
 			mu := packagelock.For(PackageName)
 			require.True(t, mu.TryLock(), "operation lock leaked")
 			mu.Unlock()
 		})
 	}
+}
+
+func TestInactiveStagingReleasesPackageLockWithoutReadiness(t *testing.T) {
+	manager, runner, _ := newTestManager(t)
+	ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("inactive staging must not probe readiness or metrics")
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer ready.Close()
+	manager.readyURL = ready.URL
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, manager.UpdateCredentials(ctx, "machine-1", newTestCredentials(t, "worker-1", "machine-1", 1)))
+	require.NoError(t, ctx.Err())
+	assert.False(t, runner.active)
+	mu := packagelock.For(PackageName)
+	require.True(t, mu.TryLock(), "package controller must be free to start the agent")
+	runner.startAgent()
+	mu.Unlock()
 }
 
 func TestManagerOperationsSharePackageLockAndHonorCancellation(t *testing.T) {
@@ -111,4 +115,43 @@ func TestManagerOperationsSharePackageLockAndHonorCancellation(t *testing.T) {
 	assert.Empty(t, runner.calls)
 	_, err := os.Lstat(filepath.Join(paths.StateDir, CurrentSymlinkName))
 	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestHotReloadBlocksConcurrentPackageOperation(t *testing.T) {
+	manager, runner, _ := newTestManager(t)
+	initial := newTestCredentials(t, "worker-1", "machine-1", 1)
+	require.NoError(t, manager.UpdateCredentials(context.Background(), "machine-1", initial))
+	runner.startAgent()
+	signaling := make(chan struct{})
+	resume := make(chan struct{})
+	runner.afterSignal = func(context.Context) {
+		assertPackageLocked(t)
+		close(signaling)
+		<-resume
+	}
+	next := renewedCredentials(t, initial, 2)
+	updated := make(chan error, 1)
+	go func() {
+		updated <- manager.UpdateCredentials(context.Background(), "machine-1", next)
+	}()
+	<-signaling
+	packageOperation := make(chan struct{})
+	go func() {
+		mu := packagelock.For(PackageName)
+		mu.Lock()
+		defer mu.Unlock()
+		close(packageOperation)
+	}()
+	select {
+	case <-packageOperation:
+		t.Error("package operation entered during hot reload")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(resume)
+	require.NoError(t, <-updated)
+	select {
+	case <-packageOperation:
+	case <-time.After(time.Second):
+		t.Fatal("hot reload leaked package lock")
+	}
 }
