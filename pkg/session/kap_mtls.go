@@ -87,9 +87,15 @@ func redactSessionCredentials(value any) {
 	switch typed := value.(type) {
 	case map[string]any:
 		for key, child := range typed {
-			if strings.EqualFold(key, "token") {
+			if strings.EqualFold(key, "token") || strings.EqualFold(key, "script_base64") {
 				typed[key] = "<redacted>"
 				continue
+			}
+			if strings.EqualFold(key, "bootstrap") {
+				if _, ok := child.(map[string]any); !ok {
+					typed[key] = "<redacted>"
+					continue
+				}
 			}
 			if strings.EqualFold(key, "kap_mtls_credentials") {
 				credentials, ok := child.(map[string]any)
@@ -102,7 +108,6 @@ func redactSessionCredentials(value any) {
 						credentials[credentialKey] = "<redacted>"
 					}
 				}
-				continue
 			}
 			if strings.EqualFold(key, "node_credentials") {
 				// Every file under here is credential material, and the
