@@ -111,13 +111,18 @@ func parseVersion(version string) (string, []string) {
 // IsActive returns true if the systemd service is active.
 // TODO: deprecate this
 func IsActive(service string) (bool, error) {
+	return IsActiveWithCommand(service, "")
+}
+
+// IsActiveWithCommand accepts an optional systemctl command prefix for host queries.
+func IsActiveWithCommand(service, command string) (bool, error) {
 	p, err := exec.LookPath("systemctl")
-	if err != nil {
+	if err != nil && command == "" {
 		return false, fmt.Errorf("systemd active check requires systemctl (%w)", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	b, err := exec.CommandContext(ctx, p, "is-active", service).CombinedOutput()
+	b, err := systemctlCommand(ctx, p, command, "is-active", service).CombinedOutput()
 	cancel()
 	if err != nil {
 		// e.g., "inactive" with exit status 3
@@ -135,8 +140,13 @@ const uptimeTimeLayout = "Mon 2006-01-02 15:04:05 MST"
 // Returns nil if the service is not found (thus uptime is not applicable, "n/a").
 // ref. https://github.com/kubernetes/node-problem-detector/blob/c4e5400ed6d7ca30d3a803248ae5b55c53557e59/pkg/healthchecker/health_checker_linux.go
 func GetUptime(service string) (*time.Duration, error) {
+	return GetUptimeWithCommand(service, "")
+}
+
+// GetUptimeWithCommand uses the same command prefix as IsActiveWithCommand.
+func GetUptimeWithCommand(service, command string) (*time.Duration, error) {
 	p, err := exec.LookPath("systemctl")
-	if err != nil {
+	if err != nil && command == "" {
 		return nil, fmt.Errorf("systemd uptime check requires systemctl (%w)", err)
 	}
 
@@ -148,7 +158,7 @@ func GetUptime(service string) (*time.Duration, error) {
 	// RestartSec of systemd and invoke interval of plugin got in sync. The service was repeatedly killed in
 	// activating state and hence ActiveEnterTimestamp was never updated.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	b, err := exec.CommandContext(ctx, p, "show", "--property=InactiveExitTimestamp", service).CombinedOutput()
+	b, err := systemctlCommand(ctx, p, command, "show", "--property=InactiveExitTimestamp", service).CombinedOutput()
 	cancel()
 	if err != nil {
 		log.Logger.Warnw("failed to get uptime for unit", "unit", service, "output", string(b), "error", err)
@@ -173,6 +183,14 @@ func GetUptime(service string) (*time.Duration, error) {
 		return nil, err
 	}
 	return &uptime, nil
+}
+
+func systemctlCommand(ctx context.Context, path, prefix string, args ...string) *exec.Cmd {
+	if prefix == "" {
+		return exec.CommandContext(ctx, path, args...)
+	}
+	// The prefix is operator-provided; arguments remain positional shell parameters.
+	return exec.CommandContext(ctx, "bash", append([]string{"-c", prefix + ` "$@"`, "systemctl"}, args...)...)
 }
 
 func parseSystemdUnitUptime(s string) (time.Duration, error) {

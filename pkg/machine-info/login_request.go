@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
@@ -26,6 +27,11 @@ func CreateLoginRequest(token string, machineID string, nodeGroup string, gpuCou
 }
 
 func CreateLoginRequestWithRegion(token string, machineID string, nodeGroup string, gpuCount string, region string, nvmlInstance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+	return CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, region, nvmlInstance, configcommon.ContainerdConfig{})
+}
+
+// CreateLoginRequestWithContainerd uses the configured runtime for enrollment metadata.
+func CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, region string, nvmlInstance nvidianvml.Instance, cfg configcommon.ContainerdConfig) (*apiv1.LoginRequest, error) {
 	return createLoginRequest(
 		token,
 		machineID,
@@ -34,7 +40,9 @@ func CreateLoginRequestWithRegion(token string, machineID string, nodeGroup stri
 		nvmlInstance,
 		netutil.PublicIP,
 		GetMachineLocation,
-		GetMachineInfo,
+		func(instance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			return GetMachineInfoWithContainerd(instance, cfg)
+		},
 		func(ip string) *providers.Info { return getProviderForLogin(ip, region) },
 		GetSystemResourceRootVolumeTotal,
 		GetSystemResourceGPUCount,

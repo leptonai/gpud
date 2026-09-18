@@ -87,6 +87,8 @@ type Config struct {
 	// runs against the host's service manager; exit code 0 means active.
 	ContainerdServiceActiveCommands string `json:"containerd_service_active_commands,omitempty"`
 
+	Containerd pkgconfigcommon.ContainerdConfig `json:"containerd,omitempty"`
+
 	// VersionFile is the file that contains the target version.
 	// If empty, the version file is not used.
 	VersionFile string `json:"version_file"`
@@ -171,6 +173,9 @@ type NVSentinelConfig struct {
 }
 
 func (config *Config) Validate() error {
+	if err := config.Containerd.Validate(); err != nil {
+		return err
+	}
 	if config.Address == "" {
 		return errors.New("address is required")
 	}

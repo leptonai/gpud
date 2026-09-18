@@ -1,3 +1,25 @@
+{{- $containerd := .Values.gpud.containerd | default dict -}}
+{{- $endpoint := $containerd.endpoint | default "unix:///run/containerd/containerd.sock" -}}
+{{- $configPath := $containerd.configPath | default "/etc/containerd/config.toml" -}}
+{{- $serviceName := $containerd.serviceName | default "containerd" -}}
+{{- $explicitRuntime := or $containerd.endpoint $containerd.configPath $containerd.serviceName $containerd.systemctlCommands -}}
+{{- if not (hasPrefix "unix:///" $endpoint) -}}
+{{- fail "gpud.containerd.endpoint must be unix:///absolute/socket/path" -}}
+{{- end -}}
+{{- $socketPath := trimPrefix "unix://" $endpoint -}}
+{{- if or (eq (clean $socketPath) "/") (contains "?" $socketPath) (contains "#" $socketPath) (contains "%" $socketPath) -}}
+{{- fail "gpud.containerd.endpoint must name an absolute socket path without URL escapes, query or fragment" -}}
+{{- end -}}
+{{- if or (not (hasPrefix "/" $configPath)) (eq (clean $configPath) "/") -}}
+{{- fail "gpud.containerd.configPath must be an absolute file path" -}}
+{{- end -}}
+{{- $activeCommands := .Values.gpud.containerdServiceActiveCommands -}}
+{{- if eq $activeCommands nil -}}
+{{- $activeCommands = "" -}}
+{{- if not $explicitRuntime -}}
+{{- $activeCommands = "nsenter --target 1 --mount -- systemctl is-active containerd" -}}
+{{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -188,21 +210,20 @@ spec:
 
         {{- if .Values.gpud.mountContainerd }}
         # Host containerd runtime directory (holds containerd.sock).
-        # Required by: components/containerd (stat the socket and reach the CRI
-        # endpoint at unix:///run/containerd/containerd.sock).
+        # Required by: components/containerd (stat the socket and reach the CRI endpoint).
         # DirectoryOrCreate so the pod still starts on nodes without containerd.
-        # Disable via gpud.mountContainerd=false on nodes without containerd.
+        # Disabling this mount does not disable the component.
         - name: host-run-containerd
           hostPath:
-            path: /run/containerd
+            path: {{ dir $socketPath | quote }}
             type: DirectoryOrCreate
 
         # Host containerd config directory (holds config.toml).
-        # Required by: components/containerd (read /etc/containerd/config.toml to
+        # Required by: components/containerd (read the selected config to
         # verify the NVIDIA runtime is configured). Mounted read-only.
         - name: host-etc-containerd
           hostPath:
-            path: /etc/containerd
+            path: {{ dir $configPath | quote }}
             type: DirectoryOrCreate
         {{- end }}
 
@@ -497,6 +518,13 @@ spec:
                 set -- "$@" --containerd-service-active-commands="$GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS"
               fi
 
+              {{- if $explicitRuntime }}
+              set -- "$@" --containerd-endpoint="$GPUD_CONTAINERD_ENDPOINT" \
+                --containerd-config-path="$GPUD_CONTAINERD_CONFIG_PATH" \
+                --containerd-service-name="$GPUD_CONTAINERD_SERVICE_NAME" \
+                --containerd-systemctl-commands="$GPUD_CONTAINERD_SYSTEMCTL_COMMANDS"
+              {{- end }}
+
               # Using exec ensures gpud receives signals directly (important for graceful shutdown).
               echo "Starting: /usr/local/bin/gpud $start_log_args"
               exec /usr/local/bin/gpud "$@"
@@ -560,9 +588,19 @@ spec:
             - name: GPUD_NFS_HOST_ROOT
               value: {{ .Values.gpud.nfsHostRoot | quote }}
             {{- end }}
-            {{- if .Values.gpud.containerdServiceActiveCommands }}
+            {{- if $activeCommands }}
             - name: GPUD_CONTAINERD_SERVICE_ACTIVE_COMMANDS
-              value: {{ .Values.gpud.containerdServiceActiveCommands | quote }}
+              value: {{ $activeCommands | quote }}
+            {{- end }}
+            {{- if $explicitRuntime }}
+            - name: GPUD_CONTAINERD_ENDPOINT
+              value: {{ $endpoint | quote }}
+            - name: GPUD_CONTAINERD_CONFIG_PATH
+              value: {{ $configPath | quote }}
+            - name: GPUD_CONTAINERD_SERVICE_NAME
+              value: {{ $serviceName | quote }}
+            - name: GPUD_CONTAINERD_SYSTEMCTL_COMMANDS
+              value: {{ $containerd.systemctlCommands | default "nsenter --target 1 --mount -- systemctl" | quote }}
             {{- end }}
 
           {{- if .Values.service.enabled }}
@@ -687,15 +725,15 @@ spec:
 
             {{- if .Values.gpud.mountContainerd }}
             # Host containerd socket directory for containerd monitoring.
-            # Mounted at the same path gpud expects (/run/containerd/containerd.sock).
+            # Mounted at the selected endpoint's parent directory.
             # Not read-only: connecting to the CRI unix socket requires write access.
             - name: host-run-containerd
-              mountPath: /run/containerd
+              mountPath: {{ dir $socketPath | quote }}
 
             # Host containerd config for the NVIDIA-runtime check (read-only).
-            # Mounted at the same path gpud reads (/etc/containerd/config.toml).
+            # Mounted at the selected config's parent directory.
             - name: host-etc-containerd
-              mountPath: /etc/containerd
+              mountPath: {{ dir $configPath | quote }}
               readOnly: true
             {{- end }}
 

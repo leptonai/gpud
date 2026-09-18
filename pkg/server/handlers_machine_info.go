@@ -28,7 +28,7 @@ func (g *globalHandler) machineInfo(c *gin.Context) {
 		return
 	}
 
-	info, err := pkgmachineinfo.GetMachineInfo(g.gpudInstance.NVMLInstance)
+	info, err := pkgmachineinfo.GetMachineInfoWithContainerd(g.gpudInstance.NVMLInstance, g.gpudInstance.Containerd)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": errdefs.ErrUnknown, "message": "failed to get machine info: " + err.Error()})
 		return

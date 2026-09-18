@@ -24,6 +24,7 @@ import (
 	componentcontainerd "github.com/leptonai/gpud/components/containerd"
 	componenttailscale "github.com/leptonai/gpud/components/tailscale"
 	"github.com/leptonai/gpud/pkg/asn"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/disk"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
@@ -71,6 +72,21 @@ func currentGOOS() string {
 }
 
 func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+	return getMachineInfo(nvmlInstance, configcommon.ContainerdConfig{})
+}
+
+// GetMachineInfoWithContainerd reports the same runtime that the health component monitors.
+func GetMachineInfoWithContainerd(nvmlInstance nvidianvml.Instance, cfg configcommon.ContainerdConfig) (*apiv1.MachineInfo, error) {
+	if cfg.IsZero() {
+		return GetMachineInfo(nvmlInstance)
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return getMachineInfo(nvmlInstance, cfg)
+}
+
+func getMachineInfo(nvmlInstance nvidianvml.Instance, containerdConfig configcommon.ContainerdConfig) (*apiv1.MachineInfo, error) {
 	hostname, _ := os.Hostname()
 	info := &apiv1.MachineInfo{
 		GPUdVersion: version.Version,
@@ -115,8 +131,15 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 			return nil, fmt.Errorf("failed to get machine disk info: %w", err)
 		}
 
-		if componentcontainerd.CheckContainerdInstalled() && componentcontainerd.CheckContainerdRunning(ctx) {
-			containerdVersion, err := componentcontainerd.GetVersion(ctx, componentcontainerd.DefaultContainerRuntimeEndpoint)
+		endpoint := containerdConfig.WithDefaults().Endpoint
+		var containerdRunning bool
+		if containerdConfig.IsZero() {
+			containerdRunning = componentcontainerd.CheckContainerdInstalled() && componentcontainerd.CheckContainerdRunning(ctx)
+		} else {
+			containerdRunning = componentcontainerd.CheckContainerdRunningAt(ctx, endpoint)
+		}
+		if containerdRunning {
+			containerdVersion, err := componentcontainerd.GetVersion(ctx, endpoint)
 			if err != nil {
 				log.Logger.Warnw("failed to check containerd version", "error", err)
 			} else {
@@ -131,7 +154,7 @@ func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error
 		// so the block above leaves the runtime version empty even though the
 		// node has a live runtime. Fall back to CRI-O so the reported runtime
 		// reflects what actually runs the node's containers (LEP-6128).
-		if info.ContainerRuntimeVersion == "" && componentcontainerd.CheckCRIORunning(ctx) {
+		if containerdConfig.IsZero() && info.ContainerRuntimeVersion == "" && componentcontainerd.CheckCRIORunning(ctx) {
 			crioVersion, err := componentcontainerd.GetVersion(ctx, componentcontainerd.DefaultCRIOEndpoint)
 			if err != nil {
 				log.Logger.Warnw("failed to check cri-o version", "error", err)
