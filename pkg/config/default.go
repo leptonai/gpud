@@ -67,6 +67,7 @@ func DefaultConfig(ctx context.Context, opts ...OpOption) (*Config, error) {
 		BlockdevUsageCommands: options.BlockdevUsageCommands,
 
 		ContainerdServiceActiveCommands: options.ContainerdServiceActiveCommands,
+		Containerd:                      options.Containerd,
 
 		SessionToken:        options.SessionToken,
 		SessionMachineID:    options.SessionMachineID,

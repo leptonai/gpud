@@ -77,6 +77,8 @@ type GPUdInstance struct {
 	// runs against the host's service manager; exit code 0 means active.
 	ContainerdServiceActiveCommands string
 
+	Containerd nvidiacommon.ContainerdConfig
+
 	FailureInjector *FailureInjector
 
 	// NVSentinel is the optional NVSentinel event source. When nil the

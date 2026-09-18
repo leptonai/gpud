@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"time"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	"github.com/leptonai/gpud/pkg/config"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
@@ -69,7 +71,8 @@ type LoginConfig struct {
 	PrivateIP string // optional: overrides detected private IP
 
 	// Region overrides the login region and skips provider-region IMDS and DERP lookup.
-	Region string
+	Region     string
+	Containerd configcommon.ContainerdConfig
 }
 
 // Login performs the login operation with the control plane.
@@ -294,7 +297,13 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	// otherwise, the control plane will assign a new machine ID
 	loginCreatedAt := time.Now()
 	log.Logger.Debugw("creating login request")
-	req, err := pkgmachineinfo.CreateLoginRequestWithRegion(cfg.Token, cfg.MachineID, cfg.NodeGroup, cfg.GPUCount, cfg.Region, nvmlInstance)
+	createRequest := pkgmachineinfo.CreateLoginRequestWithRegion
+	if !cfg.Containerd.IsZero() {
+		createRequest = func(token, machineID, nodeGroup, gpuCount, region string, instance nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+			return pkgmachineinfo.CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, region, instance, cfg.Containerd)
+		}
+	}
+	req, err := createRequest(cfg.Token, cfg.MachineID, cfg.NodeGroup, cfg.GPUCount, cfg.Region, nvmlInstance)
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
 	}

@@ -9,6 +9,26 @@ import (
 	"github.com/urfave/cli"
 )
 
+func TestAppRunContainerdFlags(t *testing.T) {
+	app := App()
+	for _, cmd := range app.Commands {
+		if cmd.Name != "run" {
+			continue
+		}
+		set := flag.NewFlagSet("run", flag.ContinueOnError)
+		for _, f := range cmd.Flags {
+			f.Apply(set)
+		}
+		for _, name := range []string{"containerd-endpoint", "containerd-config-path", "containerd-service-name", "containerd-systemctl-commands"} {
+			require.NotNil(t, set.Lookup(name))
+			require.Empty(t, set.Lookup(name).DefValue)
+		}
+		require.NoError(t, set.Parse([]string{"--containerd-endpoint=unix:///run/k3s/containerd/containerd.sock", "--containerd-service-name=rke2-agent"}))
+		return
+	}
+	t.Fatal("run command missing")
+}
+
 func TestAppRunAndUpHaveSessionProtocolFlag(t *testing.T) {
 	t.Parallel()
 

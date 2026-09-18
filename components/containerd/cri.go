@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/status"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 )
@@ -27,7 +28,7 @@ import (
 const (
 	defaultSocketFile = "/run/containerd/containerd.sock"
 	// DefaultContainerRuntimeEndpoint is the default CRI socket for containerd.
-	DefaultContainerRuntimeEndpoint = "unix:///run/containerd/containerd.sock"
+	DefaultContainerRuntimeEndpoint = configcommon.DefaultContainerdEndpoint
 
 	// DefaultCRIOEndpoint is the default CRI socket for CRI-O, which is also
 	// the endpoint kubelet uses for CRI-O runtimes. Uses /run (not /var/run) to
@@ -219,18 +220,22 @@ func createClient(ctx context.Context, conn *grpc.ClientConn) (runtimeapi.Runtim
 
 // CheckSocketExists reports whether the default containerd socket exists.
 func CheckSocketExists() bool {
+	return checkSocketExists(defaultSocketFile)
+}
+
+func checkSocketExists(socketFile string) bool {
 	// if containerd is disabled or aborted (due to invalid config), the socket file will not exist
 	// vice versa, if the socket file exists, containerd is running
-	if _, err := os.Stat(defaultSocketFile); err != nil {
+	if _, err := os.Stat(socketFile); err != nil {
 		if os.IsNotExist(err) {
-			log.Logger.Debugw("containerd default socket file does not exist, skip containerd check", "file", defaultSocketFile)
+			log.Logger.Debugw("containerd socket file does not exist", "file", socketFile)
 		} else {
-			log.Logger.Warnw("error checking containerd socket file, skip containerd check", "file", defaultSocketFile, "error", err)
+			log.Logger.Warnw("error checking containerd socket file", "file", socketFile, "error", err)
 		}
 		return false
 	}
 
-	log.Logger.Debugw("containerd default socket file exists, containerd installed", "file", defaultSocketFile)
+	log.Logger.Debugw("containerd socket file exists", "file", socketFile)
 	return true
 }
 
@@ -260,16 +265,21 @@ func CheckCRIORunning(ctx context.Context) bool {
 
 // CheckContainerdRunning reports whether containerd is reachable via its default CRI endpoint.
 func CheckContainerdRunning(ctx context.Context) bool {
+	return CheckContainerdRunningAt(ctx, DefaultContainerRuntimeEndpoint)
+}
+
+// CheckContainerdRunningAt probes only the selected endpoint; no runtime fallback.
+func CheckContainerdRunningAt(ctx context.Context, endpoint string) bool {
 	cctx, ccancel := context.WithTimeout(ctx, 5*time.Second)
 	defer ccancel()
 
 	containerdRunning := false
-	if conn, err := connect(cctx, DefaultContainerRuntimeEndpoint); err == nil {
-		log.Logger.Debugw("containerd default cri endpoint open, containerd running", "endpoint", DefaultContainerRuntimeEndpoint)
+	if conn, err := connect(cctx, endpoint); err == nil {
+		log.Logger.Debugw("containerd cri endpoint open, containerd running", "endpoint", endpoint)
 		containerdRunning = true
 		_ = conn.Close()
 	} else {
-		log.Logger.Debugw("containerd default cri endpoint not open, skip containerd checking", "endpoint", DefaultContainerRuntimeEndpoint, "error", err)
+		log.Logger.Debugw("containerd cri endpoint not open", "endpoint", endpoint, "error", err)
 	}
 
 	if containerdRunning {
