@@ -15,7 +15,8 @@ on:
     branches: ["**"]
 
 permissions:
-  contents: write
+  contents: read
+  actions: write
 
 jobs:
   release:
@@ -92,7 +93,16 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --snapshot --config .goreleaser_${{ matrix.job.target }}${{ matrix.job.goreleaser_suffix }}.yaml
+          args: release --snapshot --skip=publish --config .goreleaser_${{ matrix.job.target }}${{ matrix.job.goreleaser_suffix }}.yaml
           workdir: .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Snapshot builds stay on the workflow run; they do not create a GitHub Release.
+      - name: Upload snapshot archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpud-${{ matrix.job.target }}${{ matrix.job.goreleaser_suffix }}
+          path: dist/*.tgz
+          if-no-files-found: error
+          retention-days: 14
