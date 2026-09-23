@@ -12,7 +12,21 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 )
+
+func TestRuntimeDiagnosticsConfiguredEndpoint(t *testing.T) {
+	const config = `{"enableCDI":true,"containerd":{"defaultRuntimeName":"runc","runtimes":{"runc":{}}}}`
+	srv := &verboseRuntimeServer{fakeRuntimeServer{statusResp: &runtimeapi.StatusResponse{Info: map[string]string{"config": config}}}}
+	endpoint, cleanup := startFakeRuntimeServer(t, srv)
+	defer cleanup()
+	comp, err := New(&components.GPUdInstance{RootCtx: t.Context(), Containerd: configcommon.ContainerdConfig{Endpoint: endpoint}})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, comp.Close()) }()
+	got, err := comp.(*component).getRuntimeConfigFunc()
+	require.NoError(t, err)
+	require.Equal(t, config, string(got))
+}
 
 func TestParseRuntimeConfig(t *testing.T) {
 	for _, data := range []string{"", "null", "{}", `{"containerd":{"defaultRuntimeName":"runc"}}`, `{"containerd":{"runtimes":{"runc":{}}}}`, `{"enableCDI":"true"}`} {

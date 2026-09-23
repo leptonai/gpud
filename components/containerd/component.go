@@ -147,7 +147,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		getRuntimeConfigFunc: func() ([]byte, error) {
 			ctx, cancel := context.WithTimeout(cctx, 5*time.Second)
 			defer cancel()
-			return getRuntimeConfig(ctx, DefaultContainerRuntimeEndpoint)
+			return getRuntimeConfig(ctx, runtimeConfig.Endpoint)
 		},
 
 		checkDependencyInstalledFunc: checkContainerdInstalled,
