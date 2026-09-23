@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -4488,4 +4489,35 @@ func TestCheckDanglingPods_AbsenceSemantics(t *testing.T) {
 		require.NotNil(t, comp.lastCheckResult)
 		assert.Contains(t, comp.lastCheckResult.reason, "node has 1 dangling pods")
 	})
+}
+
+// TestNewKubeletPodsFuncUsesDiscovery verifies the production wiring: the
+// component's kubelet pod lister resolves credentials via discovery, and a
+// host with no kubelet credentials surfaces the explicit sentinel rather than
+// a dangling-pod verdict.
+func TestNewKubeletPodsFuncUsesDiscovery(t *testing.T) {
+	// mutates the package-level default candidate paths; do not run in parallel
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	compInterface, err := New(&components.GPUdInstance{RootCtx: ctx})
+	require.NoError(t, err)
+
+	c, ok := compInterface.(*component)
+	require.True(t, ok)
+	require.NotNil(t, c.listKubeletPodsFunc)
+
+	dir := t.TempDir()
+	origKubeconfig, origClientCert, origCA := defaultKubeletKubeconfigPaths, defaultKubeletClientCertPaths, defaultKubeletCAPaths
+	t.Cleanup(func() {
+		defaultKubeletKubeconfigPaths = origKubeconfig
+		defaultKubeletClientCertPaths = origClientCert
+		defaultKubeletCAPaths = origCA
+	})
+	defaultKubeletKubeconfigPaths = []string{filepath.Join(dir, "kubeconfig")}
+	defaultKubeletClientCertPaths = []string{filepath.Join(dir, "kubelet-client-current.pem")}
+	defaultKubeletCAPaths = []string{filepath.Join(dir, "ca.crt")}
+
+	_, err = c.listKubeletPodsFunc(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errKubeletIdentityNotFound)
 }
