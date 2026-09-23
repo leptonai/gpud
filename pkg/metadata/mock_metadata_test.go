@@ -11,11 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetMetadata_InsertExecErrorWithMockey(t *testing.T) {
-	mockey.PatchConvey("SetMetadata insert exec error", t, func() {
-		mockey.Mock(ReadMetadata).To(func(ctx context.Context, db *sql.DB, key string) (string, error) {
-			return "", nil
-		}).Build()
+func TestSetMetadata_UpsertExecErrorWithMockey(t *testing.T) {
+	mockey.PatchConvey("SetMetadata upsert exec error", t, func() {
 		mockey.Mock((*sql.DB).ExecContext).To(func(_ *sql.DB, _ context.Context, _ string, _ ...any) (sql.Result, error) {
 			return nil, errors.New("exec failed")
 		}).Build()
