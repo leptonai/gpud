@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -207,7 +208,7 @@ clusters:
 func newTestKubeletAPIConfig(t *testing.T, pki testPKI, serverURL string, tlsServerName string) *kubeletAPIConfig {
 	t.Helper()
 	kubeconfigPath, clientCertPath, caPath := writeKubeletCredentials(t, pki, serverURL, tlsServerName)
-	cfg, err := loadKubeletAPIConfig(kubeconfigPath, clientCertPath, caPath)
+	cfg, err := loadKubeletAPIConfig(t.Context(), kubeconfigPath, clientCertPath, caPath)
 	require.NoError(t, err)
 	return cfg
 }
@@ -218,7 +219,7 @@ func TestLoadKubeletAPIConfig(t *testing.T) {
 	pki := newTestPKI(t, nil, []net.IP{net.ParseIP("127.0.0.1")}, "system:node:test-node")
 	kubeconfigPath, clientCertPath, caPath := writeKubeletCredentials(t, pki, "https://10.0.0.1:6443", "apiserver.internal")
 
-	cfg, err := loadKubeletAPIConfig(kubeconfigPath, clientCertPath, caPath)
+	cfg, err := loadKubeletAPIConfig(t.Context(), kubeconfigPath, clientCertPath, caPath)
 	require.NoError(t, err)
 	assert.Equal(t, "10.0.0.1:6443", cfg.server.Host)
 	assert.Equal(t, "apiserver.internal", cfg.serverName)
@@ -245,7 +246,7 @@ func TestLoadKubeletAPIConfig_MissingFiles(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := loadKubeletAPIConfig(tt.kubeconfigPath, tt.clientCertPath, tt.caPath)
+			_, err := loadKubeletAPIConfig(t.Context(), tt.kubeconfigPath, tt.clientCertPath, tt.caPath)
 			require.Error(t, err)
 			assert.ErrorIs(t, err, errKubeletIdentityNotFound,
 				"missing credential files must map to errKubeletIdentityNotFound")
@@ -259,7 +260,7 @@ func TestLoadKubeletAPIConfig_NonNodeClientCert(t *testing.T) {
 	pki := newTestPKI(t, nil, []net.IP{net.ParseIP("127.0.0.1")}, "system:admin")
 	kubeconfigPath, clientCertPath, caPath := writeKubeletCredentials(t, pki, "https://10.0.0.1:6443", "")
 
-	_, err := loadKubeletAPIConfig(kubeconfigPath, clientCertPath, caPath)
+	_, err := loadKubeletAPIConfig(t.Context(), kubeconfigPath, clientCertPath, caPath)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, errKubeletIdentityNotFound,
 		"an existing but non-node identity must surface as an error, not as a skip")
@@ -272,9 +273,136 @@ func TestLoadKubeletAPIConfig_NonHTTPS(t *testing.T) {
 	pki := newTestPKI(t, nil, []net.IP{net.ParseIP("127.0.0.1")}, "system:node:test-node")
 	kubeconfigPath, clientCertPath, caPath := writeKubeletCredentials(t, pki, "http://10.0.0.1:8080", "")
 
-	_, err := loadKubeletAPIConfig(kubeconfigPath, clientCertPath, caPath)
+	_, err := loadKubeletAPIConfig(t.Context(), kubeconfigPath, clientCertPath, caPath)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not https")
+}
+
+// writeKubeletKubeconfig writes a kubeconfig with the given cluster and user
+// sections, mirroring how different provisioners lay out kubelet's identity.
+func writeKubeletKubeconfig(t *testing.T, dir, serverURL, clusterSection, userSection string) string {
+	t.Helper()
+	kubeconfig := fmt.Sprintf(`apiVersion: v1
+kind: Config
+current-context: kubelet
+contexts:
+- name: kubelet
+  context:
+    cluster: test-cluster
+    user: kubelet
+clusters:
+- name: test-cluster
+  cluster:
+%s
+users:
+- name: kubelet
+  user:
+%s
+`, clusterSection, userSection)
+	path := filepath.Join(dir, "kubeconfig")
+	require.NoError(t, os.WriteFile(path, []byte(kubeconfig), 0600))
+	return path
+}
+
+// splitClientCertPEM splits the combined cert+key PEM (the shape of
+// kubelet-client-current.pem) into its certificate and key halves.
+func splitClientCertPEM(t *testing.T, combined []byte) (certPEM, keyPEM []byte) {
+	t.Helper()
+	certBlock, rest := pem.Decode(combined)
+	require.NotNil(t, certBlock, "combined PEM must start with the certificate")
+	keyBlock, _ := pem.Decode(rest)
+	require.NotNil(t, keyBlock, "combined PEM must contain the key")
+	return pem.EncodeToMemory(certBlock), pem.EncodeToMemory(keyBlock)
+}
+
+func TestListPodsUsingKubeletIdentity_EmbeddedClientCert(t *testing.T) {
+	t.Parallel()
+
+	pki := newTestPKI(t, nil, []net.IP{net.ParseIP("127.0.0.1")}, "system:node:test-node")
+	srv := newTestAPIServer(t, pki, true, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/v1/pods", r.URL.Path)
+		assert.Equal(t, "spec.nodeName=test-node", r.URL.Query().Get("fieldSelector"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(testKubeletPodsJSON))
+	})
+
+	// static kubeadm kubelet.conf layout: identity embedded in the kubeconfig,
+	// no standalone PEM files at all
+	certPEM, keyPEM := splitClientCertPEM(t, pki.clientCertPEM)
+	dir := t.TempDir()
+	kubeconfigPath := writeKubeletKubeconfig(t, dir, srv.URL,
+		fmt.Sprintf("    server: %s\n    certificate-authority-data: %s",
+			srv.URL, base64.StdEncoding.EncodeToString(pki.caPEM)),
+		fmt.Sprintf("    client-certificate-data: %s\n    client-key-data: %s",
+			base64.StdEncoding.EncodeToString(certPEM), base64.StdEncoding.EncodeToString(keyPEM)),
+	)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	pods, err := listPodsUsingKubeletIdentity(ctx, kubeconfigPath, "", "")
+	require.NoError(t, err)
+	require.Len(t, pods, 2)
+	assert.Equal(t, "vector-jldbs", pods[0].Name)
+}
+
+func TestListPodsUsingKubeletIdentity_ExecCredential(t *testing.T) {
+	t.Parallel()
+
+	pki := newTestPKI(t, nil, []net.IP{net.ParseIP("127.0.0.1")}, "system:node:test-node")
+	hostname, err := os.Hostname()
+	require.NoError(t, err)
+	srv := newTestAPIServer(t, pki, false, func(w http.ResponseWriter, r *http.Request) {
+		// token authentication: no client certificate, bearer token required
+		assert.Equal(t, "Bearer test-exec-token", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/nodes/" + hostname:
+			_, _ = w.Write([]byte(`{"kind":"Node","apiVersion":"v1"}`))
+		case "/api/v1/pods":
+			assert.Equal(t, "spec.nodeName="+hostname, r.URL.Query().Get("fieldSelector"))
+			_, _ = w.Write([]byte(testKubeletPodsJSON))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+
+	// fake exec credential plugin, same contract as "aws eks get-token"
+	dir := t.TempDir()
+	execPath := filepath.Join(dir, "fake-exec")
+	require.NoError(t, os.WriteFile(execPath, []byte("#!/bin/sh\nprintf '%s' '{\"kind\":\"ExecCredential\",\"apiVersion\":\"client.authentication.k8s.io/v1beta1\",\"status\":{\"token\":\"test-exec-token\"}}'\n"), 0755))
+
+	// EKS layout: CA as a file reference, identity only via the exec plugin
+	caPath := filepath.Join(dir, "ca.crt")
+	require.NoError(t, os.WriteFile(caPath, pki.caPEM, 0644))
+	kubeconfigPath := writeKubeletKubeconfig(t, dir, srv.URL,
+		fmt.Sprintf("    server: %s\n    certificate-authority: %s", srv.URL, caPath),
+		fmt.Sprintf("    exec:\n      apiVersion: client.authentication.k8s.io/v1beta1\n      command: %s", execPath),
+	)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	pods, err := listPodsUsingKubeletIdentity(ctx, kubeconfigPath, "", "")
+	require.NoError(t, err)
+	require.Len(t, pods, 2)
+	assert.Equal(t, "kube-proxy-hfqwt", pods[1].Name)
+}
+
+func TestLoadKubeletAPIConfig_NoIdentity(t *testing.T) {
+	t.Parallel()
+
+	pki := newTestPKI(t, nil, []net.IP{net.ParseIP("127.0.0.1")}, "system:node:test-node")
+	dir := t.TempDir()
+	caPath := filepath.Join(dir, "ca.crt")
+	require.NoError(t, os.WriteFile(caPath, pki.caPEM, 0644))
+	kubeconfigPath := writeKubeletKubeconfig(t, dir, "https://10.0.0.1:6443",
+		"    server: https://10.0.0.1:6443",
+		"    {}",
+	)
+
+	_, err := loadKubeletAPIConfig(t.Context(), kubeconfigPath, "", caPath)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errKubeletIdentityNotFound,
+		"a kubeconfig with no client certificate and no exec credential must read as identity-not-found")
 }
 
 func TestListPodsUsingKubeletIdentity(t *testing.T) {
@@ -354,26 +482,18 @@ func TestResolveKubeletIdentityPaths(t *testing.T) {
 		assert.ErrorIs(t, err, errKubeletIdentityNotFound)
 	})
 
-	t.Run("no existing client cert candidate is identity-not-found", func(t *testing.T) {
+	t.Run("missing client cert and CA candidates are not errors", func(t *testing.T) {
 		t.Parallel()
-		_, _, _, err := resolveKubeletIdentityPaths(
+		// the kubeconfig may embed them or use an exec credential instead
+		kubeconfigPath, clientCertPath, caPath, err := resolveKubeletIdentityPaths(
 			[]string{existing("kubeconfig")},
 			[]string{missing},
-			[]string{existing("ca.crt")},
-		)
-		require.Error(t, err)
-		assert.ErrorIs(t, err, errKubeletIdentityNotFound)
-	})
-
-	t.Run("no existing CA candidate is identity-not-found", func(t *testing.T) {
-		t.Parallel()
-		_, _, _, err := resolveKubeletIdentityPaths(
-			[]string{existing("kubeconfig")},
-			[]string{existing("kubelet-client-current.pem")},
 			[]string{missing},
 		)
-		require.Error(t, err)
-		assert.ErrorIs(t, err, errKubeletIdentityNotFound)
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(dir, "kubeconfig"), kubeconfigPath)
+		assert.Empty(t, clientCertPath)
+		assert.Empty(t, caPath)
 	})
 }
 
