@@ -318,6 +318,127 @@ func TestListPodsUsingKubeletIdentity_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, errKubeletIdentityNotFound)
 }
 
+func TestResolveKubeletIdentityPaths(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	existing := func(name string) string {
+		p := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0600))
+		return p
+	}
+	missing := filepath.Join(dir, "does-not-exist")
+
+	t.Run("first existing candidate wins per file", func(t *testing.T) {
+		t.Parallel()
+		// mixed layout: each credential resolves from a different directory
+		kubeconfigPath, clientCertPath, caPath, err := resolveKubeletIdentityPaths(
+			[]string{missing, existing("kubelet.conf"), existing("kubeconfig")},
+			[]string{missing, existing("kubelet-client-current.pem")},
+			[]string{existing("ca.crt")},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(dir, "kubelet.conf"), kubeconfigPath)
+		assert.Equal(t, filepath.Join(dir, "kubelet-client-current.pem"), clientCertPath)
+		assert.Equal(t, filepath.Join(dir, "ca.crt"), caPath)
+	})
+
+	t.Run("no existing kubeconfig candidate is identity-not-found", func(t *testing.T) {
+		t.Parallel()
+		_, _, _, err := resolveKubeletIdentityPaths(
+			[]string{missing},
+			[]string{existing("kubelet-client-current.pem")},
+			[]string{existing("ca.crt")},
+		)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, errKubeletIdentityNotFound)
+	})
+
+	t.Run("no existing client cert candidate is identity-not-found", func(t *testing.T) {
+		t.Parallel()
+		_, _, _, err := resolveKubeletIdentityPaths(
+			[]string{existing("kubeconfig")},
+			[]string{missing},
+			[]string{existing("ca.crt")},
+		)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, errKubeletIdentityNotFound)
+	})
+
+	t.Run("no existing CA candidate is identity-not-found", func(t *testing.T) {
+		t.Parallel()
+		_, _, _, err := resolveKubeletIdentityPaths(
+			[]string{existing("kubeconfig")},
+			[]string{existing("kubelet-client-current.pem")},
+			[]string{missing},
+		)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, errKubeletIdentityNotFound)
+	})
+}
+
+func TestListPodsUsingDiscoveredKubeletIdentity(t *testing.T) {
+	// mutates the package-level default candidate paths; do not run in parallel
+
+	pki := newTestPKI(t, nil, []net.IP{net.ParseIP("127.0.0.1")}, "system:node:test-node")
+	srv := newTestAPIServer(t, pki, true, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(testKubeletPodsJSON))
+	})
+
+	// simulate an EKS-style layout under a temp dir: kubelet kubeconfig and
+	// rotated client cert under its data dir, CA under the pki dir
+	dir := t.TempDir()
+	kubeletDir := filepath.Join(dir, "var", "lib", "kubelet")
+	pkiDir := filepath.Join(dir, "etc", "kubernetes", "pki")
+	require.NoError(t, os.MkdirAll(filepath.Join(kubeletDir, "pki"), 0755))
+	require.NoError(t, os.MkdirAll(pkiDir, 0755))
+
+	kubeconfigPath, clientCertPath, caPath := writeKubeletCredentials(t, pki, srv.URL, "")
+	require.NoError(t, os.Rename(kubeconfigPath, filepath.Join(kubeletDir, "kubeconfig")))
+	require.NoError(t, os.Rename(clientCertPath, filepath.Join(kubeletDir, "pki", "kubelet-client-current.pem")))
+	require.NoError(t, os.Rename(caPath, filepath.Join(pkiDir, "ca.crt")))
+
+	origKubeconfig, origClientCert, origCA := defaultKubeletKubeconfigPaths, defaultKubeletClientCertPaths, defaultKubeletCAPaths
+	t.Cleanup(func() {
+		defaultKubeletKubeconfigPaths = origKubeconfig
+		defaultKubeletClientCertPaths = origClientCert
+		defaultKubeletCAPaths = origCA
+	})
+	defaultKubeletKubeconfigPaths = []string{filepath.Join(dir, "root", ".kube", "config"), filepath.Join(kubeletDir, "kubeconfig")}
+	defaultKubeletClientCertPaths = []string{filepath.Join(pkiDir, "kubelet-client-current.pem"), filepath.Join(kubeletDir, "pki", "kubelet-client-current.pem")}
+	defaultKubeletCAPaths = []string{filepath.Join(pkiDir, "ca.crt")}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	pods, err := listPodsUsingDiscoveredKubeletIdentity(ctx)
+	require.NoError(t, err)
+	require.Len(t, pods, 2)
+	assert.Equal(t, "vector-jldbs", pods[0].Name)
+	assert.Equal(t, "kube-proxy-hfqwt", pods[1].Name)
+}
+
+func TestListPodsUsingDiscoveredKubeletIdentity_NotFound(t *testing.T) {
+	// mutates the package-level default candidate paths; do not run in parallel
+
+	dir := t.TempDir()
+	origKubeconfig, origClientCert, origCA := defaultKubeletKubeconfigPaths, defaultKubeletClientCertPaths, defaultKubeletCAPaths
+	t.Cleanup(func() {
+		defaultKubeletKubeconfigPaths = origKubeconfig
+		defaultKubeletClientCertPaths = origClientCert
+		defaultKubeletCAPaths = origCA
+	})
+	defaultKubeletKubeconfigPaths = []string{filepath.Join(dir, "kubeconfig")}
+	defaultKubeletClientCertPaths = []string{filepath.Join(dir, "kubelet-client-current.pem")}
+	defaultKubeletCAPaths = []string{filepath.Join(dir, "ca.crt")}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	_, err := listPodsUsingDiscoveredKubeletIdentity(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errKubeletIdentityNotFound)
+}
+
 func TestListPodsFromKubeletAPI_StatusErrors(t *testing.T) {
 	t.Parallel()
 

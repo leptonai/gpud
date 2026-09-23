@@ -178,7 +178,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		listAllSandboxesFunc: ListAllSandboxes,
 
 		listKubeletPodsFunc: func(ctx context.Context) ([]kubeletPodStatus, error) {
-			return listPodsUsingKubeletIdentity(ctx, defaultKubeletKubeconfigPath, defaultKubeletClientCertPath, defaultKubeletCAPath)
+			return listPodsUsingDiscoveredKubeletIdentity(ctx)
 		},
 
 		endpoint:        runtimeConfig.Endpoint,
