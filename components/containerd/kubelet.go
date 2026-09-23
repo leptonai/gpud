@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -85,31 +88,82 @@ type kubeletAPIConfig struct {
 	// caPool verifies the API server certificate. Never nil.
 	caPool *x509.CertPool
 
-	// clientCert is kubelet's current client certificate.
-	clientCert tls.Certificate
+	// clientCert is kubelet's current client certificate. Nil when the
+	// kubeconfig authenticates with an exec credential instead.
+	clientCert *tls.Certificate
+
+	// bearerToken is the token produced by the kubeconfig's exec credential.
+	// Empty when client-certificate authentication is used.
+	bearerToken string
 
 	// nodeName is this node's name, taken from the client certificate CN
-	// ("system:node:<name>").
+	// ("system:node:<name>"). Empty under exec-credential authentication,
+	// where no certificate CN exists; it is then resolved against the API
+	// server before the first pod list.
 	nodeName string
 }
 
 // kubeletKubeconfig is the minimal subset of a clientcmd config needed to
-// resolve the API server endpoint exactly as kubelet does.
+// resolve the API server endpoint and kubelet's client identity exactly as
+// kubelet does.
 type kubeletKubeconfig struct {
 	CurrentContext string `json:"current-context"`
 	Contexts       []struct {
 		Name    string `json:"name"`
 		Context struct {
 			Cluster string `json:"cluster"`
+			User    string `json:"user"`
 		} `json:"context"`
 	} `json:"contexts"`
 	Clusters []struct {
-		Name    string `json:"name"`
-		Cluster struct {
-			Server        string `json:"server"`
-			TLSServerName string `json:"tls-server-name,omitempty"`
-		} `json:"cluster"`
+		Name    string                   `json:"name"`
+		Cluster kubeletKubeconfigCluster `json:"cluster"`
 	} `json:"clusters"`
+	Users []struct {
+		Name string                `json:"name"`
+		User kubeletKubeconfigUser `json:"user"`
+	} `json:"users"`
+}
+
+// kubeletKubeconfigCluster is the cluster section of a kubeconfig entry.
+type kubeletKubeconfigCluster struct {
+	Server                   string `json:"server"`
+	TLSServerName            string `json:"tls-server-name,omitempty"`
+	CertificateAuthority     string `json:"certificate-authority,omitempty"`
+	CertificateAuthorityData string `json:"certificate-authority-data,omitempty"`
+}
+
+// kubeletKubeconfigUser is the auth-info section of a kubeconfig user entry.
+// Kubelet's identity material varies by provisioner: a rotated client
+// certificate under the pki dir (kubeadm), cert/key references or embedded
+// data in the kubeconfig (static kubeadm kubelet.conf), or an exec credential
+// plugin (EKS, where kubelet authenticates with an IAM-derived token and no
+// client certificate exists on the host at all).
+type kubeletKubeconfigUser struct {
+	ClientCertificate     string           `json:"client-certificate,omitempty"`
+	ClientKey             string           `json:"client-key,omitempty"`
+	ClientCertificateData string           `json:"client-certificate-data,omitempty"`
+	ClientKeyData         string           `json:"client-key-data,omitempty"`
+	Exec                  *kubeletExecSpec `json:"exec,omitempty"`
+}
+
+// kubeletExecSpec is the exec credential plugin section of a kubeconfig user.
+type kubeletExecSpec struct {
+	APIVersion string   `json:"apiVersion"`
+	Command    string   `json:"command"`
+	Args       []string `json:"args"`
+	Env        []struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	} `json:"env"`
+}
+
+// execCredentialStatus is the subset of client.authentication.k8s.io
+// ExecCredential needed for bearer authentication.
+type execCredentialStatus struct {
+	Status struct {
+		Token string `json:"token"`
+	} `json:"status"`
 }
 
 // readIdentityFile reads a kubelet credential file, mapping a missing file to
@@ -122,10 +176,10 @@ func readIdentityFile(path string) ([]byte, error) {
 	return b, err
 }
 
-// resolveKubeletCluster returns the server endpoint of the cluster referenced
-// by the kubeconfig's current-context, falling back to the sole cluster entry
-// when no current-context is set.
-func resolveKubeletCluster(cfg kubeletKubeconfig) (server string, tlsServerName string, err error) {
+// resolveKubeletCluster returns the cluster referenced by the kubeconfig's
+// current-context, falling back to the sole cluster entry when no
+// current-context is set.
+func resolveKubeletCluster(cfg kubeletKubeconfig) (*kubeletKubeconfigCluster, error) {
 	clusterName := ""
 	for _, ctx := range cfg.Contexts {
 		if ctx.Name == cfg.CurrentContext {
@@ -135,10 +189,11 @@ func resolveKubeletCluster(cfg kubeletKubeconfig) (server string, tlsServerName 
 	}
 	for _, c := range cfg.Clusters {
 		if c.Name == clusterName || (clusterName == "" && len(cfg.Clusters) == 1) {
-			return c.Cluster.Server, c.Cluster.TLSServerName, nil
+			cluster := c.Cluster
+			return &cluster, nil
 		}
 	}
-	return "", "", fmt.Errorf("no cluster found for current-context %q", cfg.CurrentContext)
+	return nil, fmt.Errorf("no cluster found for current-context %q", cfg.CurrentContext)
 }
 
 // nodeNameFromClientCert extracts the node name from the kubelet client
@@ -159,34 +214,54 @@ func nodeNameFromClientCert(cert *tls.Certificate) (string, error) {
 }
 
 // resolveKubeletIdentityPaths probes each candidate list and returns the
-// first existing path per credential file. Returns errKubeletIdentityNotFound
-// when any credential file exists at none of its well-known locations, i.e.
-// the node is not part of a Kubernetes cluster.
+// first existing path per credential file. Only the kubeconfig is required:
+// the client certificate may legitimately live inside the kubeconfig (or be
+// replaced by an exec credential), and the CA may be referenced from or
+// embedded in the kubeconfig. Returns errKubeletIdentityNotFound when no
+// kubeconfig exists at any well-known location, i.e. the node is not part of
+// a Kubernetes cluster.
 func resolveKubeletIdentityPaths(kubeconfigCandidates, clientCertCandidates, caCandidates []string) (kubeconfigPath, clientCertPath, caPath string, err error) {
-	firstExisting := func(candidates []string) (string, error) {
+	firstExisting := func(candidates []string) string {
 		for _, candidate := range candidates {
 			if _, statErr := os.Stat(candidate); statErr == nil {
-				return candidate, nil
+				return candidate
 			}
 		}
-		return "", fmt.Errorf("%w: none of %v exists", errKubeletIdentityNotFound, candidates)
+		return ""
 	}
-	if kubeconfigPath, err = firstExisting(kubeconfigCandidates); err != nil {
-		return "", "", "", err
+	kubeconfigPath = firstExisting(kubeconfigCandidates)
+	if kubeconfigPath == "" {
+		return "", "", "", fmt.Errorf("%w: no kubelet kubeconfig in %v", errKubeletIdentityNotFound, kubeconfigCandidates)
 	}
-	if clientCertPath, err = firstExisting(clientCertCandidates); err != nil {
-		return "", "", "", err
+	return kubeconfigPath, firstExisting(clientCertCandidates), firstExisting(caCandidates), nil
+}
+
+// resolveKubeletUser returns the auth info of the user referenced by the
+// kubeconfig's current-context, falling back to the sole user entry when no
+// current-context is set.
+func resolveKubeletUser(cfg kubeletKubeconfig) (*kubeletKubeconfigUser, error) {
+	userName := ""
+	for _, ctx := range cfg.Contexts {
+		if ctx.Name == cfg.CurrentContext {
+			userName = ctx.Context.User
+			break
+		}
 	}
-	if caPath, err = firstExisting(caCandidates); err != nil {
-		return "", "", "", err
+	for _, u := range cfg.Users {
+		if u.Name == userName || (userName == "" && len(cfg.Users) == 1) {
+			user := u.User
+			return &user, nil
+		}
 	}
-	return kubeconfigPath, clientCertPath, caPath, nil
+	return nil, fmt.Errorf("no user found for current-context %q", cfg.CurrentContext)
 }
 
 // loadKubeletAPIConfig builds the API client configuration from the on-host
-// kubelet credentials. Returns errKubeletIdentityNotFound when any of the
-// credential files does not exist.
-func loadKubeletAPIConfig(kubeconfigPath, clientCertPath, caPath string) (*kubeletAPIConfig, error) {
+// kubelet credentials. clientCertPath and caPath may be empty when discovery
+// found no standalone file; the kubeconfig itself is then consulted (embedded
+// data, file references, or an exec credential). Returns
+// errKubeletIdentityNotFound when no usable kubelet identity exists anywhere.
+func loadKubeletAPIConfig(ctx context.Context, kubeconfigPath, clientCertPath, caPath string) (*kubeletAPIConfig, error) {
 	kubeconfigBytes, err := readIdentityFile(kubeconfigPath)
 	if err != nil {
 		return nil, err
@@ -195,57 +270,173 @@ func loadKubeletAPIConfig(kubeconfigPath, clientCertPath, caPath string) (*kubel
 	if err := yaml.Unmarshal(kubeconfigBytes, &kubeconfig); err != nil {
 		return nil, fmt.Errorf("failed to parse kubelet kubeconfig %s: %w", kubeconfigPath, err)
 	}
-	server, tlsServerName, err := resolveKubeletCluster(kubeconfig)
+	cluster, err := resolveKubeletCluster(kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("invalid kubelet kubeconfig %s: %w", kubeconfigPath, err)
 	}
-	serverURL, err := url.Parse(server)
+	serverURL, err := url.Parse(cluster.Server)
 	if err != nil {
-		return nil, fmt.Errorf("invalid API server address %q in %s: %w", server, kubeconfigPath, err)
+		return nil, fmt.Errorf("invalid API server address %q in %s: %w", cluster.Server, kubeconfigPath, err)
 	}
 	if serverURL.Scheme != "https" {
-		return nil, fmt.Errorf("API server address %q in %s is not https", server, kubeconfigPath)
+		return nil, fmt.Errorf("API server address %q in %s is not https", cluster.Server, kubeconfigPath)
 	}
 
-	caBytes, err := readIdentityFile(caPath)
+	caBytes, err := resolveCABytes(kubeconfigPath, cluster, caPath)
 	if err != nil {
 		return nil, err
 	}
 	caPool := x509.NewCertPool()
 	if !caPool.AppendCertsFromPEM(caBytes) {
-		return nil, fmt.Errorf("no valid CA certificates in %s", caPath)
+		return nil, fmt.Errorf("no valid CA certificates for kubelet kubeconfig %s", kubeconfigPath)
 	}
 
-	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientCertPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("%w: %s", errKubeletIdentityNotFound, clientCertPath)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to load kubelet client certificate %s: %w", clientCertPath, err)
-	}
-
-	nodeName, err := nodeNameFromClientCert(&clientCert)
-	if err != nil {
-		return nil, err
-	}
-
-	return &kubeletAPIConfig{
+	cfg := &kubeletAPIConfig{
 		server:     serverURL,
-		serverName: tlsServerName,
+		serverName: cluster.TLSServerName,
 		caPool:     caPool,
-		clientCert: clientCert,
-		nodeName:   nodeName,
-	}, nil
+	}
+
+	// Client identity, in freshness order: the rotated client certificate
+	// under the pki dir when present, then the kubeconfig's own auth info
+	// (cert/key data or file references, then an exec credential plugin).
+	if clientCertPath != "" {
+		cert, err := tls.LoadX509KeyPair(clientCertPath, clientCertPath)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("%w: %s", errKubeletIdentityNotFound, clientCertPath)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to load kubelet client certificate %s: %w", clientCertPath, err)
+		}
+		cfg.clientCert = &cert
+	}
+
+	if cfg.clientCert == nil {
+		user, err := resolveKubeletUser(kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("invalid kubelet kubeconfig %s: %w", kubeconfigPath, err)
+		}
+		switch {
+		case user.ClientCertificateData != "" && user.ClientKeyData != "":
+			certPEM, err := base64.StdEncoding.DecodeString(user.ClientCertificateData)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode client-certificate-data in %s: %w", kubeconfigPath, err)
+			}
+			keyPEM, err := base64.StdEncoding.DecodeString(user.ClientKeyData)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode client-key-data in %s: %w", kubeconfigPath, err)
+			}
+			cert, err := tls.X509KeyPair(certPEM, keyPEM)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load embedded kubelet client certificate in %s: %w", kubeconfigPath, err)
+			}
+			cfg.clientCert = &cert
+		case user.ClientCertificate != "" && user.ClientKey != "":
+			dir := filepath.Dir(kubeconfigPath)
+			certPath, keyPath := user.ClientCertificate, user.ClientKey
+			if !filepath.IsAbs(certPath) {
+				certPath = filepath.Join(dir, certPath)
+			}
+			if !filepath.IsAbs(keyPath) {
+				keyPath = filepath.Join(dir, keyPath)
+			}
+			cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+			if errors.Is(err, os.ErrNotExist) {
+				return nil, fmt.Errorf("%w: %s", errKubeletIdentityNotFound, certPath)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("failed to load kubelet client certificate %s: %w", certPath, err)
+			}
+			cfg.clientCert = &cert
+		case user.Exec != nil:
+			token, err := runKubeletExecCredential(ctx, user.Exec)
+			if err != nil {
+				return nil, fmt.Errorf("failed to run kubelet exec credential in %s: %w", kubeconfigPath, err)
+			}
+			cfg.bearerToken = token
+		default:
+			return nil, fmt.Errorf("%w: %s carries no client certificate or exec credential", errKubeletIdentityNotFound, kubeconfigPath)
+		}
+	}
+
+	if cfg.clientCert != nil {
+		nodeName, err := nodeNameFromClientCert(cfg.clientCert)
+		if err != nil {
+			return nil, err
+		}
+		cfg.nodeName = nodeName
+	}
+	// Under exec-credential authentication no certificate CN exists; nodeName
+	// stays empty and is resolved against the API server on first use.
+
+	return cfg, nil
+}
+
+// resolveCABytes returns the cluster CA PEM from the discovered CA file when
+// present, else from the kubeconfig cluster entry (embedded data or file
+// reference, resolved relative to the kubeconfig's directory).
+func resolveCABytes(kubeconfigPath string, cluster *kubeletKubeconfigCluster, caPath string) ([]byte, error) {
+	if caPath != "" {
+		return readIdentityFile(caPath)
+	}
+	if cluster.CertificateAuthorityData != "" {
+		caBytes, err := base64.StdEncoding.DecodeString(cluster.CertificateAuthorityData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode certificate-authority-data in %s: %w", kubeconfigPath, err)
+		}
+		return caBytes, nil
+	}
+	if cluster.CertificateAuthority != "" {
+		caRef := cluster.CertificateAuthority
+		if !filepath.IsAbs(caRef) {
+			caRef = filepath.Join(filepath.Dir(kubeconfigPath), caRef)
+		}
+		return readIdentityFile(caRef)
+	}
+	return nil, fmt.Errorf("no cluster CA found in or next to kubelet kubeconfig %s", kubeconfigPath)
+}
+
+// runKubeletExecCredential executes the kubeconfig's exec credential plugin —
+// the same command kubelet itself runs (e.g. "aws eks get-token" on EKS,
+// where no client certificate exists on the host) — and returns the bearer
+// token from the ExecCredential status. The plugin spec comes from a
+// root-owned kubelet kubeconfig at a well-known path; only
+// client.authentication.k8s.io exec credentials are honored.
+func runKubeletExecCredential(ctx context.Context, spec *kubeletExecSpec) (string, error) {
+	if !strings.HasPrefix(spec.APIVersion, "client.authentication.k8s.io/") {
+		return "", fmt.Errorf("unsupported exec credential apiVersion %q", spec.APIVersion)
+	}
+	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(cctx, spec.Command, spec.Args...)
+	for _, env := range spec.Env {
+		cmd.Env = append(cmd.Env, env.Name+"="+env.Value)
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("exec credential %q failed: %w", spec.Command, err)
+	}
+	var cred execCredentialStatus
+	if err := json.Unmarshal(out, &cred); err != nil {
+		return "", fmt.Errorf("failed to parse exec credential from %q: %w", spec.Command, err)
+	}
+	if cred.Status.Token == "" {
+		return "", fmt.Errorf("exec credential from %q returned an empty token", spec.Command)
+	}
+	return cred.Status.Token, nil
 }
 
 // newKubeletAPIHTTPClient returns an HTTP client that authenticates with
-// kubelet's client certificate and verifies the API server certificate against
-// the cluster CA.
+// kubelet's client certificate when present (exec-credential configs carry a
+// bearer token instead, applied per request) and verifies the API server
+// certificate against the cluster CA.
 func newKubeletAPIHTTPClient(cfg *kubeletAPIConfig, timeout time.Duration) *http.Client {
 	tlsConfig := &tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		RootCAs:      cfg.caPool,
-		Certificates: []tls.Certificate{cfg.clientCert},
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    cfg.caPool,
+	}
+	if cfg.clientCert != nil {
+		tlsConfig.Certificates = []tls.Certificate{*cfg.clientCert}
 	}
 	transport := &http.Transport{
 		Proxy:              http.ProxyFromEnvironment,
@@ -287,7 +478,7 @@ func listPodsUsingDiscoveredKubeletIdentity(ctx context.Context) ([]kubeletPodSt
 // lists this node's pods from the API server. Credentials are re-read on every
 // call because kubelet rotates its client certificate.
 func listPodsUsingKubeletIdentity(ctx context.Context, kubeconfigPath, clientCertPath, caPath string) ([]kubeletPodStatus, error) {
-	cfg, err := loadKubeletAPIConfig(kubeconfigPath, clientCertPath, caPath)
+	cfg, err := loadKubeletAPIConfig(ctx, kubeconfigPath, clientCertPath, caPath)
 	if err != nil {
 		return nil, err
 	}
@@ -300,6 +491,14 @@ func listPodsUsingKubeletIdentity(ctx context.Context, kubeconfigPath, clientCer
 // confirms teardown, and the sustained-absence grace period in
 // danglingPodCount absorbs the force-delete divergence window.
 func listPodsFromKubeletAPI(ctx context.Context, cfg *kubeletAPIConfig, timeout time.Duration) ([]kubeletPodStatus, error) {
+	if cfg.nodeName == "" {
+		nodeName, err := resolveNodeName(ctx, cfg, timeout)
+		if err != nil {
+			return nil, err
+		}
+		cfg.nodeName = nodeName
+	}
+
 	podsURL := url.URL{
 		Scheme:   cfg.server.Scheme,
 		Host:     cfg.server.Host,
@@ -309,6 +508,9 @@ func listPodsFromKubeletAPI(ctx context.Context, cfg *kubeletAPIConfig, timeout 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, podsURL.String(), nil)
 	if err != nil {
 		return nil, err
+	}
+	if cfg.bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+cfg.bearerToken)
 	}
 
 	resp, err := newKubeletAPIHTTPClient(cfg, timeout).Do(req)
@@ -345,4 +547,39 @@ func parseKubeletPodList(r io.Reader) (*corev1.PodList, error) {
 		return nil, err
 	}
 	return podList, nil
+}
+
+// resolveNodeName determines this node's API server object name when no client
+// certificate CN is available (exec-credential authentication). The node name
+// matches the OS hostname on EKS-style nodes; the candidate is verified with a
+// GET on the node object first — a wrong name must never silently read as
+// "zero pods on this node", which would mark every READY sandbox dangling.
+func resolveNodeName(ctx context.Context, cfg *kubeletAPIConfig, timeout time.Duration) (string, error) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "", fmt.Errorf("failed to read hostname for kubelet node name resolution: %w", err)
+	}
+	nodeURL := url.URL{
+		Scheme: cfg.server.Scheme,
+		Host:   cfg.server.Host,
+		Path:   "/api/v1/nodes/" + hostname,
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, nodeURL.String(), nil)
+	if err != nil {
+		return "", err
+	}
+	if cfg.bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+cfg.bearerToken)
+	}
+	resp, err := newKubeletAPIHTTPClient(cfg, timeout).Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("verifying node name %q against the API server failed with status code %d", hostname, resp.StatusCode)
+	}
+	return hostname, nil
 }
