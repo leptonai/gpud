@@ -26,9 +26,12 @@ import (
 
 // Well-known kubelet credential locations, in probe order. No single layout
 // is universal: Lepton/kubeadm-style images keep a root kubeconfig and the
-// identity PEM under /etc/kubernetes, while EKS and most distro provisioners
-// keep kubelet's kubeconfig and rotated client certificate under its data
-// directory /var/lib/kubelet. Probing each file independently tolerates mixed
+// identity PEM under /etc/kubernetes, EKS and most distro provisioners keep
+// kubelet's kubeconfig and rotated client certificate under its data
+// directory /var/lib/kubelet, and Rancher flavors (k3s, RKE2 — used by
+// Lepton BYOK worker clusters) keep kubelet.kubeconfig under the agent dir,
+// with client certificate and cluster CA as absolute file references resolved
+// from the kubeconfig itself. Probing each file independently tolerates mixed
 // layouts; a host with none of them is not a Kubernetes node.
 var (
 	// defaultKubeletKubeconfigPaths are the kubeconfigs kubelet itself uses
@@ -37,6 +40,8 @@ var (
 		"/root/.kube/config",
 		"/etc/kubernetes/kubelet.conf",
 		"/var/lib/kubelet/kubeconfig",
+		"/var/lib/rancher/k3s/agent/kubelet.kubeconfig",
+		"/var/lib/rancher/rke2/agent/kubelet.kubeconfig",
 	}
 
 	// defaultKubeletClientCertPaths hold kubelet's current client certificate

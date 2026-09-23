@@ -820,6 +820,49 @@ func TestListPodsUsingDiscoveredKubeletIdentity(t *testing.T) {
 	assert.Equal(t, "kube-proxy-hfqwt", pods[1].Name)
 }
 
+func TestListPodsUsingDiscoveredKubeletIdentity_K3sLayout(t *testing.T) {
+	// mutates the package-level default candidate paths; do not run in parallel
+
+	pki := newTestPKI(t, nil, []net.IP{net.ParseIP("127.0.0.1")}, "system:node:test-node")
+	srv := newTestAPIServer(t, pki, true, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(testKubeletPodsJSON))
+	})
+
+	// k3s agent layout: kubelet.kubeconfig under the rancher agent dir with
+	// absolute file references for the client certificate, key, and server CA
+	agentDir := filepath.Join(t.TempDir(), "var", "lib", "rancher", "k3s", "agent")
+	require.NoError(t, os.MkdirAll(agentDir, 0755))
+	certPEM, keyPEM := splitClientCertPEM(t, pki.clientCertPEM)
+	require.NoError(t, os.WriteFile(filepath.Join(agentDir, "client-kubelet.crt"), certPEM, 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(agentDir, "client-kubelet.key"), keyPEM, 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(agentDir, "server-ca.crt"), pki.caPEM, 0644))
+	kubeconfigPath := writeKubeletKubeconfig(t, agentDir, srv.URL,
+		fmt.Sprintf("    server: %s\n    certificate-authority: %s", srv.URL, filepath.Join(agentDir, "server-ca.crt")),
+		fmt.Sprintf("    client-certificate: %s\n    client-key: %s", filepath.Join(agentDir, "client-kubelet.crt"), filepath.Join(agentDir, "client-kubelet.key")),
+	)
+	require.NoError(t, os.Rename(kubeconfigPath, filepath.Join(agentDir, "kubelet.kubeconfig")))
+
+	// no standalone pki discoveries: identity must come from kubeconfig refs
+	missing := filepath.Join(t.TempDir(), "does-not-exist")
+	origKubeconfig, origClientCert, origCA := defaultKubeletKubeconfigPaths, defaultKubeletClientCertPaths, defaultKubeletCAPaths
+	t.Cleanup(func() {
+		defaultKubeletKubeconfigPaths = origKubeconfig
+		defaultKubeletClientCertPaths = origClientCert
+		defaultKubeletCAPaths = origCA
+	})
+	defaultKubeletKubeconfigPaths = []string{missing, filepath.Join(agentDir, "kubelet.kubeconfig")}
+	defaultKubeletClientCertPaths = []string{missing}
+	defaultKubeletCAPaths = []string{missing}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	pods, err := listPodsUsingDiscoveredKubeletIdentity(ctx)
+	require.NoError(t, err)
+	require.Len(t, pods, 2)
+	assert.Equal(t, "vector-jldbs", pods[0].Name)
+}
+
 func TestListPodsUsingDiscoveredKubeletIdentity_NotFound(t *testing.T) {
 	// mutates the package-level default candidate paths; do not run in parallel
 
