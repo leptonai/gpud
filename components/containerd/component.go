@@ -20,6 +20,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/components"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/log"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/systemd"
@@ -30,7 +31,7 @@ const (
 	Name                        = "containerd"
 	danglingDegradedThreshold   = 5
 	danglingUnhealthyThreshold  = 10
-	defaultContainerdConfigPath = "/etc/containerd/config.toml"
+	defaultContainerdConfigPath = configcommon.DefaultContainerdConfigPath
 
 	// danglingPodAbsentGrace is how long a READY sandbox's pod must be
 	// continuously absent from the API server pod list before the sandbox
@@ -88,7 +89,9 @@ type component struct {
 
 	listKubeletPodsFunc func(ctx context.Context) ([]kubeletPodStatus, error)
 
-	endpoint string
+	endpoint        string
+	configPath      string
+	explicitRuntime bool
 
 	socketMissingMu    sync.Mutex
 	socketMissingCount int
@@ -106,10 +109,21 @@ type component struct {
 
 // New creates a containerd component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	if err := gpudInstance.Containerd.Validate(); err != nil {
+		return nil, err
+	}
+	runtimeConfig := gpudInstance.Containerd.WithDefaults()
+	socketPath, err := runtimeConfig.SocketPath()
+	if err != nil {
+		return nil, err
+	}
 	cctx, ccancel := context.WithCancel(gpudInstance.RootCtx)
 
 	// Determine the checkSocketExistsFunc based on failure injector configuration
 	checkSocketExistsFunc := CheckSocketExists
+	if !gpudInstance.Containerd.IsZero() {
+		checkSocketExistsFunc = func() bool { return checkSocketExists(socketPath) }
+	}
 	if gpudInstance.FailureInjector != nil && gpudInstance.FailureInjector.ContainerdSocketMissing {
 		// Override to always return false, simulating socket missing
 		checkSocketExistsFunc = func() bool {
@@ -128,7 +142,7 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		},
 		containerToolkitCreationThreshold: 10 * time.Minute,
 		getContainerdConfigFunc: func() ([]byte, error) {
-			return os.ReadFile(defaultContainerdConfigPath)
+			return os.ReadFile(runtimeConfig.ConfigPath)
 		},
 		getRuntimeConfigFunc: func() ([]byte, error) {
 			ctx, cancel := context.WithTimeout(cctx, 5*time.Second)
@@ -150,10 +164,21 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			if gpudInstance.ContainerdServiceActiveCommands != "" {
 				return CheckServiceActiveWithCommand(ctx, gpudInstance.ContainerdServiceActiveCommands)
 			}
-			return systemd.IsActive("containerd")
+			if gpudInstance.Containerd.IsZero() {
+				return systemd.IsActive("containerd")
+			}
+			return systemd.IsActiveWithCommand(runtimeConfig.ServiceName, runtimeConfig.SystemctlCommands)
 		},
 		getContainerdUptimeFunc: func() (*time.Duration, error) {
-			return systemd.GetUptime("containerd")
+			if gpudInstance.Containerd.IsZero() {
+				return systemd.GetUptime("containerd")
+			}
+			// An arbitrary active-command override does not identify its service manager.
+			// Uptime cannot safely grant startup grace for an unrelated service.
+			if gpudInstance.ContainerdServiceActiveCommands != "" {
+				return nil, nil
+			}
+			return systemd.GetUptimeWithCommand(runtimeConfig.ServiceName, runtimeConfig.SystemctlCommands)
 		},
 		activenssCheckUptimeThreshold: defaultActivenssCheckUptimeThreshold,
 
@@ -163,7 +188,12 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 			return listPodsUsingKubeletIdentity(ctx, defaultKubeletKubeconfigPath, defaultKubeletClientCertPath, defaultKubeletCAPath)
 		},
 
-		endpoint: DefaultContainerRuntimeEndpoint,
+		endpoint:        runtimeConfig.Endpoint,
+		configPath:      runtimeConfig.ConfigPath,
+		explicitRuntime: !gpudInstance.Containerd.IsZero(),
+	}
+	if c.explicitRuntime {
+		c.checkContainerdRunningFunc = func(ctx context.Context) bool { return CheckContainerdRunningAt(ctx, runtimeConfig.Endpoint) }
 	}
 	return c, nil
 }
@@ -292,7 +322,7 @@ func (c *component) Check() components.CheckResult {
 	}()
 
 	// assume "containerd" is not installed, thus not needed to check its activeness
-	if c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc() {
+	if !c.explicitRuntime && (c.checkDependencyInstalledFunc == nil || !c.checkDependencyInstalledFunc()) {
 		c.recordSocketMissing(false)
 		cr.health = apiv1.HealthStateTypeHealthy
 		cr.reason = "containerd not installed"
@@ -309,7 +339,7 @@ func (c *component) Check() components.CheckResult {
 	// CRI-O is probed with a real CRI connection (CheckCRIORunning) rather
 	// than a bare socket stat so a stale socket left by a crashed CRI-O does
 	// not spoof a containerd node into skipping a genuine containerd outage.
-	if c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() &&
+	if !c.explicitRuntime && c.checkSocketExistsFunc != nil && !c.checkSocketExistsFunc() &&
 		c.checkCRIORunningFunc != nil {
 		cctx, ccancel := context.WithTimeout(c.ctx, 15*time.Second)
 		crioRunning := c.checkCRIORunningFunc(cctx)
@@ -460,7 +490,11 @@ func (c *component) Check() components.CheckResult {
 					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
 				case !hasNvidiaRuntimeConfiguration(config):
-					reason := fmt.Sprintf("nvidia-container-toolkit pod is running but %s is missing NVIDIA runtime configuration", defaultContainerdConfigPath)
+					configPath := c.configPath
+					if configPath == "" {
+						configPath = defaultContainerdConfigPath
+					}
+					reason := fmt.Sprintf("nvidia-container-toolkit pod is running but %s is missing NVIDIA runtime configuration", configPath)
 					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
 					cr.health = apiv1.HealthStateTypeUnhealthy

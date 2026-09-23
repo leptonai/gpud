@@ -175,8 +175,36 @@ gpud:
   # containerd" with nsenter so the check queries the host's service manager
   # (exit code 0 means active). Requires the host containerd mounts below
   # (mountContainerd) plus the same hostPID/privileged settings as above.
-  # Set to "" to use gpud's built-in in-namespace systemd check.
-  containerdServiceActiveCommands: "nsenter --target 1 --mount -- systemctl is-active containerd"
+  # null generates the legacy command above for the default installation, or
+  # uses containerd.systemctlCommands with containerd.serviceName when configured.
+  # A non-empty override takes precedence for activeness. For an explicitly
+  # configured runtime it disables uptime-based grace: an arbitrary script does
+  # not identify the service manager whose uptime would be trustworthy.
+  # Set to "" to use the built-in check (the configured prefix still applies).
+  containerdServiceActiveCommands: null
+
+  # Empty fields preserve legacy detection and defaults. Setting any field pins
+  # monitoring to this installation; a failed socket never falls back to CRI-O.
+  # These values require an image supporting the corresponding gpud run flags.
+  containerd:
+    # CLI: --containerd-endpoint. Empty: unix:///run/containerd/containerd.sock.
+    # Use "endpoint: unix:///run/k3s/containerd/containerd.sock" if running RKE2/k3s.
+    endpoint: ""
+    # CLI: --containerd-config-path. Empty: /etc/containerd/config.toml.
+    # Use "configPath: /var/lib/rancher/rke2/agent/etc/containerd/config.toml" if running RKE2.
+    # Use "configPath: /var/lib/rancher/k3s/agent/etc/containerd/config.toml" if running k3s.
+    # Point to the effective runtime config, not the GPU Operator's unused config.
+    configPath: ""
+    # CLI: --containerd-service-name. Empty: containerd.
+    # Use "serviceName: rke2-agent" if running an RKE2 worker.
+    # Use "serviceName: rke2-server" if running an RKE2 server.
+    # Use "serviceName: k3s-agent" or "serviceName: k3s" for the corresponding k3s role.
+    # Mixed-role clusters need separate node-selected releases with the right unit.
+    serviceName: ""
+    # CLI: --containerd-systemctl-commands (empty CLI default runs systemctl directly).
+    # For configured Helm installs, empty uses "nsenter --target 1 --mount -- systemctl"
+    # for BOTH activeness and uptime. Use "systemctl" to query the local namespace.
+    systemctlCommands: ""
 
   # Mount the GPU Operator's host driver installation at /run/nvidia/driver.
   # gpud probes this well-known path automatically when the mount is present
@@ -209,9 +237,10 @@ gpud:
   #   - /etc/containerd (read-only): read config.toml to verify the NVIDIA runtime
   #     is configured. Without this, gpud sees only the container image's stub
   #     config and falsely reports the NVIDIA runtime as missing.
-  # Both use hostPath type DirectoryOrCreate, so the pod still starts on nodes
-  # without containerd (the component then reports containerd as not installed).
-  # Set to false on nodes that do not run containerd (e.g. docker/cri-o only).
+  # Paths follow containerd.endpoint and containerd.configPath when configured.
+  # Mount directories, not individual socket files, so socket recreation works.
+  # Both use DirectoryOrCreate so a missing directory does not block pod startup.
+  # Disabling mounts does not disable the containerd component.
   mountContainerd: true
 
   # Mount the host CRI-O runtime directory (/run/crio, read-write so the CRI

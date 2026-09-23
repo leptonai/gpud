@@ -34,6 +34,7 @@ type Op struct {
 	// component checks whether the containerd service is active. Empty keeps the
 	// legacy in-namespace systemd.IsActive behavior.
 	ContainerdServiceActiveCommands string
+	Containerd                      pkgconfigcommon.ContainerdConfig
 
 	// SessionToken is the session token for db-in-memory mode.
 	// When DBInMemory is true and this is set, the server will seed
@@ -153,6 +154,11 @@ func WithContainerdServiceActiveCommands(commands string) OpOption {
 	return func(op *Op) {
 		op.ContainerdServiceActiveCommands = commands
 	}
+}
+
+// WithContainerd selects the runtime installation to monitor.
+func WithContainerd(c pkgconfigcommon.ContainerdConfig) OpOption {
+	return func(op *Op) { op.Containerd = c }
 }
 
 // WithSessionToken sets the session token for db-in-memory mode.

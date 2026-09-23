@@ -340,6 +340,7 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		NFSHostRoot:           config.NFSHostRoot,
 
 		ContainerdServiceActiveCommands: config.ContainerdServiceActiveCommands,
+		Containerd:                      config.Containerd,
 
 		FailureInjector: config.FailureInjector,
 
@@ -650,6 +651,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 			session.WithEnableAutoUpdate(s.enableAutoUpdate),
 			session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 			session.WithRebootCommands(s.rebootCommands),
+			session.WithContainerd(s.gpudInstance.Containerd),
 			session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
 			session.WithProtocol(s.sessionProtocol),
 			session.WithComponentsRegistry(s.componentsRegistry),
@@ -723,6 +725,7 @@ func (s *Server) updateToken(ctx context.Context, metricsStore pkgmetrics.Store,
 				session.WithEnableAutoUpdate(s.enableAutoUpdate),
 				session.WithAutoUpdateExitCode(s.autoUpdateExitCode),
 				session.WithRebootCommands(s.rebootCommands),
+				session.WithContainerd(s.gpudInstance.Containerd),
 				session.WithSkipUpdateConfig(s.skipSessionUpdateConfig),
 				session.WithProtocol(s.sessionProtocol),
 				session.WithComponentsRegistry(s.componentsRegistry),
