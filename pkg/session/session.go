@@ -26,6 +26,7 @@ import (
 	componentsnfs "github.com/leptonai/gpud/components/nfs"
 	componentsos "github.com/leptonai/gpud/components/os"
 	"github.com/leptonai/gpud/pkg/config"
+	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
 	"github.com/leptonai/gpud/pkg/log"
@@ -46,6 +47,7 @@ type Op struct {
 	enableAutoUpdate    bool
 	autoUpdateExitCode  int
 	rebootCommands      string
+	containerd          configcommon.ContainerdConfig
 	skipUpdateConfig    bool
 	componentsRegistry  components.Registry
 	dataDir             string
@@ -60,6 +62,11 @@ type Op struct {
 }
 
 type OpOption func(*Op)
+
+// WithContainerd keeps gossip metadata aligned with the monitored runtime.
+func WithContainerd(cfg configcommon.ContainerdConfig) OpOption {
+	return func(op *Op) { op.containerd = cfg }
+}
 
 var ErrAutoUpdateDisabledButExitCodeSet = errors.New("auto update is disabled but auto update by exit code is set")
 
@@ -387,7 +394,9 @@ func NewSession(ctx context.Context, epLocalGPUdServer string, epControlPlane st
 		dbRW:    op.dbRW,
 		dbRO:    op.dbRO,
 
-		createGossipRequestFunc: pkgmachineinfo.CreateGossipRequest,
+		createGossipRequestFunc: func(machineID string, instance nvidianvml.Instance) (*apiv1.GossipRequest, error) {
+			return pkgmachineinfo.CreateGossipRequestWithContainerd(machineID, instance, op.containerd)
+		},
 
 		setDefaultIbExpectedPortStatesFunc:       componentsnvidiainfiniband.SetDefaultExpectedPortStates,
 		setDefaultNVLinkExpectedLinkStatesFunc:   componentsnvidianvlink.SetDefaultExpectedLinkStates,

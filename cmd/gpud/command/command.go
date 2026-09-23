@@ -273,6 +273,22 @@ sudo rm /etc/systemd/system/gpud.service
 					Value: "",
 				},
 				cli.StringFlag{
+					Name:  "containerd-endpoint",
+					Usage: "containerd CRI endpoint (empty: unix:///run/containerd/containerd.sock); use unix:///run/k3s/containerd/containerd.sock for RKE2/k3s",
+				},
+				cli.StringFlag{
+					Name:  "containerd-config-path",
+					Usage: "containerd config file (empty: /etc/containerd/config.toml); use /var/lib/rancher/rke2/agent/etc/containerd/config.toml for RKE2",
+				},
+				cli.StringFlag{
+					Name:  "containerd-service-name",
+					Usage: "containerd systemd unit (empty: containerd); use rke2-agent for RKE2 workers, rke2-server for RKE2 servers, k3s-agent or k3s for k3s",
+				},
+				cli.StringFlag{
+					Name:  "containerd-systemctl-commands",
+					Usage: "systemctl command prefix for both containerd activeness and uptime (e.g. 'nsenter --target 1 --mount -- systemctl'); empty runs systemctl directly; containerd-service-active-commands takes precedence for activeness",
+				},
+				cli.StringFlag{
 					Name:  "version-file",
 					Usage: "specifies the version file to use for auto update (leave empty to disable auto update)",
 					Value: pkgupdate.DefaultVersionFile,

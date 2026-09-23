@@ -87,6 +87,10 @@ func Command(cliContext *cli.Context) error {
 	log.SetLogger(log.CreateLogger(zapLvl, logFile))
 
 	log.Logger.Debugw("starting run command")
+	containerdConfig, err := containerdConfigFromCLI(cliContext)
+	if err != nil {
+		return err
+	}
 
 	dataDir, err := common.ResolveDataDir(cliContext)
 	if err != nil {
@@ -153,7 +157,8 @@ func Command(cliContext *cli.Context) error {
 			RefreshSessionToken: refreshSessionToken,
 			DataDir:             dataDir,
 
-			GPUCount: gpuCountStr,
+			GPUCount:   gpuCountStr,
+			Containerd: containerdConfig,
 		}
 
 		// on successful login, we persist the session token in the metadata for future re-use
@@ -410,6 +415,7 @@ func Command(cliContext *cli.Context) error {
 	cfg.BlockdevUsageCommands = blockdevUsageCommands
 	cfg.NFSHostRoot = nfsHostRoot
 	cfg.ContainerdServiceActiveCommands = containerdServiceActiveCommands
+	cfg.Containerd = containerdConfig
 	if !versionFileSet {
 		versionFile = config.VersionFilePath(cfg.DataDir)
 	}
