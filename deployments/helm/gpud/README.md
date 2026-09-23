@@ -89,6 +89,37 @@ helm install my-gpud gpud/gpud \
   --namespace gpud -f my-values.yaml
 ```
 
+### Upgrading installations without a startup probe
+
+GPUd completes login and machine-info collection before serving `/healthz`.
+Slow or unreachable metadata endpoints can delay startup beyond the liveness
+probe's approximately 30-second budget. The chart's startup probe allows
+approximately five minutes before Kubernetes restarts the container, while
+keeping liveness checks disabled until startup succeeds.
+
+When upgrading an older installation, use the new chart defaults with your
+existing overrides (Helm 3.16.1+):
+
+```bash
+helm upgrade my-gpud gpud/gpud \
+  --namespace gpud \
+  --version "$GPUD_VERSION" \
+  --reset-then-reuse-values
+```
+
+Plain `--reuse-values` retains the old chart defaults and can omit the new
+startup probe. The chart rejects liveness without startup protection. If your
+saved overrides explicitly disable the startup probe, replace that override
+with the `startupProbe` mapping from the new chart's `values.yaml`. Preserve
+any custom listener port in both probes. To intentionally disable probes,
+set both `startupProbe: null` and `livenessProbe: null`.
+
+Before applying, add `--dry-run` and check the rendered GPUd container has
+`startupProbe` with the intended handler and timeout budget. After applying,
+check that the pods become Ready and their restart counts remain stable
+through repeated checks; a successful Helm upgrade alone does not prove
+slow-login recovery.
+
 ### Reboot Support Inside DaemonSet Pods
 
 The chart passes `gpud.rebootCommands` to `gpud run --reboot-commands`. By

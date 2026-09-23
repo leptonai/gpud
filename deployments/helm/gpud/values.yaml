@@ -372,7 +372,8 @@ livenessProbe:
 # or grpc, set startupProbe.httpGet: null as part of the same values override;
 # Helm otherwise deep-merges the new handler with this default httpGet map,
 # and Kubernetes rejects a probe with more than one handler.
-# Set to null to disable.
+# To disable, also set livenessProbe: null; liveness without startup protection
+# is rejected because it can kill gpud before login completes.
 startupProbe:
   httpGet:
     path: /healthz
