@@ -21,19 +21,37 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-const (
-	// defaultKubeletKubeconfigPath is the kubeconfig that kubelet itself uses
+// Well-known kubelet credential locations, in probe order. No single layout
+// is universal: Lepton/kubeadm-style images keep a root kubeconfig and the
+// identity PEM under /etc/kubernetes, while EKS and most distro provisioners
+// keep kubelet's kubeconfig and rotated client certificate under its data
+// directory /var/lib/kubelet. Probing each file independently tolerates mixed
+// layouts; a host with none of them is not a Kubernetes node.
+var (
+	// defaultKubeletKubeconfigPaths are the kubeconfigs kubelet itself uses
 	// to reach the cluster API server.
-	defaultKubeletKubeconfigPath = "/root/.kube/config"
+	defaultKubeletKubeconfigPaths = []string{
+		"/root/.kube/config",
+		"/etc/kubernetes/kubelet.conf",
+		"/var/lib/kubelet/kubeconfig",
+	}
 
-	// defaultKubeletClientCertPath holds kubelet's current client certificate
+	// defaultKubeletClientCertPaths hold kubelet's current client certificate
 	// and private key as a combined PEM. Kubelet's client-certificate rotation
 	// keeps this file current, so it is re-read on every check.
-	defaultKubeletClientCertPath = "/etc/kubernetes/pki/kubelet-client-current.pem"
+	defaultKubeletClientCertPaths = []string{
+		"/etc/kubernetes/pki/kubelet-client-current.pem",
+		"/var/lib/kubelet/pki/kubelet-client-current.pem",
+	}
 
-	// defaultKubeletCAPath is the cluster CA certificate that kubelet trusts.
-	defaultKubeletCAPath = "/etc/kubernetes/pki/ca.crt"
+	// defaultKubeletCAPaths are the cluster CA certificate that kubelet
+	// trusts. Both EKS and kubeadm write it under /etc/kubernetes/pki.
+	defaultKubeletCAPaths = []string{
+		"/etc/kubernetes/pki/ca.crt",
+	}
+)
 
+const (
 	// kubeletAPITimeout bounds each pod-list request to the API server.
 	kubeletAPITimeout = 30 * time.Second
 
@@ -140,6 +158,31 @@ func nodeNameFromClientCert(cert *tls.Certificate) (string, error) {
 	return strings.TrimPrefix(cn, systemNodePrefix), nil
 }
 
+// resolveKubeletIdentityPaths probes each candidate list and returns the
+// first existing path per credential file. Returns errKubeletIdentityNotFound
+// when any credential file exists at none of its well-known locations, i.e.
+// the node is not part of a Kubernetes cluster.
+func resolveKubeletIdentityPaths(kubeconfigCandidates, clientCertCandidates, caCandidates []string) (kubeconfigPath, clientCertPath, caPath string, err error) {
+	firstExisting := func(candidates []string) (string, error) {
+		for _, candidate := range candidates {
+			if _, statErr := os.Stat(candidate); statErr == nil {
+				return candidate, nil
+			}
+		}
+		return "", fmt.Errorf("%w: none of %v exists", errKubeletIdentityNotFound, candidates)
+	}
+	if kubeconfigPath, err = firstExisting(kubeconfigCandidates); err != nil {
+		return "", "", "", err
+	}
+	if clientCertPath, err = firstExisting(clientCertCandidates); err != nil {
+		return "", "", "", err
+	}
+	if caPath, err = firstExisting(caCandidates); err != nil {
+		return "", "", "", err
+	}
+	return kubeconfigPath, clientCertPath, caPath, nil
+}
+
 // loadKubeletAPIConfig builds the API client configuration from the on-host
 // kubelet credentials. Returns errKubeletIdentityNotFound when any of the
 // credential files does not exist.
@@ -224,6 +267,20 @@ func newKubeletAPIHTTPClient(cfg *kubeletAPIConfig, timeout time.Duration) *http
 		Transport: transport,
 		Timeout:   timeout,
 	}
+}
+
+// listPodsUsingDiscoveredKubeletIdentity resolves kubelet's on-host client
+// credentials from their well-known locations and lists this node's pods from
+// the API server. Discovery runs on every call: credential files appear at
+// different times during node provisioning and kubelet rotates its client
+// certificate, so no probe result is cached.
+func listPodsUsingDiscoveredKubeletIdentity(ctx context.Context) ([]kubeletPodStatus, error) {
+	kubeconfigPath, clientCertPath, caPath, err := resolveKubeletIdentityPaths(defaultKubeletKubeconfigPaths, defaultKubeletClientCertPaths, defaultKubeletCAPaths)
+	if err != nil {
+		return nil, err
+	}
+	log.Logger.Debugw("resolved kubelet client identity", "kubeconfig", kubeconfigPath, "clientCert", clientCertPath, "ca", caPath)
+	return listPodsUsingKubeletIdentity(ctx, kubeconfigPath, clientCertPath, caPath)
 }
 
 // listPodsUsingKubeletIdentity loads kubelet's on-host client credentials and
