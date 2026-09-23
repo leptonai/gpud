@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -73,6 +74,7 @@ type component struct {
 	getTimeNowFunc                    func() time.Time
 	containerToolkitCreationThreshold time.Duration
 	getContainerdConfigFunc           func() ([]byte, error)
+	getRuntimeConfigFunc              func() ([]byte, error)
 
 	checkDependencyInstalledFunc  func() bool
 	checkSocketExistsFunc         func() bool
@@ -127,6 +129,11 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		containerToolkitCreationThreshold: 10 * time.Minute,
 		getContainerdConfigFunc: func() ([]byte, error) {
 			return os.ReadFile(defaultContainerdConfigPath)
+		},
+		getRuntimeConfigFunc: func() ([]byte, error) {
+			ctx, cancel := context.WithTimeout(cctx, 5*time.Second)
+			defer cancel()
+			return getRuntimeConfig(ctx, DefaultContainerRuntimeEndpoint)
 		},
 
 		checkDependencyInstalledFunc: checkContainerdInstalled,
@@ -457,6 +464,7 @@ func (c *component) Check() components.CheckResult {
 					cr.appendReason(reason)
 					log.Logger.Warnw(reason)
 					cr.health = apiv1.HealthStateTypeUnhealthy
+					c.appendRuntimeDiagnostics(cr)
 				default:
 					log.Logger.Debugw("containerd config contains nvidia")
 				}
@@ -689,4 +697,41 @@ func (c *component) danglingPodCount(containerdPods []PodSandbox, kubeletPods []
 	}
 
 	return danglingCount
+}
+
+// appendRuntimeDiagnostics explains an existing configuration failure without
+// changing its health verdict or replacing the on-disk checks. READY sandboxes
+// are examples of handler use, not an exhaustive list of workload requirements.
+func (c *component) appendRuntimeDiagnostics(cr *checkResult) {
+	if c.getRuntimeConfigFunc == nil {
+		return
+	}
+	data, err := c.getRuntimeConfigFunc()
+	var config runtimeConfig
+	if err == nil {
+		config, err = parseRuntimeConfig(data)
+	}
+	if err != nil {
+		cr.appendReason("live containerd runtime diagnostics unavailable")
+		return
+	}
+	handlers := make([]string, 0, len(config.Containerd.Runtimes))
+	for handler := range config.Containerd.Runtimes {
+		handlers = append(handlers, handler)
+	}
+	sort.Strings(handlers)
+	cr.appendReason(fmt.Sprintf("live containerd: native CDI enabled=%t, default handler %q, configured handlers %q", config.EnableCDI, config.Containerd.DefaultRuntimeName, handlers))
+	for _, pod := range cr.Pods {
+		if pod.State != "SANDBOX_READY" {
+			continue
+		}
+		handler := pod.RuntimeHandler
+		if handler == "" {
+			handler = config.Containerd.DefaultRuntimeName
+		}
+		if _, ok := config.Containerd.Runtimes[handler]; !ok {
+			cr.appendReason(fmt.Sprintf("pod %s/%s requires runtime handler %q, but containerd does not have it configured", pod.Namespace, pod.Name, handler))
+			return
+		}
+	}
 }
