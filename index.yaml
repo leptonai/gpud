@@ -2,8 +2,19 @@ apiVersion: v1
 entries:
   gpud:
   - apiVersion: v2
+    appVersion: 0.13.0-rc.12
+    created: "2026-09-23T03:47:46.574981877Z"
+    description: GPUd Helm chart for Kubernetes
+    digest: 3fc6c457e11d8780af8851ca4632a0f12a744cb65dbd788c55037c2db14d13fd
+    icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
+    name: gpud
+    type: application
+    urls:
+    - https://leptonai.github.io/gpud/gpud-0.13.0-rc.12.tgz
+    version: 0.13.0-rc.12
+  - apiVersion: v2
     appVersion: 0.13.0-rc.11
-    created: "2026-09-23T02:37:48.123983154Z"
+    created: "2026-09-23T03:47:46.573919709Z"
     description: GPUd Helm chart for Kubernetes
     digest: f14e13a8de0809fc68d2b7892e7db8d30bc8cee906c8ebeb8885e21323b5c1bd
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -14,7 +25,7 @@ entries:
     version: 0.13.0-rc.11
   - apiVersion: v2
     appVersion: 0.13.0-rc.10
-    created: "2026-09-23T02:37:48.122927242Z"
+    created: "2026-09-23T03:47:46.572798913Z"
     description: GPUd Helm chart for Kubernetes
     digest: 5abf705eef1f9211dd64edd473babf4b59ff4b13780ecefcbcb14efe7f5feb90
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -25,7 +36,7 @@ entries:
     version: 0.13.0-rc.10
   - apiVersion: v2
     appVersion: 0.13.0-rc.9
-    created: "2026-09-23T02:37:48.132831278Z"
+    created: "2026-09-23T03:47:46.583947973Z"
     description: GPUd Helm chart for Kubernetes
     digest: d420aff8ed54cb318b7822cd0031a5d056eb25d9702bc8b949411756eeb2f4d3
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -36,7 +47,7 @@ entries:
     version: 0.13.0-rc.9
   - apiVersion: v2
     appVersion: 0.13.0-rc.8
-    created: "2026-09-23T02:37:48.131775546Z"
+    created: "2026-09-23T03:47:46.582918262Z"
     description: GPUd Helm chart for Kubernetes
     digest: e500bcf49d9d71e25c8a57fd703a801d2ccee5a354866edf6b016c3baee63651
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -47,7 +58,7 @@ entries:
     version: 0.13.0-rc.8
   - apiVersion: v2
     appVersion: 0.13.0-rc.7
-    created: "2026-09-23T02:37:48.130802247Z"
+    created: "2026-09-23T03:47:46.581882165Z"
     description: GPUd Helm chart for Kubernetes
     digest: 796a89752affe360cff7e854a3935f48722800072fdb3c2da0e19c91a7eda160
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -58,7 +69,7 @@ entries:
     version: 0.13.0-rc.7
   - apiVersion: v2
     appVersion: 0.13.0-rc.6
-    created: "2026-09-23T02:37:48.129850729Z"
+    created: "2026-09-23T03:47:46.580797429Z"
     description: GPUd Helm chart for Kubernetes
     digest: 630c2299cac88b07970172e6366df8a6c4157087dc240f2138ada9d6fb040c7a
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -69,7 +80,7 @@ entries:
     version: 0.13.0-rc.6
   - apiVersion: v2
     appVersion: 0.13.0-rc.5
-    created: "2026-09-23T02:37:48.128897648Z"
+    created: "2026-09-23T03:47:46.579777404Z"
     description: GPUd Helm chart for Kubernetes
     digest: e42ae4ada86990da5e9708a8be3f2a2635c67b80ebe92f014460b867f566bdaa
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -80,7 +91,7 @@ entries:
     version: 0.13.0-rc.5
   - apiVersion: v2
     appVersion: 0.13.0-rc.4
-    created: "2026-09-23T02:37:48.127954315Z"
+    created: "2026-09-23T03:47:46.578328306Z"
     description: GPUd Helm chart for Kubernetes
     digest: 191c67782572e11ab2eddeba31ab4f0c9a95cdd7a8f38c657c4a168566e05537
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -91,7 +102,7 @@ entries:
     version: 0.13.0-rc.4
   - apiVersion: v2
     appVersion: 0.13.0-rc.3
-    created: "2026-09-23T02:37:48.126928139Z"
+    created: "2026-09-23T03:47:46.57690193Z"
     description: GPUd Helm chart for Kubernetes
     digest: 4d2fe33bed75920789dd58d0b78788bcf69ce5ca3c922ecbf5a1c8505d1d82e1
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -102,7 +113,7 @@ entries:
     version: 0.13.0-rc.3
   - apiVersion: v2
     appVersion: 0.13.0-rc.2
-    created: "2026-09-23T02:37:48.124902893Z"
+    created: "2026-09-23T03:47:46.575923646Z"
     description: GPUd Helm chart for Kubernetes
     digest: b41c27f22716e27fa9e6bd62105acd1481baf3ff4ad5f7ad9a7b8c420725f440
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -113,7 +124,7 @@ entries:
     version: 0.13.0-rc.2
   - apiVersion: v2
     appVersion: 0.13.0-rc.1
-    created: "2026-09-23T02:37:48.121951489Z"
+    created: "2026-09-23T03:47:46.571767108Z"
     description: GPUd Helm chart for Kubernetes
     digest: e3991b6e82eb08d27a530d026b5151a99af226c605d060842e7466a4db09b530
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -124,7 +135,7 @@ entries:
     version: 0.13.0-rc.1
   - apiVersion: v2
     appVersion: 0.13.0-rc.0
-    created: "2026-09-23T02:37:48.121026089Z"
+    created: "2026-09-23T03:47:46.570779947Z"
     description: GPUd Helm chart for Kubernetes
     digest: 87c2f770bf445a6802cde62713b93bbdd804c42bbfa1e76b03a0c2b48de59b30
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -135,7 +146,7 @@ entries:
     version: 0.13.0-rc.0
   - apiVersion: v2
     appVersion: pr-1333
-    created: "2026-09-23T02:37:48.120201477Z"
+    created: "2026-09-23T03:47:46.569278064Z"
     description: GPUd Helm chart for Kubernetes
     digest: 98c1cb204ede12c3b6de6161d812b64fc34549513150b6902c65232b9b622c83
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -146,7 +157,7 @@ entries:
     version: 0.13.0-pr.1333.ea5ab612
   - apiVersion: v2
     appVersion: 0.13.0-beta.2
-    created: "2026-09-23T02:37:48.119152157Z"
+    created: "2026-09-23T03:47:46.568050471Z"
     description: GPUd Helm chart for Kubernetes
     digest: 2bf0452027120ff71bce656800230d2c32e97a8ad563ccb1f86d0476ba96ca32
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -157,7 +168,7 @@ entries:
     version: 0.13.0-beta.2
   - apiVersion: v2
     appVersion: 0.13.0-beta.1
-    created: "2026-09-23T02:37:48.117370083Z"
+    created: "2026-09-23T03:47:46.567065546Z"
     description: GPUd Helm chart for Kubernetes
     digest: 83499191958e32693f465668b6ff743098ea59296fbcf3330195f871711878b9
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -168,7 +179,7 @@ entries:
     version: 0.13.0-beta.1
   - apiVersion: v2
     appVersion: 0.13.0-beta.0
-    created: "2026-09-23T02:37:48.116395142Z"
+    created: "2026-09-23T03:47:46.566170981Z"
     description: GPUd Helm chart for Kubernetes
     digest: 9bff6cc71ffbf205afb525134969926024585a1c62f01da7aa32bdc5e5460c94
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -179,7 +190,7 @@ entries:
     version: 0.13.0-beta.0
   - apiVersion: v2
     appVersion: 0.13.0-alpha.5
-    created: "2026-09-23T02:37:48.115497123Z"
+    created: "2026-09-23T03:47:46.565259245Z"
     description: GPUd Helm chart for Kubernetes
     digest: 40925335706768853fce622b1a6445f13bca96b4eff58b701cfe7a8c012536c5
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -190,7 +201,7 @@ entries:
     version: 0.13.0-alpha.5
   - apiVersion: v2
     appVersion: 0.13.0-alpha.4
-    created: "2026-09-23T02:37:48.114644298Z"
+    created: "2026-09-23T03:47:46.564336687Z"
     description: GPUd Helm chart for Kubernetes
     digest: 92ac6f6e90290d56d1b71d00ee782a930450a4f40e24f5b578f5c559e9d617d7
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -201,7 +212,7 @@ entries:
     version: 0.13.0-alpha.4
   - apiVersion: v2
     appVersion: 0.13.0-alpha.3
-    created: "2026-09-23T02:37:48.113768751Z"
+    created: "2026-09-23T03:47:46.563363185Z"
     description: GPUd Helm chart for Kubernetes
     digest: 460f0416ff39407a83c2dc6096f8a58e11443c548bd6a039e320cc7fde3141cc
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -212,7 +223,7 @@ entries:
     version: 0.13.0-alpha.3
   - apiVersion: v2
     appVersion: 0.13.0-alpha.2
-    created: "2026-09-23T02:37:48.112935813Z"
+    created: "2026-09-23T03:47:46.562293391Z"
     description: GPUd Helm chart for Kubernetes
     digest: 96733fdd673170823147f285d4da2a6bf2ea939c8c3a164f0f02a75fcb2244c6
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -223,7 +234,7 @@ entries:
     version: 0.13.0-alpha.2
   - apiVersion: v2
     appVersion: 0.13.0-alpha.1
-    created: "2026-09-23T02:37:48.112059275Z"
+    created: "2026-09-23T03:47:46.560330814Z"
     description: GPUd Helm chart for Kubernetes
     digest: 6c8d5993ecf3dea1c9fcbd8ccb3784b18a4c8005ab4acaaa38024ac7297adb79
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -234,7 +245,7 @@ entries:
     version: 0.13.0-alpha.1
   - apiVersion: v2
     appVersion: 0.13.0-alpha.0
-    created: "2026-09-23T02:37:48.111154974Z"
+    created: "2026-09-23T03:47:46.559468602Z"
     description: GPUd Helm chart for Kubernetes
     digest: 053d98e7ab9ae6c42ceb62bd07f66da3ec0274cdee518bf4c4d2234df79c5643
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -245,7 +256,7 @@ entries:
     version: 0.13.0-alpha.0
   - apiVersion: v2
     appVersion: 0.12.26
-    created: "2026-09-23T02:37:48.106889636Z"
+    created: "2026-09-23T03:47:46.556063441Z"
     description: GPUd Helm chart for Kubernetes
     digest: 1292d5aadcd18d7281beb3686342a0725ddc7e5c52deca72997048176943347a
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -256,7 +267,7 @@ entries:
     version: 0.12.26
   - apiVersion: v2
     appVersion: 0.12.25
-    created: "2026-09-23T02:37:48.106044095Z"
+    created: "2026-09-23T03:47:46.55518097Z"
     description: GPUd Helm chart for Kubernetes
     digest: 398f019e8ba271edb404966da7797a122d4336fe3736a8461ddf609a46663759
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -267,7 +278,7 @@ entries:
     version: 0.12.25
   - apiVersion: v2
     appVersion: 0.12.24
-    created: "2026-09-23T02:37:48.105221396Z"
+    created: "2026-09-23T03:47:46.55413287Z"
     description: GPUd Helm chart for Kubernetes
     digest: a07a48f39c9d5f2875610877fabe1031bd93f8281239d5d858f4780301880b71
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -278,7 +289,7 @@ entries:
     version: 0.12.24
   - apiVersion: v2
     appVersion: 0.12.23
-    created: "2026-09-23T02:37:48.104339317Z"
+    created: "2026-09-23T03:47:46.552372618Z"
     description: GPUd Helm chart for Kubernetes
     digest: 93fdc88df38fce6eda6e1e418a8ae58893140283ef94c4c4902e4e1bf4c6f353
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -289,7 +300,7 @@ entries:
     version: 0.12.23
   - apiVersion: v2
     appVersion: 0.12.23-rc.0
-    created: "2026-09-23T02:37:48.1034958Z"
+    created: "2026-09-23T03:47:46.551510103Z"
     description: GPUd Helm chart for Kubernetes
     digest: 01c8646442c8dc8c67308e669e6b677328e0266b640587d60177ba0c79f55b49
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -300,7 +311,7 @@ entries:
     version: 0.12.23-rc.0
   - apiVersion: v2
     appVersion: 0.12.22
-    created: "2026-09-23T02:37:48.10205476Z"
+    created: "2026-09-23T03:47:46.550621058Z"
     description: GPUd Helm chart for Kubernetes
     digest: c068a4a1cec6ee774f27bd7b3546a00cc1632c1693b67ee73335082858f192d8
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -311,7 +322,7 @@ entries:
     version: 0.12.22
   - apiVersion: v2
     appVersion: 0.12.22-rc.0
-    created: "2026-09-23T02:37:48.101110635Z"
+    created: "2026-09-23T03:47:46.549782655Z"
     description: GPUd Helm chart for Kubernetes
     digest: 1e690adedc39628696e2520e567d3f944ba057cc4b9a6df8d62fc865b5ff6dc1
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -322,7 +333,7 @@ entries:
     version: 0.12.22-rc.0
   - apiVersion: v2
     appVersion: 0.12.21
-    created: "2026-09-23T02:37:48.10031144Z"
+    created: "2026-09-23T03:47:46.54891654Z"
     description: GPUd Helm chart for Kubernetes
     digest: 9b9913dad173602f515940c09adb461dd4c8c93a9bc1173224912b21eb3081eb
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -333,7 +344,7 @@ entries:
     version: 0.12.21
   - apiVersion: v2
     appVersion: 0.12.20
-    created: "2026-09-23T02:37:48.099511394Z"
+    created: "2026-09-23T03:47:46.548037278Z"
     description: GPUd Helm chart for Kubernetes
     digest: f257a6eb8c49e8603cfdf697bac6f11401da3656cbeb45cbb6151934b86c55cf
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -344,7 +355,7 @@ entries:
     version: 0.12.20
   - apiVersion: v2
     appVersion: 0.12.20-rc.0
-    created: "2026-09-23T02:37:48.098694936Z"
+    created: "2026-09-23T03:47:46.547195855Z"
     description: GPUd Helm chart for Kubernetes
     digest: 61f3ea71fdb6a060e680ecf2e8fcd0e546f8d4709014fcb3abf8088b53427c38
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -355,7 +366,7 @@ entries:
     version: 0.12.20-rc.0
   - apiVersion: v2
     appVersion: 0.12.19
-    created: "2026-09-23T02:37:48.097867258Z"
+    created: "2026-09-23T03:47:46.546289553Z"
     description: GPUd Helm chart for Kubernetes
     digest: a239d918bb6bee28b21171f9015c134020a2fa9f4ab302765d94af4471fde011
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -366,7 +377,7 @@ entries:
     version: 0.12.19
   - apiVersion: v2
     appVersion: 0.12.19-test.0
-    created: "2026-09-23T02:37:48.097057574Z"
+    created: "2026-09-23T03:47:46.544534964Z"
     description: GPUd Helm chart for Kubernetes
     digest: 8c866bdccb5598c1affcae11b2817a837de92525f631bb1a4b606630671e5fe1
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -377,7 +388,7 @@ entries:
     version: 0.12.19-test.0
   - apiVersion: v2
     appVersion: 0.12.18
-    created: "2026-09-23T02:37:48.096189301Z"
+    created: "2026-09-23T03:47:46.543170742Z"
     description: GPUd Helm chart for Kubernetes
     digest: c183648a491a143c6025cba924dab956582478037a18774cd0c86ed81068b412
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -388,7 +399,7 @@ entries:
     version: 0.12.18
   - apiVersion: v2
     appVersion: 0.12.17
-    created: "2026-09-23T02:37:48.089496128Z"
+    created: "2026-09-23T03:47:46.542309623Z"
     description: GPUd Helm chart for Kubernetes
     digest: 8430e4ceed9ba120a8d12fce89187aa8c81070c4850a1d82eb0e9b84104a1493
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -399,7 +410,7 @@ entries:
     version: 0.12.17
   - apiVersion: v2
     appVersion: 0.12.16
-    created: "2026-09-23T02:37:48.08866782Z"
+    created: "2026-09-23T03:47:46.541446405Z"
     description: GPUd Helm chart for Kubernetes
     digest: f26397cf1cd3b1b413775f6a9f250d0658b7ab0d36eacf30ad9055752a5b70c5
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -410,7 +421,7 @@ entries:
     version: 0.12.16
   - apiVersion: v2
     appVersion: 0.12.15
-    created: "2026-09-23T02:37:48.087894723Z"
+    created: "2026-09-23T03:47:46.540591379Z"
     description: GPUd Helm chart for Kubernetes
     digest: 6c9827239ba3fb0611258d0e30873e82035da38b0eb0971b74ec90255aa5c84d
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -421,7 +432,7 @@ entries:
     version: 0.12.15
   - apiVersion: v2
     appVersion: 0.12.14
-    created: "2026-09-23T02:37:48.087076352Z"
+    created: "2026-09-23T03:47:46.539759213Z"
     description: GPUd Helm chart for Kubernetes
     digest: 4ad7ceae26fe5f3bb88dfa87c9f4cc1cc67b5d779f1ba3aec89bfbc0d570513f
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -432,7 +443,7 @@ entries:
     version: 0.12.14
   - apiVersion: v2
     appVersion: 0.12.13
-    created: "2026-09-23T02:37:48.086233556Z"
+    created: "2026-09-23T03:47:46.538899819Z"
     description: GPUd Helm chart for Kubernetes
     digest: cde901e3106cfb8779bd070fa2fc93c5231d80547df63777c39f1b7261138fa0
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -443,7 +454,7 @@ entries:
     version: 0.12.13
   - apiVersion: v2
     appVersion: 0.12.13-rc.1
-    created: "2026-09-23T02:37:48.085410647Z"
+    created: "2026-09-23T03:47:46.538009308Z"
     description: GPUd Helm chart for Kubernetes
     digest: f1bc682fe6b380383b1bb354d0c0c897613a8108ecc65164c5901dbce1e6ff7c
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -454,7 +465,7 @@ entries:
     version: 0.12.13-rc.1
   - apiVersion: v2
     appVersion: 0.12.13-rc.0
-    created: "2026-09-23T02:37:48.084545279Z"
+    created: "2026-09-23T03:47:46.537088333Z"
     description: GPUd Helm chart for Kubernetes
     digest: 97ef5af092d02a9b68d223f27c7b30cc9cb4f20a5e2ceab072d0954a3237d6a6
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -465,7 +476,7 @@ entries:
     version: 0.12.13-rc.0
   - apiVersion: v2
     appVersion: 0.12.12
-    created: "2026-09-23T02:37:48.083708584Z"
+    created: "2026-09-23T03:47:46.535765574Z"
     description: GPUd Helm chart for Kubernetes
     digest: 753f7f858e90d11796b406e524f8d38eb20966b99b53e0c0fd27f9867e2334cb
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -476,7 +487,7 @@ entries:
     version: 0.12.12
   - apiVersion: v2
     appVersion: 0.12.11
-    created: "2026-09-23T02:37:48.082805466Z"
+    created: "2026-09-23T03:47:46.534408747Z"
     description: GPUd Helm chart for Kubernetes
     digest: 950fdffc006c953ff84bbce6d5fec312700ac5f56d415d8360e6ed7f751b9d6d
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -487,7 +498,7 @@ entries:
     version: 0.12.11
   - apiVersion: v2
     appVersion: 0.12.7
-    created: "2026-09-23T02:37:48.109470442Z"
+    created: "2026-09-23T03:47:46.558601565Z"
     description: GPUd Helm chart for Kubernetes
     digest: 672aaddfe9fa7e6581deadaf895a0312d9b3a061c9a6be2095e0dec161bde881
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -498,7 +509,7 @@ entries:
     version: 0.12.7
   - apiVersion: v2
     appVersion: 0.12.6
-    created: "2026-09-23T02:37:48.108633106Z"
+    created: "2026-09-23T03:47:46.557756575Z"
     description: GPUd Helm chart for Kubernetes
     digest: 8a46898437623b7dc96c841246f850b44e2e0207191b994482ece9f4fbfa3627
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -509,7 +520,7 @@ entries:
     version: 0.12.6
   - apiVersion: v2
     appVersion: 0.12.5
-    created: "2026-09-23T02:37:48.107780632Z"
+    created: "2026-09-23T03:47:46.55695317Z"
     description: GPUd Helm chart for Kubernetes
     digest: 6fefa5103f929d7138c0c7a4bcdb75d3663c3c92361bda5e7b76eba6102b84be
     icon: https://assets.nvidiagrid.net/ngc/logos/Infrastructure.png
@@ -518,4 +529,4 @@ entries:
     urls:
     - https://leptonai.github.io/gpud/gpud-0.12.5.tgz
     version: 0.12.5
-generated: "2026-09-23T02:37:48.08137062Z"
+generated: "2026-09-23T03:47:46.532912044Z"
