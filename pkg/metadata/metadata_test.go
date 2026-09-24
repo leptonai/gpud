@@ -157,6 +157,59 @@ func TestSetAndReadMetadata_LastSentNodeLabels(t *testing.T) {
 	assert.Equal(t, 1, rowCount)
 }
 
+func TestSetMetadata_EmptyValue(t *testing.T) {
+	t.Parallel()
+	for _, initial := range []string{"10.16.5.100", ""} {
+		t.Run(initial, func(t *testing.T) {
+			db, _, cleanup := sqlite.OpenTestDB(t)
+			defer cleanup()
+			ctx := context.Background()
+			require.NoError(t, CreateTableMetadata(ctx, db))
+
+			for _, value := range []string{initial, "", "10.16.5.101"} {
+				require.NoError(t, SetMetadata(ctx, db, MetadataKeyPrivateIP, value))
+				got, err := ReadMetadata(ctx, db, MetadataKeyPrivateIP)
+				require.NoError(t, err)
+				require.Equal(t, value, got)
+				var count int
+				require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM gpud_metadata WHERE key = ?", MetadataKeyPrivateIP).Scan(&count))
+				require.Equal(t, 1, count)
+			}
+
+			var before, after int
+			require.NoError(t, db.QueryRow("SELECT total_changes()").Scan(&before))
+			require.NoError(t, SetMetadata(ctx, db, MetadataKeyPrivateIP, "10.16.5.101"))
+			require.NoError(t, db.QueryRow("SELECT total_changes()").Scan(&after))
+			require.Equal(t, before, after, "unchanged values must not update the row")
+		})
+	}
+}
+
+func TestSetMetadata_ConcurrentCreation(t *testing.T) {
+	t.Parallel()
+	db, _, cleanup := sqlite.OpenTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+	require.NoError(t, CreateTableMetadata(ctx, db))
+
+	const writers = 16
+	start := make(chan struct{})
+	errs := make(chan error, writers)
+	for range writers {
+		go func() {
+			<-start
+			errs <- SetMetadata(ctx, db, MetadataKeyPrivateIP, "10.16.5.101")
+		}()
+	}
+	close(start)
+	for range writers {
+		assert.NoError(t, <-errs)
+	}
+	values, err := ReadAllMetadata(ctx, db)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{MetadataKeyPrivateIP: "10.16.5.101"}, values)
+}
+
 func TestReadAllMetadata_IncludesLastSentNodeLabels(t *testing.T) {
 	t.Parallel()
 	dbRW, dbRO, cleanup := sqlite.OpenTestDB(t)
