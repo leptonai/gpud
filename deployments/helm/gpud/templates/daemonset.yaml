@@ -181,6 +181,16 @@ spec:
             path: /var/lib/kubelet
             type: DirectoryOrCreate
 
+        # Rancher (k3s/RKE2) agent directory for kubelet client credentials
+        # Required by: components/containerd dangling pod detection, which reads
+        # kubelet.kubeconfig + referenced client certificate/CA from this tree on
+        # Rancher-provisioned nodes (e.g. BYOK worker clusters)
+        # DirectoryOrCreate so the pod still starts on non-Rancher nodes.
+        - name: host-rancher-vol
+          hostPath:
+            path: /var/lib/rancher
+            type: DirectoryOrCreate
+
         {{- if .Values.gpud.mountNVIDIADriverRoot }}
         # GPU Operator installs its driver libraries under this host path.
         # gpud probes this well-known container path automatically when the
@@ -700,6 +710,12 @@ spec:
             # Kubelet data for container/pod monitoring (read-only)
             - name: host-kubelet-vol
               mountPath: /var/lib/kubelet
+              readOnly: true
+
+            # Rancher agent data for kubelet client credentials (read-only)
+            # Holds kubelet.kubeconfig + client certs on k3s/RKE2 nodes
+            - name: host-rancher-vol
+              mountPath: /var/lib/rancher
               readOnly: true
 
             {{- if .Values.gpud.mountNVIDIADriverRoot }}
