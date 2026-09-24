@@ -624,7 +624,7 @@ spec:
           {{- with .Values.startupProbe }}
           # Gives slow control-plane login/machine-info time to finish before
           # the liveness probe starts (liveness stays off until the first
-          # successful startup probe). Set startupProbe: null to disable.
+          # successful startup probe). Disabling requires livenessProbe: null too.
           startupProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
