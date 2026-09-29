@@ -87,6 +87,9 @@ type Config struct {
 	// runs against the host's service manager; exit code 0 means active.
 	ContainerdServiceActiveCommands string `json:"containerd_service_active_commands,omitempty"`
 
+	// ContainerdDanglingPodGracePeriod delays counting API-absent READY sandboxes. Zero counts immediately.
+	ContainerdDanglingPodGracePeriod metav1.Duration `json:"containerd_dangling_pod_grace_period,omitempty"`
+
 	Containerd pkgconfigcommon.ContainerdConfig `json:"containerd,omitempty"`
 
 	// VersionFile is the file that contains the target version.
@@ -173,6 +176,9 @@ type NVSentinelConfig struct {
 }
 
 func (config *Config) Validate() error {
+	if config.ContainerdDanglingPodGracePeriod.Duration < 0 {
+		return errors.New("containerd_dangling_pod_grace_period must not be negative")
+	}
 	if err := config.Containerd.Validate(); err != nil {
 		return err
 	}
