@@ -77,6 +77,9 @@ type GPUdInstance struct {
 	// runs against the host's service manager; exit code 0 means active.
 	ContainerdServiceActiveCommands string
 
+	// ContainerdDanglingPodGracePeriod is zero for immediate detection.
+	ContainerdDanglingPodGracePeriod time.Duration
+
 	Containerd nvidiacommon.ContainerdConfig
 
 	FailureInjector *FailureInjector

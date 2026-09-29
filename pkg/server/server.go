@@ -339,8 +339,9 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		BlockdevUsageCommands: config.BlockdevUsageCommands,
 		NFSHostRoot:           config.NFSHostRoot,
 
-		ContainerdServiceActiveCommands: config.ContainerdServiceActiveCommands,
-		Containerd:                      config.Containerd,
+		ContainerdServiceActiveCommands:  config.ContainerdServiceActiveCommands,
+		Containerd:                       config.Containerd,
+		ContainerdDanglingPodGracePeriod: config.ContainerdDanglingPodGracePeriod.Duration,
 
 		FailureInjector: config.FailureInjector,
 

@@ -92,6 +92,11 @@ func Command(cliContext *cli.Context) error {
 		return err
 	}
 
+	containerdDanglingPodGracePeriod := cliContext.Duration("containerd-dangling-pod-grace-period")
+	if containerdDanglingPodGracePeriod < 0 {
+		return fmt.Errorf("containerd-dangling-pod-grace-period must not be negative")
+	}
+
 	dataDir, err := common.ResolveDataDir(cliContext)
 	if err != nil {
 		return err
@@ -416,6 +421,7 @@ func Command(cliContext *cli.Context) error {
 	cfg.NFSHostRoot = nfsHostRoot
 	cfg.ContainerdServiceActiveCommands = containerdServiceActiveCommands
 	cfg.Containerd = containerdConfig
+	cfg.ContainerdDanglingPodGracePeriod = metav1.Duration{Duration: containerdDanglingPodGracePeriod}
 	if !versionFileSet {
 		versionFile = config.VersionFilePath(cfg.DataDir)
 	}
