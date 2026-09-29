@@ -104,6 +104,19 @@ func fetchRegion(ctx context.Context, metadataURL string) (string, error) {
 	return fetchAvailabilityZone(ctx, metadataURL)
 }
 
+// FetchPrimaryPrivateIPv4 fetches the primary network interface's internal IPv4 using IMDS.
+func FetchPrimaryPrivateIPv4(ctx context.Context) (string, error) {
+	return fetchPrimaryPrivateIPv4(ctx, imdsMetadataURL)
+}
+
+// fetchPrimaryPrivateIPv4 reads the VPC-internal address of nic0. GCP VPC subnets
+// may use privately used public IPv4 ranges, so callers must not require RFC1918.
+// ref. https://cloud.google.com/compute/docs/metadata/predefined-metadata-keys#instance-metadata
+// ref. https://cloud.google.com/vpc/docs/subnets#valid-ranges
+func fetchPrimaryPrivateIPv4(ctx context.Context, metadataURL string) (string, error) {
+	return fetchMetadataByPath(ctx, metadataURL+"/instance/network-interfaces/0/ip")
+}
+
 // FetchPublicIPv4 fetches Google Cloud instance public IPv4 using IMDS.
 func FetchPublicIPv4(ctx context.Context) (string, error) {
 	return fetchPublicIPv4(ctx, imdsMetadataURL)
