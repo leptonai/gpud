@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -45,6 +46,17 @@ func TestSelectPrivateIP(t *testing.T) {
 			nics:              []apiv1.MachineNetworkInterface{nic("eth0", "10.0.0.5")},
 			defaultRoute:      defaultRouteHostIPv4("bond0", "7.251.157.169"),
 			want:              "172.16.0.10",
+		},
+		{
+			name:         "NIC entry without IP is skipped",
+			publicIP:     "203.0.113.1",
+			nics:         []apiv1.MachineNetworkInterface{{Interface: "eth9", Addr: netip.MustParseAddr("10.9.9.9")}, nic("eth0", "10.0.0.5")},
+			defaultRoute: defaultRouteHostIPv4("bond0", "7.251.157.169"),
+			want:         "10.0.0.5",
+		},
+		{
+			name: "nil default-route lookup yields empty",
+			want: "",
 		},
 		{
 			name:         "RFC1918 NIC IPv4 wins over default route",
@@ -106,6 +118,17 @@ func TestSelectPrivateIP(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestSelectPrivateIP_UsesDefaultRouteLookupWithMockey(t *testing.T) {
+	mockey.PatchConvey("SelectPrivateIP falls back to netutil.DefaultRouteHostIPv4", t, func() {
+		mockey.Mock(netutil.DefaultRouteHostIPv4).To(defaultRouteHostIPv4("bond0", "7.251.157.169")).Build()
+
+		got := SelectPrivateIP("", "203.0.113.1", &apiv1.MachineNICInfo{
+			PrivateIPInterfaces: []apiv1.MachineNetworkInterface{nic("enP22s22f0np0", "fe80::a288:c2ff:fe3c:1")},
+		})
+		assert.Equal(t, "7.251.157.169", got)
+	})
 }
 
 // TestCreateLoginRequest_BareMetalUsesDefaultRouteHostIP covers the Mistral
