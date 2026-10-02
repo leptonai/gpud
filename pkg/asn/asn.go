@@ -266,4 +266,6 @@ var providerNormalizationRules = []providerNormalizationRule{
 	{keyword: "nebius", normalizedName: "nebius"},   // e.g., "nebiuscloud" should be "nebius"
 	{keyword: "hetzner", normalizedName: "hetzner"}, // e.g., "hetzner-cloud3-as" should be "hetzner"
 	{keyword: "oracle", normalizedName: "oci"},      // e.g., "oracle-bmc-31898" should be "oci"
+	// e.g., "Mistral-Compute - Mistral Compute Holding SAS" (AS209952) should be "mistral-compute"
+	{keyword: "mistral-compute", normalizedName: "mistral-compute"},
 }
