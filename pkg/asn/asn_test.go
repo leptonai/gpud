@@ -226,6 +226,16 @@ func TestNormalizeASNName(t *testing.T) {
 			input:    "nscale cloud services",
 			expected: "nscale",
 		},
+		{
+			name:     "mistral compute asn name",
+			input:    "Mistral-Compute - Mistral Compute Holding SAS",
+			expected: "mistral-compute",
+		},
+		{
+			name:     "mistral compute label-sanitized asn name",
+			input:    "mistral-compute-mistralcomputeholdingsas",
+			expected: "mistral-compute",
+		},
 
 		// Test whitespace handling
 		{
