@@ -4182,6 +4182,8 @@ func TestContainerdSocketMissingRecovery(t *testing.T) {
 		"Counter should have reset to 1")
 }
 
+const danglingPodAbsentGrace = 10 * time.Minute
+
 func TestDanglingPodCount(t *testing.T) {
 	now := time.Now().UTC()
 	readySandbox := func(id, name string) PodSandbox {
@@ -4192,7 +4194,7 @@ func TestDanglingPodCount(t *testing.T) {
 	}
 
 	t.Run("absent sandbox is dangling only after sustained absence", func(t *testing.T) {
-		c := &component{}
+		c := &component{danglingPodAbsentGrace: danglingPodAbsentGrace}
 		pods := []PodSandbox{readySandbox("id-pod", "pod"), readySandbox("id-orphan", "orphan")}
 
 		// first observation of absence: not dangling yet
@@ -4204,7 +4206,7 @@ func TestDanglingPodCount(t *testing.T) {
 	})
 
 	t.Run("old sandbox whose pod just disappeared is not immediately dangling", func(t *testing.T) {
-		c := &component{}
+		c := &component{danglingPodAbsentGrace: danglingPodAbsentGrace}
 		old := readySandbox("id-old", "old")
 		old.CreatedAt = now.Add(-24 * time.Hour).UnixNano()
 		assert.Equal(t, 0, c.danglingPodCount([]PodSandbox{old}, nil, now),
@@ -4212,7 +4214,7 @@ func TestDanglingPodCount(t *testing.T) {
 	})
 
 	t.Run("pod reappearance resets the absence observation", func(t *testing.T) {
-		c := &component{}
+		c := &component{danglingPodAbsentGrace: danglingPodAbsentGrace}
 		pods := []PodSandbox{readySandbox("id-flap", "flap")}
 		absent := []kubeletPodStatus{}
 		presentHere := []kubeletPodStatus{{Name: "flap", Namespace: "default"}}
@@ -4232,7 +4234,7 @@ func TestDanglingPodCount(t *testing.T) {
 	})
 
 	t.Run("non-ready sandboxes are not counted and are forgotten", func(t *testing.T) {
-		c := &component{}
+		c := &component{danglingPodAbsentGrace: danglingPodAbsentGrace}
 		pods := []PodSandbox{readySandbox("id-flip", "flip")}
 
 		assert.Equal(t, 0, c.danglingPodCount(pods, nil, now))
@@ -4252,7 +4254,7 @@ func TestDanglingPodCount(t *testing.T) {
 	})
 
 	t.Run("disappeared sandboxes are forgotten", func(t *testing.T) {
-		c := &component{}
+		c := &component{danglingPodAbsentGrace: danglingPodAbsentGrace}
 		assert.Equal(t, 0, c.danglingPodCount([]PodSandbox{readySandbox("id-x", "x")}, nil, now))
 		require.NotEmpty(t, c.danglingAbsentSince)
 
@@ -4261,7 +4263,7 @@ func TestDanglingPodCount(t *testing.T) {
 	})
 
 	t.Run("valid empty pod list still detects persistent orphans", func(t *testing.T) {
-		c := &component{}
+		c := &component{danglingPodAbsentGrace: danglingPodAbsentGrace}
 		pods := []PodSandbox{readySandbox("id-1", "one"), readySandbox("id-2", "two")}
 
 		assert.Equal(t, 0, c.danglingPodCount(pods, []kubeletPodStatus{}, now),
@@ -4421,8 +4423,9 @@ func newDanglingTestComponent(containerdPods []PodSandbox, listKubelet func(ctx 
 		listAllSandboxesFunc: func(ctx context.Context, endpoint string) ([]PodSandbox, error) {
 			return containerdPods, nil
 		},
-		listKubeletPodsFunc: listKubelet,
-		endpoint:            "unix:///mock/endpoint",
+		listKubeletPodsFunc:    listKubelet,
+		danglingPodAbsentGrace: danglingPodAbsentGrace,
+		endpoint:               "unix:///mock/endpoint",
 	}
 	comp.setNowForTest(now)
 	return comp
@@ -4520,4 +4523,77 @@ func TestNewKubeletPodsFuncUsesDiscovery(t *testing.T) {
 	_, err = c.listKubeletPodsFunc(ctx)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errKubeletIdentityNotFound)
+}
+
+func TestDanglingPodGraceConfiguration(t *testing.T) {
+	for _, grace := range []time.Duration{0, 2 * time.Minute} {
+		for _, count := range []int{0, 1, 5, 6, 10, 11} {
+			t.Run(fmt.Sprintf("grace=%s/count=%d", grace, count), func(t *testing.T) {
+				constructed, err := New(&components.GPUdInstance{RootCtx: context.Background(), ContainerdDanglingPodGracePeriod: grace})
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, constructed.Close()) })
+				require.Equal(t, grace, constructed.(*component).danglingPodAbsentGrace)
+				pods := make([]PodSandbox, count)
+				for i := range pods {
+					pods[i] = PodSandbox{ID: fmt.Sprint(i), Name: fmt.Sprint(i), Namespace: "default", State: "SANDBOX_READY"}
+				}
+				now := time.Now().UTC()
+				var listErr error
+				c := newDanglingTestComponent(pods, func(context.Context) ([]kubeletPodStatus, error) { return nil, listErr }, now)
+				c.danglingPodAbsentGrace = constructed.(*component).danglingPodAbsentGrace
+				c.Check()
+				if grace > 0 {
+					require.Equal(t, "ok", c.lastCheckResult.reason)
+					c.setNowForTest(now.Add(grace - time.Nanosecond))
+					c.Check()
+					require.Equal(t, "ok", c.lastCheckResult.reason)
+					c.setNowForTest(now.Add(grace))
+					c.Check()
+				}
+				want := apiv1.HealthStateTypeHealthy
+				if count > 10 {
+					want = apiv1.HealthStateTypeUnhealthy
+				} else if count > 5 {
+					want = apiv1.HealthStateTypeDegraded
+				}
+				require.Equal(t, want, c.lastCheckResult.health)
+				// These messages and strict thresholds match v0.12.24.
+				wantReason := "ok"
+				switch {
+				case count > 10:
+					wantReason = fmt.Sprintf("node has %d dangling pods, unhealthy threshold 10", count)
+				case count > 5:
+					wantReason = fmt.Sprintf("node has %d dangling pods, consider reboot system to recover, degraded threshold 5", count)
+				case count > 0:
+					wantReason = fmt.Sprintf("node has %d dangling pods", count)
+				}
+				require.Equal(t, wantReason, c.lastCheckResult.reason)
+				require.Equal(t, count > 10, c.lastCheckResult.suggestedAction != nil)
+				listErr = errors.New("API unavailable")
+				c.Check()
+				require.Equal(t, apiv1.HealthStateTypeHealthy, c.lastCheckResult.health)
+				require.Contains(t, c.lastCheckResult.reason, "dangling pod detection unavailable")
+				require.Nil(t, c.lastCheckResult.suggestedAction)
+			})
+		}
+	}
+	_, err := New(&components.GPUdInstance{RootCtx: context.Background(), ContainerdDanglingPodGracePeriod: -time.Second})
+	require.ErrorContains(t, err, "must not be negative")
+}
+
+// v0.12.24 compared namespace/name and counted only READY sandboxes, without
+// considering sandbox age or requiring a second observation.
+func TestDanglingPodCountImmediateParity(t *testing.T) {
+	c := &component{}
+	now := time.Now().UTC()
+	pods := []PodSandbox{
+		{ID: "known", Namespace: "a", Name: "same", State: "SANDBOX_READY"},
+		{ID: "orphan", Namespace: "b", Name: "same", State: "SANDBOX_READY", CreatedAt: now.UnixNano()},
+		{ID: "stopped", Namespace: "b", Name: "stopped", State: "SANDBOX_NOTREADY"},
+	}
+	present := []kubeletPodStatus{{Namespace: "a", Name: "same"}}
+	require.Equal(t, 1, c.danglingPodCount(pods, present, now))
+	require.Equal(t, 1, c.danglingPodCount(pods, present, now.Add(time.Minute)))
+	present = append(present, kubeletPodStatus{Namespace: "b", Name: "same"})
+	require.Zero(t, c.danglingPodCount(pods, present, now.Add(2*time.Minute)))
 }

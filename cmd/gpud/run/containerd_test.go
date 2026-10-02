@@ -3,6 +3,7 @@ package run
 import (
 	"flag"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli"
@@ -32,4 +33,12 @@ func TestContainerdConfigFromCLI(t *testing.T) {
 	require.NoError(t, set.Set("containerd-endpoint", "tcp://localhost:1234"))
 	_, err = containerdConfigFromCLI(ctx)
 	require.Error(t, err)
+}
+
+func TestCommandRejectsNegativeDanglingPodGrace(t *testing.T) {
+	set := flag.NewFlagSet("run", flag.ContinueOnError)
+	set.String("log-level", "info", "")
+	set.Duration("containerd-dangling-pod-grace-period", -time.Second, "")
+	err := Command(cli.NewContext(nil, set, nil))
+	require.ErrorContains(t, err, "containerd-dangling-pod-grace-period must not be negative")
 }

@@ -33,3 +33,24 @@
 - [**`os`**](https://pkg.go.dev/github.com/leptonai/gpud/components/os): Queries the host OS information (e.g., kernel version, file descriptor usage) and tracks persistent D-state (uninterruptible sleep) processes.
 - [**`pci`**](https://pkg.go.dev/github.com/leptonai/gpud/components/pci): Tracks the PCI devices and their Access Control Services (ACS) status.
 - [**`tailscale`**](https://pkg.go.dev/github.com/leptonai/gpud/components/tailscale): Tracks the tailscale state (e.g., version) if available.
+
+## Containerd dangling pods
+
+By default, GPUd counts a `SANDBOX_READY` containerd sandbox as dangling on the
+first successful Kubernetes API pod listing that does not contain its pod.
+The check runs once per minute. Counts of 6–10 are Degraded; 11 or more are
+Unhealthy with a reboot recommendation.
+
+To delay counting a sandbox until its pod has been absent for a grace period:
+
+```bash
+gpud run --containerd-dangling-pod-grace-period=10m
+```
+
+The default is `0` (no grace period); negative durations are rejected. This
+replaces the mandatory 10-minute delay in v0.13.0. A positive duration starts
+at the first observed absence for each sandbox, resets when its pod reappears
+or the sandbox disappears or leaves READY, and is lost when GPUd restarts.
+Failed API queries report detection as unavailable and do not count as evidence
+of pod absence. With zero grace, a force-deleted pod whose sandbox is still
+tearing down can temporarily count as dangling.

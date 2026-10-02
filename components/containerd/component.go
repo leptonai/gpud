@@ -33,15 +33,6 @@ const (
 	danglingUnhealthyThreshold  = 10
 	defaultContainerdConfigPath = configcommon.DefaultContainerdConfigPath
 
-	// danglingPodAbsentGrace is how long a READY sandbox's pod must be
-	// continuously absent from the API server pod list before the sandbox
-	// counts as dangling. The API-server view diverges from kubelet's local
-	// view while a (force-)deleted pod is still tearing down; requiring
-	// sustained, successfully observed absence absorbs that window. Sandbox
-	// lifetime must NOT substitute for absence duration: a day-old pod
-	// force-deleted just now is still tearing down and is not dangling.
-	danglingPodAbsentGrace = 10 * time.Minute
-
 	defaultActivenssCheckUptimeThreshold = 5 * time.Minute
 
 	socketMissingConsecutiveThreshold = 5
@@ -100,8 +91,9 @@ type component struct {
 	// first observed missing from a successfully fetched API server pod list.
 	// Only successful listings update it; query failures are not evidence of
 	// absence.
-	danglingMu          sync.Mutex
-	danglingAbsentSince map[string]time.Time
+	danglingPodAbsentGrace time.Duration
+	danglingMu             sync.Mutex
+	danglingAbsentSince    map[string]time.Time
 
 	lastMu          sync.RWMutex
 	lastCheckResult *checkResult
@@ -109,6 +101,9 @@ type component struct {
 
 // New creates a containerd component.
 func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
+	if gpudInstance.ContainerdDanglingPodGracePeriod < 0 {
+		return nil, errors.New("containerd dangling pod grace period must not be negative")
+	}
 	if err := gpudInstance.Containerd.Validate(); err != nil {
 		return nil, err
 	}
@@ -182,7 +177,8 @@ func New(gpudInstance *components.GPUdInstance) (components.Component, error) {
 		},
 		activenssCheckUptimeThreshold: defaultActivenssCheckUptimeThreshold,
 
-		listAllSandboxesFunc: ListAllSandboxes,
+		listAllSandboxesFunc:   ListAllSandboxes,
+		danglingPodAbsentGrace: gpudInstance.ContainerdDanglingPodGracePeriod,
 
 		listKubeletPodsFunc: func(ctx context.Context) ([]kubeletPodStatus, error) {
 			return listPodsUsingDiscoveredKubeletIdentity(ctx)
@@ -671,7 +667,7 @@ func appendImportedContainerdConfigs(config []byte) []byte {
 
 // danglingPodCount returns the number of READY sandboxes whose pods have been
 // continuously absent from the API server pod list for at least
-// danglingPodAbsentGrace.
+// the configured grace period (zero counts on the first successful comparison).
 //
 // Absence is measured from sustained, successfully observed pod lists, keyed
 // by sandbox ID -- not from sandbox creation time. The observation resets when
@@ -714,11 +710,11 @@ func (c *component) danglingPodCount(containerdPods []PodSandbox, kubeletPods []
 		}
 		absentSince, ok := c.danglingAbsentSince[key]
 		if !ok {
-			// first observed absence: not dangling yet
-			c.danglingAbsentSince[key] = now
-			continue
+			// Start the optional grace period at the first observed absence.
+			absentSince = now
+			c.danglingAbsentSince[key] = absentSince
 		}
-		if now.Sub(absentSince) >= danglingPodAbsentGrace {
+		if now.Sub(absentSince) >= c.danglingPodAbsentGrace {
 			danglingCount++
 		}
 	}
