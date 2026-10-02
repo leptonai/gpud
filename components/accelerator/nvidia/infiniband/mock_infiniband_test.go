@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -25,6 +26,28 @@ import (
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiaproduct "github.com/leptonai/gpud/pkg/nvidia/product"
 )
+
+func hasKmsgEventDedupWindowFunc(t *testing.T, opt kmsg.OpOption) bool {
+	t.Helper()
+	op := &kmsg.Op{}
+	opt(op)
+
+	v := reflect.ValueOf(op).Elem().FieldByName("eventDedupWindowFunc")
+	require.True(t, v.IsValid(), "eventDedupWindowFunc field must exist")
+	require.Equal(t, reflect.Func, v.Kind(), "eventDedupWindowFunc must be func")
+	return !v.IsNil()
+}
+
+func getKmsgCacheKeyTruncateSeconds(t *testing.T, opt kmsg.OpOption) int {
+	t.Helper()
+	op := &kmsg.Op{}
+	opt(op)
+
+	v := reflect.ValueOf(op).Elem().FieldByName("cacheKeyTruncateSeconds")
+	require.True(t, v.IsValid(), "cacheKeyTruncateSeconds field must exist")
+	require.Equal(t, reflect.Int, v.Kind(), "cacheKeyTruncateSeconds must be int")
+	return int(v.Int())
+}
 
 // customMockNVMLInstanceIB implements the nvml.Instance interface for testing with customizable behavior
 type customMockNVMLInstanceIB struct {
