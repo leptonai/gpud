@@ -1671,8 +1671,8 @@ func TestLogin_SendRequestWithDeprecatedErrorField(t *testing.T) {
 
 		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
-				Status: "400",                  // deprecated field
-				Error:  "invalid request body", // deprecated field
+				Status: "400",                  //nolint:staticcheck // SA1019 deprecated field under test
+				Error:  "invalid request body", //nolint:staticcheck // SA1019 deprecated field under test
 			}, errors.New("bad request")
 		}).Build()
 
