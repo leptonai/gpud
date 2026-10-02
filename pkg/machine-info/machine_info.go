@@ -277,11 +277,16 @@ func GetMachineNICInfo() *apiv1.MachineNICInfo {
 			// carrying the only RFC1918 address. login_request.go relies on this list
 			// as a fallback when provider metadata does not return a usable private IP.
 			"cali",
+			"cilium", // cilium_host/cilium_net/cilium_vxlan: Cilium router and overlay links
 			"cni",
 			"docker",
 			"flannel",
+			"lxc", // Cilium per-pod veths, including lxc_health
 			"nodelocaldns",
 			"tailscale",
+			// BlueField rshim host<->DPU link; rshim setups commonly assign
+			// 192.168.100.0/30 here, which is not a host LAN address.
+			"tmfifo",
 			"tunl",
 			"veth",
 			"vxlan",

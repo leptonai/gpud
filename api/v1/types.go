@@ -491,7 +491,9 @@ type MachineNetwork struct {
 	PublicIP string `json:"publicIP,omitempty"`
 	// PrivateIP is the local IPv4 used by the host networking stack.
 	// This is usually an RFC1918 private address, but some providers
-	// may report a routable host-local IPv4 via metadata.
+	// may report a routable host-local IPv4 via metadata, and hosts
+	// without metadata fall back to the default-route interface IPv4
+	// (the address kubelet uses as the node InternalIP).
 	// May be overridden by the user with the private IP address.
 	PrivateIP string `json:"privateIP,omitempty"`
 }
