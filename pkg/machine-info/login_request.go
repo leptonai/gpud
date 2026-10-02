@@ -46,6 +46,7 @@ func CreateLoginRequestWithContainerd(token, machineID, nodeGroup, gpuCount, reg
 		func(ip string) *providers.Info { return getProviderForLogin(ip, region) },
 		GetSystemResourceRootVolumeTotal,
 		GetSystemResourceGPUCount,
+		netutil.DefaultRouteHostIPv4,
 	)
 }
 
@@ -61,6 +62,7 @@ func createLoginRequest(
 	getProviderFunc func(ip string) *providers.Info,
 	getSystemResourceRootVolumeTotalFunc func() (string, error),
 	getSystemResourceGPUCountFunc func(nvmlInstance nvidianvml.Instance) (string, error),
+	getDefaultRouteHostIPv4Func func() (netutil.InterfaceAddr, error),
 ) (*apiv1.LoginRequest, error) {
 	donec := make(chan struct{})
 	defer close(donec)
@@ -119,7 +121,6 @@ func createLoginRequest(
 	// we always prioritize the provider's public IP and private IP
 	// even if the local network interface has a private IP
 	req.Network.PublicIP = detectedProvider.PublicIP
-	req.Network.PrivateIP = detectedProvider.PrivateIP
 
 	log.Logger.Debugw("login request provider fields set",
 		"provider", req.Provider,
@@ -130,19 +131,11 @@ func createLoginRequest(
 		return nil, fmt.Errorf("failed to get machine info: %w", err)
 	}
 
-	// get the default values from the machine info
-	if req.MachineInfo != nil && req.MachineInfo.NICInfo != nil {
-		for _, iface := range req.MachineInfo.NICInfo.PrivateIPInterfaces {
-			if iface.IP == "" {
-				continue
-			}
-			if req.Network.PrivateIP == "" && iface.Addr.IsPrivate() && iface.Addr.Is4() {
-				req.Network.PrivateIP = iface.IP
-				log.Logger.Infow("provider private IP not available, using local network interface", "ip", req.Network.PrivateIP, "interface", iface.Interface)
-				break
-			}
-		}
+	var nicInfo *apiv1.MachineNICInfo
+	if req.MachineInfo != nil {
+		nicInfo = req.MachineInfo.NICInfo
 	}
+	req.Network.PrivateIP = selectPrivateIP(detectedProvider.PrivateIP, req.Network.PublicIP, nicInfo, getDefaultRouteHostIPv4Func)
 
 	if req.Network.PrivateIP == "" {
 		log.Logger.Warnw("no private ip found", "provider", req.Provider, "providerPrivateIP", detectedProvider.PrivateIP)

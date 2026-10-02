@@ -647,6 +647,43 @@ func TestGetMachineNICInfo_LeptonAndENIIncluded_WithMockey(t *testing.T) {
 	})
 }
 
+func TestGetMachineNICInfo_SkipsCiliumOverlay_WithMockey(t *testing.T) {
+	mockey.PatchConvey("GetMachineNICInfo drops Cilium and BlueField rshim links on bare-metal hosts", t, func() {
+		mockey.Mock(net.Interfaces).To(func() ([]net.Interface, error) {
+			return []net.Interface{
+				{Name: "bond0", Flags: net.FlagUp},
+				{Name: "cilium_host", Flags: net.FlagUp},
+				{Name: "cilium_net", Flags: net.FlagUp},
+				{Name: "cilium_vxlan", Flags: net.FlagUp},
+				{Name: "lxc_health", Flags: net.FlagUp},
+				{Name: "lxc8d3f1a2b", Flags: net.FlagUp},
+				{Name: "tmfifo_net0", Flags: net.FlagUp},
+			}, nil
+		}).Build()
+
+		mockey.Mock((*net.Interface).Addrs).To(func(ifi *net.Interface) ([]net.Addr, error) {
+			switch ifi.Name {
+			case "bond0":
+				// non-RFC1918 host IP: only the link-local IPv6 is recorded
+				return []net.Addr{
+					&net.IPNet{IP: net.ParseIP("7.251.157.169"), Mask: net.CIDRMask(24, 32)},
+					&net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)},
+				}, nil
+			case "tmfifo_net0":
+				return []net.Addr{&net.IPNet{IP: net.ParseIP("192.168.100.2"), Mask: net.CIDRMask(30, 32)}}, nil
+			default:
+				return []net.Addr{&net.IPNet{IP: net.ParseIP("10.128.154.123"), Mask: net.CIDRMask(32, 32)}}, nil
+			}
+		}).Build()
+
+		nicInfo := GetMachineNICInfo()
+		require.NotNil(t, nicInfo)
+		require.Len(t, nicInfo.PrivateIPInterfaces, 1)
+		assert.Equal(t, "bond0", nicInfo.PrivateIPInterfaces[0].Interface)
+		assert.Equal(t, "fe80::1", nicInfo.PrivateIPInterfaces[0].IP)
+	})
+}
+
 // TestGetMachineGPUInfo_WithNoDevices tests GetMachineGPUInfo with no devices
 func TestGetMachineGPUInfo_WithNoDevices(t *testing.T) {
 	mockey.PatchConvey("GetMachineGPUInfo with no devices", t, func() {
