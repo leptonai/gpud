@@ -8,6 +8,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	gpudcommon "github.com/leptonai/gpud/cmd/gpud/common"
 	"github.com/leptonai/gpud/pkg/log"
@@ -97,19 +98,11 @@ func Command(cliContext *cli.Context) error {
 			fmt.Printf("%s failed to find provider (%v)\n", cmdcommon.WarningSign, err)
 		}
 	} else {
-		if providerInfo.PrivateIP == "" {
-			if machineInfo != nil && machineInfo.NICInfo != nil {
-				for _, iface := range machineInfo.NICInfo.PrivateIPInterfaces {
-					if iface.IP == "" {
-						continue
-					}
-					if iface.Addr.IsPrivate() && iface.Addr.Is4() {
-						providerInfo.PrivateIP = iface.IP
-						break
-					}
-				}
-			}
+		var nicInfo *apiv1.MachineNICInfo
+		if machineInfo != nil {
+			nicInfo = machineInfo.NICInfo
 		}
+		providerInfo.PrivateIP = pkgmachineinfo.SelectPrivateIP(providerInfo.PrivateIP, providerInfo.PublicIP, nicInfo)
 		// Match LoginRequest behavior: when provider metadata cannot provide
 		// a usable region, use DERP/latency-derived machine location.
 		if providerInfo.Region == "" {
