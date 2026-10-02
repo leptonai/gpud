@@ -107,12 +107,7 @@ RUN cd /apt-sources/packages && \
     (apt-get source --download-only docker-ce-cli 2>/dev/null || \
      (echo "docker-ce-cli source not available via apt, downloading from GitHub..." && \
       DOCKER_VERSION=$(apt-cache policy docker-ce-cli 2>/dev/null | grep Candidate | awk '{print $2}' | sed 's/.*://' | cut -d'-' -f1) && \
-      curl -fsSL -o docker-cli-v${DOCKER_VERSION}-source.tar.gz https://github.com/docker/cli/archive/refs/tags/v${DOCKER_VERSION}.tar.gz)) && \
-    # Get containerd.io source - try apt first, fallback to GitHub
-    (apt-get source --download-only containerd.io 2>/dev/null || \
-     (echo "containerd.io source not available via apt, downloading from GitHub..." && \
-      CONTAINERD_VERSION=$(apt-cache policy containerd.io 2>/dev/null | grep Candidate | awk '{print $2}' | sed 's/.*://' | cut -d'-' -f1) && \
-      curl -fsSL -o containerd-v${CONTAINERD_VERSION}-source.tar.gz https://github.com/containerd/containerd/archive/refs/tags/v${CONTAINERD_VERSION}.tar.gz))
+      curl -fsSL -o docker-cli-v${DOCKER_VERSION}-source.tar.gz https://github.com/docker/cli/archive/refs/tags/v${DOCKER_VERSION}.tar.gz))
 
 # Generate manifest of downloaded sources
 RUN echo "# APT Package Sources" > /apt-sources/APT_SOURCES.txt && \
@@ -131,8 +126,7 @@ RUN echo "# APT Package Sources" > /apt-sources/APT_SOURCES.txt && \
     echo "util-linux: $(apt-cache policy util-linux | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
     echo "kmod: $(apt-cache policy kmod | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
     echo "sudo: $(apt-cache policy sudo | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
-    echo "docker-ce-cli: $(apt-cache policy docker-ce-cli | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt && \
-    echo "containerd.io: $(apt-cache policy containerd.io | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt
+    echo "docker-ce-cli: $(apt-cache policy docker-ce-cli | grep Candidate | awk '{print $2}')" >> /apt-sources/APT_SOURCES.txt
 
 # ==============================================================================
 # Stage 3: Final Runtime Image
@@ -177,7 +171,9 @@ RUN apt-get update && \
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
   apt-get update && \
-  apt-get install -y --no-install-recommends docker-ce-cli containerd.io && \
+  # containerd.io is not installed: gpud talks to the host's containerd over
+  # its CRI socket, and the package's bundled Go binaries carry unfixed CVEs.
+  apt-get install -y --no-install-recommends docker-ce-cli && \
   # Remove gnupg and related packages to address CVE-2025-68973
   # These are only needed for GPG key verification during build, not at runtime
   apt-get purge -y --auto-remove gnupg gnupg-l10n gnupg-utils gpg gpg-agent gpg-wks-client gpg-wks-server gpgconf gpgsm dirmngr && \

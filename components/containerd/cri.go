@@ -22,7 +22,6 @@ import (
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	configcommon "github.com/leptonai/gpud/pkg/config/common"
-	pkgfile "github.com/leptonai/gpud/pkg/file"
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -338,12 +337,12 @@ func GetVersion(ctx context.Context, endpoint string) (string, error) {
 // e.g.,
 // "containerd containerd.io 1.7.25 bcc810d6b9066471b0b6fa75f557a15a1cbf31bb"
 func GetVersionFromCli(ctx context.Context) (string, error) {
-	containerdPath, err := pkgfile.LocateExecutable("containerd")
+	containerdPath, err := locateContainerd(hostRoot)
 	if err != nil {
 		return "", err
 	}
 
-	// #nosec G204 -- containerdPath is resolved via LocateExecutable for the fixed "containerd" binary name.
+	// #nosec G204 -- containerdPath is resolved by locateContainerd for the fixed "containerd" binary name.
 	out, err := exec.CommandContext(ctx, containerdPath, "--version").Output()
 	if err != nil {
 		return "", err
