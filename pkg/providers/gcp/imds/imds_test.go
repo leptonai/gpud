@@ -526,3 +526,18 @@ func TestExtractZoneFromPath(t *testing.T) {
 		})
 	}
 }
+
+func TestFetchPrimaryPrivateIPv4(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodGet, r.Method)
+		require.Equal(t, "/instance/network-interfaces/0/ip", r.URL.Path)
+		require.Equal(t, metadataFlavorGoogle, r.Header.Get(headerMetadataFlavor))
+		_, err := w.Write([]byte(" 7.246.74.36\n"))
+		require.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	privateIP, err := fetchPrimaryPrivateIPv4(context.Background(), srv.URL)
+	require.NoError(t, err)
+	require.Equal(t, "7.246.74.36", privateIP)
+}

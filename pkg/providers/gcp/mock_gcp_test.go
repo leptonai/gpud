@@ -72,3 +72,35 @@ func TestDetectProvider_Error_WithMockey(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestFetchPrivateIPv4_WithMockey(t *testing.T) {
+	tests := []struct {
+		name     string
+		metadata string
+		fetchErr error
+		want     string
+		wantErr  bool
+	}{
+		{name: "non-RFC1918 VPC address is authoritative", metadata: "7.246.74.36", want: "7.246.74.36"},
+		{name: "RFC1918 VPC address", metadata: "10.128.0.2", want: "10.128.0.2"},
+		{name: "invalid address is ignored", metadata: "not-an-ip", want: ""},
+		{name: "IPv6 address is ignored", metadata: "fd20::2", want: ""},
+		{name: "metadata error is returned", fetchErr: errors.New("metadata unavailable"), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		mockey.PatchConvey(tt.name, t, func() {
+			mockey.Mock(imds.FetchPrimaryPrivateIPv4).To(func(context.Context) (string, error) {
+				return tt.metadata, tt.fetchErr
+			}).Build()
+
+			got, err := New().PrivateIPv4(context.Background())
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
