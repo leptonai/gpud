@@ -485,7 +485,6 @@ Source packages for all installed APT packages:
 - `kmod` - Kernel module tools
 - `sudo` - Superuser do
 - `docker-ce-cli` - Docker CLI
-- `containerd.io` - Container runtime
 
 ---
 

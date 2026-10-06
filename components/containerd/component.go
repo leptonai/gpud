@@ -330,9 +330,9 @@ func (c *component) Check() components.CheckResult {
 	}
 
 	// An installed containerd binary does not make containerd the node's
-	// container runtime: BYOK clusters that use CRI-O still ship the
-	// containerd binary (the gpud image installs containerd.io), but
-	// containerd is never started and its socket never appears. Without this
+	// container runtime: BYOK clusters that use CRI-O can still ship the
+	// containerd binary on the host, but containerd is never started and its
+	// socket never appears. Without this
 	// skip, the activeness check below marks such nodes Unhealthy after five
 	// consecutive misses even though nothing is wrong (LEP-6128).
 	//
