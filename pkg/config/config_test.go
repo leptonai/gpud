@@ -1053,3 +1053,12 @@ func TestConfig_Components_Denylist_LEP6439(t *testing.T) {
 		t.Errorf("Expected ShouldDisable(\"library\") = true with whitespace in components")
 	}
 }
+
+func TestConfigValidateContainerdDanglingPodGracePeriod(t *testing.T) {
+	cfg := &Config{Address: ":15132", MetricsRetentionPeriod: metav1.Duration{Duration: time.Minute}}
+	require.NoError(t, cfg.Validate())
+	cfg.ContainerdDanglingPodGracePeriod.Duration = 10 * time.Minute
+	require.NoError(t, cfg.Validate())
+	cfg.ContainerdDanglingPodGracePeriod.Duration = -time.Second
+	require.ErrorContains(t, cfg.Validate(), "containerd_dangling_pod_grace_period must not be negative")
+}

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli"
@@ -23,6 +24,11 @@ func TestAppRunContainerdFlags(t *testing.T) {
 			require.NotNil(t, set.Lookup(name))
 			require.Empty(t, set.Lookup(name).DefValue)
 		}
+		ctx := cli.NewContext(app, set, nil)
+		require.Zero(t, ctx.Duration("containerd-dangling-pod-grace-period"))
+		require.NoError(t, set.Set("containerd-dangling-pod-grace-period", "10m"))
+		require.Equal(t, 10*time.Minute, ctx.Duration("containerd-dangling-pod-grace-period"))
+		require.Error(t, set.Set("containerd-dangling-pod-grace-period", "invalid"))
 		require.NoError(t, set.Parse([]string{"--containerd-endpoint=unix:///run/k3s/containerd/containerd.sock", "--containerd-service-name=rke2-agent"}))
 		return
 	}

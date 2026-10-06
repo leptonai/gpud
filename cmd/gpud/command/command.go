@@ -272,6 +272,11 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage: "command used to check whether the containerd service is active (e.g. 'nsenter --target 1 --mount -- systemctl is-active containerd' to query the host service manager from inside a container; exit code 0 means active); leave empty to use the built-in systemd check",
 					Value: "",
 				},
+				cli.DurationFlag{
+					Name:  "containerd-dangling-pod-grace-period",
+					Usage: "minimum API absence before a READY sandbox counts as dangling (e.g. 10m); 0 counts on the first successful check",
+					Value: 0,
+				},
 				cli.StringFlag{
 					Name:  "containerd-endpoint",
 					Usage: "containerd CRI endpoint (empty: unix:///run/containerd/containerd.sock); use unix:///run/k3s/containerd/containerd.sock for RKE2/k3s",
