@@ -162,6 +162,7 @@ func TestCreateLoginRequest_FailsFastOnMissingRequiredIMDSIdentity(t *testing.T)
 				func(string) *providers.Info { return tc.info },
 				func() (string, error) { return "", nil },
 				func(nvidianvml.Instance) (string, error) { return "0", nil },
+				noDefaultRouteHostIPv4,
 			)
 			assert.ErrorContains(t, err, tc.wantErr)
 			assert.Nil(t, req)
@@ -196,6 +197,7 @@ func TestCreateLoginRequest_ValidIMDSIdentitySkipsDERP(t *testing.T) {
 		},
 		func() (string, error) { return "100Gi", nil },
 		func(nvidianvml.Instance) (string, error) { return "0", nil },
+		noDefaultRouteHostIPv4,
 	)
 	assert.NoError(t, err)
 	assert.False(t, locationCalled)
@@ -520,6 +522,7 @@ func TestCreateLoginRequest_Basic(t *testing.T) {
 				tt.getProviderFunc,
 				tt.getSystemResourceRootVolumeTotalFunc,
 				tt.getSystemResourceGPUCountFunc,
+				noDefaultRouteHostIPv4,
 			)
 
 			if tt.wantErr {
@@ -578,6 +581,7 @@ func TestCreateLoginRequest_NetworkBasics(t *testing.T) {
 		},
 		func() (string, error) { return "100Gi", nil },
 		func(nvidianvml.Instance) (string, error) { return "1", nil },
+		noDefaultRouteHostIPv4,
 	)
 
 	assert.NoError(t, err)
@@ -731,6 +735,7 @@ func TestCreateLoginRequest_PrivateIPDetection(t *testing.T) {
 				func(ip string) *providers.Info { return &providers.Info{Provider: "provider"} },
 				func() (string, error) { return "100Gi", nil },
 				func(nvidianvml.Instance) (string, error) { return "1", nil },
+				noDefaultRouteHostIPv4,
 			)
 
 			assert.NoError(t, err, tt.description)
@@ -797,6 +802,7 @@ func TestCreateLoginRequest_ResourceCalculation(t *testing.T) {
 				func(ip string) *providers.Info { return &providers.Info{Provider: ""} },
 				func() (string, error) { return "100Gi", nil },
 				func(nvidianvml.Instance) (string, error) { return "0", nil },
+				noDefaultRouteHostIPv4,
 			)
 
 			assert.NoError(t, err)
@@ -956,6 +962,7 @@ func TestCreateLoginRequest_ProviderPrivateIPFallback(t *testing.T) {
 				getProviderFunc,
 				func() (string, error) { return "100Gi", nil },
 				func(nvidianvml.Instance) (string, error) { return "1", nil },
+				noDefaultRouteHostIPv4,
 			)
 
 			assert.NoError(t, err, tt.description)
@@ -1076,6 +1083,7 @@ func TestCreateLoginRequest_ProviderInfoUsage(t *testing.T) {
 				getProviderFunc,
 				func() (string, error) { return "100Gi", nil },
 				func(nvidianvml.Instance) (string, error) { return "1", nil },
+				noDefaultRouteHostIPv4,
 			)
 
 			assert.NoError(t, err)
@@ -1184,6 +1192,7 @@ func TestCreateLoginRequest_IMDSPrivateIPPrecedence(t *testing.T) {
 				getProviderFunc,
 				func() (string, error) { return "500Gi", nil },
 				func(nvidianvml.Instance) (string, error) { return "8", nil },
+				noDefaultRouteHostIPv4,
 			)
 
 			assert.NoError(t, err, tt.description)
@@ -1222,6 +1231,7 @@ func TestCreateLoginRequest_NscaleUsesLatencyLocationWithoutMetadataOverride(t *
 		getProviderFunc,
 		func() (string, error) { return "100Gi", nil },
 		func(nvidianvml.Instance) (string, error) { return "1", nil },
+		noDefaultRouteHostIPv4,
 	)
 
 	assert.NoError(t, err)
@@ -1265,6 +1275,7 @@ func TestCreateLoginRequest_ProviderRegionOverridesLatencyLocation(t *testing.T)
 		getProviderFunc,
 		func() (string, error) { return "100Gi", nil },
 		func(nvidianvml.Instance) (string, error) { return "1", nil },
+		noDefaultRouteHostIPv4,
 	)
 
 	assert.NoError(t, err)
@@ -1331,6 +1342,7 @@ func TestCreateLoginRequest_UnknownRegionFallback(t *testing.T) {
 				tc.getProviderFunc,
 				func() (string, error) { return "100Gi", nil },
 				func(nvidianvml.Instance) (string, error) { return "1", nil },
+				noDefaultRouteHostIPv4,
 			)
 
 			assert.NoError(t, err)
