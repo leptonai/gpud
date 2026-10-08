@@ -95,6 +95,47 @@ func TestReadCPUTopology(t *testing.T) {
 	}
 }
 
+// Enumeration order must not affect counts: some hosts interleave sockets
+// (even CPUs on socket 0, odd on socket 1) while others place SMT siblings in a
+// second contiguous half (CPU N and N+cores share a core).
+func TestReadCPUTopologyHostEnumerationLayouts(t *testing.T) {
+	interleaved := make([]topologyTestCore, 0, 128)
+	for id := range 128 {
+		interleaved = append(interleaved, topologyTestCore{socket: id % 2, cpus: strconv.Itoa(id)})
+	}
+	splitSiblings := make([]topologyTestCore, 0, 112)
+	for id := range 112 {
+		splitSiblings = append(splitSiblings, topologyTestCore{socket: id / 56, cpus: fmt.Sprintf("%d,%d", id, id+112)})
+	}
+
+	tests := []struct {
+		name   string
+		online string
+		groups []topologyTestCore
+		want   cpuTopology
+	}{
+		{
+			name:   "interleaved sockets with SMT disabled",
+			online: "0-127",
+			groups: interleaved,
+			want:   cpuTopology{cpusPerCore: 1, numCores: 128, numSockets: 2},
+		},
+		{
+			name:   "contiguous sockets with siblings in the upper half",
+			online: "0-223",
+			groups: splitSiblings,
+			want:   cpuTopology{cpusPerCore: 2, numCores: 112, numSockets: 2},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := readCPUTopology(context.Background(), topologyTestFS(t, tt.online, tt.groups))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestReadCPUTopologyLegacySiblingLists(t *testing.T) {
 	files := topologyTestFS(t, "0-3", []topologyTestCore{{0, "0,2"}, {0, "1,3"}})
 	for id := range 4 {
