@@ -311,6 +311,15 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 		table.Append([]string{"CPU Manufacturer", i.CPUInfo.Manufacturer})
 		table.Append([]string{"CPU Architecture", i.CPUInfo.Architecture})
 		table.Append([]string{"CPU Logical Cores", fmt.Sprintf("%d", i.CPUInfo.LogicalCores)})
+		if i.CPUInfo.CPUsPerCore > 0 {
+			table.Append([]string{"CPU Threads Per Core", fmt.Sprintf("%d", i.CPUInfo.CPUsPerCore)})
+		}
+		if i.CPUInfo.NumCores > 0 {
+			table.Append([]string{"CPU Physical Cores", fmt.Sprintf("%d", i.CPUInfo.NumCores)})
+		}
+		if i.CPUInfo.NumSockets > 0 {
+			table.Append([]string{"CPU Sockets", fmt.Sprintf("%d", i.CPUInfo.NumSockets)})
+		}
 	}
 	if i.MemoryInfo != nil {
 		table.Append([]string{"Memory Total", humanize.IBytes(i.MemoryInfo.TotalBytes)})
@@ -366,6 +375,16 @@ type MachineCPUInfo struct {
 	Manufacturer string `json:"manufacturer,omitempty"`
 	Architecture string `json:"architecture,omitempty"`
 	LogicalCores int64  `json:"logicalCores,omitempty"`
+
+	// CPUsPerCore is the uniform number of online hardware threads per core.
+	// Omitted when topology is unavailable or online thread counts are nonuniform.
+	CPUsPerCore int64 `json:"cpusPerCore,omitempty"`
+	// NumCores is the total physical cores represented by online CPUs across all sockets.
+	// Omitted when topology is unavailable.
+	NumCores int64 `json:"numCores,omitempty"`
+	// NumSockets is the number of physical sockets represented by online CPUs.
+	// Omitted when topology is unavailable.
+	NumSockets int64 `json:"numSockets,omitempty"`
 }
 
 type MachineMemoryInfo struct {

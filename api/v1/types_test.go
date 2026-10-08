@@ -456,3 +456,37 @@ func TestMachineDiskInfo_RenderTable(t *testing.T) {
 		})
 	}
 }
+
+func TestMachineCPUInfo_TopologyJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		info MachineCPUInfo
+		want string
+	}{
+		{
+			name: "measured topology",
+			info: MachineCPUInfo{LogicalCores: 16, CPUsPerCore: 2, NumCores: 8, NumSockets: 2},
+			want: `{"logicalCores":16,"cpusPerCore":2,"numCores":8,"numSockets":2}`,
+		},
+		{
+			name: "unknown topology stays omitted",
+			info: MachineCPUInfo{LogicalCores: 16},
+			want: `{"logicalCores":16}`,
+		},
+		{
+			name: "nonuniform online threads omit only multiplier",
+			info: MachineCPUInfo{LogicalCores: 3, NumCores: 2, NumSockets: 1},
+			want: `{"logicalCores":3,"numCores":2,"numSockets":1}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.info)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.want, string(data))
+			var decoded MachineCPUInfo
+			require.NoError(t, json.Unmarshal(data, &decoded))
+			assert.Equal(t, tt.info, decoded)
+		})
+	}
+}

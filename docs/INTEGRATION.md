@@ -29,6 +29,28 @@ Following defines the response types for the GPUd APIs above:
 
 Or use the [`client/v1`](http://pkg.go.dev/github.com/leptonai/gpud/client/v1) library to interact with GPUd in Go.
 
+## CPU topology
+
+`gpud machine-info` and `/machine-info` report CPU topology in `cpuInfo`.
+Login and gossip use the same collector. On Linux, GPUd reads the online CPU
+set and core sibling groups from sysfs; it does not infer SMT from architecture.
+
+- `logicalCores` keeps its existing logical CPU count semantics.
+- `cpusPerCore` is the uniform number of online hardware threads per physical core.
+- `numCores` is the total number of physical cores represented by online CPUs
+  across all sockets, not the count per socket.
+- `numSockets` counts sockets represented by online CPUs.
+
+Unavailable topology fields are omitted. If online thread counts differ between
+cores, `cpusPerCore` is omitted, but the measured core and socket counts remain.
+Offline CPUs do not contribute to these topology fields. Non-Linux hosts omit
+the new fields. Consumers must treat an absent value as unknown, not as one.
+
+For JSON output, use `gpud machine-info --output-format json`; the fields are
+under `machine_info.cpuInfo`. Plain output includes measured thread, core, and
+socket counts. Logical CPU and topology reads are separate snapshots and can
+differ during CPU hotplug or when procfs and sysfs expose different CPU sets.
+
 ## Lepton-managed diagnostics
 
 When GPUd is connected to gpud-manager through the session stream, gpud-manager

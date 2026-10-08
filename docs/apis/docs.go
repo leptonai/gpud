@@ -1008,11 +1008,23 @@ const docTemplate = `{
                 "architecture": {
                     "type": "string"
                 },
+                "cpusPerCore": {
+                    "description": "CPUsPerCore is the uniform number of online hardware threads per core.\nOmitted when topology is unavailable or online thread counts are nonuniform.",
+                    "type": "integer"
+                },
                 "logicalCores": {
                     "type": "integer"
                 },
                 "manufacturer": {
                     "type": "string"
+                },
+                "numCores": {
+                    "description": "NumCores is the total physical cores represented by online CPUs across all sockets.\nOmitted when topology is unavailable.",
+                    "type": "integer"
+                },
+                "numSockets": {
+                    "description": "NumSockets is the number of physical sockets represented by online CPUs.\nOmitted when topology is unavailable.",
+                    "type": "integer"
                 },
                 "type": {
                     "type": "string"
@@ -1095,6 +1107,18 @@ const docTemplate = `{
             "properties": {
                 "architecture": {
                     "description": "Architecture is \"blackwell\" for NVIDIA GB200.",
+                    "type": "string"
+                },
+                "chassisSerial": {
+                    "description": "ChassisSerial is the serial number of the chassis that contains the GPUs\nas reported by NVML platform info. Support and operations teams use it to\nfind the physical hardware for repair or replacement.\nEmpty when the platform does not report a chassis serial number.",
+                    "type": "string"
+                },
+                "cliqueID": {
+                    "description": "CliqueID is the GPU fabric clique ID (\"Clique Id\" in nvidia-smi -q).\nIt identifies the clique of the node inside the NVLink fabric. A pointer\npreserves clique 0 as a reported value while nil means not reported.",
+                    "type": "integer"
+                },
+                "clusterUUID": {
+                    "description": "ClusterUUID is the GPU fabric cluster UUID (\"Cluster UUID\" in nvidia-smi -q).\nAll nodes in one NVLink fabric, for example one NVIDIA GB200 NVL72 rack,\nreport the same value. NVIDIA uses it to group nodes by fabric domain.\nCollected with the NVML fabric state API. Empty when the node is not in\nan NVLink fabric.",
                     "type": "string"
                 },
                 "gpus": {
