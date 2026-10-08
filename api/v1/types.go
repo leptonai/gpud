@@ -383,7 +383,7 @@ type MachineCPUInfo struct {
 	// Omitted when topology is unavailable.
 	NumCores int64 `json:"numCores,omitempty"`
 	// NumSockets is the number of physical sockets represented by online CPUs.
-	// Omitted when topology is unavailable.
+	// Omitted when topology or CPU package IDs are unavailable.
 	NumSockets int64 `json:"numSockets,omitempty"`
 }
 

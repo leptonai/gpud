@@ -43,8 +43,10 @@ set and core sibling groups from sysfs; it does not infer SMT from architecture.
 
 Unavailable topology fields are omitted. If online thread counts differ between
 cores, `cpusPerCore` is omitted, but the measured core and socket counts remain.
-Offline CPUs do not contribute to these topology fields. Non-Linux hosts omit
-the new fields. Consumers must treat an absent value as unknown, not as one.
+If the kernel cannot identify CPU packages, `numSockets` is omitted, but the
+measured core counts remain. Offline CPUs do not contribute to these topology
+fields. Non-Linux hosts omit the new fields. Consumers must treat an absent
+value as unknown, not as one.
 
 For JSON output, use `gpud machine-info --output-format json`; the fields are
 under `machine_info.cpuInfo`. Plain output includes measured thread, core, and

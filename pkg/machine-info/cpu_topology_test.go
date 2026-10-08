@@ -78,6 +78,12 @@ func TestReadCPUTopology(t *testing.T) {
 			groups: []topologyTestCore{{0, "0-3"}, {0, "4-7"}},
 			want:   cpuTopology{cpusPerCore: 4, numCores: 2, numSockets: 1},
 		},
+		{
+			name:   "unknown package keeps measurable cores",
+			online: "0-3",
+			groups: []topologyTestCore{{-1, "0,2"}, {-1, "1,3"}},
+			want:   cpuTopology{cpusPerCore: 2, numCores: 2},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,7 +119,6 @@ func TestReadCPUTopologyRejectsIncompleteOrInvalidData(t *testing.T) {
 		{name: "negative CPU", path: "online", value: "-1,0"},
 		{name: "missing online CPU directory", path: "online", value: "0-4"},
 		{name: "missing socket", path: "cpu3/topology/physical_package_id"},
-		{name: "unknown socket", path: "cpu3/topology/physical_package_id", value: "-1"},
 		{name: "invalid socket", path: "cpu3/topology/physical_package_id", value: "socket0"},
 		{name: "overflow socket", path: "cpu3/topology/physical_package_id", value: "9223372036854775808"},
 		{name: "socket disagreement", path: "cpu3/topology/physical_package_id", value: "1"},

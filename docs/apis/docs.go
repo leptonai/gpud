@@ -1023,7 +1023,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "numSockets": {
-                    "description": "NumSockets is the number of physical sockets represented by online CPUs.\nOmitted when topology is unavailable.",
+                    "description": "NumSockets is the number of physical sockets represented by online CPUs.\nOmitted when topology or CPU package IDs are unavailable.",
                     "type": "integer"
                 },
                 "type": {

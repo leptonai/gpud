@@ -191,7 +191,7 @@ definitions:
       numSockets:
         description: |-
           NumSockets is the number of physical sockets represented by online CPUs.
-          Omitted when topology is unavailable.
+          Omitted when topology or CPU package IDs are unavailable.
         type: integer
       type:
         type: string

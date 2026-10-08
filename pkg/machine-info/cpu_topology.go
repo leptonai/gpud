@@ -19,6 +19,8 @@ type cpuTopology struct {
 
 // readCPUTopology counts only cores and sockets represented by online CPUs.
 // Sibling sets identify cores without assuming core IDs are globally unique.
+// The kernel reports physical_package_id -1 when the architecture cannot
+// identify packages; cores remain measurable, so only the socket count is omitted.
 func readCPUTopology(ctx context.Context, sysfs fs.FS) (cpuTopology, error) {
 	online, err := readCPUSet(sysfs, "online")
 	if err != nil {
@@ -34,6 +36,7 @@ func readCPUTopology(ctx context.Context, sysfs fs.FS) (cpuTopology, error) {
 	}
 	cores := make(map[int]*core, online.Size())
 	sockets := make(map[int64]struct{})
+	socketsKnown := true
 	var topology cpuTopology
 	for _, id := range online.UnsortedList() {
 		if err := ctx.Err(); err != nil {
@@ -45,7 +48,7 @@ func readCPUTopology(ctx context.Context, sysfs fs.FS) (cpuTopology, error) {
 			return cpuTopology{}, err
 		}
 		socket, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
-		if err != nil || socket < 0 {
+		if err != nil || socket < -1 {
 			return cpuTopology{}, fmt.Errorf("invalid physical package ID for CPU %d: %q", id, data)
 		}
 
@@ -84,7 +87,11 @@ func readCPUTopology(ctx context.Context, sysfs fs.FS) (cpuTopology, error) {
 			topology.cpusPerCore = 0
 		}
 		topology.numCores++
-		sockets[socket] = struct{}{}
+		if socket == -1 {
+			socketsKnown = false
+		} else {
+			sockets[socket] = struct{}{}
+		}
 	}
 
 	// CPU hotplug must not turn a partial snapshot into reported topology.
@@ -95,7 +102,9 @@ func readCPUTopology(ctx context.Context, sysfs fs.FS) (cpuTopology, error) {
 	if !online.Equals(currentOnline) {
 		return cpuTopology{}, fmt.Errorf("online CPUs changed while collecting topology")
 	}
-	topology.numSockets = int64(len(sockets))
+	if socketsKnown {
+		topology.numSockets = int64(len(sockets))
+	}
 	return topology, nil
 }
 
