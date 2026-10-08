@@ -240,13 +240,23 @@ func GetMachineCPUInfo() *apiv1.MachineCPUInfo {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// counting the number of logical CPU cores available to the system
-	// same as "nproc --all"
+	// Preserve the existing logical CPU count independently of physical topology.
 	cnt, err := cpu.CountsWithContext(ctx, true)
 	if err != nil {
 		log.Logger.Errorw("failed to get logical CPU cores count", "error", err)
 	}
 	info.LogicalCores = int64(cnt)
+
+	if currentGOOS() == "linux" {
+		topology, err := readCPUTopology(ctx, os.DirFS("/sys/devices/system/cpu"))
+		if err != nil {
+			log.Logger.Warnw("failed to get CPU topology", "error", err)
+		} else {
+			info.CPUsPerCore = topology.cpusPerCore
+			info.NumCores = topology.numCores
+			info.NumSockets = topology.numSockets
+		}
+	}
 
 	return info
 }

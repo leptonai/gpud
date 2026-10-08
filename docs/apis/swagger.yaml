@@ -174,10 +174,25 @@ definitions:
     properties:
       architecture:
         type: string
+      cpusPerCore:
+        description: |-
+          CPUsPerCore is the uniform number of online hardware threads per core.
+          Omitted when topology is unavailable or online thread counts are nonuniform.
+        type: integer
       logicalCores:
         type: integer
       manufacturer:
         type: string
+      numCores:
+        description: |-
+          NumCores is the total physical cores represented by online CPUs across all sockets.
+          Omitted when topology is unavailable.
+        type: integer
+      numSockets:
+        description: |-
+          NumSockets is the number of physical sockets represented by online CPUs.
+          Omitted when topology or CPU package IDs are unavailable.
+        type: integer
       type:
         type: string
     type: object
@@ -233,6 +248,27 @@ definitions:
     properties:
       architecture:
         description: Architecture is "blackwell" for NVIDIA GB200.
+        type: string
+      chassisSerial:
+        description: |-
+          ChassisSerial is the serial number of the chassis that contains the GPUs
+          as reported by NVML platform info. Support and operations teams use it to
+          find the physical hardware for repair or replacement.
+          Empty when the platform does not report a chassis serial number.
+        type: string
+      cliqueID:
+        description: |-
+          CliqueID is the GPU fabric clique ID ("Clique Id" in nvidia-smi -q).
+          It identifies the clique of the node inside the NVLink fabric. A pointer
+          preserves clique 0 as a reported value while nil means not reported.
+        type: integer
+      clusterUUID:
+        description: |-
+          ClusterUUID is the GPU fabric cluster UUID ("Cluster UUID" in nvidia-smi -q).
+          All nodes in one NVLink fabric, for example one NVIDIA GB200 NVL72 rack,
+          report the same value. NVIDIA uses it to group nodes by fabric domain.
+          Collected with the NVML fabric state API. Empty when the node is not in
+          an NVLink fabric.
         type: string
       gpus:
         description: GPUs is the GPU info of the machine.

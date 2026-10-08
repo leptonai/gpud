@@ -3,6 +3,7 @@ package machineinfo
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"net"
 	"runtime"
 	"testing"
@@ -188,6 +189,55 @@ func TestGetMachineCPUInfo_WithMockedCPU(t *testing.T) {
 		assert.Equal(t, "Test CPU", cpuInfo.Type)
 		assert.Equal(t, int64(0), cpuInfo.LogicalCores) // Error case sets to 0
 	})
+}
+
+func TestGetMachineCPUInfo_Topology(t *testing.T) {
+	tests := []struct {
+		name      string
+		goos      string
+		topology  cpuTopology
+		err       error
+		wantCalls int
+	}{
+		{
+			name:      "measured Linux topology preserves logical count",
+			goos:      "linux",
+			topology:  cpuTopology{cpusPerCore: 2, numCores: 4, numSockets: 2},
+			wantCalls: 1,
+		},
+		{
+			name:      "unknown topology does not fail CPU info",
+			goos:      "linux",
+			err:       errors.New("topology unavailable"),
+			wantCalls: 1,
+		},
+		{
+			name: "non-Linux topology is not guessed",
+			goos: "darwin",
+		},
+	}
+	for _, tt := range tests {
+		mockey.PatchConvey(tt.name, t, func() {
+			mockey.Mock(currentGOOS).Return(tt.goos).Build()
+			mockey.Mock(cpu.CountsWithContext).To(func(_ context.Context, logical bool) (int, error) {
+				assert.True(t, logical)
+				return 128, nil
+			}).Build()
+			calls := 0
+			mockey.Mock(readCPUTopology).To(func(context.Context, fs.FS) (cpuTopology, error) {
+				calls++
+				return tt.topology, tt.err
+			}).Build()
+
+			info := GetMachineCPUInfo()
+			require.NotNil(t, info)
+			assert.Equal(t, int64(128), info.LogicalCores)
+			assert.Equal(t, tt.topology.cpusPerCore, info.CPUsPerCore)
+			assert.Equal(t, tt.topology.numCores, info.NumCores)
+			assert.Equal(t, tt.topology.numSockets, info.NumSockets)
+			assert.Equal(t, tt.wantCalls, calls)
+		})
+	}
 }
 
 // TestGetMachineMemoryInfo_WithMockedMemory tests GetMachineMemoryInfo with mocked memory functions
