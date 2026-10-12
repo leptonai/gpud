@@ -460,6 +460,11 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			// insert must never suppress native detection of this incident.
 			if pending.nvsEvent != nil && c.nvsSource != nil {
 				c.nvsSource.RecordCoverage(*pending.nvsEvent)
+				if sxidNum, _, switchPCI, ok := c.matchNVSentinelSXid(*pending.nvsEvent); ok {
+					// switchPCI arrives normalized without the prefix; restore
+					// the kernel-log "PCI:" form for the metric label.
+					recordSXIDErrsMetric(sxidNum, "PCI:"+switchPCI)
+				}
 			}
 			if err := c.updateCurrentState(); err != nil {
 				log.Logger.Errorw("failed to update current state", "error", err)
@@ -491,6 +496,11 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 			logger := log.Logger.With("id", id, "sxid", sxidErr.SXid, "sxidName", sxidName, "deviceUUID", sxidErr.DeviceUUID)
 			logger.Infow("got sxid event", "kmsg", message, "kmsgTimestamp", message.Timestamp.Unix())
 
+			// devicePCI is the metric label for the reporting switch, kept in
+			// the kernel-log form with the "PCI:" prefix so the value is
+			// self-describing and matches the stored event's device_uuid.
+			devicePCI := sxidErr.DeviceUUID
+
 			event := eventstore.Event{
 				Time: message.Timestamp.Time,
 				Name: EventNameErrorSXid,
@@ -513,6 +523,7 @@ func (c *component) start(kmsgCh <-chan kmsg.Message, updatePeriod time.Duration
 				continue
 			}
 			logger.Infow("inserted the event successfully")
+			recordSXIDErrsMetric(sxidErr.SXid, devicePCI)
 			if err = c.updateCurrentState(); err != nil {
 				logger.Errorw("failed to update current state", "error", err)
 				continue
