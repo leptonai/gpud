@@ -34,6 +34,19 @@
 - [**`pci`**](https://pkg.go.dev/github.com/leptonai/gpud/components/pci): Tracks the PCI devices and their Access Control Services (ACS) status.
 - [**`tailscale`**](https://pkg.go.dev/github.com/leptonai/gpud/components/tailscale): Tracks the tailscale state (e.g., version) if available.
 
+## NFS health policy
+
+GPUd reports unresolved NFS server warnings, lock-reclaim failures, and repeated
+writeback stack hints as **Degraded**, without suggested repair actions. These
+messages do not prove a persistent client hang or a local hardware fault.
+Rebooting a client does not fix an NFS server or network outage.
+
+A later `OK` message clears warnings for that server. Messages from earlier boots
+do not affect the current check. While qualifying messages remain, GPUd skips
+filesystem probes because NFS I/O may block. Repeated failures after reboot do
+not trigger a reboot or hardware-inspection recommendation.
+
+
 ## Containerd dangling pods
 
 By default, GPUd counts a `SANDBOX_READY` containerd sandbox as dangling on the
