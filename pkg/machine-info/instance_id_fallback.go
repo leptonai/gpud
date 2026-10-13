@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/leptonai/gpud/pkg/log"
 )
 
@@ -57,24 +59,13 @@ func readInstanceIDFallback(paths []string) string {
 // cloud-init writes when it found no datasource.
 func parseFallbackInstanceID(raw string) (string, error) {
 	s := strings.ToLower(strings.TrimSpace(raw))
-	hex := s
-	switch len(s) {
-	case 36:
-		if s[8] != '-' || s[13] != '-' || s[18] != '-' || s[23] != '-' {
-			return "", fmt.Errorf("invalid instance ID %q", raw)
-		}
-		hex = strings.ReplaceAll(s, "-", "")
-		if len(hex) != 32 {
-			return "", fmt.Errorf("invalid instance ID %q", raw)
-		}
-	case 32:
-	default:
+	// uuid.Parse also accepts the braced and "urn:uuid:" forms; keep only the
+	// two forms cloud-init datasources write so the ID is stored as found.
+	if len(s) != 36 && len(s) != 32 {
 		return "", fmt.Errorf("invalid instance ID %q", raw)
 	}
-	for _, c := range hex {
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-			return "", fmt.Errorf("invalid instance ID %q", raw)
-		}
+	if _, err := uuid.Parse(s); err != nil {
+		return "", fmt.Errorf("invalid instance ID %q: %w", raw, err)
 	}
 	return s, nil
 }

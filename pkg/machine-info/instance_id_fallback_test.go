@@ -24,6 +24,8 @@ func TestParseFallbackInstanceID(t *testing.T) {
 		{name: "misplaced dashes", raw: "2b1434edd-9fc-489f-9fd4-7859292d309f", wantErr: true},
 		{name: "non-hex uuid", raw: "zb1434ed-d9fc-489f-9fd4-7859292d309f", wantErr: true},
 		{name: "ec2 style id", raw: "i-0abc1234567890def", wantErr: true},
+		{name: "braced uuid", raw: "{2b1434ed-d9fc-489f-9fd4-7859292d309f}", wantErr: true},
+		{name: "urn uuid", raw: "urn:uuid:2b1434ed-d9fc-489f-9fd4-7859292d309f", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
