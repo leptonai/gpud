@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io/fs"
 	"net"
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -788,6 +790,8 @@ func TestGetProvider_NebiusSpecialCase(t *testing.T) {
 	})
 
 	mockey.PatchConvey("GetProvider with Nebius from ASN keeps empty instance ID on lookup error", t, func() {
+		setInstanceIDFallbackPaths(t, nil)
+
 		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
 			return &providers.Info{
 				Provider: "",
@@ -818,6 +822,64 @@ func TestGetProvider_NebiusSpecialCase(t *testing.T) {
 		require.NotNil(t, provider)
 		assert.Equal(t, "nebius", provider.Provider)
 		assert.Empty(t, provider.InstanceID)
+	})
+}
+
+func setInstanceIDFallbackPaths(t *testing.T, paths []string) {
+	t.Helper()
+	orig := instanceIDFallbackPaths
+	instanceIDFallbackPaths = paths
+	t.Cleanup(func() { instanceIDFallbackPaths = orig })
+}
+
+func writeInstanceIDFile(t *testing.T, content string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "instance-id")
+	require.NoError(t, os.WriteFile(p, []byte(content), 0o600))
+	return p
+}
+
+// TestGetProvider_InstanceIDFileFallback covers hosts with no metadata service
+// (Mistral bare metal, Lambda): the instance ID comes from the cloud-init file.
+func TestGetProvider_InstanceIDFileFallback(t *testing.T) {
+	tests := []struct {
+		name     string
+		asnName  string
+		file     string
+		wantName string
+		wantID   string
+	}{
+		{name: "mistral keeps metal3 uuid", asnName: "mistral-compute - mistral compute holding sas", file: "2b1434ed-d9fc-489f-9fd4-7859292d309f\n", wantName: "mistral", wantID: "2b1434ed-d9fc-489f-9fd4-7859292d309f"},
+		{name: "lambda uses api hex form", asnName: "lambda - lambda", file: "ebfd7e9b-fa1b-4d27-9603-58ffd1a2571a\n", wantName: "lambda", wantID: "ebfd7e9bfa1b4d27960358ffd1a2571a"},
+		{name: "unknown provider still gets the id", asnName: "firebird-as-51693 - supercom llc", file: "4c4c4544-0032-5010-8057-b3c04f504b34", wantName: "firebird-as-51693 - supercom llc", wantID: "4c4c4544-0032-5010-8057-b3c04f504b34"},
+		{name: "cloud-init placeholder is ignored", asnName: "mistral-compute - mistral compute holding sas", file: "iid-datasource-none", wantName: "mistral", wantID: ""},
+	}
+	for _, tt := range tests {
+		mockey.PatchConvey(tt.name, t, func() {
+			setInstanceIDFallbackPaths(t, []string{filepath.Join(t.TempDir(), "missing"), writeInstanceIDFile(t, tt.file)})
+			mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
+				return &providers.Info{Provider: ""}, nil
+			}).Build()
+			mockey.Mock(asn.GetASLookup).To(func(ip string) (*asn.ASLookupResponse, error) {
+				return &asn.ASLookupResponse{AsnName: tt.asnName, IP: ip}, nil
+			}).Build()
+
+			provider := GetProvider("1.2.3.4")
+			require.NotNil(t, provider)
+			assert.Equal(t, tt.wantName, provider.Provider)
+			assert.Equal(t, tt.wantID, provider.InstanceID)
+		})
+	}
+
+	mockey.PatchConvey("metadata instance ID is not overridden by the file", t, func() {
+		setInstanceIDFallbackPaths(t, []string{writeInstanceIDFile(t, "2b1434ed-d9fc-489f-9fd4-7859292d309f")})
+		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
+			return &providers.Info{Provider: "aws", InstanceID: "i-0abc123", IMDSDetected: true}, nil
+		}).Build()
+
+		provider := GetProvider("1.2.3.4")
+		require.NotNil(t, provider)
+		assert.Equal(t, "i-0abc123", provider.InstanceID)
 	})
 }
 

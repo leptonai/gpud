@@ -241,6 +241,21 @@ func TestNormalizeASNName(t *testing.T) {
 			input:    "Mistral Telecom",
 			expected: "mistral telecom",
 		},
+		{
+			name:     "lambda team cymru asn name",
+			input:    "lambda - lambda",
+			expected: "lambda",
+		},
+		{
+			name:     "lambda hackertarget asn name",
+			input:    "lambda",
+			expected: "lambda",
+		},
+		{
+			name:     "unrelated lambdanet asn name",
+			input:    "lambdanet-as - eunetworks gmbh",
+			expected: "lambdanet-as - eunetworks gmbh",
+		},
 
 		// Test whitespace handling
 		{

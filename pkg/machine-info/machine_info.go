@@ -420,6 +420,19 @@ func getProviderWithContext(ctx context.Context, publicIP string, detect func(co
 		}
 	}
 
+	// No provider metadata service supplied an instance ID (e.g. bare metal
+	// without IMDS), so fall back to the ID cloud-init recorded on the host.
+	if providerInfo.InstanceID == "" {
+		if instanceID := readInstanceIDFallback(instanceIDFallbackPaths); instanceID != "" {
+			// Lambda's API and Kubernetes providerID ("lambda://<id>") use the
+			// 32-hex form of the ID that cloud-init stores as a UUID.
+			if providerInfo.Provider == "lambda" {
+				instanceID = strings.ReplaceAll(instanceID, "-", "")
+			}
+			providerInfo.InstanceID = instanceID
+		}
+	}
+
 	log.Logger.Debugw("GetProvider returning",
 		"provider", providerInfo.Provider,
 		"publicIP", providerInfo.PublicIP,
