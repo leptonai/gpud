@@ -42,7 +42,7 @@ func TestCollectNFSHangEvents(t *testing.T) {
 				mk(eventNFSLockReclaimFailed, now.Add(-10*time.Minute)),
 			},
 			wantHangCount:      1,
-			wantReasonContains: []string{"NFS hang detected", "1 lock reclaim failures"},
+			wantReasonContains: []string{"1 lock reclaim failures"},
 		},
 		{
 			name: "single not_responding with no ok → 1 hang",

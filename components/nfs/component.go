@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -30,9 +29,8 @@ import (
 // Name is the name of the NFS component.
 const Name = "nfs"
 
-// defaultLookbackPeriod is how far back to query kmsg and reboot history when
-// evaluating NFS hang suggested actions. Bounded by eventstore.DefaultRetention
-// (3 days) — querying further yields no events (design doc §9 U3).
+// defaultLookbackPeriod bounds kernel-message and reboot queries to the
+// event store's three-day retention window.
 const defaultLookbackPeriod = 3 * 24 * time.Hour
 
 var _ components.Component = &component{}
@@ -67,11 +65,10 @@ type component struct {
 	// kmsgSyncer streams kernel messages into eventBucket; only created when
 	// running as root on Linux.
 	kmsgSyncer kmsgSyncerCloser
-	// rebootEventStore is consulted to decide between REBOOT_SYSTEM and
-	// HARDWARE_INSPECTION when an NFS hang is detected. May be nil.
+	// rebootEventStore excludes messages from earlier boots. A reboot resets
+	// client state, but its history does not justify a repair recommendation.
 	rebootEventStore pkghost.RebootEventStore
-	// lookbackPeriod controls how far back we query events when evaluating
-	// suggested actions.
+	// lookbackPeriod controls how far back to query NFS kernel messages.
 	lookbackPeriod time.Duration
 
 	lastMu          sync.RWMutex
@@ -263,13 +260,10 @@ func (c *component) Check() components.CheckResult {
 		c.lastMu.Unlock()
 	}()
 
-	// kmsg-based NFS hang detection takes priority over the prober: when the
-	// kernel has already reported writeback hangs / lock-reclaim failures /
-	// unresponsive servers, a probe-issued open()/write() may itself hang
-	// forever, so we surface the suggested action and skip the prober for
-	// this tick. If a reboot has already been observed after the hang
-	// events, EvaluateSuggestedActions returns nil and we fall through to
-	// the prober for live verification (design doc §3.6).
+	// Check kernel messages before probing: open()/write() can block on an
+	// unavailable NFS mount. These signals do not prove a persistent client
+	// hang or local hardware failure. A client reboot cannot fix a server or
+	// network outage, so report Degraded without recommending node repair.
 	if c.eventBucket != nil {
 		evs, err := c.eventBucket.Get(c.ctx, cr.ts.Add(-c.lookbackPeriod))
 		if err != nil {
@@ -283,43 +277,24 @@ func (c *component) Check() components.CheckResult {
 					rebootEvents, err = c.rebootEventStore.GetRebootEvents(c.ctx, cr.ts.Add(-c.lookbackPeriod))
 					if err != nil {
 						cr.err = err
-						cr.health = apiv1.HealthStateTypeUnhealthy
+						cr.health = apiv1.HealthStateTypeDegraded
 						cr.reason = "failed to get reboot events"
 						log.Logger.Warnw(cr.reason, "error", cr.err)
 						return cr
 					}
-					// GetRebootEvents returns events in DESCENDING order
-					// (latest first), but EvaluateSuggestedActions expects
-					// ASCENDING order (oldest first) — see design doc §9 U2.
-					sort.Slice(rebootEvents, func(i, j int) bool {
-						return rebootEvents[i].Time.Before(rebootEvents[j].Time)
-					})
 					if len(rebootEvents) > 0 {
-						oldestRebootTime := rebootEvents[0].Time
-						latestRebootTime := rebootEvents[len(rebootEvents)-1].Time
-						postLatestRebootHangEvents, postLatestRebootHangReason := collectNFSHangEvents(nfsEventsOnOrAfter(evs, latestRebootTime))
-						if len(postLatestRebootHangEvents) == 0 {
-							hangEvents = nil
-							hangReason = ""
-						} else {
-							hangEvents = nfsEventsOnOrAfter(hangEvents, oldestRebootTime)
-							hangReason = postLatestRebootHangReason
-						}
+						// Do not carry old client-state failures into a new boot.
+						// Re-evaluate the writeback threshold using only this boot.
+						hangEvents, hangReason = collectNFSHangEvents(nfsEventsOnOrAfter(evs, latestTime(rebootEvents)))
 					}
 				}
 				if len(hangEvents) > 0 {
-					sa := eventstore.EvaluateSuggestedActions(rebootEvents, hangEvents, 2)
-					if sa != nil {
-						sa.Description = "NFS hang requires immediate reboot; drain may hang on NFS volumes"
-						cr.health = apiv1.HealthStateTypeUnhealthy
-						cr.reason = hangReason
-						cr.suggestedActions = sa
-						return cr
-					}
+					cr.health = apiv1.HealthStateTypeDegraded
+					cr.reason = hangReason
+					return cr
 				}
-				// No unresolved post-reboot hang evidence, or sa == nil
-				// because reboot history already resolved the hang; fall
-				// through to the prober for live verification.
+				// With no qualifying messages after the latest reboot, use
+				// the prober to check the current mount state.
 			}
 		}
 	}
@@ -462,10 +437,6 @@ type checkResult struct {
 
 	// tracks the healthy evaluation result of the last check
 	health apiv1.HealthStateType
-	// suggestedActions is populated when the kmsg-based hang detection
-	// determines the system needs a reboot or hardware inspection. It is a
-	// pointer so the JSON encoder elides it when unset.
-	suggestedActions *apiv1.SuggestedActions
 	// tracks the reason of the last check
 	reason string
 }
@@ -530,13 +501,12 @@ func (cr *checkResult) HealthStates() apiv1.HealthStates {
 	}
 
 	state := apiv1.HealthState{
-		Time:             metav1.NewTime(cr.ts),
-		Component:        Name,
-		Name:             Name,
-		Reason:           cr.reason,
-		Error:            cr.getError(),
-		Health:           cr.health,
-		SuggestedActions: cr.suggestedActions,
+		Time:      metav1.NewTime(cr.ts),
+		Component: Name,
+		Name:      Name,
+		Reason:    cr.reason,
+		Error:     cr.getError(),
+		Health:    cr.health,
 	}
 
 	return apiv1.HealthStates{state}

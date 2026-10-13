@@ -1649,32 +1649,29 @@ func newKmsgComponent(bucket *nfsMockEventBucket, reboot *nfsMockRebootEventStor
 	return c
 }
 
-// TestCheckKmsgHangDetectionUnhealthy: two writeback-hang events + no reboots
-// → suggest REBOOT_SYSTEM.
-func TestCheckKmsgHangDetectionUnhealthy(t *testing.T) {
+func TestCheckKmsgIssuesDegradedWithoutRepair(t *testing.T) {
 	now := time.Now().UTC()
-	bucket := &nfsMockEventBucket{
-		events: eventstore.Events{
-			{Name: eventNFSWritebackHang, Time: now.Add(-5 * time.Hour), Message: messageNFSWritebackHang},
-			{Name: eventNFSWritebackHang, Time: now.Add(-2 * time.Hour), Message: messageNFSWritebackHang},
-		},
+	for _, signal := range []string{eventNFSServerNotResponding, eventNFSLockReclaimFailed, eventNFSWritebackHang} {
+		t.Run(signal, func(t *testing.T) {
+			bucket := &nfsMockEventBucket{events: eventstore.Events{
+				{Name: signal, Time: now.Add(-time.Hour), Message: signal},
+			}}
+			if signal == eventNFSWritebackHang {
+				bucket.events = append(bucket.events, eventstore.Event{Name: signal, Time: now.Add(-30 * time.Minute), Message: signal})
+			}
+			c := newKmsgComponent(bucket, &nfsMockRebootEventStore{})
+			defer func() { _ = c.Close() }()
+
+			c.Check()
+			states := c.LastHealthStates()
+			require.Len(t, states, 1)
+			assert.Equal(t, apiv1.HealthStateTypeDegraded, states[0].Health)
+			assert.Nil(t, states[0].SuggestedActions)
+		})
 	}
-	c := newKmsgComponent(bucket, &nfsMockRebootEventStore{events: eventstore.Events{}})
-	defer func() { _ = c.Close() }()
-
-	result := c.Check()
-	cr := mustCheckResult(t, result)
-
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	assert.Contains(t, cr.reason, "writeback")
-	require.NotNil(t, cr.suggestedActions)
-	require.Len(t, cr.suggestedActions.RepairActions, 1)
-	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
-	assert.Contains(t, cr.suggestedActions.Description, "drain may hang")
 }
 
-// TestCheckKmsgHangWithRebootLoop (R3-1): after two reboots, a qualifying
-// post-latest-reboot writeback hang still escalates to HARDWARE_INSPECTION.
+// Repeated failures after reboot do not establish a local hardware fault.
 func TestCheckKmsgHangWithRebootLoop(t *testing.T) {
 	now := time.Now().UTC()
 	// Hang before the latest reboot, then two writeback hints after it.
@@ -1685,8 +1682,7 @@ func TestCheckKmsgHangWithRebootLoop(t *testing.T) {
 			{Name: eventNFSWritebackHang, Time: now.Add(-90 * time.Minute), Message: messageNFSWritebackHang},
 		},
 	}
-	// Reboots at T-6h and T-3h. Note: GetRebootEvents will return them DESC;
-	// the component code re-sorts ASC before calling EvaluateSuggestedActions.
+	// The latest reboot separates old messages from current client state.
 	reboot := &nfsMockRebootEventStore{
 		events: eventstore.Events{
 			{Name: "reboot", Time: now.Add(-6 * time.Hour), Message: "boot 1"},
@@ -1700,16 +1696,11 @@ func TestCheckKmsgHangWithRebootLoop(t *testing.T) {
 	result := c.Check()
 	cr := mustCheckResult(t, result)
 
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-	require.NotNil(t, cr.suggestedActions, "suggestedActions must be set when hang + reboot loop is detected")
-	require.Len(t, cr.suggestedActions.RepairActions, 1)
-	assert.Equal(t, apiv1.RepairActionTypeHardwareInspection, cr.suggestedActions.RepairActions[0],
-		"two reboot→hang sequences should escalate to hardware inspection")
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
+	assert.Nil(t, cr.HealthStates()[0].SuggestedActions)
 }
 
-// TestCheckKmsgHangAfterReboot: one hang event followed by a reboot →
-// EvaluateSuggestedActions returns nil; component falls through to the prober
-// (which has no configs → healthy).
+// Pre-reboot messages must not keep the current mount degraded.
 func TestCheckKmsgHangAfterReboot(t *testing.T) {
 	now := time.Now().UTC()
 	bucket := &nfsMockEventBucket{
@@ -1731,7 +1722,7 @@ func TestCheckKmsgHangAfterReboot(t *testing.T) {
 
 	// Reboot happened AFTER the hang → fall through to prober (no configs).
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Nil(t, cr.suggestedActions, "suggestedActions must be nil after the hang is resolved by a reboot")
+	assert.Nil(t, cr.HealthStates()[0].SuggestedActions)
 	assert.Equal(t, "no nfs group configs found", cr.reason)
 }
 
@@ -1757,7 +1748,7 @@ func TestCheckKmsgHangBeforeLatestRebootClears(t *testing.T) {
 	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Nil(t, cr.suggestedActions, "latest reboot should clear stale pre-reboot NFS hang events")
+	assert.Nil(t, cr.HealthStates()[0].SuggestedActions)
 	assert.Equal(t, "no nfs group configs found", cr.reason)
 }
 
@@ -1783,7 +1774,7 @@ func TestCheckKmsgSingleWritebackAfterLatestRebootDoesNotUseStalePreRebootHint(t
 	cr := mustCheckResult(t, result)
 
 	assert.Equal(t, apiv1.HealthStateTypeHealthy, cr.health)
-	assert.Nil(t, cr.suggestedActions, "a stale pre-reboot writeback hint must not combine with one post-reboot hint")
+	assert.Nil(t, cr.HealthStates()[0].SuggestedActions)
 	assert.Equal(t, "no nfs group configs found", cr.reason)
 }
 
@@ -1807,15 +1798,12 @@ func TestCheckKmsgHangAfterRebootWithNewFailure(t *testing.T) {
 	result := c.Check()
 	cr := mustCheckResult(t, result)
 
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 	assert.Contains(t, cr.reason, "1 lock reclaim failures")
-	require.NotNil(t, cr.suggestedActions)
-	require.Len(t, cr.suggestedActions.RepairActions, 1)
-	assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
+	assert.Nil(t, cr.HealthStates()[0].SuggestedActions)
 }
 
-// TestCheckNilRebootEventStore: rebootEventStore == nil must be tolerated.
-// With no reboot history, EvaluateSuggestedActions still suggests a reboot.
+// Without reboot history, report the issue without choosing a node repair.
 func TestCheckNilRebootEventStore(t *testing.T) {
 	now := time.Now().UTC()
 	bucket := &nfsMockEventBucket{
@@ -1826,14 +1814,10 @@ func TestCheckNilRebootEventStore(t *testing.T) {
 	c := newKmsgComponent(bucket, nil) // explicitly nil
 	defer func() { _ = c.Close() }()
 
-	require.NotPanics(t, func() {
-		result := c.Check()
-		cr := mustCheckResult(t, result)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-		require.NotNil(t, cr.suggestedActions)
-		require.Len(t, cr.suggestedActions.RepairActions, 1)
-		assert.Equal(t, apiv1.RepairActionTypeRebootSystem, cr.suggestedActions.RepairActions[0])
-	})
+	result := c.Check()
+	cr := mustCheckResult(t, result)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
+	assert.Nil(t, cr.HealthStates()[0].SuggestedActions)
 }
 
 func TestCheckKmsgHangRebootStoreError(t *testing.T) {
@@ -1850,10 +1834,10 @@ func TestCheckKmsgHangRebootStoreError(t *testing.T) {
 	result := c.Check()
 	cr := mustCheckResult(t, result)
 
-	assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
 	assert.ErrorIs(t, cr.err, rebootErr)
 	assert.Equal(t, "failed to get reboot events", cr.reason)
-	assert.Nil(t, cr.suggestedActions)
+	assert.Nil(t, cr.HealthStates()[0].SuggestedActions)
 }
 
 func TestSetHealthyPurgesNFSEventsThroughCurrentSecond(t *testing.T) {
@@ -1902,12 +1886,10 @@ func TestCheckSkipsProberWhenHangDetected(t *testing.T) {
 	}
 	defer func() { _ = c.Close() }()
 
-	require.NotPanics(t, func() {
-		result := c.Check()
-		cr := mustCheckResult(t, result)
-		assert.Equal(t, apiv1.HealthStateTypeUnhealthy, cr.health)
-		require.NotNil(t, cr.suggestedActions)
-	})
+	result := c.Check()
+	cr := mustCheckResult(t, result)
+	assert.Equal(t, apiv1.HealthStateTypeDegraded, cr.health)
+	assert.Nil(t, cr.HealthStates()[0].SuggestedActions)
 }
 
 // TestStartImmediateFirstCheck verifies Start() invokes Check() immediately on

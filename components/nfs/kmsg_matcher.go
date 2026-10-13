@@ -3,8 +3,8 @@ package nfs
 import "regexp"
 
 const (
-	// Rule A (main-line): Linux NFS client signals the server is hung or the
-	// network is broken.
+	// The client received no server response. This can indicate a server or
+	// network outage; it does not establish that the client needs a reboot.
 	// e.g.,
 	// nfs: server 7.247.192.16 not responding, timed out
 	eventNFSServerNotResponding   = "nfs_server_not_responding"
@@ -26,9 +26,9 @@ const (
 	regexNFSLockReclaimFailed   = `nfs4_reclaim_open_state: Lock reclaim failed`
 	messageNFSLockReclaimFailed = "NFS lock reclaim failed (state manager unable to recover)"
 
-	// Rule C: NFS writeback path is stuck spinning in the kernel — fingerprint
-	// of the 2026-05-15 nsc-svg-slurm-1-gpu-136 NFS hang. When softlockup /
-	// hung_task / panic dumps a stack, lines like the following appear:
+	// These frames appeared in the 2026-05-15 nsc-svg-slurm-1-gpu-136 NFS hang.
+	// A stack dump alone does not prove the writeback path remains stuck.
+	// Softlockup / hung_task / panic dumps can include these frames:
 	//   nfs_lock_and_join_requests+0x61/0x2b0 [nfs]
 	//   nfs_wb_all+0x2c/0x190 [nfs]
 	//   nfs_page_async_flush+0x24/0x290 [nfs]

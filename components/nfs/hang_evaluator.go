@@ -9,8 +9,8 @@ import (
 	"github.com/leptonai/gpud/pkg/eventstore"
 )
 
-// collectNFSHangEvents applies the conjunctive evidence rules (design doc
-// §3.2.2) to filter true hang events out of raw kmsg events.
+// collectNFSHangEvents selects NFS issue signals from kernel messages.
+// They identify failures to report, not proof that the client needs a reboot.
 //
 // Rules:
 //   - nfs_lock_reclaim_failed: any single occurrence counts.
@@ -19,13 +19,8 @@ import (
 //   - nfs_writeback_hang: counts only when there are ≥ 2 occurrences in the
 //     input window.
 //
-// The input events come from Bucket.Get (descending by Time). The function
-// does not assume any particular order — internally it inspects each event
-// independently. The returned hang slice is sorted ascending by Time so it
-// can be fed directly into eventstore.EvaluateSuggestedActions (which
-// expects ascending order per design doc §9 U2). The reason is a
-// human-readable summary; when no hang is detected, ("", nil) is returned
-// so the caller can decide whether to fall back to the prober.
+// The input order does not matter. The reason summarizes the selected
+// signals; no selected signals lets the caller fall back to the prober.
 func collectNFSHangEvents(events eventstore.Events) (hang eventstore.Events, reason string) {
 	var (
 		lockReclaim    eventstore.Events
@@ -50,7 +45,7 @@ func collectNFSHangEvents(events eventstore.Events) (hang eventstore.Events, rea
 
 	var reasonParts []string
 
-	// Rule B: lock reclaim — any single occurrence is a hang.
+	// A lock-reclaim failure is worth reporting, but does not prove a hang.
 	if len(lockReclaim) > 0 {
 		hang = append(hang, lockReclaim...)
 		reasonParts = append(reasonParts, fmt.Sprintf("%d lock reclaim failures", len(lockReclaim)))
@@ -98,7 +93,7 @@ func collectNFSHangEvents(events eventstore.Events) (hang eventstore.Events, rea
 		return hang[i].Time.Before(hang[j].Time)
 	})
 
-	reason = "NFS hang detected: " + strings.Join(reasonParts, "; ")
+	reason = "NFS issue detected: " + strings.Join(reasonParts, "; ")
 	return hang, reason
 }
 
@@ -139,8 +134,8 @@ func nfsServerFromEventMessage(message string) string {
 	return ""
 }
 
-// nfsEventsOnOrAfter returns events whose timestamps are on or after since,
-// matching eventstore.EvaluateSuggestedActions' treatment of equal timestamps.
+// nfsEventsOnOrAfter includes messages at the reboot timestamp because
+// timestamp precision may place a new-boot message in the same second.
 func nfsEventsOnOrAfter(events eventstore.Events, since time.Time) eventstore.Events {
 	filtered := make(eventstore.Events, 0, len(events))
 	for _, ev := range events {
