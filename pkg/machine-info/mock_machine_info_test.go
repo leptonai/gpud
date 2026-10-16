@@ -851,6 +851,7 @@ func TestGetProvider_InstanceIDFileFallback(t *testing.T) {
 	}{
 		{name: "mistral keeps metal3 uuid", asnName: "mistral-compute - mistral compute holding sas", file: "2b1434ed-d9fc-489f-9fd4-7859292d309f\n", wantName: "mistral", wantID: "2b1434ed-d9fc-489f-9fd4-7859292d309f"},
 		{name: "lambda uses api hex form", asnName: "lambda - lambda", file: "ebfd7e9b-fa1b-4d27-9603-58ffd1a2571a\n", wantName: "lambda", wantID: "ebfd7e9bfa1b4d27960358ffd1a2571a"},
+		{name: "firebird bm ulid", asnName: "firebird-as-51693 - supercom llc", file: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X\n", wantName: "firebird-as-51693 - supercom llc", wantID: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X"},
 		{name: "unknown provider still gets the id", asnName: "firebird-as-51693 - supercom llc", file: "4c4c4544-0032-5010-8057-b3c04f504b34", wantName: "firebird-as-51693 - supercom llc", wantID: "4c4c4544-0032-5010-8057-b3c04f504b34"},
 		{name: "cloud-init placeholder is ignored", asnName: "mistral-compute - mistral compute holding sas", file: "iid-datasource-none", wantName: "mistral", wantID: ""},
 	}
