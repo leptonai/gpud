@@ -19,6 +19,15 @@ func TestParseFallbackInstanceID(t *testing.T) {
 		{name: "config drive metal3 uuid", raw: "2b1434ed-d9fc-489f-9fd4-7859292d309f\n", want: "2b1434ed-d9fc-489f-9fd4-7859292d309f"},
 		{name: "uppercase uuid", raw: "EBFD7E9B-FA1B-4D27-9603-58FFD1A2571A", want: "ebfd7e9b-fa1b-4d27-9603-58ffd1a2571a"},
 		{name: "32 hex", raw: "76cc44587972452dbcd3787596b86407", want: "76cc44587972452dbcd3787596b86407"},
+		{name: "firebird bm ulid", raw: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X\n", want: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X"},
+		{name: "firebird vm ulid normalizes case", raw: "VM.01m3knhf1nfx3vx8z1ewnq2h3x", want: "vm.01M3KNHF1NFX3VX8Z1EWNQ2H3X"},
+		{name: "firebird ulid invalid crockford char I", raw: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3I", wantErr: true},
+		{name: "firebird ulid invalid crockford char L", raw: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3L", wantErr: true},
+		{name: "firebird ulid invalid crockford char O", raw: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3O", wantErr: true},
+		{name: "firebird ulid invalid crockford char U", raw: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3U", wantErr: true},
+		{name: "firebird ulid overflow first char", raw: "bm.81M3KNHF1NFX3VX8Z1EWNQ2H3X", wantErr: true},
+		{name: "firebird unknown prefix", raw: "pm.01M3KNHF1NFX3VX8Z1EWNQ2H3X", wantErr: true},
+		{name: "firebird short ulid", raw: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3", wantErr: true},
 		{name: "cloud-init placeholder", raw: "iid-datasource-none", wantErr: true},
 		{name: "empty", raw: "  \n", wantErr: true},
 		{name: "misplaced dashes", raw: "2b1434edd-9fc-489f-9fd4-7859292d309f", wantErr: true},
@@ -56,4 +65,17 @@ func TestReadInstanceIDFallback(t *testing.T) {
 		"missing and invalid files are skipped; the first valid file wins")
 	assert.Empty(t, readInstanceIDFallback([]string{missing, placeholder}))
 	assert.Empty(t, readInstanceIDFallback(nil))
+
+	firebird := write("firebird-instance-id", "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X\n")
+	assert.Equal(t, "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X", readInstanceIDFallback([]string{firebird, first}),
+		"firebird-instance-id takes precedence over cloud-init instance-id when both exist")
+}
+
+func TestDefaultInstanceIDFallbackPathsOrder(t *testing.T) {
+	require.Equal(t, []string{
+		"/var/lib/cloud/data/firebird-instance-id",
+		"/host/var/lib/cloud/data/firebird-instance-id",
+		"/var/lib/cloud/data/instance-id",
+		"/host/var/lib/cloud/data/instance-id",
+	}, instanceIDFallbackPaths)
 }
