@@ -21,6 +21,7 @@ func setInstanceIDFallbackPaths(t *testing.T, paths []string) {
 	instanceIDFallbackPaths = paths
 	t.Cleanup(func() { instanceIDFallbackPaths = orig })
 }
+
 func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 	mockey.PatchConvey("OCI detector reports instance metadata and accepts a non-RFC1918 primary VNIC IPv4 address", t, func() {
 		mockey.Mock(imds.FetchInstanceID).Return("ocid1.instance.oc1.phx.example", nil).Build()
