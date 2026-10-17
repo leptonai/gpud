@@ -70,3 +70,34 @@ func TestContainerdChart(t *testing.T) {
 		})
 	}
 }
+
+func TestRegionChart(t *testing.T) {
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Skip("helm not installed")
+	}
+
+	t.Run("default omits GPUD_REGION", func(t *testing.T) {
+		out, err := exec.Command("helm", "template", "gpud", "gpud", "--show-only", "templates/daemonset.yaml").Output()
+		require.NoError(t, err)
+		var ds appsv1.DaemonSet
+		require.NoError(t, yaml.Unmarshal(out, &ds))
+		container := ds.Spec.Template.Spec.Containers[0]
+		for _, e := range container.Env {
+			require.NotEqual(t, "GPUD_REGION", e.Name)
+		}
+	})
+
+	t.Run("gpud.region sets GPUD_REGION and passes --region", func(t *testing.T) {
+		out, err := exec.Command("helm", "template", "gpud", "gpud", "--show-only", "templates/daemonset.yaml", "--set-string", "gpud.region=eu-north-1").Output()
+		require.NoError(t, err)
+		var ds appsv1.DaemonSet
+		require.NoError(t, yaml.Unmarshal(out, &ds))
+		container := ds.Spec.Template.Spec.Containers[0]
+		env := map[string]string{}
+		for _, e := range container.Env {
+			env[e.Name] = e.Value
+		}
+		require.Equal(t, "eu-north-1", env["GPUD_REGION"])
+		require.Contains(t, container.Command[2], `--region="$GPUD_REGION"`)
+	})
+}

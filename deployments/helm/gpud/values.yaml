@@ -45,6 +45,10 @@ gpud:
   # The endpoint for the control plane.
   endpoint: "gpud-manager-prod01.dgxc-lepton.nvidia.com"
 
+  # Optional: override the region reported in the login request ("gpud run --region").
+  # Leave empty to detect the region from provider metadata or DERP latency.
+  region: ""
+
   # Optional: read the gpud session token from a Secret instead of a node label.
   # Set create=true and value to have this chart create the Secret, or leave
   # create=false to reference an existing Secret. When name is set, the token is

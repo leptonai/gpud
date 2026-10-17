@@ -163,6 +163,7 @@ func Command(cliContext *cli.Context) error {
 			DataDir:             dataDir,
 
 			GPUCount:   gpuCountStr,
+			Region:     cliContext.String("region"),
 			Containerd: containerdConfig,
 		}
 
