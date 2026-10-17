@@ -217,6 +217,10 @@ sudo rm /etc/systemd/system/gpud.service
 					Usage:  "(optional) token for control plane",
 				},
 				&cli.StringFlag{
+					Name:  "region",
+					Usage: "(optional) override the region reported in the login request; skips provider-metadata and DERP-latency region detection",
+				},
+				&cli.StringFlag{
 					Name:  "log-level,l",
 					Usage: "set the logging level [debug, info, warn, error, fatal, panic, dpanic]",
 				},

@@ -469,6 +469,10 @@ spec:
                 set -- "$@" --require-nvidia-driver
               fi
 
+              if [ -n "${GPUD_REGION:-}" ]; then
+                set -- "$@" --region="$GPUD_REGION"
+              fi
+
               if [ -n "${GPUD_COMPONENTS:-}" ]; then
                 set -- "$@" --components="$GPUD_COMPONENTS"
               fi
@@ -569,6 +573,10 @@ spec:
             # NVML are available. CPU-only nodes are unaffected.
             - name: GPUD_REQUIRE_NVIDIA_DRIVER
               value: "true"
+            {{- end }}
+            {{- if .Values.gpud.region }}
+            - name: GPUD_REGION
+              value: {{ .Values.gpud.region | quote }}
             {{- end }}
             {{- if .Values.gpud.components }}
             # Component selection, consumed by the startup script as

@@ -83,11 +83,17 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 	if regionOverride = strings.TrimSpace(regionOverride); regionOverride != "" {
 		info.Region = regionOverride
 	} else if regionDetector, ok := detector.(pkgproviders.RegionDetector); ok {
-		region, err := fetchRequiredMetadata(ctx, detector, "region", regionDetector.Region)
+		var region string
+		var err error
+		if detector.Name() == pkgprovidersnscale.Name {
+			region, err = regionDetector.Region(ctx)
+		} else {
+			region, err = fetchRequiredMetadata(ctx, detector, "region", regionDetector.Region)
+		}
 		if err != nil {
 			log.Logger.Warnw("failed to get region", "provider", detector.Name(), "error", err)
 		} else {
-			info.Region = region
+			info.Region = strings.TrimSpace(region)
 		}
 	}
 

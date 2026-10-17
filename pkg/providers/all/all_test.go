@@ -450,6 +450,35 @@ func TestDetect_IMDSRetryExhaustion(t *testing.T) {
 	})
 }
 
+func TestDetect_NscaleEmptyRegionDoesNotRetryFourTimes(t *testing.T) {
+	originalBackoffs := imdsRetryBackoffs
+	imdsRetryBackoffs = []time.Duration{0, time.Hour}
+	defer func() { imdsRetryBackoffs = originalBackoffs }()
+
+	regionCalls := 0
+	detector := providers.NewIMDSWithRegion(
+		"nscale",
+		func(context.Context) (string, error) { return "nscale", nil },
+		nil,
+		nil,
+		func(context.Context) (string, error) {
+			regionCalls++
+			return "", nil
+		},
+		nil,
+		func(context.Context) (string, error) { return "i-00003b7a", nil },
+	)
+
+	withTemporaryDetectors([]providers.Detector{detector}, func() {
+		info, err := Detect(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, info.IMDSDetected)
+		assert.Equal(t, "i-00003b7a", info.InstanceID)
+		assert.Empty(t, info.Region)
+		assert.Equal(t, 1, regionCalls)
+	})
+}
+
 func TestDetect_RegionOverrideSkipsIMDSAndKeepsInstanceID(t *testing.T) {
 	originalBackoffs := imdsRetryBackoffs
 	imdsRetryBackoffs = []time.Duration{0, 0, 0, 0}

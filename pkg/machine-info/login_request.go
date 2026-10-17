@@ -102,8 +102,10 @@ func createLoginRequest(
 		if strings.TrimSpace(detectedProvider.InstanceID) == "" {
 			return nil, fmt.Errorf("provider %q IMDS did not return an instance ID after retries; aborting login", detectedProvider.Provider)
 		}
-		if region := strings.TrimSpace(detectedProvider.Region); region == "" || strings.EqualFold(region, RegionUnknown) {
-			return nil, fmt.Errorf("provider %q IMDS did not return a region after retries; set one with gpud up --region", detectedProvider.Provider)
+		if detectedProvider.Provider != "nscale" {
+			if region := strings.TrimSpace(detectedProvider.Region); region == "" || strings.EqualFold(region, RegionUnknown) {
+				return nil, fmt.Errorf("provider %q IMDS did not return a region after retries; set one with gpud up --region", detectedProvider.Provider)
+			}
 		}
 	}
 	log.Logger.Debugw("provider detection completed",
