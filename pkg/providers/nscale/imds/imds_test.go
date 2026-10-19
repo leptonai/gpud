@@ -244,7 +244,7 @@ func TestFetchRegion(t *testing.T) {
 		require.Equal(t, "stavanger-1a", region)
 	})
 
-	t.Run("errors when both regionID and availability_zone are absent", func(t *testing.T) {
+	t.Run("returns empty when both regionID and availability_zone are absent", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte(`{"uuid":"u-1","meta":{"organizationID":"org","projectID":"project"}}`))
@@ -256,11 +256,11 @@ func TestFetchRegion(t *testing.T) {
 		defer cancel()
 
 		region, err := fetchRegion(ctx, srv.URL)
-		require.ErrorContains(t, err, "gpud up --region")
+		require.NoError(t, err)
 		require.Empty(t, region)
 	})
 
-	t.Run("rejects opaque region UUID and generic nova availability zone", func(t *testing.T) {
+	t.Run("ignores opaque region UUID and generic nova availability zone", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			_, err := w.Write([]byte(`{"uuid":"u-1","availability_zone":"nova","meta":{"organizationID":"org","projectID":"project","regionID":"d0ba550d-1be4-4c4e-8ef9-3adb23b3fe3b"}}`))
@@ -272,7 +272,7 @@ func TestFetchRegion(t *testing.T) {
 		defer cancel()
 
 		region, err := fetchRegion(ctx, srv.URL)
-		require.ErrorContains(t, err, "gpud up --region")
+		require.NoError(t, err)
 		require.Empty(t, region)
 	})
 

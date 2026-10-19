@@ -48,6 +48,7 @@ func newTestCLIContext(t *testing.T, values cliFlagValues) *cli.Context {
 	set.String("token", "", "")
 	set.String("machine-id", "", "")
 	set.Bool("machine-id-overwrite", false, "")
+	set.String("region", "", "")
 	set.Bool("refresh-session-token", false, "")
 	set.Bool("require-nvidia-driver", false, "")
 	set.String("listen-address", "", "")
@@ -112,6 +113,7 @@ func TestCommand_SuccessPath(t *testing.T) {
 			"token":                                  "registration-token",
 			"machine-id":                             "machine-123",
 			"listen-address":                         "127.0.0.1:9999",
+			"region":                                 "eu-north-1",
 			"version-file":                           filepath.Join(tmpDir, "target_version"),
 			"plugin-specs-file":                      filepath.Join(tmpDir, "plugins.json"),
 			"infiniband-class-root-dir":              "/sys/class/infiniband",
@@ -188,6 +190,7 @@ func TestCommand_SuccessPath(t *testing.T) {
 		require.NotNil(t, receivedCfg)
 		assert.True(t, receivedLoginCfg.MachineIDOverwrite)
 		assert.True(t, receivedLoginCfg.RefreshSessionToken)
+		assert.Equal(t, "eu-north-1", receivedLoginCfg.Region)
 		assert.Equal(t, 5*time.Minute, receivedCfg.MetricsRetentionPeriod.Duration)
 		assert.Equal(t, 14*24*time.Hour, receivedCfg.EventsRetentionPeriod.Duration)
 	})

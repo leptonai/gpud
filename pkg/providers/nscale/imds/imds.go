@@ -124,7 +124,9 @@ func fetchOpenStackMetadata(ctx context.Context, metadataURL string) (*OpenStack
 	return resp, nil
 }
 
-// FetchRegion returns a human-readable nscale region from OpenStack metadata.
+// FetchRegion returns a human-readable nscale region from OpenStack metadata,
+// or an empty string with no error when metadata only contains an opaque
+// region UUID or the generic "nova" availability zone.
 // ref. https://docs.openstack.org/nova/latest/user/metadata.html
 func FetchRegion(ctx context.Context) (string, error) {
 	return fetchRegion(ctx, openStackMetadataJSONURL)
@@ -148,5 +150,5 @@ func fetchRegion(ctx context.Context, metadataURL string) (string, error) {
 		}
 		return candidate, nil
 	}
-	return "", fmt.Errorf("nscale metadata has no usable region; set one with gpud up --region")
+	return "", nil
 }

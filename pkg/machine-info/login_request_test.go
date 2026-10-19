@@ -139,13 +139,13 @@ func TestCreateLoginRequest_FailsFastOnMissingRequiredIMDSIdentity(t *testing.T)
 			wantErr: "did not return an instance ID",
 		},
 		{
-			name:    "missing region",
-			info:    &providers.Info{Provider: "nscale", InstanceID: "instance-1", IMDSDetected: true},
+			name:    "missing region on non-nscale IMDS provider",
+			info:    &providers.Info{Provider: "aws", InstanceID: "instance-1", IMDSDetected: true},
 			wantErr: "did not return a region",
 		},
 		{
-			name:    "unknown region",
-			info:    &providers.Info{Provider: "nscale", Region: RegionUnknown, InstanceID: "instance-1", IMDSDetected: true},
+			name:    "unknown region on non-nscale IMDS provider",
+			info:    &providers.Info{Provider: "aws", Region: RegionUnknown, InstanceID: "instance-1", IMDSDetected: true},
 			wantErr: "did not return a region",
 		},
 	} {
@@ -203,6 +203,42 @@ func TestCreateLoginRequest_ValidIMDSIdentitySkipsDERP(t *testing.T) {
 	assert.False(t, locationCalled)
 	assert.Equal(t, "eu-west-2", req.Location.Region)
 	assert.Equal(t, "instance-1", req.ProviderInstanceID)
+}
+
+func TestCreateLoginRequest_NscaleWithoutMetadataRegionFallsBackToDERP(t *testing.T) {
+	locationCalled := false
+	req, err := createLoginRequest(
+		"token", "machine-id", "node-group", "0", &mockNvmlInstance{},
+		func() (string, error) { return "46.148.127.30", nil },
+		func() *apiv1.MachineLocation {
+			locationCalled = true
+			return &apiv1.MachineLocation{Region: "eu-west-2"}
+		},
+		func(nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			return &apiv1.MachineInfo{
+				CPUInfo:    &apiv1.MachineCPUInfo{LogicalCores: 16},
+				MemoryInfo: &apiv1.MachineMemoryInfo{TotalBytes: 1024},
+				NICInfo:    &apiv1.MachineNICInfo{},
+			}, nil
+		},
+		func(string) *providers.Info {
+			return &providers.Info{
+				Provider:     "nscale",
+				PublicIP:     "46.148.127.30",
+				PrivateIP:    "10.42.3.242",
+				InstanceID:   "i-00003b7a",
+				IMDSDetected: true,
+			}
+		},
+		func() (string, error) { return "100Gi", nil },
+		func(nvidianvml.Instance) (string, error) { return "0", nil },
+		noDefaultRouteHostIPv4,
+	)
+	assert.NoError(t, err)
+	assert.True(t, locationCalled)
+	assert.Equal(t, "eu-west-2", req.Location.Region)
+	assert.Equal(t, "i-00003b7a", req.ProviderInstanceID)
+	assert.Equal(t, "10.42.3.242", req.Network.PrivateIP)
 }
 
 func TestCreateLoginRequest_Basic(t *testing.T) {

@@ -105,6 +105,41 @@ func TestAppRunAndUpRefreshSessionTokenDefaultsToFalse(t *testing.T) {
 	}
 }
 
+func TestAppRunAndUpHaveRegionFlag(t *testing.T) {
+	t.Parallel()
+
+	app := App()
+	wantCommands := map[string]bool{"run": false, "up": false}
+	for _, cmd := range app.Commands {
+		if _, ok := wantCommands[cmd.Name]; !ok {
+			continue
+		}
+		wantCommands[cmd.Name] = true
+
+		var regionFlag cli.Flag
+		for _, candidate := range cmd.Flags {
+			if candidate.GetName() == "region" {
+				regionFlag = candidate
+				break
+			}
+		}
+		require.NotNilf(t, regionFlag, "command %q is missing --region", cmd.Name)
+
+		set := flag.NewFlagSet(cmd.Name, flag.ContinueOnError)
+		regionFlag.Apply(set)
+		ctx := cli.NewContext(app, set, nil)
+		require.Empty(t, ctx.String("region"))
+
+		require.NoError(t, set.Parse([]string{"--region", "eu-north-1"}))
+		ctx = cli.NewContext(app, set, nil)
+		require.Equal(t, "eu-north-1", ctx.String("region"))
+	}
+
+	for cmdName, found := range wantCommands {
+		require.Truef(t, found, "expected command %q to exist", cmdName)
+	}
+}
+
 func TestAppHasInfinibandExcludeDevicesFlag(t *testing.T) {
 	t.Parallel()
 

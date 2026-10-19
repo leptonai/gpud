@@ -15,9 +15,10 @@
 //
 //	http://169.254.169.254/latest/meta-data/<path>
 //
-// The region is read from meta.regionID or availability_zone only when
-// the value is human-readable; opaque region UUIDs and generic "nova"
-// availability zones are rejected.
+// The region is read from meta.regionID or availability_zone when the
+// value is human-readable; opaque region UUIDs and generic "nova"
+// availability zones are ignored so callers can fall back to DERP
+// latency measurement or an explicit --region override.
 //
 // ref. https://docs.openstack.org/nova/latest/user/metadata.html
 // ref. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
