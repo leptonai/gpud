@@ -17,7 +17,7 @@ import (
 
 const Name = "nscale"
 
-var imdsRetryBackoffs = []time.Duration{0, 100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond}
+var imdsRetryBackoffs = []time.Duration{0, time.Second, 2 * time.Second, 4 * time.Second}
 
 // New returns a Detector that implements RegionDetector.
 // It uses the OpenStack metadata JSON to detect the nscale provider

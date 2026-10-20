@@ -422,44 +422,7 @@ func getProviderWithContext(ctx context.Context, publicIP string, detect func(co
 	}
 
 	if providerInfo.Provider == nscale.Name {
-		// NScale hosts always run an OpenStack/EC2-compatible metadata service at
-		// 169.254.169.254. If initial OpenStack metadata detection failed (e.g.
-		// transient 503 or timeout) and ASN lookup identified the host as nscale,
-		// mark IMDSDetected so login fails fast rather than registering without an
-		// instance ID, and query the nscale metadata endpoints directly.
-		providerInfo.IMDSDetected = true
-		if providerInfo.InstanceID == "" {
-			instanceID, err := nscale.GetInstanceID(ctx)
-			if err != nil {
-				log.Logger.Warnw("failed to get nscale instance ID", "error", err)
-			} else {
-				providerInfo.InstanceID = instanceID
-			}
-		}
-		if providerInfo.PrivateIP == "" {
-			privateIP, err := nscale.PrivateIPv4(ctx)
-			if err != nil {
-				log.Logger.Warnw("failed to get nscale private IP", "error", err)
-			} else {
-				providerInfo.PrivateIP = privateIP
-			}
-		}
-		if strings.TrimSpace(providerInfo.Region) == "" {
-			region, err := nscale.Region(ctx)
-			if err != nil {
-				log.Logger.Warnw("failed to get nscale region", "error", err)
-			} else {
-				providerInfo.Region = strings.TrimSpace(region)
-			}
-		}
-		if providerInfo.VMEnvironment == "" {
-			vmEnv, err := nscale.VMEnvironment(ctx)
-			if err != nil {
-				log.Logger.Warnw("failed to get nscale VM environment", "error", err)
-			} else {
-				providerInfo.VMEnvironment = vmEnv
-			}
-		}
+		populateNscaleProviderInfo(ctx, providerInfo)
 	}
 
 	// No provider metadata service supplied an instance ID (e.g. bare metal
@@ -486,6 +449,46 @@ func getProviderWithContext(ctx context.Context, publicIP string, detect func(co
 	)
 
 	return providerInfo
+}
+
+// populateNscaleProviderInfo populates NScale metadata from IMDS when initial
+// OpenStack metadata detection failed (e.g. transient 503 or timeout) and ASN
+// lookup identified the host as nscale. It also marks IMDSDetected so login
+// fails fast rather than registering without an instance ID.
+func populateNscaleProviderInfo(ctx context.Context, providerInfo *providers.Info) {
+	providerInfo.IMDSDetected = true
+	if providerInfo.InstanceID == "" {
+		instanceID, err := nscale.GetInstanceID(ctx)
+		if err != nil {
+			log.Logger.Warnw("failed to get nscale instance ID", "error", err)
+		} else {
+			providerInfo.InstanceID = instanceID
+		}
+	}
+	if providerInfo.PrivateIP == "" {
+		privateIP, err := nscale.PrivateIPv4(ctx)
+		if err != nil {
+			log.Logger.Warnw("failed to get nscale private IP", "error", err)
+		} else {
+			providerInfo.PrivateIP = privateIP
+		}
+	}
+	if strings.TrimSpace(providerInfo.Region) == "" {
+		region, err := nscale.Region(ctx)
+		if err != nil {
+			log.Logger.Warnw("failed to get nscale region", "error", err)
+		} else {
+			providerInfo.Region = strings.TrimSpace(region)
+		}
+	}
+	if providerInfo.VMEnvironment == "" {
+		vmEnv, err := nscale.VMEnvironment(ctx)
+		if err != nil {
+			log.Logger.Warnw("failed to get nscale VM environment", "error", err)
+		} else {
+			providerInfo.VMEnvironment = vmEnv
+		}
+	}
 }
 
 func canonicalizeProviderName(provider string) string {
