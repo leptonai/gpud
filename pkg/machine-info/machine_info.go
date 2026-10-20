@@ -35,6 +35,7 @@ import (
 	"github.com/leptonai/gpud/pkg/providers"
 	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 	"github.com/leptonai/gpud/pkg/providers/nebius"
+	"github.com/leptonai/gpud/pkg/providers/nscale"
 	"github.com/leptonai/gpud/version"
 )
 
@@ -420,9 +421,53 @@ func getProviderWithContext(ctx context.Context, publicIP string, detect func(co
 		}
 	}
 
+	if providerInfo.Provider == nscale.Name {
+		// NScale hosts always run an OpenStack/EC2-compatible metadata service at
+		// 169.254.169.254. If initial OpenStack metadata detection failed (e.g.
+		// transient 503 or timeout) and ASN lookup identified the host as nscale,
+		// mark IMDSDetected so login fails fast rather than registering without an
+		// instance ID, and query the nscale metadata endpoints directly.
+		providerInfo.IMDSDetected = true
+		if providerInfo.InstanceID == "" {
+			instanceID, err := nscale.GetInstanceID(ctx)
+			if err != nil {
+				log.Logger.Warnw("failed to get nscale instance ID", "error", err)
+			} else {
+				providerInfo.InstanceID = instanceID
+			}
+		}
+		if providerInfo.PrivateIP == "" {
+			privateIP, err := nscale.PrivateIPv4(ctx)
+			if err != nil {
+				log.Logger.Warnw("failed to get nscale private IP", "error", err)
+			} else {
+				providerInfo.PrivateIP = privateIP
+			}
+		}
+		if strings.TrimSpace(providerInfo.Region) == "" {
+			region, err := nscale.Region(ctx)
+			if err != nil {
+				log.Logger.Warnw("failed to get nscale region", "error", err)
+			} else {
+				providerInfo.Region = strings.TrimSpace(region)
+			}
+		}
+		if providerInfo.VMEnvironment == "" {
+			vmEnv, err := nscale.VMEnvironment(ctx)
+			if err != nil {
+				log.Logger.Warnw("failed to get nscale VM environment", "error", err)
+			} else {
+				providerInfo.VMEnvironment = vmEnv
+			}
+		}
+	}
+
 	// No provider metadata service supplied an instance ID (e.g. bare metal
 	// without IMDS), so fall back to the ID cloud-init recorded on the host.
-	if providerInfo.InstanceID == "" {
+	// Skip nscale: its cloud-init config drive writes the OpenStack server UUID
+	// to /var/lib/cloud/data/instance-id, whereas nscale's topology and breakfix
+	// APIs identify machines by the "i-<hex>" ID from 169.254.169.254.
+	if providerInfo.InstanceID == "" && providerInfo.Provider != nscale.Name {
 		if instanceID := readInstanceIDFallback(instanceIDFallbackPaths); instanceID != "" {
 			// Lambda's API and Kubernetes providerID ("lambda://<id>") use the
 			// 32-hex form of the ID that cloud-init stores as a UUID.

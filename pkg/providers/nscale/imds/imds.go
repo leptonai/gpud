@@ -108,20 +108,30 @@ func FetchInstanceID(ctx context.Context) (string, error) {
 }
 
 func FetchOpenStackMetadata(ctx context.Context) (*OpenStackMetadataResponse, error) {
-	return fetchOpenStackMetadata(ctx, openStackMetadataJSONURL)
+	resp, _, err := FetchOpenStackMetadataWithStatusCode(ctx)
+	return resp, err
+}
+
+func FetchOpenStackMetadataWithStatusCode(ctx context.Context) (*OpenStackMetadataResponse, int, error) {
+	return fetchOpenStackMetadataWithStatusCode(ctx, openStackMetadataJSONURL)
 }
 
 func fetchOpenStackMetadata(ctx context.Context, metadataURL string) (*OpenStackMetadataResponse, error) {
-	d, err := fetchMetadataByPath(ctx, metadataURL)
+	resp, _, err := fetchOpenStackMetadataWithStatusCode(ctx, metadataURL)
+	return resp, err
+}
+
+func fetchOpenStackMetadataWithStatusCode(ctx context.Context, metadataURL string) (*OpenStackMetadataResponse, int, error) {
+	d, code, err := fetchMetadataByPathWithStatusCode(ctx, metadataURL)
 	if err != nil {
-		return nil, err
+		return nil, code, err
 	}
 
 	resp := &OpenStackMetadataResponse{}
 	if err := json.Unmarshal([]byte(d), resp); err != nil {
-		return nil, fmt.Errorf("failed to parse OpenStack metadata: %w", err)
+		return nil, code, fmt.Errorf("failed to parse OpenStack metadata: %w", err)
 	}
-	return resp, nil
+	return resp, code, nil
 }
 
 // FetchRegion returns a human-readable nscale region from OpenStack metadata,

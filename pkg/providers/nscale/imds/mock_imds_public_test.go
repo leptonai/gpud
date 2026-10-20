@@ -35,15 +35,20 @@ func TestFetchPublicIPv4_Public_WithMockey(t *testing.T) {
 }
 
 func TestFetchOpenStackMetadata_Public_WithMockey(t *testing.T) {
-	mockey.PatchConvey("FetchOpenStackMetadata forwards default OpenStack metadata URL", t, func() {
-		mockey.Mock(fetchOpenStackMetadata).To(func(ctx context.Context, metadataURL string) (*OpenStackMetadataResponse, error) {
+	mockey.PatchConvey("FetchOpenStackMetadata and FetchOpenStackMetadataWithStatusCode forward default OpenStack metadata URL", t, func() {
+		mockey.Mock(fetchOpenStackMetadataWithStatusCode).To(func(ctx context.Context, metadataURL string) (*OpenStackMetadataResponse, int, error) {
 			require.Equal(t, openStackMetadataJSONURL, metadataURL)
-			return &OpenStackMetadataResponse{UUID: "uuid-1"}, nil
+			return &OpenStackMetadataResponse{UUID: "uuid-1"}, 200, nil
 		}).Build()
 
 		got, err := FetchOpenStackMetadata(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, "uuid-1", got.UUID)
+
+		gotWithCode, code, err := FetchOpenStackMetadataWithStatusCode(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 200, code)
+		require.Equal(t, "uuid-1", gotWithCode.UUID)
 	})
 }
 
