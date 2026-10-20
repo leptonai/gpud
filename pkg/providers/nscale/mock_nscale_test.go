@@ -4,13 +4,22 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/bytedance/mockey"
 	"github.com/stretchr/testify/require"
 
 	"github.com/leptonai/gpud/pkg/providers/nscale/imds"
 )
+
+func setIMDSRetryBackoffs(t *testing.T, backoffs []time.Duration) {
+	t.Helper()
+	orig := imdsRetryBackoffs
+	imdsRetryBackoffs = backoffs
+	t.Cleanup(func() { imdsRetryBackoffs = orig })
+}
 
 // fakeAddrConn is a net.Conn whose LocalAddr is fixed, so route-source
 // lookups can be tested without real network access.
@@ -24,7 +33,7 @@ func (f *fakeAddrConn) Close() error        { return nil }
 
 func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 	mockey.PatchConvey("New and detectProvider succeed when OpenStack metadata has nscale fields", t, func() {
-		mockey.Mock(imds.FetchOpenStackMetadata).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, error) {
+		mockey.Mock(imds.FetchOpenStackMetadataWithStatusCode).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, int, error) {
 			return &imds.OpenStackMetadataResponse{
 				UUID:             "9af4ad95-5cf9-4085-b4ac-2dcf39427166",
 				AvailabilityZone: "nova",
@@ -32,7 +41,7 @@ func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 					OrganizationID: "org-nscale",
 					ProjectID:      "proj-nscale",
 				},
-			}, nil
+			}, http.StatusOK, nil
 		}).Build()
 
 		detector := New()
@@ -51,14 +60,14 @@ func TestNewAndDetectProvider_WithMockey(t *testing.T) {
 
 func TestDetectProvider_WithMockey(t *testing.T) {
 	mockey.PatchConvey("detectProvider returns empty when OpenStack metadata misses UUID", t, func() {
-		mockey.Mock(imds.FetchOpenStackMetadata).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, error) {
+		mockey.Mock(imds.FetchOpenStackMetadataWithStatusCode).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, int, error) {
 			return &imds.OpenStackMetadataResponse{
 				UUID: "",
 				Meta: imds.OpenStackMetadataMeta{
 					OrganizationID: "org-nscale",
 					ProjectID:      "proj-nscale",
 				},
-			}, nil
+			}, http.StatusOK, nil
 		}).Build()
 
 		provider, err := detectProvider(context.Background())
@@ -67,14 +76,14 @@ func TestDetectProvider_WithMockey(t *testing.T) {
 	})
 
 	mockey.PatchConvey("detectProvider returns empty when OpenStack metadata misses nscale fields", t, func() {
-		mockey.Mock(imds.FetchOpenStackMetadata).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, error) {
+		mockey.Mock(imds.FetchOpenStackMetadataWithStatusCode).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, int, error) {
 			return &imds.OpenStackMetadataResponse{
 				UUID: "9af4ad95-5cf9-4085-b4ac-2dcf39427166",
 				Meta: imds.OpenStackMetadataMeta{
 					OrganizationID: "",
 					ProjectID:      "proj-nscale",
 				},
-			}, nil
+			}, http.StatusOK, nil
 		}).Build()
 
 		provider, err := detectProvider(context.Background())
@@ -82,23 +91,138 @@ func TestDetectProvider_WithMockey(t *testing.T) {
 		require.Empty(t, provider)
 	})
 
-	mockey.PatchConvey("detectProvider returns error when OpenStack metadata fetch fails", t, func() {
-		mockey.Mock(imds.FetchOpenStackMetadata).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, error) {
-			return nil, errors.New("metadata unavailable")
+	mockey.PatchConvey("detectProvider retries transient 5xx and 429 OpenStack metadata errors and succeeds", t, func() {
+		setIMDSRetryBackoffs(t, []time.Duration{0, time.Millisecond, time.Millisecond, time.Millisecond})
+		attempts := 0
+		mockey.Mock(imds.FetchOpenStackMetadataWithStatusCode).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, int, error) {
+			attempts++
+			if attempts == 1 {
+				return nil, http.StatusServiceUnavailable, errors.New("received status code 503")
+			}
+			if attempts == 2 {
+				return nil, http.StatusTooManyRequests, errors.New("received status code 429")
+			}
+			return &imds.OpenStackMetadataResponse{
+				UUID: "9af4ad95-5cf9-4085-b4ac-2dcf39427166",
+				Meta: imds.OpenStackMetadataMeta{
+					OrganizationID: "org-nscale",
+					ProjectID:      "proj-nscale",
+				},
+			}, http.StatusOK, nil
+		}).Build()
+
+		provider, err := detectProvider(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, Name, provider)
+		require.Equal(t, 3, attempts)
+	})
+
+	mockey.PatchConvey("detectProvider does not retry 4xx or non-HTTP errors on non-nscale hosts", t, func() {
+		setIMDSRetryBackoffs(t, []time.Duration{0, time.Hour, time.Hour})
+		var currentCode int
+		attempts := 0
+		mockey.Mock(imds.FetchOpenStackMetadataWithStatusCode).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, int, error) {
+			attempts++
+			return nil, currentCode, errors.New("non-retryable metadata error")
+		}).Build()
+
+		for _, code := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, 0} {
+			currentCode = code
+			attempts = 0
+			_, err := detectProvider(context.Background())
+			require.Error(t, err)
+			require.Equal(t, 1, attempts, "statusCode=%d must not be retried", code)
+		}
+	})
+
+	mockey.PatchConvey("detectProvider returns error when 503 persists across retries", t, func() {
+		setIMDSRetryBackoffs(t, []time.Duration{0, time.Millisecond, time.Millisecond})
+		attempts := 0
+		mockey.Mock(imds.FetchOpenStackMetadataWithStatusCode).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, int, error) {
+			attempts++
+			return nil, http.StatusServiceUnavailable, errors.New("metadata 503")
 		}).Build()
 
 		_, err := detectProvider(context.Background())
 		require.Error(t, err)
+		require.Equal(t, 3, attempts)
+	})
+
+	mockey.PatchConvey("detectProvider stops retrying when context is canceled and preserves last error", t, func() {
+		setIMDSRetryBackoffs(t, []time.Duration{0, time.Hour})
+		ctx, cancel := context.WithCancel(context.Background())
+		attempts := 0
+		sentinel := errors.New("metadata 503")
+		mockey.Mock(imds.FetchOpenStackMetadataWithStatusCode).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, int, error) {
+			attempts++
+			cancel()
+			return nil, http.StatusServiceUnavailable, sentinel
+		}).Build()
+
+		_, err := detectProvider(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+		require.ErrorIs(t, err, sentinel)
+		require.Equal(t, 1, attempts)
+	})
+}
+
+func TestGetInstanceID_WithMockey(t *testing.T) {
+	mockey.PatchConvey("GetInstanceID retries transient errors and trims whitespace", t, func() {
+		setIMDSRetryBackoffs(t, []time.Duration{0, time.Millisecond, time.Millisecond})
+		attempts := 0
+		mockey.Mock(imds.FetchInstanceID).To(func(ctx context.Context) (string, error) {
+			attempts++
+			if attempts == 1 {
+				return "", errors.New("received status code 503")
+			}
+			if attempts == 2 {
+				return "   ", nil
+			}
+			return " i-00014a3a\n", nil
+		}).Build()
+
+		id, err := GetInstanceID(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "i-00014a3a", id)
+		require.Equal(t, 3, attempts)
+	})
+
+	mockey.PatchConvey("GetInstanceID returns error after retry exhaustion", t, func() {
+		setIMDSRetryBackoffs(t, []time.Duration{0, time.Millisecond})
+		attempts := 0
+		mockey.Mock(imds.FetchInstanceID).To(func(ctx context.Context) (string, error) {
+			attempts++
+			return "", errors.New("metadata unavailable")
+		}).Build()
+
+		_, err := GetInstanceID(context.Background())
+		require.Error(t, err)
+		require.Equal(t, 2, attempts)
+	})
+
+	mockey.PatchConvey("GetInstanceID stops retrying when context is canceled", t, func() {
+		setIMDSRetryBackoffs(t, []time.Duration{0, time.Hour})
+		ctx, cancel := context.WithCancel(context.Background())
+		attempts := 0
+		mockey.Mock(imds.FetchInstanceID).To(func(ctx context.Context) (string, error) {
+			attempts++
+			cancel()
+			return "", nil
+		}).Build()
+
+		_, err := GetInstanceID(ctx)
+		require.ErrorIs(t, err, context.Canceled)
+		require.Equal(t, 1, attempts)
 	})
 }
 
 func TestFetchPrivateIPv4_WithMockey(t *testing.T) {
-	mockey.PatchConvey("fetchPrivateIPv4 returns RFC1918 IPv4", t, func() {
+	mockey.PatchConvey("fetchPrivateIPv4 and PrivateIPv4 return RFC1918 IPv4", t, func() {
 		mockey.Mock(imds.FetchLocalIPv4).To(func(ctx context.Context) (string, error) {
 			return "10.50.85.108", nil
 		}).Build()
 
-		privateIP, err := fetchPrivateIPv4(context.Background())
+		privateIP, err := PrivateIPv4(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, "10.50.85.108", privateIP)
 	})
@@ -272,14 +396,14 @@ func TestRouteSourceIPv4_WithMockey(t *testing.T) {
 }
 
 func TestFetchVMEnvironment_WithMockey(t *testing.T) {
-	mockey.PatchConvey("fetchVMEnvironment returns OpenStack availability zone", t, func() {
+	mockey.PatchConvey("fetchVMEnvironment and VMEnvironment return OpenStack availability zone", t, func() {
 		mockey.Mock(imds.FetchOpenStackMetadata).To(func(ctx context.Context) (*imds.OpenStackMetadataResponse, error) {
 			return &imds.OpenStackMetadataResponse{
 				AvailabilityZone: "nova",
 			}, nil
 		}).Build()
 
-		zone, err := fetchVMEnvironment(context.Background())
+		zone, err := VMEnvironment(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, "nova", zone)
 	})
@@ -314,6 +438,10 @@ func TestRegion_WithMockey(t *testing.T) {
 		require.True(t, ok, "New() must return a detector that implements RegionDetector")
 
 		region, err := regionDetector.Region(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, "eu-north-1", region)
+
+		region, err = Region(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, "eu-north-1", region)
 	})

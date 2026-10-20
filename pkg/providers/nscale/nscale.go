@@ -2,9 +2,13 @@ package nscale
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
+	"strings"
+	"time"
 
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/providers"
@@ -12,6 +16,8 @@ import (
 )
 
 const Name = "nscale"
+
+var imdsRetryBackoffs = []time.Duration{0, time.Second, 2 * time.Second, 4 * time.Second}
 
 // New returns a Detector that implements RegionDetector.
 // It uses the OpenStack metadata JSON to detect the nscale provider
@@ -38,20 +44,106 @@ func New() providers.Detector {
 }
 
 func detectProvider(ctx context.Context) (string, error) {
-	resp, err := imds.FetchOpenStackMetadata(ctx)
-	if err != nil {
-		return "", err
-	}
-	if resp.UUID == "" {
-		return "", nil
+	var lastErr error
+	for attempt, backoff := range imdsRetryBackoffs {
+		if backoff > 0 {
+			select {
+			case <-ctx.Done():
+				return "", errors.Join(lastErr, ctx.Err())
+			case <-time.After(backoff):
+			}
+		}
+
+		resp, statusCode, err := imds.FetchOpenStackMetadataWithStatusCode(ctx)
+		if err != nil {
+			lastErr = err
+			if !isRetryableOpenStackMetadataStatus(statusCode) {
+				return "", err
+			}
+			log.Logger.Debugw("transient HTTP error fetching nscale OpenStack metadata during provider detection",
+				"attempt", attempt+1,
+				"maxAttempts", len(imdsRetryBackoffs),
+				"statusCode", statusCode,
+				"error", err,
+			)
+			continue
+		}
+		if resp.UUID == "" {
+			return "", nil
+		}
+
+		// nscale OpenStack metadata includes both org/project identifiers.
+		if resp.Meta.OrganizationID == "" || resp.Meta.ProjectID == "" {
+			return "", nil
+		}
+
+		return Name, nil
 	}
 
-	// nscale OpenStack metadata includes both org/project identifiers.
-	if resp.Meta.OrganizationID == "" || resp.Meta.ProjectID == "" {
-		return "", nil
+	return "", lastErr
+}
+
+// isRetryableOpenStackMetadataStatus reports whether an HTTP status code from
+// /openstack/latest/meta_data.json warrants an inline retry during initial
+// provider detection. Only HTTP 429 and 5xx are retried here so non-NScale
+// hosts (which return 4xx, connection refused, or link-local timeout) do not
+// pay extra detection latency; network timeouts on NScale are recovered by the
+// ASN fallback in pkg/machine-info.
+func isRetryableOpenStackMetadataStatus(statusCode int) bool {
+	return statusCode == http.StatusTooManyRequests || statusCode >= http.StatusInternalServerError
+}
+
+// GetInstanceID fetches the nscale VM/bare-metal instance ID (e.g. "i-00014a3a")
+// from the EC2-compatible metadata endpoint with retries.
+func GetInstanceID(ctx context.Context) (string, error) {
+	return retryIMDSFetch(ctx, "instance ID", imds.FetchInstanceID)
+}
+
+// PrivateIPv4 returns the machine's nscale private IPv4 address from metadata
+// with retries, falling back to the route source address toward 169.254.169.254.
+func PrivateIPv4(ctx context.Context) (string, error) {
+	return retryIMDSFetch(ctx, "private IP", fetchPrivateIPv4)
+}
+
+// Region returns the nscale region from OpenStack metadata when present.
+func Region(ctx context.Context) (string, error) {
+	return imds.FetchRegion(ctx)
+}
+
+// VMEnvironment returns the OpenStack availability zone from nscale metadata.
+func VMEnvironment(ctx context.Context) (string, error) {
+	return fetchVMEnvironment(ctx)
+}
+
+func retryIMDSFetch(ctx context.Context, field string, fetch func(context.Context) (string, error)) (string, error) {
+	var lastErr error
+	for attempt, backoff := range imdsRetryBackoffs {
+		if backoff > 0 {
+			select {
+			case <-ctx.Done():
+				return "", errors.Join(lastErr, ctx.Err())
+			case <-time.After(backoff):
+			}
+		}
+
+		val, err := fetch(ctx)
+		val = strings.TrimSpace(val)
+		if err == nil && val != "" {
+			return val, nil
+		}
+		if err == nil {
+			err = fmt.Errorf("empty nscale %s", field)
+		}
+		lastErr = err
+		log.Logger.Warnw("failed to get nscale metadata",
+			"field", field,
+			"attempt", attempt+1,
+			"maxAttempts", len(imdsRetryBackoffs),
+			"error", err,
+		)
 	}
 
-	return Name, nil
+	return "", lastErr
 }
 
 // imdsHost is the link-local address of the nscale metadata service.

@@ -18,12 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	apiv1 "github.com/leptonai/gpud/api/v1"
 	"github.com/leptonai/gpud/pkg/asn"
 	"github.com/leptonai/gpud/pkg/disk"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/netutil"
 	"github.com/leptonai/gpud/pkg/netutil/latency"
 	pkgnetutillatencyedge "github.com/leptonai/gpud/pkg/netutil/latency/edge"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
 	nvmllib "github.com/leptonai/gpud/pkg/nvidia/nvml/lib"
 	nvidiapci "github.com/leptonai/gpud/pkg/nvidia/pci"
@@ -31,6 +33,7 @@ import (
 	"github.com/leptonai/gpud/pkg/providers"
 	pkgprovidersall "github.com/leptonai/gpud/pkg/providers/all"
 	"github.com/leptonai/gpud/pkg/providers/nebius"
+	"github.com/leptonai/gpud/pkg/providers/nscale"
 )
 
 // mockNvmlInstanceForMockey implements the nvidianvml.Instance interface for mockey tests
@@ -822,6 +825,133 @@ func TestGetProvider_NebiusSpecialCase(t *testing.T) {
 		require.NotNil(t, provider)
 		assert.Equal(t, "nebius", provider.Provider)
 		assert.Empty(t, provider.InstanceID)
+	})
+}
+
+func TestGetProvider_NscaleASNFallback(t *testing.T) {
+	mockey.PatchConvey("GetProvider with nscale from ASN queries nscale IMDS for instance ID, region, VM env, and private IP", t, func() {
+		setInstanceIDFallbackPaths(t, []string{writeInstanceIDFile(t, "d54e980a-3f27-46c2-bb18-bb10100dc730\n")})
+
+		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
+			return &providers.Info{Provider: "unknown"}, nil
+		}).Build()
+		mockey.Mock(asn.GetASLookup).To(func(ip string) (*asn.ASLookupResponse, error) {
+			return &asn.ASLookupResponse{
+				Asn:     "212529",
+				AsnName: "nscale-stav-public",
+				Country: "is",
+				IP:      ip,
+			}, nil
+		}).Build()
+		mockey.Mock(nscale.GetInstanceID).To(func(context.Context) (string, error) {
+			return "i-00014a3a", nil
+		}).Build()
+		mockey.Mock(nscale.Region).To(func(context.Context) (string, error) {
+			return "eu-west-2", nil
+		}).Build()
+		mockey.Mock(nscale.VMEnvironment).To(func(context.Context) (string, error) {
+			return "nova", nil
+		}).Build()
+		mockey.Mock(nscale.PrivateIPv4).To(func(context.Context) (string, error) {
+			return "7.247.35.91", nil
+		}).Build()
+
+		provider := GetProvider("46.148.114.35")
+		require.NotNil(t, provider)
+		assert.Equal(t, "nscale", provider.Provider)
+		assert.True(t, provider.IMDSDetected)
+		assert.Equal(t, "i-00014a3a", provider.InstanceID)
+		assert.Equal(t, "eu-west-2", provider.Region)
+		assert.Equal(t, "nova", provider.VMEnvironment)
+		assert.Equal(t, "7.247.35.91", provider.PrivateIP)
+	})
+
+	mockey.PatchConvey("getProviderForLogin with nscale from ASN preserves explicit region override", t, func() {
+		setInstanceIDFallbackPaths(t, []string{writeInstanceIDFile(t, "d54e980a-3f27-46c2-bb18-bb10100dc730\n")})
+
+		mockey.Mock(pkgprovidersall.DetectWithRegionOverride).To(func(ctx context.Context, regionOverride string) (*providers.Info, error) {
+			return &providers.Info{Provider: "unknown", Region: regionOverride}, nil
+		}).Build()
+		mockey.Mock(asn.GetASLookup).To(func(ip string) (*asn.ASLookupResponse, error) {
+			return &asn.ASLookupResponse{
+				Asn:     "212529",
+				AsnName: "nscale",
+				Country: "is",
+				IP:      ip,
+			}, nil
+		}).Build()
+		mockey.Mock(nscale.GetInstanceID).To(func(context.Context) (string, error) {
+			return "i-00014a3a", nil
+		}).Build()
+		regionCalled := false
+		mockey.Mock(nscale.Region).To(func(context.Context) (string, error) {
+			regionCalled = true
+			return "other-region", nil
+		}).Build()
+		mockey.Mock(nscale.VMEnvironment).To(func(context.Context) (string, error) {
+			return "nova", nil
+		}).Build()
+		mockey.Mock(nscale.PrivateIPv4).To(func(context.Context) (string, error) {
+			return "7.247.35.91", nil
+		}).Build()
+
+		provider := getProviderForLogin("46.148.114.35", "eu-north-1")
+		require.NotNil(t, provider)
+		assert.Equal(t, "nscale", provider.Provider)
+		assert.True(t, provider.IMDSDetected)
+		assert.Equal(t, "i-00014a3a", provider.InstanceID)
+		assert.Equal(t, "eu-north-1", provider.Region)
+		assert.False(t, regionCalled, "explicit region override must not be overwritten by nscale.Region")
+	})
+
+	mockey.PatchConvey("GetProvider with nscale from ASN does not fall back to cloud-init UUID when IMDS instance ID fails", t, func() {
+		setInstanceIDFallbackPaths(t, []string{writeInstanceIDFile(t, "d54e980a-3f27-46c2-bb18-bb10100dc730\n")})
+
+		mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
+			return &providers.Info{Provider: "unknown"}, nil
+		}).Build()
+		mockey.Mock(pkgprovidersall.DetectWithRegionOverride).To(func(ctx context.Context, regionOverride string) (*providers.Info, error) {
+			return &providers.Info{Provider: "unknown", Region: regionOverride}, nil
+		}).Build()
+		mockey.Mock(asn.GetASLookup).To(func(ip string) (*asn.ASLookupResponse, error) {
+			return &asn.ASLookupResponse{
+				Asn:     "212529",
+				AsnName: "nscale",
+				Country: "is",
+				IP:      ip,
+			}, nil
+		}).Build()
+		mockey.Mock(nscale.GetInstanceID).To(func(context.Context) (string, error) {
+			return "", errors.New("imds 503")
+		}).Build()
+		mockey.Mock(nscale.Region).To(func(context.Context) (string, error) {
+			return "", errors.New("imds 503")
+		}).Build()
+		mockey.Mock(nscale.VMEnvironment).To(func(context.Context) (string, error) {
+			return "", errors.New("imds 503")
+		}).Build()
+		mockey.Mock(nscale.PrivateIPv4).To(func(context.Context) (string, error) {
+			return "", errors.New("imds 503")
+		}).Build()
+
+		provider := GetProvider("46.148.114.35")
+		require.NotNil(t, provider)
+		assert.Equal(t, "nscale", provider.Provider)
+		assert.True(t, provider.IMDSDetected, "IMDSDetected must be true so login fails fast instead of registering without instance ID")
+		assert.Empty(t, provider.InstanceID, "must not read OpenStack config-drive UUID from /var/lib/cloud/data/instance-id")
+
+		req, err := createLoginRequest(
+			"token", "machine-id", "node-group", "0", &mockNvmlInstance{},
+			func() (string, error) { return "46.148.114.35", nil },
+			func() *apiv1.MachineLocation { return &apiv1.MachineLocation{Region: "eu-west-2"} },
+			func(nvidianvml.Instance) (*apiv1.MachineInfo, error) { return nil, nil },
+			func(ip string) *providers.Info { return getProviderForLogin(ip, "") },
+			func() (string, error) { return "100Gi", nil },
+			func(nvidianvml.Instance) (string, error) { return "0", nil },
+			noDefaultRouteHostIPv4,
+		)
+		require.ErrorContains(t, err, `provider "nscale" IMDS did not return an instance ID after retries; aborting login`)
+		assert.Nil(t, req)
 	})
 }
 
