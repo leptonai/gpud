@@ -474,6 +474,69 @@ func TestLogin_RefreshSessionTokenRelogsIn(t *testing.T) {
 	})
 }
 
+func TestLogin_ReloginSendsStoredMachineProof(t *testing.T) {
+	mockey.PatchConvey("relogin presents the proof from the previous login", t, func() {
+		mockDB := &sql.DB{}
+		var sentProof string
+
+		mockey.Mock(config.ResolveDataDir).To(func(_ string) (string, error) {
+			return "/tmp/test", nil
+		}).Build()
+		mockey.Mock(sqlite.Open).To(func(_ string, _ ...sqlite.OpOption) (*sql.DB, error) {
+			return mockDB, nil
+		}).Build()
+		mockey.Mock((*sql.DB).Close).To(func(*sql.DB) error {
+			return nil
+		}).Build()
+		mockey.Mock(pkgmetadata.CreateTableMetadata).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+		mockey.Mock(sessionstates.CreateTable).To(func(context.Context, *sql.DB) error {
+			return nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadMachineID).To(func(context.Context, *sql.DB) (string, error) {
+			return "existing-machine-id", nil
+		}).Build()
+		mockey.Mock(pkgmetadata.ReadMetadata).To(func(_ context.Context, _ *sql.DB, key string) (string, error) {
+			if key == pkgmetadata.MetadataKeyMachineProof {
+				return "stored-proof", nil
+			}
+			return "", nil
+		}).Build()
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return nvidianvml.NewNoOp(), nil
+		}).Build()
+		mockey.Mock((nvidianvml.Instance).Shutdown).To(func() error {
+			return nil
+		}).Build()
+		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
+			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
+		}).Build()
+		mockey.Mock(SendRequest).To(func(_ context.Context, _ string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+			sentProof = req.MachineProof
+			return &apiv1.LoginResponse{MachineID: "existing-machine-id", Token: "session-token", MachineProof: "new-proof"}, nil
+		}).Build()
+		mockey.Mock(pkgmetadata.SetMetadata).To(func(context.Context, *sql.DB, string, string) error {
+			return nil
+		}).Build()
+		mockey.Mock(config.FifoFilePath).To(func(string) string {
+			return "/tmp/test/fifo"
+		}).Build()
+		mockey.Mock(serverRunning).To(func() bool {
+			return false
+		}).Build()
+
+		err := Login(context.Background(), LoginConfig{
+			Token:               "test-token",
+			Endpoint:            "https://example.com",
+			DataDir:             "/tmp/test",
+			RefreshSessionToken: true,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "stored-proof", sentProof)
+	})
+}
+
 func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsAndMismatchedOverrideFails(t *testing.T) {
 	mockey.PatchConvey("machine id already assigned with changed node labels and mismatched override", t, func() {
 		mockDB := &sql.DB{}
