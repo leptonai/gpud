@@ -94,6 +94,39 @@ func TestGetGPUFabricIdentifiers(t *testing.T) {
 		assert.Nil(t, cliqueID)
 	})
 
+	t.Run("omits clique id when the fabric state has no cluster uuid", func(t *testing.T) {
+		// A non-fabric GPU can report SUCCESS with a zeroed fabric state instead
+		// of an error; the empty cluster UUID marks the node as non-fabric and the
+		// clique id must stay unreported (LEP-6676).
+		dev := newFabricMachineInfoDevice(nvidiadevice.FabricState{
+			CliqueID: 0,
+			Status:   nvml.SUCCESS,
+		}, nil)
+		nvmlInstance := &mockNvmlInstanceForMockey{
+			devices: map[string]nvidiadevice.Device{dev.uuid: dev},
+		}
+
+		clusterUUID, cliqueID := getGPUFabricIdentifiers(nvmlInstance)
+		assert.Empty(t, clusterUUID)
+		assert.Nil(t, cliqueID)
+	})
+
+	t.Run("keeps an explicit clique zero on a fabric node", func(t *testing.T) {
+		dev := newFabricMachineInfoDevice(nvidiadevice.FabricState{
+			CliqueID:    0,
+			ClusterUUID: "cluster-uuid-789",
+			State:       nvml.GPU_FABRIC_STATE_COMPLETED,
+			Status:      nvml.SUCCESS,
+		}, nil)
+		nvmlInstance := &mockNvmlInstanceForMockey{
+			devices: map[string]nvidiadevice.Device{dev.uuid: dev},
+		}
+
+		clusterUUID, cliqueID := getGPUFabricIdentifiers(nvmlInstance)
+		assert.Equal(t, "cluster-uuid-789", clusterUUID)
+		assert.Equal(t, ptr.To(uint32(0)), cliqueID)
+	})
+
 	t.Run("returns empty values without devices", func(t *testing.T) {
 		nvmlInstance := &mockNvmlInstanceForMockey{
 			devices: map[string]nvidiadevice.Device{},

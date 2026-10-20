@@ -554,12 +554,21 @@ func GetSystemResourceGPUCount(nvmlInstance nvidianvml.Instance) (string, error)
 // these identifiers, so the first device with a readable fabric state is
 // sufficient. Fabric state telemetry is not supported on all platforms; in
 // that case this function returns empty values and does not fail.
+//
+// A non-fabric GPU can still report a zeroed fabric state (SUCCESS with
+// CliqueId 0 and an empty ClusterUuid) instead of an error, so an empty
+// cluster UUID means the node is not in a fabric: the clique ID must stay
+// unreported, because clique 0 on the wire is indistinguishable from a real
+// clique 0 and groups unrelated nodes into one false clique (LEP-6676).
 func getGPUFabricIdentifiers(nvmlInstance nvidianvml.Instance) (string, *uint32) {
 	for uuid, dev := range nvmlInstance.Devices() {
 		fabricState, err := dev.GetFabricState()
 		if err != nil {
-			log.Logger.Debugw("failed to get GPU fabric state for machine info", "uuid", uuid, "error", err)
+			log.Logger.Debugw("failed to get gpu fabric state for machine info", "uuid", uuid, "error", err)
 			continue
+		}
+		if fabricState.ClusterUUID == "" {
+			return "", nil
 		}
 		cliqueID := fabricState.CliqueID
 		return fabricState.ClusterUUID, &cliqueID
