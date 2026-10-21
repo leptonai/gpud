@@ -126,6 +126,28 @@ func TestCollectHostBIOS(t *testing.T) {
 			want:   []instance{{component: apiv1.FirmwareComponentHMCSBIOS, version: "02.05.05"}},
 		},
 		{
+			name: "peripheral VBIOS and UEFI entries are not the host BIOS",
+			table: (&smbiosTable{}).
+				bios("O72OR37A").
+				processor("NVIDIA", "Grace A02P").
+				firmwareInventory("GPU VBIOS", "97.00.0A.00.01").
+				firmwareInventory("NIC UEFI", "14.32.17").
+				firmwareInventory("BIOS Firmware", "5.36_O72OR37A_02.05.05").
+				end(),
+			goarch: "arm64",
+			want:   []instance{{component: apiv1.FirmwareComponentHMCSBIOS, version: "5.36_O72OR37A_02.05.05"}},
+		},
+		{
+			name: "only peripheral entries fall back to type 0",
+			table: (&smbiosTable{}).
+				bios("O72OR37A").
+				processor("NVIDIA", "Grace A02P").
+				firmwareInventory("GPU VBIOS", "97.00.0A.00.01").
+				end(),
+			goarch: "arm64",
+			want:   []instance{{component: apiv1.FirmwareComponentHMCSBIOS, version: "O72OR37A"}},
+		},
+		{
 			name: "BIOS inventory entry with an empty version falls back to type 0",
 			table: (&smbiosTable{}).
 				bios("O72OR37A").

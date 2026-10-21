@@ -8,10 +8,14 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
+	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
+	"github.com/leptonai/gpud/pkg/nvidia/nvml/device"
+	nvidiatestutil "github.com/leptonai/gpud/pkg/nvidia/nvml/testutil"
 )
 
 func resetCache(t *testing.T) {
@@ -169,6 +173,64 @@ func TestStartAndWaitFirst(t *testing.T) {
 	doneCtx, doneCancel := context.WithCancel(t.Context())
 	doneCancel()
 	assert.True(t, WaitFirst(doneCtx, ready, time.Millisecond))
+}
+
+func TestRefreshWithin(t *testing.T) {
+	resetCache(t)
+
+	opts := gpuOnlyOptions(nil, fakeGPU{busID: "0000:01:00.0", version: "96.00.00.00.01", ret: nvml.SUCCESS})
+	require.True(t, RefreshWithin(t.Context(), opts, 5*time.Second))
+	rows := Latest()
+	require.Len(t, rows, 1)
+	assert.Equal(t, "96.00.00.00.01", rows[0].Version)
+}
+
+func TestRefreshWithin_HungGPUReadIsNotWaitedFor(t *testing.T) {
+	resetCache(t)
+
+	release := make(chan struct{})
+	defer close(release)
+	opts := Options{
+		NVMLInstance: nvmlWithVbios(func() (string, nvml.Return) {
+			<-release
+			return "96.00.00.00.01", nvml.SUCCESS
+		}),
+		goos: "darwin",
+	}
+
+	start := time.Now()
+	assert.False(t, RefreshWithin(t.Context(), opts, 20*time.Millisecond))
+	assert.Less(t, time.Since(start), 5*time.Second)
+	assert.Nil(t, Latest())
+}
+
+func TestCollect_ReadOutlivingContextIsNotPublished(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	// The NVML read returns only after ctx is done, like a hung read that
+	// RefreshWithin stopped waiting for.
+	opts := Options{
+		NVMLInstance: nvmlWithVbios(func() (string, nvml.Return) {
+			cancel()
+			return "96.00.00.00.01", nvml.SUCCESS
+		}),
+		goos: "darwin",
+	}
+
+	rows, err := collect(ctx, opts)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, rows)
+}
+
+// nvmlWithVbios serves one GPU whose VBIOS read runs fn.
+func nvmlWithVbios(fn func() (string, nvml.Return)) *fakeNVML {
+	dev := &nvmlmock.Device{GetVbiosVersionFunc: fn}
+	return &fakeNVML{
+		Instance: nvidianvml.NewNoOp(),
+		devices: map[string]device.Device{
+			"GPU-0000": nvidiatestutil.NewMockDeviceWithIDs(dev, "", "", "", "0000:01:00.0", "GPU-0000", "", 0, 0),
+		},
+	}
 }
 
 func TestWaitFirst_NotReady(t *testing.T) {

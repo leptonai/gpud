@@ -183,6 +183,60 @@ func TestCollectNICs_Classification(t *testing.T) {
 			},
 		},
 		{
+			name: "a PF without a guid joins its card through the PCI slot",
+			devs: []ibDevice{
+				{name: "mlx5_0", hcaType: "MT4131", fwVer: "40.48.1102", guid: "90e3:1703:00be:ed38", slot: "0000:03:00.0"},
+				{name: "mlx5_1", hcaType: "MT4131", fwVer: "40.48.1102", slot: "0000:03:00.1"},
+			},
+			want: []apiv1.MachineFirmware{
+				row(apiv1.FirmwareComponentCX8, "40.48.1102", "mlx5_0"),
+			},
+		},
+		{
+			name: "socket-direct PFs on two PCI domains join through the guid",
+			devs: []ibDevice{
+				{name: "mlx5_0", hcaType: "MT4131", fwVer: "40.48.1102", guid: "90e3:1703:00be:ed38", slot: "0000:03:00.0"},
+				{name: "mlx5_1", hcaType: "MT4131", fwVer: "40.48.1102", slot: "0000:03:00.1"},
+				{name: "mlx5_2", hcaType: "MT4131", fwVer: "40.48.1102", guid: "90e3:1703:00be:ed38", slot: "0001:03:00.0"},
+			},
+			want: []apiv1.MachineFirmware{
+				row(apiv1.FirmwareComponentCX8, "40.48.1102", "mlx5_0"),
+			},
+		},
+		{
+			name: "one PF with an AWS PSID classifies the whole card",
+			devs: []ibDevice{
+				{name: "mlx5_0", hcaType: "MT4131", fwVer: "40.47.2526", guid: "a088:c203:0001:0001", slot: "0000:05:00.0"},
+				{name: "mlx5_1", hcaType: "MT4131", boardID: "AS00000000013", fwVer: "40.47.2526", guid: "a088:c203:0001:0001", slot: "0000:05:00.1"},
+			},
+			want: []apiv1.MachineFirmware{
+				row(apiv1.FirmwareComponentCX8AWS, "40.47.2526", "mlx5_0"),
+			},
+		},
+		{
+			name: "a PF without fw_ver still classifies and joins its card",
+			devs: []ibDevice{
+				// mlx5_1 has the AWS PSID but no fw_ver, and is the only PF
+				// that links mlx5_0 (slot only) to mlx5_2 (guid only).
+				{name: "mlx5_0", hcaType: "MT4131", fwVer: "40.47.2526", slot: "0000:05:00.0"},
+				{name: "mlx5_1", hcaType: "MT4131", boardID: "AS00000000013", guid: "a088:c203:0001:0001", slot: "0000:05:00.1"},
+				{name: "mlx5_2", hcaType: "MT4131", fwVer: "40.47.2526", guid: "a088:c203:0001:0001", slot: "0001:05:00.0"},
+			},
+			want: []apiv1.MachineFirmware{
+				row(apiv1.FirmwareComponentCX8AWS, "40.47.2526", "mlx5_0"),
+			},
+		},
+		{
+			name: "the first PF without fw_ver names the card and a later PF gives the version",
+			devs: []ibDevice{
+				{name: "mlx5_0", hcaType: "MT4131", slot: "0000:05:00.0"},
+				{name: "mlx5_1", hcaType: "MT4131", fwVer: "40.47.2526", slot: "0000:05:00.1"},
+			},
+			want: []apiv1.MachineFirmware{
+				row(apiv1.FirmwareComponentCX8, "40.47.2526", "mlx5_0"),
+			},
+		},
+		{
 			name: "no guid and no slot counts each device",
 			devs: []ibDevice{
 				{name: "mlx5_bond_0", hcaType: "MT41692", fwVer: "32.38.3056"},

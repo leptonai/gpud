@@ -50,6 +50,21 @@ func Refresh(ctx context.Context, opts Options) {
 	log.Logger.Debugw("collected firmware versions", "entries", len(rows))
 }
 
+// RefreshWithin is Refresh for one-shot commands, bounded by timeout. NVML
+// reads ignore ctx, so a hung GPU would otherwise block the command; such a
+// read is left behind and its result is not published. It reports whether the
+// collection finished in time.
+func RefreshWithin(ctx context.Context, opts Options, timeout time.Duration) bool {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		Refresh(ctx, opts)
+	}()
+	return WaitFirst(ctx, done, timeout)
+}
+
 // RunPeriodic refreshes every interval until ctx is done. It does not
 // collect immediately; call Refresh first for that.
 func RunPeriodic(ctx context.Context, opts Options, interval time.Duration) {

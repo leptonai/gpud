@@ -76,13 +76,16 @@ func (o Options) withDefaults() Options {
 	return o
 }
 
+// hostIsVM treats an unknown virtualization state as a VM: the detector leaves
+// VM empty when systemd-detect-virt is missing or fails, and only a confirmed
+// bare-metal host may report its BIOS.
 func hostIsVM() bool {
-	vm := pkghost.VirtualizationEnv().VM
-	return vm != "" && vm != "none"
+	return pkghost.VirtualizationEnv().VM != "none"
 }
 
 // collect reads every source once. It returns the context error when ctx is
-// done before all sources were read, so a partial result is never published.
+// done before the collection finished, so neither a partial result nor one
+// that outlived its caller is published.
 func collect(ctx context.Context, opts Options) ([]apiv1.MachineFirmware, error) {
 	o := opts.withDefaults()
 	readAt := o.now()
@@ -105,6 +108,10 @@ func collect(ctx context.Context, opts Options) ([]apiv1.MachineFirmware, error)
 			return nil, err
 		}
 		found = append(found, source()...)
+	}
+	// NVML reads ignore ctx, so the last source can return after it is done.
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return group(found, readAt), nil
 }

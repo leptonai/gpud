@@ -75,14 +75,14 @@ software versions in `firmware`, one entry per component and version:
 | `cx8-aws` | A `cx8` card whose PSID (`board_id`) starts with `AS` | Same as `cx8` |
 | `bf3_nic` | BlueField-3 (PCI device `0xa2dc`) `fw_ver` in sysfs | Same as `cx8` |
 | `hmc-sbios` | SMBIOS BIOS firmware inventory entry, else the BIOS version | None |
-| `doca_host` | First installed of `doca-ofed`, `doca-all`, `doca-networking`, `doca-roce`, `doca-ofed-userspace`, `doca-host` in the dpkg database | None |
+| `doca_host` | First installed of `doca-ofed`, `doca-all`, `doca-networking`, `doca-roce`, `doca-ofed-userspace` in the dpkg database | None |
 
 - Instances of one component that run the same version share one entry, and
   `instances` counts them. Mixed versions produce one entry per version.
 - A NIC card counts once: SR-IOV VFs are skipped and PFs that share a
-  `sys_image_guid` (or PCI slot) are grouped. The card is named after its PF
-  with the lowest PCI address. Other NICs such as ConnectX-7 and EFA are not
-  reported.
+  `sys_image_guid` or a PCI slot are grouped. The card is named after its PF
+  with the lowest PCI address, and is `cx8-aws` when any of its PFs has an
+  AWS PSID. Other NICs such as ConnectX-7 and EFA are not reported.
 - `hmc-sbios` is reported only on bare-metal arm64 hosts whose SMBIOS processor
   manufacturer is NVIDIA (Grace). Reading the SMBIOS table requires root.
 - Versions are reported as read, without normalization. Entries are sorted by

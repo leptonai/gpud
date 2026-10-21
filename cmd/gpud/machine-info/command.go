@@ -85,9 +85,7 @@ func Command(cliContext *cli.Context) error {
 	}
 
 	// This one-shot process has no background collector, so read firmware now.
-	fwCtx, fwCancel := context.WithTimeout(context.Background(), time.Minute)
-	pkgfirmware.Refresh(fwCtx, pkgfirmware.Options{NVMLInstance: nvmlInstance})
-	fwCancel()
+	pkgfirmware.RefreshWithin(context.Background(), pkgfirmware.Options{NVMLInstance: nvmlInstance}, time.Minute)
 
 	machineInfo, err := pkgmachineinfo.GetMachineInfo(nvmlInstance)
 	if err != nil {

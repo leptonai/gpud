@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -24,12 +25,13 @@ const (
 	zeroGUID = "0000:0000:0000:0000"
 )
 
-// nicFunction is one InfiniBand device in the class directory that maps to a
-// reported component.
+// nicFunction is one ConnectX-8 or BlueField-3 PF in the class directory.
 type nicFunction struct {
-	name      string
-	component string
-	version   string
+	name     string
+	deviceID uint64
+	// awsPSID is set when the PSID (board_id) marks a ConnectX-8 built for AWS.
+	awsPSID bool
+	version string
 	// slot is the PCI address (PCI_SLOT_NAME), for example "0000:03:00.0".
 	slot string
 	guid string
@@ -51,22 +53,42 @@ func collectNICs(ibFS fs.FS) []instance {
 		return nil
 	}
 
-	cards := make(map[string]nicFunction)
+	var fns []nicFunction
 	for _, entry := range entries {
 		// Entries are symlinks into /sys/devices, so no IsDir filter.
-		fn, ok := readNICFunction(ibFS, entry.Name())
-		if !ok {
-			continue
-		}
-		key := fn.component + "|" + cardKey(fn)
-		if cur, exists := cards[key]; !exists || lowerFunction(fn, cur) {
-			cards[key] = fn
+		if fn, ok := readNICFunction(ibFS, entry.Name()); ok {
+			fns = append(fns, fn)
 		}
 	}
 
+	cards := groupCards(fns)
 	found := make([]instance, 0, len(cards))
-	for _, fn := range cards {
-		found = append(found, instance{component: fn.component, version: fn.version, name: fn.name})
+	for _, pfs := range cards {
+		// The card is named after its first PF and reports the version of its
+		// first PF that has one. Any PF with an AWS PSID marks the whole card,
+		// so a PF missing board_id or fw_ver cannot split or misclassify it.
+		sort.Slice(pfs, func(i, j int) bool { return lowerFunction(pfs[i], pfs[j]) })
+		var version string
+		aws := false
+		for _, fn := range pfs {
+			if version == "" {
+				version = fn.version
+			}
+			aws = aws || fn.awsPSID
+		}
+		if version == "" {
+			log.Logger.Debugw("skipping nic firmware", "device", pfs[0].name, "reason", "no fw_ver")
+			continue
+		}
+
+		component := apiv1.FirmwareComponentBF3NIC
+		if pfs[0].deviceID == pciDeviceCX8 {
+			component = apiv1.FirmwareComponentCX8
+			if aws {
+				component = apiv1.FirmwareComponentCX8AWS
+			}
+		}
+		found = append(found, instance{component: component, version: version, name: pfs[0].name})
 	}
 	return found
 }
@@ -83,31 +105,19 @@ func readNICFunction(ibFS fs.FS, name string) (nicFunction, bool) {
 		return nicFunction{}, false
 	}
 
-	var component string
-	switch deviceID {
-	case pciDeviceCX8:
-		component = apiv1.FirmwareComponentCX8
-		if strings.HasPrefix(readTrimmed(ibFS, path.Join(name, "board_id")), awsPSIDPrefix) {
-			component = apiv1.FirmwareComponentCX8AWS
-		}
-	case pciDeviceBF3:
-		component = apiv1.FirmwareComponentBF3NIC
-	default:
+	if deviceID != pciDeviceCX8 && deviceID != pciDeviceBF3 {
 		return nicFunction{}, false
 	}
 
-	version := readTrimmed(ibFS, path.Join(name, "fw_ver"))
-	if version == "" {
-		log.Logger.Debugw("skipping nic firmware", "device", name, "reason", "no fw_ver")
-		return nicFunction{}, false
-	}
-
+	// A PF without fw_ver is kept: its PSID and keys still classify and join
+	// its card.
 	return nicFunction{
-		name:      name,
-		component: component,
-		version:   version,
-		slot:      uevent["PCI_SLOT_NAME"],
-		guid:      readTrimmed(ibFS, path.Join(name, "sys_image_guid")),
+		name:     name,
+		deviceID: deviceID,
+		awsPSID:  deviceID == pciDeviceCX8 && strings.HasPrefix(readTrimmed(ibFS, path.Join(name, "board_id")), awsPSIDPrefix),
+		version:  readTrimmed(ibFS, path.Join(name, "fw_ver")),
+		slot:     uevent["PCI_SLOT_NAME"],
+		guid:     readTrimmed(ibFS, path.Join(name, "sys_image_guid")),
 	}, true
 }
 
@@ -135,21 +145,61 @@ func pciDeviceID(hcaType, pciID string) (uint64, bool) {
 	return id, true
 }
 
-// cardKey groups the PFs of one physical card. sys_image_guid is shared by
-// every function of a card, including socket-direct PFs on different PCI
-// domains; the PCI slot without its function number is the fallback.
-func cardKey(fn nicFunction) string {
+// groupCards returns the PFs of each physical card. Two PFs belong to one card
+// when they share either key: sys_image_guid, which every function of a card
+// reports, including socket-direct PFs on different PCI domains, or the PCI
+// slot without its function number. A PF missing one key still joins its card
+// through the other; a PF with neither is a card of its own.
+func groupCards(fns []nicFunction) [][]nicFunction {
+	parent := make([]int, len(fns))
+	find := func(i int) int {
+		for parent[i] != i {
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		}
+		return i
+	}
+
+	owner := make(map[string]int)
+	for i, fn := range fns {
+		parent[i] = i
+		for _, key := range cardKeys(fn) {
+			if j, ok := owner[key]; ok {
+				parent[find(i)] = find(j)
+			} else {
+				owner[key] = i
+			}
+		}
+	}
+
+	byRoot := make(map[int][]nicFunction)
+	for i, fn := range fns {
+		root := find(i)
+		byRoot[root] = append(byRoot[root], fn)
+	}
+	cards := make([][]nicFunction, 0, len(byRoot))
+	for _, pfs := range byRoot {
+		cards = append(cards, pfs)
+	}
+	return cards
+}
+
+// cardKeys returns the identities a PF shares with the other PFs of its card,
+// scoped to its device ID.
+func cardKeys(fn nicFunction) []string {
+	prefix := strconv.FormatUint(fn.deviceID, 16) + "|"
+	var keys []string
 	if fn.guid != "" && fn.guid != zeroGUID {
-		return "guid:" + fn.guid
+		keys = append(keys, prefix+"guid:"+fn.guid)
 	}
 	if fn.slot != "" {
 		slot := fn.slot
 		if idx := strings.LastIndexByte(slot, '.'); idx >= 0 {
 			slot = slot[:idx]
 		}
-		return "slot:" + slot
+		keys = append(keys, prefix+"slot:"+slot)
 	}
-	return "name:" + fn.name
+	return keys
 }
 
 // lowerFunction reports whether a has a lower PCI address than b, so the card

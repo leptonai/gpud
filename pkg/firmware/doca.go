@@ -11,17 +11,16 @@ import (
 	"github.com/leptonai/gpud/pkg/log"
 )
 
-// docaHostPackages lists the DOCA host packages in priority order. The meta
-// packages come first because their versions match the bundle format
-// (3.2.1-044413); doca-host is a local-repo package whose version carries a
-// distro suffix.
+// docaHostPackages lists the DOCA host meta packages in priority order; their
+// versions match the bundle format (3.2.1-044413). doca-host is left out: it
+// only installs the local apt repository, so it says nothing about the
+// installed DOCA software.
 var docaHostPackages = []string{
 	"doca-ofed",
 	"doca-all",
 	"doca-networking",
 	"doca-roce",
 	"doca-ofed-userspace",
-	"doca-host",
 }
 
 // maxDpkgStatusLine bounds one line of the dpkg status file. Depends lines can

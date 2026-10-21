@@ -28,7 +28,10 @@ const (
 	firmwareInventoryMinLen     = 0x18
 )
 
-var biosFirmwareName = regexp.MustCompile(`(?i)bios|uefi`)
+// biosFirmwareName matches the whole name of the host BIOS inventory entry
+// ("BIOS Firmware", "System UEFI"), so peripheral entries such as "GPU VBIOS"
+// or "NIC UEFI" never stand in for it.
+var biosFirmwareName = regexp.MustCompile(`(?i)^(system\s+)?(s?bios|uefi)(\s+firmware)?$`)
 
 // smbiosStructure is one structure of a raw SMBIOS table.
 type smbiosStructure struct {

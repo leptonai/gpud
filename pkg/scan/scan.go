@@ -61,12 +61,10 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	}
 
 	// This one-shot process has no background collector, so read firmware now.
-	fwCtx, fwCancel := context.WithTimeout(ctx, time.Minute)
-	pkgfirmware.Refresh(fwCtx, pkgfirmware.Options{
+	pkgfirmware.RefreshWithin(ctx, pkgfirmware.Options{
 		NVMLInstance:           nvmlInstance,
 		InfinibandClassRootDir: op.infinibandClassRootDir,
-	})
-	fwCancel()
+	}, time.Minute)
 
 	mi, err := pkgmachineinfo.GetMachineInfo(nvmlInstance)
 	if err != nil {

@@ -67,9 +67,8 @@ func TestReadDOCAHostVersion(t *testing.T) {
 			want: "3.2.1-044413",
 		},
 		{
-			name:   "doca-host alone is reported raw",
+			name:   "doca-host alone is only the repository and reports nothing",
 			status: dpkgStatus(dpkgStanza("doca-host", "install ok installed", "3.2.1-044413-25.10-ubuntu2404")),
-			want:   "3.2.1-044413-25.10-ubuntu2404",
 		},
 		{
 			name: "no DOCA package",
