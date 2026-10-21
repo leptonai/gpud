@@ -138,6 +138,10 @@ var allSuccessInterface = &nvmlmock.Interface{
 			GetBoardIdFunc: func() (uint32, nvml.Return) {
 				return 123, nvml.SUCCESS
 			},
+			// The server's firmware collector reads the VBIOS at startup.
+			GetVbiosVersionFunc: func() (string, nvml.Return) {
+				return "96.00.00.00.01", nvml.SUCCESS
+			},
 		}, nvml.SUCCESS
 	},
 

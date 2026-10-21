@@ -210,6 +210,13 @@ func (d *testDevice) GetGspFirmwareVersion() (string, nvml.Return) {
 	return d.Device.GetGspFirmwareVersion()
 }
 
+func (d *testDevice) GetVbiosVersion() (string, nvml.Return) {
+	if err := d.getErrorReturn(); err != nvml.SUCCESS {
+		return "", err
+	}
+	return d.Device.GetVbiosVersion()
+}
+
 func (d *testDevice) GetGspFirmwareMode() (bool, bool, nvml.Return) {
 	if err := d.getErrorReturn(); err != nvml.SUCCESS {
 		return false, false, err

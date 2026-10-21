@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 )
 
@@ -128,6 +130,79 @@ func TestMachineInfo_GPUIdentifierJSONShape(t *testing.T) {
 	raw, err = json.Marshal(info)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "cliqueID")
+}
+
+// firmwareFixtureJSON is the GPUd wire shape of MachineInfo.Firmware with every
+// component. The Lepton gpud-manager decodes the same text into the Machine CRD.
+const firmwareFixtureJSON = `{"firmware":[` +
+	`{"component":"GPU","version":"97.10.4A.00.0B","instances":4,"instanceNames":["gpu1","gpu2","gpu3","gpu4"],"lastUpdated":"2026-10-21T08:00:00Z"},` +
+	`{"component":"bf3_nic","version":"32.47.2526","instances":1,"instanceNames":["mlx5_bond_0"],"lastUpdated":"2026-10-21T08:00:00Z"},` +
+	`{"component":"cx8","version":"40.47.2526","instances":4,"instanceNames":["rdma_rail0","rdma_rail1","rdma_rail2","rdma_rail3"],"lastUpdated":"2026-10-21T08:00:00Z"},` +
+	`{"component":"cx8-aws","version":"40.47.2526","instances":1,"instanceNames":["mlx5_0"],"lastUpdated":"2026-10-21T08:00:00Z"},` +
+	`{"component":"doca_host","version":"3.2.1-044413","instances":1,"lastUpdated":"2026-10-21T08:00:00Z"},` +
+	`{"component":"hmc-sbios","version":"5.36_O72OR37A_02.05.05","instances":1,"lastUpdated":"2026-10-21T08:00:00Z"}` +
+	`]}`
+
+func TestMachineInfo_FirmwareJSONShape(t *testing.T) {
+	var info MachineInfo
+	require.NoError(t, json.Unmarshal([]byte(firmwareFixtureJSON), &info))
+	require.Len(t, info.Firmware, 6)
+
+	gpu := info.Firmware[0]
+	assert.Equal(t, FirmwareComponentGPU, gpu.Component)
+	assert.Equal(t, "97.10.4A.00.0B", gpu.Version)
+	assert.Equal(t, int32(4), gpu.Instances)
+	assert.Equal(t, []string{"gpu1", "gpu2", "gpu3", "gpu4"}, gpu.InstanceNames)
+	assert.True(t, gpu.LastUpdated.Equal(&metav1.Time{Time: time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC)}))
+
+	components := make([]string, 0, len(info.Firmware))
+	for _, fw := range info.Firmware {
+		components = append(components, fw.Component)
+	}
+	assert.Equal(t, []string{
+		FirmwareComponentGPU,
+		FirmwareComponentBF3NIC,
+		FirmwareComponentCX8,
+		FirmwareComponentCX8AWS,
+		FirmwareComponentDOCAHost,
+		FirmwareComponentHMCSBIOS,
+	}, components)
+	assert.Nil(t, info.Firmware[4].InstanceNames)
+
+	// MachineInfo always marshals uptime, so compare only the firmware key.
+	raw, err := json.Marshal(info)
+	require.NoError(t, err)
+	var want, roundTrip map[string]any
+	require.NoError(t, json.Unmarshal([]byte(firmwareFixtureJSON), &want))
+	require.NoError(t, json.Unmarshal(raw, &roundTrip))
+	assert.Equal(t, want["firmware"], roundTrip["firmware"])
+
+	// A time in another zone with sub-second precision still goes out as whole-second UTC.
+	info = MachineInfo{Firmware: []MachineFirmware{{
+		Component:   FirmwareComponentDOCAHost,
+		Version:     "3.2.1-044413",
+		Instances:   1,
+		LastUpdated: metav1.NewTime(time.Date(2026, 10, 21, 16, 0, 0, 999, time.FixedZone("UTC+8", 8*3600))),
+	}}}
+	raw, err = json.Marshal(info)
+	require.NoError(t, err)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(raw, &got))
+	rows, ok := got["firmware"].([]any)
+	require.True(t, ok)
+	require.Len(t, rows, 1)
+	row, ok := rows[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, map[string]any{
+		"component":   "doca_host",
+		"version":     "3.2.1-044413",
+		"instances":   float64(1),
+		"lastUpdated": "2026-10-21T08:00:00Z",
+	}, row)
+
+	raw, err = json.Marshal(MachineInfo{GPUdVersion: "v0.0.1"})
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "firmware")
 }
 
 func TestMachineInfo_RenderTable(t *testing.T) {
@@ -259,6 +334,32 @@ func TestMachineInfo_RenderTable(t *testing.T) {
 				"UUID", "SN", "MINOR ID",
 				"GPU-abc123", "SN12345", "0",
 				"/dev/nvme0n1p1", "part", "ext4", "500 GiB", "/",
+			},
+		},
+		{
+			name: "Machine info with firmware",
+			machineInfo: MachineInfo{
+				GPUdVersion: "1.0.0",
+				Firmware: []MachineFirmware{
+					{
+						Component:     FirmwareComponentGPU,
+						Version:       "97.10.4A.00.0B",
+						Instances:     2,
+						InstanceNames: []string{"gpu1", "gpu2"},
+						LastUpdated:   metav1.NewTime(time.Date(2026, 10, 21, 8, 0, 0, 0, time.UTC)),
+					},
+					{
+						Component:   FirmwareComponentHMCSBIOS,
+						Version:     "5.36_O72OR37A_02.05.05",
+						Instances:   1,
+						LastUpdated: metav1.NewTime(time.Date(2026, 10, 21, 8, 0, 0, 0, time.FixedZone("UTC+8", 8*3600))),
+					},
+				},
+			},
+			wantContains: []string{
+				"COMPONENT", "VERSION", "INSTANCES", "INSTANCE NAMES", "LAST UPDATED (UTC)",
+				"GPU", "97.10.4A.00.0B", "gpu1, gpu2", "2026-10-21T08:00:00Z",
+				"hmc-sbios", "5.36_O72OR37A_02.05.05", "2026-10-21T00:00:00Z",
 			},
 		},
 	}

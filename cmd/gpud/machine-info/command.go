@@ -11,6 +11,7 @@ import (
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
 	gpudcommon "github.com/leptonai/gpud/cmd/gpud/common"
+	pkgfirmware "github.com/leptonai/gpud/pkg/firmware"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
@@ -82,6 +83,11 @@ func Command(cliContext *cli.Context) error {
 	if err != nil {
 		return wrapErr("failed_to_initialize_nvml", err)
 	}
+
+	// This one-shot process has no background collector, so read firmware now.
+	fwCtx, fwCancel := context.WithTimeout(context.Background(), time.Minute)
+	pkgfirmware.Refresh(fwCtx, pkgfirmware.Options{NVMLInstance: nvmlInstance})
+	fwCancel()
 
 	machineInfo, err := pkgmachineinfo.GetMachineInfo(nvmlInstance)
 	if err != nil {

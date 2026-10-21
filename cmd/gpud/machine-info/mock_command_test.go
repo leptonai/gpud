@@ -19,6 +19,7 @@ import (
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	gpudcommon "github.com/leptonai/gpud/cmd/gpud/common"
+	pkgfirmware "github.com/leptonai/gpud/pkg/firmware"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	"github.com/leptonai/gpud/pkg/netutil"
@@ -191,6 +192,41 @@ func TestCommand_Success(t *testing.T) {
 		cliContext := newCLIContext(t, []string{})
 		err := Command(cliContext)
 		require.NoError(t, err)
+	})
+}
+
+// TestCommand_RefreshesFirmwareBeforeMachineInfo tests that the one-shot
+// command reads firmware itself, since it has no background collector.
+func TestCommand_RefreshesFirmwareBeforeMachineInfo(t *testing.T) {
+	mockey.PatchConvey("command refreshes firmware first", t, func() {
+		mockey.Mock(gpudcommon.StateFileFromContext).To(func(cliContext *cli.Context) (string, error) {
+			return "/nonexistent/state.db", nil
+		}).Build()
+
+		mockNVML := nvidianvml.NewNoOp()
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return mockNVML, nil
+		}).Build()
+
+		var calls []string
+		mockey.Mock(pkgfirmware.Refresh).To(func(ctx context.Context, opts pkgfirmware.Options) {
+			assert.Equal(t, mockNVML, opts.NVMLInstance)
+			calls = append(calls, "refresh")
+		}).Build()
+		mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			calls = append(calls, "machine-info")
+			return &apiv1.MachineInfo{}, nil
+		}).Build()
+
+		mockey.Mock(netutil.PublicIP).To(func() (string, error) {
+			return "", errors.New("no public IP")
+		}).Build()
+		mockey.Mock(pkgmachineinfo.GetProvider).To(func(publicIP string) *providers.Info {
+			return nil
+		}).Build()
+
+		require.NoError(t, Command(newCLIContext(t, []string{})))
+		assert.Equal(t, []string{"refresh", "machine-info"}, calls)
 	})
 }
 

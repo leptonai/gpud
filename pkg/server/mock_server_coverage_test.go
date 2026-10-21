@@ -27,6 +27,7 @@ import (
 	lepconfig "github.com/leptonai/gpud/pkg/config"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/eventstore"
+	pkgfirmware "github.com/leptonai/gpud/pkg/firmware"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmetadata "github.com/leptonai/gpud/pkg/metadata"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -133,6 +134,18 @@ func TestNew_SuccessPathWithPprofAndPlugins_WithMockey(t *testing.T) {
 		s, err := New(ctx, log.NewNopAuditLogger(), cfg, nil)
 		require.NoError(t, err)
 		require.NotNil(t, s)
+
+		// New returns after the first firmware collection, so the mock GPU's
+		// VBIOS is already cached for the first gossip.
+		var gpuFirmware []apiv1.MachineFirmware
+		for _, fw := range pkgfirmware.Latest() {
+			if fw.Component == apiv1.FirmwareComponentGPU {
+				gpuFirmware = append(gpuFirmware, fw)
+			}
+		}
+		require.Len(t, gpuFirmware, 1)
+		assert.Equal(t, "96.00.00.00.01", gpuFirmware[0].Version)
+		assert.Equal(t, []string{"gpu1"}, gpuFirmware[0].InstanceNames)
 
 		require.Eventually(t, func() bool {
 			return updateTokenCalled.Load() && startListenerCalled.Load() && versionFileCalled.Load()

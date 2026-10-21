@@ -26,6 +26,7 @@ import (
 	"github.com/leptonai/gpud/pkg/asn"
 	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	"github.com/leptonai/gpud/pkg/disk"
+	pkgfirmware "github.com/leptonai/gpud/pkg/firmware"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/log"
 	"github.com/leptonai/gpud/pkg/netutil"
@@ -72,6 +73,10 @@ func currentGOOS() string {
 	return runtime.GOOS
 }
 
+// getFirmwareSnapshot only reads the cache that the server refreshes in the
+// background, so building machine info never waits on VBIOS or sysfs reads.
+var getFirmwareSnapshot = pkgfirmware.Latest
+
 func GetMachineInfo(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
 	return getMachineInfo(nvmlInstance, configcommon.ContainerdConfig{})
 }
@@ -107,6 +112,7 @@ func getMachineInfo(nvmlInstance nvidianvml.Instance, containerdConfig configcom
 		CPUInfo:    GetMachineCPUInfo(),
 		MemoryInfo: GetMachineMemoryInfo(),
 		NICInfo:    GetMachineNICInfo(),
+		Firmware:   getFirmwareSnapshot(),
 	}
 
 	var err error

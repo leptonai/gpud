@@ -17,6 +17,7 @@ import (
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	"github.com/leptonai/gpud/components/accelerator/nvidia/infiniband/types"
 	"github.com/leptonai/gpud/components/all"
+	pkgfirmware "github.com/leptonai/gpud/pkg/firmware"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
 	"github.com/leptonai/gpud/pkg/providers"
@@ -166,6 +167,37 @@ func TestScan_Success(t *testing.T) {
 		require.NoError(t, readErr)
 		require.NoError(t, err)
 		assert.Contains(t, string(output), "203.0.113.10")
+	})
+}
+
+// TestScan_RefreshesFirmwareBeforeMachineInfo tests that the one-shot scan
+// reads firmware itself, since it has no background collector.
+func TestScan_RefreshesFirmwareBeforeMachineInfo(t *testing.T) {
+	mockey.PatchConvey("scan refreshes firmware first", t, func() {
+		mockNVML := nvidianvml.NewNoOp()
+		mockey.Mock(nvidianvml.New).To(func() (nvidianvml.Instance, error) {
+			return mockNVML, nil
+		}).Build()
+
+		var calls []string
+		mockey.Mock(pkgfirmware.Refresh).To(func(ctx context.Context, opts pkgfirmware.Options) {
+			assert.Equal(t, mockNVML, opts.NVMLInstance)
+			assert.Equal(t, "/custom/infiniband", opts.InfinibandClassRootDir)
+			calls = append(calls, "refresh")
+		}).Build()
+		mockey.Mock(pkgmachineinfo.GetMachineInfo).To(func(nvmlInstance nvidianvml.Instance) (*apiv1.MachineInfo, error) {
+			calls = append(calls, "machine-info")
+			return &apiv1.MachineInfo{MachineID: "test-machine-id"}, nil
+		}).Build()
+		mockey.Mock(all.All).To(func() []all.Component {
+			return []all.Component{}
+		}).Build()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		require.NoError(t, Scan(ctx, WithInfinibandClassRootDir("/custom/infiniband")))
+		assert.Equal(t, []string{"refresh", "machine-info"}, calls)
 	})
 }
 

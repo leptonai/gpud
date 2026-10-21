@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	apiv1 "github.com/leptonai/gpud/api/v1"
 	cmdcommon "github.com/leptonai/gpud/cmd/common"
@@ -12,6 +13,7 @@ import (
 	nvidiainfiniband "github.com/leptonai/gpud/components/accelerator/nvidia/infiniband"
 	"github.com/leptonai/gpud/components/all"
 	nvidiacommon "github.com/leptonai/gpud/pkg/config/common"
+	pkgfirmware "github.com/leptonai/gpud/pkg/firmware"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	nvidianvml "github.com/leptonai/gpud/pkg/nvidia/nvml"
@@ -57,6 +59,14 @@ func Scan(ctx context.Context, opts ...OpOption) error {
 	if err != nil {
 		return err
 	}
+
+	// This one-shot process has no background collector, so read firmware now.
+	fwCtx, fwCancel := context.WithTimeout(ctx, time.Minute)
+	pkgfirmware.Refresh(fwCtx, pkgfirmware.Options{
+		NVMLInstance:           nvmlInstance,
+		InfinibandClassRootDir: op.infinibandClassRootDir,
+	})
+	fwCancel()
 
 	mi, err := pkgmachineinfo.GetMachineInfo(nvmlInstance)
 	if err != nil {

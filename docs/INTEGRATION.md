@@ -53,6 +53,55 @@ under `machine_info.cpuInfo`. Plain output includes measured thread, core, and
 socket counts. Logical CPU and topology reads are separate snapshots and can
 differ during CPU hotplug or when procfs and sysfs expose different CPU sets.
 
+## Firmware versions
+
+`gpud machine-info`, `gpud scan` and `/machine-info` report firmware and host
+software versions in `firmware`, one entry per component and version:
+
+```json
+{
+  "component": "GPU",
+  "version": "97.10.4A.00.0B",
+  "instances": 4,
+  "instanceNames": ["gpu1", "gpu2", "gpu3", "gpu4"],
+  "lastUpdated": "2026-10-21T08:00:00Z"
+}
+```
+
+| Component | Source | Instance names |
+|-----------|--------|----------------|
+| `GPU` | NVML VBIOS version | `gpu1`..`gpuN`, ranked by PCI bus ID |
+| `cx8` | ConnectX-8 (PCI device `0x1023`) `fw_ver` in sysfs | InfiniBand device name of each card |
+| `cx8-aws` | A `cx8` card whose PSID (`board_id`) starts with `AS` | Same as `cx8` |
+| `bf3_nic` | BlueField-3 (PCI device `0xa2dc`) `fw_ver` in sysfs | Same as `cx8` |
+| `hmc-sbios` | SMBIOS BIOS firmware inventory entry, else the BIOS version | None |
+| `doca_host` | First installed of `doca-ofed`, `doca-all`, `doca-networking`, `doca-roce`, `doca-ofed-userspace`, `doca-host` in the dpkg database | None |
+
+- Instances of one component that run the same version share one entry, and
+  `instances` counts them. Mixed versions produce one entry per version.
+- A NIC card counts once: SR-IOV VFs are skipped and PFs that share a
+  `sys_image_guid` (or PCI slot) are grouped. The card is named after its PF
+  with the lowest PCI address. Other NICs such as ConnectX-7 and EFA are not
+  reported.
+- `hmc-sbios` is reported only on bare-metal arm64 hosts whose SMBIOS processor
+  manufacturer is NVIDIA (Grace). Reading the SMBIOS table requires root.
+- Versions are reported as read, without normalization. Entries are sorted by
+  component and then version; instance names are in natural order.
+- `lastUpdated` is the UTC time of the read that produced the entry. The daemon
+  reads at startup and every 4 hours, and waits up to 30 seconds for the first
+  read before it starts the control plane session. Gossip and `/machine-info`
+  return the cached result; a login request sent before the daemon starts
+  carries no entries.
+
+Sources are read from sysfs, the SMBIOS table and the dpkg database without
+running external commands. A source that cannot be read is skipped without
+affecting the others. Each read replaces the previous result, so the entries of
+a source or GPU that fails during a read stay absent until the next successful
+read, up to 4 hours later. Non-Linux hosts report only GPU entries. Consumers
+must treat an absent entry as unknown. For JSON output, use
+`gpud machine-info --output-format json`; the entries are under
+`machine_info.firmware`.
+
 ## Lepton-managed diagnostics
 
 When GPUd is connected to gpud-manager through the session stream, gpud-manager

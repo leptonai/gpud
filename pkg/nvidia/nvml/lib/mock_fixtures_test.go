@@ -61,6 +61,12 @@ func TestAllSuccessInterface_DeviceGetHandleByIndex(t *testing.T) {
 		assert.Equal(t, nvml.GpuFabricInfo{}, info)
 	})
 
+	t.Run("GetVbiosVersion", func(t *testing.T) {
+		version, r := device.GetVbiosVersion()
+		assert.Equal(t, nvml.SUCCESS, r)
+		assert.Equal(t, "96.00.00.00.01", version)
+	})
+
 	t.Run("GetUUID", func(t *testing.T) {
 		uuid, r := device.GetUUID()
 		assert.Equal(t, nvml.SUCCESS, r)
