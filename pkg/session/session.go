@@ -29,6 +29,7 @@ import (
 	configcommon "github.com/leptonai/gpud/pkg/config/common"
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
+	"github.com/leptonai/gpud/pkg/httputil"
 	"github.com/leptonai/gpud/pkg/log"
 	pkgmachineinfo "github.com/leptonai/gpud/pkg/machine-info"
 	pkgmetrics "github.com/leptonai/gpud/pkg/metrics"
@@ -513,7 +514,7 @@ func createSessionRequestWithProof(ctx context.Context, epControlPlane, machineI
 	req.Header.Set("X-GPUD-Session-Type", sessionType)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	if machineProof != "" {
-		req.Header.Set("X-GPUD-Machine-Proof", machineProof)
+		req.Header.Set(httputil.RequestHeaderMachineProof, machineProof)
 	}
 	req.Header.Set("Origin", origin)
 

@@ -19,10 +19,6 @@ import (
 // ErrEmptyMachineID reports a successful login response that omitted the assigned machine ID.
 var ErrEmptyMachineID = errors.New("login request failed with empty machine ID")
 
-// machineProofHeader carries the proof from this machine's previous login, the
-// same header session requests use.
-const machineProofHeader = "X-GPUD-Machine-Proof"
-
 // dropMachineProofOnRedirect keeps the default redirect limit but removes the
 // proof unless a redirect keeps the login request's scheme and host. Go
 // forwards custom headers on any redirect, including to another host or from
@@ -33,7 +29,7 @@ func dropMachineProofOnRedirect(redirect *http.Request, via []*http.Request) err
 	}
 	original := via[0].URL
 	if redirect.URL.Scheme != original.Scheme || !strings.EqualFold(redirect.URL.Hostname(), original.Hostname()) {
-		redirect.Header.Del(machineProofHeader)
+		redirect.Header.Del(httputil.RequestHeaderMachineProof)
 	}
 	return nil
 }
@@ -105,7 +101,7 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", req.Token))
 	if machineProof != "" {
-		httpReq.Header.Set(machineProofHeader, machineProof)
+		httpReq.Header.Set(httputil.RequestHeaderMachineProof, machineProof)
 	}
 	httpReq.Header.Set("Origin", host)
 

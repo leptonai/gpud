@@ -8,4 +8,8 @@ const (
 
 	RequestHeaderAcceptEncoding = "Accept-Encoding"
 	RequestHeaderEncodingGzip   = "gzip"
+
+	// RequestHeaderMachineProof carries the machine proof on login and session
+	// requests.
+	RequestHeaderMachineProof = "X-GPUD-Machine-Proof"
 )
