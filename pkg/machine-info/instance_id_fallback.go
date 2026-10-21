@@ -61,12 +61,13 @@ func readInstanceIDFallback(paths []string) string {
 	return ""
 }
 
-// parseFallbackInstanceID accepts either:
+// parseFallbackInstanceID accepts:
 //   - a Firebird canonical node ID ("bm.<ULID>" or "vm.<ULID>", 26-character
 //     Crockford Base32 ULID), returned with a lowercase prefix and uppercase
 //     ULID to match Firebird's topology API; or
 //   - a UUID (36 characters) or 32 hex characters, returned lowercased without
-//     changing its form.
+//     changing its form; or
+//   - a decimal instance ID (e.g. Linode), returned without surrounding whitespace.
 //
 // Anything else is rejected, including cloud-init's "iid-datasource-none"
 // placeholder, which cloud-init writes when it found no datasource.
@@ -74,6 +75,17 @@ func parseFallbackInstanceID(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if id, ok := parseFirebirdInstanceID(trimmed); ok {
 		return id, nil
+	}
+
+	decimal := trimmed != ""
+	for i := range len(trimmed) {
+		if trimmed[i] < '0' || trimmed[i] > '9' {
+			decimal = false
+			break
+		}
+	}
+	if decimal {
+		return trimmed, nil
 	}
 
 	s := strings.ToLower(trimmed)
