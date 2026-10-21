@@ -627,6 +627,5 @@ func TestGetProviderWithContext_BlankProviderName_WithMockey(t *testing.T) {
 		info := GetProviderWithContext(context.Background(), "1.2.3.4")
 		require.NotNil(t, info)
 		assert.Equal(t, "unknown", info.Provider)
-		assert.Equal(t, "1.2.3.4", info.PublicIP)
 	})
 }

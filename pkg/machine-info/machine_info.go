@@ -370,8 +370,9 @@ func getProviderWithContext(ctx context.Context, publicIP string, detect func(co
 			Provider: "unknown",
 		}
 	}
-	if providerInfo.PublicIP == "" {
-		providerInfo.PublicIP = publicIP
+	// IMDS may explicitly report no public address; an egress echo is not a substitute.
+	if providerInfo.PublicIP == "" && !providerInfo.IMDSDetected {
+		providerInfo.PublicIP = assignedPublicIP(publicIP)
 	}
 	if providerInfo.Provider == "" {
 		log.Logger.Debugw("providerInfo.Provider is empty, setting to unknown")

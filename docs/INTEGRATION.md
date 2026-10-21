@@ -102,6 +102,22 @@ must treat an absent entry as unknown. For JSON output, use
 `gpud machine-info --output-format json`; the entries are under
 `machine_info.firmware`.
 
+## Public addresses and provider detection
+
+The provider section of `gpud machine-info` and login network data report public
+addresses assigned to the machine, not a shared NAT or proxy egress address.
+Provider metadata takes precedence. An IMDS result with no public address stays
+empty; an external IP echo must not replace it.
+
+For non-IMDS hosts, an external echo is retained only when it is a public address
+actually present on a local interface. Private, loopback, link-local and RFC 6598
+shared addresses are not public assignments. If local assignments cannot be
+enumerated, the fallback stays empty rather than guessing.
+
+Egress discovery remains available for ASN-based provider identification even
+when no public address is reported. Consumers must treat an empty public address
+as absent or unknown, not as a reason to use the NAT address for inbound access.
+
 ## Lepton-managed diagnostics
 
 When GPUd is connected to gpud-manager through the session stream, gpud-manager
