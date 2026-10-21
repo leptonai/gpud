@@ -61,43 +61,25 @@ func readInstanceIDFallback(paths []string) string {
 	return ""
 }
 
-// parseFallbackInstanceID accepts:
-//   - a Firebird canonical node ID ("bm.<ULID>" or "vm.<ULID>", 26-character
-//     Crockford Base32 ULID), returned with a lowercase prefix and uppercase
-//     ULID to match Firebird's topology API; or
-//   - a UUID (36 characters) or 32 hex characters, returned lowercased without
-//     changing its form; or
-//   - a decimal instance ID (e.g. Linode), returned without surrounding whitespace.
-//
-// Anything else is rejected, including cloud-init's "iid-datasource-none"
-// placeholder, which cloud-init writes when it found no datasource.
+// parseFallbackInstanceID trims an opaque provider instance ID and rejects
+// cloud-init's empty or no-datasource values. Recognized Firebird and UUID IDs
+// retain their existing case normalization; other provider IDs are unchanged.
 func parseFallbackInstanceID(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || trimmed == "iid-datasource-none" {
+		return "", fmt.Errorf("invalid instance ID %q", raw)
+	}
 	if id, ok := parseFirebirdInstanceID(trimmed); ok {
 		return id, nil
 	}
 
-	decimal := trimmed != ""
-	for i := range len(trimmed) {
-		if trimmed[i] < '0' || trimmed[i] > '9' {
-			decimal = false
-			break
+	// Normalize only the UUID forms cloud-init datasources commonly write.
+	if len(trimmed) == 36 || len(trimmed) == 32 {
+		if _, err := uuid.Parse(trimmed); err == nil {
+			return strings.ToLower(trimmed), nil
 		}
 	}
-	if decimal {
-		return trimmed, nil
-	}
-
-	s := strings.ToLower(trimmed)
-	// uuid.Parse also accepts the braced and "urn:uuid:" forms; keep only the
-	// two forms cloud-init datasources write so the ID is stored as found.
-	if len(s) != 36 && len(s) != 32 {
-		return "", fmt.Errorf("invalid instance ID %q", raw)
-	}
-	if _, err := uuid.Parse(s); err != nil {
-		return "", fmt.Errorf("invalid instance ID %q: %w", raw, err)
-	}
-	return s, nil
+	return trimmed, nil
 }
 
 // parseFirebirdInstanceID validates a Firebird canonical node ID of the form

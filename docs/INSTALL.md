@@ -18,8 +18,8 @@ Then open [localhost:15132](https://localhost:15132) for the local web UI.
 ## Instance IDs without a metadata service
 
 If provider metadata does not supply an instance ID, GPUd reads the host's cloud-init files.
-It accepts UUIDs, Firebird canonical node IDs, and decimal IDs such as Linode's `108254612`.
-GPUd removes surrounding whitespace, including the newline in cloud-init's `instance-id` file.
+GPUd treats instance IDs as opaque strings and uses `strings.TrimSpace` to remove surrounding whitespace.
+Recognized UUIDs and Firebird canonical node IDs retain their existing case normalization.
 It rejects empty values and the `iid-datasource-none` placeholder.
 
 For Linode, GPUd reads `/var/lib/cloud/data/instance-id` in a systemd installation.
