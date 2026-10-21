@@ -342,7 +342,7 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsRelogsIn(t *testing.
 		}).Build()
 
 		var receivedRequest apiv1.LoginRequest
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			receivedRequest = req
 			return &apiv1.LoginResponse{
 				MachineID: "existing-machine-id",
@@ -436,7 +436,7 @@ func TestLogin_RefreshSessionTokenRelogsIn(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest, string) (*apiv1.LoginResponse, error) {
 			requestSent = true
 			return &apiv1.LoginResponse{MachineID: "existing-machine-id", Token: "fresh-session-token"}, nil
 		}).Build()
@@ -512,8 +512,8 @@ func TestLogin_ReloginSendsStoredMachineProof(t *testing.T) {
 		mockey.Mock(pkgmachineinfo.CreateLoginRequestWithRegion).To(func(_, _, _, _, _ string, _ nvidianvml.Instance) (*apiv1.LoginRequest, error) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
-		mockey.Mock(SendRequest).To(func(_ context.Context, _ string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
-			sentProof = req.MachineProof
+		mockey.Mock(SendRequest).To(func(_ context.Context, _ string, _ apiv1.LoginRequest, machineProof string) (*apiv1.LoginResponse, error) {
+			sentProof = machineProof
 			return &apiv1.LoginResponse{MachineID: "existing-machine-id", Token: "session-token", MachineProof: "new-proof"}, nil
 		}).Build()
 		mockey.Mock(pkgmetadata.SetMetadata).To(func(context.Context, *sql.DB, string, string) error {
@@ -585,7 +585,7 @@ func TestLogin_MachineIDAlreadyAssignedWithChangedNodeLabelsAndMismatchedOverrid
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			requestSent = true
 			return &apiv1.LoginResponse{}, nil
 		}).Build()
@@ -682,7 +682,7 @@ func TestLogin_MachineIDOverwriteChecksInWithRequestedMachineID(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest, string) (*apiv1.LoginResponse, error) {
 			requestSent = true
 			return &apiv1.LoginResponse{MachineID: "new-machine-id", Token: "new-session-token"}, nil
 		}).Build()
@@ -824,7 +824,7 @@ func TestLogin_CreateLoginRequestError(t *testing.T) {
 			return nil, errors.New("provider nscale IMDS did not return an instance ID")
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest, string) (*apiv1.LoginResponse, error) {
 			sendCalled = true
 			return nil, nil
 		}).Build()
@@ -896,7 +896,7 @@ func TestLogin_SendRequestError(t *testing.T) {
 			}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return nil, errors.New("network error")
 		}).Build()
 
@@ -955,7 +955,7 @@ func TestLogin_SendRequestErrorWithResponse(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
 				Code:    "401",
 				Message: "invalid token",
@@ -1019,7 +1019,7 @@ func TestLogin_SetMetadataEndpointError(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
 				MachineID: "machine-123",
 				Token:     "session-token",
@@ -1097,7 +1097,7 @@ func TestLogin_Success(t *testing.T) {
 			}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
 				MachineID:    "machine-123",
 				Token:        "session-token",
@@ -1182,7 +1182,7 @@ func TestLogin_SuccessWithPublicPrivateIPOverride(t *testing.T) {
 			}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			*receivedRequest = req
 			return &apiv1.LoginResponse{
 				MachineID: "machine-123",
@@ -1262,7 +1262,7 @@ func TestLogin_SuccessWithServerRunning(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
 				MachineID: "machine-123",
 				Token:     "session-token",
@@ -1342,7 +1342,7 @@ func TestLogin_SuccessWithValidationResults(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
 				MachineID: "machine-123",
 				Token:     "session-token",
@@ -1502,7 +1502,7 @@ func TestLogin_WithMachineIDAndNodeGroup(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
 				MachineID: "machine-123",
 				Token:     "session-token",
@@ -1582,7 +1582,7 @@ func TestLogin_NVMLShutdownError(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
 				MachineID: "machine-123",
 				Token:     "session-token",
@@ -1657,7 +1657,7 @@ func TestLogin_WithGPUCount(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
 				MachineID: "machine-123",
 				Token:     "session-token",
@@ -1732,7 +1732,7 @@ func TestLogin_SendRequestWithDeprecatedErrorField(t *testing.T) {
 			return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 		}).Build()
 
-		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(SendRequest).To(func(ctx context.Context, endpoint string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return &apiv1.LoginResponse{
 				Status: "400",                  //nolint:staticcheck // SA1019 deprecated field under test
 				Error:  "invalid request body", //nolint:staticcheck // SA1019 deprecated field under test
@@ -1764,7 +1764,7 @@ func TestSendRequestWrapper_URLCreationError(t *testing.T) {
 		ctx := context.Background()
 		req := apiv1.LoginRequest{}
 
-		resp, err := SendRequest(ctx, "invalid-endpoint", req)
+		resp, err := SendRequest(ctx, "invalid-endpoint", req, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "error creating URL")
 		assert.Nil(t, resp)
@@ -1780,7 +1780,7 @@ func TestSendRequestWrapper_Success(t *testing.T) {
 		}).Build()
 
 		var receivedURL string
-		mockey.Mock(sendRequest).To(func(ctx context.Context, endpointURL string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(sendRequest).To(func(ctx context.Context, endpointURL string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			receivedURL = endpointURL
 			return &apiv1.LoginResponse{
 				MachineID: "test-machine-id",
@@ -1791,7 +1791,7 @@ func TestSendRequestWrapper_Success(t *testing.T) {
 		ctx := context.Background()
 		req := apiv1.LoginRequest{}
 
-		resp, err := SendRequest(ctx, "example.com", req)
+		resp, err := SendRequest(ctx, "example.com", req, "")
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, "test-machine-id", resp.MachineID)
@@ -1806,14 +1806,14 @@ func TestSendRequestWrapper_SendRequestError(t *testing.T) {
 			return "https://example.com/api/v1/login", nil
 		}).Build()
 
-		mockey.Mock(sendRequest).To(func(ctx context.Context, endpointURL string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+		mockey.Mock(sendRequest).To(func(ctx context.Context, endpointURL string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 			return nil, errors.New("network timeout")
 		}).Build()
 
 		ctx := context.Background()
 		req := apiv1.LoginRequest{}
 
-		resp, err := SendRequest(ctx, "example.com", req)
+		resp, err := SendRequest(ctx, "example.com", req, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "network timeout")
 		assert.Nil(t, resp)
@@ -1903,7 +1903,7 @@ func TestLogin_RegionOverride(t *testing.T) {
 				}).Build()
 
 				var receivedRequest apiv1.LoginRequest
-				mockey.Mock(SendRequest).To(func(_ context.Context, _ string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+				mockey.Mock(SendRequest).To(func(_ context.Context, _ string, req apiv1.LoginRequest, _ string) (*apiv1.LoginResponse, error) {
 					receivedRequest = req
 					return &apiv1.LoginResponse{
 						MachineID: "new-machine-id",
@@ -1999,7 +1999,7 @@ func TestLogin_RecordMetadataError(t *testing.T) {
 					return &apiv1.LoginRequest{Network: &apiv1.MachineNetwork{}}, nil
 				}).Build()
 
-				mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+				mockey.Mock(SendRequest).To(func(context.Context, string, apiv1.LoginRequest, string) (*apiv1.LoginResponse, error) {
 					return &apiv1.LoginResponse{
 						MachineID:    "machine-123",
 						Token:        "session-token",

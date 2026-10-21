@@ -37,7 +37,7 @@ func TestSendRequest_ExplicitEmptyNodeLabelsUsesRequestBody(t *testing.T) {
 		resp, err := sendRequest(context.Background(), "https://example.com/api/v1/login", apiv1.LoginRequest{
 			Token:      "token",
 			NodeLabels: map[string]string{},
-		})
+		}, "")
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		assert.Equal(t, "machine-123", resp.MachineID)

@@ -14,11 +14,6 @@ type LoginRequest struct {
 	ProviderInstanceID string            `json:"providerInstanceID"`
 	MachineInfo        *MachineInfo      `json:"machineInfo,omitempty"`
 	Resources          map[string]string `json:"resources,omitempty"`
-
-	// MachineProof is the proof this machine received on its previous login.
-	// It is sent in the X-GPUD-Machine-Proof header, never in the JSON body,
-	// so logging the request body cannot expose it.
-	MachineProof string `json:"-"`
 }
 
 // MarshalJSON preserves explicit empty node labels as {} while still omitting nil node labels.

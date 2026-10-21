@@ -69,15 +69,19 @@ func dropMachineProofOnRedirect(redirect *http.Request, via []*http.Request) err
 //   - Machine Retrieval/Creation/Update Errors
 //   - Node Group Error
 //   - ID Generation Error
-func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+//
+// machineProof is the proof from this machine's previous login, or empty. It is
+// sent in the X-GPUD-Machine-Proof header and never in the JSON body, which is
+// debug-logged.
+func SendRequest(ctx context.Context, endpoint string, req apiv1.LoginRequest, machineProof string) (*apiv1.LoginResponse, error) {
 	url, err := httputil.CreateURL("https", endpoint, "/api/v1/login")
 	if err != nil {
 		return nil, fmt.Errorf("error creating URL: %w", err)
 	}
-	return sendRequest(ctx, url, req)
+	return sendRequest(ctx, url, req, machineProof)
 }
 
-func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest) (*apiv1.LoginResponse, error) {
+func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest, machineProof string) (*apiv1.LoginResponse, error) {
 	log.Logger.Debugw("sending login request", "endpointURL", endpointURL)
 
 	u, err := url.Parse(endpointURL)
@@ -100,8 +104,8 @@ func sendRequest(ctx context.Context, endpointURL string, req apiv1.LoginRequest
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", req.Token))
-	if req.MachineProof != "" {
-		httpReq.Header.Set(machineProofHeader, req.MachineProof)
+	if machineProof != "" {
+		httpReq.Header.Set(machineProofHeader, machineProof)
 	}
 	httpReq.Header.Set("Origin", host)
 

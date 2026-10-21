@@ -310,14 +310,14 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	req.NodeLabels = cfg.NodeLabels
 	log.Logger.Debugw("successfully created login request", "duration", time.Since(loginCreatedAt))
 
+	machineProof := ""
 	if reloginExistingMachine {
 		// The control plane can require the proof from this machine's previous
 		// login before it issues a new one.
-		machineProof, err := pkgmetadata.ReadMetadata(ctx, dbRO, pkgmetadata.MetadataKeyMachineProof)
+		machineProof, err = pkgmetadata.ReadMetadata(ctx, dbRO, pkgmetadata.MetadataKeyMachineProof)
 		if err != nil {
 			return fmt.Errorf("failed to read machine proof: %w", err)
 		}
-		req.MachineProof = machineProof
 	}
 
 	if cfg.PublicIP != "" { // overwrite if not empty
@@ -332,7 +332,7 @@ func Login(ctx context.Context, cfg LoginConfig) error {
 	// thus request one and blocks until the login request is processed
 	loginSentAt := time.Now()
 	log.Logger.Debugw("sending login request")
-	loginResp, err := SendRequest(ctx, cfg.Endpoint, *req)
+	loginResp, err := SendRequest(ctx, cfg.Endpoint, *req, machineProof)
 	if err != nil {
 		log.Logger.Debugw("failed to login", "error", err)
 		if loginResp != nil {
