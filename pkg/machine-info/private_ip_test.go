@@ -66,11 +66,11 @@ func TestSelectPrivateIP(t *testing.T) {
 			want:         "10.0.0.5",
 		},
 		{
-			// Lepton satellite node (viking-prod-348): kubelet-network assigns the
-			// node cluster IP to the lepton0 dummy link, which sorts before the LAN
-			// address. The default-route NIC is the host LAN.
+			// Lepton satellite node: kubelet-network assigns the node cluster IP to
+			// the lepton0 dummy link, which sorts before the LAN address. The
+			// default-route NIC is the host LAN.
 			name:     "RFC1918 default-route host IP wins over lepton0 dummy link",
-			publicIP: "216.228.127.129",
+			publicIP: "203.0.113.1",
 			nics: []apiv1.MachineNetworkInterface{
 				nic("lepton0", "10.50.101.107"),
 				nic("ens6f0np0", "10.78.9.13"),
