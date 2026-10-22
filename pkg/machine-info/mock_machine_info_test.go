@@ -970,24 +970,38 @@ func writeInstanceIDFile(t *testing.T, content string) string {
 }
 
 // TestGetProvider_InstanceIDFileFallback covers hosts with no metadata service
-// (Mistral bare metal, Lambda): the instance ID comes from the cloud-init file.
+// (Mistral bare metal, Lambda, Linode): the instance ID comes from the cloud-init file.
 func TestGetProvider_InstanceIDFileFallback(t *testing.T) {
 	tests := []struct {
 		name     string
 		asnName  string
 		file     string
+		fallback string
 		wantName string
 		wantID   string
 	}{
 		{name: "mistral keeps metal3 uuid", asnName: "mistral-compute - mistral compute holding sas", file: "2b1434ed-d9fc-489f-9fd4-7859292d309f\n", wantName: "mistral", wantID: "2b1434ed-d9fc-489f-9fd4-7859292d309f"},
 		{name: "lambda uses api hex form", asnName: "lambda - lambda", file: "ebfd7e9b-fa1b-4d27-9603-58ffd1a2571a\n", wantName: "lambda", wantID: "ebfd7e9bfa1b4d27960358ffd1a2571a"},
+		{name: "linode uses decimal id", asnName: "linode - akamai connected cloud", file: "108254612\n", wantName: "linode - akamai connected cloud", wantID: "108254612"},
+		{name: "second linode decimal id", asnName: "linode - akamai connected cloud", file: " \t108254616\r\n", wantName: "linode - akamai connected cloud", wantID: "108254616"},
+		{name: "opaque id preserves case", asnName: "linode - akamai connected cloud", file: " \tVendor-Node-A1\r\n", wantName: "linode - akamai connected cloud", wantID: "Vendor-Node-A1"},
 		{name: "firebird bm ulid", asnName: "firebird-as-51693 - supercom llc", file: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X\n", wantName: "firebird-as-51693 - supercom llc", wantID: "bm.01M3KNHF1NFX3VX8Z1EWNQ2H3X"},
 		{name: "unknown provider still gets the id", asnName: "firebird-as-51693 - supercom llc", file: "4c4c4544-0032-5010-8057-b3c04f504b34", wantName: "firebird-as-51693 - supercom llc", wantID: "4c4c4544-0032-5010-8057-b3c04f504b34"},
-		{name: "cloud-init placeholder is ignored", asnName: "mistral-compute - mistral compute holding sas", file: "iid-datasource-none", wantName: "mistral", wantID: ""},
+		{name: "no datasource placeholder is ignored", asnName: "mistral-compute - mistral compute holding sas", file: " \tiid-datasource-none\r\n", wantName: "mistral"},
+		{name: "datasource placeholder is ignored", asnName: "mistral-compute - mistral compute holding sas", file: " \tiid-datasource\r\n", wantName: "mistral"},
+		{name: "nocloud placeholder is ignored", asnName: "mistral-compute - mistral compute holding sas", file: " \tnocloud\r\n", wantName: "mistral"},
+		{name: "config drive placeholder is ignored", asnName: "mistral-compute - mistral compute holding sas", file: " \tiid-dsconfigdrive\r\n", wantName: "mistral"},
+		{name: "ovf placeholder is ignored", asnName: "mistral-compute - mistral compute holding sas", file: " \tiid-dsovf\r\n", wantName: "mistral"},
+		{name: "opennebula placeholder is ignored", asnName: "mistral-compute - mistral compute holding sas", file: " \tiid-dsopennebula\r\n", wantName: "mistral"},
+		{name: "placeholder does not hide valid fallback", asnName: "linode - akamai connected cloud", file: " \tnocloud\r\n", fallback: "108254616\n", wantName: "linode - akamai connected cloud", wantID: "108254616"},
 	}
 	for _, tt := range tests {
 		mockey.PatchConvey(tt.name, t, func() {
-			setInstanceIDFallbackPaths(t, []string{filepath.Join(t.TempDir(), "missing"), writeInstanceIDFile(t, tt.file)})
+			paths := []string{filepath.Join(t.TempDir(), "missing"), writeInstanceIDFile(t, tt.file)}
+			if tt.fallback != "" {
+				paths = append(paths, writeInstanceIDFile(t, tt.fallback))
+			}
+			setInstanceIDFallbackPaths(t, paths)
 			mockey.Mock(pkgprovidersall.Detect).To(func(ctx context.Context) (*providers.Info, error) {
 				return &providers.Info{Provider: ""}, nil
 			}).Build()
@@ -995,7 +1009,7 @@ func TestGetProvider_InstanceIDFileFallback(t *testing.T) {
 				return &asn.ASLookupResponse{AsnName: tt.asnName, IP: ip}, nil
 			}).Build()
 
-			provider := GetProvider("1.2.3.4")
+			provider := GetProviderWithContext(context.Background(), "1.2.3.4")
 			require.NotNil(t, provider)
 			assert.Equal(t, tt.wantName, provider.Provider)
 			assert.Equal(t, tt.wantID, provider.InstanceID)
