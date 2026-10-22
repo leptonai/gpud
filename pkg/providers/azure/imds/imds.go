@@ -39,13 +39,18 @@ func FetchMetadata(ctx context.Context, path string) (string, error) {
 // fetchMetadataByPath retrieves Azure instance metadata from the specified path using IMDS.
 // ref. https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#instance-metadata
 func fetchMetadataByPath(ctx context.Context, metadataURL string) (string, error) {
+	value, _, err := fetchMetadataByPathWithStatusCode(ctx, metadataURL)
+	return value, err
+}
+
+func fetchMetadataByPathWithStatusCode(ctx context.Context, metadataURL string) (string, int, error) {
 	client := &http.Client{
 		Timeout: 5 * time.Second, // Set a reasonable timeout
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to create metadata request: %w", err)
+		return "", 0, fmt.Errorf("failed to create metadata request: %w", err)
 	}
 
 	// ref. https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#security-and-authentication
@@ -57,22 +62,22 @@ func fetchMetadataByPath(ctx context.Context, metadataURL string) (string, error
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch metadata: %w", err)
+		return "", 0, fmt.Errorf("failed to fetch metadata: %w", err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to fetch metadata: received status code %d", resp.StatusCode)
+		return "", resp.StatusCode, fmt.Errorf("failed to fetch metadata: received status code %d", resp.StatusCode)
 	}
 
 	metadataBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read metadata response body: %w", err)
+		return "", resp.StatusCode, fmt.Errorf("failed to read metadata response body: %w", err)
 	}
 
-	return strings.TrimSpace(string(metadataBytes)), nil
+	return strings.TrimSpace(string(metadataBytes)), resp.StatusCode, nil
 }
 
 // FetchPublicIPv4 fetches Azure instance public IPv4 using IMDS.
@@ -84,8 +89,11 @@ func FetchPublicIPv4(ctx context.Context) (string, error) {
 func fetchPublicIPv4(ctx context.Context, metadataURL string) (string, error) {
 	// Get the raw network interface metadata
 	// e.g., curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/network/interface?api-version=2023-11-15" | jq
-	data, err := fetchMetadataByPath(ctx, metadataURL+"/instance/network/interface")
+	data, statusCode, err := fetchMetadataByPathWithStatusCode(ctx, metadataURL+"/instance/network/interface")
 	if err != nil {
+		if statusCode == http.StatusNotFound {
+			return "", nil
+		}
 		return "", err
 	}
 

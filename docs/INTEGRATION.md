@@ -118,12 +118,19 @@ rather than guessing. A dedicated 1:1 public mapping that is not present on a
 local interface still needs authoritative provider metadata; an echo alone
 cannot distinguish that mapping from shared NAT.
 
-OCI and Nebius currently have no public-address metadata fetcher. Their
-provider-only 1:1 mappings therefore remain unknown unless another source
-positively verifies an assigned address. A failed public-address metadata read
-also leaves the assignment unknown; it is not proof that the machine has no
-public address. In either case, a verified local assignment is still retained.
-GPUd does not retry these optional reads or add provider API credentials.
+OCI and Nebius currently have no public-address metadata fetcher. Azure's
+fetcher reads only instance-network metadata, not the [Load Balancer Metadata
+API][azure-lb-metadata] that [Microsoft recommends][azure-imds-public-ip] for
+Standard SKU public IPs. Provider-only mappings on OCI, Nebius and Azure
+Standard SKU therefore remain unknown unless another source positively
+verifies an assigned address.
+
+For IMDS public-address read errors, GPUd makes at most four attempts, with
+100, 200 and 400 ms between retries. A 404 or successful empty answer is
+terminal. Required identity fields are fetched first, and context cancellation
+stops retries. If all attempts fail, the assignment remains unknown, not
+confirmed absent. A verified local assignment is still retained. GPUd does not
+add provider API credentials.
 
 Egress discovery remains available for ASN-based provider identification even
 when no public address is reported. The current string field does not distinguish
@@ -135,6 +142,9 @@ exclusion when no public address is reported. A matching default-route address
 is not reported as private. This comparison does not publish the echo as a
 public address and does not discard non-RFC1918 internal addresses that differ
 from the echo.
+
+[azure-imds-public-ip]: https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service#sample-7-retrieve-public-ip-address
+[azure-lb-metadata]: https://learn.microsoft.com/en-us/azure/load-balancer/howto-load-balancer-imds
 
 ## Lepton-managed diagnostics
 

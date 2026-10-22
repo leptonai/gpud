@@ -72,7 +72,7 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 	// slow or hanging, the optional best-effort fetches (public IP, VM
 	// environment, private IP) must not consume the shared context budget
 	// that the login-gating instance ID and region need.
-	instanceID, err := fetchRequiredMetadata(ctx, detector, "instance ID", detector.InstanceID)
+	instanceID, err := fetchProviderMetadata(ctx, detector, "instance ID", detector.InstanceID, false)
 	if err != nil {
 		log.Logger.Warnw("failed to get instance ID", "provider", detector.Name(), "error", err)
 	} else {
@@ -88,7 +88,7 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 		if detector.Name() == pkgprovidersnscale.Name {
 			region, err = regionDetector.Region(ctx)
 		} else {
-			region, err = fetchRequiredMetadata(ctx, detector, "region", regionDetector.Region)
+			region, err = fetchProviderMetadata(ctx, detector, "region", regionDetector.Region, false)
 		}
 		if err != nil {
 			log.Logger.Warnw("failed to get region", "provider", detector.Name(), "error", err)
@@ -100,7 +100,7 @@ func DetectWithRegionOverride(ctx context.Context, regionOverride string) (*pkgp
 	// Metadata fields below are best-effort: provider detection has already
 	// succeeded, so one failed optional fetch should not discard provider
 	// identity.
-	publicIP, err := detector.PublicIPv4(ctx)
+	publicIP, err := fetchProviderMetadata(ctx, detector, "public IP", detector.PublicIPv4, true)
 	if err != nil {
 		log.Logger.Warnw("failed to get public IP", "provider", detector.Name(), "error", err)
 	} else {
@@ -137,10 +137,11 @@ func fetchPrivateIPv4(ctx context.Context, detector pkgproviders.Detector) (stri
 	if !pkgproviders.SupportsPrivateIPv4Retry(detector) {
 		return detector.PrivateIPv4(ctx)
 	}
-	return fetchRequiredMetadata(ctx, detector, "private IP", detector.PrivateIPv4)
+	return fetchProviderMetadata(ctx, detector, "private IP", detector.PrivateIPv4, false)
 }
 
-func fetchRequiredMetadata(ctx context.Context, detector pkgproviders.Detector, field string, fetch func(context.Context) (string, error)) (string, error) {
+// A successful empty public-IP read is terminal, unlike a missing required field.
+func fetchProviderMetadata(ctx context.Context, detector pkgproviders.Detector, field string, fetch func(context.Context) (string, error), allowEmpty bool) (string, error) {
 	if !pkgproviders.SupportsIMDS(detector) {
 		return fetch(ctx)
 	}
@@ -157,14 +158,14 @@ func fetchRequiredMetadata(ctx context.Context, detector pkgproviders.Detector, 
 
 		value, err := fetch(ctx)
 		value = strings.TrimSpace(value)
-		if err == nil && value != "" && !strings.EqualFold(value, "unknown") {
+		if err == nil && (allowEmpty || value != "" && !strings.EqualFold(value, "unknown")) {
 			return value, nil
 		}
 		if err == nil {
 			err = fmt.Errorf("empty or invalid %s", field)
 		}
 		lastErr = err
-		log.Logger.Warnw("failed to get required provider metadata",
+		log.Logger.Warnw("failed to get provider metadata",
 			"provider", detector.Name(),
 			"field", field,
 			"attempt", attempt+1,
