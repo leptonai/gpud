@@ -508,6 +508,35 @@ func TestTestDevice_GetGspFirmwareVersion(t *testing.T) {
 	})
 }
 
+// TestTestDevice_GetVbiosVersion tests GetVbiosVersion with error injection.
+func TestTestDevice_GetVbiosVersion(t *testing.T) {
+	t.Run("GPU lost error", func(t *testing.T) {
+		td := &testDevice{
+			Device:  newMockNvDevice(),
+			gpuLost: true,
+		}
+
+		version, ret := td.GetVbiosVersion()
+		assert.Equal(t, nvml.ERROR_GPU_IS_LOST, ret)
+		assert.Equal(t, "", version)
+	})
+
+	t.Run("success passthrough", func(t *testing.T) {
+		mockDev := newMockNvDevice()
+		mockDev.GetVbiosVersionFunc = func() (string, nvml.Return) {
+			return "97.00.0B.00.01", nvml.SUCCESS
+		}
+
+		td := &testDevice{
+			Device: mockDev,
+		}
+
+		version, ret := td.GetVbiosVersion()
+		assert.Equal(t, nvml.SUCCESS, ret)
+		assert.Equal(t, "97.00.0B.00.01", version)
+	})
+}
+
 // TestTestDevice_GetGspFirmwareMode tests GetGspFirmwareMode with error injection.
 func TestTestDevice_GetGspFirmwareMode(t *testing.T) {
 	t.Run("GPU lost error", func(t *testing.T) {

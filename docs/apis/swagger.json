@@ -1096,6 +1096,34 @@
                 }
             }
         },
+        "github_com_leptonai_gpud_api_v1.MachineFirmware": {
+            "type": "object",
+            "properties": {
+                "component": {
+                    "description": "Component is one of \"GPU\", \"cx8\", \"cx8-aws\", \"bf3_nic\", \"hmc-sbios\" or \"doca_host\".",
+                    "type": "string"
+                },
+                "instanceNames": {
+                    "description": "InstanceNames names the instances in natural order: \"gpu1\"..\"gpuN\" by PCI bus ID\nfor GPUs, and the InfiniBand device name of each card for NICs.\nOmitted for host-level components (\"hmc-sbios\", \"doca_host\").",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "instances": {
+                    "description": "Instances is the number of instances that run this version.",
+                    "type": "integer"
+                },
+                "lastUpdated": {
+                    "description": "LastUpdated is the UTC time, in whole seconds, of the read that produced this entry.",
+                    "type": "string"
+                },
+                "version": {
+                    "description": "Version is the version string as read on the node, without normalization.",
+                    "type": "string"
+                }
+            }
+        },
         "github_com_leptonai_gpud_api_v1.MachineGPUInfo": {
             "type": "object",
             "properties": {
@@ -1187,6 +1215,13 @@
                             "$ref": "#/definitions/github_com_leptonai_gpud_api_v1.MachineDiskInfo"
                         }
                     ]
+                },
+                "firmware": {
+                    "description": "Firmware lists the firmware and host software versions read on the node,\none entry per (component, version), sorted by component and then version.\nGPUd refreshes it at startup and every 4 hours.\nOmitted when nothing was collected; consumers must treat absence as unknown.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_leptonai_gpud_api_v1.MachineFirmware"
+                    }
                 },
                 "gpuDriverVersion": {
                     "description": "GPUDriverVersion represents the current version of GPU driver installed",

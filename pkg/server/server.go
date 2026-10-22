@@ -37,6 +37,7 @@ import (
 	pkgcustomplugins "github.com/leptonai/gpud/pkg/custom-plugins"
 	"github.com/leptonai/gpud/pkg/eventstore"
 	pkgfaultinjector "github.com/leptonai/gpud/pkg/fault-injector"
+	pkgfirmware "github.com/leptonai/gpud/pkg/firmware"
 	gpudmanager "github.com/leptonai/gpud/pkg/gpud-manager"
 	pkghost "github.com/leptonai/gpud/pkg/host"
 	"github.com/leptonai/gpud/pkg/httputil"
@@ -54,6 +55,10 @@ import (
 	"github.com/leptonai/gpud/pkg/sqlite"
 	pkgupdate "github.com/leptonai/gpud/pkg/update"
 )
+
+// firmwareFirstCollectTimeout bounds how long New waits for the first firmware
+// collection before the session starts.
+const firmwareFirstCollectTimeout = 30 * time.Second
 
 // Server is the gpud main daemon
 type Server struct {
@@ -296,6 +301,13 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 		return nil, fmt.Errorf("failed to create NVML instance: %w", err)
 	}
 
+	// Start early so the first collection overlaps component startup.
+	// It also runs without NVML: CPU-only hosts can report NIC and DOCA versions.
+	firmwareReady := pkgfirmware.Start(ctx, pkgfirmware.Options{
+		NVMLInstance:           nvmlInstance,
+		InfinibandClassRootDir: config.NvidiaToolOverwrites.InfinibandClassRootDir,
+	}, pkgfirmware.DefaultCollectInterval)
+
 	// Start the NVSentinel receiver before component registration.
 	// Components subscribe to it in their constructors, so it must be
 	// ready when they are created.
@@ -470,6 +482,13 @@ func New(ctx context.Context, auditLogger log.AuditLogger, config *lepconfig.Con
 	s.epLocalGPUdServer, err = httputil.CreateURL("https", config.Address, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create local GPUd server endpoint: %w", err)
+	}
+
+	// The control plane replaces the stored machine info on every gossip, so a
+	// session that starts before the first collection would clear firmware
+	// until the next gossip.
+	if !pkgfirmware.WaitFirst(ctx, firmwareReady, firmwareFirstCollectTimeout) {
+		log.Logger.Warnw("starting session before the first firmware collection finished", "timeout", firmwareFirstCollectTimeout)
 	}
 
 	userToken := &UserToken{}

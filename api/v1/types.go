@@ -296,6 +296,45 @@ type MachineInfo struct {
 	DiskInfo *MachineDiskInfo `json:"diskInfo,omitempty"`
 	// NICInfo is the network info of the machine.
 	NICInfo *MachineNICInfo `json:"nicInfo,omitempty"`
+
+	// Firmware lists the firmware and host software versions read on the node,
+	// one entry per (component, version), sorted by component and then version.
+	// GPUd refreshes it at startup and every 4 hours.
+	// Omitted when nothing was collected; consumers must treat absence as unknown.
+	Firmware []MachineFirmware `json:"firmware,omitempty"`
+}
+
+// Firmware component names reported in MachineFirmware.Component.
+const (
+	// FirmwareComponentGPU is the GPU VBIOS version read through NVML.
+	FirmwareComponentGPU = "GPU"
+	// FirmwareComponentCX8 is the firmware of a ConnectX-8 NIC (PCI device 0x1023).
+	FirmwareComponentCX8 = "cx8"
+	// FirmwareComponentCX8AWS is the firmware of a ConnectX-8 NIC whose PSID starts with "AS".
+	FirmwareComponentCX8AWS = "cx8-aws"
+	// FirmwareComponentBF3NIC is the firmware of a BlueField-3 NIC (PCI device 0xa2dc).
+	FirmwareComponentBF3NIC = "bf3_nic"
+	// FirmwareComponentHMCSBIOS is the system BIOS version of an NVIDIA Grace bare-metal host.
+	FirmwareComponentHMCSBIOS = "hmc-sbios"
+	// FirmwareComponentDOCAHost is the version of the installed DOCA host package.
+	FirmwareComponentDOCAHost = "doca_host"
+)
+
+// MachineFirmware is one version of one firmware component. Instances of the
+// same component that run the same version share one entry.
+type MachineFirmware struct {
+	// Component is one of "GPU", "cx8", "cx8-aws", "bf3_nic", "hmc-sbios" or "doca_host".
+	Component string `json:"component"`
+	// Version is the version string as read on the node, without normalization.
+	Version string `json:"version"`
+	// Instances is the number of instances that run this version.
+	Instances int32 `json:"instances"`
+	// InstanceNames names the instances in natural order: "gpu1".."gpuN" by PCI bus ID
+	// for GPUs, and the InfiniBand device name of each card for NICs.
+	// Omitted for host-level components ("hmc-sbios", "doca_host").
+	InstanceNames []string `json:"instanceNames,omitempty"`
+	// LastUpdated is the UTC time, in whole seconds, of the read that produced this entry.
+	LastUpdated metav1.Time `json:"lastUpdated"`
 }
 
 func (i *MachineInfo) RenderTable(wr io.Writer) {
@@ -368,6 +407,31 @@ func (i *MachineInfo) RenderTable(wr io.Writer) {
 		i.GPUInfo.RenderTable(wr)
 		_, _ = fmt.Fprintf(wr, "\n")
 	}
+
+	if len(i.Firmware) > 0 {
+		renderFirmwareTable(wr, i.Firmware)
+		_, _ = fmt.Fprintf(wr, "\n")
+	}
+}
+
+func renderFirmwareTable(wr io.Writer, rows []MachineFirmware) {
+	table := tablewriter.NewWriter(wr)
+	table.SetAlignment(tablewriter.ALIGN_CENTER)
+	table.SetHeader([]string{"Component", "Version", "Instances", "Instance names", "Last updated (UTC)"})
+	for _, fw := range rows {
+		lastUpdated := ""
+		if !fw.LastUpdated.IsZero() {
+			lastUpdated = fw.LastUpdated.UTC().Format(time.RFC3339)
+		}
+		table.Append([]string{
+			fw.Component,
+			fw.Version,
+			strconv.Itoa(int(fw.Instances)),
+			strings.Join(fw.InstanceNames, ", "),
+			lastUpdated,
+		})
+	}
+	table.Render()
 }
 
 type MachineCPUInfo struct {

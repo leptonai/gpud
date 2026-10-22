@@ -244,6 +244,31 @@ definitions:
           root (such as "/var/lib/kubelet" mount point).
         type: string
     type: object
+  github_com_leptonai_gpud_api_v1.MachineFirmware:
+    properties:
+      component:
+        description: Component is one of "GPU", "cx8", "cx8-aws", "bf3_nic", "hmc-sbios"
+          or "doca_host".
+        type: string
+      instanceNames:
+        description: |-
+          InstanceNames names the instances in natural order: "gpu1".."gpuN" by PCI bus ID
+          for GPUs, and the InfiniBand device name of each card for NICs.
+          Omitted for host-level components ("hmc-sbios", "doca_host").
+        items:
+          type: string
+        type: array
+      instances:
+        description: Instances is the number of instances that run this version.
+        type: integer
+      lastUpdated:
+        description: LastUpdated is the UTC time, in whole seconds, of the read that
+          produced this entry.
+        type: string
+      version:
+        description: Version is the version string as read on the node, without normalization.
+        type: string
+    type: object
   github_com_leptonai_gpud_api_v1.MachineGPUInfo:
     properties:
       architecture:
@@ -323,6 +348,15 @@ definitions:
         allOf:
         - $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineDiskInfo'
         description: DiskInfo is the Disk info of the machine.
+      firmware:
+        description: |-
+          Firmware lists the firmware and host software versions read on the node,
+          one entry per (component, version), sorted by component and then version.
+          GPUd refreshes it at startup and every 4 hours.
+          Omitted when nothing was collected; consumers must treat absence as unknown.
+        items:
+          $ref: '#/definitions/github_com_leptonai_gpud_api_v1.MachineFirmware'
+        type: array
       gpuDriverVersion:
         description: GPUDriverVersion represents the current version of GPU driver
           installed
